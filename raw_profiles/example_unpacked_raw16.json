@@ -1,0 +1,15 @@
+{
+  "name": "example_unpacked_raw16",
+  "width": 640,
+  "height": 480,
+  "stride_bytes": 1280,
+  "offset_bytes": 0,
+  "dtype": "uint16",
+  "endianness": "little",
+  "bit_depth": 12,
+  "packing": "unpacked_u16",
+  "channel_layout": "BAYER",
+  "bayer_pattern": "RGGB",
+  "black_level": 64,
+  "white_level": 4095
+}

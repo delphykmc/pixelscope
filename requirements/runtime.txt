@@ -1,0 +1,18 @@
+# Verified target set: CPython 3.10 x64 / Windows 10-11.
+numpy==1.24.4
+opencv-python==4.8.1.78
+pydantic==1.10.13
+httpx==0.24.1
+PySide6==6.4.2
+pyqtgraph==0.13.3
+PySide6-Addons==6.4.2
+PySide6-Essentials==6.4.2
+shiboken6==6.4.2
+anyio==4.14.2
+certifi==2026.7.22
+exceptiongroup==1.3.1
+h11==0.14.0
+httpcore==0.17.3
+idna==3.18
+sniffio==1.3.1
+typing_extensions==4.16.0
