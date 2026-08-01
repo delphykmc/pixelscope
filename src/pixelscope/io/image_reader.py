@@ -15,18 +15,18 @@ class ImageReadError(ValueError):
 
 
 def read_image(path: str | Path) -> ImageDocument:
-    """Decode a Unicode-safe PNG/BMP and normalize OpenCV channels to RGB(A)."""
+    """Decode a Unicode-safe PNG/BMP/JPEG and normalize OpenCV channels to RGB(A)."""
 
     source_path = Path(path)
-    if source_path.suffix.lower() not in (".png", ".bmp"):
-        raise ImageReadError("Supported image formats are PNG and BMP")
+    if source_path.suffix.lower() not in (".png", ".bmp", ".jpg", ".jpeg"):
+        raise ImageReadError("Supported image formats are PNG, BMP, and JPEG")
     try:
         encoded = np.fromfile(source_path, dtype=np.uint8)
     except OSError as exc:
         raise ImageReadError(f"Cannot read image file: {exc}") from exc
     decoded = cv2.imdecode(encoded, cv2.IMREAD_UNCHANGED)
     if decoded is None:
-        raise ImageReadError("The file is not a valid or supported PNG/BMP image")
+        raise ImageReadError("The file is not a valid or supported PNG/BMP/JPEG image")
     if decoded.ndim == 2:
         image = decoded
         layout = "GRAY"

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLineEdit,
     QMessageBox,
@@ -27,7 +28,7 @@ class RawOpenDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("RAW profile")
-        self.name = QLineEdit("unpacked_raw")
+        self._profile_name = "unpacked_raw"
         self.width_box = self._spin(1, 1_000_000, 640)
         self.height_box = self._spin(1, 1_000_000, 480)
         self.stride = self._spin(1, 2_000_000_000, 1280)
@@ -49,7 +50,6 @@ class RawOpenDialog(QDialog):
         self.white = self._spin(1, 65535, 4095)
         form = QFormLayout()
         rows: tuple[tuple[str, QWidget], ...] = (
-            ("Name", self.name),
             ("Width", self.width_box),
             ("Height", self.height_box),
             ("Stride bytes", self.stride),
@@ -77,10 +77,17 @@ class RawOpenDialog(QDialog):
         )
         buttons.accepted.connect(self._accept_validated)  # type: ignore[attr-defined]
         buttons.rejected.connect(self.reject)  # type: ignore[attr-defined]
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        acceptance_buttons = QHBoxLayout()
+        acceptance_buttons.addStretch(1)
+        acceptance_buttons.addWidget(buttons)
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addLayout(profile_buttons)
-        layout.addWidget(buttons)
+        layout.addWidget(separator)
+        layout.addLayout(acceptance_buttons)
         self.layout_kind.currentTextChanged.connect(  # type: ignore[attr-defined]
             lambda layout_name: self.bayer_pattern.setEnabled(layout_name == "BAYER")
         )
@@ -111,7 +118,7 @@ class RawOpenDialog(QDialog):
             )
         )
         return RawProfile(
-            name=self.name.text().strip() or "unnamed_raw",
+            name=self._profile_name,
             width=self.width_box.value(),
             height=self.height_box.value(),
             stride_bytes=self.stride.value(),
@@ -127,7 +134,7 @@ class RawOpenDialog(QDialog):
         )
 
     def set_profile(self, profile: RawProfile) -> None:
-        self.name.setText(profile.name)
+        self._profile_name = profile.name
         self.width_box.setValue(profile.width)
         self.height_box.setValue(profile.height)
         self.stride.setValue(profile.stride_bytes)

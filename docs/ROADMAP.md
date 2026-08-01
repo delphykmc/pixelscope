@@ -1,32 +1,36 @@
 # Roadmap
 
-## Phase 1 - local comparison
+## Phase 1 — local inspection (complete)
 
-Completed: PNG/BMP/RAW open, pixel inspector, asynchronous histogram,
-selection-driven multi-image comparison, signed/absolute difference, core
-metrics, remote DTOs and mock.
+PNG/BMP/JPEG and unpacked RAW loading, pixel inspection, source-preserving
+display conversion, asynchronous statistics/histogram, core metrics, remote
+DTOs, and deterministic mock evaluation.
 
-## Phase 2 - comparison workflow
+## Phase 2 — comparison workflow (complete)
 
-Completed: rectangular ROI, unified full-image/ROI statistics and histogram,
-line profile, 1/2/4/6 synchronized viewers, drag-and-drop, lazy folder loading,
-folder-grouped Files tree, and atomic naturally sorted multi-folder pair
-navigation.
+Selection-driven 1/2/4/6-capacity viewing, smart 3/5 layouts, folder-grouped
+Files tree, atomic natural-sort folder navigation, synchronized cursor/range,
+shared ROI, automatic horizontal/vertical line profile, RGB/Bayer plots,
+cached Absolute/Mask Difference, structured status, persisted workspace, and
+resizable/floating/maximizable Plots dock.
 
-Remaining: alpha overlay, threshold mask, recent files, configurable line
-orientation, and persistent comparison sessions.
+## Phase 3 — workflow depth
 
-## Phase 3
+Recent files, saved ROI manager, persistent comparison sessions, arbitrary-angle
+line sampling, alpha overlay, and additional export formats.
 
-MIPI RAW10/12/14, Bayer plane display, black-level subtraction, white-level
-normalization, simple demosaic, RAW profile suggestion.
+## Phase 4 — RAW pipeline
 
-## Phase 4
+MIPI RAW10/12/14 decoding, black-level subtraction, white-level normalization,
+simple demosaic, and RAW profile suggestion. Unpacked RAW confirmation and Bayer
+plane display are already complete.
+
+## Phase 5 — remote IQA
 
 FastAPI GPU server, PyTorch worker, asynchronous queue/cancellation, artifact
-download, heatmap overlay, evaluation comparison.
+download, heatmap overlay, and evaluation comparison.
 
-## Phase 5
+## Phase 6 — distribution
 
 PyInstaller 5.7 `onedir`, portable ZIP, Inno Setup, clean-PC smoke tests,
-code-signing review, update strategy.
+code-signing review, and update strategy.

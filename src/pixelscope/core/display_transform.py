@@ -88,3 +88,32 @@ def render_absolute_difference(diff: NDArray[Any], gain: float = 1.0) -> NDArray
     maximum = max(float(np.max(diff)), 1.0)
     scaled = np.clip(diff.astype(np.float32) * gain / maximum, 0.0, 1.0)
     return np.ascontiguousarray(np.rint(scaled * 255.0).astype(np.uint8))
+
+
+def render_absolute_difference_range(
+    diff: NDArray[Any], low: int, high: int, gain: int = 1
+) -> NDArray[np.uint8]:
+    """Render an absolute map using an explicit integer display range."""
+
+    if high <= low:
+        raise ValueError("high must be greater than low")
+    if gain <= 0:
+        raise ValueError("display gain must be greater than zero")
+    scaled = np.clip(
+        (diff.astype(np.float32) - np.float32(low)) * np.float32(gain / (high - low)),
+        0.0,
+        1.0,
+    )
+    return np.ascontiguousarray(np.rint(scaled * 255.0).astype(np.uint8))
+
+
+def render_threshold_mask(diff: NDArray[Any], threshold: int) -> NDArray[np.uint8]:
+    """Render red where any selected channel exceeds *threshold*, black elsewhere."""
+
+    if threshold < 0:
+        raise ValueError("threshold must be non-negative")
+    selected = np.greater(diff, threshold)
+    mask = np.any(selected, axis=2) if selected.ndim == 3 else selected
+    preview = np.zeros((*mask.shape, 3), dtype=np.uint8)
+    preview[mask, 0] = 255
+    return preview

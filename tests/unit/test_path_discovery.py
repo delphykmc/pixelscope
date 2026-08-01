@@ -6,10 +6,15 @@ from pixelscope.io.path_discovery import discover_image_inputs, pair_folders
 
 
 def test_folder_discovery_is_natural_sorted_and_filters_files(tmp_path: Path) -> None:
-    for name in ("image10.png", "image2.bmp", "image1.png", "notes.txt"):
+    for name in ("image10.png", "image2.bmp", "image1.jpg", "image3.jpeg", "notes.txt"):
         (tmp_path / name).write_bytes(b"x")
     inputs = discover_image_inputs((tmp_path,))
-    assert [item.path.name for item in inputs] == ["image1.png", "image2.bmp", "image10.png"]
+    assert [item.path.name for item in inputs] == [
+        "image1.jpg",
+        "image2.bmp",
+        "image3.jpeg",
+        "image10.png",
+    ]
 
 
 def test_raw_sidecar_is_optional_and_discovered_when_present(tmp_path: Path) -> None:

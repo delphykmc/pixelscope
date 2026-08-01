@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import Qt, QThreadPool
-from PySide6.QtGui import QColor
+from numpy.typing import NDArray
+from PySide6.QtCore import Qt, QThreadPool, QTimer, Signal
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QProgressBar,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
@@ -19,6 +27,8 @@ from PySide6.QtWidgets import (
 from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
+from pixelscope.core.statistics import ImageStatistics
+from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
@@ -34,9 +44,14 @@ class KiloAxisItem(pg.AxisItem):  # type: ignore[misc]
 
 
 def comparison_labels(documents: list[ImageDocument]) -> list[str]:
-    """Return basenames only; numeric column headers disambiguate duplicates."""
+    """Return folder-qualified labels so duplicate basenames remain distinct."""
 
-    return [document.display_name for document in documents]
+    return [
+        f"{document.source_path.parent.name} / {document.display_name}"
+        if document.source_path is not None
+        else document.display_name
+        for document in documents
+    ]
 
 
 def automatic_histogram_spec(
@@ -58,11 +73,11 @@ def automatic_histogram_spec(
 
 
 class ComparisonAnalysisPanel(QWidget):
-    """Transposed per-image statistics and channel-faithful histogram overlays."""
+    """Row-oriented per-channel statistics and channel-faithful histograms."""
 
-    _METRICS = (
-        "Pixels",
-        "Bit Depth",
+    _COLUMNS = (
+        "Id",
+        "Ch",
         "Min",
         "Max",
         "Mean",
@@ -71,6 +86,7 @@ class ComparisonAnalysisPanel(QWidget):
         "P50",
         "P99",
     )
+    scope_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -81,39 +97,80 @@ class ComparisonAnalysisPanel(QWidget):
         self._histogram_specs: list[tuple[int, tuple[float, float] | None]] = []
         self.last_results: tuple[RoiAnalysisResult, ...] = ()
         self._pool = QThreadPool.globalInstance()
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(140)
+        self._refresh_timer.timeout.connect(self.refresh)  # type: ignore[attr-defined]
 
         self.status = QLabel("No images selected")
+        self.busy = QProgressBar()
+        self.busy.setRange(0, 0)
+        self.busy.setTextVisible(False)
+        self.busy.setFixedHeight(4)
+        self.busy.hide()
+        activity = QWidget()
+        activity.setFixedHeight(24)
+        activity_layout = QVBoxLayout(activity)
+        activity_layout.setContentsMargins(0, 0, 0, 0)
+        activity_layout.setSpacing(1)
+        activity_layout.addWidget(self.status)
+        activity_layout.addWidget(self.busy)
         self.roi_label = QLabel("Full image")
+        self.region_scope = QComboBox()
+        self.region_scope.addItems(("Full image", "Active ROI"))
+        self.region_scope.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            lambda: self.scope_changed.emit()
+        )
         self.channel_buttons: dict[str, QToolButton] = {}
-        controls = QHBoxLayout()
-        controls.addWidget(self.roi_label)
-        controls.addSpacing(8)
-        controls.addWidget(QLabel("Channels"))
+        scope_controls = QGridLayout()
+        scope_controls.addWidget(QLabel("Region"), 0, 0)
+        scope_controls.addWidget(self.region_scope, 0, 1)
+        scope_controls.addWidget(self.roi_label, 1, 0, 1, 2)
+        scope_controls.addWidget(activity, 2, 0, 1, 2)
+        channel_controls = QHBoxLayout()
+        channel_controls.addWidget(QLabel("Channels"))
         for name, color in (("R", "#ff3b30"), ("G", "#24b34b"), ("B", "#2684ff")):
             button = QToolButton()
             button.setText(name)
             button.setCheckable(True)
             button.setChecked(True)
-            button.setStyleSheet(f"QToolButton:checked {{ color: {color}; font-weight: bold; }}")
+            button.setStyleSheet(channel_button_style(color))
             button.toggled.connect(  # type: ignore[attr-defined]
                 self._channels_changed
             )
             self.channel_buttons[name] = button
-            controls.addWidget(button)
-        controls.addStretch(1)
-        controls.addWidget(self.status)
+            channel_controls.addWidget(button)
+        channel_controls.addStretch(1)
 
-        self.table = QTableWidget(len(self._METRICS), 0)
-        self.table.setVerticalHeaderLabels(self._METRICS)
+        self.image_summary = QTableWidget(0, 3)
+        self.image_summary.setHorizontalHeaderLabels(("Id", "Image", "Samples"))
+        self.image_summary.verticalHeader().hide()
+        self.image_summary.setAlternatingRowColors(True)
+        self.image_summary.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.image_summary.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self.image_summary.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        summary_header = self.image_summary.horizontalHeader()
+        summary_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        summary_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        summary_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.image_summary.setColumnWidth(0, 38)
+
+        self.table = QTableWidget(0, len(self._COLUMNS))
+        self.table.setHorizontalHeaderLabels(self._COLUMNS)
+        self.table.verticalHeader().hide()
         self.table.setAlternatingRowColors(True)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setMinimumSectionSize(80)
-        self.table.horizontalHeader().setStyleSheet(
-            "QHeaderView::section {"
-            "background-color: #3b3f46; color: white; font-weight: bold;"
-            "border: 1px solid #666b73; padding: 5px;"
-            "}"
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setMinimumSectionSize(38)
+        self.table.setColumnWidth(0, 38)
+        self.table.setColumnWidth(1, 38)
+        copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.table)
+        copy_shortcut.activated.connect(  # type: ignore[attr-defined]
+            self.copy_selection
         )
 
         self.histogram_grid = QWidget()
@@ -122,38 +179,96 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_layout.setSpacing(3)
         self.plots: list[pg.PlotWidget] = []
         self.legends: list[pg.LegendItem] = []
-        for _index in range(6):
+        self._histogram_series: list[
+            list[tuple[int, str, NDArray[np.float64], NDArray[np.float64]]]
+        ] = [[] for _index in range(6)]
+        self._histogram_hover_lines: list[pg.InfiniteLine | None] = [None] * 6
+        self._histogram_hover_texts: list[pg.TextItem | None] = [None] * 6
+        for plot_index in range(6):
             plot = pg.PlotWidget(axisItems={"left": KiloAxisItem(orientation="left")})
             plot.setLabel("left", "Count")
             plot.setLabel("bottom", "Pixel value")
             plot.showGrid(x=True, y=True, alpha=0.25)
             plot.getViewBox().setDefaultPadding(0.08)
+            plot.setMinimumHeight(190)
             legend = plot.addLegend(offset=(-8, 8))
             self.plots.append(plot)
             self.legends.append(legend)
+            plot.scene().sigMouseMoved.connect(
+                lambda position, index=plot_index: self._on_histogram_mouse_moved(index, position)
+            )
             self._set_plot_axes_visible(plot, False)
             plot.hide()
         # Compatibility aliases for callers that inspect the first histogram pane.
         self.plot = self.plots[0]
         self.legend = self.legends[0]
+        self.histogram_mode = QComboBox()
+        self.histogram_mode.addItems(("Separate", "Overlay"))
+        self.histogram_units = QComboBox()
+        self.histogram_units.addItems(("Count", "Normalized"))
+        self.histogram_range = QComboBox()
+        self.histogram_range.addItems(("Native range", "Normalized 0–1"))
+        histogram_controls = QHBoxLayout()
+        histogram_controls.setSpacing(TOKENS.spacing_sm)
+        histogram_controls.addWidget(QLabel("View"))
+        histogram_controls.addWidget(self.histogram_mode)
+        histogram_controls.addSpacing(TOKENS.spacing_lg)
+        histogram_controls.addWidget(QLabel("Y"))
+        histogram_controls.addWidget(self.histogram_units)
+        histogram_controls.addSpacing(TOKENS.spacing_lg)
+        histogram_controls.addWidget(QLabel("X"))
+        histogram_controls.addWidget(self.histogram_range)
+        histogram_controls.addSpacing(TOKENS.spacing_lg)
+        histogram_controls.addLayout(channel_controls)
+        histogram_controls.addStretch(1)
+        for combo in (self.histogram_mode, self.histogram_units, self.histogram_range):
+            combo.setMaximumWidth(170)
+            combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+                self._histogram_options_changed
+            )
+        self.histogram_panel = QWidget()
+        histogram_panel_layout = QVBoxLayout(self.histogram_panel)
+        histogram_panel_layout.setContentsMargins(4, 4, 4, 4)
+        histogram_panel_layout.addLayout(histogram_controls)
+        histogram_scroll = QScrollArea()
+        histogram_scroll.setWidgetResizable(True)
+        histogram_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        histogram_scroll.setWidget(self.histogram_grid)
+        histogram_panel_layout.addWidget(histogram_scroll, 1)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.addLayout(controls)
+        layout.addLayout(scope_controls)
+        layout.addWidget(self.image_summary)
         layout.addWidget(self.table, 1)
 
-    def set_documents(self, documents: list[ImageDocument], bounds: RoiBounds | None) -> None:
+    def set_documents(
+        self,
+        documents: list[ImageDocument],
+        bounds: RoiBounds | None,
+        region_name: str | None = None,
+    ) -> None:
         self._documents = [document for document in documents if document.source is not None]
         self._bounds = bounds
+        self.region_scope.blockSignals(True)
         if bounds is None:
             self.roi_label.setText("Full image")
+            self.region_scope.setCurrentText(region_name or "Full image")
         else:
             self.roi_label.setText(
-                f"ROI x={bounds.x}, y={bounds.y}, {bounds.width} x {bounds.height}"
+                f"{region_name or 'Active ROI'} · x={bounds.x}, y={bounds.y}, "
+                f"{bounds.width} x {bounds.height}"
             )
-        self.refresh()
+            self.region_scope.setCurrentText(region_name or "Active ROI")
+        self.region_scope.blockSignals(False)
+        if self._worker is not None:
+            self._worker.cancel()
+        self.status.setText("Preparing analysis...")
+        self.busy.show()
+        self._refresh_timer.start()
 
     def clear(self) -> None:
+        self._refresh_timer.stop()
         if self._worker is not None:
             self._worker.cancel()
         self._worker = None
@@ -162,9 +277,11 @@ class ComparisonAnalysisPanel(QWidget):
         self._request_signature = ()
         self._histogram_specs = []
         self.last_results = ()
-        self.table.setColumnCount(0)
+        self.image_summary.setRowCount(0)
+        self.table.setRowCount(0)
         self._clear_histogram_plots()
         self.status.setText("No images selected")
+        self.busy.hide()
         self.roi_label.setText("Full image")
 
     def refresh(self) -> None:
@@ -264,6 +381,7 @@ class ComparisonAnalysisPanel(QWidget):
             return tuple(results)
 
         self.status.setText("Calculating...")
+        self.busy.show()
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
             lambda _task_id, _document_id, _generation, result: self._on_result(
@@ -302,6 +420,7 @@ class ComparisonAnalysisPanel(QWidget):
         error: TaskError,
     ) -> None:
         self.status.setText(f"Error: {error.message}")
+        self.busy.hide()
 
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
@@ -311,84 +430,104 @@ class ComparisonAnalysisPanel(QWidget):
         if self.last_results and self._histogram_specs:
             self._render(self.last_results, self._histogram_specs)
 
+    def _histogram_options_changed(self, _index: int) -> None:
+        if self.last_results and self._histogram_specs:
+            self._render(self.last_results, self._histogram_specs)
+
     def _render(
         self,
         results: tuple[RoiAnalysisResult, ...],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
     ) -> None:
         labels = comparison_labels(self._documents)
-        metrics: list[tuple[str, ...]] = []
-        for document, result in zip(self._documents, results, strict=True):
-            channels = [
-                (name, statistics)
+        self.image_summary.setRowCount(len(results))
+        for image_index, (document, result) in enumerate(
+            zip(self._documents, results, strict=True)
+        ):
+            shape = document.shape
+            file_format = (
+                document.source_path or Path(document.display_name)
+            ).suffix.upper().lstrip(".") or document.channel_layout
+            metadata = (
+                f"{labels[image_index]}\n{shape[1]} x {shape[0]} - {file_format} - "
+                f"{document.bit_depth}-bit\n{document.source_path or document.display_name}"
+            )
+            summary_values = (
+                str(image_index + 1),
+                labels[image_index],
+                f"{result.pixel_count:,}",
+            )
+            for column, value in enumerate(summary_values):
+                item = QTableWidgetItem(value)
+                alignment = (
+                    Qt.AlignmentFlag.AlignLeft if column == 1 else Qt.AlignmentFlag.AlignRight
+                )
+                item.setTextAlignment(alignment | Qt.AlignmentFlag.AlignVCenter)
+                item.setToolTip(metadata)
+                self.image_summary.setItem(image_index, column, item)
+        self.image_summary.resizeRowsToContents()
+        summary_height = self.image_summary.horizontalHeader().height() + 2
+        for row in range(self.image_summary.rowCount()):
+            summary_height += self.image_summary.rowHeight(row)
+        self.image_summary.setFixedHeight(summary_height)
+
+        rows: list[tuple[int, str, ImageStatistics]] = []
+        for image_index, result in enumerate(results):
+            rows.extend(
+                (image_index, name, statistics)
                 for name, statistics in zip(
                     result.channel_names,
                     result.channel_statistics,
                     strict=True,
                 )
                 if name != "A"
-            ]
-
-            metrics.append(
-                (
-                    f"{result.pixel_count:,}",
-                    f"{document.bit_depth}-bit",
-                    "\n".join(f"{name}: {statistics.minimum:.6g}" for name, statistics in channels),
-                    "\n".join(f"{name}: {statistics.maximum:.6g}" for name, statistics in channels),
-                    "\n".join(f"{name}: {statistics.mean:.6g}" for name, statistics in channels),
-                    "\n".join(
-                        f"{name}: {statistics.standard_deviation:.6g}"
-                        for name, statistics in channels
-                    ),
-                    "\n".join(
-                        f"{name}: {statistics.percentiles[1.0]:.6g}"
-                        for name, statistics in channels
-                    ),
-                    "\n".join(
-                        f"{name}: {statistics.percentiles[50.0]:.6g}"
-                        for name, statistics in channels
-                    ),
-                    "\n".join(
-                        f"{name}: {statistics.percentiles[99.0]:.6g}"
-                        for name, statistics in channels
-                    ),
-                )
             )
-
-        self.table.setColumnCount(len(results))
-        elided_labels = [
-            f"{index + 1}\n"
-            + self.fontMetrics().elidedText(label, Qt.TextElideMode.ElideMiddle, 135)
-            for index, label in enumerate(labels)
-        ]
-        self.table.setHorizontalHeaderLabels(elided_labels)
-        for column, (document, result, values) in enumerate(
-            zip(self._documents, results, metrics, strict=True)
-        ):
-            header = self.table.horizontalHeaderItem(column)
-            header.setToolTip(str(document.source_path or document.display_name))
-            channel_text = "\n".join(
-                f"{name}: mean {channel.mean:.6g}, std {channel.standard_deviation:.6g}"
-                for name, channel in zip(
-                    result.channel_names,
-                    result.channel_statistics,
-                    strict=True,
-                )
-                if name != "A"
+        self.table.setRowCount(len(rows))
+        for row, (image_index, channel_name, statistics) in enumerate(rows):
+            document = self._documents[image_index]
+            shape = document.shape
+            file_format = (
+                document.source_path or Path(document.display_name)
+            ).suffix.upper().lstrip(".") or document.channel_layout
+            metadata = (
+                f"{labels[image_index]}\n{shape[1]}×{shape[0]} · {file_format} · "
+                f"{document.bit_depth}-bit\n{document.source_path or document.display_name}"
             )
-            for row, value in enumerate(values):
+            table_values = (
+                str(image_index + 1),
+                channel_name,
+                f"{statistics.minimum:.6g}",
+                f"{statistics.maximum:.6g}",
+                f"{statistics.mean:.6g}",
+                f"{statistics.standard_deviation:.6g}",
+                f"{statistics.percentiles[1.0]:.6g}",
+                f"{statistics.percentiles[50.0]:.6g}",
+                f"{statistics.percentiles[99.0]:.6g}",
+            )
+            for column, value in enumerate(table_values):
                 item = QTableWidgetItem(value)
-                item.setToolTip(channel_text)
+                alignment = (
+                    Qt.AlignmentFlag.AlignCenter
+                    if column in (0, 1)
+                    else Qt.AlignmentFlag.AlignRight
+                )
+                item.setTextAlignment(alignment | Qt.AlignmentFlag.AlignVCenter)
+                item.setToolTip(metadata)
                 self.table.setItem(row, column, item)
 
-        self._arrange_histogram_plots(len(results))
+        overlay = self.histogram_mode.currentText() == "Overlay"
+        self._arrange_histogram_plots(1 if overlay else len(results))
+        for plot, legend in zip(self.plots, self.legends, strict=True):
+            plot.clear()
+            legend.clear()
+        self._histogram_series = [[] for _index in range(6)]
+        for plot_index in range(min(6, 1 if overlay else len(results))):
+            self._create_histogram_hover(plot_index)
+        plotted_channels: set[str] = set()
         for image_index, (document, result) in enumerate(
             zip(self._documents, results, strict=True)
         ):
-            plot = self.plots[image_index]
-            legend = self.legends[image_index]
-            plot.clear()
-            legend.clear()
+            plot = self.plots[0 if overlay else image_index]
             edges = result.histogram.edges
             for counts, channel_name in zip(
                 result.histogram.counts,
@@ -404,25 +543,136 @@ class ComparisonAnalysisPanel(QWidget):
                 if channel_name == "A":
                     continue
                 fill_color = QColor(channel_color(channel_name))
-                fill_color.setAlpha(75)
+                fill_color.setAlpha(52 if overlay else 78)
+                y_values = counts.astype(np.float64, copy=False)
+                if self.histogram_units.currentText() == "Normalized":
+                    total = float(np.sum(y_values))
+                    if total > 0:
+                        y_values = y_values / total
+                x_values = edges
+                if self.histogram_range.currentText() == "Normalized 0–1":
+                    span = float(edges[-1] - edges[0])
+                    if span > 0:
+                        x_values = (edges - edges[0]) / span
+                short_name = document.display_name
+                if len(short_name) > 24:
+                    short_name = f"{short_name[:11]}…{short_name[-10:]}"
+                legend_name = (
+                    f"{image_index + 1} · {short_name} · {channel_name}"
+                    if overlay
+                    else channel_name
+                )
                 plot.plot(
-                    edges,
-                    counts,
+                    x_values,
+                    y_values,
                     stepMode="center",
                     fillLevel=0.0,
                     brush=pg.mkBrush(fill_color),
                     pen=comparison_pen(channel_name, 0, width=0.7),
-                    name=channel_name,
+                    name=legend_name,
                     antialias=True,
                 )
-            title = document.display_name
+                self._histogram_series[0 if overlay else image_index].append(
+                    (image_index, channel_name, x_values, y_values)
+                )
+                plotted_channels.add(channel_name)
+            title = (
+                f"{document.source_path.parent.name} / {document.display_name}"
+                if document.source_path is not None
+                else document.display_name
+            )
             if len(title) > 36:
                 title = f"{title[:17]}...{title[-16:]}"
-            plot.setTitle(f"{image_index + 1}  {title}")
+            if not overlay:
+                plot.setTitle(f"{image_index + 1}  {title}")
             self._set_plot_axes_visible(plot, True)
+            plot.setLabel(
+                "left",
+                "Normalized" if self.histogram_units.currentText() == "Normalized" else "Count",
+            )
+            plot.setLabel(
+                "bottom",
+                "Normalized code"
+                if self.histogram_range.currentText() == "Normalized 0–1"
+                else "Pixel value",
+            )
             plot.getViewBox().autoRange(padding=0.08)
+        if overlay:
+            self.plots[0].setTitle(f"Overlay · {len(results)} images")
+            self.plots[0].getViewBox().autoRange(padding=0.08)
         self.table.resizeRowsToContents()
         self.status.clear()
+        self.busy.hide()
+
+    def _create_histogram_hover(self, plot_index: int) -> None:
+        plot = self.plots[plot_index]
+        line = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen("#d0d0d0", width=0.7))
+        hint = pg.TextItem(
+            anchor=(0, 1),
+            fill=pg.mkBrush(24, 24, 24, 225),
+            border=pg.mkPen("#808080", width=0.7),
+        )
+        line.setZValue(20)
+        hint.setZValue(21)
+        plot.addItem(line, ignoreBounds=True)
+        plot.addItem(hint, ignoreBounds=True)
+        line.hide()
+        hint.hide()
+        self._histogram_hover_lines[plot_index] = line
+        self._histogram_hover_texts[plot_index] = hint
+
+    def _on_histogram_mouse_moved(self, plot_index: int, position: object) -> None:
+        plot = self.plots[plot_index]
+        line = self._histogram_hover_lines[plot_index]
+        hint = self._histogram_hover_texts[plot_index]
+        series = self._histogram_series[plot_index]
+        if (
+            line is None
+            or hint is None
+            or not series
+            or not plot.sceneBoundingRect().contains(position)
+        ):
+            if line is not None:
+                line.hide()
+            if hint is not None:
+                hint.hide()
+            return
+        point = plot.getViewBox().mapSceneToView(position)
+        rows: list[str] = []
+        cursor_x: float | None = None
+        for image_index, channel_name, edges, values in series:
+            bin_index = int(np.searchsorted(edges, point.x(), side="right") - 1)
+            if bin_index < 0 or bin_index >= len(values):
+                continue
+            cursor_x = float((edges[bin_index] + edges[bin_index + 1]) / 2.0)
+            value = float(values[bin_index])
+            label = self._documents[image_index].display_name
+            rows.append(
+                f"<tr><td><b>{image_index + 1} · {label}</b></td>"
+                f'<td style="color:{channel_color(channel_name)}; padding-left:8px">'
+                f"{channel_name}: {value:.6g}</td></tr>"
+            )
+        if cursor_x is None or not rows:
+            line.hide()
+            hint.hide()
+            return
+        view_range = plot.getViewBox().viewRange()
+        hint.setAnchor(
+            (
+                1 if point.x() > sum(view_range[0]) / 2 else 0,
+                0 if point.y() > sum(view_range[1]) / 2 else 1,
+            )
+        )
+        hint.setHtml(f"<table cellspacing='2'>{''.join(rows)}</table>")
+        x_range, y_range = view_range
+        x_padding = (x_range[1] - x_range[0]) * 0.04
+        y_padding = (y_range[1] - y_range[0]) * 0.08
+        hint_x = min(max(cursor_x, x_range[0] + x_padding), x_range[1] - x_padding)
+        hint_y = min(max(point.y(), y_range[0] + y_padding), y_range[1] - y_padding)
+        hint.setPos(hint_x, hint_y)
+        line.setPos(cursor_x)
+        line.show()
+        hint.show()
 
     @staticmethod
     def _channel_control_name(channel_name: str) -> str:
@@ -448,6 +698,46 @@ class ComparisonAnalysisPanel(QWidget):
             plot.setTitle("")
             self._set_plot_axes_visible(plot, False)
             plot.hide()
+        self._histogram_series = [[] for _index in range(6)]
+
+    def copy_selection(self) -> None:
+        ranges = self.table.selectedRanges()
+        if not ranges:
+            return
+        selected = ranges[0]
+        lines: list[str] = []
+        for row in range(selected.topRow(), selected.bottomRow() + 1):
+            values: list[str] = []
+            for column in range(selected.leftColumn(), selected.rightColumn() + 1):
+                item = self.table.item(row, column)
+                values.append(item.text() if item is not None else "")
+            lines.append("\t".join(values))
+        QApplication.clipboard().setText("\n".join(lines))
+
+    def export_csv(self, path: Path) -> None:
+        with path.open("w", newline="", encoding="utf-8-sig") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(("Id", "Image", "Samples"))
+            for row in range(self.image_summary.rowCount()):
+                writer.writerow(
+                    [
+                        self.image_summary.item(row, column).text()
+                        if self.image_summary.item(row, column) is not None
+                        else ""
+                        for column in range(self.image_summary.columnCount())
+                    ]
+                )
+            writer.writerow(())
+            writer.writerow(self._COLUMNS)
+            for row in range(self.table.rowCount()):
+                writer.writerow(
+                    [
+                        self.table.item(row, column).text()
+                        if self.table.item(row, column) is not None
+                        else ""
+                        for column in range(self.table.columnCount())
+                    ]
+                )
 
     @staticmethod
     def _set_plot_axes_visible(plot: pg.PlotWidget, visible: bool) -> None:
@@ -458,5 +748,6 @@ class ComparisonAnalysisPanel(QWidget):
                 plot.hideAxis(axis)
 
     def shutdown(self) -> None:
+        self._refresh_timer.stop()
         if self._worker is not None:
             self._worker.cancel()

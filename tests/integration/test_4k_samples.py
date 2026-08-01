@@ -6,15 +6,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pixelscope.core.diff_engine import absolute_difference
+from pixelscope.core.diff_engine import compact_absolute_difference
 from pixelscope.core.statistics import mean_squared_error, peak_signal_to_noise_ratio
 from pixelscope.io.image_reader import read_image, read_raw_document
 
-SAMPLES = Path(__file__).parents[2] / "samples"
-pytestmark = pytest.mark.skipif(
-    not SAMPLES.is_dir(),
-    reason="optional samples directory is not available",
-)
+SAMPLES = Path(__file__).parents[2] / "test_data" / "manual" / "uhd_chart_set"
 
 
 def test_supplied_4k_reference_degraded_and_raw_match_manifest() -> None:
@@ -33,7 +29,7 @@ def test_supplied_4k_reference_degraded_and_raw_match_manifest() -> None:
     assert peak_signal_to_noise_ratio(reference.source, degraded.source) == pytest.approx(
         expected["psnr_rgb_db"], abs=1e-9
     )
-    difference = absolute_difference(reference.source, degraded.source)
+    difference = compact_absolute_difference(reference.source, degraded.source)
     assert float(np.mean(difference)) == pytest.approx(expected["abs_diff_mean"], abs=1e-9)
     assert int(np.max(difference)) == expected["abs_diff_max"]
 

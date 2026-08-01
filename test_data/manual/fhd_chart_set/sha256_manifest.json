@@ -1,0 +1,122 @@
+{
+  "base/chart_01_color_gradient.jpg": {
+    "bytes": 206434,
+    "sha256": "7765c787be8954c52f7d748ef999373e127442be9ca6d088320a6bfd49127493"
+  },
+  "base/chart_02_edges_checker.jpg": {
+    "bytes": 317929,
+    "sha256": "e50480567ececddb4e7233d52558dc9444a4211f7a00ed21d622d3c47b73594b"
+  },
+  "base/chart_03_frequency_patterns.jpg": {
+    "bytes": 302130,
+    "sha256": "77b20be3873c034278f273b2381c83d378f31b37340c6c10abdfea0e9648d182"
+  },
+  "base/chart_04_radial_curves.jpg": {
+    "bytes": 446733,
+    "sha256": "d14b2cf49fd00a17fb39c6e7cc8d68da5abe7f745e9d5b4e97b0538b127b51bf"
+  },
+  "base/chart_05_textures.jpg": {
+    "bytes": 291323,
+    "sha256": "83ee7cc68258442186d3158b9e20ed36cc7729a359440395eccee654466de738"
+  },
+  "base/chart_06_flat_shading.jpg": {
+    "bytes": 166362,
+    "sha256": "6f9b29d4cc9b83a9fcb35531a8a1d0f97383e77149d216a4ff27e8736bd9d14f"
+  },
+  "base/chart_07_typography.jpg": {
+    "bytes": 176800,
+    "sha256": "74c46fc5ef0cea2fa2bc0d727ca6812318d1f2f78eb2dc06d5bf234284630a25"
+  },
+  "base/chart_08_geometry.jpg": {
+    "bytes": 183947,
+    "sha256": "78e968965ba74e74f3e6c308157411c29ec2202334321187f93352f3903644ab"
+  },
+  "base/chart_09_pseudo_natural.jpg": {
+    "bytes": 372089,
+    "sha256": "1efd9e9afce235f58b85accf577e966f0c243c898c6f018df3bf07c83d77dc79"
+  },
+  "base/chart_10_mixed_validation.jpg": {
+    "bytes": 316388,
+    "sha256": "db6ffb553ddb0a656a4ea7d4c6195c70621b8e3f8fc794ceef0f7dba7879933a"
+  },
+  "variation_noise/chart_01_color_gradient.jpg": {
+    "bytes": 844169,
+    "sha256": "35afdfe3643b0d71e16bd9a9bcc618092e84c1fa01454b2bc3572439754c4d7f"
+  },
+  "variation_noise/chart_02_edges_checker.jpg": {
+    "bytes": 961716,
+    "sha256": "42046477a8a755b88ce47836fba9c090c53bbf504f0b9b1ebc9f3781b0c9842f"
+  },
+  "variation_noise/chart_03_frequency_patterns.jpg": {
+    "bytes": 979017,
+    "sha256": "69bb1bfd50d47dc84a652905f7f7d54f623d4d21fcb22dc5ec16383dd1f19bb6"
+  },
+  "variation_noise/chart_04_radial_curves.jpg": {
+    "bytes": 1087931,
+    "sha256": "18a46c275064e11506c9581bad16d439f5d4d55f699d0b24bb1790e4a77be25c"
+  },
+  "variation_noise/chart_05_textures.jpg": {
+    "bytes": 970416,
+    "sha256": "7936a248dfaf100a1de19e1b500e6bd46b496fbe79cb58d0f13fa59883122460"
+  },
+  "variation_noise/chart_06_flat_shading.jpg": {
+    "bytes": 957550,
+    "sha256": "0462a9c4835c3397f69e64003911cb0d82a6d0d077904ad33345891540cec7c1"
+  },
+  "variation_noise/chart_07_typography.jpg": {
+    "bytes": 1010473,
+    "sha256": "ea0716bf4b95615351231862e01c1861e2b0e2614c63923181779bc094f04f22"
+  },
+  "variation_noise/chart_08_geometry.jpg": {
+    "bytes": 1044469,
+    "sha256": "7f6e727055130dd46e3211c0be851e0d1d6db762db2c3e1d05fdd148c52bf3cd"
+  },
+  "variation_noise/chart_09_pseudo_natural.jpg": {
+    "bytes": 1085350,
+    "sha256": "ce8e9a5d5db424aceaae467152a8212165a5e8846ef0974594cbb2c248664e88"
+  },
+  "variation_noise/chart_10_mixed_validation.jpg": {
+    "bytes": 1139135,
+    "sha256": "b577f423f5acbf0a5d9bf0611eef44095021ec5d2b6c46dbb378deffcf68fd8f"
+  },
+  "variation_tone/chart_01_color_gradient.jpg": {
+    "bytes": 210442,
+    "sha256": "b6225b809da6ade1827f455978d93f892f1788208637ddf09061007dba2d33b5"
+  },
+  "variation_tone/chart_02_edges_checker.jpg": {
+    "bytes": 327647,
+    "sha256": "a2ce86b0295b3f02c20a92fe394ffbcde42e251b8e6f9b36e72a8517ea1f0bb3"
+  },
+  "variation_tone/chart_03_frequency_patterns.jpg": {
+    "bytes": 332806,
+    "sha256": "d04f2e18e98106a5506b1c44fff12bd49db0628624ab1b69527e611161584f9e"
+  },
+  "variation_tone/chart_04_radial_curves.jpg": {
+    "bytes": 460654,
+    "sha256": "14654a188c129dbb96c0e0035c43b2f4c3a85d91db437665d100317c9d7960a1"
+  },
+  "variation_tone/chart_05_textures.jpg": {
+    "bytes": 311772,
+    "sha256": "c6ef302ad0b3cd94dc1b5a98600d7e2fce851a5b399703b63867d9364dd8e5f1"
+  },
+  "variation_tone/chart_06_flat_shading.jpg": {
+    "bytes": 188893,
+    "sha256": "043c583dc220f44e5dd00b8cbba2fc312acee049a152bd75ca483ac069688227"
+  },
+  "variation_tone/chart_07_typography.jpg": {
+    "bytes": 185400,
+    "sha256": "71028f008bc4d7ac8078f828ea19438431da8290cfb0b119f69efd9dae5cbb25"
+  },
+  "variation_tone/chart_08_geometry.jpg": {
+    "bytes": 191569,
+    "sha256": "0bdfab5f27c09a15b2cb20d73c92e151a91892787aaf50fe3c604e0c6aaeb764"
+  },
+  "variation_tone/chart_09_pseudo_natural.jpg": {
+    "bytes": 384347,
+    "sha256": "99e8f402d50d3c831c3e707bf350428821b3b02d7aa34f0a7b2453d8df88f83d"
+  },
+  "variation_tone/chart_10_mixed_validation.jpg": {
+    "bytes": 340829,
+    "sha256": "7ed563beed1d6c1f3f85d9410cfe1f56c555a9474d90a45ac3ba2d3c6a3aa023"
+  }
+}

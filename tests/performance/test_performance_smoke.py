@@ -5,8 +5,12 @@ from time import perf_counter
 
 import numpy as np
 
-from pixelscope.core.diff_engine import absolute_difference, signed_difference
-from pixelscope.core.display_transform import DisplayTransform, to_display_uint8
+from pixelscope.core.diff_engine import compact_absolute_difference, signed_difference
+from pixelscope.core.display_transform import (
+    DisplayTransform,
+    render_threshold_mask,
+    to_display_uint8,
+)
 from pixelscope.core.statistics import histogram
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.raw_reader import read_raw
@@ -45,8 +49,11 @@ def test_4096x3072_uint16_smoke(tmp_path: Path) -> None:
     signed = signed_difference(mapped, source)
     timings["signed_difference"] = perf_counter() - start
     start = perf_counter()
-    absolute = absolute_difference(mapped, source)
-    timings["absolute_difference"] = perf_counter() - start
+    absolute = compact_absolute_difference(mapped, source)
+    timings["compact_absolute_difference"] = perf_counter() - start
+    start = perf_counter()
+    mask = render_threshold_mask(absolute, 10)
+    timings["threshold_mask"] = perf_counter() - start
 
     print(
         "performance_seconds=",
@@ -56,9 +63,11 @@ def test_4096x3072_uint16_smoke(tmp_path: Path) -> None:
             "preview": preview.nbytes,
             "signed": signed.nbytes,
             "absolute": absolute.nbytes,
+            "mask": mask.nbytes,
         },
     )
     assert result.counts[0].sum() == source.size
     assert preview.shape == shape
     assert not np.any(signed)
     assert not np.any(absolute)
+    assert timings["threshold_mask"] < 0.5

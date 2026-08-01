@@ -1,0 +1,25 @@
+{
+  "name": "PixelScope_4K_RGGB10_Unpacked_U16LE",
+  "width": 3840,
+  "height": 2160,
+  "stride_bytes": 7680,
+  "offset_bytes": 0,
+  "dtype": "uint16",
+  "endianness": "little",
+  "bit_depth": 10,
+  "packing": "unpacked_u16",
+  "channel_layout": "bayer",
+  "bayer_pattern": "RGGB",
+  "black_level": [
+    64,
+    64,
+    64,
+    64
+  ],
+  "white_level": 1023,
+  "value_range": [
+    64,
+    1023
+  ],
+  "notes": "Each 10-bit sample is stored in the lower 10 bits of a little-endian uint16 word."
+}

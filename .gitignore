@@ -9,5 +9,4 @@ __pycache__/
 htmlcov/
 build/
 dist/
-generated_test_data/
-samples/
+test_data/generated/

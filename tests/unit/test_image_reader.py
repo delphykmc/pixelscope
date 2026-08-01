@@ -41,3 +41,15 @@ def test_bmp_and_invalid_file(tmp_path: Path) -> None:
     bad.write_text("not an image", encoding="utf-8")
     with pytest.raises(ImageReadError, match="not a valid"):
         read_image(bad)
+
+
+def test_jpeg_is_decoded_and_converted_to_rgb(tmp_path: Path) -> None:
+    path = tmp_path / "chart.jpg"
+    bgr = np.full((4, 5, 3), (30, 20, 10), dtype=np.uint8)
+    write_encoded(path, bgr)
+    document = read_image(path)
+    assert document.shape == (4, 5, 3)
+    assert document.channel_layout == "RGB"
+    red, green, blue = document.pixel_at(0, 0)
+    assert blue > red
+    assert green >= red

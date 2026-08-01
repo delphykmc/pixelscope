@@ -1,0 +1,26 @@
+{
+  "scene_reference_4k.png": {
+    "bytes": 4650363,
+    "sha256": "f19cbe00b0e3ba4b02257cc69d43710b23a9a18d8070ad9b4a88174d63f553cb"
+  },
+  "scene_degraded_4k.png": {
+    "bytes": 4382083,
+    "sha256": "ec71b33c6b6ffba9d5e3417158fbeb28b7632088ee29e42f341a6eeed4bdec3f"
+  },
+  "scene_reference_4k_rggb10_u16le.raw": {
+    "bytes": 16588800,
+    "sha256": "2842a7d64bfd69a9f44c2d73debc8287ded082e197f18aa60e4d9c207f5960dd"
+  },
+  "scene_reference_4k_rggb10_u16le.json": {
+    "bytes": 497,
+    "sha256": "57e75e3f5021a9e2eee894e575fd2c59766abaea90096470006a29ea701c158b"
+  },
+  "scene_reference_4k_rggb10_preview.png": {
+    "bytes": 6172038,
+    "sha256": "e25e776e22ffdfae0f72ec1674523296a194229b07cdf4c15d5d17d9f1460347"
+  },
+  "expected_metrics.json": {
+    "bytes": 392,
+    "sha256": "e76aa6611b36817beab93aa4ddc2dd690ac0a87dff36c8245c994054f1e20acc"
+  }
+}

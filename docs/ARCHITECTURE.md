@@ -2,68 +2,88 @@
 
 ## Boundaries and data flow
 
-`io` decodes files into source arrays; `core.ImageDocument` owns those arrays,
-metadata, immutable-display intent, caches, and evaluation results. `core`
-performs display conversion, histogram/statistics, line-profile, and
-overflow-safe difference math without Qt. `workers` executes expensive
-I/O/numerics in `QThreadPool`. `ui` renders previews and emits lightweight image
-coordinates. `app` owns documents, selection, generation checks, and window
-lifecycle. `remote` defines versioned DTOs and clients independently of widgets.
+`io` decodes files into source arrays. `core.ImageDocument` owns those arrays,
+metadata, preview data, caches, and evaluation results. `core` performs display
+conversion, Bayer plane handling, histogram/statistics, line-profile, and
+overflow-safe difference math without Qt. `workers` executes expensive I/O and
+numerics in `QThreadPool`. `ui` renders previews and emits lightweight image
+coordinates. `app` owns documents, ordered selection, view state, generation
+checks, and window lifecycle. `remote` defines versioned DTOs and clients
+independently of widgets.
 
-The main layout is a horizontal splitter: a resizable left sidebar containing
-Files and Analysis vertically, and the active single/2/4/6 viewer on the right.
-Files is a `QTreeWidget` whose non-selectable roots are canonical parent
-folders and whose selectable children are naturally sorted files. Its ordered
-extended selection is the comparison set. A vertical splitter under the right
-side gives the image viewer and line-profile plot a shared full width. Pixel
-readout is a fixed-width permanent status-bar field. Application actions live
-in standard File/Edit/Selection/View menus.
+Source arrays retain decoded dtype and channel meaning: gray, RGB/RGBA, or
+Bayer. Display transforms create uint8 previews without normalizing source
+arrays in place. RGBA analysis intentionally ignores alpha. Difference and
+squared-error paths promote operands before arithmetic.
 
-Source arrays retain their decoded dtype and channel order (gray, RGB, or
-Bayer). Display transforms create uint8 previews; they never normalize source
-arrays in place. Analysis promotes operands before subtraction or squared
-error.
+## Workspace structure
+
+The central horizontal splitter contains a resizable Files/Analysis sidebar and
+the active Single or Multi View workspace. Files uses a two-level `QTreeWidget`:
+non-selectable parent-folder roots and naturally sorted selectable files.
+Extended ordered selection is the comparison set.
+
+Histogram and Line Profile live in a bottom `QDockWidget` spanning the main
+window. It can be hidden, floated, maximized, and restored without overlaying
+the sidebar. The custom title bar draws consistent Float/Dock,
+Maximize/Restore, and Hide icons using design-token colors. The status bar uses
+separate fields for active metadata, coordinate, pixel value, zoom, and task
+state.
+
+Auto, Single View, and Multi View are public layout modes. Multi View maps two
+items side by side, three to a smart focus layout, four to 2×2, and five/six to
+3×2. Visual order is application state: promoting a reference moves it to the
+first raster slot and shifts the previous reference and remaining documents
+right. Logical selection badges remain stable.
 
 ## Thread and document lifecycle
 
-A task carries task, document, and generation IDs. Signals marshal results to
-the UI thread, where request signatures are checked before application.
-Cancellation is cooperative; shutdown marks active tasks cancelled and waits
-for the pool. Registered paths start as lightweight pending documents and only
-the current comparison page (up to six images) is decoded. The global pool is
-capped at four threads to avoid concurrent 4K decodes exhausting memory.
+Registered paths begin as lightweight pending documents. A dedicated load pool
+uses at most two workers; the shared numerical pool uses at most four. This
+limits concurrent 4K memory pressure. Six source images plus one derived
+Difference document form the maximum resident comparison set.
 
-Statistics/histograms are cached by document generation, integer half-open ROI
-bounds, effective-bit-depth bin count, and histogram range. Line profiles are
-cached by document generation and the inclusive horizontal line coordinates.
-Changing the selection, ROI, or line starts a worker; stale results must match
-the whole comparison request before display.
+Every task carries task, document, and generation IDs. Results return to the UI
+thread and are applied only when their complete request signature is current.
+Rapid navigation invalidates obsolete loads and coalesces analysis requests.
+Statistics and histograms are cached by document generation, integer half-open
+ROI, bit-depth bin specification, and range. Line profiles are cached by
+generation and inclusive line coordinates.
 
-One Ctrl-drag creates an image-coordinate ROI. The application clamps it to the
-common width/height of the selected loaded documents and propagates the same
-offset and extent to every visible viewer. View ranges and cursor positions are
-synchronized in multi-view mode.
+## View lifecycle
 
-View updates distinguish an intentional fit from content replacement. Space
-toggle and multi-view drop additions reuse the current ViewBox range. Delayed
-fit callbacks carry request tokens so an obsolete callback cannot reset a more
-recent zoom. Range propagation is guarded against recursive callbacks.
+One Ctrl-drag creates a common image-coordinate ROI, clamped to the selected
+images. Alt-drag creates a shared horizontal or vertical line according to the
+longer gesture axis. Cursor and view ranges synchronize across occupied tiles.
 
-The application keeps one naturally sorted document-ID list and current index
-per normalized folder path. Pair navigation is valid for two to six selected
-documents only when their folder keys are unique. All target indices are
-validated before selection changes, so reaching the end of any folder leaves
-the complete comparison set unchanged. Adding files re-finds the current
-document identity after sorting instead of trusting an index that may have
-shifted.
+View updates distinguish layout fit from content replacement. An unchanged
+preview is not uploaded again. If selection expands while a document is still
+loading, the grid retains its refit request until every required preview is
+ready and then fits synchronously once. This prevents 3→4→5 transitions from
+preserving an invalid range. Ordinary navigation, display-only Diff updates,
+and plot-dock resizing preserve zoom and offset. Recursive and layout-generated
+range callbacks are guarded.
+
+## Folder and Difference state
+
+The application maintains one naturally sorted document-ID list and current
+index per normalized folder path. Pair navigation is valid when selected files
+come from unique folders. All target indices are validated before selection,
+so an endpoint leaves the complete set unchanged.
+
+Difference caches one order-independent native absolute map per source pair.
+Channel selection, gain, threshold mask, display preview, and Full image/Active
+ROI metrics derive from that map. Display-only changes update the Diff tile,
+not every source tile. Six sources plus Diff force Single View until Diff is
+disabled.
 
 ## Extension boundaries
 
-RAW packing dispatch currently accepts unpacked u8/u16. MIPI RAW10/12/14 names
-are reserved but rejected with a clear error; their unpackers can later replace
-the reader boundary (and may become a native extension) without changing UI.
-The REST job state machine is create, poll, result, or cancel/failure. The HTTP
-client is synchronous by design and must be called from a worker.
+RAW dispatch currently accepts unpacked u8/u16. MIPI RAW10/12/14 identifiers
+are reserved but rejected clearly so future unpackers can replace the reader
+boundary without changing UI. The REST job state machine is create, poll,
+result, or cancel/failure; the synchronous HTTP client must run in a worker.
 
-All syntax and APIs target Python 3.10. Resource access will use package
-resources/application data paths when packaging work begins.
+All syntax and APIs target CPython 3.10. Future packaged resource access must
+work in exactly PyInstaller 5.7 `onedir` and must not depend on the source tree
+or current working directory.

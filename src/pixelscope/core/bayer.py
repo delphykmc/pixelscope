@@ -5,7 +5,12 @@ from numpy.typing import NDArray
 
 from pixelscope.core.display_transform import DisplayTransform, to_display_uint8
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, extract_roi
-from pixelscope.core.statistics import HistogramResult, histogram, image_statistics
+from pixelscope.core.statistics import (
+    HistogramResult,
+    histogram,
+    image_statistics,
+    statistics_from_histogram,
+)
 
 BAYER_CHANNEL_NAMES = ("R", "Gr", "Gb", "B")
 
@@ -74,22 +79,38 @@ def analyze_bayer_roi(
 
     region = extract_roi(source, bounds)
     channels = split_bayer_channels(source, pattern, bounds)
-    channel_statistics = tuple(image_statistics(channel) for _name, channel in channels)
     channel_names = tuple(name for name, _channel in channels)
     channel_histograms = tuple(histogram(channel, bins, value_range) for _name, channel in channels)
     if not channel_histograms:
         raise ValueError("Bayer ROI contains no samples")
+    result_histogram = HistogramResult(
+        counts=tuple(result.counts[0] for result in channel_histograms),
+        edges=channel_histograms[0].edges,
+        channel_names=channel_names,
+    )
+    exact_integer_histogram = (
+        np.issubdtype(region.dtype, np.integer)
+        and len(result_histogram.edges) == bins + 1
+        and np.allclose(np.diff(result_histogram.edges), 1.0)
+    )
+    if exact_integer_histogram:
+        channel_statistics = tuple(
+            statistics_from_histogram(counts, result_histogram.edges)
+            for counts in result_histogram.counts
+        )
+        overall_counts = np.sum(np.stack(result_histogram.counts), axis=0, dtype=np.int64)
+        overall = statistics_from_histogram(overall_counts, result_histogram.edges)
+    else:
+        channel_statistics = tuple(image_statistics(channel) for _name, channel in channels)
+        overall = image_statistics(region)
     return RoiAnalysisResult(
         bounds=bounds,
         pixel_count=bounds.width * bounds.height,
-        overall=image_statistics(region),
+        overall=overall,
         channel_statistics=channel_statistics,
         channel_names=channel_names,
-        histogram=HistogramResult(
-            counts=tuple(result.counts[0] for result in channel_histograms),
-            edges=channel_histograms[0].edges,
-            channel_names=channel_names,
-        ),
+        histogram=result_histogram,
+        channel_sample_counts=tuple(int(channel.size) for _name, channel in channels),
     )
 
 

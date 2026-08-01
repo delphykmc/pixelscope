@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-SUPPORTED_IMAGE_SUFFIXES = frozenset({".png", ".bmp"})
+SUPPORTED_IMAGE_SUFFIXES = frozenset({".png", ".bmp", ".jpg", ".jpeg"})
 
 
 @dataclass(frozen=True)

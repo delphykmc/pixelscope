@@ -79,7 +79,7 @@ def generate(output: Path) -> list[Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("output", nargs="?", type=Path, default=Path("generated_test_data"))
+    parser.add_argument("output", nargs="?", type=Path, default=Path("test_data/generated"))
     arguments = parser.parse_args()
     for path in generate(arguments.output):
         print(path)

@@ -71,6 +71,41 @@ def test_bayer_planes_statistics_and_pixel_names() -> None:
         41.5,
     ]
     assert result.histogram.channel_names == result.channel_names
+    assert result.channel_sample_counts == (4, 4, 4, 4)
+
+
+def test_full_frame_even_rggb_plane_sample_counts() -> None:
+    source = np.zeros((2160, 3840), dtype=np.uint16)
+    result = analyze_bayer_roi(
+        source,
+        RoiBounds(0, 0, 3840, 2160),
+        "RGGB",
+        bins=16,
+        value_range=(0.0, 1024.0),
+    )
+    assert result.channel_sample_counts == (2_073_600,) * 4
+    assert sum(result.channel_sample_counts) == source.size
+
+
+def test_odd_bayer_roi_uses_global_phase_and_actual_plane_sizes() -> None:
+    source = np.arange(7 * 9, dtype=np.uint16).reshape(7, 9)
+    bounds = RoiBounds(1, 1, 5, 3)
+    channels = dict(split_bayer_channels(source, "RGGB", bounds))
+    assert channels["R"].tolist() == source[2:4:2, 2:6:2].tolist()
+    assert channels["Gr"].tolist() == source[2:4:2, 1:6:2].tolist()
+    assert channels["Gb"].tolist() == source[1:4:2, 2:6:2].tolist()
+    assert channels["B"].tolist() == source[1:4:2, 1:6:2].tolist()
+    result = analyze_bayer_roi(
+        source,
+        bounds,
+        "RGGB",
+        bins=64,
+        value_range=(0.0, 64.0),
+    )
+    expected_counts = tuple(channels[name].size for name in ("R", "Gr", "Gb", "B"))
+    assert result.channel_sample_counts == expected_counts
+    assert result.channel_sample_counts == (2, 3, 4, 6)
+    assert sum(result.channel_sample_counts) == bounds.width * bounds.height
 
 
 def test_bayer_line_retains_every_other_source_position() -> None:
@@ -91,6 +126,21 @@ def test_bayer_line_retains_every_other_source_position() -> None:
         [20.0, 21.0],
         [30.0, 31.0],
         [40.0, 41.0],
+    ]
+
+
+def test_vertical_bayer_line_retains_every_other_source_position() -> None:
+    result = selected_bayer_line_profile(
+        _rggb_source(),
+        LineSelection(0, 0, 0, 3),
+        "RGGB",
+    )
+    assert result.channel_names == ("R", "Gr", "Gb", "B")
+    assert [positions.tolist() for positions in result.positions] == [
+        [0.0, 2.0],
+        [0.0, 2.0],
+        [1.0, 3.0],
+        [1.0, 3.0],
     ]
 
 

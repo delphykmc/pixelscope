@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 import pyqtgraph as pg
+from numpy.typing import NDArray
 from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import (
+    QComboBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -18,14 +22,13 @@ from pixelscope.core.line_profile import (
     selected_bayer_line_profile,
     selected_line_profile,
 )
+from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
 class LineProfilePanel(QWidget):
     """Full-width asynchronous profile plot for the shared Alt-drag line."""
-
-    _MARKER_SYMBOLS = ("o", "s", "t", "d", "+", "star")
 
     def __init__(self) -> None:
         super().__init__()
@@ -34,40 +37,97 @@ class LineProfilePanel(QWidget):
         self._worker: TaskWorker | None = None
         self._request_signature: tuple[object, ...] = ()
         self.last_results: tuple[LineProfileResult, ...] = ()
-        self._hover_line: pg.InfiniteLine | None = None
-        self._hover_text: pg.TextItem | None = None
+        self._hover_lines: list[pg.InfiniteLine | None] = [None] * 6
+        self._hover_texts: list[pg.TextItem | None] = [None] * 6
+        self._plot_result_indices: list[list[int]] = [[] for _index in range(6)]
+        self._plot_channel_filters: list[str | None] = [None] * 6
 
         self.status = QLabel("Alt+drag on an image to set a line profile")
+        self.view_mode = QComboBox()
+        self.view_mode.addItems(("Overlay", "Separate by image", "Separate by channel"))
+        self.y_mode = QComboBox()
+        self.y_mode.addItems(("Native value", "Normalized 0–1", "Difference from reference"))
+        self.x_mode = QComboBox()
+        self.x_mode.addItems(("Distance px", "Normalized distance"))
         self.channel_buttons: dict[str, QToolButton] = {}
         controls = QHBoxLayout()
+        controls.setSpacing(TOKENS.spacing_sm)
+        for label, combo in (
+            ("View", self.view_mode),
+            ("Y", self.y_mode),
+            ("X", self.x_mode),
+        ):
+            controls.addWidget(QLabel(label))
+            controls.addWidget(combo)
+            controls.addSpacing(TOKENS.spacing_lg)
+            combo.setMaximumWidth(170)
         controls.addWidget(QLabel("Channels"))
-        for name, color in (("R", "#ff3b30"), ("G", "#24b34b"), ("B", "#2684ff")):
+        for name, color in (
+            ("R", "#ff3b30"),
+            ("G", "#24b34b"),
+            ("Gr", "#35d05b"),
+            ("Gb", "#168f38"),
+            ("B", "#2684ff"),
+        ):
             button = QToolButton()
             button.setText(name)
             button.setCheckable(True)
             button.setChecked(True)
-            button.setStyleSheet(f"QToolButton:checked {{ color: {color}; font-weight: bold; }}")
+            button.setStyleSheet(channel_button_style(color))
             button.toggled.connect(  # type: ignore[attr-defined]
                 self._channels_changed
             )
             self.channel_buttons[name] = button
             controls.addWidget(button)
+        for combo in (self.view_mode, self.y_mode, self.x_mode):
+            combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+                self._plot_options_changed
+            )
         controls.addStretch(1)
         controls.addWidget(self.status)
 
-        self.plot = pg.PlotWidget()
-        self.plot.setLabel("left", "Pixel value")
-        self.plot.setLabel("bottom", "Distance", units="px")
-        self.plot.showGrid(x=True, y=True, alpha=0.25)
-        self.plot.getViewBox().setDefaultPadding(0.08)
-        self.legend = self.plot.addLegend(offset=(-10, 10))
-        self.plot.scene().sigMouseMoved.connect(self._on_plot_mouse_moved)
+        self.plot_grid = QWidget()
+        self.plot_layout = QGridLayout(self.plot_grid)
+        self.plot_layout.setContentsMargins(0, 0, 0, 0)
+        self.plots: list[pg.PlotWidget] = []
+        self.legends: list[pg.LegendItem] = []
+        for plot_index in range(6):
+            plot = pg.PlotWidget()
+            plot.setLabel("left", "Pixel value")
+            plot.setLabel("bottom", "Distance", units="px")
+            plot.showGrid(x=True, y=True, alpha=0.25)
+            plot.getViewBox().setDefaultPadding(0.08)
+            plot.setMinimumHeight(180)
+            self.plots.append(plot)
+            self.legends.append(plot.addLegend(offset=(-10, 10)))
+            plot.scene().sigMouseMoved.connect(
+                lambda position, index=plot_index: self._on_plot_mouse_moved(position, index)
+            )
+            plot.hide()
+        self.plot = self.plots[0]
+        self.legend = self.legends[0]
         self._set_axes_visible(False)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 4)
         layout.addLayout(controls)
-        layout.addWidget(self.plot, 1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(self.plot_grid)
+        layout.addWidget(scroll, 1)
+
+    @property
+    def _hover_line(self) -> pg.InfiniteLine | None:
+        """Compatibility alias for the primary overlay plot hover line."""
+
+        return self._hover_lines[0]
+
+    @property
+    def _hover_text(self) -> pg.TextItem | None:
+        """Compatibility alias for the primary overlay plot tooltip."""
+
+        return self._hover_texts[0]
 
     def set_documents(
         self, documents: list[ImageDocument], selection: LineSelection | None
@@ -216,95 +276,204 @@ class LineProfilePanel(QWidget):
         if self.last_results:
             self._render(self.last_results)
 
+    def _plot_options_changed(self, _index: int) -> None:
+        if self.last_results:
+            self._render(self.last_results)
+
     def _render(self, results: tuple[LineProfileResult, ...]) -> None:
-        self.plot.clear()
-        self.legend.clear()
-        for image_index, result in enumerate(results):
-            for values, channel_name, x_values in zip(
-                result.values,
-                result.channel_names,
-                result.positions,
-                strict=True,
-            ):
-                if channel_name == "A":
-                    continue
-                control_name = self._channel_control_name(channel_name)
-                if (
-                    control_name in self.channel_buttons
-                    and not self.channel_buttons[control_name].isChecked()
+        for plot, legend in zip(self.plots, self.legends, strict=True):
+            self.plot_layout.removeWidget(plot)
+            plot.clear()
+            legend.clear()
+            plot.hide()
+        self._plot_result_indices = [[] for _index in range(6)]
+        self._plot_channel_filters = [None] * 6
+        channel_names = {name for result in results for name in result.channel_names if name != "A"}
+        bayer = bool(channel_names.intersection({"Gr", "Gb"}))
+        for name, button in self.channel_buttons.items():
+            button.setVisible(name in channel_names or (name == "G" and not bayer))
+
+        view_mode = self.view_mode.currentText()
+        groups: list[tuple[str, list[tuple[int, LineProfileResult, str | None]]]]
+        if view_mode == "Separate by image":
+            groups = [
+                (
+                    f"{index + 1} · {self._document_label(self._documents[index])}",
+                    [(index, result, None)],
+                )
+                for index, result in enumerate(results)
+            ]
+        elif view_mode == "Separate by channel":
+            groups = [
+                (
+                    channel_name,
+                    [
+                        (index, result, channel_name)
+                        for index, result in enumerate(results)
+                        if channel_name in result.channel_names
+                    ],
+                )
+                for channel_name in ("R", "G", "Gr", "Gb", "B")
+                if channel_name in channel_names
+            ]
+        else:
+            groups = [
+                (
+                    f"Overlay · {len(results)} images",
+                    [(index, result, None) for index, result in enumerate(results)],
+                )
+            ]
+
+        for plot_index, (title, entries) in enumerate(groups[:6]):
+            plot = self.plots[plot_index]
+            self.plot_layout.addWidget(plot, plot_index, 0)
+            plot.show()
+            plot.setTitle(title)
+            self._plot_result_indices[plot_index] = sorted(
+                {image_index for image_index, _result, _filter in entries}
+            )
+            filters = {channel_filter for _image, _result, channel_filter in entries}
+            self._plot_channel_filters[plot_index] = (
+                next(iter(filters)) if len(filters) == 1 else None
+            )
+            for image_index, result, channel_filter in entries:
+                for values, channel_name, positions in zip(
+                    result.values,
+                    result.channel_names,
+                    result.positions,
+                    strict=True,
                 ):
-                    continue
-                self.plot.plot(
-                    x_values,
-                    values,
-                    pen=comparison_pen(channel_name, 0, width=0.8),
-                    antialias=True,
-                    connect="finite",
-                )
-                marker_step = max(1, int(np.ceil(len(x_values) / 70)))
-                marker_indices = np.arange(0, len(x_values), marker_step)
-                if marker_indices[-1] != len(x_values) - 1:
-                    marker_indices = np.append(marker_indices, len(x_values) - 1)
-                color = channel_color(channel_name)
-                markers = pg.ScatterPlotItem(
-                    x=x_values[marker_indices],
-                    y=values[marker_indices],
-                    symbol=self._MARKER_SYMBOLS[image_index % len(self._MARKER_SYMBOLS)],
-                    size=5,
-                    pen=pg.mkPen(color, width=0.7),
-                    brush=pg.mkBrush(color),
-                    pxMode=True,
-                )
-                self.plot.addItem(markers)
-                self.legend.addItem(markers, f"{image_index + 1}-{channel_name}")
-        self._create_hover_items()
-        self._set_axes_visible(True)
-        self.plot.getViewBox().autoRange(padding=0.08)
+                    if channel_name == "A" or (
+                        channel_filter is not None and channel_name != channel_filter
+                    ):
+                        continue
+                    if not self._channel_is_enabled(channel_name):
+                        continue
+                    x_values, y_values = self._transformed_profile(
+                        image_index,
+                        channel_name,
+                        positions,
+                        values,
+                        results,
+                    )
+                    short_name = self._documents[image_index].display_name
+                    if len(short_name) > 24:
+                        short_name = f"{short_name[:11]}…{short_name[-10:]}"
+                    if view_mode == "Separate by image":
+                        legend_name = channel_name
+                    elif view_mode == "Separate by channel":
+                        legend_name = f"{image_index + 1} · {short_name}"
+                    else:
+                        legend_name = f"{image_index + 1} · {short_name} · {channel_name}"
+                    plot.plot(
+                        x_values,
+                        y_values,
+                        pen=comparison_pen(channel_name, image_index, width=0.8),
+                        antialias=True,
+                        connect="finite",
+                        name=legend_name,
+                    )
+            plot.setLabel(
+                "left",
+                "Normalized"
+                if self.y_mode.currentText() == "Normalized 0–1"
+                else "Difference"
+                if self.y_mode.currentText() == "Difference from reference"
+                else "Pixel value",
+            )
+            plot.setLabel(
+                "bottom",
+                "Normalized distance"
+                if self.x_mode.currentText() == "Normalized distance"
+                else "Distance",
+                units=None if self.x_mode.currentText() == "Normalized distance" else "px",
+            )
+            for axis in ("left", "bottom"):
+                plot.showAxis(axis)
+            plot.getViewBox().autoRange(padding=0.08)
+            self._create_hover_items(plot_index)
         selection = self._selection
         if selection is not None:
             self.status.setText(
-                f"({selection.x1}, {selection.y}) to ({selection.x2}, {selection.y})"
+                f"({selection.x1}, {selection.y1}) to ({selection.x2}, {selection.y2})"
             )
 
+    def _transformed_profile(
+        self,
+        image_index: int,
+        channel_name: str,
+        positions: NDArray[np.float64],
+        values: NDArray[np.float64],
+        results: tuple[LineProfileResult, ...],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        x_values = positions.astype(np.float64, copy=False)
+        if self.x_mode.currentText() == "Normalized distance" and x_values.size > 1:
+            span = float(x_values[-1] - x_values[0])
+            if span > 0:
+                x_values = (x_values - x_values[0]) / span
+        y_values = values.astype(np.float64, copy=False)
+        if self.y_mode.currentText() == "Normalized 0–1":
+            document = self._documents[image_index]
+            y_values = y_values / float((1 << document.bit_depth) - 1)
+        elif self.y_mode.currentText() == "Difference from reference" and image_index > 0:
+            reference = results[0]
+            if channel_name in reference.channel_names:
+                reference_index = reference.channel_names.index(channel_name)
+                reference_x = reference.positions[reference_index]
+                reference_y = reference.values[reference_index]
+                y_values = y_values - np.interp(positions, reference_x, reference_y)
+        return x_values, y_values
+
+    def _channel_is_enabled(self, channel_name: str) -> bool:
+        button = self.channel_buttons.get(channel_name)
+        return button is None or button.isChecked()
+
     def _clear_plot(self) -> None:
-        self.plot.clear()
-        self.legend.clear()
-        self._hover_line = None
-        self._hover_text = None
+        for plot, legend in zip(self.plots, self.legends, strict=True):
+            plot.clear()
+            legend.clear()
+            plot.hide()
+        self._hover_lines = [None] * 6
+        self._hover_texts = [None] * 6
+        self._plot_result_indices = [[] for _index in range(6)]
+        self._plot_channel_filters = [None] * 6
         self._set_axes_visible(False)
         self.status.setText("Alt+drag on an image to set a line profile")
 
-    def _create_hover_items(self) -> None:
-        self._hover_line = pg.InfiniteLine(
+    def _create_hover_items(self, plot_index: int) -> None:
+        line = pg.InfiniteLine(
             angle=90,
             movable=False,
             pen=pg.mkPen("#d0d0d0", width=0.7),
         )
-        self._hover_text = pg.TextItem(
+        hint = pg.TextItem(
             anchor=(0, 1),
             fill=pg.mkBrush(24, 24, 24, 225),
             border=pg.mkPen("#808080", width=0.7),
         )
-        self._hover_line.setZValue(20)
-        self._hover_text.setZValue(21)
-        self.plot.addItem(self._hover_line, ignoreBounds=True)
-        self.plot.addItem(self._hover_text, ignoreBounds=True)
-        self._hover_line.hide()
-        self._hover_text.hide()
+        line.setZValue(20)
+        hint.setZValue(21)
+        self.plots[plot_index].addItem(line, ignoreBounds=True)
+        self.plots[plot_index].addItem(hint, ignoreBounds=True)
+        line.hide()
+        hint.hide()
+        self._hover_lines[plot_index] = line
+        self._hover_texts[plot_index] = hint
 
-    def _on_plot_mouse_moved(self, position: object) -> None:
-        line = self._hover_line
-        hint = self._hover_text
+    def _on_plot_mouse_moved(self, position: object, plot_index: int = 0) -> None:
+        line = self._hover_lines[plot_index]
+        hint = self._hover_texts[plot_index]
+        plot = self.plots[plot_index]
         if (
             line is None
             or hint is None
             or not self.last_results
-            or not self.plot.sceneBoundingRect().contains(position)
+            or not plot.sceneBoundingRect().contains(position)
         ):
-            self._hide_hover()
+            self._hide_hover(plot_index)
             return
 
-        point = self.plot.getViewBox().mapSceneToView(position)
+        point = plot.getViewBox().mapSceneToView(position)
         sample_index = int(round(point.x()))
         max_index = int(
             max(
@@ -314,11 +483,12 @@ class LineProfilePanel(QWidget):
             )
         )
         if sample_index < 0 or sample_index > max_index:
-            self._hide_hover()
+            self._hide_hover(plot_index)
             return
 
         rows: list[str] = []
-        for image_index, result in enumerate(self.last_results):
+        for image_index in self._plot_result_indices[plot_index]:
+            result = self.last_results[image_index]
             channel_values: list[str] = []
             for values, channel_name, positions in zip(
                 result.values,
@@ -328,11 +498,10 @@ class LineProfilePanel(QWidget):
             ):
                 if channel_name == "A":
                     continue
-                control_name = self._channel_control_name(channel_name)
-                if (
-                    control_name in self.channel_buttons
-                    and not self.channel_buttons[control_name].isChecked()
-                ):
+                channel_filter = self._plot_channel_filters[plot_index]
+                if channel_filter is not None and channel_name != channel_filter:
+                    continue
+                if not self._channel_is_enabled(channel_name):
                     continue
                 nearest = int(np.argmin(np.abs(positions - sample_index)))
                 value = values[nearest]
@@ -343,8 +512,12 @@ class LineProfilePanel(QWidget):
                     f'<td style="color:{color}; padding-left:6px">'
                     f"{channel_name}{position_suffix}: {value:.6g}</td>"
                 )
-            rows.append(f"<tr><td><b>{image_index + 1}</b></td>{''.join(channel_values)}</tr>")
-        view_range = self.plot.getViewBox().viewRange()
+            image_name = self._documents[image_index].display_name
+            rows.append(
+                f"<tr><td><b>{image_index + 1} · {image_name}</b></td>"
+                f"{''.join(channel_values)}</tr>"
+            )
+        view_range = plot.getViewBox().viewRange()
         x_anchor = 1 if point.x() > sum(view_range[0]) / 2 else 0
         y_anchor = 0 if point.y() > sum(view_range[1]) / 2 else 1
         line.setPos(sample_index)
@@ -352,26 +525,36 @@ class LineProfilePanel(QWidget):
         hint.setHtml(
             f"<b>x={sample_index} px</b>" f"<table cellspacing='1'>{''.join(rows)}</table>"
         )
-        hint.setPos(sample_index, point.y())
+        x_range, y_range = view_range
+        x_padding = (x_range[1] - x_range[0]) * 0.04
+        y_padding = (y_range[1] - y_range[0]) * 0.08
+        hint_x = min(max(float(sample_index), x_range[0] + x_padding), x_range[1] - x_padding)
+        hint_y = min(max(point.y(), y_range[0] + y_padding), y_range[1] - y_padding)
+        hint.setPos(hint_x, hint_y)
         line.show()
         hint.show()
 
-    @staticmethod
-    def _channel_control_name(channel_name: str) -> str:
-        return "G" if channel_name in ("Gr", "Gb") else channel_name
-
-    def _hide_hover(self) -> None:
-        if self._hover_line is not None:
-            self._hover_line.hide()
-        if self._hover_text is not None:
-            self._hover_text.hide()
+    def _hide_hover(self, plot_index: int = 0) -> None:
+        line = self._hover_lines[plot_index]
+        hint = self._hover_texts[plot_index]
+        if line is not None:
+            line.hide()
+        if hint is not None:
+            hint.hide()
 
     def _set_axes_visible(self, visible: bool) -> None:
-        for axis in ("left", "bottom"):
-            if visible:
-                self.plot.showAxis(axis)
-            else:
-                self.plot.hideAxis(axis)
+        for plot in self.plots:
+            for axis in ("left", "bottom"):
+                if visible:
+                    plot.showAxis(axis)
+                else:
+                    plot.hideAxis(axis)
+
+    @staticmethod
+    def _document_label(document: ImageDocument) -> str:
+        if document.source_path is None:
+            return document.display_name
+        return f"{document.source_path.parent.name} / {document.display_name}"
 
     def shutdown(self) -> None:
         if self._worker is not None:

@@ -1,0 +1,17 @@
+{
+  "resolution": [
+    3840,
+    2160
+  ],
+  "reference_dtype": "uint8 BGR/RGB PNG",
+  "degraded_dtype": "uint8 BGR/RGB PNG",
+  "mse_rgb": 199.55283910429526,
+  "psnr_rgb_db": 25.130224498525653,
+  "abs_diff_mean": 6.715694765946502,
+  "abs_diff_max": 170,
+  "raw_min": 102,
+  "raw_max": 1023,
+  "raw_dtype": "uint16 little-endian",
+  "raw_effective_bit_depth": 10,
+  "raw_pattern": "RGGB"
+}

@@ -10,6 +10,7 @@ from pixelscope.core.statistics import (
     ImageStatistics,
     histogram,
     image_statistics,
+    statistics_from_histogram,
 )
 
 
@@ -47,6 +48,7 @@ class RoiAnalysisResult:
     channel_statistics: tuple[ImageStatistics, ...]
     channel_names: tuple[str, ...]
     histogram: HistogramResult
+    channel_sample_counts: tuple[int, ...] = ()
 
 
 def clamp_roi(
@@ -92,12 +94,27 @@ def analyze_roi(
     region = extract_roi(image, bounds)
     result_histogram = histogram(region, bins, histogram_range)
     channels = (region,) if region.ndim == 2 else tuple(np.moveaxis(region, -1, 0))
-    channel_statistics = tuple(image_statistics(channel) for channel in channels)
+    exact_integer_histogram = (
+        np.issubdtype(region.dtype, np.integer)
+        and len(result_histogram.edges) == bins + 1
+        and np.allclose(np.diff(result_histogram.edges), 1.0)
+    )
+    if exact_integer_histogram:
+        channel_statistics = tuple(
+            statistics_from_histogram(counts, result_histogram.edges)
+            for counts in result_histogram.counts
+        )
+        overall_counts = np.sum(np.stack(result_histogram.counts), axis=0, dtype=np.int64)
+        overall = statistics_from_histogram(overall_counts, result_histogram.edges)
+    else:
+        channel_statistics = tuple(image_statistics(channel) for channel in channels)
+        overall = image_statistics(region)
     return RoiAnalysisResult(
         bounds=bounds,
         pixel_count=bounds.width * bounds.height,
-        overall=image_statistics(region),
+        overall=overall,
         channel_statistics=channel_statistics,
         channel_names=result_histogram.channel_names,
         histogram=result_histogram,
+        channel_sample_counts=tuple(int(channel.size) for channel in channels),
     )

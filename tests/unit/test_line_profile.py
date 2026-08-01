@@ -47,3 +47,11 @@ def test_selected_line_profile_includes_endpoints_and_drag_direction() -> None:
 
 def test_line_selection_clamps_to_common_image_coordinates() -> None:
     assert clamp_line((4, 5), -3, 10, 9) == LineSelection(0, 3, 4)
+
+
+def test_vertical_drag_uses_the_longer_axis_and_preserves_direction() -> None:
+    image = np.arange(30, dtype=np.uint16).reshape(6, 5)
+    selection = clamp_line(image.shape, 2, 5, 3, 1)
+    assert selection == LineSelection(2, 5, 2, 1)
+    result = selected_line_profile(image, selection)
+    assert result.values[0].tolist() == [27.0, 22.0, 17.0, 12.0, 7.0]

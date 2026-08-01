@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.design_tokens import apply_engineering_palette
 
 
 def create_application(arguments: Sequence[str] | None = None) -> QApplication:
@@ -14,10 +15,14 @@ def create_application(arguments: Sequence[str] | None = None) -> QApplication:
 
     existing = QApplication.instance()
     if isinstance(existing, QApplication):
+        existing.setApplicationName("PixelScope")
+        existing.setOrganizationName("PixelScope")
+        apply_engineering_palette(existing)
         return existing
     app = QApplication(list(arguments) if arguments is not None else sys.argv)
     app.setApplicationName("PixelScope")
     app.setOrganizationName("PixelScope")
+    apply_engineering_palette(app)
     return app
 
 

@@ -1,0 +1,282 @@
+{
+  "chart_01_color_gradient.jpg": {
+    "noise_metrics": {
+      "mae": 4.9957966804504395,
+      "mse": 43.78730392456055,
+      "psnr_db": 31.71732155267758
+    },
+    "tone_metrics": {
+      "mae": 26.330333709716797,
+      "mse": 797.8372192382812,
+      "psnr_db": 19.11166068512075
+    },
+    "noise_parameters": {
+      "luma_sigma": 5.65,
+      "chroma_sigma": 1.85,
+      "impulse_probability_each": 0.000132
+    },
+    "tone_parameters": {
+      "gamma_exponent": 0.72,
+      "contrast": 1.1,
+      "brightness_offset_normalized": 0.015,
+      "white_balance_scale_bgr": [
+        1.03,
+        1.0,
+        0.92
+      ],
+      "saturation_scale": 0.865
+    }
+  },
+  "chart_02_edges_checker.jpg": {
+    "noise_metrics": {
+      "mae": 5.594497203826904,
+      "mse": 55.19797134399414,
+      "psnr_db": 30.711572441948505
+    },
+    "tone_metrics": {
+      "mae": 24.821504592895508,
+      "mse": 745.6710815429688,
+      "psnr_db": 19.405330601667497
+    },
+    "noise_parameters": {
+      "luma_sigma": 6.3,
+      "chroma_sigma": 2.2,
+      "impulse_probability_each": 0.000144
+    },
+    "tone_parameters": {
+      "gamma_exponent": 0.82,
+      "contrast": 0.92,
+      "brightness_offset_normalized": 0.035,
+      "white_balance_scale_bgr": [
+        0.94,
+        1.0,
+        1.08
+      ],
+      "saturation_scale": 0.9099999999999999
+    }
+  },
+  "chart_03_frequency_patterns.jpg": {
+    "noise_metrics": {
+      "mae": 6.090810298919678,
+      "mse": 64.1438980102539,
+      "psnr_db": 30.059250124955614
+    },
+    "tone_metrics": {
+      "mae": 11.839696884155273,
+      "mse": 189.56666564941406,
+      "psnr_db": 25.35318389665916
+    },
+    "noise_parameters": {
+      "luma_sigma": 6.95,
+      "chroma_sigma": 2.55,
+      "impulse_probability_each": 0.000156
+    },
+    "tone_parameters": {
+      "gamma_exponent": 0.9,
+      "contrast": 1.18,
+      "brightness_offset_normalized": -0.025,
+      "white_balance_scale_bgr": [
+        1.08,
+        0.98,
+        0.93
+      ],
+      "saturation_scale": 0.955
+    }
+  },
+  "chart_04_radial_curves.jpg": {
+    "noise_metrics": {
+      "mae": 6.6753363609313965,
+      "mse": 75.56432342529297,
+      "psnr_db": 29.347635626764536
+    },
+    "tone_metrics": {
+      "mae": 9.278067588806152,
+      "mse": 139.25115966796875,
+      "psnr_db": 26.69281540251569
+    },
+    "noise_parameters": {
+      "luma_sigma": 7.6,
+      "chroma_sigma": 2.9,
+      "impulse_probability_each": 0.00016800000000000002
+    },
+    "tone_parameters": {
+      "gamma_exponent": 1.1,
+      "contrast": 0.88,
+      "brightness_offset_normalized": 0.02,
+      "white_balance_scale_bgr": [
+        0.91,
+        1.02,
+        1.1
+      ],
+      "saturation_scale": 1.0
+    }
+  },
+  "chart_05_textures.jpg": {
+    "noise_metrics": {
+      "mae": 7.012019157409668,
+      "mse": 82.4229965209961,
+      "psnr_db": 28.97031961442781
+    },
+    "tone_metrics": {
+      "mae": 22.519594192504883,
+      "mse": 546.9230346679688,
+      "psnr_db": 20.7515414599844
+    },
+    "noise_parameters": {
+      "luma_sigma": 8.25,
+      "chroma_sigma": 1.5,
+      "impulse_probability_each": 0.00018
+    },
+    "tone_parameters": {
+      "gamma_exponent": 1.22,
+      "contrast": 1.05,
+      "brightness_offset_normalized": -0.01,
+      "white_balance_scale_bgr": [
+        1.04,
+        1.03,
+        0.95
+      ],
+      "saturation_scale": 1.045
+    }
+  },
+  "chart_06_flat_shading.jpg": {
+    "noise_metrics": {
+      "mae": 7.523631572723389,
+      "mse": 94.8209457397461,
+      "psnr_db": 28.36176078230208
+    },
+    "tone_metrics": {
+      "mae": 18.474178314208984,
+      "mse": 439.32098388671875,
+      "psnr_db": 21.70298413308111
+    },
+    "noise_parameters": {
+      "luma_sigma": 8.9,
+      "chroma_sigma": 1.85,
+      "impulse_probability_each": 0.000192
+    },
+    "tone_parameters": {
+      "gamma_exponent": 0.78,
+      "contrast": 1.22,
+      "brightness_offset_normalized": 0,
+      "white_balance_scale_bgr": [
+        0.97,
+        1.06,
+        0.96
+      ],
+      "saturation_scale": 1.0899999999999999
+    }
+  },
+  "chart_07_typography.jpg": {
+    "noise_metrics": {
+      "mae": 7.840933799743652,
+      "mse": 104.37535095214844,
+      "psnr_db": 27.94482412100082
+    },
+    "tone_metrics": {
+      "mae": 22.879898071289062,
+      "mse": 665.5011596679688,
+      "psnr_db": 19.899315442774103
+    },
+    "noise_parameters": {
+      "luma_sigma": 9.55,
+      "chroma_sigma": 2.2,
+      "impulse_probability_each": 0.00020400000000000003
+    },
+    "tone_parameters": {
+      "gamma_exponent": 1.32,
+      "contrast": 0.84,
+      "brightness_offset_normalized": 0.045,
+      "white_balance_scale_bgr": [
+        1.1,
+        0.96,
+        0.9
+      ],
+      "saturation_scale": 1.135
+    }
+  },
+  "chart_08_geometry.jpg": {
+    "noise_metrics": {
+      "mae": 8.58466911315918,
+      "mse": 122.53704833984375,
+      "psnr_db": 27.24812945987996
+    },
+    "tone_metrics": {
+      "mae": 9.350866317749023,
+      "mse": 143.5245361328125,
+      "psnr_db": 26.56154208953304
+    },
+    "noise_parameters": {
+      "luma_sigma": 10.2,
+      "chroma_sigma": 2.55,
+      "impulse_probability_each": 0.000216
+    },
+    "tone_parameters": {
+      "gamma_exponent": 0.88,
+      "contrast": 1.12,
+      "brightness_offset_normalized": -0.03,
+      "white_balance_scale_bgr": [
+        0.92,
+        1.04,
+        1.08
+      ],
+      "saturation_scale": 1.18
+    }
+  },
+  "chart_09_pseudo_natural.jpg": {
+    "noise_metrics": {
+      "mae": 9.193485260009766,
+      "mse": 138.6062774658203,
+      "psnr_db": 26.712974609887393
+    },
+    "tone_metrics": {
+      "mae": 11.253713607788086,
+      "mse": 205.74859619140625,
+      "psnr_db": 24.99743480135028
+    },
+    "noise_parameters": {
+      "luma_sigma": 10.850000000000001,
+      "chroma_sigma": 2.9,
+      "impulse_probability_each": 0.000228
+    },
+    "tone_parameters": {
+      "gamma_exponent": 1.16,
+      "contrast": 0.9,
+      "brightness_offset_normalized": 0.025,
+      "white_balance_scale_bgr": [
+        1.06,
+        1.0,
+        0.96
+      ],
+      "saturation_scale": 1.2249999999999999
+    }
+  },
+  "chart_10_mixed_validation.jpg": {
+    "noise_metrics": {
+      "mae": 9.407607078552246,
+      "mse": 146.2239532470703,
+      "psnr_db": 26.4806183974449
+    },
+    "tone_metrics": {
+      "mae": 18.404315948486328,
+      "mse": 472.1025390625,
+      "psnr_db": 21.390440247072174
+    },
+    "noise_parameters": {
+      "luma_sigma": 11.5,
+      "chroma_sigma": 1.5,
+      "impulse_probability_each": 0.00024
+    },
+    "tone_parameters": {
+      "gamma_exponent": 0.68,
+      "contrast": 1.15,
+      "brightness_offset_normalized": -0.02,
+      "white_balance_scale_bgr": [
+        0.95,
+        1.02,
+        1.06
+      ],
+      "saturation_scale": 1.27
+    }
+  }
+}

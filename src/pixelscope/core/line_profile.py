@@ -22,17 +22,31 @@ class LineProfileResult:
 
 @dataclass(frozen=True)
 class LineSelection:
-    """Inclusive horizontal source-image line selected by Alt+drag."""
+    """Inclusive axis-aligned source-image line selected by Alt+drag."""
 
     x1: int
-    y: int
+    y1: int
     x2: int
+    y2: int | None = None
 
     def __post_init__(self) -> None:
-        if self.x1 < 0 or self.x2 < 0 or self.y < 0:
+        if self.y2 is None:
+            object.__setattr__(self, "y2", self.y1)
+        assert self.y2 is not None
+        if self.x1 < 0 or self.x2 < 0 or self.y1 < 0 or self.y2 < 0:
             raise ValueError("line coordinates must not be negative")
-        if self.x1 == self.x2:
-            raise ValueError("line profile requires two different X coordinates")
+        if self.x1 == self.x2 and self.y1 == self.y2:
+            raise ValueError("line profile requires two different coordinates")
+
+    @property
+    def y(self) -> int:
+        """Backward-compatible start row for existing integrations."""
+
+        return self.y1
+
+    @property
+    def is_horizontal(self) -> bool:
+        return self.y1 == self.y2
 
     @property
     def left(self) -> int:
@@ -43,18 +57,24 @@ class LineSelection:
         return max(self.x1, self.x2)
 
 
-def clamp_line(image_shape: tuple[int, ...], x1: int, y: int, x2: int) -> LineSelection:
-    """Clamp a horizontal line to an HxW image while preserving drag direction."""
+def clamp_line(
+    image_shape: tuple[int, ...], x1: int, y1: int, x2: int, y2: int | None = None
+) -> LineSelection:
+    """Clamp a line and snap it to the dominant horizontal or vertical axis."""
 
     if len(image_shape) not in (2, 3):
         raise ValueError("line profile expects an HxW or HxWxC image shape")
     height, width = image_shape[:2]
     if width < 2 or height < 1:
         raise ValueError("image is too small for a line profile")
-    clipped_y = min(max(y, 0), height - 1)
+    y2 = y1 if y2 is None else y2
+    clipped_y1 = min(max(y1, 0), height - 1)
+    clipped_y2 = min(max(y2, 0), height - 1)
     clipped_x1 = min(max(x1, 0), width - 1)
     clipped_x2 = min(max(x2, 0), width - 1)
-    return LineSelection(clipped_x1, clipped_y, clipped_x2)
+    if abs(clipped_x2 - clipped_x1) >= abs(clipped_y2 - clipped_y1):
+        return LineSelection(clipped_x1, clipped_y1, clipped_x2, clipped_y1)
+    return LineSelection(clipped_x1, clipped_y1, clipped_x1, clipped_y2)
 
 
 def selected_line_profile(
@@ -62,12 +82,18 @@ def selected_line_profile(
 ) -> LineProfileResult:
     """Extract the exact Alt-dragged horizontal segment, including both endpoints."""
 
-    selected = clamp_line(image.shape, selection.x1, selection.y, selection.x2)
-    if selected.x2 > selected.x1:
-        line = image[selected.y, selected.x1 : selected.x2 + 1]
-    else:
+    selected = clamp_line(image.shape, selection.x1, selection.y1, selection.x2, selection.y2)
+    if selected.is_horizontal and selected.x2 > selected.x1:
+        line = image[selected.y1, selected.x1 : selected.x2 + 1]
+    elif selected.is_horizontal:
         stop = selected.x2 - 1 if selected.x2 > 0 else None
-        line = image[selected.y, selected.x1 : stop : -1]
+        line = image[selected.y1, selected.x1 : stop : -1]
+    elif selected.y2 is not None and selected.y2 > selected.y1:
+        line = image[selected.y1 : selected.y2 + 1, selected.x1]
+    else:
+        assert selected.y2 is not None
+        stop = selected.y2 - 1 if selected.y2 > 0 else None
+        line = image[selected.y1 : stop : -1, selected.x1]
     names: tuple[str, ...]
     if line.ndim == 1:
         values = (line.astype(np.float64),)
@@ -76,7 +102,7 @@ def selected_line_profile(
         values = tuple(channel.astype(np.float64) for channel in np.moveaxis(line, -1, 0))
         names = ("R", "G", "B", "A")[: len(values)]
     positions = tuple(np.arange(len(channel), dtype=np.float64) for channel in values)
-    return LineProfileResult(selected.x1, selected.y, values, names, positions)
+    return LineProfileResult(selected.x1, selected.y1, values, names, positions)
 
 
 def selected_bayer_line_profile(
@@ -88,34 +114,50 @@ def selected_bayer_line_profile(
 
     if image.ndim != 2:
         raise ValueError("Bayer line profile expects a 2-D mosaic")
-    selected = clamp_line(image.shape, selection.x1, selection.y, selection.x2)
-    direction = 1 if selected.x2 > selected.x1 else -1
-    source_x = np.arange(selected.x1, selected.x2 + direction, direction)
-    distances = np.arange(len(source_x), dtype=np.float64)
+    selected = clamp_line(image.shape, selection.x1, selection.y1, selection.x2, selection.y2)
     channel_values: list[NDArray[np.float64]] = []
     channel_positions: list[NDArray[np.float64]] = []
     channel_names: list[str] = []
-    height = image.shape[0]
+    height, width = image.shape
     positions = bayer_channel_positions(pattern)
     for name in BAYER_CHANNEL_NAMES:
         row_parity, column_parity = positions[name]
-        row_candidates = [
-            row
-            for row in (selected.y, selected.y - 1, selected.y + 1)
-            if 0 <= row < height and row % 2 == row_parity
-        ]
-        if not row_candidates:
-            continue
-        row = min(row_candidates, key=lambda candidate: abs(candidate - selected.y))
-        mask = source_x % 2 == column_parity
+        if selected.is_horizontal:
+            direction = 1 if selected.x2 > selected.x1 else -1
+            source_axis = np.arange(selected.x1, selected.x2 + direction, direction)
+            fixed_candidates = [
+                row
+                for row in (selected.y1, selected.y1 - 1, selected.y1 + 1)
+                if 0 <= row < height and row % 2 == row_parity
+            ]
+            if not fixed_candidates:
+                continue
+            fixed = min(fixed_candidates, key=lambda candidate: abs(candidate - selected.y1))
+            mask = source_axis % 2 == column_parity
+            sampled = image[fixed, source_axis[mask]]
+        else:
+            assert selected.y2 is not None
+            direction = 1 if selected.y2 > selected.y1 else -1
+            source_axis = np.arange(selected.y1, selected.y2 + direction, direction)
+            fixed_candidates = [
+                column
+                for column in (selected.x1, selected.x1 - 1, selected.x1 + 1)
+                if 0 <= column < width and column % 2 == column_parity
+            ]
+            if not fixed_candidates:
+                continue
+            fixed = min(fixed_candidates, key=lambda candidate: abs(candidate - selected.x1))
+            mask = source_axis % 2 == row_parity
+            sampled = image[source_axis[mask], fixed]
         if not np.any(mask):
             continue
+        distances = np.arange(len(source_axis), dtype=np.float64)
         channel_names.append(name)
-        channel_values.append(image[row, source_x[mask]].astype(np.float64))
+        channel_values.append(sampled.astype(np.float64))
         channel_positions.append(distances[mask])
     return LineProfileResult(
         selected.x1,
-        selected.y,
+        selected.y1,
         tuple(channel_values),
         tuple(channel_names),
         tuple(channel_positions),
