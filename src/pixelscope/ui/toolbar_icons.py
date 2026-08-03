@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF
@@ -137,7 +137,7 @@ def _draw_icon(kind: str, color_name: str) -> QPixmap:
     return pixmap
 
 
-@lru_cache(maxsize=None)
+@cache
 def toolbar_icon(kind: str) -> QIcon:
     """Return one high-DPI icon with explicit normal, checked, and disabled states."""
 
