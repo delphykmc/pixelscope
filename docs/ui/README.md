@@ -8,12 +8,9 @@ All captures are generated deterministically on Windows by
 | --- | --- |
 | `empty_state.png` | Initial drop/open guidance |
 | `single_image.png` | Single image, Files tree, and Statistics |
-| `three_image_multiview.png` | Top Focus three-image layout (2:1 rows) |
-| `five_image_multiview.png` | Top Focus five-image layout (2:1:1 rows) |
-| `six_image_multiview.png` | Top Focus six-image 2-column raster |
-| `three_image_left_focus.png` | Left Focus three-image layout (2:1 columns) |
-| `five_image_left_focus.png` | Left Focus five-image layout (2:1:1 columns) |
-| `six_image_left_focus.png` | Left Focus six-image 3-column raster |
+| `three_image_multiview.png` | Fixed three-image layout: two-row focus at left, two images at right |
+| `five_image_multiview.png` | Fixed five-image layout: three-image structure extended by a bottom row |
+| `six_image_multiview.png` | Fixed six-image 2-column by 3-row raster |
 | `difference_analysis.png` | Difference controls, metrics, and Diff view |
 | `histogram_docked.png` | Full-width docked histogram |
 | `line_profile_docked.png` | Shared line and docked Line Profile |
