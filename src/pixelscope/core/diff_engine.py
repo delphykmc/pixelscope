@@ -223,9 +223,7 @@ def _integer_absolute_metrics(
         if chunk_minimum < 0:
             raise ValueError("absolute difference values must be non-negative")
         if chunk_maximum >= histogram_bins:
-            raise ValueError(
-                "native metric histogram supports absolute values through 65535"
-            )
+            raise ValueError("native metric histogram supports absolute values through 65535")
         indexes = chunk.astype(np.intp, copy=False)
         chunk_counts = np.bincount(indexes, minlength=histogram_bins)
         counts += chunk_counts.astype(np.int64, copy=False)

@@ -85,8 +85,7 @@ def test_fixed_geometry_and_pin_visibility(qtbot: object, count: int) -> None:
     assert tuple(view._layout.rowStretch(index) for index in range(3)) == row_stretches
     assert tuple(view._layout.columnStretch(index) for index in range(3)) == column_stretches
     assert all(
-        viewer.header.focus.isHidden() is (count not in (3, 5))
-        for viewer in view.occupied_viewers
+        viewer.header.focus.isHidden() is (count not in (3, 5)) for viewer in view.occupied_viewers
     )
 
 
@@ -101,9 +100,7 @@ def test_three_view_real_geometry_uses_equal_columns_and_two_row_focus(qtbot: ob
     view.show()
     qtbot.wait(40)  # type: ignore[attr-defined]
 
-    focus, upper_right, lower_right = (
-        viewer.geometry() for viewer in view.occupied_viewers
-    )
+    focus, upper_right, lower_right = (viewer.geometry() for viewer in view.occupied_viewers)
     spacing = view._layout.spacing()
     assert abs(focus.width() - upper_right.width()) <= 3
     assert abs(upper_right.width() - lower_right.width()) <= 3

@@ -558,11 +558,7 @@ class DifferencePanel(QWidget):
             for metric_key, value in self._metric_cache.items()
             if len(metric_key) < 2 or (metric_key[0], metric_key[1]) not in evicted
         }
-        if (
-            self._preview_key is not None
-            and self._preview_key
-            and self._preview_key[0] in evicted
-        ):
+        if self._preview_key is not None and self._preview_key and self._preview_key[0] in evicted:
             self._preview_key = None
             self._preview_value = None
 

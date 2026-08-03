@@ -69,9 +69,7 @@ def test_panel_lru_eviction_removes_dependent_metric_cache(qtbot: object) -> Non
 
     assert panel.difference_cache.peek(first_key) is None
     assert panel.difference_cache.used_bytes == 12
-    assert all(
-        (metric_key[0], metric_key[1]) != first_key for metric_key in panel._metric_cache
-    )
+    assert all((metric_key[0], metric_key[1]) != first_key for metric_key in panel._metric_cache)
     assert len(panel._metric_cache) == 1
 
 
