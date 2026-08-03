@@ -26,12 +26,12 @@ def _replace_between(text: str, start: str, end: str, replacement: str) -> str:
 
 
 def patched_text(text: str) -> str:
-    marker = "from pixelscope.ui.design_tokens import TOKENS, menu_style, panel_heading_style, toolbar_style"
     applied_markers = (
-        marker in text,
+        "    menu_style,\n" in text,
         'self.split_channels_action.setIcon(toolbar_icon("split_channels"))' in text,
         "def _split_display_documents(" in text,
         "stay_single = force_single or self._layout_mode == \"Single View\"" in text,
+        "if count <= 1:\n            return (\"Grid 2x2\", 4) if self._split_channels" in text,
     )
     if all(applied_markers):
         return text
@@ -270,6 +270,27 @@ def patched_text(text: str) -> str:
         "    def _set_split_channels(self, enabled: bool) -> None:\n",
         "    def compare_selection(self) -> None:\n",
         split_helpers,
+    )
+
+    effective_layout = '''    def _effective_layout(self, count: int) -> tuple[str, int]:
+        if self._layout_mode == "Single View":
+            return "Single", 1
+        if count <= 1:
+            return ("Grid 2x2", 4) if self._split_channels else ("Single", 1)
+        if count == 2:
+            return "Side by Side", 2
+        if count == 3:
+            return "Focus + 2", 4
+        if count == 4:
+            return "Grid 2x2", 4
+        return "Grid 3x2", 6
+
+'''
+    text = _replace_between(
+        text,
+        "    def _effective_layout(self, count: int) -> tuple[str, int]:\n",
+        "    def _update_layout_options(self, count: int) -> None:\n",
+        effective_layout,
     )
 
     difference_visible = '''    def _set_difference_visible(self, enabled: bool) -> None:
