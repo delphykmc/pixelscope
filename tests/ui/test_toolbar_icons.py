@@ -5,6 +5,7 @@ import pytest
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon, QPalette
 
+from pixelscope.app.application import create_application
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.design_tokens import TOKENS
@@ -92,6 +93,7 @@ def test_main_toolbar_uses_distinct_internal_icons_and_compact_labels(qtbot: obj
 
 
 def test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette(qtbot: object) -> None:
+    create_application([])
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
