@@ -81,6 +81,13 @@ def tile_header_style() -> str:
         f"QLabel#slotBadge {{ background: {TOKENS.raised_background}; "
         f"color: {TOKENS.text_primary}; padding: 1px 5px; font-weight: 700; }}"
         f"QLabel#tileMeta {{ color: {TOKENS.text_secondary}; }}"
+        "QToolButton#focusPin { background: transparent; border: 1px solid transparent; }"
+        f"QToolButton#focusPin:hover {{ background: {TOKENS.raised_background}; "
+        f"border-color: {TOKENS.border}; }}"
+        f"QToolButton#focusPin:checked {{ background: {TOKENS.raised_background}; "
+        f"border-color: {TOKENS.accent}; }}"
+        f"QToolButton#focusPin:pressed {{ background: {TOKENS.workspace_background}; "
+        f"border-color: {TOKENS.accent}; }}"
     )
 
 
@@ -95,8 +102,17 @@ def empty_state_style() -> str:
 
 def toolbar_style() -> str:
     return (
+        f"QToolBar {{ spacing: {TOKENS.spacing_xs}px; }}"
+        "QToolButton { border: 1px solid transparent; border-radius: 2px; "
+        f"padding: {TOKENS.spacing_xs}px {TOKENS.spacing_sm}px; }}"
+        f"QToolButton:hover {{ background: {TOKENS.raised_background}; "
+        f"border-color: {TOKENS.border}; }}"
+        f"QToolButton:pressed {{ background: {TOKENS.workspace_background}; "
+        f"border-color: {TOKENS.accent}; }}"
         f"QToolButton:checked {{ background: {TOKENS.raised_background}; "
-        f"border: 1px solid {TOKENS.accent}; color: {TOKENS.text_primary}; }}"
+        f"border-color: {TOKENS.accent}; color: {TOKENS.text_primary}; }}"
+        "QToolButton:disabled { background: transparent; border-color: transparent; "
+        "color: #737980; }"
     )
 
 
