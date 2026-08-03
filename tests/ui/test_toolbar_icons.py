@@ -3,10 +3,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPalette
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.tile_header import TileHeader
 from pixelscope.ui.toolbar_icons import toolbar_icon
 
@@ -18,9 +19,11 @@ from pixelscope.ui.toolbar_icons import toolbar_icon
         "actual_size",
         "zoom_in",
         "zoom_out",
+        "split_channels",
         "sync",
         "difference",
         "plots",
+        "dock",
         "export",
         "pin",
     ),
@@ -67,6 +70,7 @@ def test_main_toolbar_uses_distinct_internal_icons_and_compact_labels(qtbot: obj
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     actions = {
+        "Split Channels": (window.split_channels_action, "Split"),
         "Fit Image": (window.action_map["Fit Image"], "Fit"),
         "100% Zoom": (window.action_map["100% Zoom"], "1:1"),
         "Zoom In": (window.zoom_in_action, "Zoom +"),
@@ -83,7 +87,61 @@ def test_main_toolbar_uses_distinct_internal_icons_and_compact_labels(qtbot: obj
         assert action.iconText() == icon_text
         icon_keys.add(action.icon().cacheKey())
     assert len(icon_keys) == len(actions)
+    assert not window.redock_plots_action.icon().isNull()
     assert window.main_toolbar.accessibleName() == "PixelScope main toolbar"
+
+
+def test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette(qtbot: object) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    assert not window.split_channels_action.isEnabled()
+    assert not window.redock_plots_action.isEnabled()
+    assert not window.split_channels_action.icon().isNull()
+    assert not window.redock_plots_action.icon().isNull()
+    assert "QMenu::item:disabled" in window.menuBar().styleSheet()
+    assert (
+        window.palette()
+        .color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText)
+        .name()
+        == TOKENS.text_disabled
+    )
+
+
+def test_split_action_preserves_checked_state_while_temporarily_unavailable(
+    qtbot: object,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    documents = [
+        ImageDocument.from_array(
+            np.full((8, 10, 3), value, dtype=np.uint8),
+            f"split-state-{index + 1}.png",
+        )
+        for index, value in enumerate((10, 20))
+    ]
+    for document in documents:
+        window.add_document(document, select=False)
+
+    window._select_document_ids([documents[0].document_id])
+    assert window.split_channels_action.isEnabled()
+    window.split_channels_action.trigger()
+    assert window.split_channels_action.isChecked()
+    assert len(window.multi_compare_view.occupied_viewers) == 3
+
+    window._select_document_ids([document.document_id for document in documents])
+    assert not window.split_channels_action.isEnabled()
+    assert window.split_channels_action.isChecked()
+    assert window.split_channels_action.toolTip() == (
+        "Split Channels requires exactly one selected image"
+    )
+
+    window._select_document_ids([documents[0].document_id])
+    assert window.split_channels_action.isEnabled()
+    assert window.split_channels_action.isChecked()
+    assert len(window.multi_compare_view.occupied_viewers) == 3
+    window.split_channels_action.trigger()
+    assert not window.split_channels_action.isChecked()
 
 
 def test_toolbar_enablement_and_tooltips_follow_workspace_state(qtbot: object) -> None:
@@ -115,9 +173,11 @@ def test_toolbar_enablement_and_tooltips_follow_workspace_state(qtbot: object) -
     assert window.action_map["100% Zoom"].isEnabled()
     assert window.zoom_in_action.isEnabled()
     assert window.zoom_out_action.isEnabled()
+    assert window.split_channels_action.isEnabled()
     assert not window.sync_action.isEnabled()
 
     window._select_document_ids([documents[0].document_id, documents[1].document_id])
+    assert not window.split_channels_action.isEnabled()
     assert window.sync_action.isEnabled()
     assert window.sync_action.isChecked()
     assert window.sync_action.toolTip() == "Disable synchronized zoom, pan, and cursor"
