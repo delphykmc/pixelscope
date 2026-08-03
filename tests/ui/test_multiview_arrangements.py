@@ -192,15 +192,14 @@ def test_focus_pin_reorders_three_view_without_changing_selection_order(qtbot: o
     selected_ids = [document.document_id for document in documents]
     window._select_document_ids(selected_ids)
     window.set_layout_mode("Multi View")
+    viewer_ids = tuple(id(viewer) for viewer in window.multi_compare_view.viewers)
 
     window._set_focus_document(documents[2])
 
     assert window._focus_document_id == documents[2].document_id
     assert window.multi_compare_view.viewers[0].document is documents[2]
     assert [document.document_id for document in window.selected_documents] == selected_ids
-    assert tuple(id(viewer) for viewer in window.multi_compare_view.viewers) == tuple(
-        id(viewer) for viewer in window.multi_compare_view.viewers
-    )
+    assert tuple(id(viewer) for viewer in window.multi_compare_view.viewers) == viewer_ids
     window.close()
 
 
