@@ -203,7 +203,10 @@ def _integer_absolute_metrics(
     data_range: float,
     chunk_elements: int,
 ) -> DifferenceMetrics:
-    histogram_bins = 256 if data_range <= 255.0 else MAX_METRIC_HISTOGRAM_BINS
+    histogram_bins = min(
+        MAX_METRIC_HISTOGRAM_BINS,
+        max(256, int(data_range) + 1),
+    )
     counts = np.zeros(histogram_bins, dtype=np.int64)
     sample_count = 0
     absolute_sum = 0
@@ -215,8 +218,8 @@ def _integer_absolute_metrics(
     for chunk in _iter_metric_chunks(selected, chunk_elements):
         if chunk.size == 0:
             continue
-        chunk_minimum = int(np.min(chunk))
-        chunk_maximum = int(np.max(chunk))
+        chunk_minimum = int(np.asarray(np.min(chunk)).item())
+        chunk_maximum = int(np.asarray(np.max(chunk)).item())
         if chunk_minimum < 0:
             raise ValueError("absolute difference values must be non-negative")
         if chunk_maximum >= histogram_bins:
@@ -282,7 +285,8 @@ def _floating_absolute_metrics(
     mse = square_sum / sample_count
     rmse = sqrt(mse)
     psnr = inf if mse == 0 else 20.0 * log10(data_range) - 10.0 * log10(mse)
-    p95, p99 = np.percentile(selected, (95.0, 99.0))
+    percentile_values = np.asarray(selected, dtype=np.float64)
+    p95, p99 = np.percentile(percentile_values, (95.0, 99.0))
     return DifferenceMetrics(
         mae=float(mae),
         mse=float(mse),
@@ -308,8 +312,8 @@ def difference_metrics(
     if data_range <= 0:
         raise ValueError("data_range must be positive")
     selected = _selected_values(signed, bounds, "signed difference")
-    signed_minimum = float(np.min(selected))
-    signed_maximum = float(np.max(selected))
+    signed_minimum = float(np.asarray(np.min(selected)).item())
+    signed_maximum = float(np.asarray(np.max(selected)).item())
     absolute = np.abs(selected)
     metrics = absolute_difference_metrics(absolute, data_range)
     return replace(
@@ -340,7 +344,10 @@ def signed_difference(
             return compact_result
         integer_result: NDArray[np.int64] = np.subtract(a, b, dtype=np.int64)
         return integer_result
-    float_result: NDArray[np.float64] = np.subtract(a.astype(np.float64), b.astype(np.float64))
+    float_result: NDArray[np.float64] = np.subtract(
+        a.astype(np.float64),
+        b.astype(np.float64),
+    )
     return float_result
 
 
@@ -366,7 +373,10 @@ def compact_absolute_difference(
     """Return exact absolute differences without retaining a promoted full-size map."""
 
     _validate_pair(a, b)
-    if np.issubdtype(a.dtype, np.unsignedinteger) and np.issubdtype(b.dtype, np.unsignedinteger):
+    if np.issubdtype(a.dtype, np.unsignedinteger) and np.issubdtype(
+        b.dtype,
+        np.unsignedinteger,
+    ):
         itemsize = max(a.dtype.itemsize, b.dtype.itemsize)
         if itemsize <= 2:
             promoted = np.subtract(a, b, dtype=np.int32)
