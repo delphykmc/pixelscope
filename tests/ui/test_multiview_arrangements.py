@@ -101,7 +101,9 @@ def test_three_view_real_geometry_uses_equal_columns_and_two_row_focus(qtbot: ob
     view.show()
     qtbot.wait(40)  # type: ignore[attr-defined]
 
-    focus, upper_right, lower_right = [viewer.geometry() for viewer in view.occupied_viewers]
+    focus, upper_right, lower_right = (
+        viewer.geometry() for viewer in view.occupied_viewers
+    )
     spacing = view._layout.spacing()
     assert abs(focus.width() - upper_right.width()) <= 3
     assert abs(upper_right.width() - lower_right.width()) <= 3
@@ -122,9 +124,9 @@ def test_five_view_real_geometry_extends_three_view_with_equal_bottom_row(
     view.show()
     qtbot.wait(40)  # type: ignore[attr-defined]
 
-    focus, upper_right, middle_right, lower_left, lower_right = [
+    focus, upper_right, middle_right, lower_left, lower_right = (
         viewer.geometry() for viewer in view.occupied_viewers
-    ]
+    )
     spacing = view._layout.spacing()
     widths = [
         focus.width(),
