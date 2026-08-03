@@ -12,9 +12,11 @@ _ICON_KINDS = {
     "actual_size",
     "zoom_in",
     "zoom_out",
+    "split_channels",
     "sync",
     "difference",
     "plots",
+    "dock",
     "export",
     "pin",
 }
@@ -78,6 +80,14 @@ def _draw_icon(kind: str, color_name: str) -> QPixmap:
         painter.drawLine(QPointF(4.0, 6.25), QPointF(8.5, 6.25))
         if kind == "zoom_in":
             painter.drawLine(QPointF(6.25, 4.0), QPointF(6.25, 8.5))
+    elif kind == "split_channels":
+        painter.drawRect(QRectF(2.0, 2.0, 12.0, 12.0))
+        painter.drawLine(QPointF(8.0, 2.0), QPointF(8.0, 14.0))
+        painter.drawLine(QPointF(2.0, 8.0), QPointF(14.0, 8.0))
+        painter.drawPoint(QPointF(5.0, 5.0))
+        painter.drawPoint(QPointF(11.0, 5.0))
+        painter.drawPoint(QPointF(5.0, 11.0))
+        painter.drawPoint(QPointF(11.0, 11.0))
     elif kind == "sync":
         arc = QRectF(2.25, 2.25, 11.5, 11.5)
         painter.drawArc(arc, 30 * 16, 130 * 16)
@@ -112,6 +122,16 @@ def _draw_icon(kind: str, color_name: str) -> QPixmap:
                     QPointF(13.0, 6.5),
                 )
             )
+        )
+    elif kind == "dock":
+        painter.drawRect(QRectF(2.0, 2.0, 12.0, 12.0))
+        painter.drawLine(QPointF(2.0, 10.0), QPointF(14.0, 10.0))
+        painter.drawLine(QPointF(8.0, 3.5), QPointF(8.0, 8.0))
+        _draw_arrow_head(
+            painter,
+            QPointF(8.0, 8.0),
+            QPointF(5.8, 5.8),
+            QPointF(10.2, 5.8),
         )
     elif kind == "export":
         painter.drawRect(QRectF(3.0, 2.0, 8.0, 7.0))
