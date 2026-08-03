@@ -42,6 +42,7 @@ def test_split_mode_uses_channel_loading_placeholders_without_unsplit_render(
     window.split_channels_action.trigger()
     assert window.split_channels_action.isChecked()
     assert len(window.multi_compare_view.occupied_viewers) == 3
+    assert window._effective_layout(5) == ("Grid 3x2", 6)
 
     pending_path = tmp_path / "pending.png"
     pending = ImageDocument.pending_document(pending_path)
@@ -57,12 +58,11 @@ def test_split_mode_uses_channel_loading_placeholders_without_unsplit_render(
     assert window.multi_compare_view.capacity == 4
     assert len(visible_viewers) == 3
     assert all(viewer.document is None for viewer in visible_viewers)
-    assert all(
-        viewer._pending_document is not None  # noqa: SLF001 - loading presentation contract
-        and viewer._pending_document.document_id.startswith(f"{pending.document_id}:split:")
-        for viewer in visible_viewers
-    )
-    assert all(viewer._pending_document is not pending for viewer in visible_viewers)  # noqa: SLF001
+    assert [viewer.header.text().rsplit(" · ", 1)[-1] for viewer in visible_viewers] == [
+        "R",
+        "G",
+        "B",
+    ]
     assert not window.split_channels_action.isEnabled()
     assert window.split_channels_action.isChecked()
 
@@ -77,7 +77,9 @@ def test_split_mode_uses_channel_loading_placeholders_without_unsplit_render(
     window._render_selection()
 
     split_documents = [
-        viewer.document for viewer in window.multi_compare_view.occupied_viewers
+        viewer.document
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is not None
     ]
     assert len(split_documents) == 3
     assert [document.display_name.rsplit(" · ", 1)[-1] for document in split_documents] == [
