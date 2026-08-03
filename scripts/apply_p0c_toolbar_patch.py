@@ -89,7 +89,9 @@ def patched_text(text: str) -> str:
         zoom_100 = self.action_map["100% Zoom"]
         zoom_100.setIcon(toolbar_icon("actual_size"))
         zoom_100.setIconText("1:1")
-        zoom_100.setToolTip("Show the active image at one image pixel per screen pixel (Ctrl+0)")
+        zoom_100.setToolTip(
+            "Show the active image at one image pixel per screen pixel (Ctrl+0)"
+        )
         zoom_100.setStatusTip(zoom_100.toolTip())
         toolbar.addAction(zoom_100)
 
@@ -132,8 +134,8 @@ def patched_text(text: str) -> str:
         toolbar.addAction(self.diff_action)
 
         self.plots_action.setIcon(toolbar_icon("plots"))
-        self.plots_action.setIconText("Plots")
         self.plots_action.setText("Plots")
+        self.plots_action.setIconText("Plots")
         toolbar.addAction(self.plots_action)
         toolbar.addSeparator()
 
@@ -183,7 +185,9 @@ def patched_text(text: str) -> str:
                 action.setEnabled(view_ready)
 
         if hasattr(self, "sync_action"):
-            sync_available = current_widget is self.multi_compare_view and len(visible_viewers) >= 2
+            sync_available = (
+                current_widget is self.multi_compare_view and len(visible_viewers) >= 2
+            )
             self.sync_action.setEnabled(sync_available)
             if not sync_available:
                 sync_tooltip = "Sync View is available in Multi View with two or more images"
@@ -230,7 +234,9 @@ def patched_text(text: str) -> str:
             cached = pair_ids is not None and self.difference_panel.has_cached_map()
             checked = self.diff_action.isChecked()
             self.diff_action.setEnabled(checked or cached)
-            if checked and (cached or pair_ids == result_ids):
+            if checked and (
+                cached or (pair_ids is not None and pair_ids == result_ids)
+            ):
                 diff_tooltip = "Hide Difference"
             elif checked or (
                 pair_ids is not None and result_ids is not None and pair_ids != result_ids
@@ -289,7 +295,9 @@ def patched_text(text: str) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Apply the reviewed P0-C MainWindow patch")
+    parser = argparse.ArgumentParser(
+        description="Apply the reviewed P0-C MainWindow patch"
+    )
     parser.add_argument(
         "--check",
         action="store_true",
