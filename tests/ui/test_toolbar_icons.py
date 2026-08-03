@@ -154,7 +154,5 @@ def test_toolbar_enablement_and_tooltips_follow_workspace_state(qtbot: object) -
     window._select_document_ids([document.document_id for document in documents])
     window.difference_panel.b_selector.setCurrentIndex(2)
     assert not window.diff_action.isEnabled()
-    assert window.diff_action.toolTip() == (
-        "Difference is not calculated for the selected pair"
-    )
+    assert window.diff_action.toolTip() == ("Difference is not calculated for the selected pair")
     window.close()
