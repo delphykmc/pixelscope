@@ -393,9 +393,7 @@ class MultiCompareView(QWidget):
             return
         active = self.visible_viewers[:count]
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
-        for viewer, (row, column, row_span, column_span) in zip(
-            active, placements, strict=False
-        ):
+        for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
             viewer.set_focus_control_visible(count in (3, 5))
             viewer.show()

@@ -5,7 +5,11 @@ from time import perf_counter
 
 import numpy as np
 
-from pixelscope.core.diff_engine import compact_absolute_difference, signed_difference
+from pixelscope.core.diff_engine import (
+    absolute_difference_metrics,
+    compact_absolute_difference,
+    signed_difference,
+)
 from pixelscope.core.display_transform import (
     DisplayTransform,
     render_threshold_mask,
@@ -52,6 +56,9 @@ def test_4096x3072_uint16_smoke(tmp_path: Path) -> None:
     absolute = compact_absolute_difference(mapped, source)
     timings["compact_absolute_difference"] = perf_counter() - start
     start = perf_counter()
+    metrics = absolute_difference_metrics(absolute, 65535.0)
+    timings["difference_metrics"] = perf_counter() - start
+    start = perf_counter()
     mask = render_threshold_mask(absolute, 10)
     timings["threshold_mask"] = perf_counter() - start
 
@@ -70,4 +77,7 @@ def test_4096x3072_uint16_smoke(tmp_path: Path) -> None:
     assert preview.shape == shape
     assert not np.any(signed)
     assert not np.any(absolute)
+    assert metrics.mse == 0.0
+    assert metrics.p99 == 0.0
+    assert metrics.nonzero_ratio == 0.0
     assert timings["threshold_mask"] < 0.5

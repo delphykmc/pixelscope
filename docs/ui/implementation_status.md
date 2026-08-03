@@ -4,112 +4,146 @@
 
 - Original iteration baseline: `ea64b1d8fda331e3f85dbfa0181d772974358e74`
 - Initial P0-A commit: `d66b371831b4f2fa2792f9a5f576b1d66f4ba19c`
-- Current work branch: `fix/p0a-fixed-multiview-layout`
-- Current phase: **P0-A correction — fixed multi-view layouts**
-- Phase state: **implementation complete; awaiting Windows test and visual review**
-- Runtime constraints retained: CPython 3.10, current PySide6 binding, and future
+- P0-A correction merge: `1606503a08b24b73e77f9fb4784d22c2339d6f59`
+- Current work branch: `feat/p0b-difference-cache-metrics`
+- Current phase: **P0-B — absolute Difference cache and metrics**
+- Phase state: **implementation complete; awaiting Windows test and review**
+- Runtime constraints retained: CPython 3.10, PySide6 6.4.2, and future
   PyInstaller 5.7 `onedir` compatibility.
 
-## Corrected P0-A behavior
+## Completed in P0-B
 
-- Removed the user-visible `Top Focus · 2 Columns` and
-  `Left Focus · 3 Columns` choices from the View menu.
-- Replaced selectable arrangements with one deterministic layout family:
-  - 1 tile: single view
-  - 2 tiles: one row by two columns
-  - 3 tiles: focus spans the first two rows in the left column; two images stack
-    in the right column
-  - 4 tiles: 2 by 2 grid
-  - 5 tiles: the 3-tile structure plus an equal-height bottom row containing two
-    more images
-  - 6 tiles: two columns by three rows
-- Uses equal row and column stretch factors. The focus tile is formed by spanning
-  cells rather than by assigning a larger stretch ratio.
-- Focus-pin visibility remains limited to 3- and 5-tile layouts.
-- Diff remains the initial focus for 2-source/3-tile and 4-source/5-tile results.
-- Six sources plus Diff remains a Diff-only Single View and restores the previous
-  focus, active document, page indices, display order, and synchronized view
-  range when Diff is hidden.
-- The existing six `ImageViewer` objects continue to be reused.
-- Legacy persisted arrangement strings are normalized to the fixed-layout value.
+### Difference map cache
 
-## Implementation note
+- Replaced the unbounded Difference map dictionary with a dedicated
+  `DifferenceMapCache` byte-budget LRU.
+- Uses `ndarray.nbytes` for accounting.
+- Default cache ceiling is centralized at **512 MiB**.
+- The cache budget is constructor-injected and the cache does not read
+  `QSettings` or depend on Preferences UI.
+- Exposes read-only diagnostics:
+  - `budget_bytes`
+  - `used_bytes`
+  - `entry_count`
+- Keeps the existing order-independent source-pair and document-generation key.
+- LRU access promotes reused maps.
+- Inserting a map evicts least-recently-used entries until the byte ceiling is
+  satisfied.
+- A single map larger than the cache budget is calculated and displayed but is
+  not retained.
+- Entries that reference a known document at an older generation are removed.
+- Metric and preview caches derived from an evicted map are removed with it.
 
-- `MainWindow` still contains the small arrangement persistence/restore path
-  introduced by the initial P0-A commit. `MultiCompareView` exposes a temporary
-  compatibility registry that creates no View-menu actions and accepts only the
-  fixed-layout value. This keeps the correction narrow and preserves the tested
-  six-image Diff restore path.
-- A later cleanup may remove the now-internal arrangement field and QSettings key,
-  but no selectable arrangement remains in the UI.
+### Difference metrics
 
-## Tests updated in this branch
+- The Difference metrics table now shows:
+  - MAE
+  - MSE
+  - RMSE
+  - PSNR
+  - P95
+  - P99
+  - Max difference
+  - Non-zero ratio
+- Removed the user-facing minimum-difference metric.
+- Native uint8/uint16 absolute maps use chunked processing and an exact native
+  histogram with at most 65,536 bins.
+- MAE, MSE, RMSE, PSNR, P95, P99, maximum, and non-zero ratio are calculated
+  exactly for the supported native integer path.
+- The metric path no longer creates full-resolution float64 and squared-map
+  temporaries for native Difference maps.
+- Full-image, ROI, RGB channel, combined RGB, Bayer mosaic, and Bayer plane
+  selection continue to derive from the same compact absolute map.
+- Absolute and Mask remain the only Difference display modes in this phase.
+  Existing core signed-difference utilities remain available but are not exposed
+  in the UI.
 
-- Exact grid positions and stretch factors for every tile count from 1 through 6.
-- Focus-pin visibility only for 3 and 5 tiles.
-- Real widget geometry for the 3-tile layout:
-  equal columns and a focus tile spanning two equal-height rows.
-- Real widget geometry for the 5-tile layout:
-  equal columns, three equal-height rows, and the focus tile spanning the first
-  two left cells.
-- View menu does not expose either removed arrangement choice.
-- A legacy `ui/multiview_arrangement` value is normalized.
-- Diff becomes focus in 3- and 5-tile result layouts.
-- Focus pin reorders the focus tile without changing selection order.
-- Six-source Diff hide restores the prior multi-view state.
+### Architecture preparation
 
-These tests were written through the GitHub connector but have not been executed
-in a Windows/PySide6 runtime yet.
+- Added an immutable `PerformanceSettings` model with the centralized
+  Difference cache default.
+- Added a core cache module independent of Qt widgets and settings persistence.
+- `DifferencePanel` accepts the cache budget at construction and exposes the
+  cache object for diagnostics.
+- Preferences, runtime budget changes, image resident cache, and preload are not
+  implemented in P0-B.
 
-## Files changed by the correction
+## Files changed in P0-B
 
-- `src/pixelscope/ui/multi_compare_view.py`
-- `tests/ui/test_multiview_arrangements.py`
-- `scripts/capture_ui_review.py`
-- `docs/ui/README.md`
+- `src/pixelscope/core/performance_settings.py`
+- `src/pixelscope/core/difference_cache.py`
+- `src/pixelscope/core/diff_engine.py`
+- `src/pixelscope/ui/difference_panel.py`
+- `tests/unit/test_difference_cache.py`
+- `tests/unit/test_difference_metric_chunks.py`
+- `tests/ui/test_difference_cache_panel.py`
+- `tests/performance/test_performance_smoke.py`
 - `docs/ui/implementation_status.md`
-- Obsolete alternate-arrangement captures are scheduled for removal after local
-  capture regeneration confirms the fixed layouts.
+
+## Test coverage added
+
+- 512 MiB centralized default and invalid budget rejection.
+- Byte accounting, LRU promotion, LRU eviction, oversized-map behavior, and
+  explicit removal.
+- Stale document-generation eviction while unrelated pairs remain cached.
+- Exact chunked uint16 statistics compared with direct NumPy results.
+- Non-contiguous channel views and ROI metric bounds.
+- Zero-map infinite PSNR and zero non-zero ratio.
+- Guard against reintroducing `np.square` in the native chunked metric path.
+- DifferencePanel cache-budget injection and diagnostics.
+- Metric-table labels and rendered values.
+- Dependent metric-cache eviction when a map leaves the LRU.
+- Existing 4096×3072 performance smoke now executes chunked Difference metrics.
+
+These tests were added through the GitHub connector and have not yet been run in
+the user's Windows/PySide6 environment.
 
 ## Required local validation
 
-Run at minimum:
+Fetch the branch and run:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\ui\test_multiview_arrangements.py -q
+git fetch origin
+git switch feat/p0b-difference-cache-metrics
+git pull --ff-only
+
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_difference_cache.py -q
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_difference_metric_chunks.py -q
+.\.venv\Scripts\python.exe -m pytest tests\ui\test_difference_cache_panel.py -q
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m ruff check .
 .\.venv\Scripts\python.exe -m ruff format --check .
 .\.venv\Scripts\python.exe -m mypy src
+.\.venv\Scripts\python.exe -m pip check
 ```
 
-Regenerate captures:
+Manual UI checks:
 
-```powershell
-$env:QT_QPA_PLATFORM = 'offscreen'
-.\.venv\Scripts\python.exe scripts\capture_ui_review.py docs\ui
-```
-
-Visually inspect `three_image_multiview.png`, `five_image_multiview.png`, and
-`six_image_multiview.png`, plus interactive focus-pin behavior in the normal
-Windows platform plugin.
+1. Calculate an RGB Difference and confirm all eight metrics are populated.
+2. Switch Full image/Active ROI and verify metrics refresh without recalculating
+   the absolute map.
+3. Switch All/R/G/B and verify the cached map is reused.
+4. Change Gain and Mask threshold and verify only the display preview updates.
+5. Swap Image 1/Image 2 and verify the same absolute map is reused.
+6. Re-select a previously calculated pair and verify cached restoration.
 
 ## Incomplete / intentionally deferred
 
-- P0-B difference-map LRU cache and metric optimization: not started.
-- Difference cache default for P0-B: 512 MiB, constructor/configuration injected,
-  no direct QSettings read from the cache implementation.
-- P0-C toolbar icon/state work: not started.
+- P0-C toolbar icon and state work: not started.
 - P1-A through P1-C: not started.
-- Preferences, image resident cache, preload, and GitHub Release update support
-  remain separate future phases.
+- Preferences UI and QSettings-backed performance settings: separate future
+  phase; memory settings take effect after restart.
+- Image resident cache and one-group-ahead preload: separate future phase.
+- GitHub Release update checking and installer workflow: separate future phase.
 - Legacy visible A/B and `_compare_pair` behavior remains for the P1-A audit.
+- P0-A's internal fixed-arrangement compatibility field/QSettings key remains for
+  a later cleanup.
 
 ## Exact next starting point
 
-1. Fetch and test `fix/p0a-fixed-multiview-layout` on Windows.
-2. Report any pytest, Ruff, mypy, or visual-layout failure.
-3. Apply a follow-up correction on the same branch if required.
-4. Merge the validated P0-A correction.
-5. Start **P0-B — absolute difference cache and metrics** from the validated
-   correction commit.
+1. Run the P0-B targeted and full validation commands on Windows.
+2. Apply any test, type, formatting, or UI corrections on
+   `feat/p0b-difference-cache-metrics`.
+3. Create and review a P0-B pull request after validation passes.
+4. Merge P0-B.
+5. Start **P0-C — toolbar icon/state work** from the merged P0-B commit.

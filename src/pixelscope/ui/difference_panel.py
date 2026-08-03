@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from math import isinf
 
 import numpy as np
@@ -28,24 +27,20 @@ from pixelscope.core.diff_engine import (
     compact_absolute_difference,
     validate_difference_documents,
 )
+from pixelscope.core.difference_cache import (
+    CachedDifferenceMap,
+    DifferenceCacheKey,
+    DifferenceMapCache,
+)
 from pixelscope.core.display_transform import (
     render_absolute_difference,
     render_threshold_mask,
 )
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.design_tokens import TOKENS, primary_button_style
 from pixelscope.workers.task_worker import TaskError, TaskWorker
-
-
-@dataclass(frozen=True)
-class CachedDifferenceMap:
-    """One compact, channel-complete native-domain absolute map."""
-
-    absolute: NDArray[np.generic]
-    data_range: float
-    channel_layout: str
-    bayer_pattern: str | None
 
 
 class DifferencePanel(QWidget):
@@ -54,13 +49,16 @@ class DifferencePanel(QWidget):
     result_ready = Signal(object, object, object)
     preview_updated = Signal(object, object, object)
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        difference_cache_budget_bytes: int = DEFAULT_DIFFERENCE_CACHE_BYTES,
+    ) -> None:
         super().__init__()
         self._documents: list[ImageDocument] = []
         self._active_roi: RoiBounds | None = None
         self._worker: TaskWorker | None = None
         self._worker_key: tuple[object, ...] | None = None
-        self._map_cache: dict[tuple[object, ...], CachedDifferenceMap] = {}
+        self._map_cache = DifferenceMapCache(difference_cache_budget_bytes)
         self._metric_cache: dict[tuple[object, ...], DifferenceMetrics] = {}
         self._preview_key: tuple[object, ...] | None = None
         self._preview_value: NDArray[np.uint8] | None = None
@@ -116,11 +114,21 @@ class DifferencePanel(QWidget):
         metric_region.addWidget(QLabel("Metric region"))
         metric_region.addWidget(self.region, 1)
 
-        self.metrics = QTableWidget(5, 2)
+        metric_names = (
+            "MAE",
+            "MSE",
+            "RMSE",
+            "PSNR",
+            "P95",
+            "P99",
+            "Max difference",
+            "Non-zero ratio",
+        )
+        self.metrics = QTableWidget(len(metric_names), 2)
         self.metrics.setHorizontalHeaderLabels(("Metric", "Value"))
         self.metrics.verticalHeader().hide()
         self.metrics.horizontalHeader().setStretchLastSection(True)
-        for row, name in enumerate(("MAE", "MSE", "PSNR", "Min difference", "Max difference")):
+        for row, name in enumerate(metric_names):
             self.metrics.setItem(row, 0, QTableWidgetItem(name))
 
         action_row = QHBoxLayout()
@@ -154,6 +162,12 @@ class DifferencePanel(QWidget):
         self._update_control_states()
         self._clear_metrics()
 
+    @property
+    def difference_cache(self) -> DifferenceMapCache:
+        """Expose read-only cache diagnostics and explicit cache operations."""
+
+        return self._map_cache
+
     @staticmethod
     def _integer_control(minimum: int, maximum: int, value: int) -> QSpinBox:
         control = QSpinBox()
@@ -173,6 +187,10 @@ class DifferencePanel(QWidget):
         current_a = self.a_selector.currentData()
         current_b = self.b_selector.currentData()
         self._documents = [document for document in documents if document.source is not None]
+        evicted = self._map_cache.discard_stale_generations(
+            {document.document_id: document.generation for document in self._documents}
+        )
+        self._drop_dependent_cache_entries(evicted)
         self._active_roi = active_roi
         if previous_roi != active_roi:
             self.region.blockSignals(True)
@@ -339,18 +357,13 @@ class DifferencePanel(QWidget):
             return a.source, b.source
         return a.source[..., :3], b.source[..., :3]
 
-    def _cache_key(self) -> tuple[object, ...] | None:
+    def _cache_key(self) -> DifferenceCacheKey | None:
         pair = self.selected_documents()
         if pair is None:
             return None
-        return tuple(
-            sorted(
-                (
-                    (pair[0].document_id, pair[0].generation),
-                    (pair[1].document_id, pair[1].generation),
-                )
-            )
-        )
+        first = (pair[0].document_id, pair[0].generation)
+        second = (pair[1].document_id, pair[1].generation)
+        return (first, second) if first <= second else (second, first)
 
     def _metric_key(self) -> tuple[object, ...] | None:
         key = self._cache_key()
@@ -500,7 +513,7 @@ class DifferencePanel(QWidget):
 
     def _on_result(
         self,
-        key: tuple[object, ...],
+        key: DifferenceCacheKey,
         metric_key: tuple[object, ...],
         payload: object,
         publish_result: bool,
@@ -513,26 +526,52 @@ class DifferencePanel(QWidget):
         ):
             return
         difference_map, metrics, reused = payload
-        self._map_cache[key] = difference_map
-        self._metric_cache[metric_key] = metrics
+        put_result = self._map_cache.put(key, difference_map)
+        self._drop_dependent_cache_entries(put_result.evicted_keys)
+        if put_result.stored:
+            self._metric_cache[metric_key] = metrics
         if key != self._cache_key() or metric_key != self._metric_key():
             return
         self.last_result = metrics
         self._render_metrics(metrics)
-        self.status.setText("Cached map reused" if reused else "Ready")
+        if reused:
+            self.status.setText("Cached map reused")
+        elif put_result.stored:
+            self.status.setText("Ready")
+        else:
+            self.status.setText("Ready; map exceeds cache budget")
         if publish_result:
             selected = self._selected_absolute(difference_map, self.channel.currentText())
             self.result_ready.emit(
                 self._title(), selected, self._cached_preview(difference_map, selected)
             )
 
+    def _drop_dependent_cache_entries(
+        self,
+        evicted_keys: tuple[DifferenceCacheKey, ...],
+    ) -> None:
+        if not evicted_keys:
+            return
+        evicted = set(evicted_keys)
+        self._metric_cache = {
+            metric_key: value
+            for metric_key, value in self._metric_cache.items()
+            if len(metric_key) < 2 or (metric_key[0], metric_key[1]) not in evicted
+        }
+        if self._preview_key is not None and self._preview_key and self._preview_key[0] in evicted:
+            self._preview_key = None
+            self._preview_value = None
+
     def _render_metrics(self, metrics: DifferenceMetrics) -> None:
         values = (
             metrics.mae,
             metrics.mse,
+            metrics.rmse,
             metrics.psnr,
-            metrics.minimum_absolute,
+            metrics.p95,
+            metrics.p99,
             metrics.maximum_absolute,
+            metrics.nonzero_ratio,
         )
         for row, value in enumerate(values):
             text = "∞" if isinf(value) else f"{value:.8g}"
