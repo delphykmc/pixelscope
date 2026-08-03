@@ -888,8 +888,8 @@ def test_smart_layout_focus_and_profile_dock(qtbot: object) -> None:
     grid = window.multi_compare_view._layout
     assert window._focus_document_id == documents[0].document_id
     first_position = grid.getItemPosition(grid.indexOf(window.multi_compare_view.viewers[0]))
-    assert first_position == (0, 0, 1, 2)
-    assert grid.rowStretch(0) == 2
+    assert first_position == (0, 0, 2, 1)
+    assert grid.rowStretch(0) == 1
     assert grid.rowStretch(1) == 1
     assert grid.rowStretch(2) == 0
     selection_before_focus = [document.document_id for document in window.selected_documents]
