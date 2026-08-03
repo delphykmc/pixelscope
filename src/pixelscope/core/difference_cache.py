@@ -4,8 +4,8 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from numpy.typing import NDArray
 import numpy as np
+from numpy.typing import NDArray
 
 DocumentGeneration = tuple[str, int]
 DifferenceCacheKey = tuple[DocumentGeneration, DocumentGeneration]
