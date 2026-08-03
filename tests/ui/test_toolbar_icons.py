@@ -103,9 +103,7 @@ def test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette(qtbot: o
     assert not window.redock_plots_action.icon().isNull()
     assert "QMenu::item:disabled" in window.menuBar().styleSheet()
     assert (
-        window.palette()
-        .color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText)
-        .name()
+        window.palette().color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText).name()
         == TOKENS.text_disabled
     )
 

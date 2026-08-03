@@ -291,7 +291,8 @@ class ImageViewer(QWidget):
             return
         if document.preview is None:
             self._pending_document = document
-            if previous is None or previous.preview is None:
+            clear_previous = document.channel_layout.startswith("CHANNEL_")
+            if clear_previous or previous is None or previous.preview is None:
                 self._document = None
                 self.image_item.clear()
                 self._displayed_preview = None
