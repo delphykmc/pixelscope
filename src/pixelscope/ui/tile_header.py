@@ -2,19 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizePolicy,
-    QStyle,
     QToolButton,
     QWidget,
 )
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.design_tokens import TOKENS, tile_header_style
+from pixelscope.ui.toolbar_icons import toolbar_icon
 
 
 class TileHeader(QWidget):
@@ -45,8 +45,11 @@ class TileHeader(QWidget):
         self.navigation_layout.setSpacing(TOKENS.spacing_xs)
         self.navigation.hide()
         self.focus = QToolButton()
-        self.focus.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp))
-        self.focus.setToolTip("Set as focus tile")
+        self.focus.setObjectName("focusPin")
+        self.focus.setIcon(toolbar_icon("pin"))
+        self.focus.setIconSize(QSize(TOKENS.icon_size, TOKENS.icon_size))
+        self.focus.setCheckable(True)
+        self.focus.setToolTip("Pin as focus tile")
         self.focus.setAutoRaise(True)
         self.focus.setFixedSize(TOKENS.control_height, TOKENS.control_height)
         self.focus.hide()
@@ -103,13 +106,11 @@ class TileHeader(QWidget):
         self.zoom.setText("—" if percent is None else f"{percent:.0f}%")
 
     def set_focus(self, focused: bool) -> None:
-        icon = (
-            QStyle.StandardPixmap.SP_DialogApplyButton
-            if focused
-            else QStyle.StandardPixmap.SP_ArrowUp
-        )
-        self.focus.setIcon(self.style().standardIcon(icon))
-        self.focus.setToolTip("Focus tile" if focused else "Set as focus tile")
+        self.focus.blockSignals(True)
+        self.focus.setChecked(focused)
+        self.focus.blockSignals(False)
+        self.focus.setAutoRaise(not focused)
+        self.focus.setToolTip("Focus tile is pinned" if focused else "Pin as focus tile")
 
     def set_focus_control_visible(self, visible: bool) -> None:
         self.focus.setVisible(visible)
