@@ -614,7 +614,7 @@ def test_multi_view_focus_keeps_logical_badges_and_arrow_keys_cycle_reference(
     assert window.multi_compare_view.viewers[0].document is documents[2]
     assert window.multi_compare_view.viewers[0].header.badge.text() == "3"
     assert all(
-        not viewer.header.focus.isHidden() for viewer in window.multi_compare_view.occupied_viewers
+        viewer.header.focus.isHidden() for viewer in window.multi_compare_view.occupied_viewers
     )
     window.show()
     window.activateWindow()
@@ -886,8 +886,11 @@ def test_smart_layout_focus_and_profile_dock(qtbot: object) -> None:
     window._select_document_ids([document.document_id for document in documents])
 
     grid = window.multi_compare_view._layout
+    assert window._focus_document_id == documents[0].document_id
     first_position = grid.getItemPosition(grid.indexOf(window.multi_compare_view.viewers[0]))
-    assert first_position == (0, 0, 2, 1)
+    assert first_position == (0, 0, 1, 2)
+    assert grid.rowStretch(0) == 2
+    assert grid.rowStretch(1) == 1
     assert grid.rowStretch(2) == 0
     selection_before_focus = [document.document_id for document in window.selected_documents]
     window._set_focus_document(documents[2])
@@ -1110,8 +1113,8 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     window.analysis_tabs.setCurrentWidget(window.difference_panel)
     window.difference_panel.calculate_difference()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.central_stack.currentWidget() is window.viewer
-        and window.viewer.document is window._difference_document,
+        lambda: window.central_stack.currentWidget() is window.multi_compare_view
+        and window.multi_compare_view.viewers[0].document is window._difference_document,
         timeout=3000,
     )
     assert window._difference_document is not None
@@ -1119,7 +1122,9 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     assert window.analysis_tabs.currentWidget() is window.difference_panel
     assert "all R, G, and B samples combined" in window.difference_panel.metric_scope.text()
     assert not hasattr(window.difference_panel, "plot")
-    assert window._layout_mode == "Single View"
+    assert window._layout_mode == "Multi View"
+    window.set_layout_mode("Single View")
+    window._navigate_single_view("difference")
     assert not window.viewer.header.navigation.isHidden()
     window._navigate_single_view(a.document_id)
     assert window.viewer.document is a

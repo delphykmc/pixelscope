@@ -13,6 +13,10 @@ from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.ui.multi_compare_view import (
+    LEFT_FOCUS_ARRANGEMENT,
+    TOP_FOCUS_ARRANGEMENT,
+)
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 
 
@@ -45,12 +49,17 @@ def grab(widget: QWidget, output: Path, wait_ms: int = 350) -> None:
         raise RuntimeError(f"failed to save UI capture: {output}")
 
 
-def populated_window(count: int, layout: str = "Auto") -> MainWindow:
+def populated_window(
+    count: int,
+    layout: str = "Auto",
+    arrangement: str = TOP_FOCUS_ARRANGEMENT,
+) -> MainWindow:
     window = MainWindow()
     documents = [review_document(index) for index in range(count)]
     for document in documents:
         window.add_document(document, select=False)
     window._select_document_ids([document.document_id for document in documents])
+    window.set_multiview_arrangement(arrangement)
     window.set_layout_mode(layout)
     window.resize(1680, 980)
     window.bottom_dock.hide()
@@ -80,6 +89,12 @@ def main() -> int:
     save_window(populated_window(1, "Single View"), output / "single_image.png", 1200)
     save_window(populated_window(3, "Multi View"), output / "three_image_multiview.png")
     save_window(populated_window(5, "Multi View"), output / "five_image_multiview.png")
+    save_window(populated_window(6, "Multi View"), output / "six_image_multiview.png")
+    for count, name in ((3, "three"), (5, "five"), (6, "six")):
+        save_window(
+            populated_window(count, "Multi View", LEFT_FOCUS_ARRANGEMENT),
+            output / f"{name}_image_left_focus.png",
+        )
 
     difference = populated_window(2, "Multi View")
     difference.analysis_tabs.setCurrentWidget(difference.difference_panel)
