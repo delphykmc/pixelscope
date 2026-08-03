@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -11,9 +12,26 @@ from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.image_viewer import ImageViewer
 
-TOP_FOCUS_ARRANGEMENT = "Top Focus · 2 Columns"
-LEFT_FOCUS_ARRANGEMENT = "Left Focus · 3 Columns"
-MULTIVIEW_ARRANGEMENTS = (TOP_FOCUS_ARRANGEMENT, LEFT_FOCUS_ARRANGEMENT)
+FIXED_MULTIVIEW_ARRANGEMENT = "Fixed Multi View"
+TOP_FOCUS_ARRANGEMENT = FIXED_MULTIVIEW_ARRANGEMENT
+
+
+class _FixedArrangementRegistry:
+    """Compatibility bridge while MainWindow still stores an arrangement value.
+
+    Iteration is intentionally empty, so no arrangement choices are added to the
+    View menu. Membership accepts the single canonical fixed-layout value used by
+    existing startup, reset, and six-image Diff restore code.
+    """
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(())
+
+    def __contains__(self, value: object) -> bool:
+        return value == FIXED_MULTIVIEW_ARRANGEMENT
+
+
+MULTIVIEW_ARRANGEMENTS = _FixedArrangementRegistry()
 
 
 @dataclass(frozen=True)
@@ -47,7 +65,7 @@ class MultiCompareView(QWidget):
         self.sync_enabled = True
         self.compare_pair: tuple[str, str] | None = None
         self.layout_kind = "Auto"
-        self.arrangement = TOP_FOCUS_ARRANGEMENT
+        self.arrangement = FIXED_MULTIVIEW_ARRANGEMENT
         self.focus_document_id: str | None = None
         self.viewers = [ImageViewer() for _ in range(6)]
         self._layout = QGridLayout(self)
@@ -252,14 +270,11 @@ class MultiCompareView(QWidget):
         self.focus_document_id = focus_document_id
 
     def set_arrangement(self, arrangement: str) -> None:
-        """Rearrange existing viewers without replacing their images or view state."""
+        """Accept the canonical fixed-layout value for MainWindow compatibility."""
 
         if arrangement not in MULTIVIEW_ARRANGEMENTS:
             raise ValueError(f"unsupported multi-view arrangement: {arrangement}")
-        if arrangement == self.arrangement:
-            return
-        self.arrangement = arrangement
-        self._arrange_viewers(self._document_count)
+        self.arrangement = FIXED_MULTIVIEW_ARRANGEMENT
 
     def capture_view_state(self) -> MultiCompareViewState:
         ranges = self._current_shared_range()
@@ -377,12 +392,10 @@ class MultiCompareView(QWidget):
         if count <= 0:
             return
         active = self.visible_viewers[:count]
-        placements: tuple[tuple[int, int, int, int], ...]
-        if self.arrangement == LEFT_FOCUS_ARRANGEMENT:
-            placements, row_stretches, column_stretches = self._left_focus_geometry(count)
-        else:
-            placements, row_stretches, column_stretches = self._top_focus_geometry(count)
-        for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
+        placements, row_stretches, column_stretches = self._fixed_geometry(count)
+        for viewer, (row, column, row_span, column_span) in zip(
+            active, placements, strict=False
+        ):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
             viewer.set_focus_control_visible(count in (3, 5))
             viewer.show()
@@ -395,7 +408,7 @@ class MultiCompareView(QWidget):
             )
 
     @staticmethod
-    def _top_focus_geometry(
+    def _fixed_geometry(
         count: int,
     ) -> tuple[
         tuple[tuple[int, int, int, int], ...],
@@ -408,8 +421,8 @@ class MultiCompareView(QWidget):
             return ((0, 0, 1, 1), (0, 1, 1, 1)), (1,), (1, 1)
         if count == 3:
             return (
-                ((0, 0, 1, 2), (1, 0, 1, 1), (1, 1, 1, 1)),
-                (2, 1),
+                ((0, 0, 2, 1), (0, 1, 1, 1), (1, 1, 1, 1)),
+                (1, 1),
                 (1, 1),
             )
         if count == 4:
@@ -421,51 +434,17 @@ class MultiCompareView(QWidget):
         if count == 5:
             return (
                 (
-                    (0, 0, 1, 2),
-                    (1, 0, 1, 1),
+                    (0, 0, 2, 1),
+                    (0, 1, 1, 1),
                     (1, 1, 1, 1),
                     (2, 0, 1, 1),
                     (2, 1, 1, 1),
                 ),
-                (2, 1, 1),
+                (1, 1, 1),
                 (1, 1),
             )
         return (
             tuple((index // 2, index % 2, 1, 1) for index in range(6)),
             (1, 1, 1),
             (1, 1),
-        )
-
-    @staticmethod
-    def _left_focus_geometry(
-        count: int,
-    ) -> tuple[
-        tuple[tuple[int, int, int, int], ...],
-        tuple[int, ...],
-        tuple[int, ...],
-    ]:
-        if count <= 2 or count == 4:
-            return MultiCompareView._top_focus_geometry(count)
-        if count == 3:
-            return (
-                ((0, 0, 2, 1), (0, 1, 1, 1), (1, 1, 1, 1)),
-                (1, 1),
-                (2, 1),
-            )
-        if count == 5:
-            return (
-                (
-                    (0, 0, 2, 1),
-                    (0, 1, 1, 1),
-                    (1, 1, 1, 1),
-                    (0, 2, 1, 1),
-                    (1, 2, 1, 1),
-                ),
-                (1, 1),
-                (2, 1, 1),
-            )
-        return (
-            tuple((index // 3, index % 3, 1, 1) for index in range(6)),
-            (1, 1),
-            (1, 1, 1),
         )
