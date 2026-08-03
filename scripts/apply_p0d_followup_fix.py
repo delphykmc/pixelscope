@@ -6,55 +6,65 @@ MAIN_WINDOW = Path("src/pixelscope/app/main_window.py")
 SMOKE_TEST = Path("tests/ui/test_ui_smoke.py")
 
 
-MAIN_OLD = '''        if show_difference and self._layout_mode != "Single View":
+MAIN_OLD = """\
+        if show_difference and self._layout_mode != "Single View":
             assert difference_document is not None
             display_documents = [difference_document, *documents]
-'''
-MAIN_NEW = '''        if show_difference and self._layout_mode != "Single View":
+"""
+MAIN_NEW = """\
+        if show_difference and self._layout_mode != "Single View":
             assert difference_document is not None
             self._promote_multi_document(difference_document.document_id)
             display_documents = [difference_document, *documents]
-'''
+"""
 
-THREE_DIFF_OLD = '''    assert [viewer.document for viewer in window.multi_compare_view.occupied_viewers] == [
+THREE_DIFF_OLD = """\
+    assert [viewer.document for viewer in window.multi_compare_view.occupied_viewers] == [
         *documents,
         window._difference_document,
     ]
-'''
-THREE_DIFF_NEW = '''    assert [viewer.document for viewer in window.multi_compare_view.occupied_viewers] == [
+"""
+THREE_DIFF_NEW = """\
+    assert [viewer.document for viewer in window.multi_compare_view.occupied_viewers] == [
         window._difference_document,
         *documents,
     ]
-'''
+"""
 
-SINGLE_WAIT_OLD = '''    qtbot.waitUntil(  # type: ignore[attr-defined]
+SINGLE_WAIT_OLD = """\
+    qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.central_stack.currentWidget() is window.multi_compare_view
         and window.multi_compare_view.viewers[0].document is window._difference_document,
         timeout=3000,
     )
-'''
-SINGLE_WAIT_NEW = '''    qtbot.waitUntil(  # type: ignore[attr-defined]
+"""
+SINGLE_WAIT_NEW = """\
+    qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.central_stack.currentWidget() is window.viewer
         and window.viewer.document is window._difference_document,
         timeout=3000,
     )
-'''
+"""
 
-SINGLE_LAYOUT_OLD = '''    assert window._layout_mode == "Multi View"
+SINGLE_LAYOUT_OLD = """\
+    assert window._layout_mode == "Multi View"
     window.set_layout_mode("Single View")
     window._navigate_single_view("difference")
-'''
-SINGLE_LAYOUT_NEW = '''    assert window._layout_mode == "Single View"
+"""
+SINGLE_LAYOUT_NEW = """\
+    assert window._layout_mode == "Single View"
     window._navigate_single_view("difference")
-'''
+"""
 
-FOLDER_FOCUS_OLD = '''    assert window._focus_document_id == window.selected_documents[1].document_id
+FOLDER_FOCUS_OLD = """\
+    assert window._focus_document_id == window.selected_documents[1].document_id
     assert window.multi_compare_view.viewers[0].document is window.selected_documents[1]
-'''
-FOLDER_FOCUS_NEW = '''    assert window._difference_document is not None
+"""
+FOLDER_FOCUS_NEW = """\
+    assert window._difference_document is not None
     assert window._focus_document_id == window._difference_document.document_id
     assert window.multi_compare_view.viewers[0].document is window._difference_document
-'''
+"""
 
 
 def replace_once(text: str, old: str, new: str, description: str) -> str:
