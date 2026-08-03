@@ -17,12 +17,13 @@ from pixelscope.app.main_window import MainWindow
 from pixelscope.core.bayer import render_bayer_preview
 from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.line_profile import LineSelection
+from pixelscope.core.line_profile import LineProfileResult, LineSelection, selected_line_profile
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
 from pixelscope.ui.image_viewer import ImageViewer, RoiViewBox
+from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.pixel_inspector import PixelInspector
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 
@@ -452,10 +453,13 @@ def test_plot_dock_resize_preserves_image_scale_and_floating_controls(
     window.viewer.zoom_100_percent()
     initial_zoom = window.viewer.zoom_percent
     assert initial_zoom is not None
+    resize_zoom_samples: list[float] = []
+    window.viewer.zoom_changed.connect(resize_zoom_samples.append)
     window._show_bottom_results()
     window.resizeDocks([window.bottom_dock], [360], Qt.Orientation.Vertical)
     qtbot.wait(50)  # type: ignore[attr-defined]
     assert window.viewer.zoom_percent == pytest.approx(initial_zoom, rel=0.03)
+    assert all(zoom == pytest.approx(initial_zoom, rel=0.03) for zoom in resize_zoom_samples)
 
     title = window.plots_dock_title
     assert title.close_button.toolTip() == "Hide Plots"
@@ -488,6 +492,39 @@ def test_plot_dock_resize_preserves_image_scale_and_floating_controls(
     qtbot.wait(20)  # type: ignore[attr-defined]
     assert not window.bottom_dock.isFloating()
     window.close()
+
+
+def test_line_profile_separate_modes_share_available_height_equally(qtbot: object) -> None:
+    panel = LineProfilePanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    selection = LineSelection(0, 3, 31)
+    documents = [
+        ImageDocument.from_array(
+            np.full((8, 32, 3), 20 + index, dtype=np.uint8),
+            f"image-{index + 1}.png",
+        )
+        for index in range(3)
+    ]
+    results: tuple[LineProfileResult, ...] = tuple(
+        selected_line_profile(document.source, selection)  # type: ignore[arg-type]
+        for document in documents
+    )
+    panel._documents = documents
+    panel._selection = selection
+    panel.last_results = results
+    panel.resize(900, 850)
+    panel.show()
+    panel._render(results)
+
+    for mode in ("Separate by image", "Overlay", "Separate by channel"):
+        panel.view_mode.setCurrentText(mode)
+        qtbot.wait(20)  # type: ignore[attr-defined]
+        if mode == "Overlay":
+            continue
+        visible = [plot for plot in panel.plots if not plot.isHidden()]
+        assert len(visible) == 3
+        heights = [plot.height() for plot in visible]
+        assert max(heights) - min(heights) <= 2
 
 
 def test_single_to_multi_after_three_folder_selection_displays_all_images(
@@ -1013,9 +1050,16 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
         if isinstance(item, pg.PlotDataItem)
     ]
     assert len(profile_curves) == 6
-    assert profile_curves[0].opts["pen"].style() == Qt.PenStyle.SolidLine
-    assert profile_curves[3].opts["pen"].style() == Qt.PenStyle.CustomDashLine
+    assert all(curve.opts["pen"].style() == Qt.PenStyle.SolidLine for curve in profile_curves)
     assert all(curve.opts.get("symbol") is None for curve in profile_curves)
+    assert len(window.line_profile_panel.plot.listDataItems()) == 12
+    profile_markers = [
+        item
+        for item in window.line_profile_panel.plot.listDataItems()
+        if isinstance(item, pg.ScatterPlotItem)
+    ]
+    assert len(profile_markers) == 6
+    assert profile_markers[0].opts["brush"].color().name() == "#ff3b30"
     y_max = window.line_profile_panel.plot.getViewBox().viewRange()[1][1]
     scene_position = window.line_profile_panel.plot.getViewBox().mapViewToScene(QPointF(2, y_max))
     window.line_profile_panel._on_plot_mouse_moved(scene_position)
@@ -1570,8 +1614,8 @@ def test_rgba_comparison_ignores_alpha_in_stats_and_plots(qtbot: object) -> None
         if isinstance(item, pg.PlotDataItem)
     ]
     assert len(profile_curves) == 6
-    assert profile_curves[0].opts["pen"].style() == Qt.PenStyle.SolidLine
-    assert profile_curves[3].opts["pen"].style() == Qt.PenStyle.CustomDashLine
+    assert all(curve.opts["pen"].style() == Qt.PenStyle.SolidLine for curve in profile_curves)
+    assert len(window.line_profile_panel.plot.listDataItems()) == 12
 
     window.difference_panel.calculate_difference()
     qtbot.waitUntil(  # type: ignore[attr-defined]

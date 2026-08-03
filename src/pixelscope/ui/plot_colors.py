@@ -22,6 +22,8 @@ _DASH_PATTERNS = (
     (24.0, 5.0, 4.0, 5.0),
 )
 
+_IMAGE_MARKER_SYMBOLS = ("o", "s", "t", "d", "+", "x")
+
 
 def channel_color(channel_name: str) -> str:
     """Return one stable semantic color per channel."""
@@ -44,3 +46,21 @@ def comparison_pen(channel_name: str, image_index: int, width: float = 0.9) -> Q
     else:
         pen.setStyle(Qt.PenStyle.SolidLine)
     return pen
+
+
+def line_profile_pen(channel_name: str, width: float = 0.8) -> QPen:
+    """Keep profile trends continuous; image identity is encoded by markers."""
+
+    pen = QPen(channel_color(channel_name))
+    pen.setWidthF(width)
+    pen.setCosmetic(True)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    pen.setStyle(Qt.PenStyle.SolidLine)
+    return pen
+
+
+def image_marker_symbol(image_index: int) -> str:
+    """Return a stable marker symbol for one of the six comparison images."""
+
+    return _IMAGE_MARKER_SYMBOLS[image_index % len(_IMAGE_MARKER_SYMBOLS)]

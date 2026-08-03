@@ -4,9 +4,18 @@ from math import ceil, cos, floor, radians, sin
 from typing import Any
 
 import pyqtgraph as pg
-from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QResizeEvent
-from PySide6.QtWidgets import QGraphicsItem, QVBoxLayout, QWidget
+from PySide6.QtCore import (
+    QEvent,
+    QObject,
+    QPointF,
+    QRectF,
+    QSignalBlocker,
+    Qt,
+    QTimer,
+    Signal,
+)
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsSceneResizeEvent, QVBoxLayout, QWidget
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
@@ -55,6 +64,42 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.interaction_mode = "cursor"
+        self.preserve_scale_on_resize = True
+
+    def resizeEvent(self, event: QGraphicsSceneResizeEvent) -> None:  # noqa: N802
+        old_size = event.oldSize()
+        preserve = (
+            self.preserve_scale_on_resize
+            and old_size.width() > 0
+            and old_size.height() > 0
+            and event.newSize().width() > 0
+            and event.newSize().height() > 0
+        )
+        if not preserve:
+            super().resizeEvent(event)
+            return
+
+        ranges = self.viewRange()
+        center_x = (float(ranges[0][0]) + float(ranges[0][1])) / 2.0
+        center_y = (float(ranges[1][0]) + float(ranges[1][1])) / 2.0
+        pixel_scale = max(
+            (float(ranges[0][1]) - float(ranges[0][0])) / old_size.width(),
+            (float(ranges[1][1]) - float(ranges[1][0])) / old_size.height(),
+        )
+
+        # ViewBox normally expands its visible range to retain the whole target
+        # range while resizing. Suppress that transient notification and expose
+        # only the final, constant-pixel-scale range to synchronized viewers.
+        blocker = QSignalBlocker(self)
+        super().resizeEvent(event)
+        del blocker
+        half_width = pixel_scale * event.newSize().width() / 2.0
+        half_height = pixel_scale * event.newSize().height() / 2.0
+        self.setRange(
+            xRange=(center_x - half_width, center_x + half_width),
+            yRange=(center_y - half_height, center_y + half_height),
+            padding=0,
+        )
 
     @staticmethod
     def gesture_for_modifiers(modifiers: Qt.KeyboardModifier) -> str | None:
@@ -111,13 +156,6 @@ class ImageViewer(QWidget):
         self._role = ""
         self._cursor_enabled = True
         self._active = False
-        self._resize_scale: float | None = None
-        self._resize_center: tuple[float, float] | None = None
-        self._layout_refit_pending = False
-        self._resize_timer = QTimer(self)
-        self._resize_timer.setSingleShot(True)
-        self._resize_timer.setInterval(40)
-        self._resize_timer.timeout.connect(self._restore_scale_after_resize)  # type: ignore[attr-defined]
         self.header = TileHeader()
         self.header.focus_requested.connect(lambda: self.focus_requested.emit(self))
         self.header.navigation_requested.connect(self.navigation_requested)
@@ -289,35 +327,13 @@ class ImageViewer(QWidget):
             (y_range[0] + y_range[1]) / 2.0,
         )
 
-    def _restore_scale_after_resize(self) -> None:
-        scale = self._resize_scale
-        center = self._resize_center
-        self._resize_scale = None
-        self._resize_center = None
-        if self._document is None or scale is None or center is None or scale <= 0:
-            return
-        current_pixel_size = self.view_box.viewPixelSize()
-        if not current_pixel_size or current_pixel_size[0] <= 0:
-            return
-        ratio = scale / float(current_pixel_size[0])
-        self.view_box.scaleBy(
-            (ratio, ratio),
-            center=QPointF(center[0], center[1]),
-        )
-
     def begin_layout_refit(self) -> None:
         """Suspend resize-range restoration until a grid layout has settled."""
 
-        self._layout_refit_pending = True
-        self._resize_timer.stop()
-        self._resize_scale = None
-        self._resize_center = None
+        self.view_box.preserve_scale_on_resize = False
 
     def end_layout_refit(self) -> None:
-        self._layout_refit_pending = False
-        self._resize_timer.stop()
-        self._resize_scale = None
-        self._resize_center = None
+        self.view_box.preserve_scale_on_resize = True
 
     def fit_image(self) -> None:
         if self._document is None or self._document.preview is None:
@@ -524,24 +540,8 @@ class ImageViewer(QWidget):
         self.cursor_moved.emit(x, y, value)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
-        if watched is self._graphics.viewport():
-            if event.type() == QEvent.Type.Resize and isinstance(event, QResizeEvent):
-                if (
-                    not self._layout_refit_pending
-                    and self._document is not None
-                    and event.oldSize().width() > 0
-                ):
-                    if self._resize_scale is None:
-                        ranges = self.view_box.viewRange()
-                        pixel_size = self.view_box.viewPixelSize()
-                        self._resize_scale = float(pixel_size[0]) if pixel_size else 0.0
-                        self._resize_center = (
-                            (ranges[0][0] + ranges[0][1]) / 2.0,
-                            (ranges[1][0] + ranges[1][1]) / 2.0,
-                        )
-                    self._resize_timer.start()
-            elif event.type() == QEvent.Type.MouseButtonPress:
-                self.activated.emit(self)
+        if watched is self._graphics.viewport() and event.type() == QEvent.Type.MouseButtonPress:
+            self.activated.emit(self)
         return super().eventFilter(watched, event)
 
     def _update_zoom(self, *_args: object) -> None:

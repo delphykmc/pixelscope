@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -23,7 +24,7 @@ from pixelscope.core.line_profile import (
     selected_line_profile,
 )
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
-from pixelscope.ui.plot_colors import channel_color, comparison_pen
+from pixelscope.ui.plot_colors import channel_color, image_marker_symbol, line_profile_pen
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
@@ -87,6 +88,10 @@ class LineProfilePanel(QWidget):
         controls.addWidget(self.status)
 
         self.plot_grid = QWidget()
+        self.plot_grid.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         self.plot_layout = QGridLayout(self.plot_grid)
         self.plot_layout.setContentsMargins(0, 0, 0, 0)
         self.plots: list[pg.PlotWidget] = []
@@ -98,6 +103,10 @@ class LineProfilePanel(QWidget):
             plot.showGrid(x=True, y=True, alpha=0.25)
             plot.getViewBox().setDefaultPadding(0.08)
             plot.setMinimumHeight(180)
+            plot.setSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Expanding,
+            )
             self.plots.append(plot)
             self.legends.append(plot.addLegend(offset=(-10, 10)))
             plot.scene().sigMouseMoved.connect(
@@ -324,6 +333,10 @@ class LineProfilePanel(QWidget):
                 )
             ]
 
+        active_plot_count = min(len(groups), len(self.plots))
+        for row in range(len(self.plots)):
+            self.plot_layout.setRowStretch(row, 1 if row < active_plot_count else 0)
+
         for plot_index, (title, entries) in enumerate(groups[:6]):
             plot = self.plots[plot_index]
             self.plot_layout.addWidget(plot, plot_index, 0)
@@ -365,14 +378,28 @@ class LineProfilePanel(QWidget):
                         legend_name = f"{image_index + 1} · {short_name}"
                     else:
                         legend_name = f"{image_index + 1} · {short_name} · {channel_name}"
+                    curve_name = legend_name if view_mode == "Separate by image" else None
                     plot.plot(
                         x_values,
                         y_values,
-                        pen=comparison_pen(channel_name, image_index, width=0.8),
+                        pen=line_profile_pen(channel_name),
                         antialias=True,
                         connect="finite",
-                        name=legend_name,
+                        name=curve_name,
                     )
+                    if view_mode != "Separate by image":
+                        marker_indices = self._marker_indices(x_values.size)
+                        marker = pg.ScatterPlotItem(
+                            x=x_values[marker_indices],
+                            y=y_values[marker_indices],
+                            symbol=image_marker_symbol(image_index),
+                            size=5.0,
+                            pen=pg.mkPen(channel_color(channel_name), width=0.8),
+                            brush=pg.mkBrush(channel_color(channel_name)),
+                        )
+                        marker.setZValue(3)
+                        plot.addItem(marker)
+                        self.legends[plot_index].addItem(marker, legend_name)
             plot.setLabel(
                 "left",
                 "Normalized"
@@ -397,6 +424,16 @@ class LineProfilePanel(QWidget):
             self.status.setText(
                 f"({selection.x1}, {selection.y1}) to ({selection.x2}, {selection.y2})"
             )
+
+    @staticmethod
+    def _marker_indices(sample_count: int, target_count: int = 18) -> NDArray[np.intp]:
+        """Spread identity markers across a curve without obscuring its shape."""
+
+        if sample_count <= 0:
+            return np.empty(0, dtype=np.intp)
+        if sample_count <= target_count:
+            return np.arange(sample_count, dtype=np.intp)
+        return np.unique(np.linspace(1, sample_count - 2, target_count, dtype=np.intp))
 
     def _transformed_profile(
         self,
