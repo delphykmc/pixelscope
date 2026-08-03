@@ -34,7 +34,7 @@ def test_default_performance_settings_use_512_mib_difference_cache() -> None:
     settings = PerformanceSettings()
     assert MIB == 1024 * 1024
     assert settings.difference_cache_bytes == 512 * MIB
-    assert DEFAULT_DIFFERENCE_CACHE_BYTES == settings.difference_cache_bytes
+    assert settings.difference_cache_bytes == DEFAULT_DIFFERENCE_CACHE_BYTES
     with pytest.raises(ValueError, match="positive"):
         PerformanceSettings(difference_cache_bytes=0)
 
