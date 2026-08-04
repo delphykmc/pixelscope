@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QAbstractItemView
 
 from pixelscope.app.main_window import MainWindow
@@ -78,6 +77,7 @@ def test_difference_selectors_are_authoritative_and_tiles_have_no_a_b_badges(
     for document in documents:
         window.add_document(document, select=False)
     window._select_document_ids([document.document_id for document in documents])
+    window.set_layout_mode("Multi View")
 
     panel = window.difference_panel
     panel.a_selector.setCurrentIndex(2)
@@ -87,9 +87,9 @@ def test_difference_selectors_are_authoritative_and_tiles_have_no_a_b_badges(
 
     assert not hasattr(window, "_compare_pair")
     assert (panel.a_selector.currentData(), panel.b_selector.currentData()) == selected_ids
-    assert [
-        viewer.header.badge.text() for viewer in window.multi_compare_view.occupied_viewers
-    ] == ["1", "2", "3"]
+    visible_viewers = window.multi_compare_view.viewers[:3]
+    assert [viewer.document for viewer in visible_viewers] == documents
+    assert [viewer.header.badge.text() for viewer in visible_viewers] == ["1", "2", "3"]
 
 
 def test_statistics_region_detail_row_is_stable_and_summary_uses_pixels(
@@ -191,8 +191,8 @@ def test_focus_pin_remains_limited_to_three_and_five_tile_layouts(qtbot: object)
 
     view.set_capacity(4)
     view.set_documents(documents[:4], 0, 4, None, None)
-    assert all(not viewer.header.focus.isVisible() for viewer in view.occupied_viewers)
+    assert all(viewer.header.focus.isHidden() for viewer in view.occupied_viewers)
 
     view.set_capacity(6)
     view.set_documents(documents, 0, 5, None, None)
-    assert all(viewer.header.focus.isVisible() for viewer in view.occupied_viewers)
+    assert all(not viewer.header.focus.isHidden() for viewer in view.occupied_viewers)

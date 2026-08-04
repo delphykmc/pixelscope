@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QModelIndex, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import (
+    QModelIndex,
+    QPersistentModelIndex,
+    QPoint,
+    QRect,
+    Qt,
+    Signal,
+)
 from PySide6.QtGui import (
     QColor,
     QDragEnterEvent,
@@ -15,12 +22,11 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QMenu,
-    QStyledItemDelegate,
     QStyle,
+    QStyledItemDelegate,
     QStyleOptionViewItem,
     QTreeWidget,
     QTreeWidgetItem,
-    QWidget,
 )
 
 from pixelscope.io.path_discovery import natural_sort_key
@@ -34,16 +40,18 @@ class _DocumentItemDelegate(QStyledItemDelegate):
         self,
         painter: QPainter,
         option: QStyleOptionViewItem,
-        index: QModelIndex,
+        index: QModelIndex | QPersistentModelIndex,
     ) -> None:
         super().paint(painter, option, index)
         if index.column() != 0 or not bool(index.data(DocumentListWidget.ACTIVE_ROLE)):
             return
+        # PySide6 6.4 stubs omit QStyleOptionViewItem.rect.
+        rect = getattr(option, "rect")  # noqa: B009
         accent = QRect(
-            option.rect.left(),
-            option.rect.top() + 2,
+            rect.left(),
+            rect.top() + 2,
             3,
-            max(0, option.rect.height() - 4),
+            max(0, rect.height() - 4),
         )
         painter.fillRect(accent, QColor(TOKENS.accent))
 

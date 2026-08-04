@@ -115,7 +115,8 @@ class ComparisonAnalysisPanel(QWidget):
         activity_layout.setSpacing(1)
         activity_layout.addWidget(self.status)
         activity_layout.addWidget(self.busy)
-        self.roi_label = QLabel("Full image")
+        self.roi_label = QLabel("")
+        self.roi_label.setFixedHeight(self.roi_label.fontMetrics().height() + TOKENS.spacing_xs * 2)
         self.region_scope = QComboBox()
         self.region_scope.addItems(("Full image", "Active ROI"))
         self.region_scope.currentIndexChanged.connect(  # type: ignore[attr-defined]
@@ -143,7 +144,7 @@ class ComparisonAnalysisPanel(QWidget):
         channel_controls.addStretch(1)
 
         self.image_summary = QTableWidget(0, 3)
-        self.image_summary.setHorizontalHeaderLabels(("Id", "Image", "Samples"))
+        self.image_summary.setHorizontalHeaderLabels(("Id", "Image", "Pixels"))
         self.image_summary.verticalHeader().hide()
         self.image_summary.setAlternatingRowColors(True)
         self.image_summary.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -252,12 +253,11 @@ class ComparisonAnalysisPanel(QWidget):
         self._bounds = bounds
         self.region_scope.blockSignals(True)
         if bounds is None:
-            self.roi_label.setText("Full image")
+            self.roi_label.clear()
             self.region_scope.setCurrentText(region_name or "Full image")
         else:
             self.roi_label.setText(
-                f"{region_name or 'Active ROI'} · x={bounds.x}, y={bounds.y}, "
-                f"{bounds.width} x {bounds.height}"
+                f"x={bounds.x}, y={bounds.y}, width={bounds.width}, " f"height={bounds.height}"
             )
             self.region_scope.setCurrentText(region_name or "Active ROI")
         self.region_scope.blockSignals(False)

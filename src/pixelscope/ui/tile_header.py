@@ -7,6 +7,7 @@ from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QLayout,
     QSizePolicy,
     QToolButton,
     QWidget,
@@ -42,6 +43,7 @@ class TileHeader(QWidget):
         self.name.setToolTip("")
         self.meta = QLabel()
         self.meta.setObjectName("tileMeta")
+        self.meta.setMinimumWidth(0)
         self.meta.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self.zoom = QLabel("—")
         self.zoom.setObjectName("tileMeta")
@@ -61,6 +63,7 @@ class TileHeader(QWidget):
         self.focus.hide()
         self.focus.clicked.connect(self.focus_requested)  # type: ignore[attr-defined]
         layout = QHBoxLayout(self)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         layout.setContentsMargins(
             TOKENS.spacing_sm,
             TOKENS.spacing_xs,
@@ -173,10 +176,13 @@ class TileHeader(QWidget):
 
     def resizeEvent(self, event: object) -> None:  # noqa: N802
         super().resizeEvent(event)  # type: ignore[arg-type]
-        self._update_responsive_mode()
+        size = getattr(event, "size", None)
+        event_width = size().width() if callable(size) else self.width()
+        self._update_responsive_mode(event_width)
 
-    def _update_responsive_mode(self) -> None:
-        compact = self.width() < self.COMPACT_WIDTH
+    def _update_responsive_mode(self, available_width: int | None = None) -> None:
+        width = self.width() if available_width is None else available_width
+        compact = width < self.COMPACT_WIDTH
         if compact != self._compact:
             self._compact = compact
             self.meta.setVisible(not compact)
