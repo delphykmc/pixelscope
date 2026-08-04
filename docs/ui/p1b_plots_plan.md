@@ -4,6 +4,12 @@
 
 P1-B refines Histogram, Line Profile, and the floating/docked Plots workspace without changing image loading, Difference computation, or packaging.
 
+## Implementation progress
+
+- Histogram implementation and targeted tests are prepared on `chatgpt/p1b-plots`.
+- Line Profile reference selection is next.
+- Floating/docked Plots persistence and Esc behavior follow after Line Profile.
+
 ## Histogram
 
 - Add a `Bins` selector with `Auto`, `256`, `1024`, and `4096`.
