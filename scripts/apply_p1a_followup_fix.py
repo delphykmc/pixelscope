@@ -18,16 +18,29 @@ def replace_once(text: str, old: str, new: str, description: str) -> str:
     return text.replace(old, new, 1)
 
 
-def replace_method(text: str, start: str, end: str, replacement: str) -> str:
-    start_index = text.find(start)
+def replace_class_method(text: str, method_name: str, replacement: str) -> str:
+    start_marker = f"    def {method_name}("
+    start_index = text.find(start_marker)
     if start_index < 0:
         if replacement in text:
             return text
-        raise RuntimeError(f"method marker not found: {start.strip()}")
-    end_index = text.find(end, start_index)
-    if end_index < 0:
-        raise RuntimeError(f"end marker not found: {end.strip()}")
+        raise RuntimeError(f"method marker not found: {method_name}")
+    next_method = text.find("\n    def ", start_index + len(start_marker))
+    if next_method < 0:
+        raise RuntimeError(f"next method marker not found after: {method_name}")
+    end_index = next_method + 1
     return text[:start_index] + replacement + text[end_index:]
+
+
+def remove_class_method_if_present(text: str, method_name: str) -> str:
+    start_marker = f"    def {method_name}("
+    start_index = text.find(start_marker)
+    if start_index < 0:
+        return text
+    next_method = text.find("\n    def ", start_index + len(start_marker))
+    if next_method < 0:
+        raise RuntimeError(f"next method marker not found after: {method_name}")
+    return text[:start_index] + text[next_method + 1 :]
 
 
 def remove_if_present(text: str, block: str) -> str:
@@ -35,8 +48,6 @@ def remove_if_present(text: str, block: str) -> str:
 
 
 def patch_main_window(text: str) -> str:
-    # Re-apply all known pair-plumbing removals idempotently. The original helper
-    # intentionally removed the field first, so any missed read becomes fatal.
     text = remove_if_present(
         text,
         "        self._compare_pair: tuple[str, str] | None = None\n",
@@ -115,21 +126,12 @@ def patch_main_window(text: str) -> str:
             )
 
 '''
-    text = replace_method(
+    text = replace_class_method(
         text,
-        "    def _update_file_states(\n",
-        "    def show_selected_image(\n",
+        "_update_file_states",
         canonical_file_states,
     )
-
-    compare_role_start = text.find(
-        "    def _set_compare_role(self, document_id: str, role: str) -> None:\n"
-    )
-    if compare_role_start >= 0:
-        compare_role_end = text.find("    def _select_document_ids(\n", compare_role_start)
-        if compare_role_end < 0:
-            raise RuntimeError("_select_document_ids marker not found")
-        text = text[:compare_role_start] + text[compare_role_end:]
+    text = remove_class_method_if_present(text, "_set_compare_role")
 
     leftovers = [
         f"{line_number}: {line.strip()}"
