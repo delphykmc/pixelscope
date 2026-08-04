@@ -20,23 +20,29 @@ from pixelscope.ui.toolbar_icons import toolbar_icon
 class TileHeader(QWidget):
     focus_requested = Signal()
     navigation_requested = Signal(str)
+    COMPACT_WIDTH = 480
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("tileHeader")
         self.setFixedHeight(32)
+        self.setMinimumWidth(0)
         self.setStyleSheet(tile_header_style())
         self._compat_text = ""
         self._full_name = ""
+        self._display_name = ""
         self._navigation_count = 0
+        self._compact = False
 
         self.badge = QLabel("1")
         self.badge.setObjectName("slotBadge")
         self.name = QLabel()
         self.name.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.name.setMinimumWidth(0)
         self.name.setToolTip("")
         self.meta = QLabel()
         self.meta.setObjectName("tileMeta")
+        self.meta.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         self.zoom = QLabel("—")
         self.zoom.setObjectName("tileMeta")
         self.navigation = QWidget()
@@ -69,6 +75,10 @@ class TileHeader(QWidget):
         layout.addWidget(self.zoom)
         layout.addWidget(self.focus)
 
+    @property
+    def compact(self) -> bool:
+        return self._compact
+
     def set_document(
         self,
         document: ImageDocument | None,
@@ -81,10 +91,13 @@ class TileHeader(QWidget):
         self.badge.setVisible(self._navigation_count <= 1)
         if document is None:
             self._full_name = ""
+            self._display_name = ""
             self.name.clear()
+            self.name.setToolTip("")
             self.meta.clear()
             self.zoom.setText("—")
             return
+        self._display_name = document.display_name
         self._full_name = (
             f"{document.source_path.parent.name} / {document.display_name}"
             if document.source_path is not None
@@ -100,7 +113,7 @@ class TileHeader(QWidget):
             f"{resolution}  {file_format} · {document.channel_layout} · "
             f"{document.bit_depth}-bit"
         )
-        self._elide_name()
+        self._update_responsive_mode()
 
     def set_zoom(self, percent: float | None) -> None:
         self.zoom.setText("—" if percent is None else f"{percent:.0f}%")
@@ -114,6 +127,7 @@ class TileHeader(QWidget):
 
     def set_focus_control_visible(self, visible: bool) -> None:
         self.focus.setVisible(visible)
+        self._elide_name()
 
     def set_navigation_items(
         self,
@@ -141,6 +155,7 @@ class TileHeader(QWidget):
         self._navigation_count = len(items)
         self.badge.setVisible(len(items) <= 1)
         self.navigation.setVisible(len(items) > 1)
+        self._elide_name()
 
     def text(self) -> str:
         """Compatibility accessor retained for clients that used the old QLabel."""
@@ -150,6 +165,7 @@ class TileHeader(QWidget):
     def setText(self, text: str) -> None:  # noqa: N802
         self._compat_text = text
         self._full_name = text
+        self._display_name = text
         self._elide_name()
 
     def clear(self) -> None:
@@ -157,13 +173,24 @@ class TileHeader(QWidget):
 
     def resizeEvent(self, event: object) -> None:  # noqa: N802
         super().resizeEvent(event)  # type: ignore[arg-type]
+        self._update_responsive_mode()
+
+    def _update_responsive_mode(self) -> None:
+        compact = self.width() < self.COMPACT_WIDTH
+        if compact != self._compact:
+            self._compact = compact
+            self.meta.setVisible(not compact)
+            layout = self.layout()
+            if layout is not None:
+                layout.activate()
         self._elide_name()
 
     def _elide_name(self) -> None:
         width = max(40, self.name.width())
+        source = self._display_name if self._compact else self._full_name
         self.name.setText(
             QFontMetrics(self.name.font()).elidedText(
-                self._full_name,
+                source,
                 Qt.TextElideMode.ElideMiddle,
                 width,
             )
