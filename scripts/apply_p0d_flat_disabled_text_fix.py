@@ -57,23 +57,40 @@ def _patch_design_tokens(text: str) -> str:
 
 
 def _patch_toolbar_tests(text: str) -> str:
-    text = _replace_once(
-        text,
-        "from PySide6.QtGui import QIcon, QPalette\n",
-        "from PySide6.QtGui import QIcon, QPalette\n"
-        "from PySide6.QtWidgets import QStyle\n",
-        "QStyle test import",
+    if "from PySide6.QtWidgets import QMenu, QStyle\n" not in text:
+        if "from PySide6.QtWidgets import QMenu\n" in text:
+            text = text.replace(
+                "from PySide6.QtWidgets import QMenu\n",
+                "from PySide6.QtWidgets import QMenu, QStyle\n",
+                1,
+            )
+        else:
+            text = _replace_once(
+                text,
+                "from PySide6.QtGui import QIcon, QPalette\n",
+                "from PySide6.QtGui import QIcon, QPalette\n"
+                "from PySide6.QtWidgets import QMenu, QStyle\n",
+                "QMenu and QStyle test import",
+            )
+
+    popup_assertions = '''    popup_menus = window.menuBar().findChildren(QMenu)
+    assert len(popup_menus) == 4
+    assert all("QMenu::item:disabled" in menu.styleSheet() for menu in popup_menus)
+'''
+    popup_assertions_with_hint = '''    popup_menus = window.menuBar().findChildren(QMenu)
+    assert len(popup_menus) == 4
+    assert all("QMenu::item:disabled" in menu.styleSheet() for menu in popup_menus)
+    assert all(
+        menu.style().styleHint(QStyle.StyleHint.SH_EtchDisabledText) == 0
+        for menu in popup_menus
     )
-    old = '''    assert "QMenu::item:disabled" in window.menuBar().styleSheet()
-    for menu in window.menuBar().findChildren(QMenu):
-        assert "QMenu::item:disabled" in menu.styleSheet()
 '''
-    new = '''    assert "QMenu::item:disabled" in window.menuBar().styleSheet()
-    for menu in window.menuBar().findChildren(QMenu):
-        assert "QMenu::item:disabled" in menu.styleSheet()
-        assert menu.style().styleHint(QStyle.StyleHint.SH_EtchDisabledText) == 0
-'''
-    return _replace_once(text, old, new, "disabled menu style assertions")
+    return _replace_once(
+        text,
+        popup_assertions,
+        popup_assertions_with_hint,
+        "disabled popup-menu style assertions",
+    )
 
 
 def _patch_file(path: Path, patcher: object) -> bool:
