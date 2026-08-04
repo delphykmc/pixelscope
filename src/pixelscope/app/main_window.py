@@ -128,7 +128,6 @@ class MainWindow(QMainWindow):
         self._split_channels = False
         self._channel_split_active = False
         self._active_document_id: str | None = None
-        self._compare_pair: tuple[str, str] | None = None
         self._difference_document: ImageDocument | None = None
         self._difference_source_ids: tuple[str, str] | None = None
         self._pending_pair_focus: int | str | None = None
@@ -160,7 +159,6 @@ class MainWindow(QMainWindow):
         )
         self.document_list.remove_requested.connect(self._remove_document_ids)
         self.document_list.compare_requested.connect(self.compare_selection)
-        self.document_list.compare_role_requested.connect(self._set_compare_role)
         self.document_list.focus_requested.connect(self._set_focus_document)
 
         self.comparison_analysis_panel = ComparisonAnalysisPanel()
@@ -717,6 +715,8 @@ class MainWindow(QMainWindow):
             self._document_item_text(document),
             document.source_path,
             document.error_state or str(document.source_path or ""),
+            loading_state=document.loading_state,
+            resident=document.source is not None,
         )
         if select:
             self._select_document_ids([document.document_id])
@@ -854,6 +854,8 @@ class MainWindow(QMainWindow):
             self._document_item_text(document),
             image_input.path,
             str(image_input.path),
+            loading_state=document.loading_state,
+            resident=False,
         )
         return document.document_id
 
@@ -1082,8 +1084,6 @@ class MainWindow(QMainWindow):
         ):
             self._difference_document = None
             self._difference_source_ids = None
-        if self._compare_pair is not None and selected_set.intersection(self._compare_pair):
-            self._compare_pair = None
         self._selection_order = [
             document_id for document_id in self._selection_order if document_id in selected_set
         ]
@@ -1138,12 +1138,9 @@ class MainWindow(QMainWindow):
             document for document in analysis_candidates if document.source is not None
         ]
 
-        difference_pair = self._compare_pair
-        if difference_pair is None and len(documents) == 2:
-            difference_pair = (documents[0].document_id, documents[1].document_id)
         self.difference_panel.set_documents(
             analysis_ready,
-            difference_pair,
+            None,
             self._shared_roi,
         )
         cached_display = self.difference_panel.cached_display_for_current()
@@ -1192,13 +1189,7 @@ class MainWindow(QMainWindow):
             document = documents[self._current_index]
             self._ensure_loaded(document)
             self.viewer.set_document(document, fit=not preserve_view)
-            role = ""
-            if self._compare_pair is not None:
-                if document.document_id == self._compare_pair[0]:
-                    role = "A"
-                elif document.document_id == self._compare_pair[1]:
-                    role = "B"
-            self.viewer.set_tile_context(self._current_index + 1, role)
+            self.viewer.set_tile_context(self._current_index + 1, "")
             self.viewer.set_header(
                 f"[{self._current_index + 1}/{len(documents)}] {document.display_name}"
             )
@@ -1212,7 +1203,6 @@ class MainWindow(QMainWindow):
             channel_documents, split_active = self._split_display_documents(document)
             self._channel_split_active = split_active
             self.multi_compare_view.set_capacity(4)
-            self.multi_compare_view.set_compare_pair(None)
             self.multi_compare_view.set_documents(
                 channel_documents,
                 0,
@@ -1230,7 +1220,6 @@ class MainWindow(QMainWindow):
             for document in visible:
                 self._ensure_loaded(document)
             self.multi_compare_view.set_capacity(self._view_capacity)
-            self.multi_compare_view.set_compare_pair(self._compare_pair)
             self.multi_compare_view.set_arrangement(self._multiview_arrangement)
             self.multi_compare_view.set_layout_kind(
                 effective_layout,
@@ -1347,8 +1336,6 @@ class MainWindow(QMainWindow):
                 self, "Comparison selection", "Select two or more documents in the list."
             )
             return
-        self._compare_pair = None
-        self.set_layout_mode("Multi View")
 
     def set_view_capacity(self, capacity: int) -> None:
         if capacity not in (1, 2, 4, 6):
@@ -1538,22 +1525,14 @@ class MainWindow(QMainWindow):
         visible_documents: Sequence[ImageDocument],
         active_document: ImageDocument | None,
     ) -> None:
-        slots = {
-            document.document_id: index + 1 for index, document in enumerate(visible_documents)
-        }
-        roles = (
-            {self._compare_pair[0]: "A", self._compare_pair[1]: "B"}
-            if self._compare_pair is not None
-            else {}
-        )
+        visible_ids = {document.document_id for document in visible_documents}
         for document_id, document in self.documents.items():
             self.document_list.set_document_state(
                 document_id,
-                visible=document_id in slots,
+                visible=document_id in visible_ids,
                 active=active_document is not None and document_id == active_document.document_id,
-                role=roles.get(document_id, ""),
-                slot=slots.get(document_id),
                 loading_state=document.loading_state,
+                resident=document.source is not None,
             )
 
     def show_selected_image(self, selected_index: int) -> None:
@@ -1872,35 +1851,6 @@ class MainWindow(QMainWindow):
             document_id for document_id in self._selection_order if document_id not in selected_set
         ]
         self._render_selection()
-
-    def _set_compare_role(self, document_id: str, role: str) -> None:
-        if document_id not in self.documents or role not in ("A", "B"):
-            return
-        existing_other = (
-            (self._compare_pair[1] if role == "A" else self._compare_pair[0])
-            if self._compare_pair is not None
-            else None
-        )
-        other = existing_other if existing_other != document_id else None
-        if other not in self.documents:
-            other = next(
-                (
-                    candidate
-                    for candidate in self._selection_order
-                    if candidate != document_id and candidate in self.documents
-                ),
-                None,
-            )
-        if other is None:
-            other = next(
-                (candidate for candidate in self.documents if candidate != document_id),
-                None,
-            )
-        if other is None:
-            self.statusBar().showMessage("A/B comparison requires two images", 3000)
-            return
-        self._compare_pair = (document_id, other) if role == "A" else (other, document_id)
-        self._render_selection(preserve_view=True)
 
     def _select_document_ids(
         self,

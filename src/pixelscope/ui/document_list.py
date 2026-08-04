@@ -2,19 +2,60 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeyEvent
+from PySide6.QtCore import (
+    QModelIndex,
+    QPersistentModelIndex,
+    QPoint,
+    QRect,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import (
+    QColor,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QIcon,
+    QKeyEvent,
+    QPainter,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QMenu,
     QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTreeWidget,
     QTreeWidgetItem,
 )
 
 from pixelscope.io.path_discovery import natural_sort_key
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.file_status_icons import document_residency_state, file_status_icon
+
+
+class _DocumentItemDelegate(QStyledItemDelegate):
+    """Draw a stable active-document accent without replacing selection styling."""
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        super().paint(painter, option, index)
+        if index.column() != 0 or not bool(index.data(DocumentListWidget.ACTIVE_ROLE)):
+            return
+        # PySide6 6.4 stubs omit QStyleOptionViewItem.rect.
+        rect = getattr(option, "rect")  # noqa: B009
+        accent = QRect(
+            rect.left(),
+            rect.top() + 2,
+            3,
+            max(0, rect.height() - 4),
+        )
+        painter.fillRect(accent, QColor(TOKENS.accent))
 
 
 class DocumentListWidget(QTreeWidget):
@@ -26,27 +67,30 @@ class DocumentListWidget(QTreeWidget):
     activate_requested = Signal(str)
     remove_requested = Signal(object)
     compare_requested = Signal()
-    compare_role_requested = Signal(str, str)
     focus_requested = Signal(str)
     PATH_ROLE = Qt.ItemDataRole.UserRole + 1
     BASE_TEXT_ROLE = Qt.ItemDataRole.UserRole + 2
+    FILE_TYPE_ROLE = Qt.ItemDataRole.UserRole + 3
+    ACTIVE_ROLE = Qt.ItemDataRole.UserRole + 4
+    DETAIL_ROLE = Qt.ItemDataRole.UserRole + 5
 
     def __init__(self) -> None:
         super().__init__()
         self._groups: dict[str, QTreeWidgetItem] = {}
         self._document_items: dict[str, QTreeWidgetItem] = {}
-        self.setColumnCount(3)
-        self.setHeaderLabels(["File", "State", "Type"])
-        self.headerItem().setToolTip(1, "Visibility, loading, and comparison state")
+        self.setColumnCount(2)
+        self.setHeaderLabels(["File", "Type"])
         self.setHeaderHidden(False)
         self.header().setStretchLastSection(False)
         self.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.setIndentation(18)
         self.setRootIsDecorated(True)
         self.setItemsExpandable(True)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setUniformRowHeights(True)
+        self.setItemDelegate(_DocumentItemDelegate(self))
         self.setAcceptDrops(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -67,13 +111,16 @@ class DocumentListWidget(QTreeWidget):
         text: str,
         source_path: Path | None,
         tooltip: str = "",
+        *,
+        loading_state: str = "pending",
+        resident: bool = False,
     ) -> QTreeWidgetItem:
         folder = source_path.parent.resolve() if source_path is not None else None
         group_key = str(folder).casefold() if folder is not None else "<generated>"
         group = self._groups.get(group_key)
         if group is None:
             group_name = folder.name if folder is not None else "Generated"
-            group = QTreeWidgetItem([group_name, "", "Folder"])
+            group = QTreeWidgetItem([group_name, "Folder"])
             group.setIcon(0, self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
             group.setToolTip(0, str(folder or "Generated documents"))
             group.setData(0, self.PATH_ROLE, str(folder) if folder is not None else "")
@@ -86,17 +133,13 @@ class DocumentListWidget(QTreeWidget):
             self._groups[group_key] = group
 
         file_type = source_path.suffix.upper().lstrip(".") if source_path is not None else "GEN"
-        item = QTreeWidgetItem([text, "", file_type])
-        icon_kind = (
-            QStyle.StandardPixmap.SP_DriveHDIcon
-            if file_type == "RAW"
-            else QStyle.StandardPixmap.SP_FileIcon
-        )
-        item.setIcon(0, self.style().standardIcon(icon_kind))
+        item = QTreeWidgetItem([text, file_type])
         item.setData(0, Qt.ItemDataRole.UserRole, document_id)
         item.setData(0, self.PATH_ROLE, str(source_path or ""))
         item.setData(0, self.BASE_TEXT_ROLE, text)
-        item.setToolTip(0, tooltip)
+        item.setData(0, self.FILE_TYPE_ROLE, file_type)
+        item.setData(0, self.ACTIVE_ROLE, False)
+        item.setData(0, self.DETAIL_ROLE, tooltip)
         insert_at = group.childCount()
         if source_path is not None:
             new_key = natural_sort_key(source_path)
@@ -107,6 +150,11 @@ class DocumentListWidget(QTreeWidget):
                     break
         group.insertChild(insert_at, item)
         self._document_items[document_id] = item
+        self.set_document_state(
+            document_id,
+            loading_state=loading_state,
+            resident=resident,
+        )
         return item
 
     def update_document_item(self, document_id: str, text: str, tooltip: str) -> None:
@@ -114,7 +162,7 @@ class DocumentListWidget(QTreeWidget):
         if item is None:
             return
         item.setData(0, self.BASE_TEXT_ROLE, text)
-        item.setToolTip(0, tooltip)
+        item.setData(0, self.DETAIL_ROLE, tooltip)
         item.setText(0, text)
 
     def document_items(self) -> list[QTreeWidgetItem]:
@@ -161,25 +209,46 @@ class DocumentListWidget(QTreeWidget):
         role: str = "",
         slot: int | None = None,
         loading_state: str = "ready",
+        resident: bool = False,
     ) -> None:
         item = self._document_items.get(document_id)
         if item is None:
             return
-        del slot
-        state = role
-        if loading_state == "pending":
-            state = "…"
-        elif loading_state == "error":
-            state = "!"
-        item.setText(1, state)
-        item.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
+        del role, slot
+        file_type = str(item.data(0, self.FILE_TYPE_ROLE) or item.text(1))
+        residency_state = document_residency_state(loading_state, resident)
+        item.setIcon(0, self._document_icon(file_type, residency_state))
+        item.setData(0, self.ACTIVE_ROLE, active)
         font = item.font(0)
         font.setBold(active)
         item.setFont(0, font)
-        item.setForeground(0, QColor(TOKENS.accent if active else TOKENS.text_primary))
+        item.setForeground(0, QColor(TOKENS.text_primary))
+
         base_tooltip = str(item.data(0, self.PATH_ROLE) or item.text(0))
-        visibility = "Visible in workspace" if visible else "Registered"
-        item.setToolTip(0, f"{base_tooltip}\n{visibility}")
+        detail = str(item.data(0, self.DETAIL_ROLE) or "")
+        lines = [base_tooltip, self._residency_text(residency_state)]
+        if detail and detail != base_tooltip:
+            lines.append(detail)
+        if active:
+            lines.append("Active in workspace")
+        elif visible:
+            lines.append("Visible in workspace")
+        item.setToolTip(0, "\n".join(lines))
+        self.viewport().update(self.visualItemRect(item))
+
+    @staticmethod
+    def _document_icon(file_type: str, residency_state: str) -> QIcon:
+        return file_status_icon(file_type, residency_state)
+
+    @staticmethod
+    def _residency_text(residency_state: str) -> str:
+        if residency_state == "cached":
+            return "Cached in memory"
+        if residency_state == "loading":
+            return "Loading into memory"
+        if residency_state == "error":
+            return "Load failed"
+        return "Not cached"
 
     @staticmethod
     def _local_paths(

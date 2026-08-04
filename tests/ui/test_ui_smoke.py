@@ -94,6 +94,7 @@ def test_application_and_selection_driven_main_window(qtbot: object) -> None:
 
 
 def test_layout_tool_and_file_state_models(qtbot: object, tmp_path: Path) -> None:
+    assert isinstance(create_application([]), QApplication)
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     documents = [
@@ -143,12 +144,17 @@ def test_layout_tool_and_file_state_models(qtbot: object, tmp_path: Path) -> Non
     assert group.font(0).bold()
     assert not group.icon(0).isNull()
     assert not child.icon(0).isNull()
-    assert child.text(1) == ""
+    assert window.document_list.columnCount() == 2
+    assert child.text(1) == "PNG"
     assert group.child(1).foreground(0).color().name() == "#e7e9ec"
     assert window.palette().color(QPalette.ColorRole.HighlightedText).name() == "#101316"
     window._select_document_ids([document.document_id for document in documents[:2]])
     window.compare_selection()
-    assert [group.child(index).text(1) for index in range(3)] == ["", "", ""]
+    assert [group.child(index).text(1) for index in range(3)] == [
+        "PNG",
+        "PNG",
+        "PNG",
+    ]
     assert group.child(0).font(0).bold()
     window.close()
 
@@ -191,7 +197,6 @@ def test_difference_action_compatibility_states(qtbot: object) -> None:
 
     bayer = bayer_document("mosaic.raw")
     window.add_document(bayer, select=False)
-    window._compare_pair = None
     window._select_document_ids([rgb_a.document_id, bayer.document_id])
     assert not window.difference_panel.calculate.isEnabled()
     assert "RGB and Bayer" in window.difference_panel.status.text()
@@ -1019,7 +1024,7 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     assert summary.item(1, 1).text().endswith("b.png")
     assert summary.item(1, 2).text() == "64"
     assert window.comparison_analysis_panel.status.text() == ""
-    assert window.comparison_analysis_panel.roi_label.text() == "Full image"
+    assert window.comparison_analysis_panel.roi_label.text() == ""
     histogram_plots = window.comparison_analysis_panel.plots[:2]
     assert all(not plot.isHidden() for plot in histogram_plots)
     assert window.comparison_analysis_panel.histogram_layout.getItemPosition(
@@ -1209,7 +1214,7 @@ def test_drop_appends_to_multiview_preserves_range_and_deduplicates(
     assert window.document_list.topLevelItemCount() == 1
     assert window.document_list.topLevelItem(0).childCount() == 3
     assert window.document_list.topLevelItem(0).child(0).text(0) == "drop0.png"
-    assert window.document_list.topLevelItem(0).child(0).text(1) == ""
+    assert window.document_list.topLevelItem(0).child(0).text(1) == "PNG"
     window.close()
 
 
@@ -1553,8 +1558,11 @@ def test_error_document_can_be_registered(qtbot: object) -> None:
     error = ImageDocument.error_document("bad.png", "decode failed", Path("bad.png"))
     window.add_document(error)
     assert error.loading_state == "error"
-    assert window.document_list.currentItem().text(0) == "bad.png"
-    assert "!" in window.document_list.currentItem().text(1)
+    item = window.document_list.currentItem()
+    assert item.text(0) == "bad.png"
+    assert item.text(1) == "PNG"
+    assert not item.icon(0).isNull()
+    assert "Load failed" in item.toolTip(0)
     window.close()
 
 

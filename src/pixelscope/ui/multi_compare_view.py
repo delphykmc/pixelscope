@@ -63,7 +63,6 @@ class MultiCompareView(QWidget):
         self._document_count = 0
         self._active_viewer: ImageViewer | None = None
         self.sync_enabled = True
-        self.compare_pair: tuple[str, str] | None = None
         self.layout_kind = "Auto"
         self.arrangement = FIXED_MULTIVIEW_ARRANGEMENT
         self.focus_document_id: str | None = None
@@ -140,11 +139,6 @@ class MultiCompareView(QWidget):
                 role = ""
                 if document is not None and document.channel_layout == "DIFFERENCE":
                     role = "Diff"
-                if document is not None and self.compare_pair is not None:
-                    if document.document_id == self.compare_pair[0]:
-                        role = "A"
-                    elif document.document_id == self.compare_pair[1]:
-                        role = "B"
                 logical_slot = (
                     slot_by_id.get(document.document_id, start_index + slot + 1)
                     if document is not None and slot_by_id is not None
@@ -261,9 +255,6 @@ class MultiCompareView(QWidget):
 
     def set_sync_enabled(self, enabled: bool) -> None:
         self.sync_enabled = enabled
-
-    def set_compare_pair(self, pair: tuple[str, str] | None) -> None:
-        self.compare_pair = pair
 
     def set_layout_kind(self, kind: str, focus_document_id: str | None = None) -> None:
         self.layout_kind = kind
