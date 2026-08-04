@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon, QPalette
+from PySide6.QtWidgets import QMenu, QStyle
 
 from pixelscope.app.application import create_application
 from pixelscope.app.main_window import MainWindow
@@ -102,6 +103,12 @@ def test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette(qtbot: o
     assert not window.split_channels_action.icon().isNull()
     assert not window.redock_plots_action.icon().isNull()
     assert "QMenu::item:disabled" in window.menuBar().styleSheet()
+    popup_menus = window.menuBar().findChildren(QMenu)
+    assert len(popup_menus) == 4
+    assert all("QMenu::item:disabled" in menu.styleSheet() for menu in popup_menus)
+    assert all(
+        menu.style().styleHint(QStyle.StyleHint.SH_EtchDisabledText) == 0 for menu in popup_menus
+    )
     assert (
         window.palette().color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText).name()
         == TOKENS.text_disabled

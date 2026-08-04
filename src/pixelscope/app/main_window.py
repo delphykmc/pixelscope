@@ -282,6 +282,8 @@ class MainWindow(QMainWindow):
             "Selection": menu_bar.addMenu("&Selection"),
             "View": menu_bar.addMenu("&View"),
         }
+        for menu in menus.values():
+            menu.setStyleSheet(menu_style())
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
         add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
         add_action("File", "Open RAW with Profile...", self.open_raw)

@@ -3,7 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import (
+    QApplication,
+    QProxyStyle,
+    QStyle,
+    QStyleHintReturn,
+    QStyleOption,
+    QWidget,
+)
 
 
 @dataclass(frozen=True)
@@ -29,10 +36,25 @@ class DesignTokens:
 TOKENS = DesignTokens()
 
 
+class EngineeringStyle(QProxyStyle):
+    """Keep disabled text flat instead of using the Windows etched effect."""
+
+    def styleHint(
+        self,
+        hint: QStyle.StyleHint,
+        option: QStyleOption | None = None,
+        widget: QWidget | None = None,
+        return_data: QStyleHintReturn | None = None,
+    ) -> int:
+        if hint == QStyle.StyleHint.SH_EtchDisabledText:
+            return 0
+        return super().styleHint(hint, option, widget, return_data)
+
+
 def apply_engineering_palette(app: QApplication) -> None:
     """Apply a compact neutral palette without globally restyling widget geometry."""
 
-    app.setStyle("Fusion")
+    app.setStyle(EngineeringStyle("Fusion"))
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(TOKENS.panel_background))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(TOKENS.text_primary))
