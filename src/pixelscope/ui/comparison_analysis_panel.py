@@ -30,6 +30,7 @@ from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
+from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
@@ -628,10 +629,8 @@ class ComparisonAnalysisPanel(QWidget):
                 if document.source_path is not None
                 else document.display_name
             )
-            if len(title) > 36:
-                title = f"{title[:17]}...{title[-16:]}"
             if not overlay:
-                plot.setTitle(f"{image_index + 1}  {title}")
+                plot.setTitle(middle_elide(f"{image_index + 1} · {title}"))
             self._set_plot_axes_visible(plot, True)
             y_mode = self.histogram_units.currentText()
             plot.setLabel(
@@ -698,24 +697,25 @@ class ComparisonAnalysisPanel(QWidget):
                 continue
             cursor_x = float((edges[bin_index] + edges[bin_index + 1]) / 2.0)
             value = float(values[bin_index])
-            label = self._documents[image_index].display_name
             rows.append(
-                f"<tr><td><b>{image_index + 1} · {label}</b></td>"
-                f'<td style="color:{channel_color(channel_name)}; padding-left:8px">'
-                f"{channel_name}: {value:.6g}</td></tr>"
+                f"<tr><td><b>{image_index + 1}</b></td>"
+                f'<td style="color:{channel_color(channel_name)}; padding-left:7px">'
+                f"{channel_name}</td>"
+                f'<td style="padding-left:10px; text-align:right">'
+                f"{plot_number(value)}</td></tr>"
             )
         if cursor_x is None or not rows:
             line.hide()
             hint.hide()
             return
         view_range = plot.getViewBox().viewRange()
-        hint.setAnchor(
-            (
-                1 if point.x() > sum(view_range[0]) / 2 else 0,
-                0 if point.y() > sum(view_range[1]) / 2 else 1,
-            )
+        y_anchor = 0 if point.y() > sum(view_range[1]) / 2 else 1
+        hint.setAnchor((1, y_anchor))
+        coordinate_label = (
+            "Normalized code" if self.histogram_range.currentText() == "Normalized 0–1" else "Code"
         )
-        hint.setHtml(f"<table cellspacing='2'>{''.join(rows)}</table>")
+        header = coordinate_header(coordinate_label, cursor_x)
+        hint.setHtml(f"<b>{header}</b><table cellspacing='2'>{''.join(rows)}</table>")
         x_range, y_range = view_range
         x_padding = (x_range[1] - x_range[0]) * 0.04
         y_padding = (y_range[1] - y_range[0]) * 0.08

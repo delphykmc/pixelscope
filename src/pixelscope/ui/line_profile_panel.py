@@ -25,6 +25,7 @@ from pixelscope.core.line_profile import (
 )
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, image_marker_symbol, line_profile_pen
+from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
@@ -42,6 +43,9 @@ class LineProfilePanel(QWidget):
         self._hover_texts: list[pg.TextItem | None] = [None] * 6
         self._plot_result_indices: list[list[int]] = [[] for _index in range(6)]
         self._plot_channel_filters: list[str | None] = [None] * 6
+        self._profile_series: list[
+            list[tuple[int, str, NDArray[np.float64], NDArray[np.float64]]]
+        ] = [[] for _index in range(6)]
 
         self.status = QLabel("Alt+drag on an image to set a line profile")
         self.view_mode = QComboBox()
@@ -297,6 +301,7 @@ class LineProfilePanel(QWidget):
             plot.hide()
         self._plot_result_indices = [[] for _index in range(6)]
         self._plot_channel_filters = [None] * 6
+        self._profile_series = [[] for _index in range(6)]
         channel_names = {name for result in results for name in result.channel_names if name != "A"}
         bayer = bool(channel_names.intersection({"Gr", "Gb"}))
         for name, button in self.channel_buttons.items():
@@ -341,7 +346,7 @@ class LineProfilePanel(QWidget):
             plot = self.plots[plot_index]
             self.plot_layout.addWidget(plot, plot_index, 0)
             plot.show()
-            plot.setTitle(title)
+            plot.setTitle(middle_elide(title))
             self._plot_result_indices[plot_index] = sorted(
                 {image_index for image_index, _result, _filter in entries}
             )
@@ -386,6 +391,9 @@ class LineProfilePanel(QWidget):
                         antialias=True,
                         connect="finite",
                         name=curve_name,
+                    )
+                    self._profile_series[plot_index].append(
+                        (image_index, channel_name, x_values, y_values)
                     )
                     if view_mode != "Separate by image":
                         marker_indices = self._marker_indices(x_values.size)
@@ -474,6 +482,7 @@ class LineProfilePanel(QWidget):
         self._hover_texts = [None] * 6
         self._plot_result_indices = [[] for _index in range(6)]
         self._plot_channel_filters = [None] * 6
+        self._profile_series = [[] for _index in range(6)]
         self._set_axes_visible(False)
         self.status.setText("Alt+drag on an image to set a line profile")
 
@@ -501,71 +510,62 @@ class LineProfilePanel(QWidget):
         line = self._hover_lines[plot_index]
         hint = self._hover_texts[plot_index]
         plot = self.plots[plot_index]
+        series = self._profile_series[plot_index]
         if (
             line is None
             or hint is None
-            or not self.last_results
+            or not series
             or not plot.sceneBoundingRect().contains(position)
         ):
             self._hide_hover(plot_index)
             return
 
         point = plot.getViewBox().mapSceneToView(position)
-        sample_index = int(round(point.x()))
-        max_index = int(
-            max(
-                float(np.max(positions))
-                for result in self.last_results
-                for positions in result.positions
+        primary_x = series[0][2]
+        if primary_x.size == 0 or point.x() < primary_x[0] or point.x() > primary_x[-1]:
+            self._hide_hover(plot_index)
+            return
+        primary_index = int(np.argmin(np.abs(primary_x - point.x())))
+        cursor_x = float(primary_x[primary_index])
+
+        rows: list[str] = []
+        for image_index, channel_name, x_values, y_values in series:
+            if x_values.size == 0 or y_values.size == 0:
+                continue
+            nearest = int(np.argmin(np.abs(x_values - cursor_x)))
+            sample_x = float(x_values[nearest])
+            value = float(y_values[nearest])
+            position_suffix = (
+                ""
+                if np.isclose(sample_x, cursor_x, rtol=0.0, atol=1e-9)
+                else f"@{plot_number(sample_x)}"
             )
-        )
-        if sample_index < 0 or sample_index > max_index:
+            rows.append(
+                f"<tr><td><b>{image_index + 1}</b></td>"
+                f'<td style="color:{channel_color(channel_name)}; padding-left:7px">'
+                f"{channel_name}{position_suffix}</td>"
+                f'<td style="padding-left:10px; text-align:right">'
+                f"{plot_number(value)}</td></tr>"
+            )
+        if not rows:
             self._hide_hover(plot_index)
             return
 
-        rows: list[str] = []
-        for image_index in self._plot_result_indices[plot_index]:
-            result = self.last_results[image_index]
-            channel_values: list[str] = []
-            for values, channel_name, positions in zip(
-                result.values,
-                result.channel_names,
-                result.positions,
-                strict=True,
-            ):
-                if channel_name == "A":
-                    continue
-                channel_filter = self._plot_channel_filters[plot_index]
-                if channel_filter is not None and channel_name != channel_filter:
-                    continue
-                if not self._channel_is_enabled(channel_name):
-                    continue
-                nearest = int(np.argmin(np.abs(positions - sample_index)))
-                value = values[nearest]
-                source_position = int(positions[nearest])
-                color = channel_color(channel_name)
-                position_suffix = f"@{source_position}" if source_position != sample_index else ""
-                channel_values.append(
-                    f'<td style="color:{color}; padding-left:6px">'
-                    f"{channel_name}{position_suffix}: {value:.6g}</td>"
-                )
-            image_name = self._documents[image_index].display_name
-            rows.append(
-                f"<tr><td><b>{image_index + 1} · {image_name}</b></td>"
-                f"{''.join(channel_values)}</tr>"
-            )
         view_range = plot.getViewBox().viewRange()
-        x_anchor = 1 if point.x() > sum(view_range[0]) / 2 else 0
         y_anchor = 0 if point.y() > sum(view_range[1]) / 2 else 1
-        line.setPos(sample_index)
-        hint.setAnchor((x_anchor, y_anchor))
-        hint.setHtml(
-            f"<b>x={sample_index} px</b>" f"<table cellspacing='1'>{''.join(rows)}</table>"
+        line.setPos(cursor_x)
+        hint.setAnchor((1, y_anchor))
+        normalized = self.x_mode.currentText() == "Normalized distance"
+        header = coordinate_header(
+            "Normalized distance" if normalized else "Distance",
+            cursor_x,
+            None if normalized else "px",
         )
+        hint.setHtml(f"<b>{header}</b><table cellspacing='1'>{''.join(rows)}</table>")
         x_range, y_range = view_range
         x_padding = (x_range[1] - x_range[0]) * 0.04
         y_padding = (y_range[1] - y_range[0]) * 0.08
-        hint_x = min(max(float(sample_index), x_range[0] + x_padding), x_range[1] - x_padding)
+        hint_x = min(max(cursor_x, x_range[0] + x_padding), x_range[1] - x_padding)
         hint_y = min(max(point.y(), y_range[0] + y_padding), y_range[1] - y_padding)
         hint.setPos(hint_x, hint_y)
         line.show()
