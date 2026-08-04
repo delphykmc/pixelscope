@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 HISTOGRAM_PANEL = Path("src/pixelscope/ui/comparison_analysis_panel.py")
@@ -21,7 +22,8 @@ def patch_histogram(text: str) -> str:
         "from pixelscope.ui.plot_colors import channel_color, comparison_pen\n",
         (
             "from pixelscope.ui.plot_colors import channel_color, comparison_pen\n"
-            "from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number\n"
+            "from pixelscope.ui.plot_text import "
+            "coordinate_header, middle_elide, plot_number\n"
         ),
         "histogram plot-text import",
     )
@@ -85,7 +87,8 @@ def patch_line_profile(text: str) -> str:
         (
             "from pixelscope.ui.plot_colors import "
             "channel_color, image_marker_symbol, line_profile_pen\n"
-            "from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number\n"
+            "from pixelscope.ui.plot_text import "
+            "coordinate_header, middle_elide, plot_number\n"
         ),
         "line-profile plot-text import",
     )
@@ -172,7 +175,11 @@ def patch_line_profile(text: str) -> str:
 
         point = plot.getViewBox().mapSceneToView(position)
         primary_x = series[0][2]
-        if primary_x.size == 0 or point.x() < primary_x[0] or point.x() > primary_x[-1]:
+        if (
+            primary_x.size == 0
+            or point.x() < primary_x[0]
+            or point.x() > primary_x[-1]
+        ):
             self._hide_hover(plot_index)
             return
         primary_index = int(np.argmin(np.abs(primary_x - point.x())))
@@ -219,13 +226,12 @@ def patch_line_profile(text: str) -> str:
         hint.show()
 
 '''
-    text = text[:method_start] + new_method + text[method_end:]
-    return text
+    return text[:method_start] + new_method + text[method_end:]
 
 
-def apply(path: Path, patcher: object) -> None:
+def apply(path: Path, patcher: Callable[[str], str]) -> None:
     original = path.read_text(encoding="utf-8")
-    updated = patcher(original)  # type: ignore[operator]
+    updated = patcher(original)
     if updated == original:
         print(f"No changes required: {path}")
         return
