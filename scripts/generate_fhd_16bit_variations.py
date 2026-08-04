@@ -9,36 +9,65 @@ import numpy as np
 from numpy.typing import NDArray
 
 FHD_SIZE = (1920, 1080)
-DEFAULT_ROOT = Path("manual_data/fhd")
-DEFAULT_OUTPUT = DEFAULT_ROOT / "16bit_variations"
+DEFAULT_ROOTS = (
+    Path("manual_data/fhd"),
+    Path("manual-data/fhd"),
+    Path("manual data/fhd"),
+    Path("data/manual/fhd"),
+    Path("tests/manual_data/fhd"),
+)
 
 
-def _find_base_image(explicit: Path | None, root: Path) -> Path:
-    if explicit is not None:
-        candidate = explicit.resolve()
-        if not candidate.is_file():
-            raise FileNotFoundError(candidate)
-        return candidate
-
+def _jpg_candidates(root: Path) -> list[Path]:
+    if not root.is_dir():
+        return []
     preferred = (
         root / "base.jpg",
         root / "base.jpeg",
         root / "Base.jpg",
         root / "Base.jpeg",
     )
-    for candidate in preferred:
-        if candidate.is_file():
-            return candidate.resolve()
-
+    candidates = [path for path in preferred if path.is_file()]
     discovered = sorted(
         [*root.glob("*.jpg"), *root.glob("*.jpeg")],
         key=lambda path: path.name.casefold(),
     )
-    if not discovered:
-        raise FileNotFoundError(
-            f"No base JPEG found in {root}. Pass an explicit path with --base."
-        )
-    return discovered[0].resolve()
+    return list(dict.fromkeys([*candidates, *discovered]))
+
+
+def _find_base_image(explicit: Path | None, root: Path | None) -> Path:
+    if explicit is not None:
+        candidate = explicit.resolve()
+        if not candidate.is_file():
+            raise FileNotFoundError(candidate)
+        return candidate
+
+    roots = (root,) if root is not None else DEFAULT_ROOTS
+    for candidate_root in roots:
+        candidates = _jpg_candidates(candidate_root)
+        if candidates:
+            return candidates[0].resolve()
+
+    recursive = sorted(
+        (
+            path
+            for path in Path.cwd().rglob("*")
+            if path.is_file()
+            and path.suffix.casefold() in {".jpg", ".jpeg"}
+            and any("manual" in part.casefold() for part in path.parts)
+            and any(part.casefold() == "fhd" for part in path.parts)
+        ),
+        key=lambda path: str(path).casefold(),
+    )
+    if recursive:
+        base_named = [path for path in recursive if path.stem.casefold() == "base"]
+        return (base_named or recursive)[0].resolve()
+
+    searched = ", ".join(str(path) for path in roots)
+    raise FileNotFoundError(
+        "No FHD base JPEG found. "
+        f"Searched {searched} and recursive manual/FHD paths. Pass --base explicitly."
+    )
 
 
 def _load_fhd_bgr(path: Path) -> NDArray[np.uint8]:
@@ -132,19 +161,19 @@ def _parse_args() -> argparse.Namespace:
         "--base",
         type=Path,
         default=None,
-        help="Base JPEG. By default, search manual_data/fhd.",
+        help="Base JPEG. Omit to search manual/FHD data directories.",
     )
     parser.add_argument(
         "--root",
         type=Path,
-        default=DEFAULT_ROOT,
+        default=None,
         help="Directory searched for a base JPEG when --base is omitted.",
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=DEFAULT_OUTPUT,
-        help="Output directory for the generated 16-bit PNG files.",
+        default=None,
+        help="Output directory. Defaults to <base directory>/16bit_variations.",
     )
     parser.add_argument("--seed", type=int, default=20260804)
     return parser.parse_args()
@@ -153,7 +182,11 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     base_path = _find_base_image(args.base, args.root)
-    output_dir = args.output.resolve()
+    output_dir = (
+        args.output.resolve()
+        if args.output is not None
+        else base_path.parent / "16bit_variations"
+    )
     written = generate_variations(base_path, output_dir, seed=args.seed)
     print(f"Base: {base_path}")
     print(f"Output: {output_dir}")
