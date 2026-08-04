@@ -48,7 +48,12 @@ from pixelscope.io.path_discovery import (
 )
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
-from pixelscope.ui.design_tokens import TOKENS, panel_heading_style, toolbar_style
+from pixelscope.ui.design_tokens import (
+    TOKENS,
+    menu_style,
+    panel_heading_style,
+    toolbar_style,
+)
 from pixelscope.ui.difference_panel import DifferencePanel
 from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
@@ -270,12 +275,15 @@ class MainWindow(QMainWindow):
             return action
 
         menu_bar = self.menuBar()
+        menu_bar.setStyleSheet(menu_style())
         menus = {
             "File": menu_bar.addMenu("&File"),
             "Edit": menu_bar.addMenu("&Edit"),
             "Selection": menu_bar.addMenu("&Selection"),
             "View": menu_bar.addMenu("&View"),
         }
+        for menu in menus.values():
+            menu.setStyleSheet(menu_style())
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
         add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
         add_action("File", "Open RAW with Profile...", self.open_raw)
@@ -324,12 +332,18 @@ class MainWindow(QMainWindow):
             self.multiview_arrangement_group.addAction(action)
             self.multiview_arrangement_actions[arrangement] = action
         menus["View"].addSeparator()
-        split_channels = add_action(
+        self.split_channels_action = add_action(
             "View",
             "Split Channels",
             self._set_split_channels,
         )
-        split_channels.setCheckable(True)
+        self.split_channels_action.setCheckable(True)
+        self.split_channels_action.setIcon(toolbar_icon("split_channels"))
+        self.split_channels_action.setIconText("Split")
+        self.split_channels_action.setToolTip(
+            "Split the selected RGB or Bayer image into channel views"
+        )
+        self.split_channels_action.setStatusTip(self.split_channels_action.toolTip())
         menus["View"].addSeparator()
         add_action("View", "Fit Image", self.fit_image, "F")
         add_action("View", "100% Zoom", self.zoom_100_percent, "Ctrl+0")
@@ -344,6 +358,9 @@ class MainWindow(QMainWindow):
             self._plots_top_level_changed
         )
         self.redock_plots_action = add_action("View", "Dock Plots", self._redock_plots)
+        self.redock_plots_action.setIcon(toolbar_icon("dock"))
+        self.redock_plots_action.setToolTip("Dock the floating Plots panel")
+        self.redock_plots_action.setStatusTip(self.redock_plots_action.toolTip())
         self.redock_plots_action.setEnabled(False)
         add_action("View", "Reset Workspace Layout", self.reset_workspace_layout)
         self._update_action_states()
@@ -377,6 +394,8 @@ class MainWindow(QMainWindow):
         layout_group_layout.addWidget(QLabel("Layout"))
         layout_group_layout.addWidget(self.layout_selector)
         toolbar.addWidget(layout_group)
+        toolbar.addAction(self.split_channels_action)
+        toolbar.addSeparator()
 
         fit_action = self.action_map["Fit Image"]
         fit_action.setIcon(toolbar_icon("fit"))
@@ -545,9 +564,24 @@ class MainWindow(QMainWindow):
         six_image_diff = self._six_image_diff_locked()
         split_action = self.action_map.get("Split Channels")
         if split_action is not None:
-            split_action.setEnabled(
-                len(documents) == 1 and documents[0].channel_layout in ("RGB", "RGBA", "BAYER")
+            split_available = (
+                len(documents) == 1
+                and documents[0].source is not None
+                and documents[0].channel_layout in ("RGB", "RGBA", "BAYER")
             )
+            split_action.setEnabled(split_available)
+            if split_available and split_action.isChecked():
+                split_tooltip = "Return to the combined image view"
+            elif split_available:
+                split_tooltip = "Split the selected RGB or Bayer image into channel views"
+            elif len(documents) != 1:
+                split_tooltip = "Split Channels requires exactly one selected image"
+            elif documents[0].source is None:
+                split_tooltip = "Split Channels will be available when the image finishes loading"
+            else:
+                split_tooltip = "Split Channels supports RGB, RGBA, and Bayer images"
+            split_action.setToolTip(split_tooltip)
+            split_action.setStatusTip(split_tooltip)
 
         current_widget = self.central_stack.currentWidget()
         visible_viewers = self.multi_compare_view.occupied_viewers
@@ -1134,17 +1168,9 @@ class MainWindow(QMainWindow):
         )
         if show_difference and self._layout_mode != "Single View":
             assert difference_document is not None
-            if (
-                len(documents) == 2
-                and difference_document.document_id not in self._multi_display_order
-                and self._focus_document_id not in {document.document_id for document in documents}
-            ):
+            if difference_document.document_id not in self._multi_display_order:
                 self._promote_multi_document(difference_document.document_id)
-            display_documents = (
-                [difference_document, *documents]
-                if len(documents) == 2
-                else [*documents, difference_document]
-            )
+            display_documents = [difference_document, *documents]
 
         if self._layout_mode != "Single View":
             display_documents = self._ordered_multi_documents(display_documents)
@@ -1181,19 +1207,10 @@ class MainWindow(QMainWindow):
             self.viewer.set_line_selection(self._shared_line)
             self.central_stack.setCurrentWidget(self.viewer)
             visible_state = [document]
-        elif (
-            self._view_capacity == 4
-            and self._split_channels
-            and len(documents) == 1
-            and documents[0].source is not None
-        ):
+        elif self._view_capacity == 4 and self._split_channels and len(documents) == 1:
             document = documents[0]
-            cache_key = (document.document_id, document.generation)
-            channel_documents = self._channel_view_cache.get(cache_key)
-            if channel_documents is None:
-                channel_documents = split_document_channels(document)
-                self._channel_view_cache = {cache_key: channel_documents}
-            self._channel_split_active = bool(channel_documents)
+            channel_documents, split_active = self._split_display_documents(document)
+            self._channel_split_active = split_active
             self.multi_compare_view.set_capacity(4)
             self.multi_compare_view.set_compare_pair(None)
             self.multi_compare_view.set_documents(
@@ -1269,6 +1286,51 @@ class MainWindow(QMainWindow):
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
         self._update_file_states(visible_state, active)
+
+    def _split_display_documents(
+        self,
+        document: ImageDocument,
+    ) -> tuple[list[ImageDocument], bool]:
+        """Return real channel views or stable loading placeholders for split mode."""
+
+        if document.source is not None:
+            cache_key = (document.document_id, document.generation)
+            channel_documents = self._channel_view_cache.get(cache_key)
+            if channel_documents is None:
+                channel_documents = split_document_channels(document)
+                self._channel_view_cache = {cache_key: channel_documents}
+            if channel_documents:
+                return channel_documents, True
+            return [document], False
+
+        profile = document.raw_profile or self._raw_profiles.get(document.document_id)
+        is_bayer = (
+            document.channel_layout == "BAYER"
+            or getattr(
+                profile,
+                "channel_layout",
+                None,
+            )
+            == "BAYER"
+        )
+        labels = ("R", "Gr", "Gb", "B") if is_bayer else ("R", "G", "B")
+        placeholders = [
+            ImageDocument(
+                source_path=document.source_path,
+                display_name=f"{document.display_name} · {label}",
+                source=None,
+                channel_layout=f"CHANNEL_{label}",
+                bit_depth=document.bit_depth,
+                raw_profile=profile,
+                display_transform=document.display_transform,
+                document_id=f"{document.document_id}:split:{label}",
+                loading_state=document.loading_state,
+                error_state=document.error_state,
+                generation=document.generation,
+            )
+            for label in labels
+        ]
+        return placeholders, False
 
     def _set_split_channels(self, enabled: bool) -> None:
         self._split_channels = enabled
@@ -1379,13 +1441,13 @@ class MainWindow(QMainWindow):
     def _effective_layout(self, count: int) -> tuple[str, int]:
         if self._layout_mode == "Single View":
             return "Single", 1
-        if count <= 1 and not self._split_channels:
-            return "Single", 1
+        if count <= 1:
+            return ("Grid 2x2", 4) if self._split_channels else ("Single", 1)
         if count == 2:
             return "Side by Side", 2
         if count == 3:
             return "Focus + 2", 4
-        if count == 4 or self._split_channels:
+        if count == 4:
             return "Grid 2x2", 4
         return "Grid 3x2", 6
 
@@ -1543,8 +1605,14 @@ class MainWindow(QMainWindow):
                 self._navigate_single_view("difference")
                 self._update_action_states()
                 return
+            if self._layout_mode == "Single View":
+                self._navigate_single_view("difference")
+                if self._difference_document is not None:
+                    self._set_active_document(self._difference_document)
+                self._update_action_states()
+                return
             self._layout_mode = "Multi View"
-            if self._difference_document is not None and len(self.selected_documents) in (2, 4):
+            if self._difference_document is not None:
                 self._focus_document_id = self._difference_document.document_id
                 self._promote_multi_document(self._difference_document.document_id)
             self.layout_selector.blockSignals(True)
@@ -1710,11 +1778,7 @@ class MainWindow(QMainWindow):
             and self._difference_document is not None
             and len(documents) >= 2
         ):
-            candidates = (
-                [self._difference_document, *documents]
-                if len(documents) == 2
-                else [*documents, self._difference_document]
-            )
+            candidates = [self._difference_document, *documents]
         if len(candidates) > self._view_capacity or len(candidates) < 2:
             return False
         ids = [document.document_id for document in candidates]
@@ -2015,7 +2079,7 @@ class MainWindow(QMainWindow):
         force_single = len(self.selected_documents) >= 6
         if force_single:
             self._capture_six_image_diff_restore_state()
-        stay_single = force_single
+        stay_single = force_single or self._layout_mode == "Single View"
         self._store_difference_document(
             title,
             numerical,
@@ -2027,20 +2091,16 @@ class MainWindow(QMainWindow):
         self.diff_action.blockSignals(False)
         if stay_single:
             self._set_single_navigation("difference")
+            if self._difference_document is not None:
+                self._set_active_document(self._difference_document)
             self._update_action_states()
             self.statusBar().showMessage(f"Ready: {title}", 4000)
             return
+
         self._layout_mode = "Multi View"
-        if isinstance(self._pending_pair_focus, int):
-            selected = self.selected_documents
-            if self._pending_pair_focus < len(selected):
-                self._focus_document_id = selected[self._pending_pair_focus].document_id
-        elif self._difference_document is not None and len(self.selected_documents) in (2, 4):
+        if self._difference_document is not None:
             self._focus_document_id = self._difference_document.document_id
-        elif self.selected_documents:
-            self._focus_document_id = self.selected_documents[0].document_id
-        if self._focus_document_id is not None:
-            self._promote_multi_document(self._focus_document_id)
+            self._promote_multi_document(self._difference_document.document_id)
         self._pending_pair_focus = None
         self.layout_selector.blockSignals(True)
         self.layout_selector.setCurrentText("Multi View")
@@ -2124,6 +2184,7 @@ class MainWindow(QMainWindow):
         self.viewer.set_header(title)
         self._set_single_navigation("difference")
         self.central_stack.setCurrentWidget(self.viewer)
+        self._set_active_document(difference)
         self.statusBar().showMessage(f"Ready: {title}", 4000)
 
     def fit_image(self) -> None:

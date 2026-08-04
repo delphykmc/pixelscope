@@ -688,8 +688,8 @@ def test_three_selected_images_add_and_replace_one_latest_difference(qtbot: obje
         timeout=3000,
     )
     assert [viewer.document for viewer in window.multi_compare_view.occupied_viewers] == [
-        *documents,
         window._difference_document,
+        *documents,
     ]
     first_difference = window._difference_document
     window.set_layout_mode("Single View")
@@ -1113,8 +1113,8 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     window.analysis_tabs.setCurrentWidget(window.difference_panel)
     window.difference_panel.calculate_difference()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.central_stack.currentWidget() is window.multi_compare_view
-        and window.multi_compare_view.viewers[0].document is window._difference_document,
+        lambda: window.central_stack.currentWidget() is window.viewer
+        and window.viewer.document is window._difference_document,
         timeout=3000,
     )
     assert window._difference_document is not None
@@ -1122,8 +1122,7 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     assert window.analysis_tabs.currentWidget() is window.difference_panel
     assert "all R, G, and B samples combined" in window.difference_panel.metric_scope.text()
     assert not hasattr(window.difference_panel, "plot")
-    assert window._layout_mode == "Multi View"
-    window.set_layout_mode("Single View")
+    assert window._layout_mode == "Single View"
     window._navigate_single_view("difference")
     assert not window.viewer.header.navigation.isHidden()
     window._navigate_single_view(a.document_id)
@@ -1424,8 +1423,9 @@ def test_folder_pair_navigation_recalculates_enabled_difference_and_keeps_focus(
         "frame-1.png",
         "frame-1.png",
     ]
-    assert window._focus_document_id == window.selected_documents[1].document_id
-    assert window.multi_compare_view.viewers[0].document is window.selected_documents[1]
+    assert window._difference_document is not None
+    assert window._focus_document_id == window._difference_document.document_id
+    assert window.multi_compare_view.viewers[0].document is window._difference_document
     window.close()
 
 

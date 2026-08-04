@@ -3,7 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import (
+    QApplication,
+    QProxyStyle,
+    QStyle,
+    QStyleHintReturn,
+    QStyleOption,
+    QWidget,
+)
 
 
 @dataclass(frozen=True)
@@ -20,6 +27,7 @@ class DesignTokens:
     border: str = "#444950"
     text_primary: str = "#e7e9ec"
     text_secondary: str = "#aeb4bc"
+    text_disabled: str = "#737980"
     accent: str = "#4aa3df"
     warning: str = "#e0a84f"
     error: str = "#e06969"
@@ -28,10 +36,25 @@ class DesignTokens:
 TOKENS = DesignTokens()
 
 
+class EngineeringStyle(QProxyStyle):
+    """Keep disabled text flat instead of using the Windows etched effect."""
+
+    def styleHint(
+        self,
+        hint: QStyle.StyleHint,
+        option: QStyleOption | None = None,
+        widget: QWidget | None = None,
+        return_data: QStyleHintReturn | None = None,
+    ) -> int:
+        if hint == QStyle.StyleHint.SH_EtchDisabledText:
+            return 0
+        return super().styleHint(hint, option, widget, return_data)
+
+
 def apply_engineering_palette(app: QApplication) -> None:
     """Apply a compact neutral palette without globally restyling widget geometry."""
 
-    app.setStyle("Fusion")
+    app.setStyle(EngineeringStyle("Fusion"))
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(TOKENS.panel_background))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(TOKENS.text_primary))
@@ -46,17 +69,26 @@ def apply_engineering_palette(app: QApplication) -> None:
     palette.setColor(QPalette.ColorRole.Link, QColor(TOKENS.accent))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(TOKENS.accent))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#101316"))
-    palette.setColor(
-        QPalette.ColorGroup.Disabled,
+    for role in (
+        QPalette.ColorRole.WindowText,
         QPalette.ColorRole.Text,
-        QColor("#737980"),
-    )
-    palette.setColor(
-        QPalette.ColorGroup.Disabled,
         QPalette.ColorRole.ButtonText,
-        QColor("#737980"),
-    )
+    ):
+        palette.setColor(
+            QPalette.ColorGroup.Disabled,
+            role,
+            QColor(TOKENS.text_disabled),
+        )
     app.setPalette(palette)
+
+
+def menu_style() -> str:
+    """Make unavailable menu commands visually distinct while retaining their icons."""
+
+    return (
+        f"QMenu::item:disabled {{ color: {TOKENS.text_disabled}; }}"
+        "QMenu::item:disabled:selected { background: transparent; }"
+    )
 
 
 def panel_heading_style() -> str:
@@ -112,7 +144,7 @@ def toolbar_style() -> str:
         f"QToolButton:checked {{ background: {TOKENS.raised_background}; "
         f"border-color: {TOKENS.accent}; color: {TOKENS.text_primary}; }}"
         "QToolButton:disabled { background: transparent; border-color: transparent; "
-        "color: #737980; }"
+        f"color: {TOKENS.text_disabled}; }}"
     )
 
 
@@ -133,7 +165,7 @@ def primary_button_style() -> str:
         f"padding: {TOKENS.spacing_xs}px {TOKENS.spacing_md}px; font-weight: 600; }}"
         f"QPushButton#primaryAction:hover {{ background: {TOKENS.panel_background}; }}"
         f"QPushButton:disabled {{ background: {TOKENS.raised_background}; "
-        f"border-color: {TOKENS.border}; color: #737980; }}"
+        f"border-color: {TOKENS.border}; color: {TOKENS.text_disabled}; }}"
     )
 
 
