@@ -6,104 +6,89 @@
 - P0-A correction merge: `1606503a08b24b73e77f9fb4784d22c2339d6f59`
 - P0-B merge: `b0ee42a9757337947de12eaf7052cae99ee7e527`
 - P0-C merge: `494cab1a49da1efeaa970fc605029e1eda80e3b8`
-- Current work branch: `chatgpt/p0d-split-toolbar-diff-order`
-- Current phase: **P0-D — split-channel continuity, disabled menu states, and Difference ordering**
-- Phase state: **implementation prepared; awaiting local MainWindow patch and Windows review**
+- P0-D merge: `90c379a554418b5a2152a47f4b495d99dd8255e2`
+- Current work branch: `chatgpt/p1a-files-statistics-responsive-header`
+- Current phase: **P1-A — Files, Statistics, and responsive tile header**
+- Phase state: **implementation prepared; awaiting local core patch and Windows review**
 - Runtime constraints retained: CPython 3.10, PySide6 6.4.2, and future
   PyInstaller 5.7 `onedir` compatibility.
 
-## P0-D goals
+## P1-A goals
 
-1. Avoid briefly displaying the unsplit source image when a newly selected image
-   is loading while Split Channels remains enabled.
-2. Make unavailable View-menu commands visibly muted without losing their
-   check/icon state.
-3. Add Split Channels to the main toolbar.
-4. Place a newly calculated Difference first in Multi View, while retaining
-   source order followed by Diff in Single View and opening Diff immediately.
+1. Simplify the Files tree so selection and active state are visually clear without
+   exposing obsolete A/B or slot-role text.
+2. Make the Difference panel selectors the only authority for the comparison pair.
+3. Stabilize the Statistics header area and use accurate `Pixels` terminology.
+4. Make tile headers degrade cleanly in narrow 3-, 4-, 5-, and 6-tile layouts.
 
-## Prepared P0-D implementation
+## Prepared implementation
 
-### Split-channel loading continuity
+### Files tree
 
-- Split mode now enters its channel layout whenever one image is selected, even
-  while the selected image is still loading.
-- While pixels are unavailable, the channel grid uses stable loading placeholders
-  instead of first showing the unsplit pending document.
-- Standard image placeholders use R/G/B labels.
-- Bayer placeholders use R/Gr/Gb/B when a RAW profile identifies Bayer layout.
-- When loading completes, placeholders are replaced directly by cached real
-  channel documents.
-- If a loaded document cannot be split, the original document is shown instead
-  of leaving an empty workspace.
-- Split checked state remains preserved when the command is temporarily
-  unavailable, such as during loading or multi-selection.
+- Reduced the tree to `File` and `Type` columns.
+- Removed the visible state/role column and the unused compare-role signal.
+- Added distinct folder, regular image, RAW, loading, and error icons.
+- Kept standard row selection highlighting.
+- Added a bold active filename and a narrow left accent marker without replacing
+  the normal selection background.
+- Loading, error, visible, active, and registered state remain available through
+  the file tooltip rather than terse A/B or slot labels.
 
-### View-menu and toolbar states
+### Difference pair authority
 
-- Added internal `split_channels` and `dock` icons with normal, checked, and
-  disabled states.
-- Split Channels uses one shared checkable `QAction` in both the View menu and the
-  main toolbar, so menu and toolbar state cannot diverge.
-- Dock Plots receives its own internal icon.
-- Disabled menu text uses an explicit design-token color.
-- The disabled palette now sets WindowText in addition to Text and ButtonText,
-  covering menu implementations that read different palette roles.
-- Split Channels tooltips distinguish:
-  - available and off
-  - available and checked
-  - loading
-  - wrong selection count
-  - unsupported image layout
+The local core patch removes the obsolete `_compare_pair` path from MainWindow
+and MultiCompareView:
 
-### Difference display ordering
+- no A/B badge assignment in Single View or Multi View
+- no A/B state propagation into the Files tree
+- no compare-role setter or signal connection
+- no pair override passed into `DifferencePanel.set_documents()`
+- current Image 1 / Image 2 selector values are preserved whenever both remain
+  available; otherwise DifferencePanel falls back to the first valid distinct pair
 
-- A newly calculated Difference is promoted to the first Multi View position for
-  all supported source counts below the six-source forced-single case.
-- Difference becomes the focus document after calculation in Multi View.
-- Cached Difference toggled on in Multi View is also promoted first.
-- Visible-focus cycling uses the same Difference-first order.
-- Calculating Difference while already in Single View keeps Single View active,
-  opens Diff immediately, and preserves navigation order:
-  `1, 2, 3, ..., Diff`.
-- Toggling a cached Difference on while in Single View also opens Diff without
-  forcing Multi View.
-- Six sources plus Difference continues to use the existing forced Single View
-  and workspace restore behavior.
+### Statistics
+
+- Region detail is a fixed-height row, so switching Full image / Active ROI does
+  not move the tables below it.
+- Full image leaves the detail row blank.
+- Active ROI uses explicit fields:
+  `x=…, y=…, width=…, height=…`.
+- The image summary header changes from `Samples` to `Pixels`.
+- RGB ROI pixel totals remain width × height.
+- Bayer summary totals remain mosaic pixel counts, while the per-plane R/Gr/Gb/B
+  rows remain unchanged.
+
+### Responsive tile header
+
+- Widths at or above 480 px show folder-qualified filename, image metadata, zoom,
+  and focus controls.
+- Widths below 480 px hide secondary metadata and retain badge/navigation,
+  filename, zoom, and focus controls.
+- Compact mode uses the basename instead of the folder-qualified label.
+- Filename text remains middle-elided and the full path remains available in the
+  tooltip.
+- Focus-pin visibility remains limited to 3- and 5-tile layouts.
 
 ## Files changed or prepared
 
-- `src/pixelscope/ui/toolbar_icons.py`
-- `src/pixelscope/ui/design_tokens.py`
-- `tests/ui/test_toolbar_icons.py`
-- `tests/ui/test_p0d_workspace_behavior.py`
-- `scripts/apply_p0d_workspace_patch.py` — temporary reviewed patch helper
+- `src/pixelscope/ui/document_list.py`
+- `src/pixelscope/ui/tile_header.py`
+- `tests/ui/test_p1a_files_statistics_header.py`
+- `scripts/apply_p1a_core_patch.py` — temporary local integration helper
 - `docs/ui/implementation_status.md`
-- `src/pixelscope/app/main_window.py` — modified locally by the patch helper,
-  then committed and pushed before review
-
-## Test coverage prepared
-
-- Split Channels and Dock icon interaction states.
-- Split toolbar action compact label and shared menu action.
-- Disabled menu text palette and retained icons.
-- Split checked-state persistence while temporarily unavailable.
-- Loading placeholders prevent an intermediate unsplit render.
-- Placeholders transition directly to R/G/B channel documents after loading.
-- Newly calculated Difference is first for 3-source and 5-source Multi View.
-- Single View calculation stays single, opens Diff, and exposes navigation order
-  `1, 2, 3, Diff`.
-- Cached Diff hide/show in Single View does not switch layout mode.
+- Local helper targets:
+  - `src/pixelscope/app/main_window.py`
+  - `src/pixelscope/ui/multi_compare_view.py`
+  - `src/pixelscope/ui/comparison_analysis_panel.py`
+  - `tests/ui/test_ui_smoke.py`
 
 ## Required local integration
 
-Fetch the branch and apply the deterministic MainWindow patch:
-
 ```powershell
 git fetch origin
-git switch --track origin/chatgpt/p0d-split-toolbar-diff-order
-.\.venv\Scripts\python.exe scripts\apply_p0d_workspace_patch.py
-.\.venv\Scripts\python.exe scripts\apply_p0d_workspace_patch.py --check
+git switch --track origin/chatgpt/p1a-files-statistics-responsive-header
+
+.\.venv\Scripts\python.exe scripts\apply_p1a_core_patch.py
 ```
 
 Format the affected files:
@@ -111,21 +96,25 @@ Format the affected files:
 ```powershell
 .\.venv\Scripts\python.exe -m ruff format `
     src\pixelscope\app\main_window.py `
-    src\pixelscope\ui\toolbar_icons.py `
-    src\pixelscope\ui\design_tokens.py `
-    tests\ui\test_toolbar_icons.py `
-    tests\ui\test_p0d_workspace_behavior.py `
-    scripts\apply_p0d_workspace_patch.py
+    src\pixelscope\ui\multi_compare_view.py `
+    src\pixelscope\ui\comparison_analysis_panel.py `
+    src\pixelscope\ui\document_list.py `
+    src\pixelscope\ui\tile_header.py `
+    tests\ui\test_ui_smoke.py `
+    tests\ui\test_p1a_files_statistics_header.py `
+    scripts\apply_p1a_core_patch.py
 ```
 
 Run targeted validation:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\ui\test_toolbar_icons.py -q
-.\.venv\Scripts\python.exe -m pytest tests\ui\test_p0d_workspace_behavior.py -q
+.\.venv\Scripts\python.exe -m pytest `
+    tests\ui\test_p1a_files_statistics_header.py `
+    tests\ui\test_ui_smoke.py `
+    -q
 ```
 
-Run full validation:
+Then run the full checks:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
@@ -135,49 +124,26 @@ Run full validation:
 .\.venv\Scripts\python.exe -m pip check
 ```
 
-After validation, remove the temporary patch helper before the final PR:
-
-```powershell
-git rm scripts\apply_p0d_workspace_patch.py
-git add src\pixelscope\app\main_window.py src\pixelscope\ui tests\ui docs\ui
-
-git commit -m "Integrate P0-D split and Difference workspace behavior"
-git push
-```
-
 ## Manual UI checks
 
-1. Enable Split Channels on one RGB image, then select another unloaded image.
-   Confirm the workspace immediately remains in a channel-grid loading state and
-   never flashes the unsplit source tile.
-2. Confirm R/G/B or R/Gr/Gb/B channel views replace the loading placeholders once.
-3. Select two images while Split remains checked. Confirm Split becomes visibly
-   gray in both menu and toolbar but retains its checked icon state.
-4. Return to one supported image. Confirm Split re-enables in the prior checked
-   state.
-5. Confirm Dock Plots is visibly gray while the plot dock is not floating and
-   enables when the dock floats.
-6. Calculate Difference in 3-source and 5-source Multi View. Confirm Diff is the
-   first tile.
-7. Calculate Difference in Single View. Confirm the displayed image is Diff and
-   navigation remains sources first, Diff last.
-8. Hide and show cached Diff in Single View. Confirm the layout remains Single.
-9. Recheck six-source Difference hide/restore behavior.
+1. Files tree contains only File and Type columns.
+2. Selected rows use the normal selection highlight; the active row also has bold
+   text and a left accent.
+3. Loading and failed files use distinct icons, and no A/B or slot text appears.
+4. Changing Difference Image 1 / Image 2 remains stable while layout or focus
+   changes are made.
+5. Full image leaves the Region detail line blank; Active ROI shows explicit x, y,
+   width, and height without changing the panel geometry.
+6. Statistics summary says Pixels and retains correct RGB and Bayer counts.
+7. Wide tiles show metadata; narrow tiles hide metadata but retain filename, zoom,
+   and pin controls.
+8. Pin controls appear only in 3- and 5-tile layouts.
 
 ## Incomplete / intentionally deferred
 
-- P1-A through P1-C: not started.
+- P1-B and P1-C are not started.
 - Preferences UI and QSettings-backed performance settings remain separate.
 - Image resident cache and one-group-ahead preload remain separate.
 - GitHub Release update checking and installer workflow remain separate.
 - P0-A's internal fixed-arrangement compatibility field/QSettings key remains for
   later cleanup.
-
-## Exact next starting point
-
-1. Apply and commit the deterministic P0-D MainWindow patch locally.
-2. Report targeted/full test, Ruff, format, mypy, and visual results.
-3. Apply follow-up corrections on `chatgpt/p0d-split-toolbar-diff-order`.
-4. Remove the temporary patch helper.
-5. Create a `[ChatGPT-assisted]` P0-D pull request after validation passes.
-6. Merge P0-D, then start **P1-A — Files, Statistics, and responsive tile header**.
