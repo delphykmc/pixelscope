@@ -77,9 +77,7 @@ def _draw_raw_sensor(painter: QPainter) -> None:
     painter.setBrush(_BASE_STROKE)
     for row in range(3):
         for column in range(3):
-            painter.drawEllipse(
-                QRectF(3.2 + column * 3.1, 3.2 + row * 3.1, 1.3, 1.3)
-            )
+            painter.drawEllipse(QRectF(3.2 + column * 3.1, 3.2 + row * 3.1, 1.3, 1.3))
 
 
 def _draw_generated_image(painter: QPainter) -> None:

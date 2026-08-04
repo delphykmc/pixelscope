@@ -715,6 +715,8 @@ class MainWindow(QMainWindow):
             self._document_item_text(document),
             document.source_path,
             document.error_state or str(document.source_path or ""),
+            loading_state=document.loading_state,
+            resident=document.source is not None,
         )
         if select:
             self._select_document_ids([document.document_id])
@@ -852,6 +854,8 @@ class MainWindow(QMainWindow):
             self._document_item_text(document),
             image_input.path,
             str(image_input.path),
+            loading_state=document.loading_state,
+            resident=False,
         )
         return document.document_id
 
@@ -1528,6 +1532,7 @@ class MainWindow(QMainWindow):
                 visible=document_id in visible_ids,
                 active=active_document is not None and document_id == active_document.document_id,
                 loading_state=document.loading_state,
+                resident=document.source is not None,
             )
 
     def show_selected_image(self, selected_index: int) -> None:
