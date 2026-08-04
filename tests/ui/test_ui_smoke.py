@@ -388,7 +388,21 @@ def test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips(
     histogram._on_histogram_mouse_moved(1, point)
     hint = histogram._histogram_hover_texts[1]
     assert hint is not None and hint.isVisible()
-    assert "same-name.png" in hint.toPlainText()
+    hover_text = hint.toPlainText()
+    assert "Code 20.5" in hover_text
+    assert "same-name.png" not in hover_text
+    assert hover_text.splitlines() == [
+        "Code 20.5",
+        "2",
+        "R",
+        "0",
+        "2",
+        "G",
+        "0",
+        "2",
+        "B",
+        "0",
+    ]
     histogram_range = histogram.plots[1].getViewBox().viewRange()
     assert histogram_range[0][0] <= hint.pos().x() <= histogram_range[0][1]
     assert histogram_range[1][0] <= hint.pos().y() <= histogram_range[1][1]
@@ -415,7 +429,20 @@ def test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips(
     profile._on_plot_mouse_moved(profile_point, 1)
     profile_hint = profile._hover_texts[1]
     assert profile_hint is not None and profile_hint.isVisible()
-    assert "same-name.png" in profile_hint.toPlainText()
+    profile_hover_text = profile_hint.toPlainText()
+    assert "same-name.png" not in profile_hover_text
+    assert profile_hover_text.splitlines() == [
+        "Distance 2 px",
+        "2",
+        "R",
+        "21",
+        "2",
+        "G",
+        "21",
+        "2",
+        "B",
+        "21",
+    ]
     profile_range = profile.plots[1].getViewBox().viewRange()
     assert profile_range[0][0] <= profile_hint.pos().x() <= profile_range[0][1]
     assert profile_range[1][0] <= profile_hint.pos().y() <= profile_range[1][1]
@@ -1073,7 +1100,11 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     window.line_profile_panel._on_plot_mouse_moved(scene_position)
     assert window.line_profile_panel._hover_text is not None
     assert window.line_profile_panel._hover_text.isVisible()
-    assert "R:" in window.line_profile_panel._hover_text.toPlainText()
+    profile_hover_text = window.line_profile_panel._hover_text.toPlainText()
+    assert "Distance 2 px" in profile_hover_text
+    assert "a.png" not in profile_hover_text
+    assert "b.png" not in profile_hover_text
+    assert profile_hover_text.splitlines().count("R") == 2
     assert window.line_profile_panel._hover_text.anchor.y() == 0
     window.line_profile_panel.channel_buttons["R"].setChecked(False)
     assert (
@@ -1835,7 +1866,11 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
     window.line_profile_panel._on_plot_mouse_moved(hover_position)
     assert window.line_profile_panel._hover_text is not None
     assert "Gr@1" in window.line_profile_panel._hover_text.toPlainText()
-    assert "Gb:" in window.line_profile_panel._hover_text.toPlainText()
+    bayer_hover_text = window.line_profile_panel._hover_text.toPlainText()
+    assert "Gr@1" in bayer_hover_text
+    assert "Gb" in bayer_hover_text.splitlines()
+    assert "Gb:" not in bayer_hover_text
+    assert "B@1" in bayer_hover_text
     window.line_profile_panel.channel_buttons["Gr"].setChecked(False)
     window.line_profile_panel.channel_buttons["Gb"].setChecked(False)
     profile_curves = [

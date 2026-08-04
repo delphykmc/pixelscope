@@ -30,6 +30,7 @@ from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, analyze_roi
 from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
+from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
@@ -56,20 +57,42 @@ def comparison_labels(documents: list[ImageDocument]) -> list[str]:
 
 def automatic_histogram_spec(
     document: ImageDocument,
+    requested_bins: int | None = None,
 ) -> tuple[int, tuple[float, float] | None]:
-    """Select exact integer code bins from effective bit depth, capped at 16 bits."""
+    """Select UI histogram bins while preserving the document's native code range."""
 
     source = document.source
     if source is None:
         raise ValueError("histogram requires a loaded document")
+    if requested_bins is not None and requested_bins not in (256, 1024, 4096):
+        raise ValueError(f"unsupported histogram bin count: {requested_bins}")
     effective_depth = min(max(document.bit_depth, 1), 16)
-    bins = 1 << effective_depth
+    native_bins = 1 << effective_depth
+    bins = min(native_bins, 4096) if requested_bins is None else requested_bins
     if np.issubdtype(source.dtype, np.unsignedinteger):
-        return bins, (0.0, float(1 << effective_depth))
+        return bins, (0.0, float(native_bins))
     if np.issubdtype(source.dtype, np.signedinteger):
         limit = 1 << (effective_depth - 1)
         return bins, (float(-limit), float(limit))
-    return min(bins, 4096), None
+    return bins, None
+
+
+def histogram_display_values(
+    counts: NDArray[np.generic],
+    mode: str,
+) -> NDArray[np.float64]:
+    """Transform histogram counts for display without changing cached raw counts."""
+
+    values = counts.astype(np.float64, copy=False)
+    if mode == "Normalized":
+        total = float(np.sum(values))
+        return values / total if total > 0 else values
+    if mode == "Log count":
+        return np.asarray(
+            np.log10(values + 1.0),
+            dtype=np.float64,
+        )
+    return values
 
 
 class ComparisonAnalysisPanel(QWidget):
@@ -206,9 +229,11 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_mode = QComboBox()
         self.histogram_mode.addItems(("Separate", "Overlay"))
         self.histogram_units = QComboBox()
-        self.histogram_units.addItems(("Count", "Normalized"))
+        self.histogram_units.addItems(("Count", "Normalized", "Log count"))
         self.histogram_range = QComboBox()
         self.histogram_range.addItems(("Native range", "Normalized 0–1"))
+        self.histogram_bins = QComboBox()
+        self.histogram_bins.addItems(("Auto", "256", "1024", "4096"))
         histogram_controls = QHBoxLayout()
         histogram_controls.setSpacing(TOKENS.spacing_sm)
         histogram_controls.addWidget(QLabel("View"))
@@ -220,13 +245,25 @@ class ComparisonAnalysisPanel(QWidget):
         histogram_controls.addWidget(QLabel("X"))
         histogram_controls.addWidget(self.histogram_range)
         histogram_controls.addSpacing(TOKENS.spacing_lg)
+        histogram_controls.addWidget(QLabel("Bins"))
+        histogram_controls.addWidget(self.histogram_bins)
+        histogram_controls.addSpacing(TOKENS.spacing_lg)
         histogram_controls.addLayout(channel_controls)
         histogram_controls.addStretch(1)
-        for combo in (self.histogram_mode, self.histogram_units, self.histogram_range):
+        for combo in (
+            self.histogram_mode,
+            self.histogram_units,
+            self.histogram_range,
+            self.histogram_bins,
+        ):
             combo.setMaximumWidth(170)
+        for combo in (self.histogram_mode, self.histogram_units, self.histogram_range):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._histogram_options_changed
             )
+        self.histogram_bins.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._histogram_bins_changed
+        )
         self.histogram_panel = QWidget()
         histogram_panel_layout = QVBoxLayout(self.histogram_panel)
         histogram_panel_layout.setContentsMargins(4, 4, 4, 4)
@@ -290,7 +327,10 @@ class ComparisonAnalysisPanel(QWidget):
             self.clear()
             return
         bounds = self._bounds
-        histogram_specs = [automatic_histogram_spec(document) for document in documents]
+        requested_bins = self._selected_histogram_bins()
+        histogram_specs = [
+            automatic_histogram_spec(document, requested_bins) for document in documents
+        ]
         self._histogram_specs = histogram_specs
         signature: tuple[object, ...] = (
             tuple((document.document_id, document.generation) for document in documents),
@@ -434,6 +474,17 @@ class ComparisonAnalysisPanel(QWidget):
         if self.last_results and self._histogram_specs:
             self._render(self.last_results, self._histogram_specs)
 
+    def _histogram_bins_changed(self, _index: int) -> None:
+        if not self._documents:
+            return
+        self.status.setText("Preparing histogram...")
+        self.busy.show()
+        self._refresh_timer.start()
+
+    def _selected_histogram_bins(self) -> int | None:
+        text = self.histogram_bins.currentText()
+        return None if text == "Auto" else int(text)
+
     def _render(
         self,
         results: tuple[RoiAnalysisResult, ...],
@@ -544,11 +595,8 @@ class ComparisonAnalysisPanel(QWidget):
                     continue
                 fill_color = QColor(channel_color(channel_name))
                 fill_color.setAlpha(52 if overlay else 78)
-                y_values = counts.astype(np.float64, copy=False)
-                if self.histogram_units.currentText() == "Normalized":
-                    total = float(np.sum(y_values))
-                    if total > 0:
-                        y_values = y_values / total
+                y_mode = self.histogram_units.currentText()
+                y_values = histogram_display_values(counts, y_mode)
                 x_values = edges
                 if self.histogram_range.currentText() == "Normalized 0–1":
                     span = float(edges[-1] - edges[0])
@@ -581,14 +629,17 @@ class ComparisonAnalysisPanel(QWidget):
                 if document.source_path is not None
                 else document.display_name
             )
-            if len(title) > 36:
-                title = f"{title[:17]}...{title[-16:]}"
             if not overlay:
-                plot.setTitle(f"{image_index + 1}  {title}")
+                plot.setTitle(middle_elide(f"{image_index + 1} · {title}"))
             self._set_plot_axes_visible(plot, True)
+            y_mode = self.histogram_units.currentText()
             plot.setLabel(
                 "left",
-                "Normalized" if self.histogram_units.currentText() == "Normalized" else "Count",
+                "Normalized"
+                if y_mode == "Normalized"
+                else "Log count"
+                if y_mode == "Log count"
+                else "Count",
             )
             plot.setLabel(
                 "bottom",
@@ -646,24 +697,25 @@ class ComparisonAnalysisPanel(QWidget):
                 continue
             cursor_x = float((edges[bin_index] + edges[bin_index + 1]) / 2.0)
             value = float(values[bin_index])
-            label = self._documents[image_index].display_name
             rows.append(
-                f"<tr><td><b>{image_index + 1} · {label}</b></td>"
-                f'<td style="color:{channel_color(channel_name)}; padding-left:8px">'
-                f"{channel_name}: {value:.6g}</td></tr>"
+                f"<tr><td><b>{image_index + 1}</b></td>"
+                f'<td style="color:{channel_color(channel_name)}; padding-left:7px">'
+                f"{channel_name}</td>"
+                f'<td style="padding-left:10px; text-align:right">'
+                f"{plot_number(value)}</td></tr>"
             )
         if cursor_x is None or not rows:
             line.hide()
             hint.hide()
             return
         view_range = plot.getViewBox().viewRange()
-        hint.setAnchor(
-            (
-                1 if point.x() > sum(view_range[0]) / 2 else 0,
-                0 if point.y() > sum(view_range[1]) / 2 else 1,
-            )
+        y_anchor = 0 if point.y() > sum(view_range[1]) / 2 else 1
+        hint.setAnchor((1, y_anchor))
+        coordinate_label = (
+            "Normalized code" if self.histogram_range.currentText() == "Normalized 0–1" else "Code"
         )
-        hint.setHtml(f"<table cellspacing='2'>{''.join(rows)}</table>")
+        header = coordinate_header(coordinate_label, cursor_x)
+        hint.setHtml(f"<b>{header}</b><table cellspacing='2'>{''.join(rows)}</table>")
         x_range, y_range = view_range
         x_padding = (x_range[1] - x_range[0]) * 0.04
         y_padding = (y_range[1] - y_range[0]) * 0.08

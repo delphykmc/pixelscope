@@ -1,0 +1,15 @@
+{
+  "name": "Synthetic FHD 8-bit gray",
+  "width": 1920,
+  "height": 1080,
+  "dtype": "uint8",
+  "stride_bytes": 1920,
+  "offset_bytes": 0,
+  "endianness": "little",
+  "bit_depth": 8,
+  "packing": "unpacked_u8",
+  "channel_layout": "GRAY",
+  "bayer_pattern": null,
+  "black_level": 0,
+  "white_level": 255
+}
