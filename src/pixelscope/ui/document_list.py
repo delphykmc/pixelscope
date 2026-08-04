@@ -2,19 +2,50 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeyEvent
+from PySide6.QtCore import QModelIndex, QPoint, QRect, Qt, Signal
+from PySide6.QtGui import (
+    QColor,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QKeyEvent,
+    QPainter,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QMenu,
+    QStyledItemDelegate,
     QStyle,
+    QStyleOptionViewItem,
     QTreeWidget,
     QTreeWidgetItem,
+    QWidget,
 )
 
 from pixelscope.io.path_discovery import natural_sort_key
 from pixelscope.ui.design_tokens import TOKENS
+
+
+class _DocumentItemDelegate(QStyledItemDelegate):
+    """Draw a stable active-document accent without replacing selection styling."""
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex,
+    ) -> None:
+        super().paint(painter, option, index)
+        if index.column() != 0 or not bool(index.data(DocumentListWidget.ACTIVE_ROLE)):
+            return
+        accent = QRect(
+            option.rect.left(),
+            option.rect.top() + 2,
+            3,
+            max(0, option.rect.height() - 4),
+        )
+        painter.fillRect(accent, QColor(TOKENS.accent))
 
 
 class DocumentListWidget(QTreeWidget):
@@ -26,27 +57,29 @@ class DocumentListWidget(QTreeWidget):
     activate_requested = Signal(str)
     remove_requested = Signal(object)
     compare_requested = Signal()
-    compare_role_requested = Signal(str, str)
     focus_requested = Signal(str)
     PATH_ROLE = Qt.ItemDataRole.UserRole + 1
     BASE_TEXT_ROLE = Qt.ItemDataRole.UserRole + 2
+    FILE_TYPE_ROLE = Qt.ItemDataRole.UserRole + 3
+    ACTIVE_ROLE = Qt.ItemDataRole.UserRole + 4
 
     def __init__(self) -> None:
         super().__init__()
         self._groups: dict[str, QTreeWidgetItem] = {}
         self._document_items: dict[str, QTreeWidgetItem] = {}
-        self.setColumnCount(3)
-        self.setHeaderLabels(["File", "State", "Type"])
-        self.headerItem().setToolTip(1, "Visibility, loading, and comparison state")
+        self.setColumnCount(2)
+        self.setHeaderLabels(["File", "Type"])
         self.setHeaderHidden(False)
         self.header().setStretchLastSection(False)
         self.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.header().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.header().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.setIndentation(18)
         self.setRootIsDecorated(True)
         self.setItemsExpandable(True)
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setUniformRowHeights(True)
+        self.setItemDelegate(_DocumentItemDelegate(self))
         self.setAcceptDrops(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -73,7 +106,7 @@ class DocumentListWidget(QTreeWidget):
         group = self._groups.get(group_key)
         if group is None:
             group_name = folder.name if folder is not None else "Generated"
-            group = QTreeWidgetItem([group_name, "", "Folder"])
+            group = QTreeWidgetItem([group_name, "Folder"])
             group.setIcon(0, self.style().standardIcon(QStyle.StandardPixmap.SP_DirIcon))
             group.setToolTip(0, str(folder or "Generated documents"))
             group.setData(0, self.PATH_ROLE, str(folder) if folder is not None else "")
@@ -86,16 +119,13 @@ class DocumentListWidget(QTreeWidget):
             self._groups[group_key] = group
 
         file_type = source_path.suffix.upper().lstrip(".") if source_path is not None else "GEN"
-        item = QTreeWidgetItem([text, "", file_type])
-        icon_kind = (
-            QStyle.StandardPixmap.SP_DriveHDIcon
-            if file_type == "RAW"
-            else QStyle.StandardPixmap.SP_FileIcon
-        )
-        item.setIcon(0, self.style().standardIcon(icon_kind))
+        item = QTreeWidgetItem([text, file_type])
+        item.setIcon(0, self._document_icon(file_type, "ready"))
         item.setData(0, Qt.ItemDataRole.UserRole, document_id)
         item.setData(0, self.PATH_ROLE, str(source_path or ""))
         item.setData(0, self.BASE_TEXT_ROLE, text)
+        item.setData(0, self.FILE_TYPE_ROLE, file_type)
+        item.setData(0, self.ACTIVE_ROLE, False)
         item.setToolTip(0, tooltip)
         insert_at = group.childCount()
         if source_path is not None:
@@ -165,21 +195,38 @@ class DocumentListWidget(QTreeWidget):
         item = self._document_items.get(document_id)
         if item is None:
             return
-        del slot
-        state = role
-        if loading_state == "pending":
-            state = "…"
-        elif loading_state == "error":
-            state = "!"
-        item.setText(1, state)
-        item.setTextAlignment(1, Qt.AlignmentFlag.AlignCenter)
+        del role, slot
+        file_type = str(item.data(0, self.FILE_TYPE_ROLE) or item.text(1))
+        item.setIcon(0, self._document_icon(file_type, loading_state))
+        item.setData(0, self.ACTIVE_ROLE, active)
         font = item.font(0)
         font.setBold(active)
         item.setFont(0, font)
-        item.setForeground(0, QColor(TOKENS.accent if active else TOKENS.text_primary))
+        item.setForeground(0, QColor(TOKENS.text_primary))
         base_tooltip = str(item.data(0, self.PATH_ROLE) or item.text(0))
-        visibility = "Visible in workspace" if visible else "Registered"
-        item.setToolTip(0, f"{base_tooltip}\n{visibility}")
+        if loading_state in ("pending", "loading"):
+            state = "Loading"
+        elif loading_state == "error":
+            state = "Load failed"
+        elif active:
+            state = "Active in workspace"
+        elif visible:
+            state = "Visible in workspace"
+        else:
+            state = "Registered"
+        item.setToolTip(0, f"{base_tooltip}\n{state}")
+        self.viewport().update(self.visualItemRect(item))
+
+    def _document_icon(self, file_type: str, loading_state: str):  # type: ignore[no-untyped-def]
+        if loading_state in ("pending", "loading"):
+            kind = QStyle.StandardPixmap.SP_BrowserReload
+        elif loading_state == "error":
+            kind = QStyle.StandardPixmap.SP_MessageBoxCritical
+        elif file_type == "RAW":
+            kind = QStyle.StandardPixmap.SP_DriveHDIcon
+        else:
+            kind = QStyle.StandardPixmap.SP_FileIcon
+        return self.style().standardIcon(kind)
 
     @staticmethod
     def _local_paths(
