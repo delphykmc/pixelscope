@@ -58,12 +58,10 @@ def test_histogram_controls_expose_bounded_bins_and_log_count(qtbot: object) -> 
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
 
     assert [
-        panel.histogram_bins.itemText(index)
-        for index in range(panel.histogram_bins.count())
+        panel.histogram_bins.itemText(index) for index in range(panel.histogram_bins.count())
     ] == ["Auto", "256", "1024", "4096"]
     assert [
-        panel.histogram_units.itemText(index)
-        for index in range(panel.histogram_units.count())
+        panel.histogram_units.itemText(index) for index in range(panel.histogram_units.count())
     ] == ["Count", "Normalized", "Log count"]
 
     assert panel._selected_histogram_bins() is None
