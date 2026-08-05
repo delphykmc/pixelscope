@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog
 
@@ -11,6 +12,19 @@ from pixelscope.io.raw_profile import RawProfile
 
 
 SETTING_KEY = "raw/confirm_json_profiles"
+
+
+@pytest.fixture(autouse=True)
+def isolated_raw_json_settings(tmp_path: Path) -> None:
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(
+        QSettings.Format.IniFormat,
+        QSettings.Scope.UserScope,
+        str(tmp_path),
+    )
+    settings = QSettings()
+    settings.clear()
+    settings.sync()
 
 
 def _profile() -> RawProfile:
@@ -37,7 +51,7 @@ def test_raw_json_confirmation_menu_defaults_on_and_persists(qtbot: object) -> N
     assert action.isChecked()
     action.trigger()
     assert not action.isChecked()
-    assert QSettings().value(SETTING_KEY, True, type=bool) is False
+    assert window.settings.value(SETTING_KEY, True, type=bool) is False
     window.close()
 
     restored = MainWindow()
@@ -56,7 +70,9 @@ def test_valid_json_sidecar_skips_dialog_when_confirmation_is_disabled(
     sidecar = tmp_path / "sensor.json"
     profile = _profile()
     profile.save_json(sidecar)
-    QSettings().setValue(SETTING_KEY, False)
+    settings = QSettings()
+    settings.setValue(SETTING_KEY, False)
+    settings.sync()
 
     class UnexpectedDialog:
         def __init__(self, _parent: object) -> None:
@@ -82,7 +98,9 @@ def test_too_small_source_still_opens_dialog_when_confirmation_is_disabled(
     raw_path.write_bytes(bytes(8))
     sidecar = tmp_path / "small.json"
     _profile().save_json(sidecar)
-    QSettings().setValue(SETTING_KEY, False)
+    settings = QSettings()
+    settings.setValue(SETTING_KEY, False)
+    settings.sync()
 
     class SizeErrorDialog:
         constructed = False
@@ -160,5 +178,5 @@ def test_dialog_opt_out_disables_future_json_confirmation(
 
     assert window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) == profile
     assert not window.action_map["Confirm RAW JSON Profiles"].isChecked()
-    assert QSettings().value(SETTING_KEY, True, type=bool) is False
+    assert window.settings.value(SETTING_KEY, True, type=bool) is False
     window.close()
