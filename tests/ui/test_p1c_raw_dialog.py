@@ -20,6 +20,10 @@ def test_raw_dialog_links_packing_data_type_and_minimum_stride(qtbot: object) ->
     assert dialog.dtype.currentText() == "uint16"
     assert dialog.packing.currentText() == "unpacked_u16"
     assert dialog.minimum_stride_bytes() == 26
+    assert "26 bytes" in dialog.minimum_stride_value.text()
+    assert "current width and data type" in dialog.minimum_stride_value.text()
+    assert dialog.set_minimum_stride_button.text() == "Set stride to minimum"
+    assert not dialog.set_minimum_stride_button.isCheckable()
     assert dialog.endian.isEnabled()
 
     dialog.packing.setCurrentText("unpacked_u8")
@@ -33,11 +37,11 @@ def test_raw_dialog_links_packing_data_type_and_minimum_stride(qtbot: object) ->
     assert dialog.packing.currentText() == "unpacked_u16"
     assert dialog.endian.isEnabled()
     dialog.stride.setValue(99)
-    dialog.use_minimum_stride_button.click()
+    dialog.set_minimum_stride_button.click()
     assert dialog.stride.value() == 26
 
 
-def test_raw_dialog_compares_expected_and_actual_file_size(
+def test_raw_dialog_compares_expected_and_actual_file_size_with_status_icons(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -62,31 +66,39 @@ def test_raw_dialog_compares_expected_and_actual_file_size(
     dialog.set_source_path(raw_path)
 
     assert dialog.source_path == raw_path.resolve()
-    assert dialog.expected_minimum_file_size() == 32
-    assert "32 bytes" in dialog.expected_size_value.text()
-    assert "32 bytes" in dialog.actual_size_value.text()
+    assert not hasattr(dialog, "source_path_value")
+    assert dialog.expected_file_size() == 32
+    assert dialog.expected_file_size_value.text() == "32 bytes"
+    assert dialog.actual_file_size_value.text() == "32 bytes"
+    assert dialog.file_size_state == "match"
     assert "matches" in dialog.file_status.text()
+    assert dialog.file_status_icon.pixmap() is not None
     assert dialog.ok_button.isEnabled()
 
     dialog.height_box.setValue(5)
-    assert dialog.expected_minimum_file_size() == 40
-    assert "8 bytes too small" in dialog.file_status.text()
+    assert dialog.expected_file_size() == 40
+    assert dialog.file_size_state == "error"
+    assert "8 bytes smaller" in dialog.file_status.text()
     assert not dialog.ok_button.isEnabled()
 
     dialog.height_box.setValue(3)
-    assert dialog.expected_minimum_file_size() == 24
+    assert dialog.expected_file_size() == 24
+    assert dialog.file_size_state == "warning"
     assert "8 trailing bytes" in dialog.file_status.text()
     assert dialog.ok_button.isEnabled()
 
 
-def test_raw_dialog_uses_layout_specific_black_level_controls(qtbot: object) -> None:
+def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     dialog.show()
 
+    assert dialog.black_level_stack.currentIndex() == 0
     assert dialog.black_gray.isVisible()
     assert not dialog.black_r.isVisible()
+
     dialog.layout_kind.setCurrentText("BAYER")
+    assert dialog.black_level_stack.currentIndex() == 1
     assert not dialog.black_gray.isVisible()
     assert all(
         control.isVisible()
@@ -98,12 +110,34 @@ def test_raw_dialog_uses_layout_specific_black_level_controls(qtbot: object) -> 
     dialog.black_b.setValue(13)
     assert dialog.profile().black_level == (10, 11, 12, 13)
 
+    scalar_bayer_profile = RawProfile(
+        name="scalar-bayer",
+        width=4,
+        height=4,
+        dtype="uint16",
+        stride_bytes=8,
+        bit_depth=10,
+        packing="unpacked_u16",
+        channel_layout="BAYER",
+        bayer_pattern="RGGB",
+        black_level=64,
+        white_level=1023,
+    )
+    dialog.set_profile(scalar_bayer_profile)
+    assert [
+        control.value()
+        for control in (dialog.black_r, dialog.black_gr, dialog.black_gb, dialog.black_b)
+    ] == [64, 64, 64, 64]
+    assert dialog.profile().black_level == (64, 64, 64, 64)
+
     dialog.layout_kind.setCurrentText("GRAY")
     dialog.black_gray.setValue(21)
     assert dialog.profile().black_level == 21
 
 
-def test_raw_dialog_renames_fields_and_aligns_action_columns(qtbot: object) -> None:
+def test_raw_dialog_renames_fields_and_places_dont_show_before_separator(
+    qtbot: object,
+) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
 
@@ -117,6 +151,9 @@ def test_raw_dialog_renames_fields_and_aligns_action_columns(qtbot: object) -> N
         dialog.button_grid.indexOf(dialog.save_button)
     ) == (0, 1, 1, 1)
     assert dialog.button_grid.getItemPosition(
+        dialog.button_grid.indexOf(dialog.dont_show_json_profiles)
+    ) == (1, 0, 1, 2)
+    assert dialog.button_grid.getItemPosition(
         dialog.button_grid.indexOf(dialog.ok_button)
     ) == (3, 0, 1, 1)
     assert dialog.button_grid.getItemPosition(
@@ -124,14 +161,17 @@ def test_raw_dialog_renames_fields_and_aligns_action_columns(qtbot: object) -> N
     ) == (3, 1, 1, 1)
 
 
-def test_raw_dialog_json_skip_option_is_opt_in(qtbot: object) -> None:
+def test_raw_dialog_dont_show_option_is_opt_in(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
 
-    assert dialog.skip_json_confirmation.isHidden()
-    assert not dialog.skip_json_confirmation_requested()
+    assert dialog.dont_show_json_profiles.text() == (
+        "Don't show JSON profiles next time"
+    )
+    assert dialog.dont_show_json_profiles.isHidden()
+    assert not dialog.dont_show_json_profiles_requested()
     dialog.set_json_confirmation_option_visible(True)
-    assert not dialog.skip_json_confirmation.isHidden()
-    assert not dialog.skip_json_confirmation_requested()
-    dialog.skip_json_confirmation.setChecked(True)
-    assert dialog.skip_json_confirmation_requested()
+    assert not dialog.dont_show_json_profiles.isHidden()
+    assert not dialog.dont_show_json_profiles_requested()
+    dialog.dont_show_json_profiles.setChecked(True)
+    assert dialog.dont_show_json_profiles_requested()
