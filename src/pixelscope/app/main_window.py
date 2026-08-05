@@ -1257,10 +1257,6 @@ class MainWindow(QMainWindow):
             analysis_bounds,
             region_name,
         )
-        self.line_profile_panel.set_documents(
-            self._line_source_documents(),
-            self._shared_line,
-        )
         active = self.current_document
         if self._view_capacity > 1 and self._focus_document_id is not None:
             active = next(
@@ -1271,6 +1267,15 @@ class MainWindow(QMainWindow):
                 ),
                 active,
             )
+        line_sources = self._line_source_documents()
+        self.line_profile_panel.set_documents(
+            line_sources,
+            self._shared_line,
+            reference_priority_ids=self._line_reference_priority_ids(
+                visible_state,
+                active,
+            ),
+        )
         if cached_display is not None and self._view_capacity == 1 and active is not None:
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
@@ -1490,6 +1495,31 @@ class MainWindow(QMainWindow):
         del visible_documents
         return [document for document in self.selected_documents[:6] if document.source is not None]
 
+    def _line_reference_priority_ids(
+        self,
+        visible_documents: Sequence[ImageDocument],
+        active_document: ImageDocument | None,
+    ) -> tuple[str, ...]:
+        source_ids = {document.document_id for document in self._line_source_documents()}
+        first_displayed_id = next(
+            (
+                document.document_id
+                for document in visible_documents
+                if document.document_id in source_ids
+            ),
+            None,
+        )
+        candidates = (
+            self._focus_document_id,
+            active_document.document_id if active_document is not None else None,
+            first_displayed_id,
+        )
+        ordered: list[str] = []
+        for document_id in candidates:
+            if document_id is not None and document_id in source_ids and document_id not in ordered:
+                ordered.append(document_id)
+        return tuple(ordered)
+
     def _set_active_document(self, document: object) -> None:
         if not isinstance(document, ImageDocument):
             self.structured_status.set_active_document()
@@ -1515,6 +1545,9 @@ class MainWindow(QMainWindow):
             for viewer in self.multi_compare_view.occupied_viewers
             if viewer.document is not None
         ]
+        self.line_profile_panel.set_reference_priority_ids(
+            self._line_reference_priority_ids(visible, document)
+        )
         self._update_file_states(visible, document)
 
     def _set_zoom_status(self, percent: float) -> None:
