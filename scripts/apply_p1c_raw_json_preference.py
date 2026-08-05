@@ -15,9 +15,9 @@ def replace_once(text: str, old: str, new: str, description: str) -> str:
 
 
 def patch_main_window(text: str) -> str:
-    marker = 'RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"\n'
+    marker = 'RAW_DONT_SHOW_JSON_SETTING = "raw/dont_show_json_profiles"\n'
     if marker in text:
-        print("RAW JSON confirmation preference already applied")
+        print("RAW JSON Don't Show preference already applied")
         return text
 
     text = replace_once(
@@ -32,9 +32,9 @@ from pixelscope.io.raw_reader import required_file_size
         text,
         "LOGGER = logging.getLogger(__name__)\n",
         """LOGGER = logging.getLogger(__name__)
-RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"
+RAW_DONT_SHOW_JSON_SETTING = "raw/dont_show_json_profiles"
 """,
-        "RAW confirmation setting constant",
+        "RAW Don't Show setting constant",
     )
     text = replace_once(
         text,
@@ -45,13 +45,21 @@ RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"
 """,
         """        self.settings = QSettings()
         self._last_directory = str(self.settings.value("paths/last_directory", ""))
-        self._confirm_raw_json_profiles = bool(
-            self.settings.value(RAW_CONFIRM_JSON_SETTING, True, type=bool)
+        stored_dont_show_raw_json = self.settings.value(
+            RAW_DONT_SHOW_JSON_SETTING,
+            False,
         )
+        if isinstance(stored_dont_show_raw_json, bool):
+            self._dont_show_raw_json_profiles = stored_dont_show_raw_json
+        else:
+            self._dont_show_raw_json_profiles = (
+                str(stored_dont_show_raw_json).strip().casefold()
+                in {"true", "1", "yes", "on"}
+            )
 
         self.documents: dict[str, ImageDocument] = {}
 """,
-        "RAW confirmation setting initialization",
+        "RAW Don't Show setting initialization",
     )
     text = replace_once(
         text,
@@ -64,18 +72,21 @@ RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"
         """        add_action("File", "Open Images...", self.open_images, "Ctrl+O")
         add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
         add_action("File", "Open RAW with Profile...", self.open_raw)
-        self.confirm_raw_json_action = add_action(
+        self.dont_show_raw_json_action = add_action(
             "File",
-            "Confirm RAW JSON Profiles",
-            self._set_confirm_raw_json_profiles,
+            "Don't Show RAW JSON Profiles",
+            lambda _checked=False: None,
         )
-        self.confirm_raw_json_action.setCheckable(True)
-        self.confirm_raw_json_action.setChecked(self._confirm_raw_json_profiles)
+        self.dont_show_raw_json_action.setCheckable(True)
+        self.dont_show_raw_json_action.setChecked(self._dont_show_raw_json_profiles)
+        self.dont_show_raw_json_action.toggled.connect(  # type: ignore[attr-defined]
+            self._set_dont_show_raw_json_profiles
+        )
         menus["File"].addSeparator()
         add_action("File", "Export Statistics CSV...", self.export_statistics)
         menus["File"].addSeparator()
 """,
-        "RAW confirmation menu action",
+        "RAW Don't Show menu action",
     )
     text = replace_once(
         text,
@@ -109,13 +120,18 @@ RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"
             return None
         return dialog.profile()
 """,
-        """    def _set_confirm_raw_json_profiles(self, enabled: bool) -> None:
-        self._confirm_raw_json_profiles = enabled
-        self.settings.setValue(RAW_CONFIRM_JSON_SETTING, enabled)
-        if hasattr(self, "confirm_raw_json_action"):
-            self.confirm_raw_json_action.blockSignals(True)
-            self.confirm_raw_json_action.setChecked(enabled)
-            self.confirm_raw_json_action.blockSignals(False)
+        """    def _set_dont_show_raw_json_profiles(self, enabled: bool) -> None:
+        enabled = bool(enabled)
+        self._dont_show_raw_json_profiles = enabled
+        self.settings.setValue(RAW_DONT_SHOW_JSON_SETTING, enabled)
+        self.settings.sync()
+        if (
+            hasattr(self, "dont_show_raw_json_action")
+            and self.dont_show_raw_json_action.isChecked() != enabled
+        ):
+            self.dont_show_raw_json_action.blockSignals(True)
+            self.dont_show_raw_json_action.setChecked(enabled)
+            self.dont_show_raw_json_action.blockSignals(False)
 
     def _confirm_raw_profile(
         self,
@@ -154,7 +170,7 @@ RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"
         if (
             profile_from_json
             and initial_profile is not None
-            and not self._confirm_raw_json_profiles
+            and self._dont_show_raw_json_profiles
             and source_matches_profile
         ):
             return initial_profile
@@ -175,16 +191,26 @@ RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         profile = dialog.profile()
-        skip_requested = getattr(
+        dont_show_requested = getattr(
             dialog,
-            "skip_json_confirmation_requested",
+            "dont_show_json_profiles_requested",
             None,
         )
-        if profile_from_json and callable(skip_requested) and skip_requested():
-            self._set_confirm_raw_json_profiles(False)
+        if not callable(dont_show_requested):
+            dont_show_requested = getattr(
+                dialog,
+                "skip_json_confirmation_requested",
+                None,
+            )
+        if (
+            profile_from_json
+            and callable(dont_show_requested)
+            and dont_show_requested()
+        ):
+            self._set_dont_show_raw_json_profiles(True)
         return profile
 """,
-        "RAW confirmation flow",
+        "RAW Don't Show flow",
     )
     return text
 
