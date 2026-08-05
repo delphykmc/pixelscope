@@ -3,9 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QSizePolicy
 
 from pixelscope.io.raw_profile import RawProfile
-from pixelscope.ui.raw_open_dialog import RawOpenDialog
+from pixelscope.ui.raw_open_dialog import (
+    DIALOG_BUTTON_WIDTH,
+    FIELD_WIDTH,
+    RAW_DIALOG_WIDTH,
+    RawOpenDialog,
+)
 
 
 def _form_label(dialog: RawOpenDialog, field: object) -> str:
@@ -23,23 +29,21 @@ def test_raw_dialog_links_packing_data_type_and_minimum_stride(qtbot: object) ->
     assert dialog.packing.currentText() == "unpacked_u16"
     assert dialog.minimum_stride_bytes() == 26
     assert dialog.minimum_stride_value.text() == "26 bytes"
-    assert dialog.set_minimum_stride_button.text() == "Set this stride"
-    assert not dialog.set_minimum_stride_button.isCheckable()
+    assert dialog.minimum_stride_value.width() == FIELD_WIDTH
+    assert not hasattr(dialog, "set_minimum_stride_button")
     assert dialog.endian.isEnabled()
 
     dialog.packing.setCurrentText("unpacked_u8")
     assert dialog.dtype.currentText() == "uint8"
     assert dialog.packing.currentText() == "unpacked_u8"
     assert dialog.minimum_stride_bytes() == 13
+    assert dialog.minimum_stride_value.text() == "13 bytes"
     assert not dialog.endian.isEnabled()
     assert dialog.bit_depth.maximum() == 8
 
     dialog.dtype.setCurrentText("uint16")
     assert dialog.packing.currentText() == "unpacked_u16"
     assert dialog.endian.isEnabled()
-    dialog.stride.setValue(99)
-    dialog.set_minimum_stride_button.click()
-    assert dialog.stride.value() == 26
 
 
 def test_raw_dialog_compares_expected_and_actual_file_size_with_status_icons(
@@ -72,24 +76,28 @@ def test_raw_dialog_compares_expected_and_actual_file_size_with_status_icons(
     assert dialog.expected_file_size_value.text() == "32 bytes"
     assert dialog.actual_file_size_value.text() == "32 bytes"
     assert dialog.file_size_state == "match"
-    assert "matches" in dialog.file_status.text()
+    assert dialog.file_status.text() == "File size matches."
     assert dialog.file_status_icon.pixmap() is not None
-    assert dialog.expected_file_size_label.text() == "Expected"
-    assert dialog.actual_file_size_label.text() == "Actual"
-    assert dialog.file_status_row.indexOf(dialog.file_status_icon) == 0
-    assert dialog.file_status_row.indexOf(dialog.file_status) == 1
     assert dialog.ok_button.isEnabled()
+    assert (
+        dialog.file_size_form.labelForField(dialog.expected_file_size_value)
+        is dialog.expected_file_size_label
+    )
+    assert (
+        dialog.file_size_form.labelForField(dialog.actual_file_size_value)
+        is dialog.actual_file_size_label
+    )
 
     dialog.height_box.setValue(5)
     assert dialog.expected_file_size() == 40
     assert dialog.file_size_state == "error"
-    assert "8 bytes too small" in dialog.file_status.text()
+    assert dialog.file_status.text() == "File is 8 bytes too small."
     assert not dialog.ok_button.isEnabled()
 
     dialog.height_box.setValue(3)
     assert dialog.expected_file_size() == 24
     assert dialog.file_size_state == "warning"
-    assert "8 trailing bytes" in dialog.file_status.text()
+    assert dialog.file_status.text() == "8 trailing bytes will be ignored."
     assert dialog.ok_button.isEnabled()
 
 
@@ -140,9 +148,7 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
     assert dialog.profile().black_level == 21
 
 
-def test_raw_dialog_renames_fields_and_uses_compact_action_alignment(
-    qtbot: object,
-) -> None:
+def test_raw_dialog_uses_compact_single_column_alignment(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
 
@@ -150,19 +156,22 @@ def test_raw_dialog_renames_fields_and_uses_compact_action_alignment(
     assert _form_label(dialog, dialog.endian) == "Byte order"
     assert _form_label(dialog, dialog.layout_kind) == "Pixel layout"
 
-    assert dialog.width() == 380
-    assert dialog.load_button.width() == 112
-    assert dialog.save_button.width() == 112
-    assert dialog.ok_button.width() == 92
-    assert dialog.cancel_button.width() == 92
+    assert dialog.width() == RAW_DIALOG_WIDTH
+    assert dialog.width_box.width() == FIELD_WIDTH
+    assert dialog.packing.width() == FIELD_WIDTH
+    assert dialog.minimum_stride_value.width() == FIELD_WIDTH
 
+    assert dialog.load_button.sizePolicy().horizontalPolicy() == (
+        QSizePolicy.Policy.Expanding
+    )
+    assert dialog.save_button.sizePolicy().horizontalPolicy() == (
+        QSizePolicy.Policy.Expanding
+    )
     assert dialog.json_actions_layout.indexOf(dialog.load_button) == 0
     assert dialog.json_actions_layout.indexOf(dialog.save_button) == 1
-    assert dialog.json_actions_layout.contentsMargins().left() == 92
 
-    assert dialog.dont_show_layout.indexOf(dialog.dont_show_json_profiles) == 0
-    assert dialog.dont_show_layout.contentsMargins().left() == 92
-
+    assert dialog.ok_button.width() == DIALOG_BUTTON_WIDTH
+    assert dialog.cancel_button.width() == DIALOG_BUTTON_WIDTH
     assert dialog.dialog_actions_layout.itemAt(0).spacerItem() is not None
     assert dialog.dialog_actions_layout.indexOf(dialog.ok_button) == 1
     assert dialog.dialog_actions_layout.indexOf(dialog.cancel_button) == 2
