@@ -142,9 +142,7 @@ def test_main_window_orders_focus_active_and_first_displayed_reference(
     active = _document("active.png", 30)
     for document in (first, focus, active):
         window.add_document(document, select=False)
-    window._select_document_ids(
-        [first.document_id, focus.document_id, active.document_id]
-    )
+    window._select_document_ids([first.document_id, focus.document_id, active.document_id])
 
     window._focus_document_id = focus.document_id
     assert window._line_reference_priority_ids([first, active], active) == (
