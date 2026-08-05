@@ -46,9 +46,7 @@ def test_line_profile_legends_use_only_image_id_and_channel_and_larger_markers(
     ]
     assert all("filename" not in label for label in _legend_texts(panel, 0))
     overlay_markers = [
-        item
-        for item in panel.plot.listDataItems()
-        if isinstance(item, pg.ScatterPlotItem)
+        item for item in panel.plot.listDataItems() if isinstance(item, pg.ScatterPlotItem)
     ]
     assert len(overlay_markers) == 6
     assert all(marker.opts["size"] == 7.0 for marker in overlay_markers)
