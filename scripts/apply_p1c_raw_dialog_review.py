@@ -6,13 +6,24 @@ MAIN_WINDOW = Path("src/pixelscope/app/main_window.py")
 UI_SMOKE = Path("tests/ui/test_ui_smoke.py")
 
 
-def replace_once(text: str, old: str, new: str, description: str) -> str:
-    if new in text:
-        return text
-    count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"expected one {description}, found {count}")
-    return text.replace(old, new, 1)
+def replace_region(
+    text: str,
+    start_marker: str,
+    end_marker: str,
+    replacement: str,
+    description: str,
+) -> str:
+    start = text.find(start_marker)
+    if start < 0:
+        raise RuntimeError(f"cannot find start of {description}")
+    end = text.find(end_marker, start)
+    if end < 0:
+        raise RuntimeError(f"cannot find end of {description}")
+    return text[:start] + replacement + text[end:]
+
+
+def replace_optional(text: str, old: str, new: str) -> str:
+    return text.replace(old, new, 1) if old in text else text
 
 
 def patch_main_window(text: str) -> str:
@@ -20,26 +31,26 @@ def patch_main_window(text: str) -> str:
         print("MainWindow already uses Don't Show semantics")
         return text
 
-    text = replace_once(
-        text,
-        'RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"\n',
-        'RAW_DONT_SHOW_JSON_SETTING = "raw/dont_show_json_profiles"\n',
-        "RAW setting constant",
+    if 'RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"' not in text:
+        raise RuntimeError("RAW JSON preference integration has not been applied")
+
+    text = text.replace(
+        'RAW_CONFIRM_JSON_SETTING = "raw/confirm_json_profiles"',
+        'RAW_DONT_SHOW_JSON_SETTING = "raw/dont_show_json_profiles"',
+        1,
     )
-    text = replace_once(
+
+    init_start_candidates = (
+        "        stored_confirm_raw_json = self.settings.value(",
+        "        self._confirm_raw_json_profiles = bool(",
+    )
+    init_start = next((candidate for candidate in init_start_candidates if candidate in text), None)
+    if init_start is None:
+        raise RuntimeError("cannot find existing RAW JSON setting initialization")
+    text = replace_region(
         text,
-        """        stored_confirm_raw_json = self.settings.value(
-            RAW_CONFIRM_JSON_SETTING,
-            True,
-        )
-        if isinstance(stored_confirm_raw_json, bool):
-            self._confirm_raw_json_profiles = stored_confirm_raw_json
-        else:
-            self._confirm_raw_json_profiles = (
-                str(stored_confirm_raw_json).strip().casefold()
-                not in {"false", "0", "no", "off", ""}
-            )
-""",
+        init_start,
+        "        self.documents: dict[str, ImageDocument] = {}",
         """        stored_dont_show_raw_json = self.settings.value(
             RAW_DONT_SHOW_JSON_SETTING,
             False,
@@ -51,22 +62,15 @@ def patch_main_window(text: str) -> str:
                 str(stored_dont_show_raw_json).strip().casefold()
                 in {"true", "1", "yes", "on"}
             )
+
 """,
         "RAW setting initialization",
     )
-    text = replace_once(
+
+    text = replace_region(
         text,
-        """        self.confirm_raw_json_action = add_action(
-            "File",
-            "Confirm RAW JSON Profiles",
-            lambda _checked=False: None,
-        )
-        self.confirm_raw_json_action.setCheckable(True)
-        self.confirm_raw_json_action.setChecked(self._confirm_raw_json_profiles)
-        self.confirm_raw_json_action.toggled.connect(  # type: ignore[attr-defined]
-            self._set_confirm_raw_json_profiles
-        )
-""",
+        "        self.confirm_raw_json_action = add_action(",
+        '        menus["File"].addSeparator()',
         """        self.dont_show_raw_json_action = add_action(
             "File",
             "Don't Show RAW JSON Profiles",
@@ -80,21 +84,11 @@ def patch_main_window(text: str) -> str:
 """,
         "RAW menu action",
     )
-    text = replace_once(
+
+    text = replace_region(
         text,
-        """    def _set_confirm_raw_json_profiles(self, enabled: bool) -> None:
-        enabled = bool(enabled)
-        self._confirm_raw_json_profiles = enabled
-        self.settings.setValue(RAW_CONFIRM_JSON_SETTING, enabled)
-        self.settings.sync()
-        if (
-            hasattr(self, "confirm_raw_json_action")
-            and self.confirm_raw_json_action.isChecked() != enabled
-        ):
-            self.confirm_raw_json_action.blockSignals(True)
-            self.confirm_raw_json_action.setChecked(enabled)
-            self.confirm_raw_json_action.blockSignals(False)
-""",
+        "    def _set_confirm_raw_json_profiles(",
+        "    def _confirm_raw_profile(",
         """    def _set_dont_show_raw_json_profiles(self, enabled: bool) -> None:
         enabled = bool(enabled)
         self._dont_show_raw_json_profiles = enabled
@@ -107,30 +101,27 @@ def patch_main_window(text: str) -> str:
             self.dont_show_raw_json_action.blockSignals(True)
             self.dont_show_raw_json_action.setChecked(enabled)
             self.dont_show_raw_json_action.blockSignals(False)
+
 """,
-        "RAW setting persistence method",
+        "RAW preference setter",
     )
-    text = replace_once(
+
+    text = replace_optional(
         text,
-        """            and not self._confirm_raw_json_profiles
-            and source_matches_profile
-""",
-        """            and self._dont_show_raw_json_profiles
-            and source_matches_profile
-""",
-        "RAW dialog bypass condition",
+        "and not self._confirm_raw_json_profiles",
+        "and self._dont_show_raw_json_profiles",
     )
-    text = replace_once(
-        text,
-        """        skip_requested = getattr(
-            dialog,
-            "skip_json_confirmation_requested",
-            None,
-        )
-        if profile_from_json and callable(skip_requested) and skip_requested():
-            self._set_confirm_raw_json_profiles(False)
-""",
-        """        dont_show_requested = getattr(
+
+    skip_start = text.find("        skip_requested = getattr(")
+    if skip_start >= 0:
+        skip_end_marker = "            self._set_confirm_raw_json_profiles(False)\n"
+        skip_end = text.find(skip_end_marker, skip_start)
+        if skip_end < 0:
+            raise RuntimeError("cannot find end of RAW dialog preference result block")
+        skip_end += len(skip_end_marker)
+        text = (
+            text[:skip_start]
+            + """        dont_show_requested = getattr(
             dialog,
             "dont_show_json_profiles_requested",
             None,
@@ -147,28 +138,26 @@ def patch_main_window(text: str) -> str:
             and dont_show_requested()
         ):
             self._set_dont_show_raw_json_profiles(True)
-""",
-        "RAW dialog Don't Show result",
-    )
+"""
+            + text[skip_end:]
+        )
+
     return text
 
 
 def patch_ui_smoke(text: str) -> str:
-    return replace_once(
-        text,
-        """    assert dialog.bayer_pattern.currentText() == "GBRG"
+    old = """    assert dialog.bayer_pattern.currentText() == "GBRG"
     assert dialog.black.text() == "64, 65, 66, 67"
     assert dialog.profile() == profile
-""",
-        """    assert dialog.bayer_pattern.currentText() == "GBRG"
+"""
+    new = """    assert dialog.bayer_pattern.currentText() == "GBRG"
     assert [
         control.value()
         for control in (dialog.black_r, dialog.black_gr, dialog.black_gb, dialog.black_b)
     ] == [64, 65, 66, 67]
     assert dialog.profile() == profile
-""",
-        "Bayer black-level smoke assertion",
-    )
+"""
+    return replace_optional(text, old, new)
 
 
 def update(path: Path, patcher: object) -> None:
