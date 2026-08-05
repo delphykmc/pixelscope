@@ -15,6 +15,12 @@ Thirty 1920×1080 JPEG charts arranged as three naturally paired folders:
 folder registration, Page Up/Page Down pair navigation, and multi-view
 comparison. The matching filename at each natural-sort index forms a pair.
 
+## `manual/raw_chart_set/`
+
+FHD GRAY and RGGB RAW fixtures covering unpacked 8/10/12/14/16-bit storage,
+16-bit LSB/MSB alignment, and MIPI RAW10/12/14 packing. Each RAW file has a
+same-stem profile and is indexed by `manifest.json`.
+
 ## `manual/uhd_chart_set/`
 
 4K reference/degraded PNG images, an unpacked RGGB10 RAW frame and its JSON

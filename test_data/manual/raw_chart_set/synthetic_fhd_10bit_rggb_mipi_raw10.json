@@ -1,0 +1,21 @@
+{
+  "name": "synthetic_fhd_10bit_rggb_mipi_raw10",
+  "width": 1920,
+  "height": 1080,
+  "stride_bytes": 2400,
+  "offset_bytes": 0,
+  "storage_format": "mipi_raw10",
+  "container_dtype": null,
+  "endianness": null,
+  "bit_depth": 10,
+  "bit_alignment": null,
+  "channel_layout": "BAYER",
+  "bayer_pattern": "RGGB",
+  "black_level": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "white_level": 1023
+}

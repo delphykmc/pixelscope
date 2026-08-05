@@ -1,16 +1,21 @@
 {
-  "name": "example_unpacked_raw16",
-  "width": 640,
-  "height": 480,
-  "stride_bytes": 1280,
+  "name": "synthetic_fhd_12bit_rggb_u16le_msb",
+  "width": 1920,
+  "height": 1080,
+  "stride_bytes": 3840,
   "offset_bytes": 0,
   "storage_format": "unpacked",
   "container_dtype": "uint16",
   "endianness": "little",
   "bit_depth": 12,
-  "bit_alignment": "lsb",
+  "bit_alignment": "msb",
   "channel_layout": "BAYER",
   "bayer_pattern": "RGGB",
-  "black_level": 64,
+  "black_level": [
+    0,
+    0,
+    0,
+    0
+  ],
   "white_level": 4095
 }

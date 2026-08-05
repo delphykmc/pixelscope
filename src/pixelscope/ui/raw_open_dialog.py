@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 from pydantic import ValidationError
 from PySide6.QtCore import Qt, QTimer
@@ -25,6 +26,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.io.raw_format import (
+    BitAlignment,
+    ContainerDType,
+    Endianness,
+    StorageFormat,
+    container_bit_count,
+    container_byte_count,
+    minimum_row_bytes,
+    storage_format_spec,
+)
 from pixelscope.io.raw_profile import RawProfile
 
 RAW_DIALOG_WIDTH = 280
@@ -52,17 +63,13 @@ class AlignedFormGrid(QGridLayout):
         row = self.rowCount()
         label_widget = QLabel(label) if isinstance(label, str) else label
         label_widget.setFixedWidth(FORM_LABEL_WIDTH)
-        label_widget.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
+        label_widget.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.addWidget(label_widget, row, 0)
         self.addWidget(
             field,
             row,
             2,
-            alignment=(
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            ),
+            alignment=(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
         )
         self._labels[field] = label_widget
         return row
@@ -91,18 +98,49 @@ class RawOpenDialog(QDialog):
         self._actual_file_size: int | None = None
         self._json_option_available = False
         self._file_size_state = "unavailable"
+        self._unpacked_container: ContainerDType = "uint16"
+        self._unpacked_endianness: Endianness = "little"
+        self._unpacked_alignment: BitAlignment = "lsb"
+        self._unpacked_bit_depth = 12
 
         self.width_box = self._spin(1, 1_000_000, 640)
         self.height_box = self._spin(1, 1_000_000, 480)
         self.stride = self._spin(1, 2_000_000_000, 1280)
         self.offset = self._spin(0, 2_000_000_000, 0)
 
-        self.dtype = self._combo(["uint8", "uint16"], "uint16")
-        self.endian = self._combo(["little", "big"], "little")
+        self.storage_format = self._data_combo(
+            [
+                ("Unpacked", "unpacked"),
+                ("MIPI RAW10", "mipi_raw10"),
+                ("MIPI RAW12", "mipi_raw12"),
+                ("MIPI RAW14", "mipi_raw14"),
+            ],
+            "unpacked",
+        )
+        self.container = self._data_combo(
+            [
+                ("uint8", "uint8"),
+                ("uint16", "uint16"),
+                ("Defined by format", None),
+            ],
+            "uint16",
+        )
         self.bit_depth = self._spin(1, 16, 12)
-        self.packing = self._combo(
-            ["unpacked_u8", "unpacked_u16"],
-            "unpacked_u16",
+        self.byte_order = self._data_combo(
+            [
+                ("little", "little"),
+                ("big", "big"),
+                ("Not applicable", None),
+            ],
+            "little",
+        )
+        self.bit_alignment = self._data_combo(
+            [
+                ("LSB aligned", "lsb"),
+                ("MSB aligned", "msb"),
+                ("Not applicable", None),
+            ],
+            "lsb",
         )
         self.layout_kind = self._combo(["GRAY", "BAYER"], "GRAY")
         self.bayer_pattern = self._combo(
@@ -110,13 +148,16 @@ class RawOpenDialog(QDialog):
             "RGGB",
         )
 
+        # Compatibility aliases for code that still locates the old widgets.
+        self.packing = self.storage_format
+        self.dtype = self.container
+        self.endian = self.byte_order
+
         self.minimum_stride_icon = QLabel()
         self.minimum_stride_icon.setFixedSize(18, 18)
         self.minimum_stride_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.minimum_stride_icon.setPixmap(
-            self.style()
-            .standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
-            .pixmap(16, 16)
+            self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation).pixmap(16, 16)
         )
         self.minimum_stride_value = QLabel()
         self.minimum_stride_value.setAlignment(
@@ -139,10 +180,11 @@ class RawOpenDialog(QDialog):
         layout_form.add_field_row("Stride bytes", self.stride)
         layout_form.add_spanning_row(self.minimum_stride_row)
         layout_form.add_field_row("Offset bytes", self.offset)
-        layout_form.add_field_row("Data type", self.dtype)
-        layout_form.add_field_row("Byte order", self.endian)
+        layout_form.add_field_row("Storage format", self.storage_format)
+        layout_form.add_field_row("Container", self.container)
         layout_form.add_field_row("Bit depth", self.bit_depth)
-        layout_form.add_field_row("Packing", self.packing)
+        layout_form.add_field_row("Byte order", self.byte_order)
+        layout_form.add_field_row("Bit alignment", self.bit_alignment)
         layout_form.add_field_row("Pixel layout", self.layout_kind)
         layout_form.add_field_row("Bayer pattern", self.bayer_pattern)
         self.form = layout_form
@@ -238,10 +280,7 @@ class RawOpenDialog(QDialog):
         self.ok_button.setDefault(True)
         self.ok_button.setFixedWidth(DIALOG_BUTTON_WIDTH)
         self.cancel_button.setFixedWidth(DIALOG_BUTTON_WIDTH)
-        for button in (
-            self.load_button,
-            self.save_button,
-        ):
+        for button in (self.load_button, self.save_button):
             button.setSizePolicy(
                 QSizePolicy.Policy.Expanding,
                 QSizePolicy.Policy.Fixed,
@@ -259,9 +298,7 @@ class RawOpenDialog(QDialog):
         self.json_actions_layout.addWidget(self.load_button, 1)
         self.json_actions_layout.addWidget(self.save_button, 1)
 
-        self.dont_show_json_profiles = QCheckBox(
-            "Don't show JSON profiles next time"
-        )
+        self.dont_show_json_profiles = QCheckBox("Don't show JSON profiles next time")
         self.dont_show_json_profiles.hide()
         self.skip_json_confirmation = self.dont_show_json_profiles
 
@@ -288,11 +325,17 @@ class RawOpenDialog(QDialog):
         layout.addWidget(separator)
         layout.addLayout(self.dialog_actions_layout)
 
-        self.dtype.currentTextChanged.connect(  # type: ignore[attr-defined]
-            self._data_type_changed
+        self.storage_format.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._storage_format_changed
         )
-        self.packing.currentTextChanged.connect(  # type: ignore[attr-defined]
-            self._packing_changed
+        self.container.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._container_changed
+        )
+        self.byte_order.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._byte_order_changed
+        )
+        self.bit_alignment.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._bit_alignment_changed
         )
         self.layout_kind.currentTextChanged.connect(  # type: ignore[attr-defined]
             self._pixel_layout_changed
@@ -309,9 +352,11 @@ class RawOpenDialog(QDialog):
             self.black_gb,
             self.black_b,
         ):
-            control.valueChanged.connect(self._update_legacy_black_text)  # type: ignore[attr-defined]
+            control.valueChanged.connect(  # type: ignore[attr-defined]
+                self._update_legacy_black_text
+            )
 
-        self._data_type_changed(self.dtype.currentText())
+        self._storage_format_changed()
         self._pixel_layout_changed(self.layout_kind.currentText())
         self._update_diagnostics()
 
@@ -332,15 +377,27 @@ class RawOpenDialog(QDialog):
         return combo
 
     @staticmethod
+    def _data_combo(items: list[tuple[str, Any]], current: Any) -> QComboBox:
+        combo = QComboBox()
+        for label, data in items:
+            combo.addItem(label, data)
+        index = combo.findData(current)
+        combo.setCurrentIndex(max(0, index))
+        combo.setFixedWidth(FIELD_WIDTH)
+        return combo
+
+    @staticmethod
+    def _set_combo_data(combo: QComboBox, data: Any) -> None:
+        index = combo.findData(data)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    @staticmethod
     def _value_label(text: str) -> QLabel:
         label = QLabel(text)
         label.setFixedWidth(FIELD_WIDTH)
-        label.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
-        label.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
+        label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         return label
 
     @staticmethod
@@ -350,6 +407,14 @@ class RawOpenDialog(QDialog):
     @property
     def file_size_state(self) -> str:
         return self._file_size_state
+
+    @property
+    def storage_format_key(self) -> StorageFormat:
+        return cast(StorageFormat, self.storage_format.currentData())
+
+    @property
+    def container_dtype(self) -> ContainerDType | None:
+        return cast(ContainerDType | None, self.container.currentData())
 
     def set_source_path(self, path: str | Path | None) -> None:
         self._source_path = Path(path).resolve() if path is not None else None
@@ -377,10 +442,17 @@ class RawOpenDialog(QDialog):
         return self.dont_show_json_profiles_requested()
 
     def sample_size_bytes(self) -> int:
-        return 1 if self.dtype.currentText() == "uint8" else 2
+        container = self.container_dtype
+        if self.storage_format_key != "unpacked" or container is None:
+            return 0
+        return container_byte_count(container)
 
     def minimum_stride_bytes(self) -> int:
-        return self.width_box.value() * self.sample_size_bytes()
+        return minimum_row_bytes(
+            self.width_box.value(),
+            self.storage_format_key,
+            self.container_dtype,
+        )
 
     def expected_file_size(self) -> int:
         return (
@@ -409,14 +481,13 @@ class RawOpenDialog(QDialog):
             height=self.height_box.value(),
             stride_bytes=self.stride.value(),
             offset_bytes=self.offset.value(),
-            dtype=self.dtype.currentText(),
-            endianness=self.endian.currentText(),
+            storage_format=self.storage_format_key,
+            container_dtype=self.container_dtype,
+            endianness=cast(Endianness | None, self.byte_order.currentData()),
             bit_depth=self.bit_depth.value(),
-            packing=self.packing.currentText(),
+            bit_alignment=cast(BitAlignment | None, self.bit_alignment.currentData()),
             channel_layout=layout,
-            bayer_pattern=(
-                self.bayer_pattern.currentText() if layout == "BAYER" else None
-            ),
+            bayer_pattern=(self.bayer_pattern.currentText() if layout == "BAYER" else None),
             black_level=black_level,
             white_level=self.white.value(),
         )
@@ -425,16 +496,27 @@ class RawOpenDialog(QDialog):
         self._profile_name = profile.name
         self.width_box.setValue(profile.width)
         self.height_box.setValue(profile.height)
-        self.dtype.setCurrentText(profile.dtype)
-        self.packing.setCurrentText(profile.packing)
         self.stride.setValue(profile.stride_bytes)
         self.offset.setValue(profile.offset_bytes)
-        self.endian.setCurrentText(profile.endianness)
+
+        self._set_combo_data(self.storage_format, profile.storage_format)
+        if profile.storage_format == "unpacked":
+            if profile.container_dtype is not None:
+                self._unpacked_container = profile.container_dtype
+                self._set_combo_data(self.container, profile.container_dtype)
+            if profile.endianness is not None:
+                self._unpacked_endianness = profile.endianness
+                self._set_combo_data(self.byte_order, profile.endianness)
+            if profile.bit_alignment is not None:
+                self._unpacked_alignment = profile.bit_alignment
+                self._set_combo_data(self.bit_alignment, profile.bit_alignment)
+            self._unpacked_bit_depth = profile.bit_depth
         self.bit_depth.setValue(profile.bit_depth)
+        self._storage_format_changed()
+
         self.layout_kind.setCurrentText(profile.channel_layout)
         if profile.bayer_pattern is not None:
             self.bayer_pattern.setCurrentText(profile.bayer_pattern)
-
         if isinstance(profile.black_level, tuple):
             levels = profile.black_level
             gray_level = profile.black_level[0]
@@ -452,30 +534,87 @@ class RawOpenDialog(QDialog):
         self._update_legacy_black_text()
         self._update_diagnostics()
 
-    def _data_type_changed(self, data_type: str) -> None:
-        expected_packing = (
-            "unpacked_u8" if data_type == "uint8" else "unpacked_u16"
-        )
-        if self.packing.currentText() != expected_packing:
-            self.packing.blockSignals(True)
-            self.packing.setCurrentText(expected_packing)
-            self.packing.blockSignals(False)
-        self.endian.setEnabled(data_type == "uint16")
-        maximum_depth = 8 if data_type == "uint8" else 16
-        self.bit_depth.setMaximum(maximum_depth)
-        if self.bit_depth.value() > maximum_depth:
-            self.bit_depth.setValue(maximum_depth)
+    def _storage_format_changed(self, _index: int | None = None) -> None:
+        storage_format = self.storage_format_key
+        spec = storage_format_spec(storage_format)
+        packed = spec.is_packed
+
+        if packed:
+            self._set_combo_data(self.container, None)
+            self.container.setEnabled(False)
+            self.container.setItemText(2, "Defined by format")
+            self.bit_depth.setEnabled(False)
+            self.bit_depth.setValue(int(spec.fixed_bit_depth or 1))
+            self._set_combo_data(self.byte_order, None)
+            self.byte_order.setItemText(2, "Defined by format")
+            self.byte_order.setEnabled(False)
+            self._set_combo_data(self.bit_alignment, None)
+            self.bit_alignment.setItemText(2, "Defined by format")
+            self.bit_alignment.setEnabled(False)
+        else:
+            self.container.setEnabled(True)
+            self._set_combo_data(self.container, self._unpacked_container)
+            self.bit_depth.setEnabled(True)
+            self.bit_depth.setValue(self._unpacked_bit_depth)
+            self._update_unpacked_control_states()
         self._bit_depth_changed(self.bit_depth.value())
         self._update_diagnostics()
 
-    def _packing_changed(self, packing: str) -> None:
-        expected_type = "uint8" if packing == "unpacked_u8" else "uint16"
-        if self.dtype.currentText() != expected_type:
-            self.dtype.setCurrentText(expected_type)
+    def _container_changed(self, _index: int | None = None) -> None:
+        if self.storage_format_key != "unpacked":
+            return
+        container = self.container_dtype
+        if container is None:
+            return
+        self._unpacked_container = container
+        maximum_depth = container_bit_count(container)
+        self.bit_depth.setMaximum(maximum_depth)
+        if self.bit_depth.value() > maximum_depth:
+            self.bit_depth.setValue(maximum_depth)
+        self._update_unpacked_control_states()
+        self._update_diagnostics()
+
+    def _byte_order_changed(self, _index: int | None = None) -> None:
+        value = self.byte_order.currentData()
+        if self.storage_format_key == "unpacked" and value in ("little", "big"):
+            self._unpacked_endianness = cast(Endianness, value)
+        self._update_diagnostics()
+
+    def _bit_alignment_changed(self, _index: int | None = None) -> None:
+        value = self.bit_alignment.currentData()
+        if self.storage_format_key == "unpacked" and value in ("lsb", "msb"):
+            self._unpacked_alignment = cast(BitAlignment, value)
+        self._update_diagnostics()
+
+    def _update_unpacked_control_states(self) -> None:
+        container = self.container_dtype or self._unpacked_container
+        container_bits = container_bit_count(container)
+        self.bit_depth.setMaximum(container_bits)
+        if self.bit_depth.value() > container_bits:
+            self.bit_depth.setValue(container_bits)
+
+        if container == "uint16":
+            self.byte_order.setItemText(2, "Not applicable")
+            self._set_combo_data(self.byte_order, self._unpacked_endianness)
+            self.byte_order.setEnabled(True)
         else:
-            self._update_diagnostics()
+            self.byte_order.setItemText(2, "Not applicable")
+            self._set_combo_data(self.byte_order, None)
+            self.byte_order.setEnabled(False)
+
+        if self.bit_depth.value() < container_bits:
+            self.bit_alignment.setItemText(2, "Not applicable")
+            self._set_combo_data(self.bit_alignment, self._unpacked_alignment)
+            self.bit_alignment.setEnabled(True)
+        else:
+            self.bit_alignment.setItemText(2, "Not applicable")
+            self._set_combo_data(self.bit_alignment, None)
+            self.bit_alignment.setEnabled(False)
 
     def _bit_depth_changed(self, depth: int) -> None:
+        if self.storage_format_key == "unpacked":
+            self._unpacked_bit_depth = depth
+            self._update_unpacked_control_states()
         maximum = (1 << depth) - 1
         self.white.setMaximum(maximum)
         for control in (
@@ -502,7 +641,6 @@ class RawOpenDialog(QDialog):
         current_page = self.black_level_stack.currentWidget()
         if current_page is None:
             return
-
         current_page.adjustSize()
         self.black_level_stack.setFixedHeight(current_page.sizeHint().height())
         self.black_level_stack.updateGeometry()
@@ -513,7 +651,6 @@ class RawOpenDialog(QDialog):
         if dialog_layout is not None:
             dialog_layout.invalidate()
             dialog_layout.activate()
-
         target_height = self.sizeHint().height()
         if self.height() != target_height:
             self.resize(self.width(), target_height)
@@ -548,24 +685,75 @@ class RawOpenDialog(QDialog):
         self.file_status_icon.setPixmap(pixmap)
         self.file_status.setText(text)
 
+    def _format_dimension_error(self) -> str | None:
+        spec = storage_format_spec(self.storage_format_key)
+        if not spec.is_packed:
+            return None
+        if self.width_box.value() % spec.width_alignment:
+            return f"Width must align to {spec.width_alignment}-pixel " f"{spec.label} groups."
+        if self.height_box.value() % 2:
+            return f"Height must be even for {spec.label}."
+        return None
+
     def _update_diagnostics(self, _value: object = None) -> None:
-        minimum_stride = self.minimum_stride_bytes()
-        item_size = self.sample_size_bytes()
-        stride_valid = self.stride.value() >= minimum_stride
-        stride_aligned = self.stride.value() % item_size == 0
-        self.minimum_stride_value.setText(
-            f"Minimum stride: {self._format_bytes(minimum_stride)}"
-        )
-        expected = self.expected_file_size()
-        self.expected_file_size_value.setText(self._format_bytes(expected))
+        dimension_error = self._format_dimension_error()
+        try:
+            minimum_stride = self.minimum_stride_bytes()
+        except ValueError:
+            minimum_stride = 0
+        if minimum_stride:
+            self.minimum_stride_value.setText(
+                f"Minimum stride: {self._format_bytes(minimum_stride)}"
+            )
+        else:
+            self.minimum_stride_value.setText("Minimum stride: unavailable")
+
+        stride_valid = minimum_stride > 0 and self.stride.value() >= minimum_stride
+        stride_aligned = True
+        container = self.container_dtype
+        if self.storage_format_key == "unpacked" and container is not None:
+            stride_aligned = self.stride.value() % container_byte_count(container) == 0
+
+        expected = 0
+        if dimension_error is None and minimum_stride:
+            expected = self.expected_file_size()
+            self.expected_file_size_value.setText(self._format_bytes(expected))
+        else:
+            self.expected_file_size_value.setText("Unavailable")
+
+        if dimension_error is not None:
+            self.actual_file_size_value.setText(
+                "—" if self._source_path is None else self.actual_file_size_value.text()
+            )
+            self._set_status(
+                "error",
+                dimension_error,
+                QStyle.StandardPixmap.SP_MessageBoxCritical,
+            )
+            self.ok_button.setEnabled(False)
+            return
 
         if self._source_path is None:
             self.actual_file_size_value.setText("—")
-            self._set_status(
-                "unavailable",
-                "Select a RAW file to check size.",
-                QStyle.StandardPixmap.SP_MessageBoxInformation,
-            )
+            if not stride_valid:
+                self._set_status(
+                    "error",
+                    f"Stride is {minimum_stride - self.stride.value():,} bytes too small.",
+                    QStyle.StandardPixmap.SP_MessageBoxCritical,
+                )
+            elif not stride_aligned:
+                item_size = self.sample_size_bytes()
+                self._set_status(
+                    "error",
+                    f"Stride must align to {item_size}-byte containers.",
+                    QStyle.StandardPixmap.SP_MessageBoxCritical,
+                )
+            else:
+                self._set_status(
+                    "unavailable",
+                    "Select a RAW file to check size.",
+                    QStyle.StandardPixmap.SP_MessageBoxInformation,
+                )
             self.ok_button.setEnabled(stride_valid and stride_aligned)
             return
 
@@ -584,17 +772,15 @@ class RawOpenDialog(QDialog):
         if not stride_valid:
             self._set_status(
                 "error",
-                (
-                    f"Stride is "
-                    f"{minimum_stride - self.stride.value():,} bytes too small."
-                ),
+                f"Stride is {minimum_stride - self.stride.value():,} bytes too small.",
                 QStyle.StandardPixmap.SP_MessageBoxCritical,
             )
             self.ok_button.setEnabled(False)
         elif not stride_aligned:
+            item_size = self.sample_size_bytes()
             self._set_status(
                 "error",
-                f"Stride must align to {item_size}-byte samples.",
+                f"Stride must align to {item_size}-byte containers.",
                 QStyle.StandardPixmap.SP_MessageBoxCritical,
             )
             self.ok_button.setEnabled(False)
