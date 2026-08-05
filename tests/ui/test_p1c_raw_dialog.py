@@ -116,13 +116,22 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     dialog.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog.height() == dialog.sizeHint().height(),
+        timeout=1000,
+    )
 
     assert dialog.black_level_stack.currentIndex() == 0
     assert dialog.black_gray.isVisible()
     assert not dialog.black_r.isVisible()
     gray_stack_height = dialog.black_level_stack.height()
+    gray_dialog_height = dialog.height()
 
     dialog.layout_kind.setCurrentText("BAYER")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog.height() > gray_dialog_height,
+        timeout=1000,
+    )
     assert dialog.black_level_stack.currentIndex() == 1
     assert not dialog.black_gray.isVisible()
     assert all(
@@ -130,6 +139,7 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
         for control in (dialog.black_r, dialog.black_gr, dialog.black_gb, dialog.black_b)
     )
     bayer_stack_height = dialog.black_level_stack.height()
+    bayer_dialog_height = dialog.height()
     assert bayer_stack_height > gray_stack_height
 
     dialog.black_r.setValue(10)
@@ -159,7 +169,12 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
     assert dialog.profile().black_level == (64, 64, 64, 64)
 
     dialog.layout_kind.setCurrentText("GRAY")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: dialog.height() < bayer_dialog_height,
+        timeout=1000,
+    )
     assert dialog.black_level_stack.height() == gray_stack_height
+    assert dialog.height() == gray_dialog_height
     dialog.black_gray.setValue(21)
     assert dialog.profile().black_level == 21
 
