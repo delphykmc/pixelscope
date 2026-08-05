@@ -10,7 +10,6 @@ from pixelscope.app.main_window import MainWindow
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
 
-
 SETTING_KEY = "raw/dont_show_json_profiles"
 
 
