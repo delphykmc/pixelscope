@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pydantic import ValidationError
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.io.raw_profile import RawProfile
-
 
 RAW_DIALOG_WIDTH = 280
 FORM_LABEL_WIDTH = 100
