@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 
@@ -20,9 +22,8 @@ def test_raw_dialog_links_packing_data_type_and_minimum_stride(qtbot: object) ->
     assert dialog.dtype.currentText() == "uint16"
     assert dialog.packing.currentText() == "unpacked_u16"
     assert dialog.minimum_stride_bytes() == 26
-    assert "26 bytes" in dialog.minimum_stride_value.text()
-    assert "current width and data type" in dialog.minimum_stride_value.text()
-    assert dialog.set_minimum_stride_button.text() == "Set stride to minimum"
+    assert dialog.minimum_stride_value.text() == "26 bytes"
+    assert dialog.set_minimum_stride_button.text() == "Set this stride"
     assert not dialog.set_minimum_stride_button.isCheckable()
     assert dialog.endian.isEnabled()
 
@@ -73,12 +74,16 @@ def test_raw_dialog_compares_expected_and_actual_file_size_with_status_icons(
     assert dialog.file_size_state == "match"
     assert "matches" in dialog.file_status.text()
     assert dialog.file_status_icon.pixmap() is not None
+    assert dialog.expected_file_size_label.text() == "Expected"
+    assert dialog.actual_file_size_label.text() == "Actual"
+    assert dialog.file_status_row.indexOf(dialog.file_status_icon) == 0
+    assert dialog.file_status_row.indexOf(dialog.file_status) == 1
     assert dialog.ok_button.isEnabled()
 
     dialog.height_box.setValue(5)
     assert dialog.expected_file_size() == 40
     assert dialog.file_size_state == "error"
-    assert "8 bytes smaller" in dialog.file_status.text()
+    assert "8 bytes too small" in dialog.file_status.text()
     assert not dialog.ok_button.isEnabled()
 
     dialog.height_box.setValue(3)
@@ -135,7 +140,7 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
     assert dialog.profile().black_level == 21
 
 
-def test_raw_dialog_renames_fields_and_places_dont_show_before_separator(
+def test_raw_dialog_renames_fields_and_uses_compact_action_alignment(
     qtbot: object,
 ) -> None:
     dialog = RawOpenDialog()
@@ -144,21 +149,26 @@ def test_raw_dialog_renames_fields_and_places_dont_show_before_separator(
     assert _form_label(dialog, dialog.dtype) == "Data type"
     assert _form_label(dialog, dialog.endian) == "Byte order"
     assert _form_label(dialog, dialog.layout_kind) == "Pixel layout"
-    assert dialog.button_grid.getItemPosition(
-        dialog.button_grid.indexOf(dialog.load_button)
-    ) == (0, 0, 1, 1)
-    assert dialog.button_grid.getItemPosition(
-        dialog.button_grid.indexOf(dialog.save_button)
-    ) == (0, 1, 1, 1)
-    assert dialog.button_grid.getItemPosition(
-        dialog.button_grid.indexOf(dialog.dont_show_json_profiles)
-    ) == (1, 0, 1, 2)
-    assert dialog.button_grid.getItemPosition(
-        dialog.button_grid.indexOf(dialog.ok_button)
-    ) == (3, 0, 1, 1)
-    assert dialog.button_grid.getItemPosition(
-        dialog.button_grid.indexOf(dialog.cancel_button)
-    ) == (3, 1, 1, 1)
+
+    assert dialog.width() == 380
+    assert dialog.load_button.width() == 112
+    assert dialog.save_button.width() == 112
+    assert dialog.ok_button.width() == 92
+    assert dialog.cancel_button.width() == 92
+
+    assert dialog.json_actions_layout.indexOf(dialog.load_button) == 0
+    assert dialog.json_actions_layout.indexOf(dialog.save_button) == 1
+    assert dialog.json_actions_layout.contentsMargins().left() == 92
+
+    assert dialog.dont_show_layout.indexOf(dialog.dont_show_json_profiles) == 0
+    assert dialog.dont_show_layout.contentsMargins().left() == 92
+
+    assert dialog.dialog_actions_layout.itemAt(0).spacerItem() is not None
+    assert dialog.dialog_actions_layout.indexOf(dialog.ok_button) == 1
+    assert dialog.dialog_actions_layout.indexOf(dialog.cancel_button) == 2
+
+    assert dialog.expected_file_size_value.alignment() & Qt.AlignmentFlag.AlignLeft
+    assert dialog.actual_file_size_value.alignment() & Qt.AlignmentFlag.AlignLeft
 
 
 def test_raw_dialog_dont_show_option_is_opt_in(qtbot: object) -> None:
