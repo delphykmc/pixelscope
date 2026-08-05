@@ -9,8 +9,8 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFileDialog,
-    QFormLayout,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -28,10 +28,55 @@ from PySide6.QtWidgets import (
 from pixelscope.io.raw_profile import RawProfile
 
 
-RAW_DIALOG_WIDTH = 400
-FORM_LABEL_WIDTH = 96
-FIELD_WIDTH = 184
+RAW_DIALOG_WIDTH = 280
+FORM_LABEL_WIDTH = 100
+FIELD_WIDTH = 120
 DIALOG_BUTTON_WIDTH = 92
+
+
+class AlignedFormGrid(QGridLayout):
+    """Three-column form: fixed label, adaptive gap, fixed field."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._labels: dict[QWidget, QLabel] = {}
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setHorizontalSpacing(0)
+        self.setVerticalSpacing(6)
+        self.setColumnMinimumWidth(0, FORM_LABEL_WIDTH)
+        self.setColumnStretch(0, 0)
+        self.setColumnStretch(1, 1)
+        self.setColumnMinimumWidth(2, FIELD_WIDTH)
+        self.setColumnStretch(2, 0)
+
+    def add_field_row(self, label: str | QLabel, field: QWidget) -> int:
+        row = self.rowCount()
+        label_widget = QLabel(label) if isinstance(label, str) else label
+        label_widget.setFixedWidth(FORM_LABEL_WIDTH)
+        label_widget.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.addWidget(label_widget, row, 0)
+        self.addWidget(
+            field,
+            row,
+            2,
+            alignment=(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            ),
+        )
+        self._labels[field] = label_widget
+        return row
+
+    def add_spanning_row(self, widget: QWidget) -> int:
+        row = self.rowCount()
+        self.addWidget(widget, row, 0, 1, 3)
+        return row
+
+    def labelForField(self, field: QWidget) -> QLabel | None:
+        """Match the QFormLayout lookup API used by existing tests and code."""
+
+        return self._labels.get(field)
 
 
 class RawOpenDialog(QDialog):
@@ -66,36 +111,41 @@ class RawOpenDialog(QDialog):
             "RGGB",
         )
 
+        self.minimum_stride_icon = QLabel()
+        self.minimum_stride_icon.setFixedSize(18, 18)
+        self.minimum_stride_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.minimum_stride_icon.setPixmap(
+            self.style()
+            .standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
+            .pixmap(16, 16)
+        )
         self.minimum_stride_value = QLabel()
-        self.minimum_stride_value.setFixedWidth(FIELD_WIDTH)
         self.minimum_stride_value.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
         self.minimum_stride_value.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
+        self.minimum_stride_row = QWidget()
+        minimum_stride_layout = QHBoxLayout(self.minimum_stride_row)
+        minimum_stride_layout.setContentsMargins(0, 2, 0, 2)
+        minimum_stride_layout.setSpacing(6)
+        minimum_stride_layout.addWidget(self.minimum_stride_icon)
+        minimum_stride_layout.addWidget(self.minimum_stride_value)
+        minimum_stride_layout.addStretch(1)
 
-        layout_form = QFormLayout()
-        self._configure_form(layout_form)
-        self._add_form_row(layout_form, "Width", self.width_box)
-        self._add_form_row(layout_form, "Height", self.height_box)
-        self._add_form_row(layout_form, "Stride bytes", self.stride)
-        self._add_form_row(
-            layout_form,
-            "Minimum stride",
-            self.minimum_stride_value,
-        )
-        self._add_form_row(layout_form, "Offset bytes", self.offset)
-        self._add_form_row(layout_form, "Data type", self.dtype)
-        self._add_form_row(layout_form, "Byte order", self.endian)
-        self._add_form_row(layout_form, "Bit depth", self.bit_depth)
-        self._add_form_row(layout_form, "Packing", self.packing)
-        self._add_form_row(layout_form, "Pixel layout", self.layout_kind)
-        self._add_form_row(
-            layout_form,
-            "Bayer pattern",
-            self.bayer_pattern,
-        )
+        layout_form = AlignedFormGrid()
+        layout_form.add_field_row("Width", self.width_box)
+        layout_form.add_field_row("Height", self.height_box)
+        layout_form.add_field_row("Stride bytes", self.stride)
+        layout_form.add_spanning_row(self.minimum_stride_row)
+        layout_form.add_field_row("Offset bytes", self.offset)
+        layout_form.add_field_row("Data type", self.dtype)
+        layout_form.add_field_row("Byte order", self.endian)
+        layout_form.add_field_row("Bit depth", self.bit_depth)
+        layout_form.add_field_row("Packing", self.packing)
+        layout_form.add_field_row("Pixel layout", self.layout_kind)
+        layout_form.add_field_row("Bayer pattern", self.bayer_pattern)
         self.form = layout_form
 
         data_layout_group = QGroupBox("1. Data layout")
@@ -110,15 +160,12 @@ class RawOpenDialog(QDialog):
         self.expected_size_value = self.expected_file_size_value
         self.actual_size_value = self.actual_file_size_value
 
-        self.file_size_form = QFormLayout()
-        self._configure_form(self.file_size_form)
-        self._add_form_row(
-            self.file_size_form,
+        self.file_size_form = AlignedFormGrid()
+        self.file_size_form.add_field_row(
             self.expected_file_size_label,
             self.expected_file_size_value,
         )
-        self._add_form_row(
-            self.file_size_form,
+        self.file_size_form.add_field_row(
             self.actual_file_size_label,
             self.actual_file_size_value,
         )
@@ -155,48 +202,24 @@ class RawOpenDialog(QDialog):
         self.white = self._spin(1, 65535, 4095)
 
         gray_levels_page = QWidget()
-        gray_levels_form = QFormLayout(gray_levels_page)
-        self._configure_form(gray_levels_form)
-        gray_levels_form.setContentsMargins(0, 0, 0, 0)
-        self._add_form_row(
-            gray_levels_form,
-            "Black level",
-            self.black_gray,
-        )
+        gray_levels_form = AlignedFormGrid()
+        gray_levels_form.add_field_row("Black level", self.black_gray)
+        gray_levels_page.setLayout(gray_levels_form)
 
         bayer_levels_page = QWidget()
-        bayer_levels_form = QFormLayout(bayer_levels_page)
-        self._configure_form(bayer_levels_form)
-        bayer_levels_form.setContentsMargins(0, 0, 0, 0)
-        self._add_form_row(
-            bayer_levels_form,
-            "Black level R",
-            self.black_r,
-        )
-        self._add_form_row(
-            bayer_levels_form,
-            "Black level Gr",
-            self.black_gr,
-        )
-        self._add_form_row(
-            bayer_levels_form,
-            "Black level Gb",
-            self.black_gb,
-        )
-        self._add_form_row(
-            bayer_levels_form,
-            "Black level B",
-            self.black_b,
-        )
+        bayer_levels_form = AlignedFormGrid()
+        bayer_levels_form.add_field_row("Black level R", self.black_r)
+        bayer_levels_form.add_field_row("Black level Gr", self.black_gr)
+        bayer_levels_form.add_field_row("Black level Gb", self.black_gb)
+        bayer_levels_form.add_field_row("Black level B", self.black_b)
+        bayer_levels_page.setLayout(bayer_levels_form)
 
         self.black_level_stack = QStackedWidget()
         self.black_level_stack.addWidget(gray_levels_page)
         self.black_level_stack.addWidget(bayer_levels_page)
 
-        white_level_form = QFormLayout()
-        self._configure_form(white_level_form)
-        white_level_form.setContentsMargins(0, 0, 0, 0)
-        self._add_form_row(white_level_form, "White level", self.white)
+        white_level_form = AlignedFormGrid()
+        white_level_form.add_field_row("White level", self.white)
 
         signal_levels_group = QGroupBox("3. Signal levels")
         signal_levels_layout = QVBoxLayout(signal_levels_group)
@@ -288,29 +311,6 @@ class RawOpenDialog(QDialog):
         self._data_type_changed(self.dtype.currentText())
         self._pixel_layout_changed(self.layout_kind.currentText())
         self._update_diagnostics()
-
-    @staticmethod
-    def _configure_form(form: QFormLayout) -> None:
-        form.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
-        )
-        form.setLabelAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
-        form.setFormAlignment(Qt.AlignmentFlag.AlignLeft)
-        form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(6)
-
-    @staticmethod
-    def _add_form_row(
-        form: QFormLayout,
-        label: str | QLabel,
-        field: QWidget,
-    ) -> None:
-        form.addRow(label, field)
-        label_widget = form.labelForField(field)
-        if label_widget is not None:
-            label_widget.setFixedWidth(FORM_LABEL_WIDTH)
 
     @staticmethod
     def _spin(minimum: int, maximum: int, value: int) -> QSpinBox:
@@ -529,7 +529,9 @@ class RawOpenDialog(QDialog):
         item_size = self.sample_size_bytes()
         stride_valid = self.stride.value() >= minimum_stride
         stride_aligned = self.stride.value() % item_size == 0
-        self.minimum_stride_value.setText(self._format_bytes(minimum_stride))
+        self.minimum_stride_value.setText(
+            f"Minimum stride: {self._format_bytes(minimum_stride)}"
+        )
         expected = self.expected_file_size()
         self.expected_file_size_value.setText(self._format_bytes(expected))
 

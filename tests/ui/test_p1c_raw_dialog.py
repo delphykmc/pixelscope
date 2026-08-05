@@ -9,6 +9,7 @@ from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.raw_open_dialog import (
     DIALOG_BUTTON_WIDTH,
     FIELD_WIDTH,
+    FORM_LABEL_WIDTH,
     RAW_DIALOG_WIDTH,
     RawOpenDialog,
 )
@@ -28,8 +29,11 @@ def test_raw_dialog_links_packing_data_type_and_minimum_stride(qtbot: object) ->
     assert dialog.dtype.currentText() == "uint16"
     assert dialog.packing.currentText() == "unpacked_u16"
     assert dialog.minimum_stride_bytes() == 26
-    assert dialog.minimum_stride_value.text() == "26 bytes"
-    assert dialog.minimum_stride_value.width() == FIELD_WIDTH
+    assert dialog.minimum_stride_value.text() == "Minimum stride: 26 bytes"
+    assert dialog.minimum_stride_icon.pixmap() is not None
+    assert dialog.form.getItemPosition(
+        dialog.form.indexOf(dialog.minimum_stride_row)
+    ) == (3, 0, 1, 3)
     assert not hasattr(dialog, "set_minimum_stride_button")
     assert dialog.endian.isEnabled()
 
@@ -37,7 +41,7 @@ def test_raw_dialog_links_packing_data_type_and_minimum_stride(qtbot: object) ->
     assert dialog.dtype.currentText() == "uint8"
     assert dialog.packing.currentText() == "unpacked_u8"
     assert dialog.minimum_stride_bytes() == 13
-    assert dialog.minimum_stride_value.text() == "13 bytes"
+    assert dialog.minimum_stride_value.text() == "Minimum stride: 13 bytes"
     assert not dialog.endian.isEnabled()
     assert dialog.bit_depth.maximum() == 8
 
@@ -148,7 +152,9 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
     assert dialog.profile().black_level == 21
 
 
-def test_raw_dialog_uses_compact_single_column_alignment(qtbot: object) -> None:
+def test_raw_dialog_uses_fixed_edges_with_an_adaptive_middle_gap(
+    qtbot: object,
+) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
 
@@ -156,10 +162,54 @@ def test_raw_dialog_uses_compact_single_column_alignment(qtbot: object) -> None:
     assert _form_label(dialog, dialog.endian) == "Byte order"
     assert _form_label(dialog, dialog.layout_kind) == "Pixel layout"
 
-    assert dialog.width() == RAW_DIALOG_WIDTH
-    assert dialog.width_box.width() == FIELD_WIDTH
-    assert dialog.packing.width() == FIELD_WIDTH
-    assert dialog.minimum_stride_value.width() == FIELD_WIDTH
+    assert dialog.width() == RAW_DIALOG_WIDTH == 280
+    assert FORM_LABEL_WIDTH == 100
+    assert FIELD_WIDTH == 120
+    assert dialog.form.columnStretch(0) == 0
+    assert dialog.form.columnStretch(1) == 1
+    assert dialog.form.columnStretch(2) == 0
+
+    width_label = dialog.form.labelForField(dialog.width_box)
+    assert width_label is not None
+    assert width_label.width() == FORM_LABEL_WIDTH
+    assert dialog.form.getItemPosition(dialog.form.indexOf(width_label)) == (
+        0,
+        0,
+        1,
+        1,
+    )
+    assert dialog.form.getItemPosition(dialog.form.indexOf(dialog.width_box)) == (
+        0,
+        2,
+        1,
+        1,
+    )
+
+    fields = (
+        dialog.width_box,
+        dialog.height_box,
+        dialog.stride,
+        dialog.offset,
+        dialog.dtype,
+        dialog.endian,
+        dialog.bit_depth,
+        dialog.packing,
+        dialog.layout_kind,
+        dialog.bayer_pattern,
+        dialog.expected_file_size_value,
+        dialog.actual_file_size_value,
+        dialog.black_gray,
+        dialog.black_r,
+        dialog.black_gr,
+        dialog.black_gb,
+        dialog.black_b,
+        dialog.white,
+    )
+    assert all(field.width() == FIELD_WIDTH for field in fields)
+
+    dialog.setFixedWidth(320)
+    assert all(field.width() == FIELD_WIDTH for field in fields)
+    assert dialog.form.columnStretch(1) == 1
 
     assert dialog.load_button.sizePolicy().horizontalPolicy() == (
         QSizePolicy.Policy.Expanding
