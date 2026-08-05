@@ -120,6 +120,7 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
     assert dialog.black_level_stack.currentIndex() == 0
     assert dialog.black_gray.isVisible()
     assert not dialog.black_r.isVisible()
+    gray_stack_height = dialog.black_level_stack.height()
 
     dialog.layout_kind.setCurrentText("BAYER")
     assert dialog.black_level_stack.currentIndex() == 1
@@ -128,6 +129,9 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
         control.isVisible()
         for control in (dialog.black_r, dialog.black_gr, dialog.black_gb, dialog.black_b)
     )
+    bayer_stack_height = dialog.black_level_stack.height()
+    assert bayer_stack_height > gray_stack_height
+
     dialog.black_r.setValue(10)
     dialog.black_gr.setValue(11)
     dialog.black_gb.setValue(12)
@@ -155,6 +159,7 @@ def test_raw_dialog_uses_explicit_bayer_black_level_controls(qtbot: object) -> N
     assert dialog.profile().black_level == (64, 64, 64, 64)
 
     dialog.layout_kind.setCurrentText("GRAY")
+    assert dialog.black_level_stack.height() == gray_stack_height
     dialog.black_gray.setValue(21)
     assert dialog.profile().black_level == 21
 

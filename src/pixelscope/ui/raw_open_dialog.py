@@ -27,56 +27,6 @@ from PySide6.QtWidgets import (
 
 from pixelscope.io.raw_profile import RawProfile
 
-RAW_DIALOG_WIDTH = 280
-FORM_LABEL_WIDTH = 100
-FIELD_WIDTH = 120
-DIALOG_BUTTON_WIDTH = 92
-
-
-class AlignedFormGrid(QGridLayout):
-    """Three-column form: fixed label, adaptive gap, fixed field."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._labels: dict[QWidget, QLabel] = {}
-        self.setContentsMargins(0, 0, 0, 0)
-        self.setHorizontalSpacing(0)
-        self.setVerticalSpacing(6)
-        self.setColumnMinimumWidth(0, FORM_LABEL_WIDTH)
-        self.setColumnStretch(0, 0)
-        self.setColumnStretch(1, 1)
-        self.setColumnMinimumWidth(2, FIELD_WIDTH)
-        self.setColumnStretch(2, 0)
-
-    def add_field_row(self, label: str | QLabel, field: QWidget) -> int:
-        row = self.rowCount()
-        label_widget = QLabel(label) if isinstance(label, str) else label
-        label_widget.setFixedWidth(FORM_LABEL_WIDTH)
-        label_widget.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
-        self.addWidget(label_widget, row, 0)
-        self.addWidget(
-            field,
-            row,
-            2,
-            alignment=(
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            ),
-        )
-        self._labels[field] = label_widget
-        return row
-
-    def add_spanning_row(self, widget: QWidget) -> int:
-        row = self.rowCount()
-        self.addWidget(widget, row, 0, 1, 3)
-        return row
-
-    def labelForField(self, field: QWidget) -> QLabel | None:
-        """Match the QFormLayout lookup API used by existing tests and code."""
-
-        return self._labels.get(field)
-
 
 RAW_DIALOG_WIDTH = 280
 FORM_LABEL_WIDTH = 100
@@ -265,6 +215,10 @@ class RawOpenDialog(QDialog):
         bayer_levels_page.setLayout(bayer_levels_form)
 
         self.black_level_stack = QStackedWidget()
+        self.black_level_stack.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Fixed,
+        )
         self.black_level_stack.addWidget(gray_levels_page)
         self.black_level_stack.addWidget(bayer_levels_page)
 
@@ -542,7 +496,22 @@ class RawOpenDialog(QDialog):
         self.bayer_pattern.setEnabled(is_bayer)
         self._set_form_row_visible(self.bayer_pattern, is_bayer)
         self.black_level_stack.setCurrentIndex(1 if is_bayer else 0)
+        self._fit_black_level_stack_to_current_page()
         self._update_legacy_black_text()
+
+    def _fit_black_level_stack_to_current_page(self) -> None:
+        current_page = self.black_level_stack.currentWidget()
+        if current_page is None:
+            return
+
+        current_page.adjustSize()
+        self.black_level_stack.setFixedHeight(current_page.sizeHint().height())
+        self.black_level_stack.updateGeometry()
+
+        dialog_layout = self.layout()
+        if dialog_layout is not None:
+            dialog_layout.activate()
+        self.adjustSize()
 
     def _set_form_row_visible(self, field: QWidget, visible: bool) -> None:
         label = self.form.labelForField(field)
