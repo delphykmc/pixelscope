@@ -466,15 +466,7 @@ class LineProfilePanel(QWidget):
                         values,
                         results,
                     )
-                    short_name = self._documents[image_index].display_name
-                    if len(short_name) > 24:
-                        short_name = f"{short_name[:11]}…{short_name[-10:]}"
-                    if view_mode == "Separate by image":
-                        legend_name = channel_name
-                    elif view_mode == "Separate by channel":
-                        legend_name = f"{image_index + 1} · {short_name}"
-                    else:
-                        legend_name = f"{image_index + 1} · {short_name} · {channel_name}"
+                    legend_name = f"{image_index + 1} · {channel_name}"
                     curve_name = legend_name if view_mode == "Separate by image" else None
                     plot.plot(
                         x_values,
@@ -493,7 +485,7 @@ class LineProfilePanel(QWidget):
                             x=x_values[marker_indices],
                             y=y_values[marker_indices],
                             symbol=image_marker_symbol(image_index),
-                            size=5.0,
+                            size=7.0,
                             pen=pg.mkPen(channel_color(channel_name), width=0.8),
                             brush=pg.mkBrush(channel_color(channel_name)),
                         )
