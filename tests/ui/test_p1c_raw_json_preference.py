@@ -11,7 +11,7 @@ from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
 
 
-SETTING_KEY = "raw/confirm_json_profiles"
+SETTING_KEY = "raw/dont_show_json_profiles"
 
 
 @pytest.fixture(autouse=True)
@@ -42,25 +42,25 @@ def _profile() -> RawProfile:
     )
 
 
-def test_raw_json_confirmation_menu_defaults_on_and_persists(qtbot: object) -> None:
+def test_raw_json_dont_show_menu_defaults_off_and_persists(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
-    action = window.action_map["Confirm RAW JSON Profiles"]
+    action = window.action_map["Don't Show RAW JSON Profiles"]
     assert action.isCheckable()
-    assert action.isChecked()
-    action.trigger()
     assert not action.isChecked()
-    assert window.settings.value(SETTING_KEY, True, type=bool) is False
+    action.trigger()
+    assert action.isChecked()
+    assert window.settings.value(SETTING_KEY, False, type=bool) is True
     window.close()
 
     restored = MainWindow()
     qtbot.addWidget(restored)  # type: ignore[attr-defined]
-    assert not restored.action_map["Confirm RAW JSON Profiles"].isChecked()
+    assert restored.action_map["Don't Show RAW JSON Profiles"].isChecked()
     restored.close()
 
 
-def test_valid_json_sidecar_skips_dialog_when_confirmation_is_disabled(
+def test_valid_json_sidecar_skips_dialog_when_dont_show_is_enabled(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -71,7 +71,7 @@ def test_valid_json_sidecar_skips_dialog_when_confirmation_is_disabled(
     profile = _profile()
     profile.save_json(sidecar)
     settings = QSettings()
-    settings.setValue(SETTING_KEY, False)
+    settings.setValue(SETTING_KEY, True)
     settings.sync()
 
     class UnexpectedDialog:
@@ -89,7 +89,7 @@ def test_valid_json_sidecar_skips_dialog_when_confirmation_is_disabled(
     window.close()
 
 
-def test_too_small_source_still_opens_dialog_when_confirmation_is_disabled(
+def test_too_small_source_still_opens_dialog_when_dont_show_is_enabled(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -99,7 +99,7 @@ def test_too_small_source_still_opens_dialog_when_confirmation_is_disabled(
     sidecar = tmp_path / "small.json"
     _profile().save_json(sidecar)
     settings = QSettings()
-    settings.setValue(SETTING_KEY, False)
+    settings.setValue(SETTING_KEY, True)
     settings.sync()
 
     class SizeErrorDialog:
@@ -135,7 +135,7 @@ def test_too_small_source_still_opens_dialog_when_confirmation_is_disabled(
     window.close()
 
 
-def test_dialog_opt_out_disables_future_json_confirmation(
+def test_dialog_dont_show_opt_in_enables_future_skip(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -146,7 +146,7 @@ def test_dialog_opt_out_disables_future_json_confirmation(
     profile = _profile()
     profile.save_json(sidecar)
 
-    class OptOutDialog:
+    class DontShowDialog:
         def __init__(self, _parent: object) -> None:
             self.loaded: RawProfile | None = None
 
@@ -166,17 +166,17 @@ def test_dialog_opt_out_disables_future_json_confirmation(
             assert self.loaded is not None
             return self.loaded
 
-        def skip_json_confirmation_requested(self) -> bool:
+        def dont_show_json_profiles_requested(self) -> bool:
             return True
 
     monkeypatch.setattr(  # type: ignore[attr-defined]
         "pixelscope.app.main_window.RawOpenDialog",
-        OptOutDialog,
+        DontShowDialog,
     )
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     assert window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) == profile
-    assert not window.action_map["Confirm RAW JSON Profiles"].isChecked()
-    assert window.settings.value(SETTING_KEY, True, type=bool) is False
+    assert window.action_map["Don't Show RAW JSON Profiles"].isChecked()
+    assert window.settings.value(SETTING_KEY, False, type=bool) is True
     window.close()
