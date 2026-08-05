@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -19,6 +20,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSpinBox,
+    QStackedWidget,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
@@ -36,7 +39,8 @@ class RawOpenDialog(QDialog):
         self._profile_name = "unpacked_raw"
         self._source_path: Path | None = None
         self._actual_file_size: int | None = None
-        self._json_confirmation_option_available = False
+        self._json_option_available = False
+        self._file_size_state = "unavailable"
 
         self.width_box = self._spin(1, 1_000_000, 640)
         self.height_box = self._spin(1, 1_000_000, 480)
@@ -57,6 +61,76 @@ class RawOpenDialog(QDialog):
         self.bayer_pattern = QComboBox()
         self.bayer_pattern.addItems(["RGGB", "GRBG", "GBRG", "BGGR"])
 
+        self.minimum_stride_value = QLabel()
+        self.minimum_stride_value.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.set_minimum_stride_button = QPushButton("Set stride to minimum")
+        self.set_minimum_stride_button.setAutoDefault(False)
+        self.set_minimum_stride_button.setDefault(False)
+        self.use_minimum_stride_button = self.set_minimum_stride_button
+        stride_helper = QWidget()
+        stride_helper_layout = QHBoxLayout(stride_helper)
+        stride_helper_layout.setContentsMargins(0, 0, 0, 0)
+        stride_helper_layout.setSpacing(8)
+        stride_helper_layout.addWidget(self.minimum_stride_value, 1)
+        stride_helper_layout.addWidget(self.set_minimum_stride_button)
+
+        layout_form = QFormLayout()
+        layout_form.addRow("Width", self.width_box)
+        layout_form.addRow("Height", self.height_box)
+        layout_form.addRow("Stride bytes", self.stride)
+        layout_form.addRow("Minimum stride", stride_helper)
+        layout_form.addRow("Offset bytes", self.offset)
+        layout_form.addRow("Data type", self.dtype)
+        layout_form.addRow("Byte order", self.endian)
+        layout_form.addRow("Bit depth", self.bit_depth)
+        layout_form.addRow("Packing", self.packing)
+        layout_form.addRow("Pixel layout", self.layout_kind)
+        layout_form.addRow("Bayer pattern", self.bayer_pattern)
+        self.form = layout_form
+
+        self.expected_file_size_value = QLabel("—")
+        self.actual_file_size_value = QLabel("—")
+        self.expected_size_value = self.expected_file_size_value
+        self.actual_size_value = self.actual_file_size_value
+        for value_label in (
+            self.expected_file_size_value,
+            self.actual_file_size_value,
+        ):
+            value_label.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            value_label.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+            )
+
+        self.file_status_icon = QLabel()
+        self.file_status_icon.setFixedSize(24, 24)
+        self.file_status_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.file_status = QLabel()
+        self.file_status.setWordWrap(True)
+
+        file_size_layout = QGridLayout()
+        file_size_layout.setContentsMargins(10, 8, 10, 8)
+        file_size_layout.setColumnStretch(1, 1)
+        file_size_layout.addWidget(QLabel("Expected file size"), 0, 0)
+        file_size_layout.addWidget(self.expected_file_size_value, 0, 1)
+        file_size_layout.addWidget(QLabel("Actual file size"), 1, 0)
+        file_size_layout.addWidget(self.actual_file_size_value, 1, 1)
+        file_size_layout.addWidget(self.file_status_icon, 2, 0)
+        file_size_layout.addWidget(self.file_status, 2, 1)
+        file_size_frame = QFrame()
+        file_size_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        file_size_frame.setLayout(file_size_layout)
+
+        data_layout_group = QGroupBox("Data layout")
+        data_layout = QVBoxLayout(data_layout_group)
+        data_layout.addLayout(layout_form)
+        data_layout.addSpacing(6)
+        data_layout.addWidget(QLabel("File size check"))
+        data_layout.addWidget(file_size_frame)
+
         self.black_gray = self._spin(0, 65535, 0)
         self.black_r = self._spin(0, 65535, 0)
         self.black_gr = self._spin(0, 65535, 0)
@@ -66,55 +140,35 @@ class RawOpenDialog(QDialog):
         self.black.hide()
         self.white = self._spin(1, 65535, 4095)
 
-        self.minimum_stride_value = QLabel()
-        self.minimum_stride_value.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        self.use_minimum_stride_button = QPushButton("Use minimum stride")
-        minimum_stride_widget = QWidget()
-        minimum_stride_layout = QHBoxLayout(minimum_stride_widget)
-        minimum_stride_layout.setContentsMargins(0, 0, 0, 0)
-        minimum_stride_layout.addWidget(self.minimum_stride_value, 1)
-        minimum_stride_layout.addWidget(self.use_minimum_stride_button)
+        gray_levels_page = QWidget()
+        gray_levels_form = QFormLayout(gray_levels_page)
+        gray_levels_form.setContentsMargins(0, 0, 0, 0)
+        gray_levels_form.addRow("Black level", self.black_gray)
 
-        self.form = QFormLayout()
-        self.form.addRow("Width", self.width_box)
-        self.form.addRow("Height", self.height_box)
-        self.form.addRow("Stride bytes", self.stride)
-        self.form.addRow("Minimum stride", minimum_stride_widget)
-        self.form.addRow("Offset bytes", self.offset)
-        self.form.addRow("Data type", self.dtype)
-        self.form.addRow("Byte order", self.endian)
-        self.form.addRow("Bit depth", self.bit_depth)
-        self.form.addRow("Packing", self.packing)
-        self.form.addRow("Pixel layout", self.layout_kind)
-        self.form.addRow("Bayer pattern", self.bayer_pattern)
-        self.form.addRow("Black level", self.black_gray)
-        self.form.addRow("Black level R", self.black_r)
-        self.form.addRow("Black level Gr", self.black_gr)
-        self.form.addRow("Black level Gb", self.black_gb)
-        self.form.addRow("Black level B", self.black_b)
-        self.form.addRow("White level", self.white)
+        bayer_levels_page = QWidget()
+        bayer_levels_form = QFormLayout(bayer_levels_page)
+        bayer_levels_form.setContentsMargins(0, 0, 0, 0)
+        bayer_levels_form.addRow("Black level R", self.black_r)
+        bayer_levels_form.addRow("Black level Gr", self.black_gr)
+        bayer_levels_form.addRow("Black level Gb", self.black_gb)
+        bayer_levels_form.addRow("Black level B", self.black_b)
 
-        self.source_path_value = QLabel("No RAW source selected")
-        self.source_path_value.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-        )
-        self.source_path_value.setWordWrap(True)
-        self.expected_size_value = QLabel("Expected minimum file size: —")
-        self.actual_size_value = QLabel("Actual file size: —")
-        self.file_status = QLabel()
-        self.file_status.setWordWrap(True)
-        diagnostics = QFormLayout()
-        diagnostics.addRow("RAW source", self.source_path_value)
-        diagnostics.addRow("", self.expected_size_value)
-        diagnostics.addRow("", self.actual_size_value)
-        diagnostics.addRow("", self.file_status)
+        self.black_level_stack = QStackedWidget()
+        self.black_level_stack.addWidget(gray_levels_page)
+        self.black_level_stack.addWidget(bayer_levels_page)
+
+        signal_levels_group = QGroupBox("Signal levels")
+        signal_levels_layout = QVBoxLayout(signal_levels_group)
+        signal_levels_layout.addWidget(self.black_level_stack)
+        white_level_form = QFormLayout()
+        white_level_form.addRow("White level", self.white)
+        signal_levels_layout.addLayout(white_level_form)
 
         self.load_button = QPushButton("Load JSON…")
         self.save_button = QPushButton("Save JSON…")
         self.ok_button = QPushButton("OK")
         self.cancel_button = QPushButton("Cancel")
+        self.ok_button.setDefault(True)
         for button in (
             self.load_button,
             self.save_button,
@@ -125,15 +179,19 @@ class RawOpenDialog(QDialog):
                 QSizePolicy.Policy.Expanding,
                 QSizePolicy.Policy.Fixed,
             )
+        self.load_button.setAutoDefault(False)
+        self.save_button.setAutoDefault(False)
+        self.cancel_button.setAutoDefault(False)
         self.load_button.clicked.connect(self._load)  # type: ignore[attr-defined]
         self.save_button.clicked.connect(self._save)  # type: ignore[attr-defined]
         self.ok_button.clicked.connect(self._accept_validated)  # type: ignore[attr-defined]
         self.cancel_button.clicked.connect(self.reject)  # type: ignore[attr-defined]
 
-        self.skip_json_confirmation = QCheckBox(
-            "Don't confirm JSON profiles next time"
+        self.dont_show_json_profiles = QCheckBox(
+            "Don't show JSON profiles next time"
         )
-        self.skip_json_confirmation.hide()
+        self.dont_show_json_profiles.hide()
+        self.skip_json_confirmation = self.dont_show_json_profiles
 
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
@@ -147,16 +205,14 @@ class RawOpenDialog(QDialog):
         self.button_grid.setColumnStretch(1, 1)
         self.button_grid.addWidget(self.load_button, 0, 0)
         self.button_grid.addWidget(self.save_button, 0, 1)
-        self.button_grid.addWidget(separator, 1, 0, 1, 2)
-        self.button_grid.addWidget(self.skip_json_confirmation, 2, 0, 1, 2)
+        self.button_grid.addWidget(self.dont_show_json_profiles, 1, 0, 1, 2)
+        self.button_grid.addWidget(separator, 2, 0, 1, 2)
         self.button_grid.addWidget(self.ok_button, 3, 0)
         self.button_grid.addWidget(self.cancel_button, 3, 1)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(self.form)
-        layout.addSpacing(8)
-        layout.addLayout(diagnostics)
-        layout.addSpacing(8)
+        layout.addWidget(data_layout_group)
+        layout.addWidget(signal_levels_group)
         layout.addLayout(self.button_grid)
 
         self.dtype.currentTextChanged.connect(  # type: ignore[attr-defined]
@@ -181,7 +237,7 @@ class RawOpenDialog(QDialog):
             self.black_b,
         ):
             control.valueChanged.connect(self._update_legacy_black_text)  # type: ignore[attr-defined]
-        self.use_minimum_stride_button.clicked.connect(  # type: ignore[attr-defined]
+        self.set_minimum_stride_button.clicked.connect(  # type: ignore[attr-defined]
             lambda: self.stride.setValue(self.minimum_stride_bytes())
         )
 
@@ -200,6 +256,10 @@ class RawOpenDialog(QDialog):
     def _format_bytes(value: int) -> str:
         return f"{value:,} bytes"
 
+    @property
+    def file_size_state(self) -> str:
+        return self._file_size_state
+
     def set_source_path(self, path: str | Path | None) -> None:
         self._source_path = Path(path).resolve() if path is not None else None
         self._actual_file_size = None
@@ -215,15 +275,15 @@ class RawOpenDialog(QDialog):
         return self._source_path
 
     def set_json_confirmation_option_visible(self, visible: bool) -> None:
-        self._json_confirmation_option_available = visible
-        self.skip_json_confirmation.setChecked(False)
-        self.skip_json_confirmation.setVisible(visible)
+        self._json_option_available = visible
+        self.dont_show_json_profiles.setChecked(False)
+        self.dont_show_json_profiles.setVisible(visible)
+
+    def dont_show_json_profiles_requested(self) -> bool:
+        return self._json_option_available and self.dont_show_json_profiles.isChecked()
 
     def skip_json_confirmation_requested(self) -> bool:
-        return (
-            self._json_confirmation_option_available
-            and self.skip_json_confirmation.isChecked()
-        )
+        return self.dont_show_json_profiles_requested()
 
     def sample_size_bytes(self) -> int:
         return 1 if self.dtype.currentText() == "uint8" else 2
@@ -231,12 +291,15 @@ class RawOpenDialog(QDialog):
     def minimum_stride_bytes(self) -> int:
         return self.width_box.value() * self.sample_size_bytes()
 
-    def expected_minimum_file_size(self) -> int:
+    def expected_file_size(self) -> int:
         return (
             self.offset.value()
             + (self.height_box.value() - 1) * self.stride.value()
             + self.minimum_stride_bytes()
         )
+
+    def expected_minimum_file_size(self) -> int:
+        return self.expected_file_size()
 
     def profile(self) -> RawProfile:
         layout = self.layout_kind.currentText()
@@ -281,11 +344,11 @@ class RawOpenDialog(QDialog):
 
         if isinstance(profile.black_level, tuple):
             levels = profile.black_level
+            gray_level = profile.black_level[0]
         else:
             levels = (profile.black_level,) * 4
-        self.black_gray.setValue(
-            profile.black_level if isinstance(profile.black_level, int) else profile.black_level[0]
-        )
+            gray_level = profile.black_level
+        self.black_gray.setValue(gray_level)
         for control, value in zip(
             (self.black_r, self.black_gr, self.black_gb, self.black_b),
             levels,
@@ -336,9 +399,7 @@ class RawOpenDialog(QDialog):
         is_bayer = layout_name == "BAYER"
         self.bayer_pattern.setEnabled(is_bayer)
         self._set_form_row_visible(self.bayer_pattern, is_bayer)
-        self._set_form_row_visible(self.black_gray, not is_bayer)
-        for control in (self.black_r, self.black_gr, self.black_gb, self.black_b):
-            self._set_form_row_visible(control, is_bayer)
+        self.black_level_stack.setCurrentIndex(1 if is_bayer else 0)
         self._update_legacy_black_text()
 
     def _set_form_row_visible(self, field: QWidget, visible: bool) -> None:
@@ -348,6 +409,7 @@ class RawOpenDialog(QDialog):
         field.setVisible(visible)
 
     def _update_legacy_black_text(self, _value: object = None) -> None:
+        values: tuple[int, ...]
         if self.layout_kind.currentText() == "BAYER":
             values = (
                 self.black_r.value(),
@@ -359,64 +421,87 @@ class RawOpenDialog(QDialog):
             values = (self.black_gray.value(),)
         self.black.setText(", ".join(str(value) for value in values))
 
+    def _set_status(
+        self,
+        state: str,
+        text: str,
+        icon: QStyle.StandardPixmap,
+    ) -> None:
+        self._file_size_state = state
+        pixmap = self.style().standardIcon(icon).pixmap(20, 20)
+        self.file_status_icon.setPixmap(pixmap)
+        self.file_status.setText(text)
+
     def _update_diagnostics(self, _value: object = None) -> None:
         minimum_stride = self.minimum_stride_bytes()
         item_size = self.sample_size_bytes()
         stride_valid = self.stride.value() >= minimum_stride
         stride_aligned = self.stride.value() % item_size == 0
-        self.minimum_stride_value.setText(self._format_bytes(minimum_stride))
-        expected = self.expected_minimum_file_size()
-        self.expected_size_value.setText(
-            f"Expected minimum file size: {self._format_bytes(expected)}"
+        self.minimum_stride_value.setText(
+            f"{self._format_bytes(minimum_stride)} for current width and data type"
         )
+        expected = self.expected_file_size()
+        self.expected_file_size_value.setText(self._format_bytes(expected))
 
         if self._source_path is None:
-            self.source_path_value.setText("No RAW source selected")
-            self.actual_size_value.setText("Actual file size: —")
-            self.file_status.setText("")
+            self.actual_file_size_value.setText("—")
+            self._set_status(
+                "unavailable",
+                "Select a RAW file to validate its size.",
+                QStyle.StandardPixmap.SP_MessageBoxInformation,
+            )
             self.ok_button.setEnabled(stride_valid and stride_aligned)
             return
 
-        self.source_path_value.setText(str(self._source_path))
         if self._actual_file_size is None:
-            self.actual_size_value.setText("Actual file size: unavailable")
-            self.file_status.setText("Error: the RAW source cannot be accessed")
-            self.file_status.setStyleSheet("color: #ff5f56;")
+            self.actual_file_size_value.setText("Unavailable")
+            self._set_status(
+                "error",
+                "The RAW file cannot be accessed.",
+                QStyle.StandardPixmap.SP_MessageBoxCritical,
+            )
             self.ok_button.setEnabled(False)
             return
 
         actual = self._actual_file_size
-        self.actual_size_value.setText(
-            f"Actual file size: {self._format_bytes(actual)}"
-        )
+        self.actual_file_size_value.setText(self._format_bytes(actual))
         if not stride_valid:
-            self.file_status.setText(
-                f"Error: stride is {minimum_stride - self.stride.value():,} bytes "
-                "smaller than one image row"
+            self._set_status(
+                "error",
+                f"Stride is {minimum_stride - self.stride.value():,} bytes smaller "
+                "than one image row.",
+                QStyle.StandardPixmap.SP_MessageBoxCritical,
             )
-            self.file_status.setStyleSheet("color: #ff5f56;")
             self.ok_button.setEnabled(False)
         elif not stride_aligned:
-            self.file_status.setText(
-                f"Error: stride must align to the {item_size}-byte sample size"
+            self._set_status(
+                "error",
+                f"Stride must align to the {item_size}-byte sample size.",
+                QStyle.StandardPixmap.SP_MessageBoxCritical,
             )
-            self.file_status.setStyleSheet("color: #ff5f56;")
             self.ok_button.setEnabled(False)
         elif actual < expected:
-            self.file_status.setText(
-                f"Error: RAW file is {expected - actual:,} bytes too small"
+            self._set_status(
+                "error",
+                f"The file is {expected - actual:,} bytes smaller than the current "
+                "layout requires.",
+                QStyle.StandardPixmap.SP_MessageBoxCritical,
             )
-            self.file_status.setStyleSheet("color: #ff5f56;")
             self.ok_button.setEnabled(False)
         elif actual > expected:
-            self.file_status.setText(
-                f"Warning: {actual - expected:,} trailing bytes will be ignored"
+            self._set_status(
+                "warning",
+                f"The current layout uses {self._format_bytes(expected)}; "
+                f"{actual - expected:,} trailing bytes will be ignored.",
+                QStyle.StandardPixmap.SP_MessageBoxWarning,
             )
-            self.file_status.setStyleSheet("color: #d6a53a;")
             self.ok_button.setEnabled(True)
         else:
-            self.file_status.setText("RAW file size matches the profile")
-            self.file_status.setStyleSheet("")
+            self._set_status(
+                "match",
+                "File size matches the current data layout.",
+                QStyle.StandardPixmap.SP_DialogApplyButton,
+            )
             self.ok_button.setEnabled(True)
 
     def _accept_validated(self) -> None:
