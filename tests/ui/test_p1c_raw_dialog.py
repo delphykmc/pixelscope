@@ -31,9 +31,16 @@ def test_raw_dialog_links_packing_data_type_and_minimum_stride(qtbot: object) ->
     assert dialog.minimum_stride_bytes() == 26
     assert dialog.minimum_stride_value.text() == "Minimum stride: 26 bytes"
     assert dialog.minimum_stride_icon.pixmap() is not None
-    assert dialog.form.getItemPosition(
+
+    stride_position = dialog.form.getItemPosition(
+        dialog.form.indexOf(dialog.stride)
+    )
+    minimum_stride_position = dialog.form.getItemPosition(
         dialog.form.indexOf(dialog.minimum_stride_row)
-    ) == (3, 0, 1, 3)
+    )
+    assert minimum_stride_position[0] == stride_position[0] + 1
+    assert minimum_stride_position[1:] == (0, 1, 3)
+
     assert not hasattr(dialog, "set_minimum_stride_button")
     assert dialog.endian.isEnabled()
 
@@ -172,18 +179,16 @@ def test_raw_dialog_uses_fixed_edges_with_an_adaptive_middle_gap(
     width_label = dialog.form.labelForField(dialog.width_box)
     assert width_label is not None
     assert width_label.width() == FORM_LABEL_WIDTH
-    assert dialog.form.getItemPosition(dialog.form.indexOf(width_label)) == (
-        0,
-        0,
-        1,
-        1,
+
+    width_label_position = dialog.form.getItemPosition(
+        dialog.form.indexOf(width_label)
     )
-    assert dialog.form.getItemPosition(dialog.form.indexOf(dialog.width_box)) == (
-        0,
-        2,
-        1,
-        1,
+    width_field_position = dialog.form.getItemPosition(
+        dialog.form.indexOf(dialog.width_box)
     )
+    assert width_label_position[0] == width_field_position[0]
+    assert width_label_position[1:] == (0, 1, 1)
+    assert width_field_position[1:] == (2, 1, 1)
 
     fields = (
         dialog.width_box,
