@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pydantic import ValidationError
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -507,11 +507,17 @@ class RawOpenDialog(QDialog):
         current_page.adjustSize()
         self.black_level_stack.setFixedHeight(current_page.sizeHint().height())
         self.black_level_stack.updateGeometry()
+        QTimer.singleShot(0, self._resize_dialog_to_content)
 
+    def _resize_dialog_to_content(self) -> None:
         dialog_layout = self.layout()
         if dialog_layout is not None:
+            dialog_layout.invalidate()
             dialog_layout.activate()
-        self.adjustSize()
+
+        target_height = self.sizeHint().height()
+        if self.height() != target_height:
+            self.resize(self.width(), target_height)
 
     def _set_form_row_visible(self, field: QWidget, visible: bool) -> None:
         label = self.form.labelForField(field)
