@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 RAW_DIALOG = Path("src/pixelscope/ui/raw_open_dialog.py")
@@ -46,9 +47,9 @@ def patch_ui_smoke(text: str) -> str:
     )
 
 
-def update(path: Path, patcher: object) -> None:
+def update(path: Path, patcher: Callable[[str], str]) -> None:
     original = path.read_text(encoding="utf-8")
-    updated = patcher(original)  # type: ignore[operator]
+    updated = patcher(original)
     if updated == original:
         print(f"No changes required: {path}")
         return
