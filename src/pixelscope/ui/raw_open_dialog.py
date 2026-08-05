@@ -36,6 +36,7 @@ class RawOpenDialog(QDialog):
         self._profile_name = "unpacked_raw"
         self._source_path: Path | None = None
         self._actual_file_size: int | None = None
+        self._json_confirmation_option_available = False
 
         self.width_box = self._spin(1, 1_000_000, 640)
         self.height_box = self._spin(1, 1_000_000, 480)
@@ -172,6 +173,14 @@ class RawOpenDialog(QDialog):
         self.stride.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
         self.offset.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
         self.bit_depth.valueChanged.connect(self._bit_depth_changed)  # type: ignore[attr-defined]
+        for control in (
+            self.black_gray,
+            self.black_r,
+            self.black_gr,
+            self.black_gb,
+            self.black_b,
+        ):
+            control.valueChanged.connect(self._update_legacy_black_text)  # type: ignore[attr-defined]
         self.use_minimum_stride_button.clicked.connect(  # type: ignore[attr-defined]
             lambda: self.stride.setValue(self.minimum_stride_bytes())
         )
@@ -206,15 +215,21 @@ class RawOpenDialog(QDialog):
         return self._source_path
 
     def set_json_confirmation_option_visible(self, visible: bool) -> None:
+        self._json_confirmation_option_available = visible
         self.skip_json_confirmation.setChecked(False)
         self.skip_json_confirmation.setVisible(visible)
 
     def skip_json_confirmation_requested(self) -> bool:
-        return self.skip_json_confirmation.isVisible() and self.skip_json_confirmation.isChecked()
+        return (
+            self._json_confirmation_option_available
+            and self.skip_json_confirmation.isChecked()
+        )
+
+    def sample_size_bytes(self) -> int:
+        return 1 if self.dtype.currentText() == "uint8" else 2
 
     def minimum_stride_bytes(self) -> int:
-        item_size = 1 if self.dtype.currentText() == "uint8" else 2
-        return self.width_box.value() * item_size
+        return self.width_box.value() * self.sample_size_bytes()
 
     def expected_minimum_file_size(self) -> int:
         return (
@@ -277,8 +292,8 @@ class RawOpenDialog(QDialog):
             strict=True,
         ):
             control.setValue(value)
-        self.black.setText(", ".join(str(level) for level in levels))
         self.white.setValue(profile.white_level)
+        self._update_legacy_black_text()
         self._update_diagnostics()
 
     def _data_type_changed(self, data_type: str) -> None:
@@ -332,7 +347,7 @@ class RawOpenDialog(QDialog):
             label.setVisible(visible)
         field.setVisible(visible)
 
-    def _update_legacy_black_text(self) -> None:
+    def _update_legacy_black_text(self, _value: object = None) -> None:
         if self.layout_kind.currentText() == "BAYER":
             values = (
                 self.black_r.value(),
@@ -346,6 +361,9 @@ class RawOpenDialog(QDialog):
 
     def _update_diagnostics(self, _value: object = None) -> None:
         minimum_stride = self.minimum_stride_bytes()
+        item_size = self.sample_size_bytes()
+        stride_valid = self.stride.value() >= minimum_stride
+        stride_aligned = self.stride.value() % item_size == 0
         self.minimum_stride_value.setText(self._format_bytes(minimum_stride))
         expected = self.expected_minimum_file_size()
         self.expected_size_value.setText(
@@ -356,7 +374,7 @@ class RawOpenDialog(QDialog):
             self.source_path_value.setText("No RAW source selected")
             self.actual_size_value.setText("Actual file size: —")
             self.file_status.setText("")
-            self.ok_button.setEnabled(self.stride.value() >= minimum_stride)
+            self.ok_button.setEnabled(stride_valid and stride_aligned)
             return
 
         self.source_path_value.setText(str(self._source_path))
@@ -371,11 +389,16 @@ class RawOpenDialog(QDialog):
         self.actual_size_value.setText(
             f"Actual file size: {self._format_bytes(actual)}"
         )
-        stride_valid = self.stride.value() >= minimum_stride
         if not stride_valid:
             self.file_status.setText(
                 f"Error: stride is {minimum_stride - self.stride.value():,} bytes "
                 "smaller than one image row"
+            )
+            self.file_status.setStyleSheet("color: #ff5f56;")
+            self.ok_button.setEnabled(False)
+        elif not stride_aligned:
+            self.file_status.setText(
+                f"Error: stride must align to the {item_size}-byte sample size"
             )
             self.file_status.setStyleSheet("color: #ff5f56;")
             self.ok_button.setEnabled(False)
