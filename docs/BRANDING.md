@@ -52,11 +52,11 @@ From the repository root:
 .\.venv\Scripts\python.exe scripts\generate_icon_assets.py --check
 ```
 
-The first command rewrites the derived files. The second command renders again
-and fails unless the checked-in PNG and ICO exactly match the canonical SVG,
-renderer, alpha handling, frame sizes, and frame order. Review the 16–48 px
-outputs visually whenever the SVG changes; automatic downscaling is not a
-substitute for small-size legibility review.
+The first command rewrites the derived files from the SVG. The second command
+validates the SVG source, PNG decode/dimensions/transparency, and every ICO
+frame's dimensions, payload bounds, transparency, and ascending order without
+rewriting files. Review the 16–48 px outputs visually whenever the SVG changes;
+automatic downscaling is not a substitute for small-size legibility review.
 
 ## Runtime and packaging use
 
