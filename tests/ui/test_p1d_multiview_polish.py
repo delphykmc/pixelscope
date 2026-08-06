@@ -7,6 +7,7 @@ import pytest
 from PySide6.QtCore import QSettings
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.multi_compare_view import MultiCompareView
 
@@ -51,6 +52,19 @@ def test_primary_flag_is_visible_and_defaults_to_first_multi_view_image(
     assert all(
         flag.toolTip() in {"Set as primary image", "Primary image"} for flag in flags
     )
+
+
+def test_primary_flags_are_hidden_for_transient_split_channels(qtbot: object) -> None:
+    view = MultiCompareView()
+    qtbot.addWidget(view)  # type: ignore[attr-defined]
+    channels = split_document_channels(_documents(1)[0])
+    assert len(channels) == 3
+    view.set_capacity(4)
+    view.set_layout_kind("Multi View", None)
+    view.set_documents(channels, 0, len(channels), None, None)
+
+    assert view.focus_document_id is None
+    assert all(viewer.header.focus.isHidden() for viewer in view.occupied_viewers)
 
 
 @pytest.mark.parametrize("count", (2, 4, 6))
