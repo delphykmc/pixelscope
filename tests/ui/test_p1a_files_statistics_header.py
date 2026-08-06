@@ -184,15 +184,17 @@ def test_tile_header_switches_between_full_and_compact_metadata(
     assert header.name.toolTip() == str(source_path)
 
 
-def test_focus_pin_remains_limited_to_three_and_five_tile_layouts(qtbot: object) -> None:
+def test_primary_flag_is_available_in_four_and_five_tile_layouts(qtbot: object) -> None:
     view = MultiCompareView()
     qtbot.addWidget(view)  # type: ignore[attr-defined]
-    documents = [_rgb_document(f"pin-{index}.png", index) for index in range(5)]
+    documents = [_rgb_document(f"primary-{index}.png", index) for index in range(5)]
 
     view.set_capacity(4)
     view.set_documents(documents[:4], 0, 4, None, None)
-    assert all(viewer.header.focus.isHidden() for viewer in view.occupied_viewers)
+    assert all(not viewer.header.focus.isHidden() for viewer in view.occupied_viewers)
+    assert view.occupied_viewers[0].header.focus.isChecked()
 
     view.set_capacity(6)
     view.set_documents(documents, 0, 5, None, None)
     assert all(not viewer.header.focus.isHidden() for viewer in view.occupied_viewers)
+    assert view.occupied_viewers[0].header.focus.isChecked()
