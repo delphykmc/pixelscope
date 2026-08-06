@@ -62,6 +62,7 @@ class MultiCompareView(QWidget):
         self._layout_refit_active = False
         self._document_count = 0
         self._active_viewer: ImageViewer | None = None
+        self._pending_default_primary_id: str | None = None
         self.sync_enabled = True
         self.layout_kind = "Auto"
         self.arrangement = FIXED_MULTIVIEW_ARRANGEMENT
@@ -141,10 +142,17 @@ class MultiCompareView(QWidget):
             # Every Multi View has one primary image. The first displayed image is
             # the default until the user selects another primary image.
             self.focus_document_id = documents[0].document_id
-            if slot_by_id is not None:
+            if (
+                slot_by_id is not None
+                and self._pending_default_primary_id != documents[0].document_id
+            ):
+                self._pending_default_primary_id = documents[0].document_id
                 default_primary_document = documents[0]
-        elif self._document_count <= 1:
+        elif self._document_count > 1:
+            self._pending_default_primary_id = None
+        else:
             self.focus_document_id = None
+            self._pending_default_primary_id = None
         updates_were_enabled = self.updatesEnabled()
         if updates_were_enabled:
             self.setUpdatesEnabled(False)
@@ -204,11 +212,11 @@ class MultiCompareView(QWidget):
             self._finish_layout_refit()
         if default_primary_document is not None:
             # Defer MainWindow synchronization until the current render pass has
-            # completed; the connected handler performs one stable preserve-view
-            # render and does not alter Files selection order or logical IDs.
+            # completed. A later user choice or selection change invalidates this
+            # pending default before it can overwrite the newer state.
             QTimer.singleShot(
                 0,
-                lambda document=default_primary_document: self.focus_document_requested.emit(
+                lambda document=default_primary_document: self._emit_default_primary(
                     document
                 ),
             )
@@ -405,7 +413,14 @@ class MultiCompareView(QWidget):
             candidate.set_active(candidate is viewer)
         self.active_document_changed.emit(viewer.document)
 
+    def _emit_default_primary(self, document: ImageDocument) -> None:
+        if self._pending_default_primary_id != document.document_id:
+            return
+        self._pending_default_primary_id = None
+        self.focus_document_requested.emit(document)
+
     def _request_focus(self, viewer: object) -> None:
+        self._pending_default_primary_id = None
         if isinstance(viewer, ImageViewer) and viewer.document is not None:
             self.focus_document_requested.emit(viewer.document)
 
