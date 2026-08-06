@@ -134,21 +134,24 @@ class MultiCompareView(QWidget):
         anchor_range = self._current_shared_range() if not requires_refit else None
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
+        displayed_documents = documents[: self._document_count]
+        primary_controls_enabled = self._document_count > 1 and all(
+            not document.channel_layout.startswith("CHANNEL_")
+            for document in displayed_documents
+        )
         default_primary_document: ImageDocument | None = None
-        displayed_ids = {
-            document.document_id for document in documents[: self._document_count]
-        }
-        if self._document_count > 1 and self.focus_document_id not in displayed_ids:
-            # Every Multi View has one primary image. The first displayed image is
-            # the default until the user selects another primary image.
-            self.focus_document_id = documents[0].document_id
+        displayed_ids = {document.document_id for document in displayed_documents}
+        if primary_controls_enabled and self.focus_document_id not in displayed_ids:
+            # Every regular Multi View has one primary image. The first displayed
+            # image is the default until the user selects another primary image.
+            self.focus_document_id = displayed_documents[0].document_id
             if (
                 slot_by_id is not None
-                and self._pending_default_primary_id != documents[0].document_id
+                and self._pending_default_primary_id != displayed_documents[0].document_id
             ):
-                self._pending_default_primary_id = documents[0].document_id
-                default_primary_document = documents[0]
-        elif self._document_count > 1:
+                self._pending_default_primary_id = displayed_documents[0].document_id
+                default_primary_document = displayed_documents[0]
+        elif primary_controls_enabled:
             self._pending_default_primary_id = None
         else:
             self.focus_document_id = None
@@ -176,7 +179,9 @@ class MultiCompareView(QWidget):
                 viewer.set_focus(
                     document is not None and document.document_id == self.focus_document_id
                 )
-                viewer.set_focus_control_visible(document is not None and self._document_count > 1)
+                viewer.set_focus_control_visible(
+                    document is not None and primary_controls_enabled
+                )
                 viewer.set_document(document, fit=not preserve_view)
                 if document is None:
                     viewer.set_header("")
@@ -434,7 +439,6 @@ class MultiCompareView(QWidget):
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
         for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
-            viewer.set_focus_control_visible(count > 1)
             viewer.show()
         for row in range(3):
             self._layout.setRowStretch(row, row_stretches[row] if row < len(row_stretches) else 0)
