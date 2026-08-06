@@ -36,6 +36,7 @@ def test_primary_flag_is_visible_and_defaults_to_first_multi_view_image(
 ) -> None:
     view = MultiCompareView()
     qtbot.addWidget(view)  # type: ignore[attr-defined]
+    view.show()
     documents = _documents(count)
     view.set_capacity(2 if count <= 2 else 4 if count <= 4 else 6)
     view.set_layout_kind("Multi View", None)
@@ -57,6 +58,7 @@ def test_primary_flag_is_visible_and_defaults_to_first_multi_view_image(
 def test_primary_flags_are_hidden_for_transient_split_channels(qtbot: object) -> None:
     view = MultiCompareView()
     qtbot.addWidget(view)  # type: ignore[attr-defined]
+    view.show()
     channels = split_document_channels(_documents(1)[0])
     assert len(channels) == 3
     view.set_capacity(4)
