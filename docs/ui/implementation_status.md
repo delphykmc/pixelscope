@@ -1,8 +1,8 @@
 # PixelScope UI/performance iteration status
 
 Snapshot date: 2026-08-07  
-Current merged baseline: PR #12 / `main` at
-`1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
+Current runtime baseline: PR #12 merge commit  
+P2-0 branch base: `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
 
 ## Completed iterations
 
@@ -70,6 +70,7 @@ Implemented now:
 
 - Difference byte-budget LRU and diagnostics.
 - Fixed seven-document, count-based decoded-source residency.
+- Current residency protection inputs: visible documents and active load targets.
 - Bounded normal-load and numeric worker pools.
 
 Not implemented yet:
@@ -78,6 +79,7 @@ Not implemented yet:
 - Canonical application icon/resource foundation.
 - Startup injection of `PerformanceSettings`.
 - Byte-budgeted decoded-source residency.
+- Selected/analysis protection as explicit residency policy inputs.
 - One-group-ahead preload.
 - Runtime diagnostics UI/snapshot and Copy Diagnostics.
 
