@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-07  
-Reference runtime baseline: PR #12 merge commit  
-P2-0 branch base: `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
+Current `main` / P2-A branch base: `52daa63425a286e370aa5ef36f59ba51a8acd565`  
+Runtime code baseline: PR #12 merge commit `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
 
 This document records the implementation baseline that new work must use.
 
@@ -11,9 +11,11 @@ This document records the implementation baseline that new work must use.
 - P1-D merged as PR #10.
 - P1-E merged as PR #11.
 - P1-F merged as PR #12.
-- PR #12 merge commit and the P2-0 branch base are both
-  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
-- P2-0 is the documentation-only transition PR; the next runtime phase is P2-A.
+- P2-0 merged as PR #13 at
+  `52daa63425a286e370aa5ef36f59ba51a8acd565`; that commit is the P2-A branch base.
+- PR #13 changed durable documentation only, so the runtime code baseline remains
+  the PR #12 merge commit `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
+- The current runtime phase is P2-A.
 
 ## Implemented baseline
 
@@ -51,6 +53,13 @@ This document records the implementation baseline that new work must use.
 
 ### Runtime resources
 
+- Canonical icon assets are colocated at
+  `src/pixelscope/assets/icons/pixelscope.{svg,png,ico}`. The SVG is the editable
+  source, the 256 px indexed-color PNG is the Qt runtime asset, and the ICO contains
+  16–256 px Windows frames.
+- Application bootstrap reads the PNG through `importlib.resources` and assigns
+  it to `QApplication`; lookup is independent of the current working directory.
+- SVG, PNG, and ICO files are declared as setuptools package data.
 - `DifferenceMapCache` is a byte-budgeted LRU with a 512 MiB default.
 - Difference diagnostics expose `used_bytes`, `budget_bytes`, and `entry_count`.
 - `DifferencePanel` has a constructor injection seam for its cache budget.
@@ -74,8 +83,6 @@ This document records the implementation baseline that new work must use.
 
 - Settings dialog, typed application settings repository, migration service, and
   restart-required UI.
-- Canonical PixelScope application/window/taskbar icon and packaged-resource
-  foundation.
 - Byte-budgeted decoded-source setting and residency manager.
 - One-group-ahead preload.
 - Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export.
@@ -91,8 +98,13 @@ as passed by this documentation PR.
 The repository owner confirmed the P2-0 documentation checker and docs contract
 test passed locally.
 
+The P2-A identity slice remains a draft until the full repository contract and
+manual Windows title-bar, Alt+Tab, and taskbar checks are recorded.
+
 ## Active plan
 
 - P1 history: [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md)
 - P2 active plan: [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
-- Next implementation phase: P2-A — Application identity and Settings foundation.
+- Current implementation phase: P2-A — Application identity and Settings foundation.
+- The icon/resource slice is present; typed settings and Difference-cache startup
+  injection remain to complete P2-A.

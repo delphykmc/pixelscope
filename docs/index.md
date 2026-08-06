@@ -12,6 +12,7 @@ knowledge belongs in focused documents under `docs/`.
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
+| Branding/application identity | `BRANDING.md`, `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Product mark, canonical assets, resource loading, or release-icon use changes |
 | Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Runtime, dependency, installer, or resource-loading constraints change |
 | Test/validation | `QUALITY.md` | Required checks, fixtures, smoke paths, or evidence standards change |
 | Agent-assisted workflow | `AGENT_HARNESS_NOTES.md` | A durable harness lesson or guardrail changes |
@@ -25,6 +26,8 @@ knowledge belongs in focused documents under `docs/`.
   and lifecycle invariants; planned components are explicitly marked.
 - `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
+- `BRANDING.md`: canonical application identity, asset roles, visual constraints,
+  supported icon sizes, and release-tool consumption rules.
 - `PACKAGING_CONSTRAINTS.md`: deployment environment and fixed packaging rules.
 - `USER_GUIDE.md`: end-user workflows.
 - `QUALITY.md`: change-to-check matrix and completion evidence.

@@ -36,6 +36,13 @@
 - Performance settings are immutable startup snapshots. Changes to startup-only
   budgets or preload state require restart indication.
 - The P2-A Difference-cache default is confirmed as 512 MiB.
+- The current canonical PixelScope identity is a blue-gray image/scope/pixel mark
+  with a restrained amber accent. The editable SVG, runtime PNG, and Windows ICO
+  are colocated under `src/pixelscope/assets/icons/`; release naming or artwork
+  may replace the triplet before P7, but duplicate canonical copies are not
+  allowed.
+- Application icon lookup uses package-resource bytes and may not depend on the
+  current working directory or a source-tree absolute path.
 - Decoded-source budgeting accounts native decoded `ImageDocument.source`
   arrays only. It excludes previews, Qt textures, Difference/derived caches, and
   transient worker arrays and is not total process memory.
@@ -55,6 +62,8 @@
 
 ## Current versus planned resource policy
 
+- The canonical SVG/PNG/ICO icon triplet and package-resource loader are present;
+  `QApplication` receives the runtime PNG during bootstrap.
 - `DifferenceMapCache` is already byte-budgeted with diagnostics and a 512 MiB
   default.
 - Frozen `PerformanceSettings` exists but is not loaded/injected at bootstrap.
@@ -67,6 +76,5 @@
 
 These recommendations are not accepted values until the owner confirms them:
 
-- Canonical PixelScope icon design/asset — pending before P2-A.
 - Decoded-source budget default — recommendation: 1024 MiB; pending before P2-B.
 - Preload default — recommendation: Enabled; pending before P2-C.

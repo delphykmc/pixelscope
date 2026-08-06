@@ -2,7 +2,7 @@
 
 Status: Active  
 Owner: repository owner + P2 orchestration agents  
-Branch/PR: P2-0 `docs/p2-0-program-setup`; one scoped PR per later subphase  
+Branch/PR: P2-0 `docs/p2-0-program-setup`; P2-A `feature/p2-a-settings-identity`; one scoped PR per later subphase  
 Last updated: 2026-08-07
 
 ## Goal
@@ -41,6 +41,12 @@ reviewable.
 - PR #12 merged at
   `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`; that commit is also the P2-0
   branch base.
+- P2-0 merged as PR #13 at
+  `52daa63425a286e370aa5ef36f59ba51a8acd565`; P2-A starts from that latest
+  `main` commit.
+- The canonical blue-gray PixelScope SVG/PNG/ICO triplet, package-data declaration,
+  package-resource loader, and `QApplication` icon assignment are present in the
+  draft P2-A identity slice. Owner Windows visual validation remains pending.
 - `DifferenceMapCache` is already a byte-budgeted LRU. The default is 512 MiB;
   `used_bytes`, `budget_bytes`, and `entry_count` diagnostics exist.
 - `DifferencePanel` accepts `difference_cache_budget_bytes` in its constructor,
@@ -57,8 +63,8 @@ reviewable.
   `MainWindow._load_tokens`, the load-worker registry, and rejection of results
   from cancelled workers. `ImageLoadWorker` is not assumed to own a complete,
   meaningful document-generation identity contract.
-- Settings dialog, canonical application icon/resource foundation, decoded
-  source budget, preload, and diagnostics UI are not implemented.
+- Settings dialog, settings persistence/migration, decoded-source budget,
+  preload, and diagnostics UI are not implemented.
 
 ## Corrected assumptions
 
@@ -122,7 +128,7 @@ an unmerged predecessor.
 
 ### P2-0 — Program setup and roadmap transition
 
-Status: Complete in this PR  
+Status: Complete; merged as PR #13  
 Branch: `docs/p2-0-program-setup`
 
 - Preserve P1-D/P1-E/P1-F as completed durable history.
@@ -132,6 +138,7 @@ Branch: `docs/p2-0-program-setup`
 
 ### P2-A — Application identity and Settings foundation
 
+Status: In progress; draft identity/resource slice opened  
 Branch: `feature/p2-a-settings-identity`
 
 - PixelScope application/window/taskbar icon and canonical resource asset.
@@ -143,6 +150,9 @@ Branch: `feature/p2-a-settings-identity`
 - Settings dialog with restart-required indication and Reset Settings.
 - Difference-cache budget setting and startup injection with a confirmed 512 MiB
   default.
+
+The current draft implements the first two bullets only. It remains draft until
+the settings/persistence scope and required validation are complete.
 
 Explicit exclusions: decoded-source budget control, preload control, diagnostics
 dialog, credentials/tokens, installer, and signing.
@@ -284,7 +294,9 @@ benchmarks as merge gates.
 
 ### Required before P2-A
 
-- Canonical PixelScope icon design/asset — **Pending owner decision**.
+- Canonical PixelScope icon design/asset — **Confirmed:** blue-gray image/scope/
+  pixel mark with restrained amber accent; provisional until release naming and
+  final P7 branding review.
 - Difference-cache default — **Confirmed: 512 MiB**.
 
 ### Required before P2-B
@@ -310,6 +322,11 @@ Recommendations are not accepted defaults until the owner records a decision.
   contract test pass locally.
 - 2026-08-07: Review feedback corrected current residency protection inputs,
   durable baseline wording, and the Difference-cache default decision.
+- 2026-08-07: P2-0 merged as PR #13; P2-A branch created from merge commit
+  `52daa63425a286e370aa5ef36f59ba51a8acd565`.
+- 2026-08-07: Repository owner selected the provisional blue-gray canonical icon.
+  The draft P2-A identity slice added SVG/PNG/ICO assets, package-resource loading,
+  Qt bootstrap assignment, and focused asset/icon tests.
 
 ## Completion summary placeholder
 
