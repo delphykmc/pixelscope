@@ -133,6 +133,15 @@ class MultiCompareView(QWidget):
         anchor_range = self._current_shared_range() if not requires_refit else None
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
+        displayed_ids = {
+            document.document_id for document in documents[: self._document_count]
+        }
+        if self._document_count > 1 and self.focus_document_id not in displayed_ids:
+            # Every Multi View has one primary image. The first displayed image is
+            # the default until the user selects another primary image.
+            self.focus_document_id = documents[0].document_id
+        elif self._document_count <= 1:
+            self.focus_document_id = None
         updates_were_enabled = self.updatesEnabled()
         if updates_were_enabled:
             self.setUpdatesEnabled(False)
