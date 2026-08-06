@@ -1,8 +1,8 @@
 # Execution plan: P1-D to P1-F workspace polish
 
-Status: Active — P1-D merged; P1-E implemented and validated in PR #11; P1-F pending
-Owner: repository owner + coding agent  
-Branch/PR: one scoped PR per phase after PR #7  
+Status: Complete — P1-D and P1-E merged; P1-F implemented in the current PR
+Owner: repository owner + coding agent
+Branch/PR: one scoped PR per phase after PR #7
 Last updated: 2026-08-06
 
 ## Goal
@@ -23,8 +23,8 @@ The work is split into independently mergeable phases:
 | Phase | Status | Pull request |
 |---|---|---|
 | P1-D — Multi View ordering and atomic Split transitions | Merged and validated | PR #10 |
-| P1-E — Plots workspace completion | Implemented and validated; merge pending | PR #11 |
-| P1-F — fixed-layout compatibility cleanup | Pending | Separate scoped PR |
+| P1-E — Plots workspace completion | Merged and validated | PR #11 |
+| P1-F — fixed-layout compatibility cleanup | Implemented; local standard/manual validation pending | Current scoped PR |
 
 ## P1-D — completed behavior
 
@@ -150,33 +150,40 @@ grouping and separators, and long image-label elision.
 
 ## P1-F — fixed-layout compatibility cleanup
 
-This phase removes obsolete state only after P1-D and P1-E behavior is covered.
+P1-F is implemented as compatibility cleanup only; it adds no layout choice and
+does not redesign MainWindow.
 
-### Required behavior
+### Delivered behavior
 
-- Remove `_FixedArrangementRegistry`, arrangement fields/actions, and the
-  `ui/multiview_arrangement` QSettings key.
-- Replace arrangement-dependent startup, reset, and six-image Difference
-  restore paths with the single fixed-layout policy.
-- Ignore or safely discard legacy arrangement values without exposing a new
-  layout choice.
+- Removed `_FixedArrangementRegistry`, `MULTIVIEW_ARRANGEMENTS`,
+  `FIXED_MULTIVIEW_ARRANGEMENT`, and `TOP_FOCUS_ARRANGEMENT`.
+- Removed `MultiCompareView.arrangement`, `set_arrangement()`, and all MainWindow
+  arrangement fields, menu/action state, setter, and render calls.
+- Removed arrangement from `SixImageDiffRestoreState` and its capture/restore
+  path.
+- Startup no longer reads `ui/multiview_arrangement`; save no longer writes it;
+  Reset Workspace Layout removes the legacy key when present.
+- `_fixed_geometry()` remains the sole one-to-six Multi View geometry policy.
 
 ### Preserved behavior
 
-- Fixed one-to-six-image geometry.
-- Primary ordering established by P1-D.
-- Active document and synchronized ranges.
-- Six-source Difference restoration.
-- Current startup and workspace reset outcomes except for removal of obsolete
-  arrangement state.
+- Exact one-to-six placements and row/column stretch values.
+- P1-D primary ordering, Files selection order, logical slot badges, viewer
+  reuse, synchronized ranges, Split Channels replacement, and folder navigation.
+- P1-E Plots persistence, gestures, selected-tab persistence, Statistics, and
+  workspace reset behavior.
+- Exact six-source Difference restoration of layout mode, primary, active
+  document, page/current indices, display order, logical slots, and view state.
 
-### Tests
+### Tests and validation
 
-- One-to-six fixed geometry.
-- Primary ordering and logical slot preservation.
-- Legacy setting handling.
-- Startup and reset behavior.
-- Six-source Difference restoration.
+- Added focused coverage for geometry, primary ordering, legacy settings,
+  obsolete symbol absence, reset behavior, and six-source restoration.
+- Patch-generation validation covers the documentation contract, Python syntax,
+  and diff cleanliness.
+- The pinned CPython 3.10 full suite and manual Windows checks remain required
+  after local patch application; unexecuted checks must not be reported as
+  passing.
 
 ## Scope exclusions
 
@@ -219,8 +226,8 @@ No packaging tools are part of these phases.
 ## Phase dependencies and review boundaries
 
 1. **P1-D:** merged in PR #10; establishes primary-order semantics, Page Up/Page Down ownership, and atomic Split transitions.
-2. **P1-E:** implemented and validated in PR #11; completes Plots, gesture, and Statistics workspace behavior.
-3. **P1-F:** next and last; removes compatibility state after P1-D/P1-E behavior is mechanically protected.
+2. **P1-E:** merged and validated in PR #11; completes Plots, gesture, and Statistics workspace behavior.
+3. **P1-F:** implemented in the current scoped PR; removes compatibility state after P1-D/P1-E behavior is mechanically protected.
 
 Each phase must remain independently mergeable and must not carry deferred code
 for a later phase.
@@ -248,6 +255,9 @@ for a later phase.
 - 2026-08-06: PR #10 merged into `main` at `e79f9bd15085d9a492b67f3c9beb81e897ff0a0b`.
 - 2026-08-06: Completed P1-E Plots persistence, gesture/shortcut cleanup, Statistics workspace polish, and action-ownership cleanup in PR #11.
 - 2026-08-06: Repository owner confirmed the complete P1-E standard validation suite and manual Windows behavior checks pass.
+- 2026-08-06: PR #11 merged into `main`; P1-F started from main commit `175905105a1679ff0142ddcb3e2acaca28d1da64`.
+- 2026-08-06: Removed arrangement compatibility runtime/QSettings/restore state and added focused P1-F regression coverage.
+- 2026-08-06: No completed-plan directory exists, so this plan remains at the required active path with `Status: Complete`.
 
 ## P1-D completion summary
 
@@ -281,5 +291,21 @@ for a later phase.
 - **Remaining limitations:** mixed-dimension Full image bounds wording and
   richer native-range diagnostics are deferred; multi-monitor placement remains
   a future robustness check.
-- **Follow-up:** merge PR #11, then implement P1-F on updated `main`.
+- **Follow-up:** P1-F is implemented separately on updated `main`.
 - **Durable docs:** `docs/USER_GUIDE.md`, this execution plan, and PR #11.
+
+
+## P1-F completion summary
+
+- **Delivered behavior:** fixed Multi View geometry now has no arrangement
+  registry, runtime field, menu/action, QSettings read/write path, or six-source
+  restore dependency.
+- **Changed areas:** `multi_compare_view.py`, `main_window.py`, focused UI tests,
+  and durable state/roadmap documentation.
+- **Validation:** documentation contract, Python syntax, and generated patch
+  cleanliness confirmed in the patch environment; pinned full-suite and manual
+  Windows checks remain local.
+- **Remaining limitations:** only the explicitly deferred backlog; no new phase
+  is introduced.
+- **Durable docs:** `CURRENT_STATE.md`, `ROADMAP.md`,
+  `ui/implementation_status.md`, this execution plan, and the P1-F PR.
