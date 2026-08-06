@@ -113,12 +113,12 @@ def tile_header_style() -> str:
         f"QLabel#slotBadge {{ background: {TOKENS.raised_background}; "
         f"color: {TOKENS.text_primary}; padding: 1px 5px; font-weight: 700; }}"
         f"QLabel#tileMeta {{ color: {TOKENS.text_secondary}; }}"
-        "QToolButton#focusPin { background: transparent; border: 1px solid transparent; }"
-        f"QToolButton#focusPin:hover {{ background: {TOKENS.raised_background}; "
+        "QToolButton#primaryFlag { background: transparent; border: 1px solid transparent; }"
+        f"QToolButton#primaryFlag:hover {{ background: {TOKENS.raised_background}; "
         f"border-color: {TOKENS.border}; }}"
-        f"QToolButton#focusPin:checked {{ background: {TOKENS.raised_background}; "
+        f"QToolButton#primaryFlag:checked {{ background: {TOKENS.raised_background}; "
         f"border-color: {TOKENS.accent}; }}"
-        f"QToolButton#focusPin:pressed {{ background: {TOKENS.workspace_background}; "
+        f"QToolButton#primaryFlag:pressed {{ background: {TOKENS.workspace_background}; "
         f"border-color: {TOKENS.accent}; }}"
     )
 

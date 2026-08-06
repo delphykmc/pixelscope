@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from pixelscope.core.image_document import ImageDocument
@@ -61,6 +62,7 @@ class MultiCompareView(QWidget):
         self._setting_documents = False
         self._layout_refit_active = False
         self._document_count = 0
+        self._primary_controls_enabled = False
         self._active_viewer: ImageViewer | None = None
         self.sync_enabled = True
         self.layout_kind = "Auto"
@@ -133,7 +135,30 @@ class MultiCompareView(QWidget):
         anchor_range = self._current_shared_range() if not requires_refit else None
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
+        displayed_documents = documents[: self._document_count]
+        self._primary_controls_enabled = self._document_count > 1 and all(
+            not document.channel_layout.startswith("CHANNEL_")
+            for document in displayed_documents
+        )
+        displayed_ids = {document.document_id for document in displayed_documents}
+        if self._primary_controls_enabled and self.focus_document_id not in displayed_ids:
+            # The first displayed image is the implicit primary until the user
+            # explicitly selects another image. MainWindow already uses the first
+            # displayed image as its analysis/reference fallback, so no extra render
+            # or deferred state synchronization is needed here.
+            self.focus_document_id = displayed_documents[0].document_id
+        elif not self._primary_controls_enabled:
+            self.focus_document_id = None
+        updates_were_enabled = self.updatesEnabled()
+        if updates_were_enabled:
+            self.setUpdatesEnabled(False)
         try:
+            # Apply the final geometry and visibility before replacing tile content.
+            # This prevents Qt from painting a newly bound one-view document in the
+            # previous split grid during Bayer/RGB-to-GRAY transitions.
+            self._arrange_viewers(self._document_count)
+            self._layout.activate()
+            controls_realized = self.isVisible() or self._document_count in (3, 5)
             for slot, viewer in enumerate(self.visible_viewers):
                 document = documents[slot] if slot < len(documents) else None
                 role = ""
@@ -148,7 +173,11 @@ class MultiCompareView(QWidget):
                 viewer.set_focus(
                     document is not None and document.document_id == self.focus_document_id
                 )
-                viewer.set_focus_control_visible(document is not None and self._document_count > 1)
+                viewer.set_focus_control_visible(
+                    document is not None
+                    and self._primary_controls_enabled
+                    and controls_realized
+                )
                 viewer.set_document(document, fit=not preserve_view)
                 if document is None:
                     viewer.set_header("")
@@ -158,8 +187,11 @@ class MultiCompareView(QWidget):
                 viewer.set_roi_bounds(roi)
                 viewer.set_line_selection(line)
         finally:
+            if updates_were_enabled:
+                self.setUpdatesEnabled(True)
             self._setting_documents = False
-        self._arrange_viewers(self._document_count)
+        if updates_were_enabled:
+            self.update()
         active = next(
             (
                 viewer
@@ -308,6 +340,23 @@ class MultiCompareView(QWidget):
         for viewer in self.viewers:
             viewer.set_interaction_mode(mode)
 
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._sync_primary_control_visibility(True)
+
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
+        self._sync_primary_control_visibility(False)
+        super().hideEvent(event)
+
+    def _sync_primary_control_visibility(self, workspace_visible: bool) -> None:
+        for viewer in self.viewers:
+            viewer.set_focus_control_visible(
+                workspace_visible
+                and self._primary_controls_enabled
+                and viewer.document is not None
+                and not viewer.isHidden()
+            )
+
     def _on_cursor(self, viewer: ImageViewer, x: int, y: int, value: object) -> None:
         document = viewer.document
         if document is None:
@@ -386,7 +435,6 @@ class MultiCompareView(QWidget):
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
         for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
-            viewer.set_focus_control_visible(count in (3, 5))
             viewer.show()
         for row in range(3):
             self._layout.setRowStretch(row, row_stretches[row] if row < len(row_stretches) else 0)

@@ -28,11 +28,22 @@ Histogram and Line Profile live in a bottom `QDockWidget`. It can be hidden,
 floated, maximized, and restored. `QSettings` currently persists main geometry,
 dock state, splitter state, layout mode, the compatibility arrangement value,
 Plots visibility, and selected bottom tab. Independent floating geometry and
-title-bar double-click behavior remain P1-D work.
+title-bar double-click behavior remain P1-E work.
 
-Multi View uses one fixed layout policy: side-by-side for two, focus layouts for
-three and five, 2×2 for four, and 3×2 for six. A compatibility registry still
-accepts one canonical arrangement value while legacy state is removed.
+Multi View uses one fixed layout policy: side-by-side for two, enlarged
+primary-first layouts for three and five, 2×2 for four, and 3×2 for six. The
+first displayed image is the implicit primary when no valid explicit primary
+exists. MainWindow retains the explicit primary identity in
+`_focus_document_id` and owns display promotion through `_multi_display_order`;
+Files selection order and logical document IDs are not mutated. A compatibility
+registry still accepts one canonical arrangement value until P1-F removes
+legacy state.
+
+Split Channels uses fixed transient component order. Target viewer geometry and
+visibility are applied before replacement channel content is bound, and updates
+are suppressed only for the replacement batch. This keeps Bayer/RGB-to-GRAY
+transitions visually atomic without changing loading-placeholder or stale-result
+rules.
 
 ## Thread, request, and document lifecycle
 

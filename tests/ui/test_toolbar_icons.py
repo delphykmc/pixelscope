@@ -28,6 +28,7 @@ from pixelscope.ui.toolbar_icons import toolbar_icon
         "dock",
         "export",
         "pin",
+        "flag",
     ),
 )
 def test_toolbar_icon_factory_has_explicit_interaction_states(kind: str) -> None:
@@ -49,22 +50,31 @@ def test_toolbar_icon_factory_rejects_unknown_kind() -> None:
         toolbar_icon("unknown")
 
 
-def test_focus_pin_uses_checked_state_instead_of_platform_pixmaps(qtbot: object) -> None:
+def test_primary_flag_uses_checked_state_and_clear_terminology(qtbot: object) -> None:
     header = TileHeader()
     qtbot.addWidget(header)  # type: ignore[attr-defined]
     header.set_focus_control_visible(True)
 
-    assert header.focus.objectName() == "focusPin"
+    assert header.focus.objectName() == "primaryFlag"
+    assert header.focus.accessibleName() == "Primary image"
     assert header.focus.isCheckable()
     assert not header.focus.icon().isNull()
+    assert header.focus.statusTip() == (
+        "Set as primary image and move it to the first tile"
+    )
+
+    size = QSize(16, 16)
+    hover_outline = header.focus.icon().pixmap(size, QIcon.Mode.Active, QIcon.State.Off)
+    checked_fill = header.focus.icon().pixmap(size, QIcon.Mode.Normal, QIcon.State.On)
+    assert hover_outline.cacheKey() != checked_fill.cacheKey()
 
     header.set_focus(False)
     assert not header.focus.isChecked()
-    assert header.focus.toolTip() == "Pin as focus tile"
+    assert header.focus.toolTip() == "Set as primary image"
 
     header.set_focus(True)
     assert header.focus.isChecked()
-    assert header.focus.toolTip() == "Focus tile is pinned"
+    assert header.focus.toolTip() == "Primary image"
 
 
 def test_main_toolbar_uses_distinct_internal_icons_and_compact_labels(qtbot: object) -> None:

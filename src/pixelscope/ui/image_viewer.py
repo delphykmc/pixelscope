@@ -14,7 +14,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QKeyEvent, QKeySequence, QPainter, QPen, QShortcut
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsSceneResizeEvent, QVBoxLayout, QWidget
 
 from pixelscope.core.image_document import ImageDocument
@@ -125,7 +125,7 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
             return
         super().mouseDragEvent(event, axis)
 
-    def mouseClickEvent(self, event: Any) -> None:  # noqa: N802
+    def mouseClickEvent(self, event: Any) -> None:
         if event.button() == Qt.MouseButton.LeftButton and event.double():
             self.roi_reset_requested.emit()
             event.accept()
@@ -539,6 +539,27 @@ class ImageViewer(QWidget):
             return
         self.show_cursor(x, y)
         self.cursor_moved.emit(x, y, value)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        sequence: QKeySequence | None = None
+        if event.key() == Qt.Key.Key_PageUp:
+            sequence = QKeySequence(Qt.Key.Key_PageUp)
+        elif event.key() == Qt.Key.Key_PageDown:
+            sequence = QKeySequence(Qt.Key.Key_PageDown)
+        if sequence is not None:
+            shortcut = next(
+                (
+                    item
+                    for item in self.window().findChildren(QShortcut)
+                    if item.isEnabled() and item.key() == sequence
+                ),
+                None,
+            )
+            if shortcut is not None:
+                shortcut.activated.emit()
+                event.accept()
+                return
+        super().keyPressEvent(event)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if watched is self._graphics.viewport() and event.type() == QEvent.Type.MouseButtonPress:

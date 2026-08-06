@@ -13,14 +13,20 @@ results.
 - Ordered multi-selection and atomic Page Up/Page Down folder navigation.
 - Auto, Single, and Multi View with synchronized cursor, zoom, offset, ROI, and
   line coordinates.
-- Fixed two/three/four/five/six-image layouts with focus promotion in three and
-  five views.
+- Fixed two/three/four/five/six-image layouts with primary-image ordering for
+  every Multi View containing at least two images.
+- The first displayed image is the implicit primary. Selecting another primary
+  moves it to the first tile without changing Files selection order or logical
+  image IDs.
+- Two-, four-, and six-image layouts retain equal tile sizes; three- and
+  five-image layouts enlarge the first, primary tile.
 - Structured status for active file, format/resolution, coordinate, pixel value,
   zoom, and background work.
 - Statistics with explicit image/channel fields and full-image/ROI scope.
 - Histogram Auto/256/1024/4096 bins with Count, Normalized, and Log count.
 - Horizontal/vertical Line Profile with explicit reference selection in
-  Difference-from-reference mode.
+  Difference-from-reference mode. Reference priority starts with the primary
+  image, then the active image, then the first displayed image.
 - RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
 - Order-independent native absolute Difference cache with Absolute/Mask display,
   ROI metrics, LRU eviction, and diagnostics.
