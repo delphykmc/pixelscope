@@ -158,6 +158,7 @@ class MultiCompareView(QWidget):
             # previous split grid during Bayer/RGB-to-GRAY transitions.
             self._arrange_viewers(self._document_count)
             self._layout.activate()
+            controls_realized = self.isVisible() or self._document_count in (3, 5)
             for slot, viewer in enumerate(self.visible_viewers):
                 document = documents[slot] if slot < len(documents) else None
                 role = ""
@@ -175,7 +176,7 @@ class MultiCompareView(QWidget):
                 viewer.set_focus_control_visible(
                     document is not None
                     and self._primary_controls_enabled
-                    and self.isVisible()
+                    and controls_realized
                 )
                 viewer.set_document(document, fit=not preserve_view)
                 if document is None:
