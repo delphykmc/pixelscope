@@ -22,8 +22,8 @@ knowledge belongs in focused documents under `docs/`.
   prioritized backlog.
 - `PRODUCT_SPEC.md`: stable user-visible contracts.
 - `ARCHITECTURE.md`: current component boundaries, state ownership, data flow,
-  and lifecycle invariants.
-- `DECISIONS.md`: accepted engineering decisions and temporary constraints.
+  and lifecycle invariants; planned components are explicitly marked.
+- `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
 - `PACKAGING_CONSTRAINTS.md`: deployment environment and fixed packaging rules.
 - `USER_GUIDE.md`: end-user workflows.
@@ -31,7 +31,8 @@ knowledge belongs in focused documents under `docs/`.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
-- `exec-plans/active/`: plans currently being executed.
+- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current P2 execution plan.
+- [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md): retained P1 workspace-polish rationale and completion evidence.
 - `exec-plans/completed/`: retained plans whose rationale remains useful.
 - `exec-plans/TEMPLATE.md`: standard long-work format.
 
@@ -48,6 +49,8 @@ knowledge belongs in focused documents under `docs/`.
    removal condition.
 8. Use an execution plan when work crosses components, has unresolved design
    choices, or is likely to span multiple commits or sessions.
+9. Move substantial completed plans to `exec-plans/completed/` and keep the
+   required active plan at `exec-plans/active/next-phase.md`.
 
 ## Mechanical documentation check
 
