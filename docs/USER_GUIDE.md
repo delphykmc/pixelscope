@@ -8,8 +8,9 @@ Ctrl/Shift selection forms the ordered comparison set; up to six source images
 can be visible.
 
 When one file is selected from each participating folder, Page Down/Page Up
-moves every folder atomically in natural filename order. If any folder reaches
-an endpoint, no folder changes.
+moves every folder atomically in natural filename order. The shortcuts work
+while the Files view or a visible image tile has focus. If any folder reaches
+an endpoint, no folder changes and the status bar reports the boundary.
 
 ## View and navigate
 
@@ -17,7 +18,15 @@ an endpoint, no folder changes.
 - **Single View** shows the active image. Use Left/Right, keys 1–6, or header
   navigation without changing zoom or offset.
 - **Multi View** uses fixed layouts for two through six images.
-- The focus control promotes an image in the three- and five-image layouts.
+- Every regular Multi View containing two through six images shows a primary
+  flag. The first displayed image is the implicit primary until another flag is
+  selected.
+- Selecting a primary flag moves that image to the first tile without changing
+  Files selection order or image IDs.
+- Two-, four-, and six-image layouts keep equal tile sizes. Three- and
+  five-image layouts enlarge the first, primary tile.
+- Split Channels component tiles do not show primary flags because their
+  R/G/B or Bayer order is fixed.
 - **Fit** fits visible tiles; **100%** uses native pixel scale.
 - **Split Channels** shows RGB or Bayer channel views and retains its checked
   state while another supported image loads.
@@ -52,9 +61,9 @@ Line Profile supports Overlay, Separate by image, and Separate by channel
 views. Legends use compact image-ID/channel labels.
 
 When Y mode is **Difference from reference**, a Reference selector appears.
-The initial reference is focused/pinned, then active, then first displayed.
-The selected reference remains stable while that document is available and is
-rendered as exact zero.
+The initial reference is the primary image, then the active image, then the
+first displayed image. The selected reference remains stable while that
+document is available and is rendered as exact zero.
 
 ## Difference
 

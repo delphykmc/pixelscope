@@ -2,7 +2,7 @@
 
 Status: Active — P1-D complete; P1-E and P1-F pending  
 Owner: repository owner + coding agent  
-Branch/PR: one focused PR per phase after PR #7  
+Branch/PR: one scoped PR per phase after PR #7  
 Last updated: 2026-08-06
 
 ## Goal
@@ -22,14 +22,14 @@ The work is split into independently mergeable phases:
 
 | Phase | Status | Pull request |
 |---|---|---|
-| P1-D — Multi View ordering and atomic Split transitions | Complete; validated locally; pending merge | PR #10 |
-| P1-E — Plots workspace completion | Pending | Separate focused PR |
-| P1-F — fixed-layout compatibility cleanup | Pending | Separate focused PR |
+| P1-D — Multi View ordering and atomic Split transitions | Complete and validated; pending merge | PR #10 |
+| P1-E — Plots workspace completion | Pending | Separate scoped PR |
+| P1-F — fixed-layout compatibility cleanup | Pending | Separate scoped PR |
 
 ## P1-D — completed behavior
 
 P1-D owns user-visible behavior in `multi_compare_view.py`, tile headers,
-shared toolbar icons, and focused Multi View UI tests.
+shared toolbar icons, and targeted Multi View UI tests.
 
 ### Primary-image interaction
 
@@ -42,7 +42,7 @@ shared toolbar icons, and focused Multi View UI tests.
   change when display order changes.
 - Two-, four-, and six-view layouts retain equal-sized geometry; only display
   order changes.
-- Three- and five-view layouts retain the existing enlarged first tile.
+- Three- and five-view layouts retain the enlarged first, primary tile.
 - Primary controls use layout-neutral terminology:
   - unchecked: `Set as primary image`;
   - checked: `Primary image`;
@@ -54,7 +54,7 @@ shared toolbar icons, and focused Multi View UI tests.
 
 ### Atomic Split Channels transition
 
-`MultiCompareView.set_documents()` now determines the target document count,
+`MultiCompareView.set_documents()` determines the target document count,
 applies final geometry and visibility, and only then binds replacement content.
 Updates are suppressed only for the replacement batch and one final repaint is
 requested afterward.
@@ -65,28 +65,34 @@ result behavior.
 
 ### Shortcut ownership cleanup
 
-PageUp/PageDown folder-pair navigation remains owned by MainWindow application
+Page Up/Page Down folder-pair navigation remains owned by MainWindow application
 shortcuts. `ImageViewer` no longer calls MainWindow folder-navigation methods by
 name; viewer key handling routes through the registered shortcut instead.
 
 ### Preserved invariants
 
 - `_multi_display_order` remains the display-order owner.
-- `_focus_document_id` remains the explicit primary/reference identity while
-  valid.
+- `_focus_document_id` remains the internal explicit primary/reference identity
+  while valid.
 - Files selection order and document IDs remain unchanged.
 - Viewer objects and synchronized ranges are preserved during promotion.
-- Difference priority and existing three-/five-view focus geometry are retained.
+- Difference priority and enlarged three-/five-view primary-first geometry are
+  retained.
 - Single View header navigation does not rebuild the workspace.
 - Split Channels component order remains fixed.
 - Six-source restore behavior is not changed by P1-D.
 
 ### P1-D validation evidence
 
-The repository owner confirmed after the final shortcut cleanup that:
+The repository owner confirmed after the final shortcut and documentation
+cleanup that:
 
-- the full automated test suite passes;
-- folder-pair PageUp/PageDown navigation works from the Files view and visible
+- `scripts/check_docs.py` passes;
+- the full pytest suite passes;
+- Ruff lint and formatting checks pass;
+- mypy passes for `src`;
+- `pip check` passes;
+- folder-pair Page Up/Page Down navigation works from the Files view and visible
   image tiles;
 - paired folders advance and retreat together;
 - first/last boundary navigation leaves selection unchanged and reports the
@@ -95,8 +101,7 @@ The repository owner confirmed after the final shortcut cleanup that:
   Views;
 - Split Channels transitions no longer expose the transient old-grid frame.
 
-The final documentation change still requires `scripts/check_docs.py` to be run
-from the pinned project environment before PR #10 is marked ready.
+P1-D has no pending validation item.
 
 ## P1-E — Plots workspace completion
 
@@ -203,9 +208,9 @@ No packaging tools are part of these phases.
 | Primary semantics unexpectedly change analysis/reference priority | reference-selection tests | retain `_focus_document_id` and existing priority rules |
 | Reordering even views changes selection or logical IDs | ordering tests | mutate only `_multi_display_order` |
 | Split batching introduces blank or stale frames | transition-order and placeholder tests | apply final geometry first and suppress updates only for the batch |
-| PageUp/PageDown behavior depends on a hidden viewer | visible-widget shortcut tests and manual check | keep navigation in application shortcuts and target realized widgets |
+| Page Up/Page Down behavior depends on a hidden viewer | visible-widget shortcut tests and manual check | keep navigation in application shortcuts and target realized widgets |
 | Qt saves stale floating geometry | restart tests and manual multi-monitor check | save only valid floating geometry and validate restore |
-| Double-click conflicts with title dragging | focused event test and manual title-bar check | reuse the existing maximize/restore state machine |
+| Double-click conflicts with title dragging | targeted event test and manual title-bar check | reuse the existing maximize/restore state machine |
 | Removing arrangement state breaks restore | layout and six-source tests | perform P1-F only after P1-D/E coverage is merged |
 | QSettings tests become order-dependent | full-suite run | isolate settings and clear state per test |
 
@@ -235,9 +240,11 @@ for a later phase.
 - 2026-08-06: Completed P1-D primary flags, implicit/explicit primary ordering,
   equal even-view geometry, and atomic Split replacement in PR #10.
 - 2026-08-06: Removed direct ImageViewer-to-MainWindow method-name coupling for
-  folder-pair PageUp/PageDown handling.
-- 2026-08-06: Repository owner confirmed the final automated suite and manual
-  Windows behavior checks pass.
+  folder-pair Page Up/Page Down handling.
+- 2026-08-06: Repository owner confirmed the full standard validation suite and
+  manual Windows behavior checks pass.
+- 2026-08-06: Updated durable product/user/architecture documentation to use
+  primary-image terminology.
 
 ## P1-D completion summary
 
@@ -245,10 +252,11 @@ for a later phase.
   two-to-six-image Multi Views; atomic Split Channels replacement; shortcut
   ownership cleanup.
 - **Changed areas:** Multi View layout/content binding, tile header styling and
-  icons, image-viewer shortcut routing, and focused UI regression tests.
-- **Validation:** full automated suite confirmed locally by the repository
-  owner; targeted manual Windows checks confirmed.
-- **Remaining limitations:** final documentation checker must be rerun after
-  this roadmap update.
-- **Follow-up:** P1-E and P1-F remain separate focused phases.
-- **Durable docs:** this active execution plan and PR #10 description.
+  icons, image-viewer shortcut routing, durable documentation, and targeted UI
+  regression tests.
+- **Validation:** full standard validation suite confirmed locally by the
+  repository owner; targeted manual Windows checks confirmed.
+- **Remaining limitations:** none identified within P1-D scope.
+- **Follow-up:** P1-E and P1-F remain separate scoped phases.
+- **Durable docs:** `USER_GUIDE.md`, `PRODUCT_SPEC.md`, `ARCHITECTURE.md`,
+  `CURRENT_STATE.md`, `ROADMAP.md`, this execution plan, and PR #10.
