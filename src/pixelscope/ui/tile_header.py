@@ -57,7 +57,7 @@ class TileHeader(QWidget):
         self.focus.setIcon(toolbar_icon("pin"))
         self.focus.setIconSize(QSize(TOKENS.icon_size, TOKENS.icon_size))
         self.focus.setCheckable(True)
-        self.focus.setToolTip("Pin as focus tile")
+        self.focus.setToolTip("Pin to first tile")
         self.focus.setAutoRaise(True)
         self.focus.setFixedSize(TOKENS.control_height, TOKENS.control_height)
         self.focus.hide()
@@ -126,7 +126,7 @@ class TileHeader(QWidget):
         self.focus.setChecked(focused)
         self.focus.blockSignals(False)
         self.focus.setAutoRaise(not focused)
-        self.focus.setToolTip("Focus tile is pinned" if focused else "Pin as focus tile")
+        self.focus.setToolTip("First tile is pinned" if focused else "Pin to first tile")
 
     def set_focus_control_visible(self, visible: bool) -> None:
         self.focus.setVisible(visible)
