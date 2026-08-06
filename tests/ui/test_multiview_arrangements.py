@@ -67,9 +67,10 @@ FIXED_GEOMETRY = {
 
 
 @pytest.mark.parametrize("count", range(1, 7))
-def test_fixed_geometry_and_pin_visibility(qtbot: object, count: int) -> None:
+def test_fixed_geometry_and_primary_visibility(qtbot: object, count: int) -> None:
     view = MultiCompareView()
     qtbot.addWidget(view)  # type: ignore[attr-defined]
+    view.show()
     documents = _documents(count)
     capacity = 2 if count <= 2 else 4 if count <= 4 else 6
     view.set_capacity(capacity)
@@ -182,7 +183,7 @@ def test_difference_becomes_focus_for_three_and_five_tiles(
     window.close()
 
 
-def test_focus_pin_reorders_three_view_without_changing_selection_order(qtbot: object) -> None:
+def test_primary_reorders_three_view_without_changing_selection_order(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     documents = _documents(3)
