@@ -1,0 +1,61 @@
+# PixelScope documentation map
+
+The repository is the system of record. `AGENTS.md` is the entry map; durable
+knowledge belongs in focused documents under `docs/`.
+
+## Read by task
+
+| Task type | Read first | Update when |
+|---|---|---|
+| Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
+| User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `ui/` note | Behavior, terminology, shortcut, or workflow changes |
+| Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
+| Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
+| RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
+| Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Runtime, dependency, installer, or resource-loading constraints change |
+| Test/validation | `QUALITY.md` | Required checks, fixtures, smoke paths, or evidence standards change |
+| Agent-assisted workflow | `AGENT_HARNESS_NOTES.md` | A durable harness lesson or guardrail changes |
+
+## Document roles
+
+- `CURRENT_STATE.md`: dated implementation baseline, corrected assumptions, and
+  prioritized backlog.
+- `PRODUCT_SPEC.md`: stable user-visible contracts.
+- `ARCHITECTURE.md`: current component boundaries, state ownership, data flow,
+  and lifecycle invariants.
+- `DECISIONS.md`: accepted engineering decisions and temporary constraints.
+- `ROADMAP.md`: phase-level delivered and future scope.
+- `PACKAGING_CONSTRAINTS.md`: deployment environment and fixed packaging rules.
+- `USER_GUIDE.md`: end-user workflows.
+- `QUALITY.md`: change-to-check matrix and completion evidence.
+- `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
+- `ui/implementation_status.md`: detailed UI iteration audit.
+- `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
+- `exec-plans/active/`: plans currently being executed.
+- `exec-plans/completed/`: retained plans whose rationale remains useful.
+- `exec-plans/TEMPLATE.md`: standard long-work format.
+
+## Maintenance rules
+
+1. Keep each fact in one authoritative document and link to it elsewhere.
+2. State what is true now; do not leave completed work described as future work.
+3. Prefer focused documents over a growing monolithic instruction file.
+4. Record stable invariants, concrete paths, commands, states, and failure
+   conditions rather than chat history.
+5. Update documentation in the same PR as behavior or architecture changes.
+6. Rewrite or remove stale guidance instead of appending contradictory notes.
+7. Keep temporary compatibility paths explicitly marked with an owner and
+   removal condition.
+8. Use an execution plan when work crosses components, has unresolved design
+   choices, or is likely to span multiple commits or sessions.
+
+## Mechanical documentation check
+
+Run from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_docs.py
+```
+
+The check verifies required harness files and local Markdown links. Pytest also
+runs the same contract through `tests/unit/test_docs_contract.py`.

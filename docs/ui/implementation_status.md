@@ -1,149 +1,112 @@
 # PixelScope UI/performance iteration status
 
-## Baseline
+Snapshot date: 2026-08-06  
+Current merged baseline: PR #9 on `main`
 
-- Original iteration baseline: `ea64b1d8fda331e3f85dbfa0181d772974358e74`
-- P0-A correction merge: `1606503a08b24b73e77f9fb4784d22c2339d6f59`
-- P0-B merge: `b0ee42a9757337947de12eaf7052cae99ee7e527`
-- P0-C merge: `494cab1a49da1efeaa970fc605029e1eda80e3b8`
-- P0-D merge: `90c379a554418b5a2152a47f4b495d99dd8255e2`
-- Current work branch: `chatgpt/p1a-files-statistics-responsive-header`
-- Current phase: **P1-A — Files, Statistics, and responsive tile header**
-- Phase state: **implementation prepared; awaiting local core patch and Windows review**
-- Runtime constraints retained: CPython 3.10, PySide6 6.4.2, and future
-  PyInstaller 5.7 `onedir` compatibility.
+## Completed iterations
 
-## P1-A goals
+| Phase/PR | State | Main result |
+|---|---|---|
+| P0-A / #1 | Complete | Fixed Multi View layouts and focus behavior |
+| P0-B / #2 | Complete | Difference LRU and chunked metrics |
+| P0-C / #3 | Complete | Toolbar/focus icons and action states |
+| P0-D / #4 | Complete | Split loading, disabled menus, Diff ordering |
+| P1-A / #5 | Complete | Files, Statistics, responsive headers |
+| P1-B1 / #6 | Complete | Histogram modes and plot text |
+| P1-B2 / #8 | Complete | Line Profile reference and legends |
+| P1-C / #9 | Complete | RAW profile workflow and MIPI decoding |
 
-1. Simplify the Files tree so selection and active state are visually clear without
-   exposing obsolete A/B or slot-role text.
-2. Make the Difference panel selectors the only authority for the comparison pair.
-3. Stabilize the Statistics header area and use accurate `Pixels` terminology.
-4. Make tile headers degrade cleanly in narrow 3-, 4-, 5-, and 6-tile layouts.
+## Current UI behavior
 
-## Prepared implementation
+### Files and workspace
 
-### Files tree
+- Files tree exposes File and Type only.
+- Residency, loading, and errors are represented by icons and tooltips.
+- Ordered selection drives fixed one-to-six-image layouts.
+- Difference panel selectors are the only comparison-pair authority.
+- Split Channels supports RGB and Bayer placeholders during loading.
+- Pinning promotes a document to the first tile without changing selection
+  order, but the control is currently visible only for three and five views.
 
-- Reduced the tree to `File` and `Type` columns.
-- Removed the visible state/role column and the unused compare-role signal.
-- Added distinct folder, regular image, RAW, loading, and error icons.
-- Kept standard row selection highlighting.
-- Added a bold active filename and a narrow left accent marker without replacing
-  the normal selection background.
-- Loading, error, visible, active, and registered state remain available through
-  the file tooltip rather than terse A/B or slot labels.
+### Analysis
 
-### Difference pair authority
+- Statistics uses Pixels and stable ROI detail.
+- Histogram has explicit bins and Count/Normalized/Log count modes.
+- Line Profile has compact legends and explicit Difference reference.
+- Difference uses a 512 MiB native-map LRU with expanded metrics.
+- Plots selected tab is persisted through `analysis/bottom_tab`.
 
-The local core patch removes the obsolete `_compare_pair` path from MainWindow
-and MultiCompareView:
+### RAW
 
-- no A/B badge assignment in Single View or Multi View
-- no A/B state propagation into the Files tree
-- no compare-role setter or signal connection
-- no pair override passed into `DifferencePanel.set_documents()`
-- current Image 1 / Image 2 selector values are preserved whenever both remain
-  available; otherwise DifferencePanel falls back to the first valid distinct pair
+- Compact profile dialog with storage/container/depth/endian/alignment
+  separation.
+- Unpacked `uint8`/`uint16` and MIPI RAW10/12/14.
+- JSON load/save, legacy migration, confirmation preference, and same-path
+  reload.
+- Deterministic grayscale/Bayer fixtures and regression tests.
+- Demosaic is intentionally excluded.
 
-### Statistics
+## Verified remaining UI work
 
-- Region detail is a fixed-height row, so switching Full image / Active ROI does
-  not move the tables below it.
-- Full image leaves the detail row blank.
-- Active ROI uses explicit fields:
-  `x=…, y=…, width=…, height=…`.
-- The image summary header changes from `Samples` to `Pixels`.
-- RGB ROI pixel totals remain width × height.
-- Bayer summary totals remain mosaic pixel counts, while the per-plane R/Gr/Gb/B
-  rows remain unchanged.
+### P1-D — Multi View ordering and Split transition polish
 
-### Responsive tile header
+1. Show the pin/order control for two through six displayed documents.
+2. Keep equal geometry in two/four/six views while allowing first-tile
+   promotion.
+3. Keep enlarged first-tile geometry in three/five views.
+4. Update focus-only tooltip wording to describe first-tile ordering.
+5. Remove the visible two-step Bayer/RGB split to GRAY transition.
+6. Arrange the target viewer geometry before rebinding documents and batch the
+   operation into one repaint.
+7. Preserve loading placeholders, viewer reuse, Difference priority,
+   synchronization, selection order, and logical IDs.
 
-- Widths at or above 480 px show folder-qualified filename, image metadata, zoom,
-  and focus controls.
-- Widths below 480 px hide secondary metadata and retain badge/navigation,
-  filename, zoom, and focus controls.
-- Compact mode uses the basename instead of the folder-qualified label.
-- Filename text remains middle-elided and the full path remains available in the
-  tooltip.
-- Focus-pin visibility remains limited to 3- and 5-tile layouts.
+### P1-E — Plots workspace completion
 
-## Files changed or prepared
+1. Persist floating Plots geometry independently.
+2. Add title-bar double-click maximize/restore for floating Plots.
+3. Rename `Clear ROI / Restore Grid` to `Clear ROI`; Esc already only clears
+   ROI.
+4. Preserve Shift+Esc line clearing with focused regression tests.
+5. Retain existing selected-tab persistence and add explicit regression
+   coverage.
 
-- `src/pixelscope/ui/document_list.py`
-- `src/pixelscope/ui/tile_header.py`
-- `tests/ui/test_p1a_files_statistics_header.py`
-- `scripts/apply_p1a_core_patch.py` — temporary local integration helper
-- `docs/ui/implementation_status.md`
-- Local helper targets:
-  - `src/pixelscope/app/main_window.py`
-  - `src/pixelscope/ui/multi_compare_view.py`
-  - `src/pixelscope/ui/comparison_analysis_panel.py`
-  - `tests/ui/test_ui_smoke.py`
+### P1-F — compatibility cleanup
 
-## Required local integration
+1. Remove the fixed-arrangement compatibility registry and QSettings key.
+2. Remove arrangement-dependent startup/reset/restore code.
+3. Preserve one-to-six geometry and six-source Difference restoration.
 
-```powershell
-git fetch origin
-git switch --track origin/chatgpt/p1a-files-statistics-responsive-header
+## Split transition cause analysis
 
-.\.venv\Scripts\python.exe scripts\apply_p1a_core_patch.py
-```
+With Split Channels enabled, `_effective_layout()` deliberately keeps a
+one-document result in the Multi View container with capacity four. For GRAY,
+`_split_display_documents()` correctly returns `[document]` because no channel
+split applies.
 
-Format the affected files:
+The visual flash occurs lower in the view layer: `MultiCompareView.set_documents()`
+assigns the GRAY document while the previous 2x2 arrangement and visibility are
+still active, then invokes `_arrange_viewers(1)`. Qt can paint the intermediate
+state, so the first tile briefly appears at quarter size before expanding.
 
-```powershell
-.\.venv\Scripts\python.exe -m ruff format `
-    src\pixelscope\app\main_window.py `
-    src\pixelscope\ui\multi_compare_view.py `
-    src\pixelscope\ui\comparison_analysis_panel.py `
-    src\pixelscope\ui\document_list.py `
-    src\pixelscope\ui\tile_header.py `
-    tests\ui\test_ui_smoke.py `
-    tests\ui\test_p1a_files_statistics_header.py `
-    scripts\apply_p1a_core_patch.py
-```
+The intended fix is an atomic batch update, not a change to the final layout
+policy:
 
-Run targeted validation:
+- compute the target count and placement first;
+- update layout/visibility before content binding;
+- suppress intermediate painting during the batch;
+- bind the final documents once;
+- restore updates and request one repaint.
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest `
-    tests\ui\test_p1a_files_statistics_header.py `
-    tests\ui\test_ui_smoke.py `
-    -q
-```
+## Performance/settings backlog
 
-Then run the full checks:
+- The Difference cache is byte-budgeted and diagnostic-ready.
+- Decoded image arrays already have fixed seven-document resident eviction.
+- Preferences, restart-applied budgets, byte-budgeted source residency, and
+  one-group-ahead preload remain future work.
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
-.\.venv\Scripts\python.exe -m ruff format --check .
-.\.venv\Scripts\python.exe -m mypy src
-.\.venv\Scripts\python.exe -m pip check
-```
+## Historical correction
 
-## Manual UI checks
-
-1. Files tree contains only File and Type columns.
-2. Selected rows use the normal selection highlight; the active row also has bold
-   text and a left accent.
-3. Loading and failed files use distinct icons, and no A/B or slot text appears.
-4. Changing Difference Image 1 / Image 2 remains stable while layout or focus
-   changes are made.
-5. Full image leaves the Region detail line blank; Active ROI shows explicit x, y,
-   width, and height without changing the panel geometry.
-6. Statistics summary says Pixels and retains correct RGB and Bayer counts.
-7. Wide tiles show metadata; narrow tiles hide metadata but retain filename, zoom,
-   and pin controls.
-8. Pin controls appear only in 3- and 5-tile layouts.
-
-## Incomplete / intentionally deferred
-
-- P1-B and P1-C are not started.
-- Preferences UI and QSettings-backed performance settings remain separate.
-- Image resident cache and one-group-ahead preload remain separate.
-- GitHub Release update checking and installer workflow remain separate.
-- P0-A's internal fixed-arrangement compatibility field/QSettings key remains for
-  later cleanup.
+The previous version of this file described P1-A as awaiting integration,
+listed a temporary patch script, and said P1-B/P1-C were unstarted. Those
+statements became invalid after PR #5, #6, #8, and #9 and have been removed.
