@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QHideEvent, QShowEvent
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from pixelscope.core.image_document import ImageDocument
@@ -61,6 +62,7 @@ class MultiCompareView(QWidget):
         self._setting_documents = False
         self._layout_refit_active = False
         self._document_count = 0
+        self._primary_controls_enabled = False
         self._active_viewer: ImageViewer | None = None
         self.sync_enabled = True
         self.layout_kind = "Auto"
@@ -134,18 +136,18 @@ class MultiCompareView(QWidget):
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
         displayed_documents = documents[: self._document_count]
-        primary_controls_enabled = self._document_count > 1 and all(
+        self._primary_controls_enabled = self._document_count > 1 and all(
             not document.channel_layout.startswith("CHANNEL_")
             for document in displayed_documents
         )
         displayed_ids = {document.document_id for document in displayed_documents}
-        if primary_controls_enabled and self.focus_document_id not in displayed_ids:
+        if self._primary_controls_enabled and self.focus_document_id not in displayed_ids:
             # The first displayed image is the implicit primary until the user
             # explicitly selects another image. MainWindow already uses the first
             # displayed image as its analysis/reference fallback, so no extra render
             # or deferred state synchronization is needed here.
             self.focus_document_id = displayed_documents[0].document_id
-        elif not primary_controls_enabled:
+        elif not self._primary_controls_enabled:
             self.focus_document_id = None
         updates_were_enabled = self.updatesEnabled()
         if updates_were_enabled:
@@ -171,7 +173,9 @@ class MultiCompareView(QWidget):
                     document is not None and document.document_id == self.focus_document_id
                 )
                 viewer.set_focus_control_visible(
-                    document is not None and primary_controls_enabled
+                    document is not None
+                    and self._primary_controls_enabled
+                    and self.isVisible()
                 )
                 viewer.set_document(document, fit=not preserve_view)
                 if document is None:
@@ -334,6 +338,23 @@ class MultiCompareView(QWidget):
     def set_interaction_mode(self, mode: str) -> None:
         for viewer in self.viewers:
             viewer.set_interaction_mode(mode)
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._sync_primary_control_visibility(True)
+
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
+        self._sync_primary_control_visibility(False)
+        super().hideEvent(event)
+
+    def _sync_primary_control_visibility(self, workspace_visible: bool) -> None:
+        for viewer in self.viewers:
+            viewer.set_focus_control_visible(
+                workspace_visible
+                and self._primary_controls_enabled
+                and viewer.document is not None
+                and not viewer.isHidden()
+            )
 
     def _on_cursor(self, viewer: ImageViewer, x: int, y: int, value: object) -> None:
         document = viewer.document
