@@ -133,7 +133,15 @@ class MultiCompareView(QWidget):
         anchor_range = self._current_shared_range() if not requires_refit else None
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
+        updates_were_enabled = self.updatesEnabled()
+        if updates_were_enabled:
+            self.setUpdatesEnabled(False)
         try:
+            # Apply the final geometry and visibility before replacing tile content.
+            # This prevents Qt from painting a newly bound one-view document in the
+            # previous split grid during Bayer/RGB-to-GRAY transitions.
+            self._arrange_viewers(self._document_count)
+            self._layout.activate()
             for slot, viewer in enumerate(self.visible_viewers):
                 document = documents[slot] if slot < len(documents) else None
                 role = ""
@@ -158,8 +166,11 @@ class MultiCompareView(QWidget):
                 viewer.set_roi_bounds(roi)
                 viewer.set_line_selection(line)
         finally:
+            if updates_were_enabled:
+                self.setUpdatesEnabled(True)
             self._setting_documents = False
-        self._arrange_viewers(self._document_count)
+        if updates_were_enabled:
+            self.update()
         active = next(
             (
                 viewer
@@ -386,7 +397,7 @@ class MultiCompareView(QWidget):
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
         for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
-            viewer.set_focus_control_visible(count in (3, 5))
+            viewer.set_focus_control_visible(count > 1)
             viewer.show()
         for row in range(3):
             self._layout.setRowStretch(row, row_stretches[row] if row < len(row_stretches) else 0)
