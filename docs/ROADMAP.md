@@ -1,36 +1,63 @@
 # Roadmap
 
-## Phase 1 — local inspection (complete)
+## Delivered baseline
 
-PNG/BMP/JPEG and unpacked RAW loading, pixel inspection, source-preserving
-display conversion, asynchronous statistics/histogram, core metrics, remote
-DTOs, and deterministic mock evaluation.
+### Local inspection and comparison
 
-## Phase 2 — comparison workflow (complete)
+- PNG/BMP/JPEG and profile-described RAW loading.
+- Source-preserving pixel inspection and display conversion.
+- Ordered selection, folder navigation, fixed one-to-six-image layouts,
+  synchronized cursor/range, shared ROI, and line selection.
+- Statistics, Histogram, Line Profile, Difference, and structured status.
+- Difference LRU cache, chunked native metrics, and reloadable source residency.
+- Persisted workspace geometry, dock state, splitters, layout, analysis state,
+  and selected Plots tab.
 
-Selection-driven 1/2/4/6-capacity viewing, smart 3/5 layouts, folder-grouped
-Files tree, atomic natural-sort folder navigation, synchronized cursor/range,
-shared ROI, automatic horizontal/vertical line profile, RGB/Bayer plots,
-cached Absolute/Mask Difference, structured status, persisted workspace, and
-resizable/floating/maximizable Plots dock.
+### RAW workflow
 
-## Phase 3 — workflow depth
+- Unpacked `uint8`/`uint16` with effective bit depth, endian, stride, offset,
+  and LSB/MSB alignment.
+- MIPI RAW10, RAW12, and RAW14.
+- Grayscale and Bayer mosaic analysis.
+- JSON profile load/save, legacy migration, confirmation preference, and
+  deterministic fixture coverage.
 
-Recent files, saved ROI manager, persistent comparison sessions, arbitrary-angle
-line sampling, alpha overlay, and additional export formats.
+## P1-D — workspace completion and cleanup
 
-## Phase 4 — RAW pipeline
+- Independent floating Plots geometry persistence.
+- Floating title-bar double-click maximize/restore.
+- Final Esc/Shift+Esc naming and regression coverage.
+- Removal of the obsolete fixed-arrangement compatibility field and QSettings
+  key.
+- Preserve and test the already implemented selected-tab persistence.
 
-MIPI RAW10/12/14 decoding, black-level subtraction, white-level normalization,
-simple demosaic, and RAW profile suggestion. Unpacked RAW confirmation and Bayer
-plane display are already complete.
+See `docs/exec-plans/active/next-phase.md`.
 
-## Phase 5 — remote IQA
+## P2 — performance controls and diagnostics
 
-FastAPI GPU server, PyTorch worker, asynchronous queue/cancellation, artifact
-download, heatmap overlay, and evaluation comparison.
+- Preferences UI with restart-applied performance settings.
+- Byte-budgeted decoded-image residency.
+- One-group-ahead folder preload with bounded cancellation.
+- Worker/cache/load diagnostics and failure visibility.
 
-## Phase 6 — distribution
+## P3 — workflow depth
 
-PyInstaller 5.7 `onedir`, portable ZIP, Inno Setup, clean-PC smoke tests,
-code-signing review, and update strategy.
+- Recent files, saved ROI manager, persistent comparison sessions.
+- Arbitrary-angle line sampling, alpha overlay, and additional export formats.
+
+## P4 — RAW processing depth
+
+- Demosaic preview with explicit algorithm, memory, cache, and UX policy.
+- Black-level subtraction and white-level normalization.
+- RAW profile suggestion and reusable profile management.
+
+## P5 — remote IQA
+
+- FastAPI GPU server, PyTorch worker, asynchronous queue/cancellation.
+- Artifact download, heatmap overlay, and evaluation comparison.
+
+## P6 — distribution
+
+- PyInstaller 5.7 `onedir`, portable ZIP, Inno Setup.
+- Clean-PC smoke tests, code-signing review, GitHub Release update checking,
+  and update strategy.

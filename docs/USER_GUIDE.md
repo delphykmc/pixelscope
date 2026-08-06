@@ -2,71 +2,90 @@
 
 ## Register and select images
 
-Use **Open Images**, **Open Folder**, **Open RAW**, or drag files/folders into
-the application. Files are grouped by parent folder. Ctrl/Shift selection forms
-the ordered comparison set; up to six source images can be visible.
+Use **Open Images**, **Open Folder**, **Open RAW with Profile**, or drag
+files/folders into the application. Files are grouped by parent folder.
+Ctrl/Shift selection forms the ordered comparison set; up to six source images
+can be visible.
 
-When one file is selected from each of several folders, **Page Down** and
-**Page Up** advance or rewind every folder atomically in natural filename order.
-If any folder reaches its endpoint, no folder changes.
+When one file is selected from each participating folder, Page Down/Page Up
+moves every folder atomically in natural filename order. If any folder reaches
+an endpoint, no folder changes.
 
 ## View and navigate
 
 - **Auto** chooses Single or Multi View from the selection.
 - **Single View** shows the active image. Use Left/Right, keys 1–6, or header
-  buttons to toggle selected images without changing zoom or offset.
-- **Multi View** chooses side-by-side, smart three-image, 2×2, or 3×2 layout.
-- The upward tile control promotes that image to the first raster position.
-  Other images shift right while logical ID badges remain unchanged.
-- **Fit** fits all visible tiles; **100%** uses native pixel scale.
+  navigation without changing zoom or offset.
+- **Multi View** uses fixed layouts for two through six images.
+- The focus control promotes an image in the three- and five-image layouts.
+- **Fit** fits visible tiles; **100%** uses native pixel scale.
+- **Split Channels** shows RGB or Bayer channel views and retains its checked
+  state while another supported image loads.
 
-## Cursor, ROI, and line profile
+## Cursor, ROI, and line selection
 
-Moving over an image synchronizes the crosshair. The structured status bar
-shows Position and the value from the tile under the pointer.
+Moving over an image synchronizes the crosshair. The status bar shows position
+and the value under the active pointer.
 
 - Ctrl+drag creates one shared rectangular ROI; double-click or Esc clears it.
 - Alt+drag creates a horizontal or vertical line from the longer gesture axis.
-  Line Profile displays every selected image and its RGB or Bayer subchannels.
+- Shift+Esc clears the shared line.
 
-## Statistics and histogram
+## Statistics and Histogram
 
 Statistics can target active, selected, or visible images and Full image or
-Active ROI. Each numeric row has explicit Id and Ch columns. Copy the table or
-export CSV from the application.
+Active ROI. Rows have explicit image and channel fields; the summary reports
+Pixels.
 
-Histogram supports Separate/Overlay, Count/Normalized, and native/0–1 ranges.
-Bins follow effective bit depth. RGB uses R/G/B and Bayer uses R/Gr/Gb/B.
+Histogram supports:
+
+- Bins: Auto, 256, 1024, 4096
+- Y mode: Count, Normalized, Log count
+- Separate or Overlay display
+- Native code-value x ranges
+
+RGB uses R/G/B; Bayer uses R/Gr/Gb/B.
+
+## Line Profile
+
+Line Profile supports Overlay, Separate by image, and Separate by channel
+views. Legends use compact image-ID/channel labels.
+
+When Y mode is **Difference from reference**, a Reference selector appears.
+The initial reference is focused/pinned, then active, then first displayed.
+The selected reference remains stable while that document is available and is
+rendered as exact zero.
 
 ## Difference
 
-Select at least two images, choose Image 1 and Image 2 in **Analysis >
-Difference**, and calculate. The first two distinct selected images are the
-default pair. Reversed pairs share one order-independent cache.
+Choose Image 1 and Image 2 in **Analysis > Difference**, then calculate.
+Reversed pairs share one native-map cache.
 
-Absolute and Mask displays derive from the cached native map. Gain and
-Threshold change presentation only; Full image/Active ROI controls metrics.
-With six selected sources, Diff opens in Single View and Multi View remains
-unavailable until Diff is disabled.
+Absolute and Mask displays derive from the cached map. Gain and Threshold change
+presentation; Full image/Active ROI controls metrics. With six selected sources,
+Difference opens in Single View until disabled.
 
 ## Plots dock
 
-The title bar has three controls:
+The title bar provides Float/Dock, Maximize/Restore, and Hide. The toolbar
+**Plots** action shows a hidden dock. The last selected Histogram/Line Profile
+tab is restored on restart.
 
-1. Float/Dock
-2. Maximize/Restore
-3. Hide Plots
-
-A maximized dock restores to its original dock position. A maximized floating
-window restores to its prior floating state. Use the toolbar **Plots** action
-to show a hidden dock again.
+Independent floating-window geometry and title-bar double-click
+maximize/restore are not yet implemented.
 
 ## RAW
 
-Opening RAW always presents profile confirmation. A same-name JSON sidecar
-pre-fills controls; otherwise defaults are used. Profile `name` remains JSON
-metadata but is not editable. Reloading the same RAW path is allowed so an
-incorrect profile can be corrected.
+Opening RAW uses a validated profile. A same-name JSON sidecar pre-fills the
+dialog. The **Don't Show RAW JSON Profiles** preference can accept those
+profiles without repeated confirmation. Reloading the same path is allowed.
+
+Unpacked profiles specify `uint8` or `uint16`, effective bit depth, byte order,
+and LSB/MSB alignment where applicable. Packed choices are MIPI RAW10, RAW12,
+and RAW14; non-applicable container, byte-order, and alignment rows are hidden.
+
+Grayscale and Bayer mosaics are supported. Bayer is displayed/analyzed as
+native R/Gr/Gb/B planes; no demosaic preview is provided.
 
 Production constraints are CPython 3.10 x64, PySide6 6.4.2, and a future
 PyInstaller 5.7 `onedir` build.

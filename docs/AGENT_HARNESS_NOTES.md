@@ -1,123 +1,159 @@
 # Agent harness engineering notes
 
-## What a harness is
+## Definition
 
-For coding agents, the harness is the environment that turns a broad request into reliable, reviewable work. It is not one prompt or one tool. It includes:
+For coding agents, the harness is the environment that turns a broad request
+into reliable, reviewable work. It is not one prompt or one tool. It includes:
 
 - A navigable repository and explicit architecture boundaries.
-- Short persistent instructions that point to deeper sources of truth.
-- Structured specifications, decisions, and execution plans.
-- Deterministic setup, commands, fixtures, tests, and linters.
-- Runtime observability and failure evidence.
+- Short persistent instructions pointing to focused sources of truth.
+- Current-state records, product specifications, decisions, and execution plans.
+- Deterministic setup, fixtures, tests, linters, and completion evidence.
+- Runtime observability and failure diagnostics.
 - Small reviewable changes, PR conventions, and human checkpoints.
-- Continuous cleanup of stale rules, duplicate utilities, and architectural drift.
+- Recurring cleanup of stale rules, duplicate utilities, compatibility paths,
+  and architectural drift.
 
-The model produces code inside this system. The harness makes good behavior easier, bad behavior visible, and recovery inexpensive.
+The model produces code inside this system. The harness makes correct behavior
+easier, incorrect behavior visible, and recovery inexpensive.
 
-## Lessons from OpenAI's Codex experience
+## OpenAI Codex lessons
 
-OpenAI reported building an internal product with agent-written application code, tests, CI configuration, documentation, observability, and tooling. The main lesson was not that review or engineering discipline disappeared. Human effort moved toward specifying intent, designing the environment, and creating feedback loops.
+OpenAI's
+[Harness engineering](https://openai.com/index/harness-engineering/) report
+describes an internal product whose application code, tests, CI,
+documentation, observability, and tools were written by Codex. Human work moved
+toward specifying intent, designing the environment, and building feedback
+loops. The associated Codex guidance also emphasizes configured development
+environments, reliable tests, and repository-level instructions.
 
 ### 1. Give agents a map, not a manual
 
-A large `AGENTS.md` consumes context, makes every rule look equally important, becomes stale, and is difficult to check. Keep it short and use it as a table of contents. Store durable knowledge in focused documents under `docs/`.
+A large `AGENTS.md` consumes context, makes every rule appear equally
+important, becomes stale, and is difficult to verify. PixelScope therefore uses
+`AGENTS.md` as a short table of contents and keeps durable knowledge under
+`docs/`.
 
-PixelScope application:
+### 2. Make repository knowledge the system of record
 
-- `AGENTS.md` identifies mandatory constraints and directs the agent to relevant docs.
-- `docs/index.md` defines document ownership and task-based reading paths.
-- Product, architecture, decisions, packaging, quality, and plans remain separate.
+Important context must survive chat sessions, model changes, and parallel work.
+A durable document should answer one of these questions:
 
-### 2. Make the repository the system of record
+- What does the product do now?
+- Where does a responsibility live?
+- Why was a design chosen?
+- What work is active, complete, or deferred?
+- What evidence is required before completion?
 
-Important context must survive chat sessions and model changes. Architectural invariants, accepted decisions, workflow contracts, and test commands should be committed beside the code rather than retained in prompts or memory.
-
-A useful document answers one of these questions:
-
-- What must the product do?
-- Where does this responsibility live?
-- Why was this design chosen?
-- How is the work divided and validated?
-- What is intentionally deferred?
+`docs/CURRENT_STATE.md` is the dated planning entry point. Product,
+architecture, decisions, roadmap, quality, UI notes, and execution plans have
+separate ownership.
 
 ### 3. Optimize for agent legibility
 
-Readable software is easier for humans and agents to change safely. Prefer explicit ownership, predictable names, versioned schemas, narrow interfaces, and local invariants over hidden coupling and clever indirection.
-
-For PixelScope this means preserving boundaries among `io`, `core`, `workers`, `ui`, `app`, and `remote`; keeping numerical code outside widgets; and making asynchronous request identity and stale-result rules explicit.
+Prefer explicit ownership, predictable names, narrow interfaces, versioned
+schemas, and local invariants over hidden coupling. For PixelScope this means
+preserving boundaries among `io`, `core`, `workers`, `ui`, `app`, and `remote`;
+keeping numerical code outside widgets; and making generation, cache, and
+stale-result rules explicit.
 
 ### 4. Enforce architecture mechanically
 
-Prose is necessary but insufficient. Important constraints should be represented by tests, static checks, dependency rules, schemas, or narrow interfaces whenever possible.
+Prose is necessary but insufficient. Important constraints should be tests,
+static checks, schemas, or narrow interfaces where practical.
 
-Examples:
+PixelScope examples include:
 
-- Test dtype promotion rather than only documenting overflow safety.
-- Test stale-result rejection rather than only describing generation IDs.
-- Pin Python and packaging versions in machine-readable configuration.
-- Add smoke tests for critical UI workflows.
+- Overflow-safe Difference tests and native metric chunking.
+- Stale-result and loading-order UI tests.
+- Bit-exact unpacked/MIPI RAW fixture equivalence.
+- Fixed Python and packaging versions in machine-readable configuration.
+- `scripts/check_docs.py` and `tests/unit/test_docs_contract.py` for required
+  docs and local links.
 
 ### 5. Use execution plans for long work
 
-Long tasks fail when decisions and discoveries remain only in conversation. A checked-in execution plan should define goal, exclusions, current state, invariants, implementation slices, validation, risks, and progress. It is a working artifact, not an upfront ceremony.
+Long tasks fail when decisions and discoveries remain only in chat. A checked-in
+plan is a live artifact containing goal, exclusions, current code references,
+invariants, slices, validation, risks, decisions, and progress.
 
-Use a plan when work spans components, multiple commits or sessions, unresolved design choices, migrations, or high regression risk.
+Use a plan when work crosses components, spans sessions, changes persistence or
+schemas, or carries high regression risk.
 
-### 6. Improve feedback loops before increasing autonomy
+### 6. Improve feedback loops before autonomy
 
-Agent autonomy should rise only after the repository can quickly answer:
+More autonomy is justified only when the repository can answer quickly:
 
-- Did the change compile and run?
-- Did targeted and full tests pass?
-- Did a user-visible contract change?
-- Did performance, memory, or thread behavior regress?
-- Can a reviewer understand and revert the change?
+- Did the targeted behavior change as intended?
+- Did focused and full checks pass?
+- Did a public contract or durable document change?
+- Did memory, thread, cache, or persistence behavior regress?
+- Is the change understandable and reversible?
 
-More detailed prompts cannot compensate for slow, flaky, or absent feedback.
+Longer prompts do not compensate for slow, flaky, or missing feedback.
 
 ### 7. Treat entropy as recurring work
 
-Higher code throughput also creates duplicate helpers, local conventions, dead compatibility paths, stale documents, and overfitted tests faster. Schedule cleanup and make agents remove temporary scripts and revise obsolete rules in the same PR.
+The PR #1–#9 audit exposed a representative failure mode: implementation moved
+through P1-C, while several authoritative documents still said P1-A was in
+progress and packed RAW was unimplemented. High throughput increases this kind
+of drift unless documentation freshness and compatibility cleanup are explicit
+deliverables.
 
-## PixelScope adoption checklist
+## PixelScope adoption status
 
-### Already strong
+### Existing strengths
 
-- Pinned CPython and dependency versions.
-- Clear package boundaries and UI/thread constraints.
-- Extensive pytest, Ruff, mypy, and pip validation.
-- Deterministic image fixtures and UI smoke coverage.
-- Small phase-based PRs with explicit scope exclusions and validation reports.
+- Pinned CPython/dependency versions and strict packaging constraints.
+- Clear package boundaries and bounded worker pools.
+- Extensive pytest, Ruff, mypy, pip, UI smoke, and performance coverage.
+- Deterministic image and RAW fixtures.
+- Phase-scoped PRs with explicit exclusions and validation summaries.
+- Native Difference cache diagnostics and reloadable source residency.
 
-### Added by this harness foundation
+### Added by the harness foundation
 
-- Short `AGENTS.md` as a navigation map.
-- Documentation system-of-record index.
-- Standard execution-plan template.
-- Change-to-check quality contract.
-- Durable notes for sharing the method with colleagues.
+- Short navigational `AGENTS.md`.
+- Documentation index and dated current-state record.
+- Quality/completion contract and execution-plan template.
+- Active plan for the next verified phase.
+- Mechanical required-doc/local-link check.
+- PR template requiring outcome, exclusions, evidence, and deferred work.
 
-### Next improvements
+### Next harness improvements
 
-1. Create an active execution plan for the remaining P1-B2 work.
-2. Add a lightweight script or test that verifies links and required documentation files.
-3. Define PR and issue templates that require observable behavior, exclusions, and validation evidence.
-4. Identify architecture constraints that can be checked mechanically, such as forbidden Qt imports in numerical core modules.
-5. Add periodic technical-debt review for duplicate helpers, stale docs, oversized modules, and fragile UI tests.
-6. Capture important runtime diagnostics for worker queues, cache budgets, stale-result drops, and load failures.
+1. Add a mechanical architecture-boundary check, beginning with forbidden Qt
+   imports from numerical `core` and `io` modules.
+2. Add a small technical-debt tracker with owner, trigger, and removal
+   condition for compatibility bridges.
+3. Capture runtime diagnostics for worker queues, cache budgets, stale-result
+   drops, and load failures.
+4. Add CI execution of the documentation contract and standard validation
+   matrix when a supported runner is available.
+5. Measure review/rework rate, escaped regressions, validation completeness,
+   and document freshness rather than generated lines or commit count.
 
 ## Colleague-sharing outline
 
-A concise internal presentation can use this sequence:
-
-1. **Problem:** agents generate code quickly, but context loss and weak feedback create rework.
-2. **Definition:** the harness is documentation, architecture, tooling, tests, observability, and review workflow surrounding the model.
-3. **Key shift:** humans increasingly specify intent and design feedback loops; agents execute bounded work.
-4. **Repository pattern:** short `AGENTS.md` → structured docs → execution plan → implementation → automated evidence → small PR.
-5. **PixelScope example:** phase-scoped PRs, explicit exclusions, deterministic fixtures, UI smoke tests, and architecture notes.
-6. **Measured outcomes:** review time, test-pass rate, rollback/rework rate, escaped regressions, plan accuracy, and documentation freshness—not generated lines of code.
-7. **Caution:** an agent-written codebase is not an unreviewed codebase; autonomy must follow observability and guardrails.
+1. **Problem:** code generation is fast; context loss and weak feedback create
+   rework.
+2. **Definition:** the harness is the repository, documentation, architecture,
+   tooling, tests, observability, and review workflow around the model.
+3. **Role shift:** humans specify intent and feedback loops; agents execute
+   bounded work.
+4. **Repository pattern:** `AGENTS.md` map → current state → focused docs →
+   execution plan → implementation slices → automated evidence → small PR.
+5. **PixelScope example:** PR-scoped delivery, deterministic fixtures, UI smoke
+   tests, cache invariants, RAW bit-exact checks, and explicit exclusions.
+6. **Failure example:** completed packed RAW and P1-B work remained documented
+   as future scope until a cross-PR audit.
+7. **Metrics:** review time, first-pass validation, rollback/rework,
+   documentation freshness, and escaped regressions.
+8. **Caution:** agent-written does not mean unreviewed; autonomy follows
+   observability and guardrails.
 
 ## Practical principle
 
-> Do not spend most of the effort making the prompt longer. Make the repository easier to understand, the desired behavior easier to specify, and incorrect changes faster to detect.
+> Do not spend most of the effort making the prompt longer. Make the repository
+> easier to understand, the desired behavior easier to specify, and incorrect
+> changes faster to detect.

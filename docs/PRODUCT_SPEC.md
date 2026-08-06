@@ -1,42 +1,57 @@
 # Product specification
 
 PixelScope is a CPU-only Windows engineering tool for rapid visual and numeric
-comparison of multiple PNG, BMP, JPEG, and profile-described unpacked RAW
-images. The primary workflow is selection-driven rather than fixed A/B:
-register files or folders, select up to six sources, inspect them in Single or
-Multi View, and compare full-image or ROI results.
+comparison of PNG, BMP, JPEG, and profile-described RAW images. The workflow is
+selection-driven rather than fixed A/B: register files or folders, select up to
+six sources, inspect them in Single or Multi View, and compare full-image or ROI
+results.
 
 ## Implemented workflow
 
-- Folder-grouped Files tree with drag-and-drop and context actions.
+- Folder-grouped Files tree with drag-and-drop, context actions, natural order,
+  and loading/resident/error indicators.
 - Ordered multi-selection and atomic Page Up/Page Down folder navigation.
 - Auto, Single, and Multi View with synchronized cursor, zoom, offset, ROI, and
   line coordinates.
-- Smart 2/3/4/5/6-image layouts and push-order reference promotion.
-- Structured status fields for active file, format/resolution, coordinate,
-  pixel value, zoom, and background work.
-- One statistics row per image/channel with explicit Id and Ch fields.
-- Separate/Overlay and Count/Normalized histograms with native or 0–1 range.
-- Horizontal/vertical line profiles selected from the longer Alt-drag axis.
-- RGB analysis and unpacked Bayer R/Gr/Gb/B planes; RGBA alpha is ignored.
-- Order-independent cached native absolute Difference with Absolute/Mask
-  display and Full image/Active ROI metrics.
+- Fixed two/three/four/five/six-image layouts with focus promotion in three and
+  five views.
+- Structured status for active file, format/resolution, coordinate, pixel value,
+  zoom, and background work.
+- Statistics with explicit image/channel fields and full-image/ROI scope.
+- Histogram Auto/256/1024/4096 bins with Count, Normalized, and Log count.
+- Horizontal/vertical Line Profile with explicit reference selection in
+  Difference-from-reference mode.
+- RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
+- Order-independent native absolute Difference cache with Absolute/Mask display,
+  ROI metrics, LRU eviction, and diagnostics.
 - Resizable, collapsible, floating, and maximizable Plots dock.
-- Persisted geometry, dock state, splitter sizes, last directory, layout, and
-  analysis state through `QSettings`.
+- Persisted main geometry, dock state, splitters, last directory, layout,
+  analysis state, and selected Plots tab.
 
-Multi View uses side-by-side for two items, a smart focus layout for three, 2×2
-for four, and 3×2 for five/six. A seventh derived Difference result is displayed
-in Single View when all six source slots are occupied.
+A seventh derived Difference result is shown in Single View when all six source
+positions are occupied.
 
-RAW always opens a confirmation dialog. Same-name JSON sidecars pre-fill the
-profile. Profile `name` remains serialized metadata but is not editable. The
-same RAW path may be reloaded with corrected settings.
+## RAW contract
+
+RAW opens through a validated profile workflow. A same-name JSON sidecar can
+pre-fill the profile; the user preference may skip repeated confirmation for
+those JSON profiles. The same RAW path may be reloaded with corrected settings.
+
+The profile separates:
+
+- storage format: unpacked, MIPI RAW10, RAW12, or RAW14
+- sample container for unpacked data: `uint8` or `uint16`
+- effective bit depth
+- byte order and LSB/MSB alignment where applicable
+- width, height, offset, stride, and grayscale/Bayer layout
+
+Packed formats own their byte layout and fixed bit depth, so container,
+endianness, and alignment controls do not apply. Bayer is analyzed as native
+mosaic planes; demosaic is outside the current product contract.
 
 ## Future product scope
 
-The complete product adds packed Bayer decoding, demosaic, alpha overlay,
-persistent sessions and ROI management, remote GPU IQA/image evaluation,
-heatmap overlays, and a validated standalone Windows distribution. Remote
-results include scalar and attribute scores, pixel maps, model/preprocessing
-versions, and inference metadata.
+The complete product adds performance Preferences, byte-budgeted source
+residency and preload, RAW demosaic/normalization/profile suggestion, alpha
+overlay, persistent sessions and ROI management, live GPU IQA/image evaluation,
+heatmaps, and a validated standalone Windows distribution.
