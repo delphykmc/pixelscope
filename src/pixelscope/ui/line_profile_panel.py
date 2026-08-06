@@ -46,6 +46,9 @@ class LineProfilePanel(QWidget):
         self._profile_series: list[
             list[tuple[int, str, NDArray[np.float64], NDArray[np.float64]]]
         ] = [[] for _index in range(6)]
+        self._reference_document_id: str | None = None
+        self._reference_priority_ids: tuple[str, ...] = ()
+        self._reference_locked = False
 
         self.status = QLabel("Alt+drag on an image to set a line profile")
         self.view_mode = QComboBox()
@@ -54,6 +57,11 @@ class LineProfilePanel(QWidget):
         self.y_mode.addItems(("Native value", "Normalized 0–1", "Difference from reference"))
         self.x_mode = QComboBox()
         self.x_mode.addItems(("Distance px", "Normalized distance"))
+        self.reference_label = QLabel("Reference")
+        self.reference_selector = QComboBox()
+        self.reference_selector.setMaximumWidth(280)
+        self.reference_label.hide()
+        self.reference_selector.hide()
         self.channel_buttons: dict[str, QToolButton] = {}
         controls = QHBoxLayout()
         controls.setSpacing(TOKENS.spacing_sm)
@@ -66,6 +74,9 @@ class LineProfilePanel(QWidget):
             controls.addWidget(combo)
             controls.addSpacing(TOKENS.spacing_lg)
             combo.setMaximumWidth(170)
+        controls.addWidget(self.reference_label)
+        controls.addWidget(self.reference_selector)
+        controls.addSpacing(TOKENS.spacing_lg)
         controls.addWidget(QLabel("Channels"))
         for name, color in (
             ("R", "#ff3b30"),
@@ -88,6 +99,9 @@ class LineProfilePanel(QWidget):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._plot_options_changed
             )
+        self.reference_selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._reference_changed
+        )
         controls.addStretch(1)
         controls.addWidget(self.status)
 
@@ -143,11 +157,28 @@ class LineProfilePanel(QWidget):
         return self._hover_texts[0]
 
     def set_documents(
-        self, documents: list[ImageDocument], selection: LineSelection | None
+        self,
+        documents: list[ImageDocument],
+        selection: LineSelection | None,
+        *,
+        reference_priority_ids: tuple[str, ...] = (),
     ) -> None:
         self._documents = [document for document in documents if document.source is not None]
         self._selection = selection
+        self._reference_priority_ids = reference_priority_ids
+        self._sync_reference_selector()
         self.refresh()
+
+    def set_reference_priority_ids(self, document_ids: tuple[str, ...]) -> None:
+        previous_id = self._reference_document_id
+        self._reference_priority_ids = document_ids
+        self._sync_reference_selector()
+        if (
+            previous_id != self._reference_document_id
+            and self.last_results
+            and self.y_mode.currentText() == "Difference from reference"
+        ):
+            self._render(self.last_results)
 
     def clear(self) -> None:
         if self._worker is not None:
@@ -155,6 +186,8 @@ class LineProfilePanel(QWidget):
         self._worker = None
         self._documents = []
         self._selection = None
+        self._reference_priority_ids = ()
+        self._sync_reference_selector()
         self._request_signature = ()
         self.last_results = ()
         self._clear_plot()
@@ -290,8 +323,67 @@ class LineProfilePanel(QWidget):
             self._render(self.last_results)
 
     def _plot_options_changed(self, _index: int) -> None:
+        if self.y_mode.currentText() == "Difference from reference":
+            self._reference_locked = self._reference_document_id is not None
+        self._sync_reference_selector()
         if self.last_results:
             self._render(self.last_results)
+
+    def _reference_changed(self, index: int) -> None:
+        if index < 0:
+            return
+        document_id = self.reference_selector.itemData(index)
+        if not isinstance(document_id, str):
+            return
+        changed = document_id != self._reference_document_id
+        self._reference_document_id = document_id
+        self._reference_locked = True
+        if changed and self.last_results:
+            self._render(self.last_results)
+
+    def _sync_reference_selector(self) -> None:
+        available_ids = [document.document_id for document in self._documents]
+        selected_id = self._reference_document_id
+        if selected_id not in available_ids:
+            selected_id = None
+            self._reference_locked = False
+        if selected_id is None or not self._reference_locked:
+            selected_id = next(
+                (
+                    document_id
+                    for document_id in self._reference_priority_ids
+                    if document_id in available_ids
+                ),
+                available_ids[0] if available_ids else None,
+            )
+        self._reference_document_id = selected_id
+        if selected_id is not None and self.y_mode.currentText() == "Difference from reference":
+            self._reference_locked = True
+
+        self.reference_selector.blockSignals(True)
+        self.reference_selector.clear()
+        for index, document in enumerate(self._documents):
+            label = f"{index + 1} · {self._document_label(document)}"
+            self.reference_selector.addItem(label, document.document_id)
+        selected_index = self.reference_selector.findData(selected_id)
+        if selected_index >= 0:
+            self.reference_selector.setCurrentIndex(selected_index)
+        self.reference_selector.blockSignals(False)
+        self._update_reference_visibility()
+
+    def _update_reference_visibility(self) -> None:
+        visible = self.y_mode.currentText() == "Difference from reference"
+        self.reference_label.setVisible(visible)
+        self.reference_selector.setVisible(visible)
+        self.reference_selector.setEnabled(bool(self._documents))
+
+    def _reference_index(self, results: tuple[LineProfileResult, ...]) -> int | None:
+        if self._reference_document_id is None:
+            return None
+        for index, document in enumerate(self._documents[: len(results)]):
+            if document.document_id == self._reference_document_id:
+                return index
+        return None
 
     def _render(self, results: tuple[LineProfileResult, ...]) -> None:
         for plot, legend in zip(self.plots, self.legends, strict=True):
@@ -374,15 +466,7 @@ class LineProfilePanel(QWidget):
                         values,
                         results,
                     )
-                    short_name = self._documents[image_index].display_name
-                    if len(short_name) > 24:
-                        short_name = f"{short_name[:11]}…{short_name[-10:]}"
-                    if view_mode == "Separate by image":
-                        legend_name = channel_name
-                    elif view_mode == "Separate by channel":
-                        legend_name = f"{image_index + 1} · {short_name}"
-                    else:
-                        legend_name = f"{image_index + 1} · {short_name} · {channel_name}"
+                    legend_name = f"{image_index + 1} · {channel_name}"
                     curve_name = legend_name if view_mode == "Separate by image" else None
                     plot.plot(
                         x_values,
@@ -401,7 +485,7 @@ class LineProfilePanel(QWidget):
                             x=x_values[marker_indices],
                             y=y_values[marker_indices],
                             symbol=image_marker_symbol(image_index),
-                            size=5.0,
+                            size=7.0,
                             pen=pg.mkPen(channel_color(channel_name), width=0.8),
                             brush=pg.mkBrush(channel_color(channel_name)),
                         )
@@ -460,13 +544,22 @@ class LineProfilePanel(QWidget):
         if self.y_mode.currentText() == "Normalized 0–1":
             document = self._documents[image_index]
             y_values = y_values / float((1 << document.bit_depth) - 1)
-        elif self.y_mode.currentText() == "Difference from reference" and image_index > 0:
-            reference = results[0]
-            if channel_name in reference.channel_names:
-                reference_index = reference.channel_names.index(channel_name)
-                reference_x = reference.positions[reference_index]
-                reference_y = reference.values[reference_index]
-                y_values = y_values - np.interp(positions, reference_x, reference_y)
+        elif self.y_mode.currentText() == "Difference from reference":
+            reference_result_index = self._reference_index(results)
+            if reference_result_index is not None:
+                if image_index == reference_result_index:
+                    y_values = np.zeros_like(y_values)
+                else:
+                    reference = results[reference_result_index]
+                    if channel_name in reference.channel_names:
+                        reference_index = reference.channel_names.index(channel_name)
+                        reference_x = reference.positions[reference_index]
+                        reference_y = reference.values[reference_index]
+                        y_values = y_values - np.interp(
+                            positions,
+                            reference_x,
+                            reference_y,
+                        )
         return x_values, y_values
 
     def _channel_is_enabled(self, channel_name: str) -> bool:

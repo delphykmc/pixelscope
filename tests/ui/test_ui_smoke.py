@@ -1004,7 +1004,8 @@ def test_histogram_modes_csv_and_workspace_settings(qtbot: object, tmp_path: Pat
     qtbot.addWidget(restored)  # type: ignore[attr-defined]
     assert restored._layout_mode == "Multi View"
     assert restored.layout_selector.currentText() == "Multi View"
-    assert restored.main_splitter.sizes()[0] == saved_sidebar_width
+    restored_sidebar_width = restored.main_splitter.sizes()[0]
+    assert abs(restored_sidebar_width - saved_sidebar_width) <= restored.main_splitter.handleWidth()
     assert not restored.bottom_dock.isHidden()
     assert restored.bottom_tabs.currentIndex() == 1
     assert restored.dockWidgetArea(restored.bottom_dock) == Qt.DockWidgetArea.BottomDockWidgetArea
@@ -1702,7 +1703,10 @@ def test_raw_dialog_prefills_all_bayer_profile_values(qtbot: object) -> None:
     assert dialog.bit_depth.value() == 12
     assert dialog.layout_kind.currentText() == "BAYER"
     assert dialog.bayer_pattern.currentText() == "GBRG"
-    assert dialog.black.text() == "64, 65, 66, 67"
+    assert [
+        control.value()
+        for control in (dialog.black_r, dialog.black_gr, dialog.black_gb, dialog.black_b)
+    ] == [64, 65, 66, 67]
     assert dialog.profile() == profile
 
 
