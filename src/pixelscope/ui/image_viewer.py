@@ -14,7 +14,7 @@ from PySide6.QtCore import (
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QKeyEvent, QPainter, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsSceneResizeEvent, QVBoxLayout, QWidget
 
 from pixelscope.core.image_document import ImageDocument
@@ -539,6 +539,19 @@ class ImageViewer(QWidget):
             return
         self.show_cursor(x, y)
         self.cursor_moved.emit(x, y, value)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        callback_name = {
+            Qt.Key.Key_PageUp: "previous_folder_pair",
+            Qt.Key.Key_PageDown: "next_folder_pair",
+        }.get(event.key())
+        if callback_name is not None:
+            callback = getattr(self.window(), callback_name, None)
+            if callable(callback):
+                callback()
+                event.accept()
+                return
+        super().keyPressEvent(event)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if watched is self._graphics.viewport() and event.type() == QEvent.Type.MouseButtonPress:
