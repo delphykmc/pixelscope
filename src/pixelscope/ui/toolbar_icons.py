@@ -19,6 +19,7 @@ _ICON_KINDS = {
     "dock",
     "export",
     "pin",
+    "flag",
 }
 _DISABLED_ICON_COLOR = "#737980"
 
@@ -40,7 +41,7 @@ def _draw_arrow_head(
     painter.drawLine(tip, second)
 
 
-def _draw_icon(kind: str, color_name: str) -> QPixmap:
+def _draw_icon(kind: str, color_name: str, *, filled: bool = False) -> QPixmap:
     if kind not in _ICON_KINDS:
         raise ValueError(f"unsupported toolbar icon: {kind}")
 
@@ -152,6 +153,19 @@ def _draw_icon(kind: str, color_name: str) -> QPixmap:
         painter.drawLine(QPointF(4.5, 7.0), QPointF(11.5, 7.0))
         painter.drawLine(QPointF(8.0, 7.0), QPointF(8.0, 13.5))
         painter.drawLine(QPointF(8.0, 13.5), QPointF(7.0, 12.2))
+    elif kind == "flag":
+        painter.drawLine(QPointF(4.0, 2.0), QPointF(4.0, 14.0))
+        flag = QPolygonF(
+            (
+                QPointF(4.0, 2.5),
+                QPointF(12.5, 4.0),
+                QPointF(10.5, 8.0),
+                QPointF(4.0, 6.5),
+            )
+        )
+        if filled:
+            painter.setBrush(color)
+        painter.drawPolygon(flag)
 
     painter.end()
     return pixmap
@@ -165,12 +179,13 @@ def toolbar_icon(kind: str) -> QIcon:
         raise ValueError(f"unsupported toolbar icon: {kind}")
     icon = QIcon()
     normal = _draw_icon(kind, TOKENS.text_primary)
-    checked = _draw_icon(kind, TOKENS.accent)
+    checked = _draw_icon(kind, TOKENS.accent, filled=kind == "flag")
     disabled = _draw_icon(kind, _DISABLED_ICON_COLOR)
+    disabled_checked = _draw_icon(kind, _DISABLED_ICON_COLOR, filled=kind == "flag")
     icon.addPixmap(normal, QIcon.Mode.Normal, QIcon.State.Off)
     icon.addPixmap(checked, QIcon.Mode.Normal, QIcon.State.On)
     icon.addPixmap(checked, QIcon.Mode.Active, QIcon.State.Off)
     icon.addPixmap(checked, QIcon.Mode.Active, QIcon.State.On)
     icon.addPixmap(disabled, QIcon.Mode.Disabled, QIcon.State.Off)
-    icon.addPixmap(disabled, QIcon.Mode.Disabled, QIcon.State.On)
+    icon.addPixmap(disabled_checked, QIcon.Mode.Disabled, QIcon.State.On)
     return icon
