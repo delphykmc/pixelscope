@@ -38,9 +38,9 @@ reviewable.
 
 ## Current state
 
-- PR #12 is merged at
-  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`, which is also the P2-0 branch
-  base and current `main` reference.
+- PR #12 merged at
+  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`; that commit is also the P2-0
+  branch base.
 - `DifferenceMapCache` is already a byte-budgeted LRU. The default is 512 MiB;
   `used_bytes`, `budget_bytes`, and `entry_count` diagnostics exist.
 - `DifferencePanel` accepts `difference_cache_budget_bytes` in its constructor,
@@ -49,6 +49,8 @@ reviewable.
   cache budget. Application bootstrap does not load or inject it.
 - Decoded-source residency is not absent: `MainWindow` owns a reloadable,
   count-based seven-document policy coupled to UI/application lifecycle.
+- The current residency protected set uses visible documents and active load
+  targets. Selected and analysis documents are not yet explicit policy inputs.
 - Native source loading uses a dedicated pool with at most two workers; shared
   numerical work uses a pool with at most four workers.
 - Normal-load stale-result handling primarily uses target document ID,
@@ -63,6 +65,8 @@ reviewable.
 - Difference-cache budgeting is implemented; startup persistence/injection is
   the missing part.
 - Source residency exists, but it is fixed-count rather than byte-budgeted.
+- Current residency protection is limited to visible documents and active load
+  targets; selected and analysis protection are P2-B targets.
 - `ImageDocument.from_array()` retains native source and preview; a native source
   budget is not total process memory.
 - Cancellation does not guarantee an already-running decoder stops immediately.
@@ -137,7 +141,8 @@ Branch: `feature/p2-a-settings-identity`
 - Schema version, migration, validation, defaults, reset, and invalid-state
   handling.
 - Settings dialog with restart-required indication and Reset Settings.
-- Difference-cache budget setting and startup injection.
+- Difference-cache budget setting and startup injection with a confirmed 512 MiB
+  default.
 
 Explicit exclusions: decoded-source budget control, preload control, diagnostics
 dialog, credentials/tokens, installer, and signing.
@@ -199,7 +204,7 @@ Branch: `feature/p2-e-performance-hardening`
 | Order | Branch | Merge prerequisite |
 |---|---|---|
 | 0 | `docs/p2-0-program-setup` | PR #12 merged |
-| 1 | `feature/p2-a-settings-identity` | P2-0 merged; owner decisions resolved where required |
+| 1 | `feature/p2-a-settings-identity` | P2-0 merged; required owner decisions resolved |
 | 2 | `feature/p2-b-source-residency-budget` | P2-A merged |
 | 3 | `feature/p2-c-folder-preload` | P2-B merged |
 | 4 | `feature/p2-d-runtime-diagnostics` | P2-C merged |
@@ -223,8 +228,20 @@ Branch: `feature/p2-e-performance-hardening`
 
 ## Validation plan
 
-For every subphase, run targeted tests first and then the full repository
-contract from `docs/QUALITY.md`:
+For documentation-only changes that do not modify `src/**`, `tests/**`, scripts,
+dependencies, packaging, or runtime files, run only the documentation contract
+and diff-scope checks:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_docs.py
+.\.venv\Scripts\python.exe -m pytest -q tests/unit/test_docs_contract.py
+git diff --check
+git diff --name-only
+```
+
+For any subphase that changes source, tests, scripts, dependencies, packaging, or
+runtime behavior, run targeted tests first and then the full repository contract
+from `docs/QUALITY.md`:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -268,8 +285,7 @@ benchmarks as merge gates.
 ### Required before P2-A
 
 - Canonical PixelScope icon design/asset — **Pending owner decision**.
-- Difference cache default — **Pending owner decision**; recommendation: retain
-  512 MiB.
+- Difference-cache default — **Confirmed: 512 MiB**.
 
 ### Required before P2-B
 
@@ -286,10 +302,14 @@ Recommendations are not accepted defaults until the owner records a decision.
 
 - 2026-08-06: PR #12 merged at
   `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
-- 2026-08-07: P2-0 branch created from the same latest `main` SHA.
+- 2026-08-07: P2-0 branch created from the same PR #12 merge commit.
 - 2026-08-07: P1 workspace plan archived and P2–P7 roadmap transition drafted.
 - 2026-08-07: Source contracts for Difference cache, performance settings,
   fixed-count source residency, load tokens, and worker pools reconciled.
+- 2026-08-07: Repository owner confirmed the P2-0 documentation checker and docs
+  contract test pass locally.
+- 2026-08-07: Review feedback corrected current residency protection inputs,
+  durable baseline wording, and the Difference-cache default decision.
 
 ## Completion summary placeholder
 
