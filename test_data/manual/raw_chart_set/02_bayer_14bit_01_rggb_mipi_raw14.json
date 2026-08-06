@@ -1,0 +1,21 @@
+{
+  "name": "02_bayer_14bit_01_rggb_mipi_raw14",
+  "width": 1920,
+  "height": 1080,
+  "stride_bytes": 3360,
+  "offset_bytes": 0,
+  "storage_format": "mipi_raw14",
+  "container_dtype": null,
+  "endianness": null,
+  "bit_depth": 14,
+  "bit_alignment": null,
+  "channel_layout": "BAYER",
+  "bayer_pattern": "RGGB",
+  "black_level": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "white_level": 16383
+}
