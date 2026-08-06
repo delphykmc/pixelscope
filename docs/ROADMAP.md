@@ -24,7 +24,7 @@
 
 ## P1-D — Multi View ordering and Split transition polish
 
-Status: Complete and locally validated in PR #10; pending merge.
+Status: Complete, validated, and merged as PR #10.
 
 - Show a primary flag in every regular Multi View with two to six displayed
   documents.
@@ -45,6 +45,8 @@ Status: Complete and locally validated in PR #10; pending merge.
 
 ## P1-E — Plots workspace completion
 
+Status: Complete, validated, and merged as PR #11.
+
 - Independent floating Plots geometry persistence.
 - Floating title-bar double-click maximize/restore.
 - Final Esc/Shift+Esc naming and regression coverage.
@@ -52,14 +54,20 @@ Status: Complete and locally validated in PR #10; pending merge.
 
 ## P1-F — fixed-layout compatibility cleanup
 
-- Remove the obsolete fixed-arrangement compatibility registry, field, actions,
-  and QSettings key.
-- Replace arrangement-dependent startup, reset, and six-source Difference
-  restore paths with the single fixed-layout policy.
-- Preserve exact one-to-six geometry, primary ordering, and restored workspace
-  state.
+Status: Implemented in PR #12 with the full automated validation contract
+complete; manual Windows checks remain before merge.
 
-See `docs/exec-plans/active/next-phase.md` for P1-D through P1-F.
+- Remove obsolete arrangement constants, registry, runtime fields, menu/actions,
+  setter, startup/save, render, and restore paths.
+- Ignore legacy `ui/multiview_arrangement` values at startup, never save the
+  key, and remove it during workspace reset.
+- Keep `_fixed_geometry()` as the sole fixed one-to-six layout policy.
+- Preserve primary ordering, logical identity, synchronized ranges, Split
+  Channels behavior, and exact six-source Difference restoration.
+
+P1-D through P1-F complete the workspace-polish program. See
+`docs/exec-plans/active/next-phase.md` for the completion record. No additional
+phase is introduced by P1-F.
 
 ## P2 — performance controls and diagnostics
 

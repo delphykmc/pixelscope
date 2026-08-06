@@ -25,19 +25,19 @@ naturally sorted selectable files. Ordered selection is the comparison set;
 Difference Image 1/Image 2 controls are the comparison-pair authority.
 
 Histogram and Line Profile live in a bottom `QDockWidget`. It can be hidden,
-floated, maximized, and restored. `QSettings` currently persists main geometry,
-dock state, splitter state, layout mode, the compatibility arrangement value,
-Plots visibility, and selected bottom tab. Independent floating geometry and
-title-bar double-click behavior remain P1-E work.
+floated, maximized, and restored. `QSettings` persists main geometry, dock state,
+splitter state, layout mode, Plots visibility, selected bottom tab, and
+independent floating Plots geometry. The custom Plots title bar uses the same
+maximize/restore state machine for its button and title-bar double-click.
 
 Multi View uses one fixed layout policy: side-by-side for two, enlarged
 primary-first layouts for three and five, 2×2 for four, and 3×2 for six. The
 first displayed image is the implicit primary when no valid explicit primary
 exists. MainWindow retains the explicit primary identity in
 `_focus_document_id` and owns display promotion through `_multi_display_order`;
-Files selection order and logical document IDs are not mutated. A compatibility
-registry still accepts one canonical arrangement value until P1-F removes
-legacy state.
+Files selection order and logical document IDs are not mutated.
+`MultiCompareView._fixed_geometry()` is the sole one-to-six geometry policy;
+there is no runtime arrangement registry, field, menu, or persisted setting.
 
 Split Channels uses fixed transient component order. Target viewer geometry and
 visibility are applied before replacement channel content is bound, and updates

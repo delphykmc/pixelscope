@@ -1,7 +1,7 @@
 # PixelScope UI/performance iteration status
 
-Snapshot date: 2026-08-06  
-Current merged baseline: PR #9 on `main`
+Snapshot date: 2026-08-06
+Current merged baseline: PR #11 on `main`
 
 ## Completed iterations
 
@@ -15,6 +15,9 @@ Current merged baseline: PR #9 on `main`
 | P1-B1 / #6 | Complete | Histogram modes and plot text |
 | P1-B2 / #8 | Complete | Line Profile reference and legends |
 | P1-C / #9 | Complete | RAW profile workflow and MIPI decoding |
+| P1-D / #10 | Complete | Primary ordering, atomic Split transitions, folder navigation |
+| P1-E / #11 | Complete | Plots persistence, gestures, Statistics workspace |
+| P1-F / current PR | Implemented | Fixed-layout compatibility cleanup |
 
 ## Current UI behavior
 
@@ -25,8 +28,12 @@ Current merged baseline: PR #9 on `main`
 - Ordered selection drives fixed one-to-six-image layouts.
 - Difference panel selectors are the only comparison-pair authority.
 - Split Channels supports RGB and Bayer placeholders during loading.
-- Pinning promotes a document to the first tile without changing selection
-  order, but the control is currently visible only for three and five views.
+- Every regular two-to-six-image Multi View exposes a primary flag. Primary
+  promotion preserves Files order, logical badges, viewer identity, and
+  synchronized ranges.
+- Two/four/six views remain equal-sized; three/five enlarge the first tile.
+- Multi View exposes no arrangement menu or runtime arrangement state;
+  `_fixed_geometry()` is the geometry contract.
 
 ### Analysis
 
@@ -34,7 +41,10 @@ Current merged baseline: PR #9 on `main`
 - Histogram has explicit bins and Count/Normalized/Log count modes.
 - Line Profile has compact legends and explicit Difference reference.
 - Difference uses a 512 MiB native-map LRU with expanded metrics.
-- Plots selected tab is persisted through `analysis/bottom_tab`.
+- Floating Plots geometry and the selected tab persist; title-bar
+  double-click maximizes/restores.
+- Esc clears ROI, Shift+Esc clears Line Profile, Ctrl+drag creates ROI,
+  Shift+drag creates Line Profile, and Alt+drag creates neither.
 
 ### RAW
 
@@ -46,36 +56,20 @@ Current merged baseline: PR #9 on `main`
 - Deterministic grayscale/Bayer fixtures and regression tests.
 - Demosaic is intentionally excluded.
 
-## Verified remaining UI work
+## P1-D–P1-F workspace polish status
 
-### P1-D — Multi View ordering and Split transition polish
-
-1. Show the pin/order control for two through six displayed documents.
-2. Keep equal geometry in two/four/six views while allowing first-tile
-   promotion.
-3. Keep enlarged first-tile geometry in three/five views.
-4. Update focus-only tooltip wording to describe first-tile ordering.
-5. Remove the visible two-step Bayer/RGB split to GRAY transition.
-6. Arrange the target viewer geometry before rebinding documents and batch the
-   operation into one repaint.
-7. Preserve loading placeholders, viewer reuse, Difference priority,
-   synchronization, selection order, and logical IDs.
-
-### P1-E — Plots workspace completion
-
-1. Persist floating Plots geometry independently.
-2. Add title-bar double-click maximize/restore for floating Plots.
-3. Rename `Clear ROI / Restore Grid` to `Clear ROI`; Esc already only clears
-   ROI.
-4. Preserve Shift+Esc line clearing with focused regression tests.
-5. Retain existing selected-tab persistence and add explicit regression
-   coverage.
-
-### P1-F — compatibility cleanup
-
-1. Remove the fixed-arrangement compatibility registry and QSettings key.
-2. Remove arrangement-dependent startup/reset/restore code.
-3. Preserve one-to-six geometry and six-source Difference restoration.
+- P1-D primary ordering, equal/enlarged geometry, atomic Split replacement, and
+  folder navigation are complete in PR #10.
+- P1-E Plots persistence/maximize, gestures, shortcuts, and Statistics workspace
+  behavior are complete in PR #11.
+- P1-F removes arrangement constants, registry, runtime fields, menu/actions,
+  setter, startup/save, render, and six-source restore coupling.
+- Startup ignores legacy `ui/multiview_arrangement`; save never writes it;
+  workspace reset removes it when present.
+- Focused P1-F coverage verifies geometry/stretch, primary promotion contracts,
+  legacy settings, reset, obsolete symbol absence, and exact six-source restore.
+- The pinned full validation suite and manual Windows checks remain required
+  after local patch application.
 
 ## Split transition cause analysis
 
@@ -107,6 +101,7 @@ policy:
 
 ## Historical correction
 
-The previous version of this file described P1-A as awaiting integration,
-listed a temporary patch script, and said P1-B/P1-C were unstarted. Those
-statements became invalid after PR #5, #6, #8, and #9 and have been removed.
+Earlier snapshots described P1-D/P1-E as pending and the primary control as
+limited to three/five views. PR #10 and PR #11 completed those items. P1-F now
+removes the compatibility-only arrangement bridge without adding a replacement
+layout abstraction.

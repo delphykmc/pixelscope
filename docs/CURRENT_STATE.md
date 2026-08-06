@@ -1,7 +1,7 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-06  
-Reference branch: `feature/p1-d-multiview-polish` / PR #10
+Snapshot date: 2026-08-07
+Reference branch: `feature/p1-f-layout-cleanup` / PR #12
 
 This document is the first source to read before planning new work. It records
 what is implemented, what earlier plans incorrectly describe, and which
@@ -23,6 +23,7 @@ documentation branch being updated.
 | #8 | Line Profile reference selection and compact legend refinement |
 | #9 | RAW profile model, unpacked alignment/endian handling, MIPI RAW10/12/14, fixtures and tests |
 | #10 | Primary-image ordering for all regular Multi Views and atomic Split transitions |
+| #11 | Plots persistence/maximize, gesture/shortcut cleanup, and Statistics workspace polish |
 
 ## Implemented baseline
 
@@ -56,7 +57,11 @@ documentation branch being updated.
 - Reference priority is primary image, active image, then first displayed image.
 - Native absolute Difference cache with byte accounting, LRU eviction, and
   chunked metrics.
-- Plots selected tab is already persisted through `analysis/bottom_tab`.
+- Floating Plots geometry persists independently, title-bar double-click
+  maximizes/restores, and the selected tab persists through
+  `analysis/bottom_tab`.
+- Esc clears ROI only; Shift+Esc clears Line Profile only. Ctrl+drag creates
+  ROI, Shift+drag creates Line Profile, and Alt+drag creates neither.
 
 ### RAW
 
@@ -78,36 +83,30 @@ documentation branch being updated.
 
 - MIPI RAW10/12/14 is implemented; it must not remain listed as future scope.
 - P1-B reference selection is complete.
-- Last selected Plots tab persistence is already implemented.
+- Plots selected-tab and floating-geometry persistence are complete.
 - Image residency is not wholly absent: fixed-count eviction exists.
-- P1-D primary ordering and atomic Split transitions are complete in PR #10.
-- The obsolete Multi View arrangement setting still exists only as a
-  compatibility bridge and remains P1-F cleanup scope.
-- Esc already clears ROI only, but the menu text still says
-  `Clear ROI / Restore Grid` until P1-E is merged.
+- P1-D and P1-E are merged as PR #10 and PR #11.
+- P1-F removes the compatibility-only Multi View arrangement bridge; a single
+  fixed policy does not require a replacement arrangement abstraction.
+- Esc/Shift+Esc labels and behavior are complete.
 
-## Verified immediate backlog
+## P1-F current scoped PR
 
-### P1-E — Plots workspace completion
-
-1. Persist floating Plots geometry independently and verify restore behavior.
-2. Add title-bar double-click maximize/restore for floating Plots.
-3. Rename `Clear ROI / Restore Grid` to `Clear ROI`; preserve Esc and
-   Shift+Esc behavior with regression coverage.
-4. Keep existing `analysis/bottom_tab` persistence; characterize it rather than
-   reimplementing it.
-
-### P1-F — fixed-layout compatibility cleanup
-
-1. Remove the fixed-arrangement compatibility registry, field, actions, and
-   QSettings key.
-2. Replace arrangement-dependent startup/reset/six-image restore paths with the
-   single fixed policy.
-3. Preserve one-to-six geometry, primary ordering, and exact six-source
-   Difference restoration.
+- Removed arrangement constants, registry, runtime fields, actions, setter, and
+  render calls from `MultiCompareView` and MainWindow.
+- Removed arrangement from `SixImageDiffRestoreState` and its restore path.
+- Startup ignores `ui/multiview_arrangement`; save never writes it; Reset
+  Workspace Layout removes it when present.
+- `_fixed_geometry()` remains the only Multi View geometry policy.
+- Focused tests cover one-to-six geometry/stretch, primary ordering, logical
+  badges, viewer reuse, synchronized ranges, legacy settings, reset, obsolete
+  symbols, and exact six-source Difference restoration.
 
 The active program plan is
-[`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
+[`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md). It remains
+at the required active path with `Status: Complete` because no completed-plan
+directory exists. The full automated validation contract has passed locally;
+only manual Windows checks remain pending before merge.
 
 ## Later backlog
 

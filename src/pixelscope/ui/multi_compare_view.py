@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -12,27 +11,6 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.image_viewer import ImageViewer
-
-FIXED_MULTIVIEW_ARRANGEMENT = "Fixed Multi View"
-TOP_FOCUS_ARRANGEMENT = FIXED_MULTIVIEW_ARRANGEMENT
-
-
-class _FixedArrangementRegistry:
-    """Compatibility bridge while MainWindow still stores an arrangement value.
-
-    Iteration is intentionally empty, so no arrangement choices are added to the
-    View menu. Membership accepts the single canonical fixed-layout value used by
-    existing startup, reset, and six-image Diff restore code.
-    """
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(())
-
-    def __contains__(self, value: object) -> bool:
-        return value == FIXED_MULTIVIEW_ARRANGEMENT
-
-
-MULTIVIEW_ARRANGEMENTS = _FixedArrangementRegistry()
 
 
 @dataclass(frozen=True)
@@ -66,7 +44,6 @@ class MultiCompareView(QWidget):
         self._active_viewer: ImageViewer | None = None
         self.sync_enabled = True
         self.layout_kind = "Auto"
-        self.arrangement = FIXED_MULTIVIEW_ARRANGEMENT
         self.focus_document_id: str | None = None
         self.viewers = [ImageViewer() for _ in range(6)]
         self._layout = QGridLayout(self)
@@ -291,13 +268,6 @@ class MultiCompareView(QWidget):
     def set_layout_kind(self, kind: str, focus_document_id: str | None = None) -> None:
         self.layout_kind = kind
         self.focus_document_id = focus_document_id
-
-    def set_arrangement(self, arrangement: str) -> None:
-        """Accept the canonical fixed-layout value for MainWindow compatibility."""
-
-        if arrangement not in MULTIVIEW_ARRANGEMENTS:
-            raise ValueError(f"unsupported multi-view arrangement: {arrangement}")
-        self.arrangement = FIXED_MULTIVIEW_ARRANGEMENT
 
     def capture_view_state(self) -> MultiCompareViewState:
         ranges = self._current_shared_range()

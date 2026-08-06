@@ -11,7 +11,6 @@ from numpy.typing import NDArray
 from PySide6.QtCore import QByteArray, QItemSelectionModel, QSettings, QSize, Qt, QThreadPool
 from PySide6.QtGui import (
     QAction,
-    QActionGroup,
     QCloseEvent,
     QDragEnterEvent,
     QDropEvent,
@@ -60,12 +59,7 @@ from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
 from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.line_profile_panel import LineProfilePanel
-from pixelscope.ui.multi_compare_view import (
-    MULTIVIEW_ARRANGEMENTS,
-    TOP_FOCUS_ARRANGEMENT,
-    MultiCompareView,
-    MultiCompareViewState,
-)
+from pixelscope.ui.multi_compare_view import MultiCompareView, MultiCompareViewState
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.structured_status_bar import StructuredStatusBar
@@ -82,7 +76,6 @@ class SixImageDiffRestoreState:
     """Workspace state hidden by the required six-source Diff-only view."""
 
     layout_mode: str
-    arrangement: str
     focus_document_id: str | None
     active_document_id: str | None
     page_start: int
@@ -132,7 +125,6 @@ class MainWindow(QMainWindow):
         self._page_start = 0
         self._view_capacity = 1
         self._layout_mode = "Auto"
-        self._multiview_arrangement = TOP_FOCUS_ARRANGEMENT
         self._focus_document_id: str | None = None
         self._multi_display_order: list[str] = []
         self._shared_roi: RoiBounds | None = None
@@ -151,7 +143,6 @@ class MainWindow(QMainWindow):
 
         self.viewer = ImageViewer()
         self.multi_compare_view = MultiCompareView()
-        self.multi_compare_view.set_arrangement(self._multiview_arrangement)
         self.empty_workspace = EmptyWorkspace()
         self.central_stack = QStackedWidget()
         self.central_stack.addWidget(self.empty_workspace)
@@ -336,22 +327,6 @@ class MainWindow(QMainWindow):
         add_action("View", "Auto Layout", lambda: self.set_layout_mode("Auto"))
         add_action("View", "Single View", lambda: self.set_layout_mode("Single View"), "Ctrl+1")
         add_action("View", "Multi View", lambda: self.set_layout_mode("Multi View"), "Ctrl+2")
-        menus["View"].addSeparator()
-        self.multiview_arrangement_group = QActionGroup(self)
-        self.multiview_arrangement_group.setExclusive(True)
-        self.multiview_arrangement_actions: dict[str, QAction] = {}
-        for arrangement in MULTIVIEW_ARRANGEMENTS:
-            action = add_action(
-                "View",
-                arrangement,
-                lambda checked=False, value=arrangement: (
-                    self.set_multiview_arrangement(value) if checked else None
-                ),
-            )
-            action.setCheckable(True)
-            action.setChecked(arrangement == self._multiview_arrangement)
-            self.multiview_arrangement_group.addAction(action)
-            self.multiview_arrangement_actions[arrangement] = action
         menus["View"].addSeparator()
         self.split_channels_action = add_action(
             "View",
@@ -1300,7 +1275,6 @@ class MainWindow(QMainWindow):
             for document in visible:
                 self._ensure_loaded(document)
             self.multi_compare_view.set_capacity(self._view_capacity)
-            self.multi_compare_view.set_arrangement(self._multiview_arrangement)
             self.multi_compare_view.set_layout_kind(
                 effective_layout,
                 self._focus_document_id,
@@ -1427,20 +1401,6 @@ class MainWindow(QMainWindow):
             raise ValueError("viewer capacity must be 1, 2, 4, or 6")
         mode = "Single View" if capacity == 1 else "Multi View"
         self.set_layout_mode(mode)
-
-    def set_multiview_arrangement(self, arrangement: str, *, persist: bool = True) -> None:
-        """Select a fixed grid arrangement without rebuilding viewer contents."""
-
-        if arrangement not in MULTIVIEW_ARRANGEMENTS:
-            raise ValueError(f"unsupported multi-view arrangement: {arrangement}")
-        self._multiview_arrangement = arrangement
-        self.multi_compare_view.set_arrangement(arrangement)
-        for name, action in self.multiview_arrangement_actions.items():
-            action.blockSignals(True)
-            action.setChecked(name == arrangement)
-            action.blockSignals(False)
-        if persist:
-            self.settings.setValue("ui/multiview_arrangement", arrangement)
 
     def set_layout_mode(self, mode: str) -> None:
         if mode not in ("Auto", "Single View", "Multi View"):
@@ -1723,7 +1683,6 @@ class MainWindow(QMainWindow):
             return
         self._six_image_diff_restore_state = SixImageDiffRestoreState(
             layout_mode=self._layout_mode,
-            arrangement=self._multiview_arrangement,
             focus_document_id=self._focus_document_id,
             active_document_id=self._active_document_id,
             page_start=self._page_start,
@@ -1743,7 +1702,6 @@ class MainWindow(QMainWindow):
         self._page_start = state.page_start
         self._current_index = state.current_index
         self._multi_display_order = list(state.display_order)
-        self.set_multiview_arrangement(state.arrangement)
         self.layout_selector.blockSignals(True)
         self.layout_selector.setCurrentText(state.layout_mode)
         self.layout_selector.blockSignals(False)
@@ -2605,10 +2563,6 @@ class MainWindow(QMainWindow):
             self.layout_selector.blockSignals(True)
             self.layout_selector.setCurrentText(layout)
             self.layout_selector.blockSignals(False)
-        arrangement = str(self.settings.value("ui/multiview_arrangement", TOP_FOCUS_ARRANGEMENT))
-        if arrangement not in MULTIVIEW_ARRANGEMENTS:
-            arrangement = TOP_FOCUS_ARRANGEMENT
-        self.set_multiview_arrangement(arrangement, persist=False)
         tab_index = int(cast(int | str, self.settings.value("analysis/bottom_tab", 0)))
         self.bottom_tabs.setCurrentIndex(max(0, min(tab_index, self.bottom_tabs.count() - 1)))
 
@@ -2619,7 +2573,6 @@ class MainWindow(QMainWindow):
         self.settings.setValue("ui/sidebar_splitter", self.sidebar_splitter.saveState())
         self.settings.setValue("ui/plots_visible", not self.bottom_dock.isHidden())
         self.settings.setValue("ui/layout", self._layout_mode)
-        self.settings.setValue("ui/multiview_arrangement", self._multiview_arrangement)
         self.settings.setValue("analysis/bottom_tab", self.bottom_tabs.currentIndex())
 
     def reset_workspace_layout(self) -> None:
@@ -2640,7 +2593,6 @@ class MainWindow(QMainWindow):
         self.sidebar_splitter.setSizes([330, 500])
         self._redock_plots()
         self.bottom_dock.hide()
-        self.set_multiview_arrangement(TOP_FOCUS_ARRANGEMENT)
         self.set_layout_mode("Auto")
         self.statusBar().showMessage("Workspace layout reset", 3000)
 
