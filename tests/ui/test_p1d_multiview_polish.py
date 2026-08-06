@@ -29,7 +29,7 @@ def _documents(count: int) -> list[ImageDocument]:
 
 
 @pytest.mark.parametrize("count", range(1, 7))
-def test_pin_control_describes_first_tile_and_is_visible_for_multi_view(
+def test_primary_flag_is_visible_and_defaults_to_first_multi_view_image(
     qtbot: object,
     count: int,
 ) -> None:
@@ -37,19 +37,24 @@ def test_pin_control_describes_first_tile_and_is_visible_for_multi_view(
     qtbot.addWidget(view)  # type: ignore[attr-defined]
     documents = _documents(count)
     view.set_capacity(2 if count <= 2 else 4 if count <= 4 else 6)
-    view.set_layout_kind("Multi View", documents[0].document_id)
+    view.set_layout_kind("Multi View", None)
     view.set_documents(documents, 0, count, None, None)
 
-    for viewer in view.occupied_viewers:
-        assert viewer.header.focus.isHidden() is (count == 1)
-        assert viewer.header.focus.toolTip() in {
-            "Pin to first tile",
-            "First tile is pinned",
-        }
+    flags = [viewer.header.focus for viewer in view.occupied_viewers]
+    assert all(flag.isHidden() is (count == 1) for flag in flags)
+    assert [flag.isChecked() for flag in flags] == (
+        [False] if count == 1 else [True, *([False] * (count - 1))]
+    )
+    assert view.focus_document_id == (
+        None if count == 1 else documents[0].document_id
+    )
+    assert all(
+        flag.toolTip() in {"Set as primary image", "Primary image"} for flag in flags
+    )
 
 
 @pytest.mark.parametrize("count", (2, 4, 6))
-def test_even_view_pin_promotes_display_only_and_preserves_view_state(
+def test_even_view_primary_promotes_display_only_and_preserves_view_state(
     qtbot: object,
     count: int,
 ) -> None:
@@ -64,6 +69,9 @@ def test_even_view_pin_promotes_display_only_and_preserves_view_state(
     viewer_ids = tuple(id(viewer) for viewer in window.multi_compare_view.viewers)
     logical_ids = tuple(window.documents)
 
+    assert window.multi_compare_view.focus_document_id == documents[0].document_id
+    assert window.multi_compare_view.viewers[0].header.focus.isChecked()
+
     window.multi_compare_view.viewers[0].view_box.setRange(
         xRange=(3.0, 21.0),
         yRange=(2.0, 14.0),
@@ -74,6 +82,11 @@ def test_even_view_pin_promotes_display_only_and_preserves_view_state(
     after = window.multi_compare_view.capture_view_state()
 
     assert window.multi_compare_view.viewers[0].document is documents[-1]
+    assert window.multi_compare_view.viewers[0].header.focus.isChecked()
+    assert all(
+        not viewer.header.focus.isChecked()
+        for viewer in window.multi_compare_view.occupied_viewers[1:]
+    )
     assert [document.document_id for document in window.selected_documents] == selected_ids
     assert tuple(window.documents) == logical_ids
     assert tuple(id(viewer) for viewer in window.multi_compare_view.viewers) == viewer_ids
