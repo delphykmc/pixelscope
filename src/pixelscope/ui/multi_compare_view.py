@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, cast
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from pixelscope.core.image_document import ImageDocument
@@ -133,6 +133,7 @@ class MultiCompareView(QWidget):
         anchor_range = self._current_shared_range() if not requires_refit else None
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
+        default_primary_document: ImageDocument | None = None
         displayed_ids = {
             document.document_id for document in documents[: self._document_count]
         }
@@ -140,6 +141,8 @@ class MultiCompareView(QWidget):
             # Every Multi View has one primary image. The first displayed image is
             # the default until the user selects another primary image.
             self.focus_document_id = documents[0].document_id
+            if slot_by_id is not None:
+                default_primary_document = documents[0]
         elif self._document_count <= 1:
             self.focus_document_id = None
         updates_were_enabled = self.updatesEnabled()
@@ -199,6 +202,16 @@ class MultiCompareView(QWidget):
             document.loading_state not in ("pending", "loading") for document in documents
         ):
             self._finish_layout_refit()
+        if default_primary_document is not None:
+            # Defer MainWindow synchronization until the current render pass has
+            # completed; the connected handler performs one stable preserve-view
+            # render and does not alter Files selection order or logical IDs.
+            QTimer.singleShot(
+                0,
+                lambda document=default_primary_document: self.focus_document_requested.emit(
+                    document
+                ),
+            )
 
     def set_shared_roi(self, bounds: RoiBounds | None) -> None:
         for viewer in self.visible_viewers:
