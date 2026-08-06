@@ -25,7 +25,7 @@ documentation branch being updated.
 
 PR #1–#6, #8, and #9 contain no GitHub review comments or unresolved review
 threads. The remaining work below comes from explicit PR scope exclusions,
-outdated plans, and direct code/document comparison.
+outdated plans, direct code/document comparison, and post-merge UI validation.
 
 ## Implemented baseline
 
@@ -35,8 +35,11 @@ outdated plans, and direct code/document comparison.
   icons.
 - Ordered selection is the comparison model; Difference selectors are the only
   pair authority.
-- Fixed Multi View layouts for one to six source images, including focus
-  promotion for three and five images.
+- Fixed Multi View layouts for one to six source images, including enlarged
+  first-tile focus geometry for three and five images.
+- The pin action promotes a document through `_multi_display_order` without
+  changing Files selection order, but its control is currently shown only for
+  three and five displayed documents.
 - Split RGB and Bayer channels with loading placeholders and stable action
   state.
 - Deterministic Difference placement in Single and Multi View.
@@ -77,20 +80,68 @@ outdated plans, and direct code/document comparison.
 - Esc already clears ROI only, but the menu text still says
   `Clear ROI / Restore Grid`.
 
+## Newly verified workspace issues
+
+### Pin/order control is incomplete for even view counts
+
+The underlying promotion path already works independently of selection order,
+but `MultiCompareView._arrange_viewers()` hides the pin control unless the
+displayed count is three or five. Two-, four-, and six-view layouts therefore
+cannot use the same interaction to place a chosen image first.
+
+The intended contract is:
+
+- the pin identifies the primary first-tile document for every Multi View with
+  at least two displayed documents;
+- three and five views additionally enlarge that first tile;
+- two, four, and six views retain equal geometry and change order only.
+
+### Split Channels Bayer-to-GRAY transition is not visually atomic
+
+When Split Channels remains enabled and navigation changes from a four-plane
+Bayer document to GRAY, one document is a valid final result in the Multi View
+container. The observed upper-left-tile flash is not the intended final layout.
+Code-path analysis shows that `MultiCompareView.set_documents()` binds the new
+GRAY document while the previous 2x2 arrangement is still active and only then
+calls `_arrange_viewers(1)`. Qt can paint between those operations.
+
+The optimization must apply target geometry and viewer visibility before
+binding content, batch the transition into one paint, and retain existing
+loading-placeholder protections.
+
 ## Verified immediate backlog
 
-### P1-D — workspace completion and cleanup
+The remaining workspace work is divided into three reviewable phases.
+
+### P1-D — Multi View ordering and Split transition polish
+
+1. Expose the pin control for 2-, 3-, 4-, 5-, and 6-view layouts.
+2. Define pinning as promotion to the first tile; only 3/5 layouts change tile
+   size.
+3. Update focus-only tooltip terminology to first-tile pinning terminology.
+4. Make Bayer/RGB split to GRAY transitions atomic by arranging the target
+   layout before document binding and repainting once.
+5. Preserve selection order, logical IDs, viewer reuse, Difference priority,
+   synchronized ranges, and loading placeholders.
+
+### P1-E — Plots workspace completion
 
 1. Persist floating Plots geometry independently and verify restore behavior.
 2. Add title-bar double-click maximize/restore for floating Plots.
 3. Rename `Clear ROI / Restore Grid` to `Clear ROI`; preserve Esc and
    Shift+Esc behavior with focused tests.
-4. Remove the fixed-arrangement compatibility registry, field, and QSettings
-   key after migrating startup/reset/restore tests.
-5. Keep existing `analysis/bottom_tab` persistence; add regression coverage
+4. Keep existing `analysis/bottom_tab` persistence; add regression coverage
    rather than reimplementing it.
 
-The active plan is
+### P1-F — fixed-layout compatibility cleanup
+
+1. Remove the fixed-arrangement compatibility registry, field, actions, and
+   QSettings key.
+2. Replace arrangement-dependent startup/reset/six-image restore paths with the
+   single fixed policy.
+3. Preserve one-to-six geometry and exact six-source Difference restoration.
+
+The active program plan is
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
 
 ## Later backlog
@@ -111,5 +162,6 @@ The active plan is
 
 The previous `README.md`, `PRODUCT_SPEC.md`, `ARCHITECTURE.md`, `ROADMAP.md`,
 `USER_GUIDE.md`, and UI status notes described packed RAW and P1-B/P1-C work as
-future or unstarted. PR #7 updates those sources and adds a mechanical
-documentation contract so the same drift is detectable.
+future or unstarted. PR #7 updates those sources, records the verified P1-D to
+P1-F sequence, and adds a mechanical documentation contract so the same drift
+is detectable.
