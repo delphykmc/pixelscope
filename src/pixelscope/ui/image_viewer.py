@@ -55,7 +55,7 @@ class LoadingSpinnerItem(QGraphicsItem):
 
 
 class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
-    """ViewBox that reserves Ctrl+left-drag for rectangular ROI creation."""
+    """ViewBox reserving Ctrl+drag for ROI and Shift+drag for Line Profile."""
 
     roi_dragged = Signal(object, bool)
     line_dragged = Signal(object, bool)
@@ -105,7 +105,7 @@ class RoiViewBox(pg.ViewBox):  # type: ignore[misc]
     def gesture_for_modifiers(modifiers: Qt.KeyboardModifier) -> str | None:
         if modifiers & Qt.KeyboardModifier.ControlModifier:
             return "roi"
-        if modifiers & Qt.KeyboardModifier.AltModifier:
+        if modifiers & Qt.KeyboardModifier.ShiftModifier:
             return "line"
         return None
 
