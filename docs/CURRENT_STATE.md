@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-07  
-Reference branch: `main`  
-Reference SHA: `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
+Reference runtime baseline: PR #12 merge commit  
+P2-0 branch base: `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
 
 This document records the implementation baseline that new work must use.
 
@@ -11,7 +11,7 @@ This document records the implementation baseline that new work must use.
 - P1-D merged as PR #10.
 - P1-E merged as PR #11.
 - P1-F merged as PR #12.
-- PR #12 merge commit and current `main` HEAD are both
+- PR #12 merge commit and the P2-0 branch base are both
   `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
 - P2-0 is the documentation-only transition PR; the next runtime phase is P2-A.
 
@@ -59,6 +59,8 @@ This document records the implementation baseline that new work must use.
   `DifferencePanel` default.
 - Decoded-source residency exists as a reloadable fixed seven-document,
   count-based policy owned by `MainWindow`.
+- The current protected set is based on visible documents and active load
+  targets; selected and analysis documents are not yet explicit policy inputs.
 - The source residency policy is not byte-budgeted and is distinct from the
   Difference cache.
 - Native source arrays and previews coexist in `ImageDocument`; source residency
@@ -85,6 +87,9 @@ The repository owner recorded the full automated validation contract as passed
 for P1-D, P1-E, and P1-F. P1-D and P1-E also have recorded manual Windows checks.
 P1-F manual Windows evidence was not re-verified during P2-0 and is not claimed
 as passed by this documentation PR.
+
+The repository owner confirmed the P2-0 documentation checker and docs contract
+test passed locally.
 
 ## Active plan
 
