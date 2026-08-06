@@ -22,16 +22,36 @@
 - JSON profile load/save, legacy migration, confirmation preference, and
   deterministic fixture coverage.
 
-## P1-D — workspace completion and cleanup
+## P1-D — Multi View ordering and Split transition polish
+
+- Show the pin/order control in every Multi View with two to six displayed
+  documents.
+- Define pinning as promotion to the first tile while preserving Files selection
+  order and logical image IDs.
+- Keep enlarged first-tile geometry only for three and five views; two, four,
+  and six views retain equal tile sizes.
+- Replace focus-only tooltip terminology with first-tile/order terminology.
+- Make Split Channels transitions from Bayer/RGB channel planes to unsplittable
+  GRAY content visually atomic.
+- Preserve loading placeholders, viewer reuse, Difference priority, synchronized
+  view state, and channel-split action state.
+
+## P1-E — Plots workspace completion
 
 - Independent floating Plots geometry persistence.
 - Floating title-bar double-click maximize/restore.
 - Final Esc/Shift+Esc naming and regression coverage.
-- Removal of the obsolete fixed-arrangement compatibility field and QSettings
-  key.
 - Preserve and test the already implemented selected-tab persistence.
 
-See `docs/exec-plans/active/next-phase.md`.
+## P1-F — fixed-layout compatibility cleanup
+
+- Remove the obsolete fixed-arrangement compatibility registry, field, actions,
+  and QSettings key.
+- Replace arrangement-dependent startup, reset, and six-source Difference
+  restore paths with the single fixed-layout policy.
+- Preserve exact one-to-six geometry and restored workspace state.
+
+See `docs/exec-plans/active/next-phase.md` for P1-D through P1-F.
 
 ## P2 — performance controls and diagnostics
 
