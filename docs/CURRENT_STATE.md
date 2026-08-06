@@ -1,123 +1,98 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-07
-Reference branch: `feature/p1-f-layout-cleanup` / PR #12
+Snapshot date: 2026-08-07  
+Reference runtime baseline: PR #12 merge commit  
+P2-0 branch base: `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
 
-This document is the first source to read before planning new work. It records
-what is implemented, what earlier plans incorrectly describe, and which
-remaining items are verified against the current code.
+This document records the implementation baseline that new work must use.
 
-## PR audit
+## Merge baseline
 
-PR #1 through PR #9 were inspected, excluding PR #7 because it is the harness
-documentation branch being updated.
-
-| PR | Delivered |
-|---|---|
-| #1 | Fixed 1–6 image Multi View layouts and removal of user-facing arrangement choices |
-| #2 | 512 MiB Difference-map LRU, chunked native metrics, cache diagnostics |
-| #3 | PixelScope-owned toolbar icons and action-state behavior |
-| #4 | Split-channel loading/state, disabled menu styling, deterministic Diff ordering |
-| #5 | Files residency presentation, Statistics terminology/ROI detail, responsive tile headers |
-| #6 | Histogram bins/Y modes, compact plot tooltips/titles, bit-depth fixtures |
-| #8 | Line Profile reference selection and compact legend refinement |
-| #9 | RAW profile model, unpacked alignment/endian handling, MIPI RAW10/12/14, fixtures and tests |
-| #10 | Primary-image ordering for all regular Multi Views and atomic Split transitions |
-| #11 | Plots persistence/maximize, gesture/shortcut cleanup, and Statistics workspace polish |
+- P1-D merged as PR #10.
+- P1-E merged as PR #11.
+- P1-F merged as PR #12.
+- PR #12 merge commit and the P2-0 branch base are both
+  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
+- P2-0 is the documentation-only transition PR; the next runtime phase is P2-A.
 
 ## Implemented baseline
 
 ### Workspace and selection
 
-- Folder-grouped `File`/`Type` tree with loading, resident, and error state
-  icons.
-- Ordered selection is the comparison model; Difference selectors are the only
-  pair authority.
-- Fixed Multi View layouts for one to six source images.
-- Every regular Multi View with two through six images exposes a primary flag.
-- The first displayed image is the implicit primary. Selecting another primary
-  promotes it through `_multi_display_order` without changing Files selection
-  order, document IDs, or logical slot badges.
-- Two-, four-, and six-image layouts remain equal-sized. Three- and five-image
-  layouts enlarge the first, primary tile.
-- Split RGB and Bayer channels use loading placeholders and stable action state.
-  Transient channel-component tiles retain fixed ordering and do not expose
-  primary flags.
-- Split Channels transitions apply target geometry before replacement content,
-  preventing an observable old-grid intermediate frame.
-- Page Up/Page Down folder-pair navigation remains owned by MainWindow
-  application shortcuts and works from the Files view and visible image tiles.
-- Deterministic Difference placement is preserved in Single and Multi View.
+- Folder-grouped Files tree with loading, resident, and error indicators.
+- Ordered selection is the comparison model; Difference selectors own the pair.
+- Fixed one-to-six-image Multi View geometry.
+- Every regular two-to-six-image Multi View exposes primary behavior.
+- Primary promotion changes display order without changing Files order, document
+  IDs, logical badges, viewer identity, or synchronized ranges.
+- Two/four/six views remain equal; three/five enlarge the first tile.
+- Split RGB/Bayer component order is fixed and transitions are applied atomically.
+- Page Up/Page Down folder-pair navigation is implemented.
 
 ### Analysis
 
-- Statistics for full image and active ROI with explicit pixel terminology.
-- Histogram Auto/256/1024/4096 bins; Count, Normalized, and Log count modes.
-- Line Profile reference selection for Difference-from-reference mode.
-- Reference priority is primary image, active image, then first displayed image.
-- Native absolute Difference cache with byte accounting, LRU eviction, and
-  chunked metrics.
-- Floating Plots geometry persists independently, title-bar double-click
-  maximizes/restores, and the selected tab persists through
-  `analysis/bottom_tab`.
-- Esc clears ROI only; Shift+Esc clears Line Profile only. Ctrl+drag creates
-  ROI, Shift+drag creates Line Profile, and Alt+drag creates neither.
+- Full-image and Active ROI Statistics.
+- Histogram Auto/256/1024/4096 bins and Count/Normalized/Log count modes.
+- Line Profile absolute, normalized, and Difference-from-reference modes.
+- Reference priority: primary image, active image, then first displayed image.
+- Floating Plots geometry and selected tab persistence; title double-click
+  maximize/restore.
+- Esc clears ROI; Shift+Esc clears Line Profile. Ctrl+drag creates ROI;
+  Shift+drag creates Line Profile; Alt+drag creates neither.
 
 ### RAW
 
-- Unpacked `uint8`/`uint16`, effective bit depth, endian, and LSB/MSB alignment.
-- MIPI RAW10, RAW12, and RAW14 decoding.
-- JSON profile migration and same-path reload.
-- Deterministic unpacked/packed fixtures and unit, integration, and UI coverage.
-- Bayer remains native mosaic analysis; no demosaic preview.
+- Unpacked uint8/uint16 with effective depth, endian, stride, offset, and
+  LSB/MSB alignment.
+- MIPI RAW10/12/14.
+- JSON profile load/save, migration, confirmation preference, and same-path
+  reload.
+- Native grayscale/Bayer analysis without demosaic.
 
-### Resource behavior
+### Runtime resources
 
-- Difference maps use the dedicated 512 MiB byte-budget cache.
-- Decoded source images use a reloadable working set with a fixed seven-document
-  resident limit.
-- The resident-image policy is count-based, not byte-budgeted, and does not
-  preload the next folder group.
+- `DifferenceMapCache` is a byte-budgeted LRU with a 512 MiB default.
+- Difference diagnostics expose `used_bytes`, `budget_bytes`, and `entry_count`.
+- `DifferencePanel` has a constructor injection seam for its cache budget.
+- Frozen `PerformanceSettings` exists with only `difference_cache_bytes`, but
+  application bootstrap does not load or inject it; `MainWindow` uses the
+  `DifferencePanel` default.
+- Decoded-source residency exists as a reloadable fixed seven-document,
+  count-based policy owned by `MainWindow`.
+- The current protected set is based on visible documents and active load
+  targets; selected and analysis documents are not yet explicit policy inputs.
+- The source residency policy is not byte-budgeted and is distinct from the
+  Difference cache.
+- Native source arrays and previews coexist in `ImageDocument`; source residency
+  accounting is therefore not total process memory.
+- The dedicated image-load pool is bounded at two workers; the shared numeric
+  pool is bounded at four.
+- Normal-load stale-result handling primarily uses target document ID,
+  `_load_tokens`, the load-worker registry, and cancelled-worker rejection.
 
-## Corrected assumptions
+## Not implemented
 
-- MIPI RAW10/12/14 is implemented; it must not remain listed as future scope.
-- P1-B reference selection is complete.
-- Plots selected-tab and floating-geometry persistence are complete.
-- Image residency is not wholly absent: fixed-count eviction exists.
-- P1-D and P1-E are merged as PR #10 and PR #11.
-- P1-F removes the compatibility-only Multi View arrangement bridge; a single
-  fixed policy does not require a replacement arrangement abstraction.
-- Esc/Shift+Esc labels and behavior are complete.
+- Settings dialog, typed application settings repository, migration service, and
+  restart-required UI.
+- Canonical PixelScope application/window/taskbar icon and packaged-resource
+  foundation.
+- Byte-budgeted decoded-source setting and residency manager.
+- One-group-ahead preload.
+- Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export.
+- P3–P7 workflow, RAW processing, remote/authentication, and distribution work.
 
-## P1-F current scoped PR
+## Validation evidence
 
-- Removed arrangement constants, registry, runtime fields, actions, setter, and
-  render calls from `MultiCompareView` and MainWindow.
-- Removed arrangement from `SixImageDiffRestoreState` and its restore path.
-- Startup ignores `ui/multiview_arrangement`; save never writes it; Reset
-  Workspace Layout removes it when present.
-- `_fixed_geometry()` remains the only Multi View geometry policy.
-- Focused tests cover one-to-six geometry/stretch, primary ordering, logical
-  badges, viewer reuse, synchronized ranges, legacy settings, reset, obsolete
-  symbols, and exact six-source Difference restoration.
+The repository owner recorded the full automated validation contract as passed
+for P1-D, P1-E, and P1-F. P1-D and P1-E also have recorded manual Windows checks.
+P1-F manual Windows evidence was not re-verified during P2-0 and is not claimed
+as passed by this documentation PR.
 
-The active program plan is
-[`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md). It remains
-at the required active path with `Status: Complete` because no completed-plan
-directory exists. The full automated validation contract has passed locally;
-only manual Windows checks remain pending before merge.
+The repository owner confirmed the P2-0 documentation checker and docs contract
+test passed locally.
 
-## Later backlog
+## Active plan
 
-- Preferences UI and restart-applied performance settings.
-- Byte-budgeted decoded-image residency and one-group-ahead preload.
-- Runtime diagnostics for worker queues, cache budgets, stale-result drops, and
-  load failures.
-- RAW demosaic UX, algorithm/memory/cache policy, black/white-level processing,
-  and profile suggestion.
-- Recent files, saved ROI manager, persistent comparison sessions,
-  arbitrary-angle sampling, alpha overlay, and additional export formats.
-- GitHub Release update checking, PyInstaller/Inno Setup packaging, clean-PC
-  validation, code signing, and update strategy.
-- Live remote GPU IQA, queue/cancellation, artifact download, and heatmaps.
+- P1 history: [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md)
+- P2 active plan: [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
+- Next implementation phase: P2-A — Application identity and Settings foundation.

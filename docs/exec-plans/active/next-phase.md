@@ -1,201 +1,247 @@
-# Execution plan: P1-D to P1-F workspace polish
+# Execution plan: P2 — Runtime Foundation, Settings & Performance
 
-Status: Complete — P1-D and P1-E merged; P1-F implemented and automatically validated in PR #12
-Owner: repository owner + coding agent
-Branch/PR: one scoped PR per phase after PR #7
+Status: Active  
+Owner: repository owner + P2 orchestration agents  
+Branch/PR: P2-0 `docs/p2-0-program-setup`; one scoped PR per later subphase  
 Last updated: 2026-08-07
 
 ## Goal
 
-Complete the remaining workspace interaction, Plots persistence, and legacy
-layout cleanup without combining unrelated risk into one oversized change.
+Establish explicit startup settings, byte-budgeted decoded-source residency,
+bounded preload, deterministic diagnostics, and performance hardening while
+preserving current PixelScope behavior and keeping each subphase independently
+reviewable.
 
-The work is split into independently mergeable phases:
+## Scope
 
-- P1-D defines primary-image ordering for every Multi View and makes Split
-  Channels transitions visually atomic.
-- P1-E completes Plots dock persistence and shortcut terminology.
-- P1-F removes obsolete fixed-arrangement compatibility state after the
-  preceding behavior is protected by tests.
+### In scope
 
-## Phase status
+- P2-0 durable P1 completion and roadmap transition.
+- P2-A application identity, resources, typed settings, persistence, and
+  Difference-cache startup injection.
+- P2-B byte-budgeted native decoded-source residency.
+- P2-C bounded one-group-ahead folder preload.
+- P2-D deterministic runtime diagnostics and sanitized failure visibility.
+- P2-E integration, characterization, mechanical checks, and phase hardening.
 
-| Phase | Status | Pull request |
+### Out of scope
+
+- Persistent comparison sessions, Recent Files/Folders, saved ROI management,
+  arbitrary-angle line sampling, alpha overlay, and broader export workflows.
+- RAW demosaic, black/white-level processing, profile suggestion, and profile
+  management.
+- Remote GPU/server work, remote IQA submission/result UI, heatmaps, login, SSO,
+  token/credential management, and access administration.
+- Installer, signing, update checking, and release distribution.
+- Mixed-dimension Statistics redesign, broad shortcut redesign, broad
+  MainWindow rewrite, or native C/C++ optimization without profiling evidence.
+
+## Current state
+
+- PR #12 merged at
+  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`; that commit is also the P2-0
+  branch base.
+- `DifferenceMapCache` is already a byte-budgeted LRU. The default is 512 MiB;
+  `used_bytes`, `budget_bytes`, and `entry_count` diagnostics exist.
+- `DifferencePanel` accepts `difference_cache_budget_bytes` in its constructor,
+  but `MainWindow` currently relies on the default rather than startup settings.
+- Frozen `PerformanceSettings` exists and currently contains only the Difference
+  cache budget. Application bootstrap does not load or inject it.
+- Decoded-source residency is not absent: `MainWindow` owns a reloadable,
+  count-based seven-document policy coupled to UI/application lifecycle.
+- The current residency protected set uses visible documents and active load
+  targets. Selected and analysis documents are not yet explicit policy inputs.
+- Native source loading uses a dedicated pool with at most two workers; shared
+  numerical work uses a pool with at most four workers.
+- Normal-load stale-result handling primarily uses target document ID,
+  `MainWindow._load_tokens`, the load-worker registry, and rejection of results
+  from cancelled workers. `ImageLoadWorker` is not assumed to own a complete,
+  meaningful document-generation identity contract.
+- Settings dialog, canonical application icon/resource foundation, decoded
+  source budget, preload, and diagnostics UI are not implemented.
+
+## Corrected assumptions
+
+- Difference-cache budgeting is implemented; startup persistence/injection is
+  the missing part.
+- Source residency exists, but it is fixed-count rather than byte-budgeted.
+- Current residency protection is limited to visible documents and active load
+  targets; selected and analysis protection are P2-B targets.
+- `ImageDocument.from_array()` retains native source and preview; a native source
+  budget is not total process memory.
+- Cancellation does not guarantee an already-running decoder stops immediately.
+  Obsolete-result rejection is a separate contract.
+- Current request identity must not be described as stronger than the actual
+  `_load_tokens` and worker-registry implementation.
+
+## Invariants and constraints
+
+- Target CPython 3.10 x64, PySide6 6.4.2, and pyqtgraph 0.13.3.
+- Keep exactly PyInstaller 5.7 `onedir` compatibility; resource lookup must not
+  depend on source-tree paths or the current working directory.
+- Keep expensive I/O and numerics off the UI thread.
+- Preserve source dtype, channel meaning, strides, endianness, alignment, and
+  overflow-safe arithmetic.
+- P2 settings applied to resource budgets are immutable startup snapshots;
+  runtime editing indicates restart required.
+- Difference cache and decoded-source residency remain separate budgets.
+- Decoded-source accounting covers `ImageDocument.source` only. It excludes
+  previews, Qt textures, Difference/derived caches, and transient worker arrays.
+  Diagnostics must label it `Decoded native source arrays only`.
+- Source budget is a soft limit because protected documents may temporarily
+  exceed it.
+- Normal load has priority over preload.
+- No credential or token storage is introduced before P6.
+
+## Proposed architecture
+
+The current `MainWindow` remains the integration point during P2, but policy
+sources of truth move behind explicit boundaries:
+
+- `SettingsRepository`: typed settings load/save/reset and schema migration.
+- `ApplicationSettings`: validated persisted user choices.
+- immutable `PerformanceSettings`: startup-only budget/preload snapshot.
+- `ResidencyManager`: native-source byte accounting, protection, LRU eviction,
+  reload policy, and diagnostics.
+- `PreloadController`: one-group-ahead request planning, bounded worker ownership,
+  stale cancellation/drop, and budget-aware retention.
+- `DiagnosticsSnapshot` or equivalent immutable model: deterministic counters and
+  sanitized failure information.
+
+These are planned P2 boundaries, not current components. UI widgets must not
+become policy owners.
+
+## Subphase dependency graph
+
+`P2-0 → P2-A → P2-B → P2-C → P2-D → P2-E`
+
+Each phase starts from the latest merged `main`; no phase is developed against
+an unmerged predecessor.
+
+## P2-0 through P2-E
+
+### P2-0 — Program setup and roadmap transition
+
+Status: Complete in this PR  
+Branch: `docs/p2-0-program-setup`
+
+- Preserve P1-D/P1-E/P1-F as completed durable history.
+- Transition ROADMAP to P2–P7.
+- Establish this active P2 plan and reconcile current-state documentation.
+- Documentation-only changes; no source, test, script, or packaging changes.
+
+### P2-A — Application identity and Settings foundation
+
+Branch: `feature/p2-a-settings-identity`
+
+- PixelScope application/window/taskbar icon and canonical resource asset.
+- Packaged-resource-safe lookup.
+- Typed `ApplicationSettings`, immutable startup `PerformanceSettings`,
+  `SettingsRepository`, and QSettings persistence adapter.
+- Schema version, migration, validation, defaults, reset, and invalid-state
+  handling.
+- Settings dialog with restart-required indication and Reset Settings.
+- Difference-cache budget setting and startup injection with a confirmed 512 MiB
+  default.
+
+Explicit exclusions: decoded-source budget control, preload control, diagnostics
+dialog, credentials/tokens, installer, and signing.
+
+### P2-B — Byte-budgeted decoded-source residency
+
+Branch: `feature/p2-b-source-residency-budget`
+
+- Remove the fixed seven-document limit as policy source of truth.
+- Account native decoded `ImageDocument.source.nbytes`.
+- Introduce LRU `ResidencyManager` with visible, selected, analysis, and active
+  load-target protection.
+- Implement soft-budget behavior, oversized protected-source policy,
+  eviction/reload, dependent cache invalidation, decoded-source budget setting,
+  and diagnostics API.
+
+Accounting is intentionally narrower than process memory.
+
+### P2-C — Bounded next-group preload
+
+Branch: `feature/p2-c-folder-preload`
+
+- Compute the next group from the current folder-pair context.
+- Preload one group ahead only.
+- Use bounded worker ownership that cannot starve normal loads.
+- Cancel or drop stale work; validate request token/generation before apply.
+- Retain only when compatible with the source budget.
+- Add preload setting and diagnostics.
+
+Cancellation contract: a running decoder may finish; obsolete results must not
+apply. Cancellation requests and stale-result rejection are distinct signals.
+
+### P2-D — Runtime diagnostics and failure visibility
+
+Branch: `feature/p2-d-runtime-diagnostics`
+
+- Produce a deterministic snapshot containing source residency used/budget/count,
+  Difference cache used/budget/entries, normal-load workers, analysis workers,
+  preload counters, stale-result drops, and sanitized failure summaries.
+- Add Copy Diagnostics and optional text export.
+- Redact full paths by default; use basename or relative representation.
+- Exclude bearer tokens, credentials, pixel content, and unbounded raw traceback.
+- Diagnostics reads must not start expensive work.
+
+### P2-E — Performance characterization and phase hardening
+
+Branch: `feature/p2-e-performance-hardening`
+
+- Integrate P2 behavior and complete settings default/migration/invalid tests.
+- Characterize FHD/UHD navigation; uint8/uint16/RGB/grayscale/Bayer/RAW;
+  low-memory budgets; oversized sources; rapid navigation; cancellation and
+  stale rejection; diagnostics consistency.
+- Add architecture mechanical checks and deterministic performance smoke tests.
+- Evaluate Windows CI quality-gate feasibility and complete durable P2 docs.
+- Do not add a new large feature.
+
+## Branch and PR sequence
+
+| Order | Branch | Merge prerequisite |
 |---|---|---|
-| P1-D — Multi View ordering and atomic Split transitions | Merged and validated | PR #10 |
-| P1-E — Plots workspace completion | Merged and validated | PR #11 |
-| P1-F — fixed-layout compatibility cleanup | Implemented; automated validation complete; manual Windows validation pending | PR #12 |
+| 0 | `docs/p2-0-program-setup` | PR #12 merged |
+| 1 | `feature/p2-a-settings-identity` | P2-0 merged; required owner decisions resolved |
+| 2 | `feature/p2-b-source-residency-budget` | P2-A merged |
+| 3 | `feature/p2-c-folder-preload` | P2-B merged |
+| 4 | `feature/p2-d-runtime-diagnostics` | P2-C merged |
+| 5 | `feature/p2-e-performance-hardening` | P2-D merged |
 
-## P1-D — completed behavior
+## Merge gates
 
-P1-D owns user-visible behavior in `multi_compare_view.py`, tile headers,
-shared toolbar icons, and targeted Multi View UI tests.
+- **P2-0:** docs-only diff, coherent P1 archive, P2 active plan, ROADMAP P2–P7,
+  documentation checker and docs contract.
+- **P2-A:** typed settings/persistence tests, resource lookup from source and
+  packaged-layout simulation, invalid/legacy/reset behavior, restart indication,
+  and Difference budget injection.
+- **P2-B:** deterministic accounting/eviction/protection/oversize/reload tests;
+  no fixed-count policy remains authoritative.
+- **P2-C:** normal-load priority, bounded ownership, stale cancellation/drop,
+  generation/token validation, budget-aware retention, and rapid-navigation tests.
+- **P2-D:** deterministic/redacted snapshot, no expensive work on inspection,
+  copy/export tests, and credential/path/pixel exclusions.
+- **P2-E:** full standard validation, deterministic performance smoke coverage,
+  Windows manual matrix, coherent durable docs, and no unresolved P2 regression.
 
-### Primary-image interaction
+## Validation plan
 
-- Regular Multi Views containing two through six displayed documents expose a
-  primary-image flag.
-- The first displayed image is the implicit primary when no valid explicit
-  primary exists.
-- Selecting another primary promotes that document to the first raster tile.
-- Files selection order, logical document IDs, and logical slot badges do not
-  change when display order changes.
-- Two-, four-, and six-view layouts retain equal-sized geometry; only display
-  order changes.
-- Three- and five-view layouts retain the enlarged first, primary tile.
-- Primary controls use layout-neutral terminology:
-  - unchecked: `Set as primary image`;
-  - checked: `Primary image`;
-  - status tip: `Set as primary image and move it to the first tile`.
-- Transient `CHANNEL_*` Split Channels documents do not expose primary flags
-  because their component order is fixed.
-- Control visibility follows the realized Multi View workspace lifecycle and
-  does not leak into hidden workspaces.
+For documentation-only changes that do not modify `src/**`, `tests/**`, scripts,
+dependencies, packaging, or runtime files, run only the documentation contract
+and diff-scope checks:
 
-### Atomic Split Channels transition
+```powershell
+.\.venv\Scripts\python.exe scripts\check_docs.py
+.\.venv\Scripts\python.exe -m pytest -q tests/unit/test_docs_contract.py
+git diff --check
+git diff --name-only
+```
 
-`MultiCompareView.set_documents()` determines the target document count,
-applies final geometry and visibility, and only then binds replacement content.
-Updates are suppressed only for the replacement batch and one final repaint is
-requested afterward.
-
-This removes the observable Bayer/RGB split-grid to unsplittable-GRAY
-upper-left intermediate frame while preserving loading-placeholder and stale
-result behavior.
-
-### Shortcut ownership cleanup
-
-Page Up/Page Down folder-pair navigation remains owned by MainWindow application
-shortcuts. `ImageViewer` no longer calls MainWindow folder-navigation methods by
-name; viewer key handling routes through the registered shortcut instead.
-
-### Preserved invariants
-
-- `_multi_display_order` remains the display-order owner.
-- `_focus_document_id` remains the internal explicit primary/reference identity
-  while valid.
-- Files selection order and document IDs remain unchanged.
-- Viewer objects and synchronized ranges are preserved during promotion.
-- Difference priority and enlarged three-/five-view primary-first geometry are
-  retained.
-- Single View header navigation does not rebuild the workspace.
-- Split Channels component order remains fixed.
-- Six-source restore behavior is not changed by P1-D.
-
-### P1-D validation evidence
-
-The repository owner confirmed after the final shortcut and documentation
-cleanup that:
-
-- `scripts/check_docs.py` passes;
-- the full pytest suite passes;
-- Ruff lint and formatting checks pass;
-- mypy passes for `src`;
-- `pip check` passes;
-- folder-pair Page Up/Page Down navigation works from the Files view and visible
-  image tiles;
-- paired folders advance and retreat together;
-- first/last boundary navigation leaves selection unchanged and reports the
-  expected `No previous image` / `No next image` status;
-- primary flags and first-tile promotion behave correctly in regular Multi
-  Views;
-- Split Channels transitions no longer expose the transient old-grid frame.
-
-P1-D has no pending validation item.
-
-## P1-E — Plots and Statistics workspace completion
-
-P1-E owns Plots dock lifecycle, QSettings persistence, shortcut cleanup,
-interaction gestures, and the final Statistics workspace presentation.
-
-### Delivered behavior
-
-- Floating Plots geometry persists independently from main-window geometry.
-- Floating title-bar double-click uses the same maximize/restore path as the
-  explicit title-bar button.
-- `MainWindow` creates `Clear ROI` directly and owns workspace-reset
-  integration through `PlotsDockTitleBar.clear_persisted_geometry()`.
-- Esc clears ROI only; Shift+Esc clears the shared line only.
-- Ctrl+drag creates ROI, Shift+drag creates Line Profile, and Alt+drag creates
-  neither.
-- The selected Histogram/Line Profile tab persists through
-  `analysis/bottom_tab`.
-- Statistics uses numbered Region, Images, and Channel statistics sections.
-- Region presents aligned Scope and Bounds rows and disables Active ROI until
-  a valid shared ROI exists.
-- Images reports bit depth and analyzed Pixels; long folder-qualified labels
-  remain one row with middle elision and full tooltips.
-- Channel statistics uses visual image-group separators without synthetic rows
-  or changes to copy/CSV behavior.
-- Analysis activity collapses after successful completion.
-
-### Preserved invariants
-
-- P1-D primary ordering, Page Up/Page Down shortcut ownership, fixed Multi View
-  geometry, Split Channels ordering, and atomic replacement remain intact.
-- Hide/show does not silently re-dock Plots or reset its selected tab.
-- Floating maximize restores the previous normal floating geometry; docked
-  maximize restores to the original dock area.
-- Statistics row order, selection, clipboard copy, and CSV semantics remain
-  stable.
-- Persistence tests isolate QSettings and do not depend on test order.
-
-### Validation evidence
-
-The repository owner confirmed after all P1-E fixes that the full pytest suite,
-Ruff lint and formatting checks, mypy, documentation contract, and `pip check`
-pass. Manual Windows validation confirms Plots persistence and maximize/restore,
-exact ROI/line gestures and clear shortcuts, Active ROI lifecycle, Statistics
-grouping and separators, and long image-label elision.
-
-## P1-F — fixed-layout compatibility cleanup
-
-P1-F is implemented as compatibility cleanup only; it adds no layout choice and
-does not redesign MainWindow.
-
-### Delivered behavior
-
-- Removed `_FixedArrangementRegistry`, `MULTIVIEW_ARRANGEMENTS`,
-  `FIXED_MULTIVIEW_ARRANGEMENT`, and `TOP_FOCUS_ARRANGEMENT`.
-- Removed `MultiCompareView.arrangement`, `set_arrangement()`, and all MainWindow
-  arrangement fields, menu/action state, setter, and render calls.
-- Removed arrangement from `SixImageDiffRestoreState` and its capture/restore
-  path.
-- Startup no longer reads `ui/multiview_arrangement`; save no longer writes it;
-  Reset Workspace Layout removes the legacy key when present.
-- `_fixed_geometry()` remains the sole one-to-six Multi View geometry policy.
-
-### Preserved behavior
-
-- Exact one-to-six placements and row/column stretch values.
-- P1-D primary ordering, Files selection order, logical slot badges, viewer
-  reuse, synchronized ranges, Split Channels replacement, and folder navigation.
-- P1-E Plots persistence, gestures, selected-tab persistence, Statistics, and
-  workspace reset behavior.
-- Exact six-source Difference restoration of layout mode, primary, active
-  document, page/current indices, display order, logical slots, and view state.
-
-### Tests and validation
-
-- Added focused coverage for geometry, primary ordering, legacy settings,
-  obsolete symbol absence, reset behavior, and six-source restoration.
-- The repository owner confirmed the full CPython 3.10 automated validation
-  contract passes: documentation checks, the complete pytest suite, Ruff lint
-  and format checks, mypy for `src`, and `pip check`.
-- Manual Windows checks remain pending for visual and timing-sensitive behavior.
-
-## Scope exclusions
-
-- Preferences UI or runtime cache-budget changes.
-- Byte-budgeted decoded-image residency or preload.
-- RAW demosaic, normalization, or profile suggestion.
-- Packaging, installer, update checking, or remote GPU work.
-- Broad MainWindow refactoring unrelated to these phase contracts.
-- P1-E or P1-F implementation inside PR #10.
-
-## Standard validation for each phase
-
-Run from the repository root with the pinned CPython 3.10 environment:
+For any subphase that changes source, tests, scripts, dependencies, packaging, or
+runtime behavior, run targeted tests first and then the full repository contract
+from `docs/QUALITY.md`:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -206,106 +252,89 @@ Run from the repository root with the pinned CPython 3.10 environment:
 .\.venv\Scripts\python.exe -m pip check
 ```
 
-Manual Windows checks remain required for visual/timing-sensitive behavior.
-No packaging tools are part of these phases.
+P2-E adds deterministic performance smoke tests rather than unstable wall-clock
+benchmarks as merge gates.
+
+## Manual Windows validation
+
+- P2-0: no new runtime manual check; P1-F manual evidence is not re-verified.
+- P2-A: application/window/taskbar icon, Settings dialog, restart-required state,
+  reset, persistence, invalid settings recovery, and packaged-resource lookup.
+- P2-B: navigation under small budgets, visible/selected protection, oversized
+  source behavior, eviction and reload.
+- P2-C: folder-pair next-group prediction, normal-load responsiveness, rapid
+  navigation, stale preload rejection, and disable/restart behavior.
+- P2-D: readable/redacted diagnostics, copy/export, failure summaries, and no UI
+  stall when opened.
+- P2-E: FHD/UHD and RAW matrix on Windows 10/11 where available.
 
 ## Risks and mitigations
 
 | Risk | Detection | Mitigation |
 |---|---|---|
-| Primary semantics unexpectedly change analysis/reference priority | reference-selection tests | retain `_focus_document_id` and existing priority rules |
-| Reordering even views changes selection or logical IDs | ordering tests | mutate only `_multi_display_order` |
-| Split batching introduces blank or stale frames | transition-order and placeholder tests | apply final geometry first and suppress updates only for the batch |
-| Page Up/Page Down behavior depends on a hidden viewer | visible-widget shortcut tests and manual check | keep navigation in application shortcuts and target realized widgets |
-| Qt saves stale floating geometry | restart tests and manual multi-monitor check | save only valid floating geometry and validate restore |
-| Double-click conflicts with title dragging | targeted event test and manual title-bar check | reuse the existing maximize/restore state machine |
-| Removing arrangement state breaks restore | layout and six-source tests | perform P1-F only after P1-D/E coverage is merged |
-| QSettings tests become order-dependent | full-suite run | isolate settings and clear state per test |
+| Settings migration corrupts startup | fresh/saved/legacy/invalid tests | typed validation, schema version, safe defaults, reset |
+| Budget accounting is mistaken for total RAM | diagnostics/docs review | narrow scope label and separate cache counters |
+| Protected set prevents convergence | low-budget/oversize tests | explicit soft-limit and oversized protected policy |
+| Preload starves interactive loads | worker/counter tests | separate bounded ownership and normal-load priority |
+| Cancelled work applies later | rapid-navigation tests | request identity plus stale-result rejection |
+| Diagnostics leak sensitive data | snapshot redaction tests | basename/relative paths, sanitized errors, no credentials/pixels |
+| P2 becomes a MainWindow rewrite | diff/review gate | introduce policy boundaries incrementally |
 
-## Phase dependencies and review boundaries
+## Owner decisions
 
-1. **P1-D:** merged in PR #10; establishes primary-order semantics, Page Up/Page Down ownership, and atomic Split transitions.
-2. **P1-E:** merged and validated in PR #11; completes Plots, gesture, and Statistics workspace behavior.
-3. **P1-F:** implemented and automatically validated in PR #12; removes compatibility state after P1-D/P1-E behavior is mechanically protected.
+### Required before P2-A
 
-Each phase must remain independently mergeable and must not carry deferred code
-for a later phase.
+- Canonical PixelScope icon design/asset — **Pending owner decision**.
+- Difference-cache default — **Confirmed: 512 MiB**.
+
+### Required before P2-B
+
+- Decoded-source memory budget default — **Pending owner decision**;
+  recommendation: 1024 MiB.
+
+### Required before P2-C
+
+- Preload default — **Pending owner decision**; recommendation: Enabled.
+
+Recommendations are not accepted defaults until the owner records a decision.
 
 ## Progress log
 
-- 2026-08-06: Audited PR #1–#9 excluding #7 and current `main`.
-- 2026-08-06: Confirmed P1-B reference selection and selected-tab persistence
-  are complete.
-- 2026-08-06: Confirmed Esc behavior is correct but its label is stale.
-- 2026-08-06: Confirmed arrangement storage is compatibility-only.
-- 2026-08-06: Added even-view primary ordering requirement.
-- 2026-08-06: Identified document-before-layout ordering as the Bayer-to-GRAY
-  Split transition flicker mechanism.
-- 2026-08-06: Split the remaining workspace work into P1-D, P1-E, and P1-F.
-- 2026-08-06: Completed P1-D primary flags, implicit/explicit primary ordering,
-  equal even-view geometry, and atomic Split replacement in PR #10.
-- 2026-08-06: Removed direct ImageViewer-to-MainWindow method-name coupling for
-  folder-pair Page Up/Page Down handling.
-- 2026-08-06: Repository owner confirmed the full standard validation suite and
-  manual Windows behavior checks pass.
-- 2026-08-06: Updated durable product/user/architecture documentation to use
-  primary-image terminology.
+- 2026-08-06: PR #12 merged at
+  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
+- 2026-08-07: P2-0 branch created from the same PR #12 merge commit.
+- 2026-08-07: P1 workspace plan archived and P2–P7 roadmap transition drafted.
+- 2026-08-07: Source contracts for Difference cache, performance settings,
+  fixed-count source residency, load tokens, and worker pools reconciled.
+- 2026-08-07: Repository owner confirmed the P2-0 documentation checker and docs
+  contract test pass locally.
+- 2026-08-07: Review feedback corrected current residency protection inputs,
+  durable baseline wording, and the Difference-cache default decision.
 
-- 2026-08-06: PR #10 merged into `main` at `e79f9bd15085d9a492b67f3c9beb81e897ff0a0b`.
-- 2026-08-06: Completed P1-E Plots persistence, gesture/shortcut cleanup, Statistics workspace polish, and action-ownership cleanup in PR #11.
-- 2026-08-06: Repository owner confirmed the complete P1-E standard validation suite and manual Windows behavior checks pass.
-- 2026-08-06: PR #11 merged into `main`; P1-F started from main commit `175905105a1679ff0142ddcb3e2acaca28d1da64`.
-- 2026-08-06: Removed arrangement compatibility runtime/QSettings/restore state and added focused P1-F regression coverage.
-- 2026-08-07: Repository owner confirmed the full P1-F automated validation contract passes; manual Windows checks remain pending.
-- 2026-08-07: No completed-plan directory exists, so this plan remains at the required active path with `Status: Complete`.
+## Completion summary placeholder
 
-## P1-D completion summary
+Fill at P2 completion:
 
-- **Delivered behavior:** primary flags and first-tile ordering for regular
-  two-to-six-image Multi Views; atomic Split Channels replacement; shortcut
-  ownership cleanup.
-- **Changed areas:** Multi View layout/content binding, tile header styling and
-  icons, image-viewer shortcut routing, durable documentation, and targeted UI
-  regression tests.
-- **Validation:** full standard validation suite confirmed locally by the
-  repository owner; targeted manual Windows checks confirmed.
-- **Remaining limitations:** none identified within P1-D scope.
-- **Follow-up:** P1-E and P1-F remain separate scoped phases.
-- **Durable docs:** `USER_GUIDE.md`, `PRODUCT_SPEC.md`, `ARCHITECTURE.md`,
-  `CURRENT_STATE.md`, `ROADMAP.md`, this execution plan, and PR #10.
+- Delivered behavior:
+- Changed files/components:
+- Validation results:
+- Manual Windows results:
+- Performance characterization:
+- Remaining limitations:
+- Follow-up phases:
+- Durable docs updated:
 
+## P2 exit criteria
 
-## P1-E completion summary
-
-- **Delivered behavior:** independent floating Plots geometry; title-bar
-  maximize/restore; direct MainWindow ownership of Clear ROI and workspace
-  reset; Ctrl/Shift gesture pairing with Alt removal; numbered and ROI-aware
-  Statistics presentation; bit-depth/pixel metadata; single-line image labels;
-  image-group separators; collapsible activity state.
-- **Changed areas:** `main_window.py`, `plots_dock_title.py`,
-  `image_viewer.py`, `comparison_analysis_panel.py`, focused UI tests, and
-  durable user/execution-plan documentation.
-- **Validation:** full pytest, Ruff check and format check, mypy,
-  documentation contract, and `pip check` confirmed locally by the repository
-  owner; manual Windows behavior checks confirmed.
-- **Remaining limitations:** mixed-dimension Full image bounds wording and
-  richer native-range diagnostics are deferred; multi-monitor placement remains
-  a future robustness check.
-- **Follow-up:** P1-F is implemented separately on updated `main`.
-- **Durable docs:** `docs/USER_GUIDE.md`, this execution plan, and PR #11.
-
-
-## P1-F completion summary
-
-- **Delivered behavior:** fixed Multi View geometry now has no arrangement
-  registry, runtime field, menu/action, QSettings read/write path, or six-source
-  restore dependency.
-- **Changed areas:** `multi_compare_view.py`, `main_window.py`, focused UI tests,
-  and durable state/roadmap documentation.
-- **Validation:** full documentation, pytest, Ruff lint/format, mypy, and
-  `pip check` contract confirmed locally by the repository owner; manual Windows
-  checks remain pending.
-- **Remaining limitations:** only the explicitly deferred backlog; no new phase
-  is introduced.
-- **Durable docs:** `CURRENT_STATE.md`, `ROADMAP.md`,
-  `ui/implementation_status.md`, this execution plan, and the P1-F PR.
+- Typed settings and persistence are stable, validated, and restart semantics are
+  explicit.
+- Difference-cache budget is loaded at startup rather than silently defaulted.
+- Native decoded-source residency is byte-accounted with protection, eviction,
+  reload, and diagnostics.
+- One-group-ahead preload is bounded, lower priority than normal load, and rejects
+  stale results.
+- Diagnostics are deterministic, redacted, cheap to inspect, and consistent with
+  runtime state.
+- P2 integration passes the full repository contract and the agreed Windows
+  characterization matrix.
+- No P2 document describes unimplemented P3–P7 work as delivered.
