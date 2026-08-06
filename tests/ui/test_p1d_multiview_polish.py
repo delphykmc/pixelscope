@@ -66,6 +66,9 @@ def test_even_view_primary_promotes_display_only_and_preserves_view_state(
     selected_ids = [document.document_id for document in documents]
     window._select_document_ids(selected_ids)
     window.set_layout_mode("Multi View")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._focus_document_id == documents[0].document_id
+    )
     viewer_ids = tuple(id(viewer) for viewer in window.multi_compare_view.viewers)
     logical_ids = tuple(window.documents)
 
@@ -81,6 +84,7 @@ def test_even_view_primary_promotes_display_only_and_preserves_view_state(
     window._set_focus_document(documents[-1])
     after = window.multi_compare_view.capture_view_state()
 
+    assert window._focus_document_id == documents[-1].document_id
     assert window.multi_compare_view.viewers[0].document is documents[-1]
     assert window.multi_compare_view.viewers[0].header.focus.isChecked()
     assert all(
@@ -92,6 +96,27 @@ def test_even_view_primary_promotes_display_only_and_preserves_view_state(
     assert tuple(id(viewer) for viewer in window.multi_compare_view.viewers) == viewer_ids
     assert before.ranges is not None and after.ranges is not None
     assert np.allclose(after.ranges, before.ranges)
+    window.close()
+
+
+def test_user_primary_choice_cancels_pending_default(qtbot: object) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    documents = _documents(2)
+    for document in documents:
+        window.add_document(document, select=False)
+    window._select_document_ids([document.document_id for document in documents])
+    window.set_layout_mode("Multi View")
+
+    second_viewer = window.multi_compare_view.occupied_viewers[1]
+    window.multi_compare_view._request_focus(second_viewer)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._focus_document_id == documents[1].document_id
+    )
+    qtbot.wait(20)  # type: ignore[attr-defined]
+
+    assert window._focus_document_id == documents[1].document_id
+    assert window.multi_compare_view.viewers[0].document is documents[1]
     window.close()
 
 
