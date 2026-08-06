@@ -17,9 +17,16 @@ comparison. The matching filename at each natural-sort index forms a pair.
 
 ## `manual/raw_chart_set/`
 
-FHD GRAY and RGGB RAW fixtures covering unpacked 8/10/12/14/16-bit storage,
-16-bit LSB/MSB alignment, and MIPI RAW10/12/14 packing. Each RAW file has a
-same-stem profile and is indexed by `manifest.json`.
+FHD GRAY and RGGB RAW fixtures covering unpacked `uint8`/`uint16`, LSB/MSB
+alignment, and MIPI RAW10/12/14 storage. Filenames are prefixed so natural
+sorting shows all GRAY fixtures first and then the Bayer variants grouped by
+bit depth and storage format.
+
+The Bayer fixtures are sampled from one true RGB chart before quantization and
+serialization. Reference PNGs are stored under `references/` so they do not
+mix with RAW files during normal folder registration. Use this set to validate
+RAW profiles, packing, alignment, stride, Bayer channel splitting, and preview
+interpretation.
 
 ## `manual/uhd_chart_set/`
 

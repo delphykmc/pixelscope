@@ -33,28 +33,49 @@ def test_raw_dialog_separates_storage_format_container_and_bit_depth(
     assert _form_label(dialog, dialog.bit_depth) == "Bit depth"
     assert _form_label(dialog, dialog.byte_order) == "Byte order"
     assert _form_label(dialog, dialog.bit_alignment) == "Bit alignment"
+    assert [dialog.container.itemText(index) for index in range(dialog.container.count())] == [
+        "uint8",
+        "uint16",
+    ]
+    assert [dialog.byte_order.itemText(index) for index in range(dialog.byte_order.count())] == [
+        "little",
+        "big",
+    ]
+    assert [
+        dialog.bit_alignment.itemText(index) for index in range(dialog.bit_alignment.count())
+    ] == ["LSB aligned", "MSB aligned"]
     assert dialog.storage_format.currentData() == "unpacked"
     assert dialog.container.currentData() == "uint16"
+    assert not dialog.container.isHidden()
+    assert not dialog.byte_order.isHidden()
+    assert not dialog.bit_alignment.isHidden()
     assert dialog.minimum_stride_bytes() == 24
     assert dialog.minimum_stride_value.text() == "Minimum stride: 24 bytes"
 
     dialog.container.setCurrentIndex(dialog.container.findData("uint8"))
     assert dialog.bit_depth.maximum() == 8
-    assert not dialog.byte_order.isEnabled()
-    assert dialog.byte_order.currentData() is None
+    assert dialog.byte_order.isHidden()
+    assert dialog.bit_alignment.isHidden()
     assert dialog.minimum_stride_bytes() == 12
+    assert dialog.profile().endianness is None
+    assert dialog.profile().bit_alignment is None
+
+    dialog.bit_depth.setValue(6)
+    assert not dialog.bit_alignment.isHidden()
+    assert dialog.bit_alignment.currentData() == "lsb"
+    assert dialog.profile().bit_alignment == "lsb"
 
     dialog.container.setCurrentIndex(dialog.container.findData("uint16"))
     dialog.bit_depth.setValue(10)
-    assert dialog.byte_order.isEnabled()
-    assert dialog.bit_alignment.isEnabled()
+    assert not dialog.byte_order.isHidden()
+    assert not dialog.bit_alignment.isHidden()
     assert dialog.bit_alignment.currentData() == "lsb"
     dialog.bit_depth.setValue(16)
-    assert not dialog.bit_alignment.isEnabled()
-    assert dialog.bit_alignment.currentData() is None
+    assert dialog.bit_alignment.isHidden()
+    assert dialog.profile().bit_alignment is None
 
 
-def test_raw_dialog_packed_formats_define_dependent_fields(qtbot: object) -> None:
+def test_raw_dialog_packed_formats_hide_non_applicable_rows(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     dialog.width_box.setValue(1920)
@@ -69,18 +90,22 @@ def test_raw_dialog_packed_formats_define_dependent_fields(qtbot: object) -> Non
         dialog.storage_format.setCurrentIndex(dialog.storage_format.findData(storage_format))
         assert dialog.bit_depth.value() == bit_depth
         assert not dialog.bit_depth.isEnabled()
-        assert dialog.container.currentData() is None
-        assert not dialog.container.isEnabled()
-        assert dialog.byte_order.currentData() is None
-        assert not dialog.byte_order.isEnabled()
-        assert dialog.bit_alignment.currentData() is None
-        assert not dialog.bit_alignment.isEnabled()
+        assert dialog.container.isHidden()
+        assert dialog.byte_order.isHidden()
+        assert dialog.bit_alignment.isHidden()
         assert dialog.minimum_stride_bytes() == minimum_stride
+        dialog.stride.setValue(minimum_stride)
+        profile = dialog.profile()
+        assert profile.container_dtype is None
+        assert profile.endianness is None
+        assert profile.bit_alignment is None
 
     dialog.storage_format.setCurrentIndex(dialog.storage_format.findData("unpacked"))
-    assert dialog.container.isEnabled()
+    assert not dialog.container.isHidden()
     assert dialog.bit_depth.isEnabled()
     assert dialog.container.currentData() == "uint16"
+    assert not dialog.byte_order.isHidden()
+    assert not dialog.bit_alignment.isHidden()
 
 
 def test_raw_dialog_rejects_invalid_mipi_dimensions(qtbot: object) -> None:

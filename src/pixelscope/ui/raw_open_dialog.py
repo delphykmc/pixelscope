@@ -121,7 +121,6 @@ class RawOpenDialog(QDialog):
             [
                 ("uint8", "uint8"),
                 ("uint16", "uint16"),
-                ("Defined by format", None),
             ],
             "uint16",
         )
@@ -130,7 +129,6 @@ class RawOpenDialog(QDialog):
             [
                 ("little", "little"),
                 ("big", "big"),
-                ("Not applicable", None),
             ],
             "little",
         )
@@ -138,7 +136,6 @@ class RawOpenDialog(QDialog):
             [
                 ("LSB aligned", "lsb"),
                 ("MSB aligned", "msb"),
-                ("Not applicable", None),
             ],
             "lsb",
         )
@@ -475,17 +472,27 @@ class RawOpenDialog(QDialog):
             )
         else:
             black_level = self.black_gray.value()
+
+        storage_format = self.storage_format_key
+        container = self.container_dtype if storage_format == "unpacked" else None
+        endianness: Endianness | None = None
+        alignment: BitAlignment | None = None
+        if container == "uint16":
+            endianness = cast(Endianness, self.byte_order.currentData())
+        if container is not None and self.bit_depth.value() < container_bit_count(container):
+            alignment = cast(BitAlignment, self.bit_alignment.currentData())
+
         return RawProfile(
             name=self._profile_name,
             width=self.width_box.value(),
             height=self.height_box.value(),
             stride_bytes=self.stride.value(),
             offset_bytes=self.offset.value(),
-            storage_format=self.storage_format_key,
-            container_dtype=self.container_dtype,
-            endianness=cast(Endianness | None, self.byte_order.currentData()),
+            storage_format=storage_format,
+            container_dtype=container,
+            endianness=endianness,
             bit_depth=self.bit_depth.value(),
-            bit_alignment=cast(BitAlignment | None, self.bit_alignment.currentData()),
+            bit_alignment=alignment,
             channel_layout=layout,
             bayer_pattern=(self.bayer_pattern.currentText() if layout == "BAYER" else None),
             black_level=black_level,
@@ -539,26 +546,19 @@ class RawOpenDialog(QDialog):
         spec = storage_format_spec(storage_format)
         packed = spec.is_packed
 
+        self._set_form_row_visible(self.container, not packed)
+        self.bit_depth.setEnabled(not packed)
         if packed:
-            self._set_combo_data(self.container, None)
-            self.container.setEnabled(False)
-            self.container.setItemText(2, "Defined by format")
-            self.bit_depth.setEnabled(False)
             self.bit_depth.setValue(int(spec.fixed_bit_depth or 1))
-            self._set_combo_data(self.byte_order, None)
-            self.byte_order.setItemText(2, "Defined by format")
-            self.byte_order.setEnabled(False)
-            self._set_combo_data(self.bit_alignment, None)
-            self.bit_alignment.setItemText(2, "Defined by format")
-            self.bit_alignment.setEnabled(False)
+            self._set_form_row_visible(self.byte_order, False)
+            self._set_form_row_visible(self.bit_alignment, False)
         else:
-            self.container.setEnabled(True)
             self._set_combo_data(self.container, self._unpacked_container)
-            self.bit_depth.setEnabled(True)
             self.bit_depth.setValue(self._unpacked_bit_depth)
             self._update_unpacked_control_states()
         self._bit_depth_changed(self.bit_depth.value())
         self._update_diagnostics()
+        QTimer.singleShot(0, self._resize_dialog_to_content)
 
     def _container_changed(self, _index: int | None = None) -> None:
         if self.storage_format_key != "unpacked":
@@ -593,23 +593,16 @@ class RawOpenDialog(QDialog):
         if self.bit_depth.value() > container_bits:
             self.bit_depth.setValue(container_bits)
 
-        if container == "uint16":
-            self.byte_order.setItemText(2, "Not applicable")
+        byte_order_visible = container == "uint16"
+        self._set_form_row_visible(self.byte_order, byte_order_visible)
+        if byte_order_visible:
             self._set_combo_data(self.byte_order, self._unpacked_endianness)
-            self.byte_order.setEnabled(True)
-        else:
-            self.byte_order.setItemText(2, "Not applicable")
-            self._set_combo_data(self.byte_order, None)
-            self.byte_order.setEnabled(False)
 
-        if self.bit_depth.value() < container_bits:
-            self.bit_alignment.setItemText(2, "Not applicable")
+        alignment_visible = self.bit_depth.value() < container_bits
+        self._set_form_row_visible(self.bit_alignment, alignment_visible)
+        if alignment_visible:
             self._set_combo_data(self.bit_alignment, self._unpacked_alignment)
-            self.bit_alignment.setEnabled(True)
-        else:
-            self.bit_alignment.setItemText(2, "Not applicable")
-            self._set_combo_data(self.bit_alignment, None)
-            self.bit_alignment.setEnabled(False)
+        QTimer.singleShot(0, self._resize_dialog_to_content)
 
     def _bit_depth_changed(self, depth: int) -> None:
         if self.storage_format_key == "unpacked":

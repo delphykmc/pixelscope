@@ -1,5 +1,5 @@
 {
-  "name": "synthetic_fhd_12bit_gray",
+  "name": "02_bayer_12bit_01_rggb_u16le_msb",
   "width": 1920,
   "height": 1080,
   "stride_bytes": 3840,
@@ -8,9 +8,14 @@
   "container_dtype": "uint16",
   "endianness": "little",
   "bit_depth": 12,
-  "bit_alignment": "lsb",
-  "channel_layout": "GRAY",
-  "bayer_pattern": null,
-  "black_level": 0,
+  "bit_alignment": "msb",
+  "channel_layout": "BAYER",
+  "bayer_pattern": "RGGB",
+  "black_level": [
+    0,
+    0,
+    0,
+    0
+  ],
   "white_level": 4095
 }

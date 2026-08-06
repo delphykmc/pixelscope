@@ -1,5 +1,5 @@
 {
-  "name": "synthetic_fhd_10bit_gray",
+  "name": "01_gray_14bit_u16le_lsb",
   "width": 1920,
   "height": 1080,
   "stride_bytes": 3840,
@@ -7,10 +7,10 @@
   "storage_format": "unpacked",
   "container_dtype": "uint16",
   "endianness": "little",
-  "bit_depth": 10,
+  "bit_depth": 14,
   "bit_alignment": "lsb",
   "channel_layout": "GRAY",
   "bayer_pattern": null,
   "black_level": 0,
-  "white_level": 1023
+  "white_level": 16383
 }
