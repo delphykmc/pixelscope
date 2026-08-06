@@ -187,6 +187,7 @@ def test_tile_header_switches_between_full_and_compact_metadata(
 def test_primary_flag_is_available_in_four_and_five_tile_layouts(qtbot: object) -> None:
     view = MultiCompareView()
     qtbot.addWidget(view)  # type: ignore[attr-defined]
+    view.show()
     documents = [_rgb_document(f"primary-{index}.png", index) for index in range(5)]
 
     view.set_capacity(4)
