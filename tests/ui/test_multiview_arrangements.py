@@ -34,7 +34,7 @@ def _documents(count: int) -> list[ImageDocument]:
 FIXED_GEOMETRY = {
     1: (((0, 0, 1, 1),), (1, 0, 0), (1, 0, 0)),
     2: (((0, 0, 1, 1), (0, 1, 1, 1)), (1, 0, 0), (1, 1, 0)),
-    3: (((0, 0, 2, 1), (0, 1, 1, 1), (1, 1, 1, 1)), (1, 1, 0), (1, 1, 0)),
+    3: (((0, 0, 2, 1), (0, 1, 1, 1), (1, 1, 0)), (1, 1, 0), (1, 1, 0)),
     4: (
         ((0, 0, 1, 1), (0, 1, 1, 1), (1, 0, 1, 1), (1, 1, 1, 1)),
         (1, 1, 0),
@@ -85,7 +85,7 @@ def test_fixed_geometry_and_pin_visibility(qtbot: object, count: int) -> None:
     assert tuple(view._layout.rowStretch(index) for index in range(3)) == row_stretches
     assert tuple(view._layout.columnStretch(index) for index in range(3)) == column_stretches
     assert all(
-        viewer.header.focus.isHidden() is (count not in (3, 5)) for viewer in view.occupied_viewers
+        viewer.header.focus.isHidden() is (count == 1) for viewer in view.occupied_viewers
     )
 
 
