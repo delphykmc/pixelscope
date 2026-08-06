@@ -121,7 +121,6 @@ def test_atomic_replacement_preserves_preexisting_updates_disabled_state(
     qtbot.addWidget(view)  # type: ignore[attr-defined]
     documents = _documents(4)
     view.set_capacity(4)
-    view.setDocuments = view.set_documents  # type: ignore[attr-defined]
     view.setUpdatesEnabled(False)
 
     view.set_documents(documents, 0, 4, None, None)
