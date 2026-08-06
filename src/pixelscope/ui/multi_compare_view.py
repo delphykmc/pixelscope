@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, cast
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from pixelscope.core.image_document import ImageDocument
@@ -62,7 +62,6 @@ class MultiCompareView(QWidget):
         self._layout_refit_active = False
         self._document_count = 0
         self._active_viewer: ImageViewer | None = None
-        self._pending_default_primary_id: str | None = None
         self.sync_enabled = True
         self.layout_kind = "Auto"
         self.arrangement = FIXED_MULTIVIEW_ARRANGEMENT
@@ -139,23 +138,15 @@ class MultiCompareView(QWidget):
             not document.channel_layout.startswith("CHANNEL_")
             for document in displayed_documents
         )
-        default_primary_document: ImageDocument | None = None
         displayed_ids = {document.document_id for document in displayed_documents}
         if primary_controls_enabled and self.focus_document_id not in displayed_ids:
-            # Every regular Multi View has one primary image. The first displayed
-            # image is the default until the user selects another primary image.
+            # The first displayed image is the implicit primary until the user
+            # explicitly selects another image. MainWindow already uses the first
+            # displayed image as its analysis/reference fallback, so no extra render
+            # or deferred state synchronization is needed here.
             self.focus_document_id = displayed_documents[0].document_id
-            if (
-                slot_by_id is not None
-                and self._pending_default_primary_id != displayed_documents[0].document_id
-            ):
-                self._pending_default_primary_id = displayed_documents[0].document_id
-                default_primary_document = displayed_documents[0]
-        elif primary_controls_enabled:
-            self._pending_default_primary_id = None
-        else:
+        elif not primary_controls_enabled:
             self.focus_document_id = None
-            self._pending_default_primary_id = None
         updates_were_enabled = self.updatesEnabled()
         if updates_were_enabled:
             self.setUpdatesEnabled(False)
@@ -215,16 +206,6 @@ class MultiCompareView(QWidget):
             document.loading_state not in ("pending", "loading") for document in documents
         ):
             self._finish_layout_refit()
-        if default_primary_document is not None:
-            # Defer MainWindow synchronization until the current render pass has
-            # completed. A later user choice or selection change invalidates this
-            # pending default before it can overwrite the newer state.
-            QTimer.singleShot(
-                0,
-                lambda document=default_primary_document: self._emit_default_primary(
-                    document
-                ),
-            )
 
     def set_shared_roi(self, bounds: RoiBounds | None) -> None:
         for viewer in self.visible_viewers:
@@ -418,14 +399,7 @@ class MultiCompareView(QWidget):
             candidate.set_active(candidate is viewer)
         self.active_document_changed.emit(viewer.document)
 
-    def _emit_default_primary(self, document: ImageDocument) -> None:
-        if self._pending_default_primary_id != document.document_id:
-            return
-        self._pending_default_primary_id = None
-        self.focus_document_requested.emit(document)
-
     def _request_focus(self, viewer: object) -> None:
-        self._pending_default_primary_id = None
         if isinstance(viewer, ImageViewer) and viewer.document is not None:
             self.focus_document_requested.emit(viewer.document)
 
