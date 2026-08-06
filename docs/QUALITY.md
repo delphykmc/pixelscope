@@ -29,9 +29,24 @@ reason, and unverified risk.
 | Worker/cache/asynchronous lifecycle | Tests for request identity, stale-result rejection, cancellation/invalidation, generation changes, and bounded resources |
 | File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, and bit-depth cases as applicable |
 | Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, reset, and restart behavior |
+| Application identity/package resources | Focused SVG/PNG/ICO structure and decode tests, application-icon UI test, reproducible-generation check, wheel-content verification, unrelated-CWD launch, and Windows title-bar/Alt+Tab/running-taskbar/DPI visual checks |
 | Public workflow/terminology | Product/user documentation update and UI assertions |
 | Dependency/packaging | Python 3.10 evidence, `pip check`, packaging-constraint review, and explicit authorization before packaging tools run |
 | Documentation/harness | `scripts/check_docs.py`, consistency with current code/PR scope, and diff inspection |
+
+For application identity changes, run the generator in check mode and verify the
+built wheel contains the canonical triplet:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_icon_assets.py --check
+Remove-Item -Recurse -Force .tmp-wheel -ErrorAction SilentlyContinue
+.\.venv\Scripts\python.exe -m pip wheel . --no-deps -w .tmp-wheel
+.\.venv\Scripts\python.exe scripts\check_wheel_icon_assets.py .tmp-wheel
+```
+
+Source-run title-bar, Alt+Tab, running-taskbar, scaling, and taskbar-background
+checks belong to P2-A1. Executable-file, pinned-shortcut, installer-shortcut, and
+final packaged-shell identity belong to P7.
 
 ## Golden paths
 
@@ -47,6 +62,7 @@ Preserve deterministic fixtures and smoke paths for:
 - Plots visibility, selected tab, floating/docked/maximized state, and workspace
   restoration.
 - Resident-image eviction and reload.
+- Canonical application-icon loading from package resources independent of CWD.
 
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer
 layout, geometry, memory pressure, or event order. Keep fixtures small unless

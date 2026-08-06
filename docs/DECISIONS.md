@@ -29,20 +29,30 @@
 ## Accepted P2 program decisions
 
 - P2 is named **Runtime Foundation, Settings & Performance**.
-- P2 proceeds sequentially: P2-A → P2-B → P2-C → P2-D → P2-E after the P2-0
-  documentation transition. Each phase starts from the latest merged `main`.
+- P2 proceeds sequentially:
+  **P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E** after the P2-0 documentation
+  transition. Each slice starts from the latest merged prerequisite on `main`.
+- P2-A1 is the application identity/resource foundation delivered by PR #14.
+  P2-A2 owns typed settings, persistence, the Settings dialog, and
+  Difference-cache startup injection.
 - Settings domain models and persistence adapters are separate. QSettings is an
   adapter, not the application settings model.
 - Performance settings are immutable startup snapshots. Changes to startup-only
   budgets or preload state require restart indication.
-- The P2-A Difference-cache default is confirmed as 512 MiB.
+- The P2-A2 Difference-cache default is confirmed as 512 MiB.
 - The current canonical PixelScope identity is a blue-gray image/scope/pixel mark
   with a restrained amber accent. The editable SVG, runtime PNG, and Windows ICO
   are colocated under `src/pixelscope/assets/icons/`; release naming or artwork
   may replace the triplet before P7, but duplicate canonical copies are not
   allowed.
+- `scripts/generate_icon_assets.py` is the canonical derivative path. It uses the
+  pinned Qt SVG renderer and must preserve transparent 16, 20, 24, 32, 40, 48,
+  64, 128, and 256 px ICO frames in ascending order.
 - Application icon lookup uses package-resource bytes and may not depend on the
   current working directory or a source-tree absolute path.
+- Executable-file, pinned-shortcut, installer-shortcut, AppUserModelID, signing,
+  and final shell-identity policy remain P7 concerns unless Windows source-run
+  validation demonstrates an earlier runtime blocker.
 - Decoded-source budgeting accounts native decoded `ImageDocument.source`
   arrays only. It excludes previews, Qt textures, Difference/derived caches, and
   transient worker arrays and is not total process memory.
@@ -62,8 +72,8 @@
 
 ## Current versus planned resource policy
 
-- The canonical SVG/PNG/ICO icon triplet and package-resource loader are present;
-  `QApplication` receives the runtime PNG during bootstrap.
+- The canonical SVG/PNG/ICO icon triplet, reproducible generator,
+  package-resource loader, and `QApplication` assignment are P2-A1 boundaries.
 - `DifferenceMapCache` is already byte-budgeted with diagnostics and a 512 MiB
   default.
 - Frozen `PerformanceSettings` exists but is not loaded/injected at bootstrap.

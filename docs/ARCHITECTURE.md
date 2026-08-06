@@ -16,6 +16,22 @@ Source arrays retain decoded dtype and channel meaning. Display conversion
 creates uint8 previews without modifying native source data. RGBA analysis
 ignores alpha. Difference and squared-error paths promote operands first.
 
+## Current application identity and resource boundary
+
+Canonical application assets live under
+`src/pixelscope/assets/icons/pixelscope.{svg,png,ico}`. The SVG is the editable
+source of truth; `scripts/generate_icon_assets.py` derives the runtime PNG and
+multi-frame Windows ICO.
+
+`pixelscope.app.resources` reads package bytes through `importlib.resources`.
+Application bootstrap assigns the decoded runtime icon to `QApplication`, so
+resource lookup is independent of the current working directory and source-tree
+absolute paths. Setuptools package data includes the complete icon triplet.
+
+This boundary supplies source-run application/window identity only. PyInstaller
+executable icon binding, Windows shortcut and installer identity, pinned-shell
+behavior, AppUserModelID policy, signing, and final release naming remain P7.
+
 ## Current workspace structure
 
 The central splitter contains Files/Analysis and the active workspace. Ordered

@@ -1,8 +1,10 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-07  
-Current `main` / P2-A branch base: `52daa63425a286e370aa5ef36f59ba51a8acd565`  
-Runtime code baseline: PR #12 merge commit `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
+PR #13 merge commit and PR #14 branch base:
+`52daa63425a286e370aa5ef36f59ba51a8acd565`  
+Runtime code baseline before PR #14:
+`1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
 
 This document records the implementation baseline that new work must use.
 
@@ -12,10 +14,11 @@ This document records the implementation baseline that new work must use.
 - P1-E merged as PR #11.
 - P1-F merged as PR #12.
 - P2-0 merged as PR #13 at
-  `52daa63425a286e370aa5ef36f59ba51a8acd565`; that commit is the P2-A branch base.
-- PR #13 changed durable documentation only, so the runtime code baseline remains
-  the PR #12 merge commit `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
-- The current runtime phase is P2-A.
+  `52daa63425a286e370aa5ef36f59ba51a8acd565`.
+- PR #13 changed durable documentation only, so the runtime code baseline before
+  PR #14 remains the PR #12 merge commit
+  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
+- P2-A is split into P2-A1 identity/resources and P2-A2 settings foundation.
 
 ## Implemented baseline
 
@@ -53,13 +56,18 @@ This document records the implementation baseline that new work must use.
 
 ### Runtime resources
 
+- PR #14 delivers the P2-A1 identity/resource foundation.
 - Canonical icon assets are colocated at
   `src/pixelscope/assets/icons/pixelscope.{svg,png,ico}`. The SVG is the editable
-  source, the 256 px indexed-color PNG is the Qt runtime asset, and the ICO contains
-  16–256 px Windows frames.
+  vector source, the transparent 256 px PNG is the Qt runtime asset, and the ICO
+  contains transparent 16, 20, 24, 32, 40, 48, 64, 128, and 256 px frames.
+- `scripts/generate_icon_assets.py` reproducibly derives PNG and ICO from the SVG.
 - Application bootstrap reads the PNG through `importlib.resources` and assigns
-  it to `QApplication`; lookup is independent of the current working directory.
+  it to `QApplication`; lookup is independent of the current working directory
+  and source-tree absolute paths.
 - SVG, PNG, and ICO files are declared as setuptools package data.
+- Executable, shortcut, installer, and final Windows shell identity binding remain
+  P7 work.
 - `DifferenceMapCache` is a byte-budgeted LRU with a 512 MiB default.
 - Difference diagnostics expose `used_bytes`, `budget_bytes`, and `entry_count`.
 - `DifferencePanel` has a constructor injection seam for its cache budget.
@@ -81,8 +89,9 @@ This document records the implementation baseline that new work must use.
 
 ## Not implemented
 
-- Settings dialog, typed application settings repository, migration service, and
-  restart-required UI.
+- P2-A2 typed `ApplicationSettings`, `SettingsRepository`, QSettings adapter,
+  migration, validation, reset, Settings dialog, restart-required UI, and
+  Difference-cache startup injection.
 - Byte-budgeted decoded-source setting and residency manager.
 - One-group-ahead preload.
 - Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export.
@@ -93,18 +102,18 @@ This document records the implementation baseline that new work must use.
 The repository owner recorded the full automated validation contract as passed
 for P1-D, P1-E, and P1-F. P1-D and P1-E also have recorded manual Windows checks.
 P1-F manual Windows evidence was not re-verified during P2-0 and is not claimed
-as passed by this documentation PR.
+as passed by that documentation PR.
 
 The repository owner confirmed the P2-0 documentation checker and docs contract
 test passed locally.
 
-The P2-A identity slice remains a draft until the full repository contract and
-manual Windows title-bar, Alt+Tab, and taskbar checks are recorded.
+P2-A1 validation status and exact local/Windows evidence are maintained in PR
+#14. This document does not claim checks that are not recorded there.
 
 ## Active plan
 
 - P1 history: [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md)
 - P2 active plan: [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
-- Current implementation phase: P2-A — Application identity and Settings foundation.
-- The icon/resource slice is present; typed settings and Difference-cache startup
-  injection remain to complete P2-A.
+- P2-A1: application identity/resource foundation, delivered by PR #14.
+- Next implementation slice after PR #14: P2-A2 — settings foundation and
+  Difference-cache startup injection.
