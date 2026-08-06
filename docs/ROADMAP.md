@@ -54,8 +54,8 @@ Status: Complete, validated, and merged as PR #11.
 
 ## P1-F — fixed-layout compatibility cleanup
 
-Status: Implemented in the current scoped PR; pinned local validation and manual
-Windows checks remain before merge.
+Status: Implemented in PR #12 with the full automated validation contract
+complete; manual Windows checks remain before merge.
 
 - Remove obsolete arrangement constants, registry, runtime fields, menu/actions,
   setter, startup/save, render, and restore paths.

@@ -1,9 +1,9 @@
 # Execution plan: P1-D to P1-F workspace polish
 
-Status: Complete — P1-D and P1-E merged; P1-F implemented in the current PR
+Status: Complete — P1-D and P1-E merged; P1-F implemented and automatically validated in PR #12
 Owner: repository owner + coding agent
 Branch/PR: one scoped PR per phase after PR #7
-Last updated: 2026-08-06
+Last updated: 2026-08-07
 
 ## Goal
 
@@ -24,7 +24,7 @@ The work is split into independently mergeable phases:
 |---|---|---|
 | P1-D — Multi View ordering and atomic Split transitions | Merged and validated | PR #10 |
 | P1-E — Plots workspace completion | Merged and validated | PR #11 |
-| P1-F — fixed-layout compatibility cleanup | Implemented; local standard/manual validation pending | Current scoped PR |
+| P1-F — fixed-layout compatibility cleanup | Implemented; automated validation complete; manual Windows validation pending | PR #12 |
 
 ## P1-D — completed behavior
 
@@ -179,11 +179,10 @@ does not redesign MainWindow.
 
 - Added focused coverage for geometry, primary ordering, legacy settings,
   obsolete symbol absence, reset behavior, and six-source restoration.
-- Patch-generation validation covers the documentation contract, Python syntax,
-  and diff cleanliness.
-- The pinned CPython 3.10 full suite and manual Windows checks remain required
-  after local patch application; unexecuted checks must not be reported as
-  passing.
+- The repository owner confirmed the full CPython 3.10 automated validation
+  contract passes: documentation checks, the complete pytest suite, Ruff lint
+  and format checks, mypy for `src`, and `pip check`.
+- Manual Windows checks remain pending for visual and timing-sensitive behavior.
 
 ## Scope exclusions
 
@@ -227,7 +226,7 @@ No packaging tools are part of these phases.
 
 1. **P1-D:** merged in PR #10; establishes primary-order semantics, Page Up/Page Down ownership, and atomic Split transitions.
 2. **P1-E:** merged and validated in PR #11; completes Plots, gesture, and Statistics workspace behavior.
-3. **P1-F:** implemented in the current scoped PR; removes compatibility state after P1-D/P1-E behavior is mechanically protected.
+3. **P1-F:** implemented and automatically validated in PR #12; removes compatibility state after P1-D/P1-E behavior is mechanically protected.
 
 Each phase must remain independently mergeable and must not carry deferred code
 for a later phase.
@@ -257,7 +256,8 @@ for a later phase.
 - 2026-08-06: Repository owner confirmed the complete P1-E standard validation suite and manual Windows behavior checks pass.
 - 2026-08-06: PR #11 merged into `main`; P1-F started from main commit `175905105a1679ff0142ddcb3e2acaca28d1da64`.
 - 2026-08-06: Removed arrangement compatibility runtime/QSettings/restore state and added focused P1-F regression coverage.
-- 2026-08-06: No completed-plan directory exists, so this plan remains at the required active path with `Status: Complete`.
+- 2026-08-07: Repository owner confirmed the full P1-F automated validation contract passes; manual Windows checks remain pending.
+- 2026-08-07: No completed-plan directory exists, so this plan remains at the required active path with `Status: Complete`.
 
 ## P1-D completion summary
 
@@ -302,9 +302,9 @@ for a later phase.
   restore dependency.
 - **Changed areas:** `multi_compare_view.py`, `main_window.py`, focused UI tests,
   and durable state/roadmap documentation.
-- **Validation:** documentation contract, Python syntax, and generated patch
-  cleanliness confirmed in the patch environment; pinned full-suite and manual
-  Windows checks remain local.
+- **Validation:** full documentation, pytest, Ruff lint/format, mypy, and
+  `pip check` contract confirmed locally by the repository owner; manual Windows
+  checks remain pending.
 - **Remaining limitations:** only the explicitly deferred backlog; no new phase
   is introduced.
 - **Durable docs:** `CURRENT_STATE.md`, `ROADMAP.md`,

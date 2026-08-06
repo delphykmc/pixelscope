@@ -1,7 +1,7 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-06
-Reference branch: `feature/p1-f-layout-cleanup` / current scoped PR
+Snapshot date: 2026-08-07
+Reference branch: `feature/p1-f-layout-cleanup` / PR #12
 
 This document is the first source to read before planning new work. It records
 what is implemented, what earlier plans incorrectly describe, and which
@@ -105,8 +105,8 @@ documentation branch being updated.
 The active program plan is
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md). It remains
 at the required active path with `Status: Complete` because no completed-plan
-directory exists. The pinned full suite and manual Windows checks remain
-required after local patch application.
+directory exists. The full automated validation contract has passed locally;
+only manual Windows checks remain pending before merge.
 
 ## Later backlog
 

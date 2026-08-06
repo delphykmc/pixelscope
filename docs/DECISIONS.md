@@ -18,17 +18,18 @@
   working set. This is an interim constraint pending byte-budgeted residency.
 - Ordered selection is the comparison model. Legacy A/B roles are not primary
   UI; Difference may select any two current images.
-- Multi View has one fixed layout policy. The arrangement registry and setting
-  are compatibility-only and must be removed after startup/reset/restore
-  migration coverage exists.
+- Multi View has one fixed layout policy. `MultiCompareView._fixed_geometry()`
+  is the sole geometry authority; P1-F removed the runtime arrangement registry,
+  fields, actions, restore dependency, and persisted setting. Legacy setting
+  values are ignored at startup and removed by Reset Workspace Layout.
 - Layout fit and ordinary view preservation are distinct. Refit survives
   pending lazy loads; navigation, display-only Difference changes, and dock
   resize preserve zoom/offset.
 - Plot title-bar icons are rendered in code with design-token colors instead of
   platform glyphs.
-- Line Profile Difference mode resolves its initial reference by focused/pinned,
-  active, then first displayed document and preserves explicit selection while
-  available.
+- Line Profile Difference mode resolves its initial reference by primary image,
+  active image, then first displayed document and preserves explicit selection
+  while available.
 - RAW storage format, sample container, effective bit depth, endian, and
   alignment are separate profile concepts. MIPI RAW10/12/14 have fixed layouts
   and omit non-applicable container controls.
