@@ -1,6 +1,6 @@
 # Execution plan: P1-D to P1-F workspace polish
 
-Status: Active — P1-D complete; P1-E and P1-F pending  
+Status: Active — P1-D merged; P1-E implemented and validated in PR #11; P1-F pending
 Owner: repository owner + coding agent  
 Branch/PR: one scoped PR per phase after PR #7  
 Last updated: 2026-08-06
@@ -22,8 +22,8 @@ The work is split into independently mergeable phases:
 
 | Phase | Status | Pull request |
 |---|---|---|
-| P1-D — Multi View ordering and atomic Split transitions | Complete and validated; pending merge | PR #10 |
-| P1-E — Plots workspace completion | Pending | Separate scoped PR |
+| P1-D — Multi View ordering and atomic Split transitions | Merged and validated | PR #10 |
+| P1-E — Plots workspace completion | Implemented and validated; merge pending | PR #11 |
 | P1-F — fixed-layout compatibility cleanup | Pending | Separate scoped PR |
 
 ## P1-D — completed behavior
@@ -103,48 +103,50 @@ cleanup that:
 
 P1-D has no pending validation item.
 
-## P1-E — Plots workspace completion
+## P1-E — Plots and Statistics workspace completion
 
-This phase owns dock lifecycle, QSettings persistence, and shortcut cleanup.
+P1-E owns Plots dock lifecycle, QSettings persistence, shortcut cleanup,
+interaction gestures, and the final Statistics workspace presentation.
 
-### Required behavior
+### Delivered behavior
 
-- Persist floating Plots geometry independently from main-window geometry.
-- Add title-bar double-click maximize/restore for floating Plots.
-- Rename `Clear ROI / Restore Grid` to `Clear ROI`.
-- Preserve Esc as ROI-only and Shift+Esc as line-only.
-- Preserve selected-tab persistence through `analysis/bottom_tab`.
-
-### Implementation slices
-
-#### P1-E slice 1 — persistence characterization
-
-- Files/components: `main_window.py`, existing UI smoke/persistence tests
-- Observable result: selected tab and current dock state have explicit
-  regression coverage before restoration behavior changes
-- Tests: fresh, saved, invalid, legacy, reset, and restart settings
-
-#### P1-E slice 2 — floating geometry and double-click
-
-- Files/components: `main_window.py`, `plots_dock_title.py`
-- Observable result: floating geometry and maximize/restore survive hide/show
-  and restart
-- Tests: floating, docked, maximized, restored, and title double-click
-
-#### P1-E slice 3 — shortcut and terminology cleanup
-
-- Files/components: `main_window.py`, action tests, user guide
-- Observable result: Edit menu says `Clear ROI`; Esc and Shift+Esc affect only
-  their intended selections
-- Tests: ROI-only, line-only, and simultaneous ROI/line states
-
-### P1-E invariants
-
-- Docked maximize restores to the original dock area.
-- Floating maximize restores to the previous floating geometry.
-- Hide/show does not silently re-dock or reset the selected Plots tab.
+- Floating Plots geometry persists independently from main-window geometry.
+- Floating title-bar double-click uses the same maximize/restore path as the
+  explicit title-bar button.
+- `MainWindow` creates `Clear ROI` directly and owns workspace-reset
+  integration through `PlotsDockTitleBar.clear_persisted_geometry()`.
 - Esc clears ROI only; Shift+Esc clears the shared line only.
+- Ctrl+drag creates ROI, Shift+drag creates Line Profile, and Alt+drag creates
+  neither.
+- The selected Histogram/Line Profile tab persists through
+  `analysis/bottom_tab`.
+- Statistics uses numbered Region, Images, and Channel statistics sections.
+- Region presents aligned Scope and Bounds rows and disables Active ROI until
+  a valid shared ROI exists.
+- Images reports bit depth and analyzed Pixels; long folder-qualified labels
+  remain one row with middle elision and full tooltips.
+- Channel statistics uses visual image-group separators without synthetic rows
+  or changes to copy/CSV behavior.
+- Analysis activity collapses after successful completion.
+
+### Preserved invariants
+
+- P1-D primary ordering, Page Up/Page Down shortcut ownership, fixed Multi View
+  geometry, Split Channels ordering, and atomic replacement remain intact.
+- Hide/show does not silently re-dock Plots or reset its selected tab.
+- Floating maximize restores the previous normal floating geometry; docked
+  maximize restores to the original dock area.
+- Statistics row order, selection, clipboard copy, and CSV semantics remain
+  stable.
 - Persistence tests isolate QSettings and do not depend on test order.
+
+### Validation evidence
+
+The repository owner confirmed after all P1-E fixes that the full pytest suite,
+Ruff lint and formatting checks, mypy, documentation contract, and `pip check`
+pass. Manual Windows validation confirms Plots persistence and maximize/restore,
+exact ROI/line gestures and clear shortcuts, Active ROI lifecycle, Statistics
+grouping and separators, and long image-label elision.
 
 ## P1-F — fixed-layout compatibility cleanup
 
@@ -216,12 +218,9 @@ No packaging tools are part of these phases.
 
 ## Phase dependencies and review boundaries
 
-1. **P1-D:** complete in PR #10; establishes primary-order semantics and atomic
-   Split transitions.
-2. **P1-E:** next; independent dock/persistence work with a narrower test
-   matrix.
-3. **P1-F:** last; removes compatibility state after preceding behavior is
-   mechanically protected.
+1. **P1-D:** merged in PR #10; establishes primary-order semantics, Page Up/Page Down ownership, and atomic Split transitions.
+2. **P1-E:** implemented and validated in PR #11; completes Plots, gesture, and Statistics workspace behavior.
+3. **P1-F:** next and last; removes compatibility state after P1-D/P1-E behavior is mechanically protected.
 
 Each phase must remain independently mergeable and must not carry deferred code
 for a later phase.
@@ -246,6 +245,10 @@ for a later phase.
 - 2026-08-06: Updated durable product/user/architecture documentation to use
   primary-image terminology.
 
+- 2026-08-06: PR #10 merged into `main` at `e79f9bd15085d9a492b67f3c9beb81e897ff0a0b`.
+- 2026-08-06: Completed P1-E Plots persistence, gesture/shortcut cleanup, Statistics workspace polish, and action-ownership cleanup in PR #11.
+- 2026-08-06: Repository owner confirmed the complete P1-E standard validation suite and manual Windows behavior checks pass.
+
 ## P1-D completion summary
 
 - **Delivered behavior:** primary flags and first-tile ordering for regular
@@ -260,3 +263,23 @@ for a later phase.
 - **Follow-up:** P1-E and P1-F remain separate scoped phases.
 - **Durable docs:** `USER_GUIDE.md`, `PRODUCT_SPEC.md`, `ARCHITECTURE.md`,
   `CURRENT_STATE.md`, `ROADMAP.md`, this execution plan, and PR #10.
+
+
+## P1-E completion summary
+
+- **Delivered behavior:** independent floating Plots geometry; title-bar
+  maximize/restore; direct MainWindow ownership of Clear ROI and workspace
+  reset; Ctrl/Shift gesture pairing with Alt removal; numbered and ROI-aware
+  Statistics presentation; bit-depth/pixel metadata; single-line image labels;
+  image-group separators; collapsible activity state.
+- **Changed areas:** `main_window.py`, `plots_dock_title.py`,
+  `image_viewer.py`, `comparison_analysis_panel.py`, focused UI tests, and
+  durable user/execution-plan documentation.
+- **Validation:** full pytest, Ruff check and format check, mypy,
+  documentation contract, and `pip check` confirmed locally by the repository
+  owner; manual Windows behavior checks confirmed.
+- **Remaining limitations:** mixed-dimension Full image bounds wording and
+  richer native-range diagnostics are deferred; multi-monitor placement remains
+  a future robustness check.
+- **Follow-up:** merge PR #11, then implement P1-F on updated `main`.
+- **Durable docs:** `docs/USER_GUIDE.md`, this execution plan, and PR #11.

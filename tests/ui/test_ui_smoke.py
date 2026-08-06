@@ -888,7 +888,8 @@ def test_plain_drag_is_pan_only_and_crosshair_recovers(qtbot: object) -> None:
     )
     viewer.set_interaction_mode("line")
     assert RoiViewBox.gesture_for_modifiers(Qt.KeyboardModifier.NoModifier) is None
-    assert RoiViewBox.gesture_for_modifiers(Qt.KeyboardModifier.AltModifier) == "line"
+    assert RoiViewBox.gesture_for_modifiers(Qt.KeyboardModifier.ShiftModifier) == "line"
+    assert RoiViewBox.gesture_for_modifiers(Qt.KeyboardModifier.AltModifier) is None
     assert RoiViewBox.gesture_for_modifiers(Qt.KeyboardModifier.ControlModifier) == "roi"
 
     inside = viewer.view_box.mapViewToScene(QPointF(3.2, 4.2))
@@ -989,8 +990,8 @@ def test_histogram_modes_csv_and_workspace_settings(qtbot: object, tmp_path: Pat
     export_path = tmp_path / "statistics.csv"
     panel.export_csv(export_path)
     exported = export_path.read_text(encoding="utf-8-sig")
-    assert exported.startswith("Id,Image,Samples")
-    assert "2,histogram-2.png,64" in exported
+    assert exported.startswith("Id,Image,Bit depth,Samples")
+    assert "2,histogram-2.png,8-bit,64" in exported
     assert "Id,Ch,Min,Max,Mean,Std,P1,P50,P99" in exported
     assert "2,B,40,40,40" in exported
 
@@ -1050,9 +1051,13 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     assert summary.rowCount() == 2
     assert summary.item(1, 0).text() == "2"
     assert summary.item(1, 1).text().endswith("b.png")
-    assert summary.item(1, 2).text() == "64"
+    assert summary.item(1, 2).text() == "8-bit"
+    assert summary.item(1, 3).text() == "64"
     assert window.comparison_analysis_panel.status.text() == ""
-    assert window.comparison_analysis_panel.roi_label.text() == ""
+    assert (
+        window.comparison_analysis_panel.roi_label.text()
+        == "x=0, y=0, width=8, height=8"
+    )
     histogram_plots = window.comparison_analysis_panel.plots[:2]
     assert all(not plot.isHidden() for plot in histogram_plots)
     assert window.comparison_analysis_panel.histogram_layout.getItemPosition(
@@ -1840,7 +1845,8 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
     assert result.channel_names == ("R", "Gr", "Gb", "B")
     table = window.comparison_analysis_panel.table
     assert table.item(0, 0).toolTip().find("10-bit") >= 0
-    assert window.comparison_analysis_panel.image_summary.item(0, 2).text() == "16"
+    assert window.comparison_analysis_panel.image_summary.item(0, 2).text() == "10-bit"
+    assert window.comparison_analysis_panel.image_summary.item(0, 3).text() == "16"
     assert [table.item(row, 4).text() for row in range(4)] == [
         "11.5",
         "21.5",

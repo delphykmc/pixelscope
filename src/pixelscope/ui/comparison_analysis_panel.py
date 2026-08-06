@@ -2,21 +2,39 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pyqtgraph as pg
 from numpy.typing import NDArray
-from PySide6.QtCore import Qt, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtCore import (
+    QModelIndex,
+    QPersistentModelIndex,
+    Qt,
+    QThreadPool,
+    QTimer,
+    Signal,
+)
+from PySide6.QtGui import (
+    QColor,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QShortcut,
+    QStandardItemModel,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
     QScrollArea,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
@@ -42,6 +60,37 @@ class KiloAxisItem(pg.AxisItem):  # type: ignore[misc]
     ) -> list[str]:
         del scale, spacing
         return [f"{value / 1000:g}K" if abs(value) >= 1000 else f"{value:g}" for value in values]
+
+
+class ImageGroupSeparatorDelegate(QStyledItemDelegate):
+    """Draw a subtle boundary before each new image's channel rows."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._separator_rows: set[int] = set()
+
+    @property
+    def separator_rows(self) -> frozenset[int]:
+        return frozenset(self._separator_rows)
+
+    def set_separator_rows(self, rows: set[int]) -> None:
+        self._separator_rows = set(rows)
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        super().paint(painter, option, index)
+        if index.row() not in self._separator_rows:
+            return
+        rect = cast(Any, option).rect
+        painter.save()
+        painter.setPen(QPen(QColor(TOKENS.border), 2))
+        y = rect.top() + 1
+        painter.drawLine(rect.left(), y, rect.right(), y)
+        painter.restore()
 
 
 def comparison_labels(documents: list[ImageDocument]) -> list[str]:
@@ -131,26 +180,48 @@ class ComparisonAnalysisPanel(QWidget):
         self.busy.setTextVisible(False)
         self.busy.setFixedHeight(4)
         self.busy.hide()
-        activity = QWidget()
-        activity.setFixedHeight(24)
-        activity_layout = QVBoxLayout(activity)
+        self.activity = QWidget()
+        activity_layout = QVBoxLayout(self.activity)
         activity_layout.setContentsMargins(0, 0, 0, 0)
         activity_layout.setSpacing(1)
         activity_layout.addWidget(self.status)
         activity_layout.addWidget(self.busy)
+
         self.roi_label = QLabel("")
-        self.roi_label.setFixedHeight(self.roi_label.fontMetrics().height() + TOKENS.spacing_xs * 2)
+        self.roi_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.region_scope = QComboBox()
         self.region_scope.addItems(("Full image", "Active ROI"))
+        self.set_roi_available(False)
+        self.region_scope.setFixedWidth(120)
         self.region_scope.currentIndexChanged.connect(  # type: ignore[attr-defined]
             lambda: self.scope_changed.emit()
         )
         self.channel_buttons: dict[str, QToolButton] = {}
-        scope_controls = QGridLayout()
-        scope_controls.addWidget(QLabel("Region"), 0, 0)
-        scope_controls.addWidget(self.region_scope, 0, 1)
-        scope_controls.addWidget(self.roi_label, 1, 0, 1, 2)
-        scope_controls.addWidget(activity, 2, 0, 1, 2)
+
+        self.region_group = QGroupBox("1. Region")
+        self.region_layout = QGridLayout(self.region_group)
+        self.region_layout.setContentsMargins(10, 8, 10, 8)
+        self.region_layout.setHorizontalSpacing(TOKENS.spacing_md)
+        self.region_layout.setVerticalSpacing(TOKENS.spacing_sm)
+        self.scope_label = QLabel("Scope")
+        self.bounds_label = QLabel("Bounds")
+        region_label_width = max(
+            self.scope_label.sizeHint().width(),
+            self.bounds_label.sizeHint().width(),
+        )
+        for label in (self.scope_label, self.bounds_label):
+            label.setFixedWidth(region_label_width)
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.region_layout.addWidget(self.scope_label, 0, 0)
+        self.region_layout.addWidget(
+            self.region_scope,
+            0,
+            1,
+            alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
+        self.region_layout.addWidget(self.bounds_label, 1, 0)
+        self.region_layout.addWidget(self.roi_label, 1, 1)
+        self.region_layout.setColumnStretch(1, 1)
         channel_controls = QHBoxLayout()
         channel_controls.addWidget(QLabel("Channels"))
         for name, color in (("R", "#ff3b30"), ("G", "#24b34b"), ("B", "#2684ff")):
@@ -166,9 +237,15 @@ class ComparisonAnalysisPanel(QWidget):
             channel_controls.addWidget(button)
         channel_controls.addStretch(1)
 
-        self.image_summary = QTableWidget(0, 3)
-        self.image_summary.setHorizontalHeaderLabels(("Id", "Image", "Pixels"))
-        self.image_summary.verticalHeader().hide()
+        self.image_summary = QTableWidget(0, 4)
+        self.image_summary.setHorizontalHeaderLabels(
+            ("Id", "Image", "Bit depth", "Pixels")
+        )
+        summary_vertical_header = self.image_summary.verticalHeader()
+        summary_vertical_header.hide()
+        summary_vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.image_summary.setWordWrap(False)
+        self.image_summary.setTextElideMode(Qt.TextElideMode.ElideMiddle)
         self.image_summary.setAlternatingRowColors(True)
         self.image_summary.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.image_summary.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -177,7 +254,13 @@ class ComparisonAnalysisPanel(QWidget):
         summary_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         summary_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         summary_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        summary_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.image_summary.setColumnWidth(0, 38)
+
+        self.image_summary_group = QGroupBox("2. Images")
+        image_summary_layout = QVBoxLayout(self.image_summary_group)
+        image_summary_layout.setContentsMargins(6, 6, 6, 6)
+        image_summary_layout.addWidget(self.image_summary)
 
         self.table = QTableWidget(0, len(self._COLUMNS))
         self.table.setHorizontalHeaderLabels(self._COLUMNS)
@@ -192,10 +275,17 @@ class ComparisonAnalysisPanel(QWidget):
         header.setMinimumSectionSize(38)
         self.table.setColumnWidth(0, 38)
         self.table.setColumnWidth(1, 38)
+        self.statistics_delegate = ImageGroupSeparatorDelegate(self.table)
+        self.table.setItemDelegate(self.statistics_delegate)
         copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.table)
         copy_shortcut.activated.connect(  # type: ignore[attr-defined]
             self.copy_selection
         )
+
+        self.statistics_group = QGroupBox("3. Channel statistics")
+        statistics_layout = QVBoxLayout(self.statistics_group)
+        statistics_layout.setContentsMargins(6, 6, 6, 6)
+        statistics_layout.addWidget(self.table)
 
         self.histogram_grid = QWidget()
         self.histogram_layout = QGridLayout(self.histogram_grid)
@@ -276,9 +366,11 @@ class ComparisonAnalysisPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
-        layout.addLayout(scope_controls)
-        layout.addWidget(self.image_summary)
-        layout.addWidget(self.table, 1)
+        layout.setSpacing(8)
+        layout.addWidget(self.region_group)
+        layout.addWidget(self.image_summary_group)
+        layout.addWidget(self.statistics_group, 1)
+        layout.addWidget(self.activity)
 
     def set_documents(
         self,
@@ -289,19 +381,16 @@ class ComparisonAnalysisPanel(QWidget):
         self._documents = [document for document in documents if document.source is not None]
         self._bounds = bounds
         self.region_scope.blockSignals(True)
-        if bounds is None:
-            self.roi_label.clear()
-            self.region_scope.setCurrentText(region_name or "Full image")
-        else:
-            self.roi_label.setText(
-                f"x={bounds.x}, y={bounds.y}, width={bounds.width}, " f"height={bounds.height}"
-            )
-            self.region_scope.setCurrentText(region_name or "Active ROI")
+        self.region_scope.setCurrentText(
+            region_name or ("Active ROI" if bounds is not None else "Full image")
+        )
         self.region_scope.blockSignals(False)
+        if bounds is not None:
+            self.set_roi_available(True)
+        self._update_region_label()
         if self._worker is not None:
             self._worker.cancel()
-        self.status.setText("Preparing analysis...")
-        self.busy.show()
+        self._set_activity("Preparing analysis...", busy=True)
         self._refresh_timer.start()
 
     def clear(self) -> None:
@@ -316,10 +405,10 @@ class ComparisonAnalysisPanel(QWidget):
         self.last_results = ()
         self.image_summary.setRowCount(0)
         self.table.setRowCount(0)
+        self.statistics_delegate.set_separator_rows(set())
         self._clear_histogram_plots()
-        self.status.setText("No images selected")
-        self.busy.hide()
-        self.roi_label.setText("Full image")
+        self.roi_label.clear()
+        self._set_activity("No images selected", busy=False)
 
     def refresh(self) -> None:
         documents = self._documents
@@ -420,8 +509,7 @@ class ComparisonAnalysisPanel(QWidget):
                         )
             return tuple(results)
 
-        self.status.setText("Calculating...")
-        self.busy.show()
+        self._set_activity("Calculating...", busy=True)
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
             lambda _task_id, _document_id, _generation, result: self._on_result(
@@ -459,8 +547,7 @@ class ComparisonAnalysisPanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
-        self.status.setText(f"Error: {error.message}")
-        self.busy.hide()
+        self._set_activity(f"Error: {error.message}", busy=False)
 
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
@@ -477,13 +564,41 @@ class ComparisonAnalysisPanel(QWidget):
     def _histogram_bins_changed(self, _index: int) -> None:
         if not self._documents:
             return
-        self.status.setText("Preparing histogram...")
-        self.busy.show()
+        self._set_activity("Preparing histogram...", busy=True)
         self._refresh_timer.start()
 
     def _selected_histogram_bins(self) -> int | None:
         text = self.histogram_bins.currentText()
         return None if text == "Auto" else int(text)
+
+    def set_roi_available(self, available: bool) -> None:
+        model = self.region_scope.model()
+        if isinstance(model, QStandardItemModel):
+            active_roi_index = self.region_scope.findText("Active ROI")
+            active_roi_item = model.item(active_roi_index)
+            if active_roi_item is not None:
+                active_roi_item.setEnabled(available)
+        if not available and self.region_scope.currentText() == "Active ROI":
+            self.region_scope.blockSignals(True)
+            self.region_scope.setCurrentText("Full image")
+            self.region_scope.blockSignals(False)
+
+    def _update_region_label(self) -> None:
+        bounds = self._bounds
+        if bounds is None:
+            if not self._documents or self._documents[0].source is None:
+                self.roi_label.clear()
+                return
+            source = self._documents[0].source
+            bounds = RoiBounds(0, 0, source.shape[1], source.shape[0])
+        self.roi_label.setText(
+            f"x={bounds.x}, y={bounds.y}, width={bounds.width}, height={bounds.height}"
+        )
+
+    def _set_activity(self, text: str, *, busy: bool) -> None:
+        self.status.setText(text)
+        self.busy.setVisible(busy)
+        self.activity.setVisible(bool(text) or busy)
 
     def _render(
         self,
@@ -506,12 +621,17 @@ class ComparisonAnalysisPanel(QWidget):
             summary_values = (
                 str(image_index + 1),
                 labels[image_index],
+                f"{document.bit_depth}-bit",
                 f"{result.pixel_count:,}",
             )
             for column, value in enumerate(summary_values):
                 item = QTableWidgetItem(value)
                 alignment = (
-                    Qt.AlignmentFlag.AlignLeft if column == 1 else Qt.AlignmentFlag.AlignRight
+                    Qt.AlignmentFlag.AlignLeft
+                    if column == 1
+                    else Qt.AlignmentFlag.AlignCenter
+                    if column == 2
+                    else Qt.AlignmentFlag.AlignRight
                 )
                 item.setTextAlignment(alignment | Qt.AlignmentFlag.AlignVCenter)
                 item.setToolTip(metadata)
@@ -533,6 +653,12 @@ class ComparisonAnalysisPanel(QWidget):
                 )
                 if name != "A"
             )
+        separator_rows = {
+            row_index
+            for row_index in range(1, len(rows))
+            if rows[row_index][0] != rows[row_index - 1][0]
+        }
+        self.statistics_delegate.set_separator_rows(separator_rows)
         self.table.setRowCount(len(rows))
         for row, (image_index, channel_name, statistics) in enumerate(rows):
             document = self._documents[image_index]
@@ -652,8 +778,8 @@ class ComparisonAnalysisPanel(QWidget):
             self.plots[0].setTitle(f"Overlay · {len(results)} images")
             self.plots[0].getViewBox().autoRange(padding=0.08)
         self.table.resizeRowsToContents()
-        self.status.clear()
-        self.busy.hide()
+        self.table.viewport().update()
+        self._set_activity("", busy=False)
 
     def _create_histogram_hover(self, plot_index: int) -> None:
         plot = self.plots[plot_index]
@@ -769,7 +895,7 @@ class ComparisonAnalysisPanel(QWidget):
     def export_csv(self, path: Path) -> None:
         with path.open("w", newline="", encoding="utf-8-sig") as stream:
             writer = csv.writer(stream)
-            writer.writerow(("Id", "Image", "Samples"))
+            writer.writerow(("Id", "Image", "Bit depth", "Samples"))
             for row in range(self.image_summary.rowCount()):
                 writer.writerow(
                     [

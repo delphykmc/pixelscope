@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtWidgets import QAbstractItemView
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.display_transform import DisplayTransform
@@ -92,31 +93,121 @@ def test_difference_selectors_are_authoritative_and_tiles_have_no_a_b_badges(
     assert [viewer.header.badge.text() for viewer in visible_viewers] == ["1", "2", "3"]
 
 
-def test_statistics_region_detail_row_is_stable_and_summary_uses_pixels(
+def test_statistics_sections_align_region_bounds_and_image_metadata(
     qtbot: object,
 ) -> None:
     panel = ComparisonAnalysisPanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
-    documents = [_rgb_document("a.png", 10), _rgb_document("b.png", 20)]
+    documents = [
+        _rgb_document(
+            "chart_03_frequency_patterns.jpg",
+            10,
+            Path("base") / "chart_03_frequency_patterns.jpg",
+        ),
+        _rgb_document("b.png", 20),
+    ]
+    panel.show()
 
-    detail_height = panel.roi_label.height()
+    active_roi_index = panel.region_scope.findText("Active ROI")
+    active_roi_model_index = panel.region_scope.model().index(active_roi_index, 0)
+    assert not (
+        panel.region_scope.model().flags(active_roi_model_index)
+        & Qt.ItemFlag.ItemIsEnabled
+    )
+    assert not panel.image_summary.wordWrap()
+    assert panel.image_summary.textElideMode() == Qt.TextElideMode.ElideMiddle
+    assert (
+        panel.image_summary.verticalHeader().sectionResizeMode(0)
+        == QHeaderView.ResizeMode.Fixed
+    )
+    assert panel.region_group.title() == "1. Region"
+    assert panel.image_summary_group.title() == "2. Images"
+    assert panel.statistics_group.title() == "3. Channel statistics"
+    assert panel.region_layout.indexOf(panel.region_scope) >= 0
+    assert panel.region_layout.indexOf(panel.roi_label) >= 0
+    assert panel.scope_label.width() == panel.bounds_label.width()
+    root_layout = panel.layout()
+    assert root_layout is not None
+    assert root_layout.indexOf(panel.region_group) == 0
+    assert root_layout.indexOf(panel.image_summary_group) == 1
+    assert root_layout.indexOf(panel.statistics_group) == 2
+    assert root_layout.indexOf(panel.activity) == 3
+
     panel.set_documents(documents, None, "Full image")
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: len(panel.last_results) == 2,
         timeout=3000,
     )
-    assert panel.image_summary.horizontalHeaderItem(2).text() == "Pixels"
-    assert panel.roi_label.text() == ""
-    assert panel.roi_label.height() == detail_height
-    assert panel.image_summary.item(0, 2).text() == "80"
+    assert panel.image_summary.horizontalHeaderItem(2).text() == "Bit depth"
+    assert panel.image_summary.horizontalHeaderItem(3).text() == "Pixels"
+    assert panel.roi_label.text() == "x=0, y=0, width=10, height=8"
+    assert (
+        panel.image_summary.item(0, 1).text()
+        == "base / chart_03_frequency_patterns.jpg"
+    )
+    assert panel.image_summary.item(0, 2).text() == "8-bit"
+    assert panel.image_summary.item(0, 3).text() == "80"
+    assert panel.image_summary.rowHeight(0) == panel.image_summary.rowHeight(1)
+    assert panel.statistics_delegate.separator_rows == frozenset({3})
+    assert panel.activity.isHidden()
 
     panel.set_documents(documents, RoiBounds(1, 2, 3, 4), "Active ROI")
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: len(panel.last_results) == 2 and panel.image_summary.item(0, 2).text() == "12",
+        lambda: len(panel.last_results) == 2 and panel.image_summary.item(0, 3).text() == "12",
         timeout=3000,
     )
     assert panel.roi_label.text() == "x=1, y=2, width=3, height=4"
-    assert panel.roi_label.height() == detail_height
+    assert (
+        panel.region_scope.model().flags(active_roi_model_index)
+        & Qt.ItemFlag.ItemIsEnabled
+    )
+    panel.set_roi_available(False)
+    assert panel.region_scope.currentText() == "Full image"
+    assert not (
+        panel.region_scope.model().flags(active_roi_model_index)
+        & Qt.ItemFlag.ItemIsEnabled
+    )
+    assert panel.activity.isHidden()
+
+
+def test_main_window_tracks_active_roi_availability(qtbot: object) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    document = _rgb_document("roi-state.png", 10)
+    replacement = _rgb_document("replacement.png", 20)
+    window.add_document(document)
+    window.add_document(replacement, select=False)
+    panel = window.comparison_analysis_panel
+    active_roi_index = panel.region_scope.findText("Active ROI")
+    active_roi_model_index = panel.region_scope.model().index(active_roi_index, 0)
+    assert not (
+        panel.region_scope.model().flags(active_roi_model_index)
+        & Qt.ItemFlag.ItemIsEnabled
+    )
+
+    window._shared_roi_changed(RoiBounds(1, 2, 3, 4))
+    assert (
+        panel.region_scope.model().flags(active_roi_model_index)
+        & Qt.ItemFlag.ItemIsEnabled
+    )
+    assert panel.region_scope.currentText() == "Active ROI"
+
+    window._select_document_ids([replacement.document_id])
+    assert panel.region_scope.currentText() == "Full image"
+    assert not (
+        panel.region_scope.model().flags(active_roi_model_index)
+        & Qt.ItemFlag.ItemIsEnabled
+    )
+
+    window._shared_roi_changed(RoiBounds(1, 2, 3, 4))
+    assert panel.region_scope.currentText() == "Active ROI"
+    window.clear_roi()
+    assert panel.region_scope.currentText() == "Full image"
+    assert not (
+        panel.region_scope.model().flags(active_roi_model_index)
+        & Qt.ItemFlag.ItemIsEnabled
+    )
+    window.close()
 
 
 def test_statistics_pixels_preserve_bayer_sample_count(qtbot: object) -> None:
@@ -150,8 +241,10 @@ def test_statistics_pixels_preserve_bayer_sample_count(qtbot: object) -> None:
         timeout=3000,
     )
 
-    assert panel.image_summary.item(0, 2).text() == "16"
+    assert panel.image_summary.item(0, 2).text() == "10-bit"
+    assert panel.image_summary.item(0, 3).text() == "16"
     assert panel.table.rowCount() == 4
+    assert panel.statistics_delegate.separator_rows == frozenset()
     assert [panel.table.item(row, 1).text() for row in range(4)] == ["R", "Gr", "Gb", "B"]
 
 

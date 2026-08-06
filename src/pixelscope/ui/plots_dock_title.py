@@ -1,7 +1,17 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtCore import (
+    QByteArray,
+    QEvent,
+    QObject,
+    QPointF,
+    QRectF,
+    QSettings,
+    QSize,
+    Qt,
+    QTimer,
+)
+from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
@@ -12,6 +22,8 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.ui.design_tokens import TOKENS, dock_title_button_style
+
+PLOTS_FLOATING_GEOMETRY_SETTING = "ui/plots_floating_geometry"
 
 
 def _title_icon(kind: str) -> QIcon:
@@ -63,6 +75,14 @@ class PlotsDockTitleBar(QWidget):
         self._dock = dock
         self._restore_to_docked = False
         self._restore_area = Qt.DockWidgetArea.BottomDockWidgetArea
+        self._settings = QSettings()
+        stored_geometry = self._settings.value(PLOTS_FLOATING_GEOMETRY_SETTING)
+        self._floating_geometry = (
+            QByteArray(stored_geometry)
+            if isinstance(stored_geometry, QByteArray | bytes)
+            else QByteArray()
+        )
+        self._restoring_floating_geometry = False
         self.title = QLabel("Plots")
         self.float_button = self._button("float")
         self.maximize_button = self._button("maximize")
@@ -79,6 +99,8 @@ class PlotsDockTitleBar(QWidget):
         layout.addWidget(self.float_button)
         layout.addWidget(self.maximize_button)
         layout.addWidget(self.close_button)
+        self._dock.installEventFilter(self)
+        self._dock.topLevelChanged.connect(self._floating_changed)  # type: ignore[attr-defined]
         self.sync(False)
 
     def _button(self, icon: str) -> QToolButton:
@@ -95,6 +117,27 @@ class PlotsDockTitleBar(QWidget):
         self.float_button.setToolTip("Dock Plots" if floating else "Float Plots")
         if not floating and not self._dock.isMaximized():
             self._set_maximize_state(False)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if (
+            watched is self._dock
+            and event.type() in (QEvent.Type.Move, QEvent.Type.Resize)
+            and self._dock.isFloating()
+            and not self._dock.isMaximized()
+            and not self._restoring_floating_geometry
+        ):
+            geometry = self._dock.saveGeometry()
+            if not geometry.isEmpty():
+                self._floating_geometry = geometry
+                self._settings.setValue(PLOTS_FLOATING_GEOMETRY_SETTING, geometry)
+        return super().eventFilter(watched, event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._dock.isFloating():
+            self._toggle_maximized()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
     def _toggle_floating(self) -> None:
         if self._dock.isMaximized():
@@ -122,6 +165,26 @@ class PlotsDockTitleBar(QWidget):
                 self._dock.setFloating(True)
             self._dock.showMaximized()
         self._set_maximize_state(not maximized)
+
+    def _floating_changed(self, floating: bool) -> None:
+        if not floating or self._floating_geometry.isEmpty():
+            return
+        self._restoring_floating_geometry = True
+        self._dock.restoreGeometry(self._floating_geometry)
+        QTimer.singleShot(0, self._finish_geometry_restore)
+
+    def _finish_geometry_restore(self) -> None:
+        self._restoring_floating_geometry = False
+        if self._dock.isFloating() and not self._dock.isMaximized():
+            geometry = self._dock.saveGeometry()
+            if not geometry.isEmpty():
+                self._floating_geometry = geometry
+                self._settings.setValue(PLOTS_FLOATING_GEOMETRY_SETTING, geometry)
+
+    def clear_persisted_geometry(self) -> None:
+        """Forget the saved normal floating geometry."""
+        self._settings.remove(PLOTS_FLOATING_GEOMETRY_SETTING)
+        self._floating_geometry = QByteArray()
 
     def _main_window(self) -> QMainWindow | None:
         parent = self._dock.parentWidget()

@@ -37,14 +37,29 @@ Moving over an image synchronizes the crosshair. The status bar shows position
 and the value under the active pointer.
 
 - Ctrl+drag creates one shared rectangular ROI; double-click or Esc clears it.
-- Alt+drag creates a horizontal or vertical line from the longer gesture axis.
+- Shift+drag creates a horizontal or vertical line from the longer gesture axis.
 - Shift+Esc clears the shared line.
+
+Alt+drag does not create a Line Profile. The Edit menu names the clear operations
+**Clear ROI** and **Clear Line Profile**. Esc never changes the shared line, and
+Shift+Esc never changes the ROI.
 
 ## Statistics and Histogram
 
 Statistics can target active, selected, or visible images and Full image or
-Active ROI. Rows have explicit image and channel fields; the summary reports
-Pixels.
+Active ROI. The panel follows the RAW dialog hierarchy with separate Region,
+Images, and Channel statistics groups. Region shows aligned Scope and Bounds
+rows, using full `x`, `y`, `width`, and `height` labels. Active ROI remains
+disabled until a shared ROI exists and returns to Full image when that ROI is
+cleared. The Images summary reports each image's bit depth and analyzed Pixels
+so channel statistics can be interpreted in the correct code range. Long image
+labels stay on one row and are middle-elided when the Analysis sidebar is
+narrow; the complete source metadata remains available in the tooltip. Thin row
+separators mark the start of each image group in Channel statistics.
+
+Analysis activity appears below the statistics table only while work is pending
+or when a status/error message must be shown. The activity area collapses after
+a successful calculation so it does not leave permanent empty space.
 
 Histogram supports:
 
@@ -78,10 +93,12 @@ Difference opens in Single View until disabled.
 
 The title bar provides Float/Dock, Maximize/Restore, and Hide. The toolbar
 **Plots** action shows a hidden dock. The last selected Histogram/Line Profile
-tab is restored on restart.
+tab is restored on restart through `analysis/bottom_tab`.
 
-Independent floating-window geometry and title-bar double-click
-maximize/restore are not yet implemented.
+A floating Plots window remembers its independent position and size across
+hide/show, re-docking, and restart. Double-click the floating title bar to
+maximize or restore it; the explicit Maximize/Restore button uses the same
+state transition.
 
 ## RAW
 

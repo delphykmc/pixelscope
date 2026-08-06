@@ -313,7 +313,7 @@ class MainWindow(QMainWindow):
         add_action("File", "Exit", self.close, "Alt+F4")
 
         add_action("Edit", "Remove Selected", self.remove_selected, "Delete")
-        add_action("Edit", "Clear ROI / Restore Grid", self._escape_action, "Esc")
+        add_action("Edit", "Clear ROI", self._escape_action, "Esc")
         add_action("Edit", "Clear Line Profile", self.clear_line, "Shift+Esc")
 
         add_action(
@@ -1174,6 +1174,7 @@ class MainWindow(QMainWindow):
         self._current_index = 0
         self._page_start = 0
         self._shared_roi = None
+        self.comparison_analysis_panel.set_roi_available(False)
         self._shared_line = None
         self._reset_pixel_status()
         self._render_selection()
@@ -1997,6 +1998,7 @@ class MainWindow(QMainWindow):
             self._page_start = 0
         if not preserve_overlays:
             self._shared_roi = None
+            self.comparison_analysis_panel.set_roi_available(False)
             self._shared_line = None
         self._reset_pixel_status()
         self._render_selection(preserve_view=preserve_view)
@@ -2006,6 +2008,7 @@ class MainWindow(QMainWindow):
             return
         if not isinstance(bounds, RoiBounds):
             return
+        self.comparison_analysis_panel.set_roi_available(True)
         ready = [
             document
             for document in self.selected_documents[
@@ -2051,6 +2054,7 @@ class MainWindow(QMainWindow):
             )
         except ValueError:
             self._shared_roi = None
+            self.comparison_analysis_panel.set_roi_available(False)
 
     def _shared_line_changed(self, selection: object) -> None:
         if self._channel_split_active:
@@ -2107,6 +2111,7 @@ class MainWindow(QMainWindow):
 
     def clear_roi(self) -> None:
         self._shared_roi = None
+        self.comparison_analysis_panel.set_roi_available(False)
         self.viewer.set_roi_bounds(None)
         self.multi_compare_view.clear_roi()
         ready = [
@@ -2618,6 +2623,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("analysis/bottom_tab", self.bottom_tabs.currentIndex())
 
     def reset_workspace_layout(self) -> None:
+        self.plots_dock_title.clear_persisted_geometry()
         for key in (
             "ui/window_geometry",
             "ui/dock_state",
