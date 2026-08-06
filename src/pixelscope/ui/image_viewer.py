@@ -541,10 +541,12 @@ class ImageViewer(QWidget):
         self.cursor_moved.emit(x, y, value)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
-        callback_name = {
-            Qt.Key.Key_PageUp: "previous_folder_pair",
-            Qt.Key.Key_PageDown: "next_folder_pair",
-        }.get(event.key())
+        key = event.key()
+        callback_name: str | None = None
+        if key == Qt.Key.Key_PageUp:
+            callback_name = "previous_folder_pair"
+        elif key == Qt.Key.Key_PageDown:
+            callback_name = "next_folder_pair"
         if callback_name is not None:
             callback = getattr(self.window(), callback_name, None)
             if callable(callback):
