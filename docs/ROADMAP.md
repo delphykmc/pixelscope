@@ -2,98 +2,98 @@
 
 ## Delivered baseline
 
-### Local inspection and comparison
+### P0/P1 product foundation
 
-- PNG/BMP/JPEG and profile-described RAW loading.
-- Source-preserving pixel inspection and display conversion.
-- Ordered selection, folder navigation, fixed one-to-six-image layouts,
-  synchronized cursor/range, shared ROI, and line selection.
-- Statistics, Histogram, Line Profile, Difference, and structured status.
-- Difference LRU cache, chunked native metrics, and reloadable source residency.
-- Persisted workspace geometry, dock state, splitters, layout, analysis state,
-  and selected Plots tab.
+- PNG/BMP/JPEG and profile-described RAW loading with native source preservation.
+- Ordered selection, folder-pair Page Up/Page Down navigation, synchronized
+  cursor/range/ROI/line state, and fixed one-to-six-image layouts.
+- Statistics, Histogram, Line Profile, Difference, Split Channels, structured
+  status, and persisted workspace/Plots state.
+- Byte-budgeted `DifferenceMapCache` with a 512 MiB default, LRU eviction,
+  chunked native metrics, and `used_bytes`/`budget_bytes`/`entry_count`
+  diagnostics.
+- Reloadable decoded-source residency with the current fixed seven-document,
+  count-based policy.
+- RAW profile workflow, unpacked uint8/uint16 alignment/endian support, MIPI
+  RAW10/12/14, Bayer mosaic analysis, JSON migration, and deterministic fixtures.
+- Fixed Multi View geometry, primary-image behavior, exact six-source Difference
+  restoration, floating Plots persistence/maximize, ROI/Line gestures, and
+  Statistics workspace contracts.
 
-### RAW workflow
+### Workspace-polish completion
 
-- Unpacked `uint8`/`uint16` with effective bit depth, endian, stride, offset,
-  and LSB/MSB alignment.
-- MIPI RAW10, RAW12, and RAW14.
-- Grayscale and Bayer mosaic analysis.
-- JSON profile load/save, legacy migration, confirmation preference, and
-  deterministic fixture coverage.
+- P1-D merged as PR #10.
+- P1-E merged as PR #11.
+- P1-F merged as PR #12 at
+  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
+- The historical execution plan is retained at
+  `docs/exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`.
 
-## P1-D — Multi View ordering and Split transition polish
+## P2 — Runtime Foundation, Settings & Performance
 
-Status: Complete, validated, and merged as PR #10.
+Sequential dependency: `P2-0 → P2-A → P2-B → P2-C → P2-D → P2-E`.
 
-- Show a primary flag in every regular Multi View with two to six displayed
-  documents.
-- Treat the first displayed image as the implicit primary until another primary
-  flag is selected.
-- Promote the selected primary to the first tile while preserving Files
-  selection order, logical image IDs, viewer reuse, and synchronized ranges.
-- Keep equal tile sizes for two, four, and six images. Three- and five-image
-  layouts enlarge the first, primary tile.
-- Use primary-image terminology in tooltips, status text, product documentation,
-  and reference-priority descriptions.
-- Keep Split Channels component ordering fixed and hide primary flags for
-  transient `CHANNEL_*` tiles.
-- Make Split Channels transitions from Bayer/RGB channel planes to unsplittable
-  GRAY content visually atomic.
-- Keep Page Up/Page Down folder-pair navigation owned by MainWindow application
-  shortcuts while supporting focus in the Files view or visible image tiles.
+- **P2-0 — Program setup and roadmap transition:** close P1 durable
+  documentation, establish this P2 program, reconcile current state, docs only.
+- **P2-A — Application identity and Settings foundation:** canonical icon and
+  packaged-safe resources, typed settings, QSettings adapter/migration,
+  Settings dialog, restart-required/reset behavior, and Difference-cache startup
+  injection.
+- **P2-B — Byte-budgeted decoded-source residency:** replace the fixed-count
+  policy with native-source byte accounting, protected LRU, soft budget,
+  eviction/reload, invalidation, setting, and diagnostics API.
+- **P2-C — Bounded next-group preload:** one folder group ahead, normal-load
+  priority, bounded ownership, stale cancellation/drop, request validation,
+  budget-aware retention, setting, and counters.
+- **P2-D — Runtime diagnostics and failure visibility:** deterministic/redacted
+  source/cache/worker/preload/stale/failure snapshot, Copy Diagnostics, and
+  optional text export.
+- **P2-E — Performance characterization and phase hardening:** integration,
+  settings migration/default tests, FHD/UHD and image-format matrices,
+  low-budget/oversize/rapid-navigation characterization, deterministic smoke
+  tests, Windows CI feasibility, and P2 completion docs. No new large feature.
 
-## P1-E — Plots workspace completion
+P2 excludes persistent sessions, Recent Files/Folders, saved ROI management,
+arbitrary-angle sampling, alpha overlay, RAW processing expansion, remote IQA,
+authentication, packaging/signing/update checking, broad MainWindow/shortcut
+rewrites, and unprofiled native optimization.
 
-Status: Complete, validated, and merged as PR #11.
+## P3 — Workflow & Session Productivity
 
-- Independent floating Plots geometry persistence.
-- Floating title-bar double-click maximize/restore.
-- Final Esc/Shift+Esc naming and regression coverage.
-- Preserve and test the already implemented selected-tab persistence.
+- Persistent comparison sessions.
+- Recent Files/Folders.
+- Saved ROI manager.
+- Arbitrary-angle line sampling.
+- Alpha overlay.
+- Additional productivity and export workflows.
 
-## P1-F — fixed-layout compatibility cleanup
+## P4 — RAW Processing & Profile Management
 
-Status: Implemented in PR #12 with the full automated validation contract
-complete; manual Windows checks remain before merge.
+- Demosaic.
+- Black/white-level processing.
+- Reusable profile management.
+- Profile suggestion.
 
-- Remove obsolete arrangement constants, registry, runtime fields, menu/actions,
-  setter, startup/save, render, and restore paths.
-- Ignore legacy `ui/multiview_arrangement` values at startup, never save the
-  key, and remove it during workspace reset.
-- Keep `_fixed_geometry()` as the sole fixed one-to-six layout policy.
-- Preserve primary ordering, logical identity, synchronized ranges, Split
-  Channels behavior, and exact six-source Difference restoration.
+## P5 — Remote IQA Platform
 
-P1-D through P1-F complete the workspace-polish program. See
-`docs/exec-plans/active/next-phase.md` for the completion record. No additional
-phase is introduced by P1-F.
+- Remote submission and result workflow.
+- Server/job API.
+- GPU worker.
+- Artifact, heatmap, and result comparison.
 
-## P2 — performance controls and diagnostics
+## P6 — Identity, Access & Remote Operations
 
-- Preferences UI with restart-applied performance settings.
-- Byte-budgeted decoded-image residency.
-- One-group-ahead folder preload with bounded cancellation.
-- Worker/cache/load diagnostics and failure visibility.
+- Login and SSO.
+- Token/credential lifecycle.
+- Permission and access policy.
+- Operational administration.
 
-## P3 — workflow depth
+## P7 — Release Engineering & Distribution
 
-- Recent files, saved ROI manager, persistent comparison sessions.
-- Arbitrary-angle line sampling, alpha overlay, and additional export formats.
-
-## P4 — RAW processing depth
-
-- Demosaic preview with explicit algorithm, memory, cache, and UX policy.
-- Black-level subtraction and white-level normalization.
-- RAW profile suggestion and reusable profile management.
-
-## P5 — remote IQA
-
-- FastAPI GPU server, PyTorch worker, asynchronous queue/cancellation.
-- Artifact download, heatmap overlay, and evaluation comparison.
-
-## P6 — distribution
-
-- PyInstaller 5.7 `onedir`, portable ZIP, Inno Setup.
-- Clean-PC smoke tests, code-signing review, GitHub Release update checking,
-  and update strategy.
+- Exactly PyInstaller 5.7 `onedir`.
+- Portable ZIP.
+- Inno Setup.
+- Clean-PC smoke testing.
+- Signing.
+- Update strategy.
+- Repeatable release process.
