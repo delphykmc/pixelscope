@@ -52,9 +52,11 @@ parameters. Line Profile caches by generation and line coordinates. Rapid
 navigation invalidates obsolete work through current MainWindow/worker rules.
 
 Decoded sources use a reloadable working set owned by `MainWindow`. Recency and
-protected visible/analysis documents are used to keep at most seven native
-source arrays resident, with dependent channel state cleared during eviction.
-This is a count-based UI/application policy, not a byte-based manager.
+a protected set of visible documents and active load targets are used to keep at
+most seven native source arrays resident, with dependent channel state cleared
+during eviction. This is a count-based UI/application policy, not a byte-based
+manager. Selected and analysis documents are not yet explicit policy inputs;
+those protections are planned for P2-B.
 
 ## Current Difference lifecycle
 
