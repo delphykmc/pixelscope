@@ -35,13 +35,13 @@
   adapter, not the application settings model.
 - Performance settings are immutable startup snapshots. Changes to startup-only
   budgets or preload state require restart indication.
-- Difference-cache default remains 512 MiB unless the repository owner records a
-  replacement decision.
+- The P2-A Difference-cache default is confirmed as 512 MiB.
 - Decoded-source budgeting accounts native decoded `ImageDocument.source`
   arrays only. It excludes previews, Qt textures, Difference/derived caches, and
   transient worker arrays and is not total process memory.
-- The decoded-source budget is a soft limit because visible, selected, analysis,
-  and active load-target documents may be protected.
+- The decoded-source budget is a soft limit because protected documents may
+  temporarily exceed it. P2-B extends the protected-set policy beyond the
+  current visible-document and active-load-target inputs.
 - Preload has bounded ownership separate from normal load and may not starve
   interactive work.
 - Cancellation and stale-result rejection are distinct; obsolete results must
@@ -60,13 +60,13 @@
 - Frozen `PerformanceSettings` exists but is not loaded/injected at bootstrap.
 - Decoded-source residency currently uses a fixed seven-document reloadable
   policy in `MainWindow`; P2-B moves policy ownership to a byte-budgeted manager.
+- The current residency protection inputs are visible documents and active load
+  targets. Selected and analysis protection are P2-B additions.
 
 ## Pending owner decisions
 
 These recommendations are not accepted values until the owner confirms them:
 
 - Canonical PixelScope icon design/asset — pending before P2-A.
-- Difference-cache default — recommendation: retain 512 MiB; owner confirmation
-  pending before P2-A.
 - Decoded-source budget default — recommendation: 1024 MiB; pending before P2-B.
 - Preload default — recommendation: Enabled; pending before P2-C.
