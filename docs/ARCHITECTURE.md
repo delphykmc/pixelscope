@@ -41,11 +41,15 @@ Application preferences and workspace/session persistence are intentionally
 separate even though both ultimately use Qt persistence.
 
 - Frozen `ApplicationSettings` is the typed persisted domain model. P2-A2 owns
-  the RAW JSON confirmation preference and Difference-cache MiB preference.
-- `SettingsRepository` owns defaults, versioned schema behavior, legacy
-  migration, validation, invalid-state recovery, save, and reset.
+  the RAW JSON confirmation preference, default Open/Export folders, and the
+  Difference-cache MiB preference.
+- `SettingsRepository` owns defaults, versioned schema behavior, migration,
+  validation, invalid-state recovery, save, and reset.
 - `QSettingsAdapter` is the only application-settings component that knows raw
-  QSettings keys. QSettings is an adapter, not the domain model.
+  application-preference keys. QSettings is an adapter, not the domain model.
+- `Edit > Settings...` uses a category/page template with **General**, **Files**,
+  and **Performance** pages. The left navigation is intentionally simple at the
+  current settings count; a VS Code-style settings search is not required yet.
 - Application bootstrap loads `ApplicationSettings`, converts the Difference
   cache preference to an immutable byte-based `PerformanceSettings` startup
   snapshot, and passes both settings objects plus the repository to
@@ -53,23 +57,31 @@ separate even though both ultimately use Qt persistence.
 - `MainWindow` injects `PerformanceSettings.difference_cache_bytes` into
   `DifferencePanel`, which passes the fixed budget to `DifferenceMapCache`.
   Neither the panel nor the cache reads persistence.
+- Default Open/Export folders are live preferences. A blank value preserves the
+  existing last-used-folder behavior; a configured existing folder only changes
+  the starting location of the corresponding file dialog.
 - Runtime edits to startup-only performance values are persisted for the next
   launch; existing runtime caches are not mutated.
 
-Schema version 1 owns:
+Schema version 2 owns:
 
 - `settings/schema_version`
 - `settings/general/dont_show_raw_json_profiles`
+- `settings/files/default_open_directory`
+- `settings/files/default_export_directory`
 - `settings/performance/difference_cache_mib`
 
-Legacy `raw/dont_show_json_profiles` is migration input only. Invalid current
+Schema version 1 is migrated by preserving the existing RAW and Difference-cache
+values and adding blank file-location preferences. Legacy
+`raw/dont_show_json_profiles` remains migration input only. Invalid current
 values normalize to validated defaults. A future schema version is not guessed
 or rewritten; the current process uses safe defaults and exposes application
 settings as read-only compatibility state.
 
 `Reset Settings` resets only schema-owned application preferences. It is
 separate from `Reset Workspace Layout` and does not remove window geometry,
-dock/splitter state, the last directory, or unrelated QSettings keys.
+dock/splitter state, the remembered last-used directory, or unrelated QSettings
+keys.
 
 ## Current workspace structure
 
@@ -81,6 +93,11 @@ Workspace QSettings remain owned by `MainWindow` and related UI components.
 They persist main geometry, dock state, splitter state, layout mode, Plots
 visibility, selected bottom tab, floating Plots geometry, and last-directory
 state. These keys are not part of `ApplicationSettings`.
+
+Docking, splitter sizes, current layout, Plots visibility, and exact floating
+geometry are deliberately not duplicated as application preferences. The saved
+workspace is already the authoritative representation of those values; adding
+second default-setting owners would make restore/reset precedence ambiguous.
 
 The custom Plots title bar shares a maximize/restore state machine between its
 button and title double-click.
@@ -149,17 +166,20 @@ MIPI RAW10/12/14 have fixed packing rules. Decoding returns native grayscale or
 Bayer mosaic arrays. Demosaic, black/white-level processing, and profile
 suggestion remain outside the current implementation.
 
-The existing File-menu RAW JSON confirmation checkbox and the General checkbox
-in `Edit > Settings...` both update the same `ApplicationSettings` preference.
+The persistent RAW JSON confirmation preference is exposed through the General
+Settings page rather than the File menu. The RAW open dialog may still set the
+same typed preference when the user chooses its "don't show again" option.
 
 ## Planned P2 boundaries
 
 The following are target boundaries, not implemented components:
 
 - `ResidencyManager`: native-source byte accounting, protected LRU, soft-budget
-  policy, eviction/reload, invalidation, and diagnostics.
+  policy, eviction/reload, invalidation, and diagnostics. Its user-facing source
+  budget belongs on the existing Performance Settings page when P2-B lands.
 - `PreloadController`: one-group-ahead planning, bounded ownership, normal-load
-  priority, cancellation requests, stale-result rejection, and retention.
+  priority, cancellation requests, stale-result rejection, and retention. Its
+  enabled/default choice belongs on Performance when P2-C lands.
 - `DiagnosticsSnapshot` or equivalent: deterministic, redacted, cheap-to-read
   cache/residency/worker/preload/failure state.
 
