@@ -27,8 +27,8 @@ The SVG is the source of truth. Do not hand-edit the PNG or ICO.
   the image-inspection domain immediately recognizable.
 - A dominant magnifying scope overlaps the photograph and communicates precise
   inspection rather than generic image viewing.
-- A coarse five-by-five pixel mosaic inside the lens communicates pixel-level
-  analysis and remains recognizable after taskbar downscaling.
+- A coarse pixel mosaic inside the lens communicates pixel-level analysis and
+  remains recognizable after taskbar downscaling.
 - Dark navy outlines, white/silver structural elements, and medium blue-gray
   fills provide clear contrast on both light and dark Windows taskbars.
 - A compact amber region in the pixel mosaic and an amber handle collar preserve
@@ -41,13 +41,15 @@ The SVG is the source of truth. Do not hand-edit the PNG or ICO.
 ## Size contract
 
 The mark must remain identifiable at 16, 20, 24, 32, 40, 48, 64, 128, and
-256 px. `pixelscope.ico` contains one transparent PNG frame for each size in that
-ascending order. The runtime PNG is the 256 px render used by Qt.
+256 px. `pixelscope.ico` contains one transparent frame for each size in that
+ascending order. Small ICO frames use a deliberately reduced high-contrast
+palette so their image-plus-scope silhouette survives Windows taskbar and shell
+downscaling. The runtime PNG is the 256 px render used by Qt.
 
 ## Reproducible generation
 
-`scripts/generate_icon_assets.py` is the only supported derivative generator. It
-uses the repository-pinned `PySide6==6.4.2` Qt SVG renderer, renders onto a
+`scripts/generate_icon_assets.py` is the supported baseline derivative generator.
+It uses the repository-pinned `PySide6==6.4.2` Qt SVG renderer, renders onto a
 transparent ARGB32 image, writes `pixelscope.png` from the 256 px frame, and
 assembles the ICO from the nine ordered PNG payloads.
 
@@ -58,11 +60,12 @@ From the repository root:
 .\.venv\Scripts\python.exe scripts\generate_icon_assets.py --check
 ```
 
-The first command rewrites the derived files from the SVG. The second command
+The first command rewrites baseline derivatives from the SVG. The second command
 validates the SVG source, PNG decode/dimensions/transparency, and every ICO
 frame's dimensions, payload bounds, transparency, and ascending order without
-rewriting files. Review the 16–48 px outputs visually whenever the SVG changes;
-automatic downscaling is not a substitute for small-size legibility review.
+rewriting files. After regeneration, review the 16–48 px outputs and reapply
+small-size palette optimization when needed; automatic downscaling is not a
+substitute for small-size legibility review.
 
 ## Runtime and packaging use
 
