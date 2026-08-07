@@ -65,6 +65,11 @@ automatic downscaling is not a substitute for small-size legibility review.
   source-tree absolute path.
 - `create_application()` assigns the icon to `QApplication`, allowing windows to
   inherit the canonical runtime icon.
+- On Windows, `_set_windows_app_user_model_id()` assigns the stable
+  `PixelScope.PixelScope` process identity before `QApplication` creation. This
+  prevents source-run windows from remaining grouped under the Python shell icon.
+- `main()` also assigns the application icon directly to the main window before
+  it is shown.
 - `pyproject.toml` declares SVG, PNG, and ICO files as package data.
 - Future PyInstaller and Inno Setup definitions must bind the canonical ICO
   rather than creating a second copy.
@@ -77,8 +82,10 @@ Remove-Item -Recurse -Force .tmp-wheel -ErrorAction SilentlyContinue
 .\.venv\Scripts\python.exe scripts\check_wheel_icon_assets.py .tmp-wheel
 ```
 
-Executable-file icons, pinned shortcuts, installer shortcuts, AppUserModelID
-policy, signing, and release-name finalization remain P7 work.
+Executable-file icons, pinned shortcuts, installer shortcuts, signing, and
+release-name finalization remain P7 work. The source-run Windows AppUserModelID
+is part of P2-A1 because manual validation demonstrated that it is required for
+the running taskbar icon.
 
 ## P2-A1 manual validation
 
@@ -86,7 +93,7 @@ For the source-run identity/resource slice, verify on Windows:
 
 1. Launch from the repository root and from an unrelated working directory.
 2. Main-window title bar and Alt+Tab icon.
-3. Running taskbar icon.
+3. Running taskbar icon and separation from the Python process identity.
 4. 100%, 150%, and 200% display scaling.
 5. Light and dark taskbar backgrounds.
 
