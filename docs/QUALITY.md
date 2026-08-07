@@ -58,8 +58,12 @@ Preserve deterministic fixtures and smoke paths for:
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
 - Difference calculation, cache reuse/eviction, metrics, display-only updates,
   and startup cache-budget injection.
-- Settings fresh state, round-trip, legacy migration, corrupt-state recovery,
-  restart-required comparison, and reset separation from workspace persistence.
+- Settings fresh state, round-trip, schema-v1-to-v2 migration, legacy RAW
+  migration, corrupt-state recovery, future-schema protection, and reset
+  separation from workspace persistence.
+- General / Files / Performance Settings page navigation, Settings-only RAW
+  preference ownership, optional default Open/Export locations, last-used-folder
+  fallback, and Difference-only restart indication.
 - Split-channel loading placeholders and stale-result rejection.
 - Plots visibility, selected tab, floating/docked/maximized state, and workspace
   restoration.
