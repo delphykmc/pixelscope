@@ -68,10 +68,15 @@ This document records the implementation baseline that new work must use.
   with higher contrast and clearer image-analysis semantics.
 - The SVG is the editable vector source, the transparent 256 px PNG is the Qt
   runtime asset, and the ICO contains transparent 16, 20, 24, 32, 40, 48, 64,
-  128, and 256 px frames. Small ICO frames use a reduced high-contrast palette.
-- `scripts/generate_icon_assets.py` provides the reproducible baseline derivation
-  path from SVG; small-size derivatives require visual legibility review after
-  regeneration.
+  128, and 256 px frames.
+- `scripts/generate_icon_assets.py` uses dev-pinned `resvg_py` and Pillow to
+  reproduce the owner-validated PNG/ICO derivatives from the SVG. The previous
+  Qt SVG rasterization path is no longer authoritative.
+- `generate_icon_assets.py --check` generates both derivatives into a temporary
+  directory, requires exact byte equality with the checked-in PNG/ICO, and
+  removes the temporary output before returning.
+- `tests/unit/test_icon_assets.py` verifies the same reproduction contract and
+  confirms that no temporary generated files remain after the test.
 - Application bootstrap reads the PNG through `importlib.resources`; lookup is
   independent of the current working directory and source-tree absolute paths.
 - Windows source runs assign `PixelScope.PixelScope` before `QApplication`
@@ -121,9 +126,10 @@ test passed locally.
 
 For PR #14, the repository owner confirmed after the runtime fixes that the
 application behavior works and the Windows taskbar uses the PixelScope identity
-rather than the Python icon. The final artwork replacement is asset-only and
-requires a final visual and asset-contract rerun before the draft is marked ready.
-Exact status remains in PR #14.
+rather than the Python icon. The owner-generated PNG/ICO are now treated as the
+reference derivatives; the generator and focused unit test must reproduce them
+exactly from the SVG before the draft is marked ready. Exact status remains in PR
+#14.
 
 ## Active plan
 

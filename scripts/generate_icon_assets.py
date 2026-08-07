@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import struct
-from collections.abc import Mapping
+import xml.etree.ElementTree as ET
+from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
-from PySide6.QtGui import QImage, QPainter
-from PySide6.QtSvg import QSvgRenderer
+import resvg_py
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "src" / "pixelscope" / "assets" / "icons"
@@ -17,127 +17,80 @@ ICO_PATH = ICON_DIR / "pixelscope.ico"
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 
 
-def _renderer(svg_bytes: bytes) -> QSvgRenderer:
-    renderer = QSvgRenderer(QByteArray(svg_bytes))
-    if not renderer.isValid():
-        raise RuntimeError(f"invalid SVG source: {SVG_PATH}")
-    return renderer
+def _local_name(tag: str) -> str:
+    return tag.rsplit("}", maxsplit=1)[-1].lower()
 
 
-def _render_png(renderer: QSvgRenderer, size: int) -> bytes:
-    image = QImage(size, size, QImage.Format.Format_ARGB32)
-    image.fill(Qt.GlobalColor.transparent)
+def verify_svg(svg_path: Path) -> None:
+    """Reject canonical SVG sources that embed raster images."""
+    root = ET.parse(svg_path).getroot()
+    if any(_local_name(element.tag) == "image" for element in root.iter()):
+        raise RuntimeError("canonical SVG must not contain embedded raster <image> elements")
 
-    painter = QPainter(image)
+
+def _render_rgba(svg_string: str, size: int) -> Image.Image:
+    png_bytes = resvg_py.svg_to_bytes(svg_string, width=size, height=size)
+    with Image.open(BytesIO(png_bytes)) as decoded:
+        return decoded.convert("RGBA")
+
+
+def build_canonical_assets(svg_path: Path, output_dir: Path) -> tuple[Path, Path]:
+    """Render the canonical PNG/ICO derivatives using resvg and Pillow."""
+    verify_svg(svg_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    svg_string = svg_path.read_text(encoding="utf-8")
+    png_path = output_dir / "pixelscope.png"
+    ico_path = output_dir / "pixelscope.ico"
+
+    image_256 = _render_rgba(svg_string, 256)
     try:
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        renderer.render(painter, QRectF(0.0, 0.0, float(size), float(size)))
+        indexed = image_256.quantize(colors=256, dither=Image.Dither.NONE)
+        try:
+            indexed.save(png_path, format="PNG", optimize=True)
+        finally:
+            indexed.close()
     finally:
-        painter.end()
+        image_256.close()
 
-    buffer = QBuffer()
-    if not buffer.open(QIODevice.OpenModeFlag.WriteOnly):
-        raise RuntimeError("failed to open PNG output buffer")
-    if not image.save(buffer, "PNG"):
-        raise RuntimeError(f"failed to encode {size} px PNG frame")
-    return bytes(buffer.data())
-
-
-def _encode_ico(frames: Mapping[int, bytes]) -> bytes:
-    ordered = [(size, frames[size]) for size in ICO_SIZES]
-    header_size = 6 + 16 * len(ordered)
-    offset = header_size
-    entries: list[bytes] = []
-    payloads: list[bytes] = []
-
-    for size, payload in ordered:
-        dimension = 0 if size == 256 else size
-        entries.append(
-            struct.pack(
-                "<BBBBHHII",
-                dimension,
-                dimension,
-                0,
-                0,
-                1,
-                32,
-                len(payload),
-                offset,
-            )
+    frames = [_render_rgba(svg_string, size) for size in ICO_SIZES]
+    try:
+        frames[-1].save(
+            ico_path,
+            format="ICO",
+            sizes=[(size, size) for size in ICO_SIZES],
+            append_images=frames[:-1],
         )
-        payloads.append(payload)
-        offset += len(payload)
+    finally:
+        for frame in frames:
+            frame.close()
 
-    return (
-        struct.pack("<HHH", 0, 1, len(ordered))
-        + b"".join(entries)
-        + b"".join(payloads)
-    )
+    return png_path, ico_path
 
 
-def _decoded_image(payload: bytes, size: int) -> QImage:
-    image = QImage.fromData(payload)
-    if image.isNull():
-        raise RuntimeError(f"failed to decode {size} px icon payload")
-    if (image.width(), image.height()) != (size, size):
-        raise RuntimeError(f"icon payload does not match declared {size} px size")
-    if not image.hasAlphaChannel() or image.pixelColor(0, 0).alpha() == 255:
-        raise RuntimeError(f"{size} px icon payload does not retain transparency")
-    return image
+def assert_reproducible_assets(generated_dir: Path, reference_dir: Path) -> None:
+    """Fail when regenerated PNG/ICO bytes differ from checked-in canonical assets."""
+    for name in ("pixelscope.png", "pixelscope.ico"):
+        generated = (generated_dir / name).read_bytes()
+        reference = (reference_dir / name).read_bytes()
+        if generated != reference:
+            raise RuntimeError(f"{name} does not reproduce the checked-in canonical asset")
 
 
-def _check_existing() -> None:
-    _renderer(SVG_PATH.read_bytes())
-    _decoded_image(PNG_PATH.read_bytes(), 256)
-
-    ico_bytes = ICO_PATH.read_bytes()
-    reserved, image_type, count = struct.unpack_from("<HHH", ico_bytes, 0)
-    if (reserved, image_type, count) != (0, 1, len(ICO_SIZES)):
-        raise RuntimeError("ICO header does not match the canonical frame contract")
-
-    directory_end = 6 + count * 16
-    ranges: list[tuple[int, int]] = []
-    sizes: list[int] = []
-    for index in range(count):
-        entry_offset = 6 + index * 16
-        width, height, _, entry_reserved, planes, bit_count, length, offset = (
-            struct.unpack_from("<BBBBHHII", ico_bytes, entry_offset)
-        )
-        size = 256 if width == 0 else width
-        decoded_height = 256 if height == 0 else height
-        end = offset + length
-        if size != decoded_height or entry_reserved != 0 or planes != 1:
-            raise RuntimeError(f"invalid ICO directory entry at index {index}")
-        invalid_bounds = (
-            bit_count != 32
-            or length <= 0
-            or offset < directory_end
-            or end > len(ico_bytes)
-        )
-        if invalid_bounds:
-            raise RuntimeError(f"invalid ICO payload bounds at index {index}")
-        _decoded_image(ico_bytes[offset:end], size)
-        sizes.append(size)
-        ranges.append((offset, end))
-
-    if tuple(sizes) != ICO_SIZES:
-        raise RuntimeError(f"unexpected ICO frame order: {tuple(sizes)}")
-    ordered_ranges = sorted(ranges)
-    for index in range(1, len(ordered_ranges)):
-        if ordered_ranges[index - 1][1] > ordered_ranges[index][0]:
-            raise RuntimeError("ICO frame payloads overlap")
+def check_reproducibility() -> None:
+    """Regenerate into an isolated temporary directory and compare exact bytes."""
+    verify_svg(SVG_PATH)
+    with TemporaryDirectory(prefix="pixelscope-icon-check-") as temp_dir:
+        generated_dir = Path(temp_dir)
+        build_canonical_assets(SVG_PATH, generated_dir)
+        assert_reproducible_assets(generated_dir, ICON_DIR)
 
 
 def generate(*, check: bool) -> None:
     if check:
-        _check_existing()
+        check_reproducibility()
         return
-
-    renderer = _renderer(SVG_PATH.read_bytes())
-    frames = {size: _render_png(renderer, size) for size in ICO_SIZES}
-    PNG_PATH.write_bytes(frames[256])
-    ICO_PATH.write_bytes(_encode_ico(frames))
+    build_canonical_assets(SVG_PATH, ICON_DIR)
 
 
 def main() -> int:
@@ -147,12 +100,15 @@ def main() -> int:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="validate checked-in SVG/PNG/ICO assets without rewriting them",
+        help=(
+            "regenerate into a temporary directory and fail unless the generated "
+            "PNG/ICO exactly match the checked-in assets"
+        ),
     )
     args = parser.parse_args()
 
     generate(check=args.check)
-    action = "Validated" if args.check else "Generated"
+    action = "Reproduced" if args.check else "Generated"
     print(f"{action} {PNG_PATH.relative_to(ROOT)}")
     print(f"{action} {ICO_PATH.relative_to(ROOT)}")
     return 0

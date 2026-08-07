@@ -45,9 +45,12 @@
   are colocated under `src/pixelscope/assets/icons/`; release naming or artwork
   may replace the triplet before P7, but duplicate canonical copies are not
   allowed.
-- `scripts/generate_icon_assets.py` is the canonical derivative path. It uses the
-  pinned Qt SVG renderer and must preserve transparent 16, 20, 24, 32, 40, 48,
-  64, 128, and 256 px ICO frames in ascending order.
+- `scripts/generate_icon_assets.py` is the canonical derivative path. It uses
+  dev-pinned `resvg_py==0.3.3` plus `Pillow==12.3.0`, renders every target size
+  directly from the SVG, and must reproduce the checked-in PNG/ICO exactly.
+- Generator verification is isolated: `--check` creates temporary derivatives,
+  compares them byte-for-byte with the checked-in assets, fails on drift, and
+  removes temporary output before returning.
 - Application icon lookup uses package-resource bytes and may not depend on the
   current working directory or a source-tree absolute path.
 - Windows source runs use the stable AppUserModelID `PixelScope.PixelScope`, set

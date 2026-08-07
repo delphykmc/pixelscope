@@ -17,7 +17,8 @@ copies.
 | `pixelscope.png` | Transparent 256 × 256 Qt runtime application/window icon |
 | `pixelscope.ico` | Future Windows executable, shortcut, and installer shell icon |
 
-The SVG is the source of truth. Do not hand-edit the PNG or ICO.
+The SVG is the source of truth. PNG and ICO must be reproducible from the SVG by
+the checked-in generator rather than maintained as independent artwork.
 
 ## Visual contract
 
@@ -41,17 +42,24 @@ The SVG is the source of truth. Do not hand-edit the PNG or ICO.
 ## Size contract
 
 The mark must remain identifiable at 16, 20, 24, 32, 40, 48, 64, 128, and
-256 px. `pixelscope.ico` contains one transparent frame for each size in that
-ascending order. Small ICO frames use a deliberately reduced high-contrast
-palette so their image-plus-scope silhouette survives Windows taskbar and shell
-downscaling. The runtime PNG is the 256 px render used by Qt.
+256 px. `pixelscope.ico` contains one transparent frame for each size. Each ICO
+size is rendered directly from the SVG rather than produced by scaling a
+previously rasterized icon. The runtime PNG is the 256 px render used by Qt.
 
 ## Reproducible generation
 
-`scripts/generate_icon_assets.py` is the supported baseline derivative generator.
-It uses the repository-pinned `PySide6==6.4.2` Qt SVG renderer, renders onto a
-transparent ARGB32 image, writes `pixelscope.png` from the 256 px frame, and
-assembles the ICO from the nine ordered PNG payloads.
+`scripts/generate_icon_assets.py` is the canonical derivative generator. The
+previous Qt `QSvgRenderer` path was removed after Windows visual validation showed
+that its rasterized derivatives did not reproduce the approved icon quality.
+Generation now matches the validated asset path used by the repository owner:
+
+- `resvg_py==0.3.3` renders the SVG directly at the requested output size.
+- `Pillow==12.3.0` decodes the render, writes the 256 px indexed PNG without
+  dithering, and assembles the multi-size ICO.
+- The SVG is rejected if it contains an embedded `<image>` raster element.
+
+The two generator-only dependencies are pinned in `requirements/dev.txt`; they
+are not runtime application dependencies.
 
 From the repository root:
 
@@ -60,12 +68,16 @@ From the repository root:
 .\.venv\Scripts\python.exe scripts\generate_icon_assets.py --check
 ```
 
-The first command rewrites baseline derivatives from the SVG. The second command
-validates the SVG source, PNG decode/dimensions/transparency, and every ICO
-frame's dimensions, payload bounds, transparency, and ascending order without
-rewriting files. After regeneration, review the 16–48 px outputs and reapply
-small-size palette optimization when needed; automatic downscaling is not a
-substitute for small-size legibility review.
+The first command rewrites `pixelscope.png` and `pixelscope.ico` from the SVG.
+The `--check` command does not modify checked-in assets: it creates both
+derivatives in an isolated temporary directory, compares their bytes exactly with
+the checked-in PNG and ICO, fails on any difference, and removes the temporary
+directory when the check finishes.
+
+`tests/unit/test_icon_assets.py` exercises the same reproduction contract and
+also verifies that its temporary generation directory is empty after the check.
+Any SVG change therefore requires regenerating and intentionally committing the
+matching PNG/ICO derivatives.
 
 ## Runtime and packaging use
 
