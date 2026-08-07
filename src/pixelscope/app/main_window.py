@@ -102,7 +102,9 @@ class MainWindow(QMainWindow):
         self.settings = QSettings()
         self.settings_repository = settings_repository or SettingsRepository()
         self.application_settings = application_settings or self.settings_repository.load()
-        self.performance_settings = performance_settings or self.application_settings.performance_settings()
+        self.performance_settings = (
+            performance_settings or self.application_settings.performance_settings()
+        )
         self._last_directory = str(self.settings.value("paths/last_directory", ""))
         self._dont_show_raw_json_profiles = self.application_settings.dont_show_raw_json_profiles
 
