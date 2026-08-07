@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialogButtonBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
 from pixelscope.app.application import load_startup_settings
 from pixelscope.app.main_window import MainWindow
@@ -30,6 +30,26 @@ def isolated_settings(tmp_path: Path) -> None:
 
 def _repository() -> SettingsRepository:
     return SettingsRepository(QSettingsAdapter(QSettings()))
+
+
+def test_settings_action_opens_dialog(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened: list[SettingsDialog] = []
+
+    def fake_exec(dialog: SettingsDialog) -> int:
+        opened.append(dialog)
+        return int(QDialog.DialogCode.Rejected)
+
+    monkeypatch.setattr(SettingsDialog, "exec", fake_exec)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    window.action_map["Settings..."].trigger()
+
+    assert len(opened) == 1
+    assert opened[0].windowTitle() == "Settings"
 
 
 def test_settings_action_dialog_prefill_save_cancel_and_raw_sync(qtbot: object) -> None:
@@ -99,16 +119,19 @@ def test_difference_value_validation_and_startup_injection(qtbot: object) -> Non
     window = MainWindow(persisted, runtime, repository)
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
-    assert persisted.difference_cache_mib == 768
-    assert runtime.difference_cache_bytes == 768 * MIB
-    assert window.difference_panel.difference_cache.budget_bytes == 768 * MIB
-
     dialog = window.create_settings_dialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     assert dialog.difference_cache_mib.minimum() == 64
     assert dialog.difference_cache_mib.maximum() == 8192
-
+    dialog.difference_cache_mib.setValue(1)
+    assert dialog.difference_cache_mib.value() == 64
+    dialog.difference_cache_mib.setValue(99999)
+    assert dialog.difference_cache_mib.value() == 8192
     dialog.difference_cache_mib.setValue(1024)
+    assert persisted.difference_cache_mib == 768
+    assert runtime.difference_cache_bytes == 768 * MIB
+    assert window.difference_panel.difference_cache.budget_bytes == 768 * MIB
+
     save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
     assert save is not None
     qtbot.mouseClick(save, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
@@ -127,3 +150,16 @@ def test_file_menu_raw_preference_uses_typed_repository(qtbot: object) -> None:
 
     assert repository.load().dont_show_raw_json_profiles is True
     assert QSettings().value(DONT_SHOW_RAW_JSON_PROFILES_KEY, type=bool) is True
+
+
+def test_reset_to_default_requires_restart_when_runtime_is_nondefault(qtbot: object) -> None:
+    repository = _repository()
+    initial = repository.save(ApplicationSettings(False, 1024))
+    dialog = SettingsDialog(repository, initial, initial.performance_settings())
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+
+    assert not dialog.restart_required
+    qtbot.mouseClick(dialog.reset_button, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+
+    assert repository.load() == ApplicationSettings()
+    assert dialog.restart_required

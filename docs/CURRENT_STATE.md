@@ -1,10 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-07  
-PR #13 merge commit and PR #14 branch base:
-`52daa63425a286e370aa5ef36f59ba51a8acd565`  
-Runtime code baseline before PR #14:
-`1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
+P2-A1 / PR #14 merge commit and P2-A2 branch base:
+`c3ddb91f4644eae981d4683fe42d9b8219ad76fe`
 
 This document records the implementation baseline that new work must use.
 
@@ -15,10 +13,10 @@ This document records the implementation baseline that new work must use.
 - P1-F merged as PR #12.
 - P2-0 merged as PR #13 at
   `52daa63425a286e370aa5ef36f59ba51a8acd565`.
-- PR #13 changed durable documentation only, so the runtime code baseline before
-  PR #14 remains the PR #12 merge commit
-  `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`.
-- P2-A is split into P2-A1 identity/resources and P2-A2 settings foundation.
+- P2-A1 merged as PR #14 at
+  `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
+- P2-A2 is implemented on `feature/p2-a-settings-foundation`; merge and owner
+  validation remain pending in the active PR.
 
 ## Implemented baseline
 
@@ -55,86 +53,67 @@ This document records the implementation baseline that new work must use.
 - MIPI RAW10/12/14.
 - JSON profile load/save, migration, confirmation preference, and same-path
   reload.
+- The RAW JSON confirmation preference is now an `ApplicationSettings` value.
+  Legacy `raw/dont_show_json_profiles` values are migrated to the versioned
+  application-settings namespace.
 - Native grayscale/Bayer analysis without demosaic.
 
-### Runtime resources
+### Runtime resources and settings
 
-- PR #14 delivers the P2-A1 identity/resource foundation.
-- Canonical icon assets are colocated at
-  `src/pixelscope/assets/icons/pixelscope.{svg,png,ico}`.
-- The approved artwork is a transparent standalone photograph-and-magnifier mark
-  with enlarged pixels inside the lens and a restrained amber accent. Omitting a
-  full-canvas plate lets the mark occupy more of the Windows taskbar icon area
-  with higher contrast and clearer image-analysis semantics.
-- The SVG is the editable vector source, the transparent 256 px PNG is the Qt
-  runtime asset, and the ICO contains transparent 16, 20, 24, 32, 40, 48, 64,
-  128, and 256 px frames.
-- `scripts/generate_icon_assets.py` uses dev-pinned `resvg_py` and Pillow to
-  reproduce the owner-validated PNG/ICO derivatives from the SVG. The previous
-  Qt SVG rasterization path is no longer authoritative.
-- `generate_icon_assets.py --check` generates both derivatives into a temporary
-  directory, requires exact byte equality with the checked-in PNG/ICO, and
-  removes the temporary output before returning.
-- `tests/unit/test_icon_assets.py` verifies the same reproduction contract and
-  confirms that no temporary generated files remain after the test.
-- Application bootstrap reads the PNG through `importlib.resources`; lookup is
-  independent of the current working directory and source-tree absolute paths.
-- Windows source runs assign `PixelScope.PixelScope` before `QApplication`
-  creation, then assign the canonical icon to both `QApplication` and the main
-  window so the running Taskbar entry does not retain the Python process identity.
-- SVG, PNG, and ICO files are declared as setuptools package data.
-- Executable, shortcut, installer, and final packaged Windows shell identity
-  binding remain P7 work.
-- `DifferenceMapCache` is a byte-budgeted LRU with a 512 MiB default.
-- Difference diagnostics expose `used_bytes`, `budget_bytes`, and `entry_count`.
-- `DifferencePanel` has a constructor injection seam for its cache budget.
-- Frozen `PerformanceSettings` exists with only `difference_cache_bytes`, but
-  application bootstrap does not load or inject it; `MainWindow` uses the
-  `DifferencePanel` default.
-- Decoded-source residency exists as a reloadable fixed seven-document,
-  count-based policy owned by `MainWindow`.
-- The current protected set is based on visible documents and active load
-  targets; selected and analysis documents are not yet explicit policy inputs.
-- The source residency policy is not byte-budgeted and is distinct from the
-  Difference cache.
-- Native source arrays and previews coexist in `ImageDocument`; source residency
-  accounting is therefore not total process memory.
+- P2-A1 supplies canonical SVG/PNG/ICO resources, reproducible asset generation,
+  CWD-independent package lookup, and the Windows source-run AppUserModelID
+  `PixelScope.PixelScope` before `QApplication` creation.
+- `DifferenceMapCache` remains a persistence-free byte-budgeted LRU.
+- `ApplicationSettings` is the frozen typed model for persisted user preferences.
+  P2-A2 currently owns `dont_show_raw_json_profiles` and
+  `difference_cache_mib`.
+- `SettingsRepository` owns defaults, schema migration, validation, save/reset,
+  invalid-state recovery, and future-schema compatibility; `QSettingsAdapter`
+  owns raw QSettings keys.
+- Settings schema version 1 uses `settings/schema_version`,
+  `settings/general/dont_show_raw_json_profiles`, and
+  `settings/performance/difference_cache_mib`.
+- Difference cache preference defaults to 512 MiB and accepts 64–8192 MiB.
+- Application startup converts persisted MiB into an immutable
+  `PerformanceSettings.difference_cache_bytes` snapshot and injects that value
+  through `MainWindow` into `DifferencePanel` and `DifferenceMapCache`.
+- Runtime changes to the Difference-cache preference are saved for the next
+  launch; an existing cache budget is not mutated live.
+- `Edit > Settings...` exposes General and Performance settings. The existing
+  File-menu RAW preference remains and shares the same typed setting.
+- `Reset Settings` resets only schema-owned application preferences. Workspace
+  geometry, dock/splitter state, last directory, and unrelated QSettings keys
+  remain owned by their existing persistence path and are not reset.
+- Unknown future settings schemas are not rewritten; the current application
+  uses safe defaults and treats application settings as read-only compatibility
+  state.
+- Decoded-source residency remains a reloadable fixed seven-document,
+  count-based policy owned by `MainWindow`; P2-B replaces that policy.
 - The dedicated image-load pool is bounded at two workers; the shared numeric
   pool is bounded at four.
-- Normal-load stale-result handling primarily uses target document ID,
-  `_load_tokens`, the load-worker registry, and cancelled-worker rejection.
 
 ## Not implemented
 
-- P2-A2 typed `ApplicationSettings`, `SettingsRepository`, QSettings adapter,
-  migration, validation, reset, Settings dialog, restart-required UI, and
-  Difference-cache startup injection.
-- Byte-budgeted decoded-source setting and residency manager.
-- One-group-ahead preload.
-- Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export.
-- P3–P7 workflow, RAW processing, remote/authentication, and distribution work.
+- Byte-budgeted decoded-source setting and `ResidencyManager` (P2-B).
+- One-group-ahead preload (P2-C).
+- Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export (P2-D).
+- P3–P7 workflow, RAW processing expansion, remote/authentication, and
+  distribution work.
 
 ## Validation evidence
 
 The repository owner recorded the full automated validation contract as passed
-for P1-D, P1-E, and P1-F. P1-D and P1-E also have recorded manual Windows checks.
-P1-F manual Windows evidence was not re-verified during P2-0 and is not claimed
-as passed by that documentation PR.
+for P1-D, P1-E, P1-F, and final P2-A1. P2-A1 also has owner-confirmed application
+runtime and Windows taskbar identity evidence.
 
-The repository owner confirmed the P2-0 documentation checker and docs contract
-test passed locally.
-
-For PR #14, the repository owner confirmed final P2-A1 validation: the checked-in
-PNG and ICO reproduce byte-for-byte from the canonical SVG with temporary output
-cleanup, the full local automated validation passes, application runtime behavior
-is correct, and the Windows taskbar uses the PixelScope identity rather than the
-Python icon. Executable, pinned-shortcut, installer, and final packaged-shell
-identity remain P7 work.
+For P2-A2, implementation and focused regression tests are present in the active
+branch. Full repository validation and the manual Windows matrix must be recorded
+in the P2-A2 PR before merge; this document does not pre-claim those checks.
 
 ## Active plan
 
 - P1 history: [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md)
 - P2 active plan: [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
-- P2-A1: application identity/resource foundation, delivered by PR #14.
-- Next implementation slice after PR #14: P2-A2 — settings foundation and
-  Difference-cache startup injection.
+- P2-A1: complete; merged as PR #14.
+- P2-A2: active implementation on `feature/p2-a-settings-foundation`.
+- Next slice after P2-A2 merge: P2-B — byte-budgeted decoded-source residency.

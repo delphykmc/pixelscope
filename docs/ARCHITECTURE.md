@@ -7,10 +7,9 @@ native source arrays, metadata, preview data, generation state, caches, and
 evaluation results. `core` performs display conversion, Bayer handling,
 statistics/histogram, line-profile, and overflow-safe Difference math without
 Qt. `workers` runs expensive I/O and numerics in bounded `QThreadPool` workers.
-`ui` renders previews and emits lightweight image-coordinate state. `app`, and
-primarily `MainWindow`, currently owns documents, ordered selection, workspace
-state, QSettings persistence, load identity, source residency, and window
-lifecycle.
+`ui` renders previews and emits lightweight image-coordinate state. `app` owns
+documents, ordered selection, application settings composition, workspace state,
+load identity, source residency, and window lifecycle.
 
 Source arrays retain decoded dtype and channel meaning. Display conversion
 creates uint8 previews without modifying native source data. RGBA analysis
@@ -36,16 +35,55 @@ Taskbar identity. PyInstaller executable icon binding, Windows shortcut and
 installer identity, pinned-shell behavior, signing, and final release naming
 remain P7.
 
+## Current application settings boundary
+
+Application preferences and workspace/session persistence are intentionally
+separate even though both ultimately use Qt persistence.
+
+- Frozen `ApplicationSettings` is the typed persisted domain model. P2-A2 owns
+  the RAW JSON confirmation preference and Difference-cache MiB preference.
+- `SettingsRepository` owns defaults, versioned schema behavior, legacy
+  migration, validation, invalid-state recovery, save, and reset.
+- `QSettingsAdapter` is the only application-settings component that knows raw
+  QSettings keys. QSettings is an adapter, not the domain model.
+- Application bootstrap loads `ApplicationSettings`, converts the Difference
+  cache preference to an immutable byte-based `PerformanceSettings` startup
+  snapshot, and passes both settings objects plus the repository to
+  `MainWindow`.
+- `MainWindow` injects `PerformanceSettings.difference_cache_bytes` into
+  `DifferencePanel`, which passes the fixed budget to `DifferenceMapCache`.
+  Neither the panel nor the cache reads persistence.
+- Runtime edits to startup-only performance values are persisted for the next
+  launch; existing runtime caches are not mutated.
+
+Schema version 1 owns:
+
+- `settings/schema_version`
+- `settings/general/dont_show_raw_json_profiles`
+- `settings/performance/difference_cache_mib`
+
+Legacy `raw/dont_show_json_profiles` is migration input only. Invalid current
+values normalize to validated defaults. A future schema version is not guessed
+or rewritten; the current process uses safe defaults and exposes application
+settings as read-only compatibility state.
+
+`Reset Settings` resets only schema-owned application preferences. It is
+separate from `Reset Workspace Layout` and does not remove window geometry,
+dock/splitter state, the last directory, or unrelated QSettings keys.
+
 ## Current workspace structure
 
 The central splitter contains Files/Analysis and the active workspace. Ordered
 selection is the comparison set; Difference Image 1/Image 2 controls own the
 comparison pair.
 
-Histogram and Line Profile live in a bottom `QDockWidget`. QSettings persists
-main geometry, dock state, splitter state, layout mode, Plots visibility,
-selected bottom tab, and floating Plots geometry. The custom title bar shares a
-maximize/restore state machine between its button and title double-click.
+Workspace QSettings remain owned by `MainWindow` and related UI components.
+They persist main geometry, dock state, splitter state, layout mode, Plots
+visibility, selected bottom tab, floating Plots geometry, and last-directory
+state. These keys are not part of `ApplicationSettings`.
+
+The custom Plots title bar shares a maximize/restore state machine between its
+button and title double-click.
 
 Multi View uses one fixed layout policy. `_focus_document_id` retains explicit
 primary identity and `_multi_display_order` owns display promotion without
@@ -82,15 +120,17 @@ those protections are planned for P2-B.
 
 ## Current Difference lifecycle
 
-`DifferenceMapCache` owns order-independent native absolute maps with a 512 MiB
-default byte budget, LRU promotion/eviction, oversized-map rejection, and
-`used_bytes`, `budget_bytes`, and `entry_count` diagnostics. Metric and preview
-entries are invalidated when a map leaves the cache.
+`DifferenceMapCache` owns order-independent native absolute maps with a
+startup-selected byte budget, LRU promotion/eviction, oversized-map rejection,
+and `used_bytes`, `budget_bytes`, and `entry_count` diagnostics. Metric and
+preview entries are invalidated when a map leaves the cache.
 
-`DifferencePanel` accepts the cache budget at construction. Frozen
-`PerformanceSettings` currently contains only `difference_cache_bytes`, but the
-application bootstrap creates `MainWindow` directly and does not load/inject
-that startup snapshot. Current behavior therefore relies on the panel default.
+P2-A2 persists the user preference in MiB with a 512 MiB default and 64–8192 MiB
+validation range. Startup converts MiB to bytes in frozen `PerformanceSettings`
+and injects that value through `MainWindow` → `DifferencePanel` →
+`DifferenceMapCache`. Saving a different value during the session does not
+mutate the existing cache; the Settings dialog reports restart-required state
+against the startup snapshot.
 
 Difference-cache memory and decoded-source residency are separate policies.
 
@@ -109,14 +149,13 @@ MIPI RAW10/12/14 have fixed packing rules. Decoding returns native grayscale or
 Bayer mosaic arrays. Demosaic, black/white-level processing, and profile
 suggestion remain outside the current implementation.
 
+The existing File-menu RAW JSON confirmation checkbox and the General checkbox
+in `Edit > Settings...` both update the same `ApplicationSettings` preference.
+
 ## Planned P2 boundaries
 
 The following are target boundaries, not implemented components:
 
-- `SettingsRepository`: schema-aware load/save/reset and migration.
-- typed `ApplicationSettings`: validated persisted choices.
-- immutable `PerformanceSettings`: one startup snapshot injected into runtime
-  services; later edits require restart.
 - `ResidencyManager`: native-source byte accounting, protected LRU, soft-budget
   policy, eviction/reload, invalidation, and diagnostics.
 - `PreloadController`: one-group-ahead planning, bounded ownership, normal-load

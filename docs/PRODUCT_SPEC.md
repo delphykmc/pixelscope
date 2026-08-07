@@ -29,10 +29,17 @@ results.
   image, then the active image, then the first displayed image.
 - RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
 - Order-independent native absolute Difference cache with Absolute/Mask display,
-  ROI metrics, LRU eviction, and diagnostics.
+  ROI metrics, LRU eviction, diagnostics, and a startup-configurable byte budget.
 - Resizable, collapsible, floating, and maximizable Plots dock.
 - Persisted main geometry, dock state, splitters, last directory, layout,
   analysis state, and selected Plots tab.
+- `Edit > Settings...` with a General RAW JSON confirmation preference and a
+  Performance Difference-cache preference.
+- Difference cache defaults to 512 MiB, accepts 64–8192 MiB, and applies a
+  changed value after PixelScope restarts. The current runtime cache is not
+  resized live.
+- `Reset Settings` restores application preferences without resetting workspace
+  layout, window geometry, dock/splitter state, or last-directory state.
 
 A seventh derived Difference result is shown in Single View when all six source
 positions are occupied.
@@ -41,7 +48,9 @@ positions are occupied.
 
 RAW opens through a validated profile workflow. A same-name JSON sidecar can
 pre-fill the profile; the user preference may skip repeated confirmation for
-those JSON profiles. The same RAW path may be reloaded with corrected settings.
+those JSON profiles. The existing File-menu checkbox and the General checkbox in
+Settings edit the same persisted application preference. The same RAW path may
+be reloaded with corrected settings.
 
 The profile separates:
 
@@ -57,7 +66,7 @@ mosaic planes; demosaic is outside the current product contract.
 
 ## Future product scope
 
-The complete product adds performance Preferences, byte-budgeted source
-residency and preload, RAW demosaic/normalization/profile suggestion, alpha
-overlay, persistent sessions and ROI management, live GPU IQA/image evaluation,
-heatmaps, and a validated standalone Windows distribution.
+The complete product adds byte-budgeted decoded-source residency and preload,
+RAW demosaic/normalization/profile suggestion, alpha overlay, persistent
+sessions and ROI management, live GPU IQA/image evaluation, heatmaps, and a
+validated standalone Windows distribution.

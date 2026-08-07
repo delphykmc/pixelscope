@@ -32,14 +32,34 @@
 - P2 proceeds sequentially:
   **P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E** after the P2-0 documentation
   transition. Each slice starts from the latest merged prerequisite on `main`.
-- P2-A1 is the application identity/resource foundation delivered by PR #14.
+- P2-A1 is the application identity/resource foundation merged as PR #14.
   P2-A2 owns typed settings, persistence, the Settings dialog, and
   Difference-cache startup injection.
-- Settings domain models and persistence adapters are separate. QSettings is an
-  adapter, not the application settings model.
-- Performance settings are immutable startup snapshots. Changes to startup-only
-  budgets or preload state require restart indication.
-- The P2-A2 Difference-cache default is confirmed as 512 MiB.
+- QSettings is a persistence adapter, not the application settings domain model.
+  Frozen `ApplicationSettings` is the persisted typed model;
+  `SettingsRepository` owns defaults, validation, migration, save, and reset;
+  `QSettingsAdapter` owns raw keys.
+- Application settings schema version 1 owns
+  `settings/schema_version`,
+  `settings/general/dont_show_raw_json_profiles`, and
+  `settings/performance/difference_cache_mib`.
+- Legacy `raw/dont_show_json_profiles` is migration input only. Valid legacy
+  boolean/string forms are preserved and migrated; invalid current values fall
+  back to validated defaults and are normalized.
+- A persisted schema newer than the running application is never destructively
+  guessed or rewritten. The process uses safe defaults and keeps application
+  settings read-only until a compatible application version is used.
+- Performance settings are immutable startup snapshots. Difference-cache edits
+  are persisted immediately but do not mutate an existing runtime cache.
+- Difference-cache preference default is 512 MiB with an accepted range of
+  64–8192 MiB. Runtime receives bytes through `PerformanceSettings`.
+- Restart-required UI is determined by comparing the saved/editable startup-only
+  value to the current runtime snapshot. Returning to the runtime value clears
+  the indication.
+- `Reset Settings` resets only schema-owned application preferences. `Reset
+  Workspace Layout` remains a separate action and application reset does not
+  remove window/dock/splitter geometry, last-directory state, or unrelated
+  QSettings keys.
 - The current canonical PixelScope identity is a blue-gray image/scope/pixel mark
   with a restrained amber accent. The editable SVG, runtime PNG, and Windows ICO
   are colocated under `src/pixelscope/assets/icons/`; release naming or artwork
@@ -48,15 +68,10 @@
 - `scripts/generate_icon_assets.py` is the canonical derivative path. It uses
   dev-pinned `resvg_py==0.3.3` plus `Pillow==12.3.0`, renders every target size
   directly from the SVG, and must reproduce the checked-in PNG/ICO exactly.
-- Generator verification is isolated: `--check` creates temporary derivatives,
-  compares them byte-for-byte with the checked-in assets, fails on drift, and
-  removes temporary output before returning.
 - Application icon lookup uses package-resource bytes and may not depend on the
   current working directory or a source-tree absolute path.
 - Windows source runs use the stable AppUserModelID `PixelScope.PixelScope`, set
-  before `QApplication` creation. Manual validation demonstrated that this P2-A1
-  boundary is required to prevent the running taskbar entry from retaining the
-  Python process identity.
+  before `QApplication` creation.
 - Executable-file icons, pinned shortcuts, installer shortcuts, signing, final
   packaged-shell grouping, and release-name policy remain P7 concerns.
 - Decoded-source budgeting accounts native decoded `ImageDocument.source`
@@ -76,14 +91,14 @@
 - Login, SSO, token/credential lifecycle, access policy, and remote operations
   administration are P6. P2 does not introduce credentials.
 
-## Current versus planned resource policy
+## Current resource policy
 
 - The canonical SVG/PNG/ICO icon triplet, reproducible generator,
   package-resource loader, `QApplication`/main-window assignment, and source-run
   Windows AppUserModelID are P2-A1 boundaries.
-- `DifferenceMapCache` is already byte-budgeted with diagnostics and a 512 MiB
-  default.
-- Frozen `PerformanceSettings` exists but is not loaded/injected at bootstrap.
+- `DifferenceMapCache` is byte-budgeted and persistence-free. P2-A2 injects its
+  startup budget through immutable `PerformanceSettings`; the default remains
+  512 MiB.
 - Decoded-source residency currently uses a fixed seven-document reloadable
   policy in `MainWindow`; P2-B moves policy ownership to a byte-budgeted manager.
 - The current residency protection inputs are visible documents and active load

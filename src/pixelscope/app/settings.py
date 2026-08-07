@@ -5,10 +5,14 @@ from typing import Final, cast
 
 from PySide6.QtCore import QSettings
 
-from pixelscope.core.performance_settings import MIB, PerformanceSettings
+from pixelscope.core.performance_settings import (
+    DEFAULT_DIFFERENCE_CACHE_BYTES,
+    MIB,
+    PerformanceSettings,
+)
 
 CURRENT_SETTINGS_SCHEMA_VERSION: Final = 1
-DEFAULT_DIFFERENCE_CACHE_MIB: Final = 512
+DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
 MAX_DIFFERENCE_CACHE_MIB: Final = 8192
 
@@ -186,7 +190,7 @@ class SettingsRepository:
         if isinstance(value, bool):
             return value, True
         if value is None:
-            return False, True
+            return False, False
         normalized = str(value).strip().casefold()
         if normalized in _TRUE_STRINGS:
             return True, True
@@ -197,7 +201,7 @@ class SettingsRepository:
     @staticmethod
     def _parse_cache_mib(value: object) -> tuple[int, bool]:
         if value is None:
-            return DEFAULT_DIFFERENCE_CACHE_MIB, True
+            return DEFAULT_DIFFERENCE_CACHE_MIB, False
         if isinstance(value, bool):
             return DEFAULT_DIFFERENCE_CACHE_MIB, False
         try:

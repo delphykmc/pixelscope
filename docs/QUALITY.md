@@ -28,11 +28,11 @@ reason, and unverified risk.
 | Qt state/interaction | Focused UI test plus relevant smoke test; manual Windows check for visual/timing-sensitive behavior |
 | Worker/cache/asynchronous lifecycle | Tests for request identity, stale-result rejection, cancellation/invalidation, generation changes, and bounded resources |
 | File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, and bit-depth cases as applicable |
-| Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, reset, and restart behavior |
+| Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, schema migration/future-version behavior, reset scope, and restart behavior |
 | Application identity/package resources | Focused SVG/PNG/ICO structure and decode tests, application-icon UI test, reproducible-generation check, wheel-content verification, unrelated-CWD launch, and Windows title-bar/Alt+Tab/running-taskbar/DPI visual checks |
 | Public workflow/terminology | Product/user documentation update and UI assertions |
 | Dependency/packaging | Python 3.10 evidence, `pip check`, packaging-constraint review, and explicit authorization before packaging tools run |
-| Documentation/harness | `scripts/check_docs.py`, consistency with current code/PR scope, and diff inspection |
+| Documentation/harness | `scripts/check_docs.py`, consistency with current code/PR scope, provenance disclosure when agent-assisted, and diff inspection |
 
 For application identity changes, run the generator in check mode and verify the
 built wheel contains the canonical triplet:
@@ -56,8 +56,10 @@ Preserve deterministic fixtures and smoke paths for:
 - MIPI RAW10/12/14 decoding and packed/unpacked equivalence.
 - Ordered selection, folder navigation, and fixed one-to-six-image layouts.
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
-- Difference calculation, cache reuse/eviction, metrics, and display-only
-  updates.
+- Difference calculation, cache reuse/eviction, metrics, display-only updates,
+  and startup cache-budget injection.
+- Settings fresh state, round-trip, legacy migration, corrupt-state recovery,
+  restart-required comparison, and reset separation from workspace persistence.
 - Split-channel loading placeholders and stale-result rejection.
 - Plots visibility, selected tab, floating/docked/maximized state, and workspace
   restoration.
@@ -81,6 +83,9 @@ Every agent-assisted change reports:
 7. Product, architecture, decision, roadmap, current-state, or execution-plan
    updates.
 8. Removal or retention rationale for temporary scripts and compatibility paths.
+9. Actual agent provenance: observed author/committer, co-author fallback if
+   used, account used for GitHub comments/reviews, and confirmation that existing
+   human commits were not rewritten.
 
 Do not claim a check passed unless its output was observed. Generated code
 volume and commit count are not quality signals.

@@ -89,6 +89,25 @@ Absolute and Mask displays derive from the cached map. Gain and Threshold change
 presentation; Full image/Active ROI controls metrics. With six selected sources,
 Difference opens in Single View until disabled.
 
+## Settings
+
+Open **Edit > Settings...** for application preferences.
+
+**General** contains **Don't Show RAW JSON Profiles**. It is the same preference
+as the existing File-menu checkbox, so saving either surface updates the other.
+
+**Performance** contains **Difference Cache** in MiB. The default is 512 MiB and
+the allowed range is 64–8192 MiB. This value is a startup setting: changing it
+saves the preference but does not resize the current cache. When the editable
+value differs from the current startup value, the dialog shows **Changes take
+effect after restarting PixelScope.** Returning the value to the current
+runtime setting clears that indication.
+
+**Reset Settings** restores only application preferences to their defaults.
+It does not reset the window layout, dock/splitter geometry, last directory, or
+other workspace/session state. Use **View > Reset Workspace Layout** for layout
+state instead.
+
 ## Plots dock
 
 The title bar provides Float/Dock, Maximize/Restore, and Hide. The toolbar
