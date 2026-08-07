@@ -29,7 +29,7 @@ from pixelscope.core.performance_settings import MIB, PerformanceSettings
 
 
 class _SettingRow(QWidget):
-    """Flat title/description/control row used by Settings sections."""
+    """Flat setting row with a title, description, and aligned control area."""
 
     def __init__(
         self,
@@ -39,60 +39,73 @@ class _SettingRow(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        self._container = QWidget()
+        self._container.setObjectName("settingsRowContainer")
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 12, 0, 12)
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._container)
+
+        container_layout = QVBoxLayout(self._container)
+        container_layout.setContentsMargins(0, 14, 0, 14)
+        container_layout.setSpacing(8)
 
         title_label = QLabel(title)
         title_label.setProperty("settingsRole", "settingTitle")
-        layout.addWidget(title_label)
+        container_layout.addWidget(title_label)
 
         description_label = QLabel(description)
         description_label.setProperty("settingsRole", "description")
         description_label.setWordWrap(True)
-        layout.addWidget(description_label)
-        layout.addSpacing(2)
-        layout.addWidget(control)
+        container_layout.addWidget(description_label)
+
+        container_layout.addWidget(control)
+
+    def set_separator_visible(self, visible: bool) -> None:
+        self._container.setProperty("withSeparator", visible)
+        self._container.style().unpolish(self._container)
+        self._container.style().polish(self._container)
+        self._container.update()
 
 
 class _SettingsSection(QWidget):
-    """Flat Settings section with optional explanatory text and separators."""
+    """Optional section block that groups related setting rows."""
 
     def __init__(
         self,
-        title: str,
+        title: str = "",
         description: str = "",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._row_count = 0
+        self._rows: list[_SettingRow] = []
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
 
-        title_label = QLabel(title)
-        title_label.setProperty("settingsRole", "sectionTitle")
-        self._layout.addWidget(title_label)
+        if title:
+            title_label = QLabel(title)
+            title_label.setProperty("settingsRole", "sectionTitle")
+            self._layout.addWidget(title_label)
         if description:
             description_label = QLabel(description)
-            description_label.setProperty("settingsRole", "description")
+            description_label.setProperty("settingsRole", "sectionDescription")
             description_label.setWordWrap(True)
             self._layout.addWidget(description_label)
-            self._layout.addSpacing(4)
+        if title or description:
+            self._layout.addSpacing(6)
 
     def add_row(self, row: _SettingRow) -> None:
-        if self._row_count:
-            separator = QFrame()
-            separator.setObjectName("settingsRowSeparator")
-            separator.setFrameShape(QFrame.Shape.HLine)
-            separator.setFrameShadow(QFrame.Shadow.Plain)
-            self._layout.addWidget(separator)
+        if self._rows:
+            self._rows[-1].set_separator_visible(True)
+        row.set_separator_visible(False)
+        self._rows.append(row)
         self._layout.addWidget(row)
-        self._row_count += 1
 
 
 class _SettingsPage(QWidget):
-    """Scrollable page content with a title, description, and flat sections."""
+    """Scrollable page content with VS Code-inspired hierarchy."""
 
     def __init__(
         self,
@@ -101,9 +114,16 @@ class _SettingsPage(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(28, 24, 32, 32)
-        self._layout.setSpacing(18)
+        self._outer_layout = QVBoxLayout(self)
+        self._outer_layout.setContentsMargins(0, 0, 0, 0)
+        self._outer_layout.setSpacing(0)
+
+        self._content = QWidget()
+        self._content.setObjectName("settingsPageContent")
+        self._content.setMaximumWidth(900)
+        self._layout = QVBoxLayout(self._content)
+        self._layout.setContentsMargins(28, 24, 28, 32)
+        self._layout.setSpacing(20)
 
         title_label = QLabel(title)
         title_label.setProperty("settingsRole", "pageTitle")
@@ -113,13 +133,15 @@ class _SettingsPage(QWidget):
         description_label.setProperty("settingsRole", "pageDescription")
         description_label.setWordWrap(True)
         self._layout.addWidget(description_label)
-        self._layout.addSpacing(4)
+
+        self._outer_layout.addWidget(self._content, 0, Qt.AlignmentFlag.AlignTop)
 
     def add_section(self, section: _SettingsSection) -> None:
         self._layout.addWidget(section)
 
     def finish(self) -> None:
         self._layout.addStretch(1)
+        self._outer_layout.addStretch(1)
 
 
 class SettingsDialog(QDialog):
@@ -137,8 +159,8 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setModal(True)
-        self.resize(900, 600)
-        self.setMinimumSize(760, 500)
+        self.resize(960, 620)
+        self.setMinimumSize(820, 540)
         self.setObjectName("settingsDialog")
         self._repository = repository
         self._runtime_performance_settings = runtime_performance_settings
@@ -147,6 +169,7 @@ class SettingsDialog(QDialog):
         self.category_list.setObjectName("settingsCategoryList")
         self.category_list.setFixedWidth(184)
         self.category_list.setSpacing(2)
+        self.category_list.setAlternatingRowColors(False)
         self.category_list.addItems(("General", "Files", "Performance"))
 
         self.page_stack = QStackedWidget()
@@ -179,7 +202,7 @@ class SettingsDialog(QDialog):
         )
         self.difference_cache_mib.setSuffix(" MiB")
         self.difference_cache_mib.setKeyboardTracking(False)
-        self.difference_cache_mib.setMaximumWidth(150)
+        self.difference_cache_mib.setMaximumWidth(160)
 
         self.restart_required_label = QLabel(
             "Changes take effect after restarting PixelScope."
@@ -209,7 +232,7 @@ class SettingsDialog(QDialog):
         sidebar = QWidget()
         sidebar.setObjectName("settingsSidebar")
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(10, 16, 10, 12)
+        sidebar_layout.setContentsMargins(12, 16, 12, 12)
         sidebar_layout.setSpacing(10)
         sidebar_title = QLabel("Settings")
         sidebar_title.setProperty("settingsRole", "sidebarTitle")
@@ -229,6 +252,7 @@ class SettingsDialog(QDialog):
 
         button_row = QHBoxLayout()
         button_row.setContentsMargins(16, 10, 16, 12)
+        button_row.setSpacing(8)
         button_row.addWidget(self.reset_button)
         button_row.addStretch(1)
         button_row.addWidget(self.button_box)
@@ -267,9 +291,9 @@ class SettingsDialog(QDialog):
     def _build_general_page(self) -> QScrollArea:
         page = _SettingsPage(
             "General",
-            "Application-wide preferences for PixelScope behavior.",
+            "Configure application-wide preferences for PixelScope behavior.",
         )
-        raw_section = _SettingsSection("RAW Profiles")
+        raw_section = _SettingsSection("RAW profiles")
         raw_section.add_row(
             _SettingRow(
                 "RAW JSON confirmation",
@@ -288,14 +312,13 @@ class SettingsDialog(QDialog):
             "Choose optional starting locations for PixelScope file dialogs.",
         )
         locations_section = _SettingsSection(
-            "Default Locations",
-            "Leave a field blank to keep using the last folder used by PixelScope.",
+            "Locations",
+            "Leave fields blank to keep using PixelScope's remembered last-used folder.",
         )
         locations_section.add_row(
             _SettingRow(
                 "Default Open Folder",
-                "Starting location for Open Images, Open Folder, and Open RAW. "
-                "This does not replace PixelScope's remembered last-used folder.",
+                "Starting location for Open Images, Open Folder, and Open RAW.",
                 self._directory_editor(
                     self.default_open_directory,
                     self.default_open_browse,
@@ -305,8 +328,7 @@ class SettingsDialog(QDialog):
         locations_section.add_row(
             _SettingRow(
                 "Default Export Folder",
-                "Starting location for export dialogs. Leave blank to continue "
-                "from the last-used folder.",
+                "Starting location for export dialogs such as Statistics CSV.",
                 self._directory_editor(
                     self.default_export_directory,
                     self.default_export_browse,
@@ -335,6 +357,7 @@ class SettingsDialog(QDialog):
         )
         range_label.setObjectName("differenceCacheRangeLabel")
         range_label.setProperty("settingsRole", "supportingText")
+        range_label.setWordWrap(True)
         cache_layout.addWidget(range_label)
         cache_layout.addWidget(self.restart_required_label)
 
@@ -375,6 +398,9 @@ class SettingsDialog(QDialog):
     def _apply_style(self) -> None:
         self.setStyleSheet(
             """
+            QDialog#settingsDialog {
+                background: palette(base);
+            }
             QWidget#settingsSidebar {
                 background: palette(alternate-base);
                 border-right: 1px solid palette(mid);
@@ -384,15 +410,30 @@ class SettingsDialog(QDialog):
                 border: 0;
                 outline: 0;
                 padding: 0;
+                color: palette(text);
             }
             QListWidget#settingsCategoryList::item {
                 border-radius: 4px;
                 margin: 1px 0;
-                padding: 8px 10px;
+                padding: 7px 10px;
+                color: palette(text);
             }
             QListWidget#settingsCategoryList::item:selected {
                 background: palette(highlight);
                 color: palette(highlighted-text);
+            }
+            QWidget#settingsPageContent {
+                background: transparent;
+            }
+            QWidget#settingsRowContainer {
+                background: transparent;
+                border-bottom: 0px solid transparent;
+            }
+            QWidget#settingsRowContainer[withSeparator="true"] {
+                border-bottom: 1px solid palette(mid);
+            }
+            QLabel {
+                color: palette(text);
             }
             QLabel[settingsRole="sidebarTitle"] {
                 font-weight: 600;
@@ -402,33 +443,44 @@ class SettingsDialog(QDialog):
                 font-size: 18px;
                 font-weight: 600;
             }
-            QLabel[settingsRole="pageDescription"],
-            QLabel[settingsRole="description"],
-            QLabel[settingsRole="supportingText"] {
-                color: palette(mid);
+            QLabel[settingsRole="pageDescription"] {
+                color: palette(text);
             }
             QLabel[settingsRole="sectionTitle"] {
-                font-size: 14px;
+                font-size: 11px;
                 font-weight: 600;
-                padding-top: 4px;
+                color: palette(midlight);
+                padding-top: 2px;
+            }
+            QLabel[settingsRole="sectionDescription"],
+            QLabel[settingsRole="description"],
+            QLabel[settingsRole="supportingText"] {
+                color: palette(text);
             }
             QLabel[settingsRole="settingTitle"] {
                 font-weight: 600;
             }
             QLabel[settingsRole="compatibility"] {
                 background: palette(alternate-base);
+                color: palette(text);
                 border-bottom: 1px solid palette(mid);
                 padding: 8px 16px;
             }
-            QFrame#settingsRowSeparator,
             QFrame#settingsFooterSeparator {
                 color: palette(mid);
             }
-            QLineEdit, QSpinBox {
-                min-height: 24px;
+            QLineEdit,
+            QSpinBox {
+                min-height: 28px;
+                padding-left: 8px;
+                padding-right: 8px;
+                color: palette(text);
+                background: palette(base);
+                selection-background-color: palette(highlight);
+                selection-color: palette(highlighted-text);
             }
             QPushButton {
-                min-height: 24px;
+                min-height: 28px;
                 padding-left: 10px;
                 padding-right: 10px;
             }
