@@ -50,9 +50,12 @@
   64, 128, and 256 px ICO frames in ascending order.
 - Application icon lookup uses package-resource bytes and may not depend on the
   current working directory or a source-tree absolute path.
-- Executable-file, pinned-shortcut, installer-shortcut, AppUserModelID, signing,
-  and final shell-identity policy remain P7 concerns unless Windows source-run
-  validation demonstrates an earlier runtime blocker.
+- Windows source runs use the stable AppUserModelID `PixelScope.PixelScope`, set
+  before `QApplication` creation. Manual validation demonstrated that this P2-A1
+  boundary is required to prevent the running taskbar entry from retaining the
+  Python process identity.
+- Executable-file icons, pinned shortcuts, installer shortcuts, signing, final
+  packaged-shell grouping, and release-name policy remain P7 concerns.
 - Decoded-source budgeting accounts native decoded `ImageDocument.source`
   arrays only. It excludes previews, Qt textures, Difference/derived caches, and
   transient worker arrays and is not total process memory.
@@ -73,7 +76,8 @@
 ## Current versus planned resource policy
 
 - The canonical SVG/PNG/ICO icon triplet, reproducible generator,
-  package-resource loader, and `QApplication` assignment are P2-A1 boundaries.
+  package-resource loader, `QApplication`/main-window assignment, and source-run
+  Windows AppUserModelID are P2-A1 boundaries.
 - `DifferenceMapCache` is already byte-budgeted with diagnostics and a 512 MiB
   default.
 - Frozen `PerformanceSettings` exists but is not loaded/injected at bootstrap.
