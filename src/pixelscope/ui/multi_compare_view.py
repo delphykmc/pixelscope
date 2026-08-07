@@ -40,6 +40,7 @@ class MultiCompareView(QWidget):
         self._setting_documents = False
         self._layout_refit_active = False
         self._document_count = 0
+        self._arranged_count = -1
         self._primary_controls_enabled = False
         self._active_viewer: ImageViewer | None = None
         self.sync_enabled = True
@@ -396,6 +397,9 @@ class MultiCompareView(QWidget):
             self.focus_document_requested.emit(viewer.document)
 
     def _arrange_viewers(self, count: int) -> None:
+        if count == self._arranged_count:
+            return
+        self._arranged_count = count
         for viewer in self.viewers:
             self._layout.removeWidget(viewer)
             viewer.hide()

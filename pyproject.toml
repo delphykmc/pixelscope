@@ -23,6 +23,9 @@ pixelscope = "pixelscope.app.application:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+pixelscope = ["assets/icons/*.svg", "assets/icons/*.png", "assets/icons/*.ico"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

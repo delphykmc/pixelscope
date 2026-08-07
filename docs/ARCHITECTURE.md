@@ -16,6 +16,26 @@ Source arrays retain decoded dtype and channel meaning. Display conversion
 creates uint8 previews without modifying native source data. RGBA analysis
 ignores alpha. Difference and squared-error paths promote operands first.
 
+## Current application identity and resource boundary
+
+Canonical application assets live under
+`src/pixelscope/assets/icons/pixelscope.{svg,png,ico}`. The SVG is the editable
+source of truth; `scripts/generate_icon_assets.py` derives the runtime PNG and
+multi-frame Windows ICO.
+
+`pixelscope.app.resources` reads package bytes through `importlib.resources`.
+On Windows, application bootstrap assigns the stable AppUserModelID
+`PixelScope.PixelScope` before `QApplication` creation. Bootstrap then assigns
+the decoded runtime icon to `QApplication`, and `main()` explicitly assigns the
+same icon to `MainWindow` before showing it. Resource lookup is independent of
+the current working directory and source-tree absolute paths. Setuptools package
+data includes the complete icon triplet.
+
+This boundary supplies source-run application, window, Alt+Tab, and running
+Taskbar identity. PyInstaller executable icon binding, Windows shortcut and
+installer identity, pinned-shell behavior, signing, and final release naming
+remain P7.
+
 ## Current workspace structure
 
 The central splitter contains Files/Analysis and the active workspace. Ordered
@@ -31,7 +51,9 @@ Multi View uses one fixed layout policy. `_focus_document_id` retains explicit
 primary identity and `_multi_display_order` owns display promotion without
 mutating Files order or logical IDs. `MultiCompareView._fixed_geometry()` is the
 sole one-to-six geometry authority; no runtime arrangement registry, action,
-field, or persisted arrangement remains.
+field, or persisted arrangement remains. When the document count and geometry
+are unchanged, a preserve-view rebind does not remove and re-add viewer widgets;
+this prevents resize-driven range changes during primary promotion.
 
 Split Channels applies target geometry and visibility before replacement content
 is bound, preserving atomic Bayer/RGB-to-GRAY transitions.

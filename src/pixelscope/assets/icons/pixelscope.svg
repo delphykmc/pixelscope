@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PixelScope application icon</title>
+  <desc id="desc">A high-contrast photograph inspected by a large magnifying scope whose lens reveals enlarged pixels.</desc>
+  <defs>
+    <linearGradient id="photo" x1="68" y1="80" x2="294" y2="352" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6f8fb8"/>
+      <stop offset="0.55" stop-color="#3f608a"/>
+      <stop offset="1" stop-color="#1d385d"/>
+    </linearGradient>
+    <linearGradient id="mountain" x1="124" y1="184" x2="286" y2="346" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#91acd0"/>
+      <stop offset="1" stop-color="#3f628f"/>
+    </linearGradient>
+    <linearGradient id="handle" x1="390" y1="382" x2="482" y2="474" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#48688f"/>
+      <stop offset="1" stop-color="#19375f"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="224" y1="181" x2="421" y2="403" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.56" stop-color="#eef3f8"/>
+      <stop offset="1" stop-color="#b8c7d8"/>
+    </linearGradient>
+    <clipPath id="photoClip">
+      <rect x="66" y="84" width="236" height="244" rx="17"/>
+    </clipPath>
+    <clipPath id="lensClip">
+      <circle cx="326" cy="292" r="93"/>
+    </clipPath>
+  </defs>
+
+  <rect x="28" y="46" width="315" height="322" rx="42" fill="#f8fafc" stroke="#0a2344" stroke-width="14"/>
+  <rect x="58" y="76" width="255" height="262" rx="24" fill="url(#photo)" stroke="#0a2344" stroke-width="10"/>
+  <g clip-path="url(#photoClip)">
+    <circle cx="116" cy="133" r="29" fill="#ffffff" stroke="#0a2344" stroke-width="5"/>
+    <path d="M112 330 L190 225 Q198 215 207 225 L303 330 Z" fill="url(#mountain)" stroke="#264a78" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M163 330 L259 148 Q267 135 278 148 L340 235 L340 330 Z" fill="#f8fafc" stroke="#264a78" stroke-width="5" stroke-linejoin="round"/>
+  </g>
+
+  <path d="M397 383 L476 462" stroke="#081e3a" stroke-width="62" stroke-linecap="round"/>
+  <path d="M397 383 L476 462" stroke="url(#handle)" stroke-width="44" stroke-linecap="round"/>
+  <path d="M390 376 L417 403" stroke="#ffb000" stroke-width="19" stroke-linecap="butt"/>
+
+  <circle cx="326" cy="292" r="145" fill="url(#ring)" stroke="#081e3a" stroke-width="14"/>
+  <circle cx="326" cy="292" r="116" fill="#102a4f" stroke="#7594bc" stroke-width="6"/>
+  <circle cx="326" cy="292" r="98" fill="#173b69" stroke="#071d38" stroke-width="7"/>
+
+  <g clip-path="url(#lensClip)">
+    <rect x="230" y="196" width="192" height="192" fill="#0c2a50"/>
+    <rect x="241" y="207" width="30" height="30" rx="2" fill="#2f5f9a"/>
+    <rect x="275" y="207" width="30" height="30" rx="2" fill="#5f83b2"/>
+    <rect x="309" y="207" width="30" height="30" rx="2" fill="#aabbd0"/>
+    <rect x="343" y="207" width="30" height="30" rx="2" fill="#edf1ed"/>
+    <rect x="377" y="207" width="30" height="30" rx="2" fill="#ffd45c"/>
+    <rect x="241" y="241" width="30" height="30" rx="2" fill="#244f85"/>
+    <rect x="275" y="241" width="30" height="30" rx="2" fill="#4c78aa"/>
+    <rect x="309" y="241" width="30" height="30" rx="2" fill="#c7d3df"/>
+    <rect x="343" y="241" width="30" height="30" rx="2" fill="#fff2bd"/>
+    <rect x="377" y="241" width="30" height="30" rx="2" fill="#ffae00"/>
+    <rect x="241" y="275" width="30" height="30" rx="2" fill="#143965"/>
+    <rect x="275" y="275" width="30" height="30" rx="2" fill="#416d9f"/>
+    <rect x="309" y="275" width="30" height="30" rx="2" fill="#e3e9ef"/>
+    <rect x="343" y="275" width="30" height="30" rx="2" fill="#ffd66c"/>
+    <rect x="377" y="275" width="30" height="30" rx="2" fill="#ff9f00"/>
+    <rect x="241" y="309" width="30" height="30" rx="2" fill="#0d2d54"/>
+    <rect x="275" y="309" width="30" height="30" rx="2" fill="#315b8e"/>
+    <rect x="309" y="309" width="30" height="30" rx="2" fill="#7f9dbf"/>
+    <rect x="343" y="309" width="30" height="30" rx="2" fill="#dce5ef"/>
+    <rect x="377" y="309" width="30" height="30" rx="2" fill="#a9bbd0"/>
+    <rect x="241" y="343" width="30" height="30" rx="2" fill="#092445"/>
+    <rect x="275" y="343" width="30" height="30" rx="2" fill="#244f80"/>
+    <rect x="309" y="343" width="30" height="30" rx="2" fill="#557ba8"/>
+    <rect x="343" y="343" width="30" height="30" rx="2" fill="#8fa8c3"/>
+    <rect x="377" y="343" width="30" height="30" rx="2" fill="#cbd7e3"/>
+  </g>
+
+  <circle cx="326" cy="292" r="98" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="3"/>
+</svg>
