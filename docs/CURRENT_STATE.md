@@ -1,6 +1,6 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-07  
+Snapshot date: 2026-08-08  
 P2-A1 / PR #14 merge commit and P2-A2 branch base:
 `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`
 
@@ -53,9 +53,11 @@ This document records the implementation baseline that new work must use.
 - MIPI RAW10/12/14.
 - JSON profile load/save, migration, confirmation preference, and same-path
   reload.
-- The RAW JSON confirmation preference is now an `ApplicationSettings` value.
-  Legacy `raw/dont_show_json_profiles` values are migrated to the versioned
-  application-settings namespace.
+- The persistent RAW JSON confirmation preference is an `ApplicationSettings`
+  value exposed through **Settings > General**, not the File menu. Legacy
+  `raw/dont_show_json_profiles` values are migrated to the versioned namespace.
+- The RAW confirmation dialog may still set the same preference through its
+  explicit don't-show-again choice.
 - Native grayscale/Bayer analysis without demosaic.
 
 ### Runtime resources and settings
@@ -65,25 +67,36 @@ This document records the implementation baseline that new work must use.
   `PixelScope.PixelScope` before `QApplication` creation.
 - `DifferenceMapCache` remains a persistence-free byte-budgeted LRU.
 - `ApplicationSettings` is the frozen typed model for persisted user preferences.
-  P2-A2 currently owns `dont_show_raw_json_profiles` and
-  `difference_cache_mib`.
+  P2-A2 owns RAW confirmation, default Open/Export folders, and Difference-cache
+  MiB.
 - `SettingsRepository` owns defaults, schema migration, validation, save/reset,
   invalid-state recovery, and future-schema compatibility; `QSettingsAdapter`
-  owns raw QSettings keys.
-- Settings schema version 1 uses `settings/schema_version`,
-  `settings/general/dont_show_raw_json_profiles`, and
-  `settings/performance/difference_cache_mib`.
-- Difference cache preference defaults to 512 MiB and accepts 64–8192 MiB.
-- Application startup converts persisted MiB into an immutable
-  `PerformanceSettings.difference_cache_bytes` snapshot and injects that value
-  through `MainWindow` into `DifferencePanel` and `DifferenceMapCache`.
-- Runtime changes to the Difference-cache preference are saved for the next
-  launch; an existing cache budget is not mutated live.
-- `Edit > Settings...` exposes General and Performance settings. The existing
-  File-menu RAW preference remains and shares the same typed setting.
+  owns raw application-setting keys.
+- Settings schema version 2 uses:
+  - `settings/schema_version`
+  - `settings/general/dont_show_raw_json_profiles`
+  - `settings/files/default_open_directory`
+  - `settings/files/default_export_directory`
+  - `settings/performance/difference_cache_mib`
+- Schema v1 migrates to v2 while preserving its RAW and Difference-cache values;
+  the new file-location values default to blank.
+- `Edit > Settings...` uses left-side **General / Files / Performance** page
+  navigation. This is the extensible template for later settings additions.
+- Blank default Open/Export locations preserve the existing last-used-folder
+  behavior. A configured existing location only seeds the corresponding file
+  dialog and applies without restart.
+- Difference cache defaults to 512 MiB and accepts 64–8192 MiB.
+- Application startup converts persisted MiB into immutable
+  `PerformanceSettings.difference_cache_bytes` and injects it through
+  `MainWindow` into `DifferencePanel` and `DifferenceMapCache`.
+- Difference-cache edits are saved for the next launch; an existing cache budget
+  is not mutated live.
 - `Reset Settings` resets only schema-owned application preferences. Workspace
-  geometry, dock/splitter state, last directory, and unrelated QSettings keys
-  remain owned by their existing persistence path and are not reset.
+  geometry, dock/splitter state, remembered last directory, and unrelated
+  QSettings keys remain independently owned.
+- Dock geometry, splitter sizes, current layout, and Plots visibility are not
+  duplicated as application settings because exact workspace persistence is
+  already authoritative for those values.
 - Unknown future settings schemas are not rewritten; the current application
   uses safe defaults and treats application settings as read-only compatibility
   state.
@@ -94,9 +107,12 @@ This document records the implementation baseline that new work must use.
 
 ## Not implemented
 
-- Byte-budgeted decoded-source setting and `ResidencyManager` (P2-B).
-- One-group-ahead preload (P2-C).
+- Byte-budgeted decoded-source setting and `ResidencyManager` (P2-B). Its budget
+  will extend the Performance Settings page.
+- One-group-ahead preload (P2-C). Its preference will extend Performance when
+  that lifecycle exists.
 - Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export (P2-D).
+- Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
   distribution work.
 
@@ -106,9 +122,10 @@ The repository owner recorded the full automated validation contract as passed
 for P1-D, P1-E, P1-F, and final P2-A1. P2-A1 also has owner-confirmed application
 runtime and Windows taskbar identity evidence.
 
-For P2-A2, implementation and focused regression tests are present in the active
-branch. Full repository validation and the manual Windows matrix must be recorded
-in the P2-A2 PR before merge; this document does not pre-claim those checks.
+For P2-A2, the owner has recorded `pytest` passing before the latest Settings UX
+follow-up. Ruff/mypy findings from that earlier run were addressed, including the
+owner-authored MainWindow E501 wrap. The schema-v2/multi-page follow-up requires a
+fresh full validation run before merge; this document does not pre-claim it.
 
 ## Active plan
 
