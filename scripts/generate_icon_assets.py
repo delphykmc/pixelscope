@@ -107,7 +107,9 @@ def _check_existing() -> None:
         size = 256 if width == 0 else width
         decoded_height = 256 if height == 0 else height
         end = offset + length
-        if size != decoded_height or entry_reserved != 0 or planes != 1:
+        # Some valid ICO exporters use wPlanes=0 to mean unspecified. The
+        # decoded payload checks below are authoritative for dimensions and alpha.
+        if size != decoded_height or entry_reserved != 0 or planes not in (0, 1):
             raise RuntimeError(f"invalid ICO directory entry at index {index}")
         invalid_bounds = (
             bit_count != 32
