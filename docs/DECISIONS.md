@@ -38,28 +38,48 @@
 - QSettings is a persistence adapter, not the application settings domain model.
   Frozen `ApplicationSettings` is the persisted typed model;
   `SettingsRepository` owns defaults, validation, migration, save, and reset;
-  `QSettingsAdapter` owns raw keys.
-- Application settings schema version 1 owns
-  `settings/schema_version`,
-  `settings/general/dont_show_raw_json_profiles`, and
-  `settings/performance/difference_cache_mib`.
-- Legacy `raw/dont_show_json_profiles` is migration input only. Valid legacy
-  boolean/string forms are preserved and migrated; invalid current values fall
-  back to validated defaults and are normalized.
-- A persisted schema newer than the running application is never destructively
-  guessed or rewritten. The process uses safe defaults and keeps application
-  settings read-only until a compatible application version is used.
+  `QSettingsAdapter` owns raw application-preference keys.
+- Application settings schema version 2 owns:
+  - `settings/schema_version`
+  - `settings/general/dont_show_raw_json_profiles`
+  - `settings/files/default_open_directory`
+  - `settings/files/default_export_directory`
+  - `settings/performance/difference_cache_mib`
+- Schema v1 migrates to v2 by preserving the RAW and Difference-cache values and
+  initializing both file-location values to blank. Legacy
+  `raw/dont_show_json_profiles` remains migration input only.
+- Invalid current values fall back to validated defaults and are normalized. A
+  persisted schema newer than the running application is never destructively
+  guessed or rewritten; application preferences remain read-only until a
+  compatible version is used.
+- Settings uses an Excel-style category/page structure rather than a single long
+  form: **General**, **Files**, and **Performance**. This supports later additions
+  without adopting VS Code's search-heavy settings UX before it is needed.
+- **Don't Show RAW JSON Profiles** is a persistent General setting and is removed
+  from the File menu. The RAW open dialog may still persist the same preference
+  from its explicit don't-show-again interaction.
+- **Default Open Folder** and **Default Export Folder** are optional Files
+  preferences. Blank means use the remembered last-used folder; a configured
+  existing path only seeds the corresponding dialog and applies immediately.
+- Exact dock geometry, splitter sizes, current layout mode, Plots visibility, and
+  floating state are not duplicated in Settings. Workspace persistence already
+  owns those values; a second default source would create restore/reset
+  precedence conflicts.
+- Broader export format, naming, and destination policy is deferred until
+  PixelScope has more than the current Statistics CSV export surface.
+- Worker counts, zoom/sync state, Difference gain/threshold, and other transient
+  analysis/runtime state are not general user preferences in P2-A2.
 - Performance settings are immutable startup snapshots. Difference-cache edits
   are persisted immediately but do not mutate an existing runtime cache.
 - Difference-cache preference default is 512 MiB with an accepted range of
   64–8192 MiB. Runtime receives bytes through `PerformanceSettings`.
 - Restart-required UI is determined by comparing the saved/editable startup-only
   value to the current runtime snapshot. Returning to the runtime value clears
-  the indication.
+  the indication. File-location and RAW changes do not require restart.
 - `Reset Settings` resets only schema-owned application preferences. `Reset
   Workspace Layout` remains a separate action and application reset does not
-  remove window/dock/splitter geometry, last-directory state, or unrelated
-  QSettings keys.
+  remove window/dock/splitter geometry, remembered last-directory state, or
+  unrelated QSettings keys.
 - The current canonical PixelScope identity is a blue-gray image/scope/pixel mark
   with a restrained amber accent. The editable SVG, runtime PNG, and Windows ICO
   are colocated under `src/pixelscope/assets/icons/`; release naming or artwork
@@ -80,6 +100,8 @@
 - The decoded-source budget is a soft limit because protected documents may
   temporarily exceed it. P2-B extends the protected-set policy beyond the
   current visible-document and active-load-target inputs.
+- P2-B's source-residency budget and P2-C's preload preference extend the existing
+  Performance Settings page when those runtime lifecycles are implemented.
 - Preload has bounded ownership separate from normal load and may not starve
   interactive work.
 - Cancellation and stale-result rejection are distinct; obsolete results must
