@@ -91,22 +91,46 @@ Difference opens in Single View until disabled.
 
 ## Settings
 
-Open **Edit > Settings...** for application preferences.
+Open **Edit > Settings...**. The left side selects **General**, **Files**, or
+**Performance** and the right side shows that category's options.
 
-**General** contains **Don't Show RAW JSON Profiles**. It is the same preference
-as the existing File-menu checkbox, so saving either surface updates the other.
+### General
 
-**Performance** contains **Difference Cache** in MiB. The default is 512 MiB and
-the allowed range is 64–8192 MiB. This value is a startup setting: changing it
-saves the preference but does not resize the current cache. When the editable
-value differs from the current startup value, the dialog shows **Changes take
-effect after restarting PixelScope.** Returning the value to the current
-runtime setting clears that indication.
+**Don't Show RAW JSON Profiles** controls repeated confirmation for valid RAW
+JSON sidecars. This persistent preference lives in Settings; it is not duplicated
+in the File menu. Choosing the equivalent don't-show-again option from the RAW
+confirmation dialog updates the same preference.
 
-**Reset Settings** restores only application preferences to their defaults.
-It does not reset the window layout, dock/splitter geometry, last directory, or
-other workspace/session state. Use **View > Reset Workspace Layout** for layout
-state instead.
+### Files
+
+**Default Open Folder** controls the starting location for Open Images, Open
+Folder, and Open RAW dialogs. **Default Export Folder** controls the starting
+location for export dialogs.
+
+Both fields are optional. Leave a field blank to keep PixelScope's existing
+last-used-folder behavior. Setting a folder does not lock you to that folder; it
+only chooses where the dialog starts. If a configured folder is unavailable,
+PixelScope falls back to the remembered last-used folder. File-location changes
+apply immediately and do not require restart.
+
+### Performance
+
+**Difference Cache** is stored in MiB. The default is 512 MiB and the allowed
+range is 64–8192 MiB. This is a startup setting: changing it saves the preference
+but does not resize the current cache. When the editable value differs from the
+current startup value, the dialog shows **Changes take effect after restarting
+PixelScope.** Returning the value to the current runtime setting clears that
+indication.
+
+**Reset Settings** restores only application preferences to their defaults. It
+does not reset window layout, dock/splitter geometry, remembered last directory,
+or other workspace/session state. Use **View > Reset Workspace Layout** for
+layout state instead.
+
+Docking and layout defaults are intentionally not duplicated in Settings because
+PixelScope already restores the exact saved workspace. Later runtime preferences,
+such as the P2-B decoded-source budget and P2-C preload option, extend the
+Performance page when those features are implemented.
 
 ## Plots dock
 
