@@ -81,7 +81,18 @@ def test_saved_state_round_trips_and_converts_mib_to_runtime_bytes() -> None:
 
 @pytest.mark.parametrize(
     ("persisted", "expected"),
-    [(True, True), (False, False), ("true", True), ("false", False), ("1", True), ("0", False)],
+    [
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("false", False),
+        ("1", True),
+        ("0", False),
+        ("yes", True),
+        ("on", True),
+        ("no", False),
+        ("off", False),
+    ],
 )
 def test_legacy_raw_preference_migrates(persisted: object, expected: bool) -> None:
     repository, settings = _repository()
