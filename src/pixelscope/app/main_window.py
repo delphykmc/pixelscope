@@ -35,10 +35,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.app.settings import ApplicationSettings, SettingsRepository
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
+from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.path_discovery import (
     ImageInput,
@@ -62,13 +64,13 @@ from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.multi_compare_view import MultiCompareView, MultiCompareViewState
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
+from pixelscope.ui.settings_dialog import SettingsDialog
 from pixelscope.ui.structured_status_bar import StructuredStatusBar
 from pixelscope.ui.toolbar_icons import toolbar_icon
 from pixelscope.workers.image_load_worker import ImageLoadWorker
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 LOGGER = logging.getLogger(__name__)
-RAW_DONT_SHOW_JSON_SETTING = "raw/dont_show_json_profiles"
 
 
 @dataclass(frozen=True)
@@ -87,23 +89,22 @@ class SixImageDiffRestoreState:
 class MainWindow(QMainWindow):
     """Document registration, selection-driven comparison, and analysis lifecycle."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        application_settings: ApplicationSettings | None = None,
+        performance_settings: PerformanceSettings | None = None,
+        settings_repository: SettingsRepository | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("PixelScope")
         self.resize(1400, 850)
         self.setAcceptDrops(True)
         self.settings = QSettings()
+        self.settings_repository = settings_repository or SettingsRepository()
+        self.application_settings = application_settings or self.settings_repository.load()
+        self.performance_settings = performance_settings or self.application_settings.performance_settings()
         self._last_directory = str(self.settings.value("paths/last_directory", ""))
-        stored_dont_show_raw_json = self.settings.value(
-            RAW_DONT_SHOW_JSON_SETTING,
-            False,
-        )
-        if isinstance(stored_dont_show_raw_json, bool):
-            self._dont_show_raw_json_profiles = stored_dont_show_raw_json
-        else:
-            self._dont_show_raw_json_profiles = str(
-                stored_dont_show_raw_json
-            ).strip().casefold() in {"true", "1", "yes", "on"}
+        self._dont_show_raw_json_profiles = self.application_settings.dont_show_raw_json_profiles
 
         self.documents: dict[str, ImageDocument] = {}
         self._document_id_by_path: dict[str, str] = {}
@@ -166,7 +167,7 @@ class MainWindow(QMainWindow):
 
         self.comparison_analysis_panel = ComparisonAnalysisPanel()
         self.line_profile_panel = LineProfilePanel()
-        self.difference_panel = DifferencePanel()
+        self.difference_panel = DifferencePanel(self.performance_settings.difference_cache_bytes)
         self.analysis_tabs = QTabWidget()
         self.analysis_tabs.addTab(self.comparison_analysis_panel, "Statistics")
         self.analysis_tabs.addTab(self.difference_panel, "Difference")
@@ -306,6 +307,8 @@ class MainWindow(QMainWindow):
         add_action("Edit", "Remove Selected", self.remove_selected, "Delete")
         add_action("Edit", "Clear ROI", self._escape_action, "Esc")
         add_action("Edit", "Clear Line Profile", self.clear_line, "Shift+Esc")
+        menus["Edit"].addSeparator()
+        add_action("Edit", "Settings...", self.open_settings)
 
         add_action(
             "Selection",
@@ -360,6 +363,30 @@ class MainWindow(QMainWindow):
         self.redock_plots_action.setEnabled(False)
         add_action("View", "Reset Workspace Layout", self.reset_workspace_layout)
         self._update_action_states()
+
+    def create_settings_dialog(self) -> SettingsDialog:
+        dialog = SettingsDialog(
+            self.settings_repository,
+            self.application_settings,
+            self.performance_settings,
+            self,
+        )
+        dialog.settings_saved.connect(self._application_settings_saved)
+        return dialog
+
+    def open_settings(self) -> None:
+        dialog = self.create_settings_dialog()
+        dialog.exec()
+
+    def _application_settings_saved(self, settings: object) -> None:
+        if not isinstance(settings, ApplicationSettings):
+            return
+        self.application_settings = settings
+        self._dont_show_raw_json_profiles = settings.dont_show_raw_json_profiles
+        if self.dont_show_raw_json_action.isChecked() != self._dont_show_raw_json_profiles:
+            self.dont_show_raw_json_action.blockSignals(True)
+            self.dont_show_raw_json_action.setChecked(self._dont_show_raw_json_profiles)
+            self.dont_show_raw_json_action.blockSignals(False)
 
     def _create_toolbar(self) -> None:
         toolbar = QToolBar("Main", self)
@@ -859,16 +886,12 @@ class MainWindow(QMainWindow):
 
     def _set_dont_show_raw_json_profiles(self, enabled: bool) -> None:
         enabled = bool(enabled)
-        self._dont_show_raw_json_profiles = enabled
-        self.settings.setValue(RAW_DONT_SHOW_JSON_SETTING, enabled)
-        self.settings.sync()
-        if (
-            hasattr(self, "dont_show_raw_json_action")
-            and self.dont_show_raw_json_action.isChecked() != enabled
-        ):
-            self.dont_show_raw_json_action.blockSignals(True)
-            self.dont_show_raw_json_action.setChecked(enabled)
-            self.dont_show_raw_json_action.blockSignals(False)
+        settings = ApplicationSettings(
+            dont_show_raw_json_profiles=enabled,
+            difference_cache_mib=self.application_settings.difference_cache_mib,
+        )
+        self.settings_repository.save(settings)
+        self._application_settings_saved(settings)
 
     def _confirm_raw_profile(
         self,
