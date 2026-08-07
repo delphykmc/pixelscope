@@ -11,19 +11,23 @@ from pixelscope.core.performance_settings import (
     PerformanceSettings,
 )
 
-CURRENT_SETTINGS_SCHEMA_VERSION: Final = 1
+CURRENT_SETTINGS_SCHEMA_VERSION: Final = 2
 DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
 MAX_DIFFERENCE_CACHE_MIB: Final = 8192
 
 SCHEMA_VERSION_KEY: Final = "settings/schema_version"
 DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = "settings/general/dont_show_raw_json_profiles"
+DEFAULT_OPEN_DIRECTORY_KEY: Final = "settings/files/default_open_directory"
+DEFAULT_EXPORT_DIRECTORY_KEY: Final = "settings/files/default_export_directory"
 DIFFERENCE_CACHE_MIB_KEY: Final = "settings/performance/difference_cache_mib"
 LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = "raw/dont_show_json_profiles"
 
 OWNED_SETTINGS_KEYS: Final = (
     SCHEMA_VERSION_KEY,
     DONT_SHOW_RAW_JSON_PROFILES_KEY,
+    DEFAULT_OPEN_DIRECTORY_KEY,
+    DEFAULT_EXPORT_DIRECTORY_KEY,
     DIFFERENCE_CACHE_MIB_KEY,
 )
 
@@ -37,6 +41,8 @@ class ApplicationSettings:
 
     dont_show_raw_json_profiles: bool = False
     difference_cache_mib: int = DEFAULT_DIFFERENCE_CACHE_MIB
+    default_open_directory: str = ""
+    default_export_directory: str = ""
 
     def __post_init__(self) -> None:
         if not isinstance(self.dont_show_raw_json_profiles, bool):
@@ -50,6 +56,12 @@ class ApplicationSettings:
                 "difference cache budget must be between "
                 f"{MIN_DIFFERENCE_CACHE_MIB} and {MAX_DIFFERENCE_CACHE_MIB} MiB"
             )
+        if not isinstance(self.default_open_directory, str):
+            raise TypeError("default_open_directory must be str")
+        if not isinstance(self.default_export_directory, str):
+            raise TypeError("default_export_directory must be str")
+        if "\x00" in self.default_open_directory or "\x00" in self.default_export_directory:
+            raise ValueError("default directories must not contain NUL characters")
 
     def performance_settings(self) -> PerformanceSettings:
         """Build the immutable runtime snapshot consumed at application startup."""
@@ -99,7 +111,9 @@ class SettingsRepository:
         return self._future_schema_version is not None
 
     def load(self) -> ApplicationSettings:
-        schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
+        schema_version = self._parse_schema_version(
+            self._adapter.value(SCHEMA_VERSION_KEY)
+        )
         if schema_version is not None and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION:
             self._future_schema_version = schema_version
             return ApplicationSettings()
@@ -111,7 +125,10 @@ class SettingsRepository:
                 self._write_current(settings)
             return settings
 
-        settings = self._load_legacy_or_unversioned()
+        if schema_version == 1:
+            settings = self._load_schema_v1_values()
+        else:
+            settings = self._load_legacy_or_unversioned()
         self._write_current(settings)
         self._adapter.remove(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
         self._adapter.sync()
@@ -139,11 +156,33 @@ class SettingsRepository:
         dont_show, bool_valid = self._parse_bool(raw_bool)
         raw_cache = self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         cache_mib, cache_valid = self._parse_cache_mib(raw_cache)
+        open_directory, open_valid = self._parse_directory(
+            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
+        )
+        export_directory, export_valid = self._parse_directory(
+            self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
+        )
         settings = ApplicationSettings(
             dont_show_raw_json_profiles=dont_show,
             difference_cache_mib=cache_mib,
+            default_open_directory=open_directory,
+            default_export_directory=export_directory,
         )
-        return settings, not (bool_valid and cache_valid)
+        return settings, not (
+            bool_valid and cache_valid and open_valid and export_valid
+        )
+
+    def _load_schema_v1_values(self) -> ApplicationSettings:
+        dont_show, _ = self._parse_bool(
+            self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY)
+        )
+        cache_mib, _ = self._parse_cache_mib(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
+        )
+        return ApplicationSettings(
+            dont_show_raw_json_profiles=dont_show,
+            difference_cache_mib=cache_mib,
+        )
 
     def _load_legacy_or_unversioned(self) -> ApplicationSettings:
         raw_bool = (
@@ -152,10 +191,20 @@ class SettingsRepository:
             else self._adapter.value(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
         )
         dont_show, _ = self._parse_bool(raw_bool)
-        cache_mib, _ = self._parse_cache_mib(self._adapter.value(DIFFERENCE_CACHE_MIB_KEY))
+        cache_mib, _ = self._parse_cache_mib(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
+        )
+        open_directory, _ = self._parse_directory(
+            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
+        )
+        export_directory, _ = self._parse_directory(
+            self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
+        )
         return ApplicationSettings(
             dont_show_raw_json_profiles=dont_show,
             difference_cache_mib=cache_mib,
+            default_open_directory=open_directory,
+            default_export_directory=export_directory,
         )
 
     def _write_current(self, settings: ApplicationSettings) -> None:
@@ -164,11 +213,18 @@ class SettingsRepository:
             DONT_SHOW_RAW_JSON_PROFILES_KEY,
             settings.dont_show_raw_json_profiles,
         )
+        self._adapter.set_value(DEFAULT_OPEN_DIRECTORY_KEY, settings.default_open_directory)
+        self._adapter.set_value(
+            DEFAULT_EXPORT_DIRECTORY_KEY,
+            settings.default_export_directory,
+        )
         self._adapter.set_value(DIFFERENCE_CACHE_MIB_KEY, settings.difference_cache_mib)
         self._adapter.sync()
 
     def _guard_writable_schema(self) -> None:
-        schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
+        schema_version = self._parse_schema_version(
+            self._adapter.value(SCHEMA_VERSION_KEY)
+        )
         if schema_version is not None and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION:
             self._future_schema_version = schema_version
             raise UnsupportedSettingsSchemaError(
@@ -202,9 +258,7 @@ class SettingsRepository:
 
     @staticmethod
     def _parse_cache_mib(value: object) -> tuple[int, bool]:
-        if value is None:
-            return DEFAULT_DIFFERENCE_CACHE_MIB, False
-        if isinstance(value, bool):
+        if value is None or isinstance(value, bool):
             return DEFAULT_DIFFERENCE_CACHE_MIB, False
         try:
             parsed = int(str(value).strip())
@@ -213,3 +267,11 @@ class SettingsRepository:
         if not MIN_DIFFERENCE_CACHE_MIB <= parsed <= MAX_DIFFERENCE_CACHE_MIB:
             return DEFAULT_DIFFERENCE_CACHE_MIB, False
         return parsed, True
+
+    @staticmethod
+    def _parse_directory(value: object) -> tuple[str, bool]:
+        if value is None:
+            return "", False
+        if not isinstance(value, str):
+            return "", False
+        return value.strip(), True
