@@ -33,13 +33,20 @@ results.
 - Resizable, collapsible, floating, and maximizable Plots dock.
 - Persisted main geometry, dock state, splitters, last directory, layout,
   analysis state, and selected Plots tab.
-- `Edit > Settings...` with a General RAW JSON confirmation preference and a
-  Performance Difference-cache preference.
-- Difference cache defaults to 512 MiB, accepts 64–8192 MiB, and applies a
-  changed value after PixelScope restarts. The current runtime cache is not
-  resized live.
+- `Edit > Settings...` uses **General / Files / Performance** category pages.
+- General owns the persistent RAW JSON confirmation preference; it is not
+  duplicated in the File menu.
+- Files provides optional Default Open Folder and Default Export Folder values.
+  Blank preserves the remembered last-used-folder behavior; configured existing
+  folders only seed dialog starting locations and apply without restart.
+- Performance owns Difference Cache. It defaults to 512 MiB, accepts 64–8192
+  MiB, and applies a changed value after PixelScope restarts. The current runtime
+  cache is not resized live.
 - `Reset Settings` restores application preferences without resetting workspace
-  layout, window geometry, dock/splitter state, or last-directory state.
+  layout, window geometry, dock/splitter state, or remembered last-directory
+  state.
+- Exact docking/layout values remain workspace state rather than configurable
+  defaults because the saved workspace is already authoritative.
 
 A seventh derived Difference result is shown in Single View when all six source
 positions are occupied.
@@ -47,10 +54,10 @@ positions are occupied.
 ## RAW contract
 
 RAW opens through a validated profile workflow. A same-name JSON sidecar can
-pre-fill the profile; the user preference may skip repeated confirmation for
-those JSON profiles. The existing File-menu checkbox and the General checkbox in
-Settings edit the same persisted application preference. The same RAW path may
-be reloaded with corrected settings.
+pre-fill the profile; the General Settings preference may skip repeated
+confirmation for those JSON profiles. The RAW dialog's explicit don't-show-again
+choice persists the same typed preference. The same RAW path may be reloaded with
+corrected settings.
 
 The profile separates:
 
