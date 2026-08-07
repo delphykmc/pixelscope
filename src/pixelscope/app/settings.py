@@ -17,9 +17,7 @@ MIN_DIFFERENCE_CACHE_MIB: Final = 64
 MAX_DIFFERENCE_CACHE_MIB: Final = 8192
 
 SCHEMA_VERSION_KEY: Final = "settings/schema_version"
-DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = (
-    "settings/general/dont_show_raw_json_profiles"
-)
+DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = "settings/general/dont_show_raw_json_profiles"
 DEFAULT_OPEN_DIRECTORY_KEY: Final = "settings/files/default_open_directory"
 DEFAULT_EXPORT_DIRECTORY_KEY: Final = "settings/files/default_export_directory"
 DIFFERENCE_CACHE_MIB_KEY: Final = "settings/performance/difference_cache_mib"
@@ -53,11 +51,7 @@ class ApplicationSettings:
             self.difference_cache_mib, bool
         ):
             raise TypeError("difference_cache_mib must be int")
-        if not (
-            MIN_DIFFERENCE_CACHE_MIB
-            <= self.difference_cache_mib
-            <= MAX_DIFFERENCE_CACHE_MIB
-        ):
+        if not MIN_DIFFERENCE_CACHE_MIB <= self.difference_cache_mib <= MAX_DIFFERENCE_CACHE_MIB:
             raise ValueError(
                 "difference cache budget must be between "
                 f"{MIN_DIFFERENCE_CACHE_MIB} and {MAX_DIFFERENCE_CACHE_MIB} MiB"
@@ -66,18 +60,13 @@ class ApplicationSettings:
             raise TypeError("default_open_directory must be str")
         if not isinstance(self.default_export_directory, str):
             raise TypeError("default_export_directory must be str")
-        if (
-            "\x00" in self.default_open_directory
-            or "\x00" in self.default_export_directory
-        ):
+        if "\x00" in self.default_open_directory or "\x00" in self.default_export_directory:
             raise ValueError("default directories must not contain NUL characters")
 
     def performance_settings(self) -> PerformanceSettings:
         """Build the immutable runtime snapshot consumed at application startup."""
 
-        return PerformanceSettings(
-            difference_cache_bytes=self.difference_cache_mib * MIB
-        )
+        return PerformanceSettings(difference_cache_bytes=self.difference_cache_mib * MIB)
 
 
 class UnsupportedSettingsSchemaError(RuntimeError):
@@ -122,13 +111,8 @@ class SettingsRepository:
         return self._future_schema_version is not None
 
     def load(self) -> ApplicationSettings:
-        schema_version = self._parse_schema_version(
-            self._adapter.value(SCHEMA_VERSION_KEY)
-        )
-        if (
-            schema_version is not None
-            and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION
-        ):
+        schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
+        if schema_version is not None and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION:
             self._future_schema_version = schema_version
             return ApplicationSettings()
 
@@ -182,17 +166,11 @@ class SettingsRepository:
             default_open_directory=open_directory,
             default_export_directory=export_directory,
         )
-        return settings, not (
-            bool_valid and cache_valid and open_valid and export_valid
-        )
+        return settings, not (bool_valid and cache_valid and open_valid and export_valid)
 
     def _load_schema_v1_values(self) -> ApplicationSettings:
-        dont_show, _ = self._parse_bool(
-            self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        )
-        cache_mib, _ = self._parse_cache_mib(
-            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
-        )
+        dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
+        cache_mib, _ = self._parse_cache_mib(self._adapter.value(DIFFERENCE_CACHE_MIB_KEY))
         return ApplicationSettings(
             dont_show_raw_json_profiles=dont_show,
             difference_cache_mib=cache_mib,
@@ -205,12 +183,8 @@ class SettingsRepository:
             else self._adapter.value(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
         )
         dont_show, _ = self._parse_bool(raw_bool)
-        cache_mib, _ = self._parse_cache_mib(
-            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
-        )
-        open_directory, _ = self._parse_directory(
-            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
-        )
+        cache_mib, _ = self._parse_cache_mib(self._adapter.value(DIFFERENCE_CACHE_MIB_KEY))
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
@@ -222,36 +196,19 @@ class SettingsRepository:
         )
 
     def _write_current(self, settings: ApplicationSettings) -> None:
-        self._adapter.set_value(
-            SCHEMA_VERSION_KEY,
-            CURRENT_SETTINGS_SCHEMA_VERSION,
-        )
+        self._adapter.set_value(SCHEMA_VERSION_KEY, CURRENT_SETTINGS_SCHEMA_VERSION)
         self._adapter.set_value(
             DONT_SHOW_RAW_JSON_PROFILES_KEY,
             settings.dont_show_raw_json_profiles,
         )
-        self._adapter.set_value(
-            DEFAULT_OPEN_DIRECTORY_KEY,
-            settings.default_open_directory,
-        )
-        self._adapter.set_value(
-            DEFAULT_EXPORT_DIRECTORY_KEY,
-            settings.default_export_directory,
-        )
-        self._adapter.set_value(
-            DIFFERENCE_CACHE_MIB_KEY,
-            settings.difference_cache_mib,
-        )
+        self._adapter.set_value(DEFAULT_OPEN_DIRECTORY_KEY, settings.default_open_directory)
+        self._adapter.set_value(DEFAULT_EXPORT_DIRECTORY_KEY, settings.default_export_directory)
+        self._adapter.set_value(DIFFERENCE_CACHE_MIB_KEY, settings.difference_cache_mib)
         self._adapter.sync()
 
     def _guard_writable_schema(self) -> None:
-        schema_version = self._parse_schema_version(
-            self._adapter.value(SCHEMA_VERSION_KEY)
-        )
-        if (
-            schema_version is not None
-            and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION
-        ):
+        schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
+        if schema_version is not None and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION:
             self._future_schema_version = schema_version
             raise UnsupportedSettingsSchemaError(
                 f"settings schema {schema_version} is newer than supported schema "
