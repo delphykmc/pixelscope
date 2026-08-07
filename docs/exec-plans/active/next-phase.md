@@ -44,8 +44,10 @@ optimization.
   `52daa63425a286e370aa5ef36f59ba51a8acd565`.
 - PR #14 starts from the PR #13 merge commit and delivers P2-A1: canonical
   SVG/PNG/ICO assets, reproducible derivative generation, package-data
-  declaration, CWD-independent resource loading, and `QApplication` icon
-  assignment.
+  declaration, CWD-independent resource loading, stable Windows source-run
+  AppUserModelID, and `QApplication`/main-window icon assignment.
+- A preserve-view primary promotion does not rebuild an unchanged fixed grid;
+  this prevents resize-driven synchronized-range changes.
 - P2-A2 is next. Typed settings, persistence/migration, Settings UI, restart
   indication, and Difference-cache startup injection are not implemented.
 - `DifferenceMapCache` is already byte-budgeted with a 512 MiB default and
@@ -68,8 +70,9 @@ optimization.
   `scripts/generate_icon_assets.py`.
 - ICO frames remain transparent and ordered as 16, 20, 24, 32, 40, 48, 64, 128,
   and 256 px.
-- Executable, shortcut, installer, shell-grouping, signing, and final release
-  identity remain P7 acceptance work.
+- Windows source runs set `PixelScope.PixelScope` before `QApplication` creation.
+- Executable metadata, pinned shortcuts, installer shortcuts, final packaged
+  shell grouping, signing, and final release identity remain P7 acceptance work.
 - Expensive I/O and numerics remain off the UI thread.
 - Source dtype, channel meaning, strides, endianness, alignment, and
   overflow-safe arithmetic remain explicit.
@@ -113,14 +116,17 @@ Branch: `feature/p2-a-settings-identity`
 - Canonical editable SVG, transparent 256 px runtime PNG, and nine-frame ICO.
 - Reproducible PNG/ICO generation using pinned PySide6.
 - Package-byte lookup through `importlib.resources`.
-- `QApplication` runtime icon assignment.
+- Windows source-run AppUserModelID before `QApplication` creation.
+- `QApplication` and explicit main-window runtime icon assignment.
 - Setuptools package-data declaration.
-- Strong SVG/PNG/ICO tests, Qt icon test, wheel-content checker, and durable
-  branding/architecture/quality documentation.
+- Strong SVG/PNG/ICO tests, Qt icon/AppUserModelID tests, wheel-content checker,
+  and durable branding/architecture/quality documentation.
+- Preserve synchronized Multi View ranges when primary promotion rebinds the
+  same document count into the same fixed geometry.
 
 Excluded: settings models, Settings UI, Difference startup injection,
 PyInstaller icon binding, installer, signing, pinned shortcuts, and final
-release naming.
+packaged release identity.
 
 ### P2-A2 — Settings foundation and Difference startup injection
 
@@ -170,9 +176,10 @@ signing.
 
 ## Merge gates
 
-- **P2-A1:** generator `--check`; focused asset and Qt tests; package-content
-  verification; full repository validation; source-run Windows title-bar,
-  Alt+Tab, running-taskbar, scaling, and light/dark taskbar review.
+- **P2-A1:** generator `--check`; focused asset, AppUserModelID, Qt icon, and
+  primary-range tests; package-content verification; full repository validation;
+  source-run Windows title-bar, Alt+Tab, running-taskbar, scaling, and light/dark
+  taskbar review.
 - **P2-A2:** fresh/saved/legacy/invalid/reset settings tests, restart indication,
   and Difference budget injection.
 - **P2-B:** deterministic accounting, protection, eviction, oversized-source, and
@@ -200,7 +207,8 @@ P2-A1 focused checks:
 .\.venv\Scripts\python.exe scripts\generate_icon_assets.py --check
 .\.venv\Scripts\python.exe -m pytest -q `
     tests\unit\test_icon_assets.py `
-    tests\ui\test_application_icon.py
+    tests\ui\test_application_icon.py `
+    tests\ui\test_multiview_arrangements.py
 Remove-Item -Recurse -Force .tmp-wheel -ErrorAction SilentlyContinue
 .\.venv\Scripts\python.exe -m pip wheel . --no-deps -w .tmp-wheel
 .\.venv\Scripts\python.exe scripts\check_wheel_icon_assets.py .tmp-wheel
@@ -221,7 +229,8 @@ changes:
 ## Manual Windows matrix
 
 - **P2-A1:** launch from repository root and unrelated CWD; title-bar, Alt+Tab,
-  running taskbar, 100/150/200% scaling, light/dark taskbar.
+  running taskbar separated from Python identity, 100/150/200% scaling, and
+  light/dark taskbar.
 - **P2-A2:** settings persistence, reset, invalid-state recovery, restart
   indication, and Difference startup budget.
 - **P2-B:** low-budget navigation, protected documents, oversized source,
@@ -230,8 +239,8 @@ changes:
   stale preload rejection, and disable/restart behavior.
 - **P2-D:** readable diagnostics, copy/export, sanitized failures, and no UI stall.
 - **P2-E:** agreed FHD/UHD and RAW matrix on Windows 10/11.
-- **P7:** executable file, pinned shortcut, installer shortcut, final shell
-  grouping, signing, and clean-PC release smoke.
+- **P7:** executable file, pinned shortcut, installer shortcut, final packaged
+  shell grouping, signing, and clean-PC release smoke.
 
 ## Owner decisions
 
@@ -255,6 +264,9 @@ Pending:
 - 2026-08-07: Review follow-up formalized the P2-A1/P2-A2 split and added
   reproducible generation, stronger asset integrity tests, wheel verification,
   architecture and quality contracts, and accurate Windows/P7 boundaries.
+- 2026-08-07: Windows validation found Python taskbar grouping; P2-A1 added a
+  pre-Qt AppUserModelID. Full pytest also exposed preserve-view range changes for
+  primary promotion; unchanged fixed geometry now skips redundant layout rebuild.
 
 ## P2 exit criteria
 
