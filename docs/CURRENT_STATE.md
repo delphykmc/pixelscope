@@ -30,6 +30,9 @@ This document records the implementation baseline that new work must use.
 - Every regular two-to-six-image Multi View exposes primary behavior.
 - Primary promotion changes display order without changing Files order, document
   IDs, logical badges, viewer identity, or synchronized ranges.
+- A preserve-view primary promotion skips redundant viewer removal/reinsertion
+  when the document count and fixed geometry are unchanged, preventing
+  resize-driven range changes.
 - Two/four/six views remain equal; three/five enlarge the first tile.
 - Split RGB/Bayer component order is fixed and transitions are applied atomically.
 - Page Up/Page Down folder-pair navigation is implemented.
@@ -62,12 +65,14 @@ This document records the implementation baseline that new work must use.
   vector source, the transparent 256 px PNG is the Qt runtime asset, and the ICO
   contains transparent 16, 20, 24, 32, 40, 48, 64, 128, and 256 px frames.
 - `scripts/generate_icon_assets.py` reproducibly derives PNG and ICO from the SVG.
-- Application bootstrap reads the PNG through `importlib.resources` and assigns
-  it to `QApplication`; lookup is independent of the current working directory
-  and source-tree absolute paths.
+- Application bootstrap reads the PNG through `importlib.resources`; lookup is
+  independent of the current working directory and source-tree absolute paths.
+- Windows source runs assign `PixelScope.PixelScope` before `QApplication`
+  creation, then assign the canonical icon to both `QApplication` and the main
+  window so the running Taskbar entry does not retain the Python process identity.
 - SVG, PNG, and ICO files are declared as setuptools package data.
-- Executable, shortcut, installer, and final Windows shell identity binding remain
-  P7 work.
+- Executable, shortcut, installer, and final packaged Windows shell identity
+  binding remain P7 work.
 - `DifferenceMapCache` is a byte-budgeted LRU with a 512 MiB default.
 - Difference diagnostics expose `used_bytes`, `budget_bytes`, and `entry_count`.
 - `DifferencePanel` has a constructor injection seam for its cache budget.
