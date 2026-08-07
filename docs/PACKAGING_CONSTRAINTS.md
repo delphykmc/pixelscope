@@ -16,12 +16,16 @@
   ARGB32 canvas, frame sizes, and ascending ICO frame order are part of the
   reproducibility contract.
 - Runtime icon loading reads packaged PNG bytes through `importlib.resources`.
+- Windows source runs assign `PixelScope.PixelScope` as the process
+  AppUserModelID before `QApplication` creation, then assign the canonical icon
+  to both `QApplication` and the main window. This source-run shell identity is a
+  P2-A1 runtime requirement, not a substitute for packaged executable metadata.
 - The Windows ICO contains transparent 16, 20, 24, 32, 40, 48, 64, 128, and
   256 px frames. Future PyInstaller and Inno Setup definitions must use that ICO.
 - A wheel/package-content smoke check must verify the SVG, PNG, and ICO are
   present and nonempty before an identity/resource PR is complete.
-- Source-run application/window identity is P2-A1. Executable, shortcut,
-  installer, AppUserModelID, signing, and final packaged-shell identity are P7.
+- Executable-file icon binding, pinned shortcuts, installer shortcuts, final
+  packaged-shell grouping, signing, and release naming remain P7.
 - Freeze the verified dependency set before packaging and do not change the lock
   during a packaging run.
 - Packaging, portable ZIP creation, signing, and installer creation were not
