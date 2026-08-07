@@ -70,7 +70,10 @@ def test_windows_ico_contains_valid_transparent_frames() -> None:
         decoded_height = 256 if height == 0 else height
         assert decoded_width == decoded_height
         assert entry_reserved == 0
-        assert planes == 1
+        # ICO exporters commonly write wPlanes as either 0 (unspecified) or 1.
+        # Validate the actual decoded 32-bit alpha payload below instead of
+        # rejecting an otherwise valid Windows icon on this advisory field.
+        assert planes in (0, 1)
         assert bit_count == 32
         assert payload_length > 0
         assert payload_offset >= directory_end
