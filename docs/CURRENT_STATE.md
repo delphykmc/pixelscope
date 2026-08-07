@@ -124,12 +124,12 @@ as passed by that documentation PR.
 The repository owner confirmed the P2-0 documentation checker and docs contract
 test passed locally.
 
-For PR #14, the repository owner confirmed after the runtime fixes that the
-application behavior works and the Windows taskbar uses the PixelScope identity
-rather than the Python icon. The owner-generated PNG/ICO are now treated as the
-reference derivatives; the generator and focused unit test must reproduce them
-exactly from the SVG before the draft is marked ready. Exact status remains in PR
-#14.
+For PR #14, the repository owner confirmed final P2-A1 validation: the checked-in
+PNG and ICO reproduce byte-for-byte from the canonical SVG with temporary output
+cleanup, the full local automated validation passes, application runtime behavior
+is correct, and the Windows taskbar uses the PixelScope identity rather than the
+Python icon. Executable, pinned-shortcut, installer, and final packaged-shell
+identity remain P7 work.
 
 ## Active plan
 
