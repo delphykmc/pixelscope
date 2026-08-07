@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final, cast
+from typing import Final
 
 from PySide6.QtCore import QSettings
 
@@ -39,9 +39,11 @@ class ApplicationSettings:
     difference_cache_mib: int = DEFAULT_DIFFERENCE_CACHE_MIB
 
     def __post_init__(self) -> None:
-        if type(self.dont_show_raw_json_profiles) is not bool:
+        if not isinstance(self.dont_show_raw_json_profiles, bool):
             raise TypeError("dont_show_raw_json_profiles must be bool")
-        if type(self.difference_cache_mib) is not int:
+        if not isinstance(self.difference_cache_mib, int) or isinstance(
+            self.difference_cache_mib, bool
+        ):
             raise TypeError("difference_cache_mib must be int")
         if not MIN_DIFFERENCE_CACHE_MIB <= self.difference_cache_mib <= MAX_DIFFERENCE_CACHE_MIB:
             raise ValueError(
@@ -66,7 +68,7 @@ class QSettingsAdapter:
         self._settings = settings if settings is not None else QSettings()
 
     def value(self, key: str, default: object = None) -> object:
-        return cast(object, self._settings.value(key, default))
+        return self._settings.value(key, default)
 
     def contains(self, key: str) -> bool:
         return self._settings.contains(key)
