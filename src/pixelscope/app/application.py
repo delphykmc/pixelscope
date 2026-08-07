@@ -23,9 +23,9 @@ def _set_windows_app_user_model_id() -> None:
     try:
         import ctypes
 
-        windll = getattr(ctypes, "windll")
-        shell32 = getattr(windll, "shell32")
-        setter = getattr(shell32, "SetCurrentProcessExplicitAppUserModelID")
+        windll = ctypes.windll
+        shell32 = windll.shell32
+        setter = shell32.SetCurrentProcessExplicitAppUserModelID
         setter.argtypes = [ctypes.c_wchar_p]
         setter.restype = ctypes.c_long
         result = int(setter(WINDOWS_APP_USER_MODEL_ID))

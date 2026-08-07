@@ -5,7 +5,7 @@ import struct
 from collections.abc import Mapping
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QRectF, Qt
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
 from PySide6.QtGui import QImage, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
