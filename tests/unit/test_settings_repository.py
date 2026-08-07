@@ -81,15 +81,9 @@ def test_fresh_repository_normalizes_defaults_and_schema() -> None:
     loaded = repository.load()
 
     assert loaded == ApplicationSettings()
-    assert (
-        settings.value(SCHEMA_VERSION_KEY, type=int)
-        == CURRENT_SETTINGS_SCHEMA_VERSION
-    )
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION
     assert settings.value(DONT_SHOW_RAW_JSON_PROFILES_KEY, type=bool) is False
-    assert (
-        settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int)
-        == DEFAULT_DIFFERENCE_CACHE_MIB
-    )
+    assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == DEFAULT_DIFFERENCE_CACHE_MIB
     assert settings.value(DEFAULT_OPEN_DIRECTORY_KEY, type=str) == ""
     assert settings.value(DEFAULT_EXPORT_DIRECTORY_KEY, type=str) == ""
 
@@ -122,10 +116,7 @@ def test_schema_v1_migrates_to_v2_with_default_file_locations() -> None:
         dont_show_raw_json_profiles=True,
         difference_cache_mib=1024,
     )
-    assert (
-        settings.value(SCHEMA_VERSION_KEY, type=int)
-        == CURRENT_SETTINGS_SCHEMA_VERSION
-    )
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION
     assert settings.value(DEFAULT_OPEN_DIRECTORY_KEY, type=str) == ""
     assert settings.value(DEFAULT_EXPORT_DIRECTORY_KEY, type=str) == ""
 
@@ -192,10 +183,7 @@ def test_invalid_cache_budget_falls_back_and_normalizes(persisted: object) -> No
     loaded = repository.load()
 
     assert loaded.difference_cache_mib == DEFAULT_DIFFERENCE_CACHE_MIB
-    assert (
-        settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int)
-        == DEFAULT_DIFFERENCE_CACHE_MIB
-    )
+    assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == DEFAULT_DIFFERENCE_CACHE_MIB
 
 
 def test_invalid_file_locations_fall_back_and_normalize() -> None:
