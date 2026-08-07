@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import os
 import struct
+import subprocess
+import sys
 from importlib.resources import files
+from pathlib import Path
 from xml.etree import ElementTree
 
 from PySide6.QtGui import QImage
 
 EXPECTED_ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+ROOT = Path(__file__).resolve().parents[2]
+GENERATOR = ROOT / "scripts" / "generate_icon_assets.py"
 
 
 def _icon_resource(name: str) -> bytes:
@@ -94,3 +100,28 @@ def test_windows_ico_contains_valid_transparent_frames() -> None:
     ordered_ranges = sorted(payload_ranges)
     for index in range(1, len(ordered_ranges)):
         assert ordered_ranges[index - 1][1] <= ordered_ranges[index][0]
+
+
+def test_generator_reproduces_checked_in_assets_and_cleans_temp(tmp_path: Path) -> None:
+    temp_root = tmp_path / "icon-reproduction"
+    temp_root.mkdir()
+    env = os.environ.copy()
+    env.update(
+        {
+            "TMP": str(temp_root),
+            "TEMP": str(temp_root),
+            "TMPDIR": str(temp_root),
+        }
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(GENERATOR), "--check"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert list(temp_root.iterdir()) == []
