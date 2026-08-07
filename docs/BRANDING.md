@@ -21,16 +21,22 @@ The SVG is the source of truth. Do not hand-edit the PNG or ICO.
 
 ## Visual contract
 
-- Blue-gray rounded-square field aligned with the application palette.
-- A simplified image frame identifies image inspection.
-- A dominant magnifying scope communicates precise analysis.
-- A four-cell pixel grid remains legible at small sizes.
-- Broad continuous motion lines communicate speed without fragmented or
-  Morse-like marks.
-- One amber pixel and one amber motion line preserve a restrained family link to
-  the earlier orange CAT application icon.
-- No text, font dependency, rendered raster element, or third-party logo is
-  embedded in the SVG.
+- The icon is a standalone transparent mark without a full-canvas background,
+  rounded-square plate, or enclosing application tile.
+- A large white photograph frame with a simplified sun-and-mountain scene makes
+  the image-inspection domain immediately recognizable.
+- A dominant magnifying scope overlaps the photograph and communicates precise
+  inspection rather than generic image viewing.
+- A coarse five-by-five pixel mosaic inside the lens communicates pixel-level
+  analysis and remains recognizable after taskbar downscaling.
+- Dark navy outlines, white/silver structural elements, and medium blue-gray
+  fills provide clear contrast on both light and dark Windows taskbars.
+- A compact amber region in the pixel mosaic and an amber handle collar preserve
+  a restrained visual link to the earlier orange CAT application icon.
+- The mark occupies most of the 512 × 512 canvas while retaining transparent
+  outer margins for Windows and Qt rendering.
+- No text, font dependency, rendered raster element, full-canvas background, or
+  third-party logo is embedded in the SVG.
 
 ## Size contract
 
@@ -94,8 +100,9 @@ For the source-run identity/resource slice, verify on Windows:
 1. Launch from the repository root and from an unrelated working directory.
 2. Main-window title bar and Alt+Tab icon.
 3. Running taskbar icon and separation from the Python process identity.
-4. 100%, 150%, and 200% display scaling.
-5. Light and dark taskbar backgrounds.
+4. Confirm the mark is large, high-contrast, and recognizable at taskbar size.
+5. Verify 100%, 150%, and 200% display scaling.
+6. Verify light and dark taskbar backgrounds.
 
 Pinned shortcut, executable-file, installer-shortcut, and final packaged-shell
 identity checks are intentionally deferred to P7.
