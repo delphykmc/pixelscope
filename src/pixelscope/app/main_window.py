@@ -291,16 +291,6 @@ class MainWindow(QMainWindow):
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
         add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
         add_action("File", "Open RAW with Profile...", self.open_raw)
-        self.dont_show_raw_json_action = add_action(
-            "File",
-            "Don't Show RAW JSON Profiles",
-            lambda _checked=False: None,
-        )
-        self.dont_show_raw_json_action.setCheckable(True)
-        self.dont_show_raw_json_action.setChecked(self._dont_show_raw_json_profiles)
-        self.dont_show_raw_json_action.toggled.connect(  # type: ignore[attr-defined]
-            self._set_dont_show_raw_json_profiles
-        )
         menus["File"].addSeparator()
         add_action("File", "Export Statistics CSV...", self.export_statistics)
         menus["File"].addSeparator()
@@ -385,10 +375,6 @@ class MainWindow(QMainWindow):
             return
         self.application_settings = settings
         self._dont_show_raw_json_profiles = settings.dont_show_raw_json_profiles
-        if self.dont_show_raw_json_action.isChecked() != self._dont_show_raw_json_profiles:
-            self.dont_show_raw_json_action.blockSignals(True)
-            self.dont_show_raw_json_action.setChecked(self._dont_show_raw_json_profiles)
-            self.dont_show_raw_json_action.blockSignals(False)
 
     def _create_toolbar(self) -> None:
         toolbar = QToolBar("Main", self)
@@ -543,12 +529,16 @@ class MainWindow(QMainWindow):
         if self.comparison_analysis_panel.table.columnCount() == 0:
             self.statusBar().showMessage("No statistics to export", 3000)
             return
+        export_directory = self._export_dialog_directory()
+        initial_path = (
+            str(Path(export_directory) / "pixelscope_statistics.csv")
+            if export_directory
+            else "pixelscope_statistics.csv"
+        )
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export statistics",
-            str(Path(self._last_directory) / "pixelscope_statistics.csv")
-            if self._last_directory
-            else "pixelscope_statistics.csv",
+            initial_path,
             "CSV (*.csv)",
         )
         if not path:
@@ -752,7 +742,7 @@ class MainWindow(QMainWindow):
         paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Open images",
-            self._last_directory,
+            self._open_dialog_directory(),
             "Images (*.png *.bmp *.jpg *.jpeg *.raw);;All files (*)",
         )
         if paths:
@@ -766,7 +756,11 @@ class MainWindow(QMainWindow):
             self._register_inputs(inputs, select_all=True)
 
     def open_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Open image folder", self._last_directory)
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Open image folder",
+            self._open_dialog_directory(),
+        )
         if path:
             folder = Path(path)
             self._remember_directory(folder)
@@ -778,10 +772,18 @@ class MainWindow(QMainWindow):
             self._register_inputs(inputs, select_all=False)
 
     def compare_two_folders(self) -> None:
-        first = QFileDialog.getExistingDirectory(self, "Select first image folder")
+        first = QFileDialog.getExistingDirectory(
+            self,
+            "Select first image folder",
+            self._open_dialog_directory(),
+        )
         if not first:
             return
-        second = QFileDialog.getExistingDirectory(self, "Select second image folder")
+        second = QFileDialog.getExistingDirectory(
+            self,
+            "Select second image folder",
+            self._open_dialog_directory(),
+        )
         if second:
             self.register_folder_pair(Path(first), Path(second))
 
@@ -810,7 +812,10 @@ class MainWindow(QMainWindow):
 
     def open_raw(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open RAW", self._last_directory, "RAW files (*.*)"
+            self,
+            "Open RAW",
+            self._open_dialog_directory(),
+            "RAW files (*.*)",
         )
         if not path:
             return
@@ -891,6 +896,8 @@ class MainWindow(QMainWindow):
         settings = ApplicationSettings(
             dont_show_raw_json_profiles=enabled,
             difference_cache_mib=self.application_settings.difference_cache_mib,
+            default_open_directory=self.application_settings.default_open_directory,
+            default_export_directory=self.application_settings.default_export_directory,
         )
         self.settings_repository.save(settings)
         self._application_settings_saved(settings)
@@ -2555,6 +2562,24 @@ class MainWindow(QMainWindow):
             seen_folders.add(folder_key)
             session.append((folder_key, document.document_id))
         return session
+
+    def _preferred_dialog_directory(self, configured: str) -> str:
+        configured = configured.strip()
+        if configured:
+            path = Path(configured).expanduser()
+            if path.is_dir():
+                return str(path)
+        return self._last_directory
+
+    def _open_dialog_directory(self) -> str:
+        return self._preferred_dialog_directory(
+            self.application_settings.default_open_directory
+        )
+
+    def _export_dialog_directory(self) -> str:
+        return self._preferred_dialog_directory(
+            self.application_settings.default_export_directory
+        )
 
     def _remember_directory(self, directory: Path) -> None:
         self._last_directory = str(directory)
