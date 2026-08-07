@@ -80,9 +80,7 @@ class SettingsDialog(QDialog):
         self.difference_cache_mib.setSuffix(" MiB")
         self.difference_cache_mib.setKeyboardTracking(False)
 
-        self.restart_required_label = QLabel(
-            "Changes take effect after restarting PixelScope."
-        )
+        self.restart_required_label = QLabel("Changes take effect after restarting PixelScope.")
         self.restart_required_label.setObjectName("restartRequiredLabel")
         self.restart_required_label.setWordWrap(True)
 
@@ -98,8 +96,7 @@ class SettingsDialog(QDialog):
         self.reset_button = QPushButton("Reset Settings")
         self.reset_button.setObjectName("resetSettingsButton")
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
         self.button_box.setObjectName("settingsButtonBox")
 
@@ -168,17 +165,11 @@ class SettingsDialog(QDialog):
         form = QFormLayout(locations_group)
         form.addRow(
             "Open Folder",
-            self._directory_editor(
-                self.default_open_directory,
-                self.default_open_browse,
-            ),
+            self._directory_editor(self.default_open_directory, self.default_open_browse),
         )
         form.addRow(
             "Export Folder",
-            self._directory_editor(
-                self.default_export_directory,
-                self.default_export_browse,
-            ),
+            self._directory_editor(self.default_export_directory, self.default_export_browse),
         )
         explanation = QLabel(
             "Leave a field blank to keep using the last folder used by PixelScope. "
@@ -220,10 +211,7 @@ class SettingsDialog(QDialog):
         return label
 
     @staticmethod
-    def _directory_editor(
-        line_edit: QLineEdit,
-        browse_button: QPushButton,
-    ) -> QWidget:
+    def _directory_editor(line_edit: QLineEdit, browse_button: QPushButton) -> QWidget:
         container = QWidget()
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -244,9 +232,7 @@ class SettingsDialog(QDialog):
         )
 
     def set_settings(self, settings: ApplicationSettings) -> None:
-        self.dont_show_raw_json_profiles.setChecked(
-            settings.dont_show_raw_json_profiles
-        )
+        self.dont_show_raw_json_profiles.setChecked(settings.dont_show_raw_json_profiles)
         self.default_open_directory.setText(settings.default_open_directory)
         self.default_export_directory.setText(settings.default_export_directory)
         self.difference_cache_mib.setValue(settings.difference_cache_mib)
