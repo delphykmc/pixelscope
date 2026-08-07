@@ -2,7 +2,7 @@
 
 Status: Active  
 Owner: repository owner + P2 orchestration agents  
-Last updated: 2026-08-07
+Last updated: 2026-08-08
 
 ## Goal
 
@@ -47,8 +47,11 @@ optimization.
   source-run AppUserModelID, and `QApplication`/main-window icon assignment.
 - P2-A2 implements frozen typed `ApplicationSettings`, schema-aware
   `SettingsRepository` + `QSettingsAdapter`, RAW preference migration,
-  Settings UI, restart semantics, reset separation, and Difference-cache startup
-  injection. Merge and owner validation remain pending in the active PR.
+  multi-page Settings UI, optional file-dialog locations, restart/reset
+  semantics, and Difference-cache startup injection. Merge and final owner
+  validation remain pending in the active PR.
+- Settings schema v2 owns General RAW confirmation, Files default Open/Export
+  folders, and Performance Difference-cache MiB. Schema v1 migrates forward.
 - Difference cache preference defaults to 512 MiB and accepts 64–8192 MiB.
 - Source residency remains a reloadable fixed seven-document policy in
   `MainWindow`; visible documents and active load targets are protected.
@@ -72,8 +75,12 @@ optimization.
   overflow-safe arithmetic remain explicit.
 - QSettings is an adapter for application preferences, not the settings domain
   model. Workspace/session keys remain separately owned.
+- Exact dock geometry, splitters, layout mode, and Plots visibility remain
+  workspace state and are not duplicated as application defaults.
 - Performance settings are immutable startup snapshots; startup-only changes
   require restart indication and never live-mutate existing runtime caches.
+- File-location and RAW confirmation preferences are live settings and do not
+  require restart.
 - Difference cache and decoded-source residency remain separate budgets.
 - Source-residency accounting covers native decoded `ImageDocument.source`
   arrays only, not total process memory.
@@ -91,6 +98,7 @@ Implemented by P2-A:
 - `ApplicationSettings`: validated persisted choices.
 - `SettingsRepository`: schema-aware load/save/reset and migration.
 - immutable `PerformanceSettings`: startup resource snapshot.
+- category/page Settings UI: General, Files, Performance.
 
 Remaining P2 target boundaries:
 
@@ -135,22 +143,32 @@ packaged release identity.
 
 ### P2-A2 — Settings foundation and Difference startup injection
 
-Status: Implementation complete on active branch; merge/owner validation pending.  
+Status: Active; Settings UX follow-up and final owner validation pending.  
 Branch: `feature/p2-a-settings-foundation`
 
-- Frozen typed `ApplicationSettings` with RAW preference and Difference cache MiB.
+- Frozen typed `ApplicationSettings` with RAW confirmation, optional default
+  Open/Export folders, and Difference cache MiB.
 - `SettingsRepository` plus QSettings adapter.
-- Schema version 1, legacy RAW migration, validation, defaults, reset,
-  invalid-state normalization, and non-destructive future-schema handling.
-- `Edit > Settings...` with General and Performance sections.
+- Schema version 2, schema-v1 migration, legacy RAW migration, validation,
+  defaults, reset, invalid-state normalization, and non-destructive future-schema
+  handling.
+- `Edit > Settings...` with left-side General / Files / Performance navigation.
+- General is the sole persistent UI surface for **Don't Show RAW JSON Profiles**;
+  the duplicate File-menu action is removed while RAW-dialog opt-in remains.
+- Files contains optional **Default Open Folder** and **Default Export Folder**.
+  Blank preserves last-used-folder behavior; configured existing paths only seed
+  file-dialog start locations.
 - Difference cache default 512 MiB, accepted range 64–8192 MiB.
 - Immutable byte-based `PerformanceSettings` startup snapshot injected through
   `MainWindow` → `DifferencePanel` → `DifferenceMapCache`.
-- Restart-required indication compares the editable value with the current
-  runtime snapshot; live cache mutation is prohibited.
+- Restart-required indication compares the editable Difference value with the
+  current runtime snapshot; live cache mutation is prohibited.
 - `Reset Settings` resets application preferences only and does not reset
   workspace/session persistence.
-- Existing File-menu RAW preference remains synchronized with Settings.
+- Docking/layout settings are deliberately excluded because exact workspace
+  state already owns those values.
+- Broader export format/naming controls are deferred until the export surface is
+  broader than Statistics CSV.
 - Durable agent provenance rules recorded for future ChatGPT/Codex work.
 
 Excluded: source-residency budget, preload, diagnostics dialog, installer, and
@@ -164,6 +182,7 @@ Status: Next after P2-A2 merge.
 - Protect visible, selected, analysis, and active-load documents.
 - Add LRU eviction/reload, soft-limit and oversized-source behavior, dependent
   invalidation, setting, and diagnostics.
+- Extend the existing Performance page with the decoded-source budget.
 
 ### P2-C — Bounded next-group preload
 
@@ -171,7 +190,7 @@ Status: Next after P2-A2 merge.
 - Keep preload ownership bounded and lower priority than normal loads.
 - Request cancellation where possible and always reject stale results.
 - Retain results only when compatible with the source budget.
-- Add setting and diagnostics.
+- Extend the Performance page with the preload preference and add diagnostics.
 
 ### P2-D — Runtime diagnostics and failure visibility
 
@@ -192,8 +211,9 @@ Status: Next after P2-A2 merge.
 ## Merge gates
 
 - **P2-A1:** complete and merged as PR #14.
-- **P2-A2:** fresh/saved/legacy/invalid/future/reset settings tests, Settings UI
-  tests, restart indication, RAW preference regression, Difference budget startup
+- **P2-A2:** fresh/saved/schema-v1/legacy/invalid/future/reset settings tests,
+  category-page Settings UI tests, file-location behavior, Settings-only RAW
+  preference regression, restart indication, Difference budget startup
   injection, P2-A1 application-icon regression, full repository contract, and
   manual Windows settings/startup validation.
 - **P2-B:** deterministic accounting, protection, eviction, oversized-source, and
@@ -236,16 +256,21 @@ P2-A2 merge requires owner validation of:
 
 1. PixelScope starts normally.
 2. P2-A1 title/taskbar icon behavior has no regression.
-3. **Edit > Settings...** opens.
-4. General RAW preference displays and saves.
-5. Existing RAW JSON confirmation behavior remains correct.
-6. Difference cache value displays correctly.
-7. Changing the cache value shows restart-required indication.
-8. Restart applies the changed Difference cache budget.
-9. **Reset Settings** restores application defaults.
-10. **Reset Workspace Layout** and **Reset Settings** do not affect each other's
+3. **Edit > Settings...** opens with General / Files / Performance navigation.
+4. **Don't Show RAW JSON Profiles** is absent from File and persists from General.
+5. Existing RAW JSON confirmation and don't-show-again behavior remain correct.
+6. Blank Default Open/Export folders retain last-used-folder behavior.
+7. Configured Default Open Folder seeds Open Images/Open Folder/Open RAW dialogs.
+8. Configured Default Export Folder seeds Statistics CSV export.
+9. Unavailable configured folders fall back to the remembered last directory.
+10. Difference cache value displays correctly.
+11. Changing Difference cache shows restart-required indication.
+12. Restart applies the changed Difference cache budget.
+13. File-location or RAW-only changes do not require restart.
+14. **Reset Settings** restores application defaults.
+15. **Reset Workspace Layout** and **Reset Settings** do not affect each other's
     owned state.
-11. Invalid persisted application settings recover without startup failure.
+16. Invalid persisted application settings recover without startup failure.
 
 Later-slice matrices remain:
 
@@ -266,6 +291,12 @@ Resolved:
   provisional until P7 branding review.
 - Difference-cache default: 512 MiB.
 - P2-A2 cache preference range: 64–8192 MiB.
+- P2-A2 Settings template: category/page navigation using General, Files, and
+  Performance.
+- P2-A2 file-location preferences: optional Default Open/Export folders with
+  blank meaning last-used-folder behavior.
+- Dock/layout persistence remains workspace-owned rather than duplicated in
+  Settings.
 
 Pending:
 
@@ -281,6 +312,9 @@ Pending:
 - 2026-08-07: P2-A2 implementation added typed/versioned application settings,
   RAW preference migration, Settings UI, restart/reset semantics, and Difference
   startup injection on `feature/p2-a-settings-foundation`.
+- 2026-08-08: P2-A2 Settings UX follow-up adopted schema v2, General / Files /
+  Performance pages, Settings-only RAW preference ownership, and optional
+  Default Open/Export folders after reviewing candidate hard-coded defaults.
 
 ## P2 exit criteria
 
