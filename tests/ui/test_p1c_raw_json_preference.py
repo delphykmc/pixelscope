@@ -44,22 +44,13 @@ def _profile() -> RawProfile:
     )
 
 
-def test_raw_json_dont_show_menu_defaults_off_and_persists(qtbot: object) -> None:
+def test_raw_json_preference_is_settings_only_and_defaults_off(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
-    action = window.action_map["Don't Show RAW JSON Profiles"]
-    assert action.isCheckable()
-    assert not action.isChecked()
-    action.trigger()
-    assert action.isChecked()
-    assert window.settings_repository.load().dont_show_raw_json_profiles is True
+    assert "Don't Show RAW JSON Profiles" not in window.action_map
+    assert window.settings_repository.load().dont_show_raw_json_profiles is False
     window.close()
-
-    restored = MainWindow()
-    qtbot.addWidget(restored)  # type: ignore[attr-defined]
-    assert restored.action_map["Don't Show RAW JSON Profiles"].isChecked()
-    restored.close()
 
 
 def test_valid_json_sidecar_skips_dialog_when_legacy_dont_show_is_migrated(
@@ -180,6 +171,6 @@ def test_dialog_dont_show_opt_in_enables_future_skip(
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     assert window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) == profile
-    assert window.action_map["Don't Show RAW JSON Profiles"].isChecked()
+    assert window.application_settings.dont_show_raw_json_profiles is True
     assert window.settings_repository.load().dont_show_raw_json_profiles is True
     window.close()
