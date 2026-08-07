@@ -61,10 +61,17 @@ This document records the implementation baseline that new work must use.
 
 - PR #14 delivers the P2-A1 identity/resource foundation.
 - Canonical icon assets are colocated at
-  `src/pixelscope/assets/icons/pixelscope.{svg,png,ico}`. The SVG is the editable
-  vector source, the transparent 256 px PNG is the Qt runtime asset, and the ICO
-  contains transparent 16, 20, 24, 32, 40, 48, 64, 128, and 256 px frames.
-- `scripts/generate_icon_assets.py` reproducibly derives PNG and ICO from the SVG.
+  `src/pixelscope/assets/icons/pixelscope.{svg,png,ico}`.
+- The approved artwork is a transparent standalone photograph-and-magnifier mark
+  with enlarged pixels inside the lens and a restrained amber accent. Omitting a
+  full-canvas plate lets the mark occupy more of the Windows taskbar icon area
+  with higher contrast and clearer image-analysis semantics.
+- The SVG is the editable vector source, the transparent 256 px PNG is the Qt
+  runtime asset, and the ICO contains transparent 16, 20, 24, 32, 40, 48, 64,
+  128, and 256 px frames. Small ICO frames use a reduced high-contrast palette.
+- `scripts/generate_icon_assets.py` provides the reproducible baseline derivation
+  path from SVG; small-size derivatives require visual legibility review after
+  regeneration.
 - Application bootstrap reads the PNG through `importlib.resources`; lookup is
   independent of the current working directory and source-tree absolute paths.
 - Windows source runs assign `PixelScope.PixelScope` before `QApplication`
@@ -112,8 +119,11 @@ as passed by that documentation PR.
 The repository owner confirmed the P2-0 documentation checker and docs contract
 test passed locally.
 
-P2-A1 validation status and exact local/Windows evidence are maintained in PR
-#14. This document does not claim checks that are not recorded there.
+For PR #14, the repository owner confirmed after the runtime fixes that the
+application behavior works and the Windows taskbar uses the PixelScope identity
+rather than the Python icon. The final artwork replacement is asset-only and
+requires a final visual and asset-contract rerun before the draft is marked ready.
+Exact status remains in PR #14.
 
 ## Active plan
 
