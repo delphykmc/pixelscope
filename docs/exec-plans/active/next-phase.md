@@ -401,7 +401,7 @@ P2-E focused checks:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
     tests\unit\test_preload_controller.py `
-    tests\unit\test_runtime_diagnostics.py `
+    tests\unit\test_diagnostics.py `
     tests\ui\test_preload_runtime.py `
     tests\ui\test_preload_promotion.py `
     tests\ui\test_runtime_diagnostics.py
@@ -418,6 +418,9 @@ Full repository contract for this runtime/docs change:
 .\.venv\Scripts\python.exe -m pip check
 git diff --check
 ```
+
+Owner/local Windows validation after the final P2-E follow-up fixes: **PASS** for
+the focused checks and full repository contract above.
 
 Connector-only implementation must not claim these commands passed unless their
 actual output is observed. Owner/local execution of the exact commands above is
