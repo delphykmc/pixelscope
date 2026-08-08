@@ -306,7 +306,8 @@ class SettingsDialog(QDialog):
         )
         locations_section = _SettingsSection(
             "Default Locations",
-            "Leave fields blank to keep using PixelScope's remembered last-used folder.",
+            "Leave fields blank to keep using PixelScope's remembered "
+            "last-used folder.",
         )
         locations_section.add_row(
             _SettingRow(
@@ -513,7 +514,9 @@ class SettingsDialog(QDialog):
         )
 
     def set_settings(self, settings: ApplicationSettings) -> None:
-        self.dont_show_raw_json_profiles.setChecked(settings.dont_show_raw_json_profiles)
+        self.dont_show_raw_json_profiles.setChecked(
+            settings.dont_show_raw_json_profiles
+        )
         self.default_open_directory.setText(settings.default_open_directory)
         self.default_export_directory.setText(settings.default_export_directory)
         self.difference_cache_mib.setValue(settings.difference_cache_mib)
