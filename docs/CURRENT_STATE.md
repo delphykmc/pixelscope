@@ -15,8 +15,9 @@ This document records the implementation baseline that new work must use.
   `52daa63425a286e370aa5ef36f59ba51a8acd565`.
 - P2-A1 merged as PR #14 at
   `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
-- P2-A2 is implemented on `feature/p2-a-settings-foundation`; merge and owner
-  validation remain pending in the active PR.
+- P2-A2 is implemented on `feature/p2-a-settings-foundation`; merge remains
+  pending while the final schema-v3 runtime-integration review fixes are
+  revalidated.
 
 ## Implemented baseline
 
@@ -45,6 +46,9 @@ This document records the implementation baseline that new work must use.
   maximize/restore.
 - Esc clears ROI; Shift+Esc clears Line Profile. Ctrl+drag creates ROI;
   Shift+drag creates Line Profile; Alt+drag creates neither.
+- Difference Threshold and Gain are persisted General settings. Persisted values
+  initialize the Difference panel at startup and Settings saves update the live
+  panel immediately without restart.
 
 ### RAW
 
@@ -57,7 +61,12 @@ This document records the implementation baseline that new work must use.
   value exposed through **Settings > General**, not the File menu. Legacy
   `raw/dont_show_json_profiles` values are migrated to the versioned namespace.
 - The RAW confirmation dialog may still set the same preference through its
-  explicit don't-show-again choice.
+  explicit don't-show-again choice; that update preserves all other schema-v3
+  settings.
+- `Require Exact RAW File Size` is a General setting. Disabled allows trailing
+  bytes while still rejecting undersized files; enabled requires exact byte
+  equality. `MainWindow` passes the setting into RAW load workers and applies the
+  same rule before auto-approving a JSON sidecar.
 - Native grayscale/Bayer analysis without demosaic.
 
 ### Runtime resources and settings
@@ -67,30 +76,35 @@ This document records the implementation baseline that new work must use.
   `PixelScope.PixelScope` before `QApplication` creation.
 - `DifferenceMapCache` remains a persistence-free byte-budgeted LRU.
 - `ApplicationSettings` is the frozen typed model for persisted user preferences.
-  P2-A2 owns RAW confirmation, default Open/Export folders, and Difference-cache
-  MiB.
+  P2-A2 owns RAW confirmation, exact RAW file-size validation, default
+  Open/Export folders, Difference Threshold/Gain defaults, and Difference Map
+  Cache MiB.
 - `SettingsRepository` owns defaults, schema migration, validation, save/reset,
   invalid-state recovery, and future-schema compatibility; `QSettingsAdapter`
   owns raw application-setting keys.
-- Settings schema version 2 uses:
+- Settings schema version 3 uses:
   - `settings/schema_version`
   - `settings/general/dont_show_raw_json_profiles`
+  - `settings/general/require_exact_raw_file_size`
   - `settings/files/default_open_directory`
   - `settings/files/default_export_directory`
+  - `settings/analysis/difference_threshold`
+  - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
-- Schema v1 migrates to v2 while preserving its RAW and Difference-cache values;
-  the new file-location values default to blank.
+- Schema v2 migrates to v3 by preserving its existing values and adding exact RAW
+  validation plus Difference Threshold/Gain defaults. Schema v1 and the legacy
+  RAW key are also migrated into the current model.
 - `Edit > Settings...` uses left-side **General / Files / Performance** page
-  navigation. This is the extensible template for later settings additions.
+  navigation with a flat VS Code-inspired content hierarchy.
 - Blank default Open/Export locations preserve the existing last-used-folder
   behavior. A configured existing location only seeds the corresponding file
   dialog and applies without restart.
-- Difference cache defaults to 512 MiB and accepts 64–8192 MiB.
+- Difference Map Cache defaults to 512 MiB and accepts 64–8192 MiB.
 - Application startup converts persisted MiB into immutable
   `PerformanceSettings.difference_cache_bytes` and injects it through
   `MainWindow` into `DifferencePanel` and `DifferenceMapCache`.
-- Difference-cache edits are saved for the next launch; an existing cache budget
-  is not mutated live.
+- Difference Map Cache edits are saved for the next launch; an existing cache
+  budget is not mutated live.
 - `Reset Settings` resets only schema-owned application preferences. Workspace
   geometry, dock/splitter state, remembered last directory, and unrelated
   QSettings keys remain independently owned.
@@ -115,22 +129,25 @@ This document records the implementation baseline that new work must use.
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
   distribution work.
+- Windows startup white-frame polish. There is no intentional splash/pre-render
+  path; investigation is deferred until the major phases are complete.
 
 ## Validation evidence
 
 The repository owner recorded the full automated validation contract as passed
-for P1-D, P1-E, P1-F, and final P2-A1. P2-A1 also has owner-confirmed application
-runtime and Windows taskbar identity evidence.
+for P1-D, P1-E, P1-F, final P2-A1, and the P2-A2 head before the final runtime
+integration review. That prior result remains useful evidence, but it predates
+the final merge-blocker fixes for exact RAW propagation, Difference defaults,
+partial-settings preservation, and schema-v3 documentation alignment.
 
-For P2-A2, the owner has recorded `pytest` passing before the latest Settings UX
-follow-up. Ruff/mypy findings from that earlier run were addressed, including the
-owner-authored MainWindow E501 wrap. The schema-v2/multi-page follow-up requires a
-fresh full validation run before merge; this document does not pre-claim it.
+A fresh full validation run is therefore required on the new P2-A2 head before
+merge. No post-fix full-suite result is pre-claimed here.
 
 ## Active plan
 
 - P1 history: [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md)
 - P2 active plan: [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
 - P2-A1: complete; merged as PR #14.
-- P2-A2: active implementation on `feature/p2-a-settings-foundation`.
+- P2-A2: final runtime-integration fixes and revalidation on
+  `feature/p2-a-settings-foundation`.
 - Next slice after P2-A2 merge: P2-B — byte-budgeted decoded-source residency.
