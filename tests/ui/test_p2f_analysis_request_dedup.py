@@ -27,6 +27,30 @@ def _request_signature(
     return panel._analysis_request_signature(documents, bounds, specs)
 
 
+def test_repeated_identical_statistics_request_keeps_pending_timer_identity(
+    qtbot: object,
+) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    documents = [_rgb_document("a.png", 10), _rgb_document("b.png", 20)]
+
+    panel.set_documents(documents, None, "Full image")
+
+    assert panel._worker is None
+    assert panel._refresh_timer.isActive()
+    pending_timer_id = panel._refresh_timer.timerId()
+    assert pending_timer_id >= 0
+    assert panel.status.text() == "Preparing analysis..."
+
+    panel.set_documents(documents, None, "Full image")
+
+    assert panel._worker is None
+    assert panel._refresh_timer.isActive()
+    assert panel._refresh_timer.timerId() == pending_timer_id
+    assert panel.status.text() == "Preparing analysis..."
+    panel.shutdown()
+
+
 def test_repeated_identical_statistics_request_does_not_restart_completed_analysis(
     qtbot: object,
 ) -> None:
