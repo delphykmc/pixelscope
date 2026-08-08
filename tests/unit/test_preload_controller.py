@@ -85,6 +85,61 @@ def test_member_completion_and_full_completion_are_deterministic() -> None:
     assert controller.diagnostics.active_worker_count == 0
 
 
+def test_running_request_promotion_is_once_only_and_leaves_speculative_counts() -> None:
+    controller = PreloadController()
+    plan = controller.set_plan(("a",))
+    assert plan is not None
+    request = _request(plan.generation, "a")
+    assert controller.start_member(request)
+
+    assert not controller.promote(request)
+    assert controller.mark_running(request)
+    assert controller.request_is_running(request)
+    assert controller.promote(request)
+    assert not controller.promote(request)
+    assert controller.request_is_promoted(request)
+    assert not controller.request_is_current(request)
+    assert controller.diagnostics.promotion_count == 1
+    assert controller.diagnostics.active_worker_count == 0
+
+
+def test_stale_and_already_cancelled_requests_cannot_be_promoted() -> None:
+    controller = PreloadController()
+    plan = controller.set_plan(("a",))
+    assert plan is not None
+    request = _request(plan.generation, "a")
+    assert controller.start_member(request)
+    assert controller.mark_running(request)
+    stale = replace(request, document_generation=1)
+
+    assert not controller.promote(stale)
+    controller.record_cancellation_request(request)
+    assert not controller.request_is_running(request)
+    assert not controller.promote(request)
+    assert controller.diagnostics.cancellation_request_count == 1
+    assert controller.diagnostics.promotion_count == 0
+
+
+def test_promoted_request_survives_plan_invalidation_as_foreground_authority() -> None:
+    controller = PreloadController()
+    plan = controller.set_plan(("a",))
+    assert plan is not None
+    request = _request(plan.generation, "a")
+    assert controller.start_member(request)
+    assert controller.mark_running(request)
+    assert controller.promote(request)
+
+    controller.invalidate()
+    controller.record_cancellation_request(request)
+
+    assert controller.current_plan is None
+    assert controller.request_is_promoted(request)
+    assert controller.diagnostics.cancellation_request_count == 0
+    assert controller.diagnostics.active_worker_count == 0
+    controller.finish_worker(request)
+    assert not controller.request_is_promoted(request)
+
+
 def test_stale_generation_and_removed_target_are_rejected_and_counted() -> None:
     controller = PreloadController()
     first = controller.set_plan(("a",))
@@ -111,6 +166,7 @@ def test_diagnostics_count_cancellation_and_failure_without_history() -> None:
     assert diagnostics.cancellation_request_count == 1
     assert diagnostics.failure_count == 1
     assert diagnostics.active_worker_count == 1
+    assert diagnostics.promotion_count == 0
 
 
 def test_cancellation_deduplication_is_bounded_to_active_worker_lifetime() -> None:

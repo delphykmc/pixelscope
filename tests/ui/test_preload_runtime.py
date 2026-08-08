@@ -113,7 +113,7 @@ def test_single_folder_preload_is_reused_without_normal_redecode(
     assert next_plan.document_ids == (ids[2],)
 
 
-def test_normal_navigation_does_not_wait_for_obsolete_preload_and_wins_authority(
+def test_running_preload_navigation_promotes_same_decode_without_replacement(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -148,36 +148,41 @@ def test_normal_navigation_does_not_wait_for_obsolete_preload_and_wins_authority
 
             super().__init__(decode)
 
-        def cancel(self) -> None:
-            """Model a decoder that cannot stop after cancellation is requested."""
-
-            return
-
     monkeypatch.setattr(main_window_module, "ImageLoadWorker", ControlledWorker)
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     ids = _register_folder(window, folder)
     qtbot.waitUntil(speculative_started.is_set, timeout=3000)  # type: ignore[attr-defined]
-
-    window.next_folder_position()
-    replacement_plan = window.preload_controller.current_plan
-    assert replacement_plan is not None
-    assert replacement_plan.document_ids == (ids[2],)
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.documents[ids[1]].source is not None
-        and int(window.documents[ids[1]].source[0, 0]) == 222,
+        lambda: any(
+            window.preload_controller.request_is_running(request)
+            for request in window._preload_worker_requests.values()
+        ),
         timeout=3000,
     )
-    assert window._preload_workers
+
+    window.next_folder_position()
+
+    assert calls["frame-2.png"] == 1
+    assert window.documents[ids[1]].loading_state == "loading"
+    assert window._promoted_preload_tokens
+    assert window.preload_controller.diagnostics.promotion_count == 1
+    assert window.preload_controller.diagnostics.cancellation_request_count == 0
+    snapshot = window.runtime_diagnostics_snapshot()
+    assert snapshot.workers.foreground_loads.active_count == 1
+    assert snapshot.workers.preload.active_count == 0
+    assert snapshot.preload.active_worker_count == 0
+
     speculative_release.set()
     qtbot.waitUntil(lambda: not window._preload_workers, timeout=4000)  # type: ignore[attr-defined]
 
     loaded = window.documents[ids[1]]
     assert loaded.source is not None
-    assert int(loaded.source[0, 0]) == 222
-    diagnostics = window.preload_controller.diagnostics
-    assert diagnostics.cancellation_request_count >= 1
-    assert diagnostics.stale_drop_count >= 1
+    assert int(loaded.source[0, 0]) == 111
+    assert calls["frame-2.png"] == 1
+    replacement_plan = window.preload_controller.current_plan
+    assert replacement_plan is not None
+    assert replacement_plan.document_ids == (ids[2],)
 
 
 def test_preload_uses_ordinary_residency_and_may_be_evicted_without_loop(

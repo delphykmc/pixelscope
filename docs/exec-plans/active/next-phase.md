@@ -7,14 +7,14 @@ Last updated: 2026-08-09
 ## Goal
 
 Establish application identity, typed startup settings, byte-budgeted source
-residency, bounded preload, deterministic diagnostics, and performance hardening
-without a broad `MainWindow` rewrite.
+residency, bounded preload, deterministic diagnostics, running-preload foreground
+reuse, and final performance hardening without a broad `MainWindow` rewrite.
 
 ## Scope and sequence
 
 The authoritative dependency is:
 
-`P2-0 → P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E`
+`P2-0 → P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E → P2-F`
 
 Each slice starts from the latest merged prerequisite on `main`.
 
@@ -26,15 +26,17 @@ Each slice starts from the latest merged prerequisite on `main`.
 | 3 | P2-B source residency | `feature/p2-b-source-residency-budget` | P2-A2 merged |
 | 4 | P2-C folder preload | `feature/p2-c-folder-preload` | P2-B merged |
 | 5 | P2-D diagnostics | `feature/p2-d-runtime-diagnostics` | P2-C merged |
-| 6 | P2-E hardening | `feature/p2-e-performance-hardening` | P2-D merged |
+| 6 | P2-E running preload promotion | `feature/p2-e-preload-promotion` | P2-D merged |
+| 7 | P2-F performance hardening | `feature/p2-f-performance-hardening` | P2-E merged |
 
-P2-A1 through P2-C are merged as PR #14 through PR #17. P2-D is the current
-active slice.
+P2-A1 through P2-D are complete and merged as PR #14 through PR #18. P2-E is
+the current active slice. The previous P2-E Performance Characterization & Phase
+Hardening scope is retained below as P2-F and remains the final P2 closure slice.
 
 Out of scope for P2: persistent comparison sessions, broader export workflows,
 RAW demosaic/level processing, remote service UI, authentication, installer,
 signing, update delivery, broad shortcut redesign, and speculative native
-optimization.
+optimization without evidence.
 
 ## Current baseline
 
@@ -47,7 +49,9 @@ optimization.
 - P2-B merged as PR #16 at
   `453b718535bdbdce2a9225c01f6144d7f2df40b0`.
 - P2-C merged as PR #17 at
-  `812982dacdecca155f7b53ab42ef2bd9fba68a77`; P2-D branches from this commit.
+  `812982dacdecca155f7b53ab42ef2bd9fba68a77`.
+- P2-D merged as PR #18 at
+  `a7b4ddf62af95e86b9d9e38a4328cf9572226114`; P2-E branches from this commit.
 - P2-A1 provides canonical SVG/PNG/ICO assets, exact derivative reproduction,
   package-data declaration, CWD-independent resource loading, stable Windows
   source-run AppUserModelID, and `QApplication`/main-window icon assignment.
@@ -65,20 +69,19 @@ optimization.
 - Source residency is an exact native-`source.nbytes`, protected, soft-budget
   LRU policy. The former fixed seven-document count is no longer authoritative,
   and source residency remains independent of Difference Map Cache.
-- Image loading uses a pool capped at two workers; shared numerical work uses a
-  pool capped at four.
-- Normal-load stale-result handling relies on target document ID, load tokens,
-  worker registration, and cancelled-worker rejection.
-- P2-B review fixes preserve the released v3 Difference-cache domain through an
-  explicit clamp migration and add the accepted source-residency setting.
+- Image loading uses a normal pool capped at two workers; shared numerical work
+  uses a pool capped at four; preload uses a separate pool capped at one.
 - Folder Position navigation uses one pure planner for actual PageDown and
   preload prediction over one-to-six distinct registered folders.
-- P2-C uses a separate max-one preload pool, generation/path/profile/token stale
-  validation, ordinary residency retention, and bounded read-only counters.
-- P2-D establishes frozen deterministic diagnostics, bounded sanitized failure
-  history, stale-drop visibility, and the single observation-only
-  **Help > Copy Diagnostics** support surface. P2-E consumes the same snapshot
-  API directly without requiring diagnostics UI.
+- P2-C owns exactly `plan(+1)`, one Folder Position ahead, with separate max-one
+  preload execution, generation/path/profile/token stale validation, ordinary
+  residency retention, and bounded read-only counters.
+- P2-D owns frozen deterministic diagnostics, bounded sanitized failure history,
+  stale-drop visibility, and the single observation-only
+  **Help > Copy Diagnostics** support surface.
+- P2-E adds no setting and no worker-pool expansion. It reuses an exact matching
+  RUNNING preload when that request becomes foreground-required by transferring
+  logical authority while preserving the same physical worker/decode.
 
 ## Invariants
 
@@ -106,9 +109,15 @@ optimization.
 - Source-residency accounting covers native decoded `ImageDocument.source`
   arrays only, not total process memory.
 - Source budget is soft because protected documents may temporarily exceed it.
-- Normal load has priority over preload.
-- The merged preload baseline remains exactly `plan(+1)` with fixed concurrency
-  one; promotion, additional directions/workers, and resource tuning are deferred.
+- The preload baseline remains direction `+1`, depth exactly one Folder Position,
+  fixed preload concurrency one, normal pool max two, and preload pool max one.
+- Running-preload promotion is logical foreground authority transfer, not thread
+  migration or a scheduler rewrite.
+- Only an exact RUNNING, current, not-cancelled request may promote. Queued,
+  stale, mismatched, already-resident, or superseded work follows existing
+  correctness paths.
+- Cancellation remains advisory. Token/generation/request identity is the
+  correctness authority for every late result.
 - Diagnostics observation may not start/cancel work, touch either LRU, scan files,
   calculate Difference, refresh preload, or change selection/rendering.
 - Diagnostics output is bounded, timestamp-free, deterministic for unchanged
@@ -138,7 +147,10 @@ Implemented by P2-A through P2-D:
   that obtains a snapshot, formats it once, copies the exact canonical text, and
   reports status-bar feedback. No diagnostics modal/live monitor/file export.
 
-P2-E remains characterization and phase hardening, not a new broad runtime boundary.
+P2-E minimally extends `PreloadController` with running/promotion authority and a
+promotion counter, and extends `MainWindow` with the corresponding foreground
+reuse lifecycle. P2-F remains characterization and phase hardening, not a new
+broad runtime boundary.
 
 ## Slice definitions
 
@@ -178,38 +190,16 @@ packaged release identity.
 Status: Complete; merged as PR #15.
 Branch: `feature/p2-a-settings-foundation`
 
-- Frozen typed `ApplicationSettings` with RAW confirmation, exact RAW file-size
-  validation, optional default Open/Export folders, Difference Threshold/Gain,
-  and Difference Map Cache MiB.
-- `SettingsRepository` plus QSettings adapter.
-- Schema version 3, schema-v2/v1 migration, legacy RAW migration, validation,
-  defaults, reset, invalid-state normalization, and non-destructive future-schema
-  handling.
+- Frozen typed `ApplicationSettings`, schema-aware repository/adapter,
+  RAW preference migration, exact RAW validation, optional Open/Export folders,
+  Difference Threshold/Gain defaults, and Difference Map Cache MiB.
 - `Edit > Settings...` with left-side General / Files / Performance navigation
   and flat VS Code-inspired content hierarchy.
-- General is the sole persistent UI surface for **Don't Show RAW JSON Profiles**;
-  the duplicate File-menu action is removed while RAW-dialog opt-in remains.
-- **Require Exact RAW File Size** propagates through `MainWindow` →
-  `ImageLoadWorker` → `read_raw`. The same exact/minimum byte rule controls JSON
-  sidecar auto-approval.
-- RAW don't-show-again uses a single-field immutable settings update and preserves
-  all other schema-v3 values.
-- General **Threshold** and **Gain** initialize `DifferencePanel` from persisted
-  settings and apply immediately to the live panel after Settings saves.
-- Files contains optional **Default Open Folder** and **Default Export Folder**.
-  Blank preserves last-used-folder behavior; configured existing paths only seed
-  file-dialog start locations.
-- Difference Map Cache default 512 MiB, accepted range 64–8192 MiB.
-- Immutable byte-based `PerformanceSettings` startup snapshot injected through
-  `MainWindow` → `DifferencePanel` → `DifferenceMapCache`.
-- Restart-required indication compares the editable Difference Map Cache value
-  with the current runtime snapshot; live cache mutation is prohibited.
+- RAW don't-show-again partial updates preserve every other current setting.
+- Difference Threshold/Gain apply live; startup-only cache settings use restart
+  indication without mutating existing runtime cache ownership.
 - `Reset Settings` resets application preferences only and does not reset
   workspace/session persistence.
-- Docking/layout settings are deliberately excluded because exact workspace
-  state already owns those values.
-- Broader export format/naming controls are deferred until the export surface is
-  broader than Statistics CSV.
 - Durable agent provenance rules recorded for future ChatGPT/Codex work.
 
 Excluded: source-residency budget, preload, diagnostics UI, installer, and signing.
@@ -255,9 +245,8 @@ Status: Complete; merged as PR #17 at
 
 ### P2-D — Runtime diagnostics and failure visibility
 
-Status: Active on `feature/p2-d-runtime-diagnostics`; Copy-only review follow-up
-implemented. Fresh standard validation and owner Windows Copy smoke remain merge
-gates until observed.
+Status: Complete; merged as PR #18 at
+`a7b4ddf62af95e86b9d9e38a4328cf9572226114`.
 
 - Produces frozen deterministic source-residency, Difference-cache, worker,
   preload, stale-drop, and bounded recent-failure state.
@@ -270,49 +259,152 @@ gates until observed.
   obtains one snapshot, formats once, copies the exact sanitized text, and shows
   **Diagnostics copied to clipboard** in the status bar.
 - Removes the previous diagnostics dialog, Refresh flow, Save as Text export, and
-  their dialog-only tests. P2-E and automated tests consume
-  `MainWindow.runtime_diagnostics_snapshot()` directly.
+  their dialog-only tests.
 - Reads only cheap existing properties/registries. Observation does not touch an
   LRU, start/cancel work, refresh preload, scan files, or change selection/render.
-- Preserves P2-C exactly-one-ahead, fixed-one-concurrency, foreground-priority
-  preload semantics; scheduler/policy optimization remains deferred.
+- Preserves P2-C exactly-one-ahead and fixed-one-concurrency preload semantics.
 
-### P2-E — Performance characterization and phase hardening
+### P2-E — Running Preload Promotion / Foreground Reuse
+
+Status: Active on `feature/p2-e-preload-promotion`.
+
+#### Goal
+
+A matching RUNNING preload that becomes foreground-required must be reused by
+logical authority promotion instead of being cancelled merely to start the same
+decode again.
+
+#### Promotion contract
+
+- Promotion is attempted before old-plan invalidation for the future selection.
+- The existing `TaskWorker.started` signal establishes RUNNING state. A queued or
+  not-yet-started preload is not promoted.
+- Eligibility requires exact target document ID, document generation,
+  source-path identity, RAW-profile identity, exact RAW-size policy, captured
+  normal-load token, current registered document existence, non-resident source,
+  RUNNING/not-cancelled state, current/not-superseded request, and no duplicate
+  normal worker for the same target.
+- Accepted promotion changes logical authority from speculative to foreground.
+  The physical `ImageLoadWorker` stays in the preload `QThreadPool`; there is no
+  QThreadPool migration.
+- Promotion advances foreground token authority, marks the target Loading,
+  removes it from speculative cancellation ownership, and protects it as
+  foreground-required residency input.
+- Plan invalidation after promotion may cancel obsolete speculative workers but
+  must not cancel the promoted worker solely because its former plan changed.
+- `_ensure_loaded()` must not start a second decoder for a promoted target.
+- The promoted worker remains physically in the max-one preload pool until it
+  finishes, so new speculative preload does not start concurrently with it.
+- Pair/group behavior is member-wise: at most the matching RUNNING preload member
+  is promoted; other required members follow ordinary foreground loading.
+- Promoted success goes through normal foreground success exactly once, including
+  exact source-byte accounting, MRU, Files state, batch render, eviction, and
+  Ready/status lifecycle.
+- Promoted failure goes through normal foreground failure exactly once, including
+  document error/status and P2-D `foreground-load/decode` Recent Failure
+  semantics. It is not also a preload failure.
+- Navigation away after promotion uses ordinary foreground advisory cancellation
+  and token/generation/request stale rejection. Late completion cannot overwrite
+  newer state.
+- Already-resident next targets retain the existing immediate-reuse path.
+- RAW promotion uses the same worker/decode and requires exact RAW profile and
+  exact-size policy identity; no speculative RAW dialog is introduced.
+
+#### Diagnostics contract
+
+- Add only deterministic promotion observability, represented by
+  `promotion_count` / **Promoted to foreground: N**.
+- A promoted physical preload worker is logically foreground work and must not be
+  double-counted as both foreground and speculative preload activity.
+- `PreloadDiagnostics.active_worker_count` represents speculative active requests
+  after promoted ownership is excluded.
+- Diagnostics reads remain observation-only and deterministic.
+
+#### Explicit exclusions
+
+- Previous/bidirectional preload.
+- Next-next/deeper preload.
+- Preload concurrency above one.
+- Configurable worker count or CPU/I/O aggressiveness.
+- New Performance settings or settings-schema change.
+- Generic worker scheduler or thread migration architecture.
+- Process RSS/profiler telemetry or benchmark dashboard.
+- Broad `MainWindow` rewrite.
+- P2-F final performance matrix or any P3 work.
+
+#### P2-E deterministic merge gates
+
+- Core controller accepts only valid RUNNING exact promotion, rejects stale and
+  cancelled requests, promotes once, increments promotion count, removes the
+  request from speculative active/cancellation ownership, and preserves promoted
+  authority across plan invalidation.
+- Runtime PageDown from a RUNNING A2 preload reuses the exact same worker/decode;
+  no `_start_load()`/second decoder is started for A2 and promotion alone does not
+  request cancellation of that worker.
+- Promoted source becomes foreground Loading and selected-batch completion waits
+  for it alongside ordinary foreground members.
+- Promoted success uses normal foreground application and residency exactly once.
+- Promoted failure uses foreground error/diagnostics exactly once.
+- Navigation away stales/cancels promoted foreground authority correctly and late
+  completion cannot overwrite newer document state.
+- Pair/group test demonstrates one promoted member plus normal foreground loading
+  for another member with no duplicate decode.
+- RAW promotion preserves profile/exact-size identity.
+- Already-resident, unmatched/stale, disabled preload, low-budget residency, and
+  exactly-one-ahead/max-one behavior remain unchanged.
+- Diagnostics promotion counter and logical worker classification are deterministic
+  and do not mutate runtime state.
+- No wall-clock threshold is used as proof of improvement; the merge gate is
+  deterministic duplicate-decode elimination.
+
+### P2-F — Performance Characterization & Phase Hardening
+
+Status: Next after P2-E merge.
+
+The former P2-E hardening scope moves here unchanged in intent, and evaluates the
+completed P2 runtime including running-preload promotion.
 
 - Integrate P2 and complete default/migration/invalid-state tests.
 - Characterize FHD/UHD, uint8/uint16, RGB/grayscale/Bayer/RAW, low budgets,
   oversized sources, rapid navigation, cancellation, and diagnostics.
 - Consume the P2-D snapshot API directly for deterministic characterization where
-  useful; do not add a live diagnostics UI solely for P2-E.
+  useful; do not add a live diagnostics UI solely for P2-F.
 - Add deterministic smoke checks rather than unstable timing thresholds.
 - Complete durable P2 documentation without adding a large feature.
+- Use evidence from the completed runtime to decide whether any later preload
+  direction/depth/concurrency/resource tuning is warranted; P2-F does not assume
+  such tuning is necessary.
 
 ## Merge gates
 
 - **P2-A1:** complete and merged as PR #14.
 - **P2-A2:** complete and merged as PR #15.
-- **P2-B:** deterministic accounting, protection, eviction, oversized-source, and
-  reload tests; fixed-count policy no longer authoritative.
-- **P2-C:** complete and merged as PR #17; normal-load priority, bounded ownership,
-  stale-result rejection, and fixed exactly-one-ahead preload remain authoritative.
-- **P2-D:** deterministic sanitized snapshot, bounded accepted failure history,
-  complete credential redaction, stale preload-failure rejection, observation-only
-  inspection, exact canonical clipboard output, status feedback, no old
-  diagnostics dialog/export, focused automated regressions, and owner Windows
-  Copy smoke.
-- **P2-E:** full standard validation, deterministic performance smoke coverage,
-  Windows characterization, and coherent durable docs.
+- **P2-B:** complete and merged as PR #16; deterministic accounting, protection,
+  eviction, oversized-source, and reload behavior remain authoritative.
+- **P2-C:** complete and merged as PR #17; bounded exactly-one-ahead preload and
+  stale-result rejection remain authoritative.
+- **P2-D:** complete and merged as PR #18; deterministic sanitized snapshot,
+  bounded accepted failure history, observation-only Copy Diagnostics, and no
+  live diagnostics surface remain authoritative.
+- **P2-E:** deterministic authority-promotion coverage, duplicate decode removal,
+  foreground success/failure parity, rapid-navigation stale safety, pair/group and
+  RAW coverage, no worker-policy expansion, diagnostics promotion observability,
+  full standard validation, and coherent durable docs.
+- **P2-F:** full standard validation, deterministic performance smoke coverage,
+  Windows characterization, final resource-policy evidence review, and coherent
+  P2 completion docs.
 
 ## Validation
 
-P2-D focused checks:
+P2-E focused checks:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_diagnostics.py `
-    tests\ui\test_runtime_diagnostics.py `
-    tests\ui\test_ui_smoke.py::test_application_and_selection_driven_main_window `
-    tests\ui\test_toolbar_icons.py::test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette
+    tests\unit\test_preload_controller.py `
+    tests\unit\test_runtime_diagnostics.py `
+    tests\ui\test_preload_runtime.py `
+    tests\ui\test_preload_promotion.py `
+    tests\ui\test_runtime_diagnostics.py
 ```
 
 Full repository contract for this runtime/docs change:
@@ -327,33 +419,27 @@ Full repository contract for this runtime/docs change:
 git diff --check
 ```
 
-Before the Copy-only review follow-up, focused P2-D tests reported 20 passed. Full
-pytest reported 378 passed and the same three offscreen-only failures reproduced
-from an isolated `origin/main@812982dacdecca155f7b53ab42ef2bd9fba68a77`
-archive: floating Plots geometry restore and two pyqtgraph hover-coordinate
-assertions. No skip or expectation rewrite was added. Those results are prior
-evidence only; the follow-up requires a fresh focused/full run before merge.
+Connector-only implementation must not claim these commands passed unless their
+actual output is observed. Owner/local execution of the exact commands above is
+the validation source when the connector environment cannot run Python/Qt tests.
 
 ## Manual Windows matrix
 
-P2-D merge requires owner validation of:
+P2-E does not use subjective speedup as a merge gate. A practical owner smoke may
+confirm:
 
-1. **Help > Copy Diagnostics** exists and the previous **Diagnostics...** modal
-   surface is absent.
-2. Triggering Copy places the canonical current diagnostics text on the clipboard,
-   shows **Diagnostics copied to clipboard**, and causes no visible stall or new
-   runtime work.
-3. Registered paths, usernames, credential/token values, traceback content, and
-   image content are absent from realistic failure samples.
-4. Repeated Copy with unchanged runtime state is identical and timestamp-free;
-   foreground loading, exactly-one-ahead fixed-one preload, Difference, and source
-   residency behavior remain unchanged.
+1. With preload enabled, PageDown during a visible next-position preload transition
+   remains responsive and the selected image reaches normal Ready/error behavior.
+2. Pair/group navigation still loads all required members and preserves fixed
+   one-position-ahead behavior.
+3. RAW navigation does not open a speculative RAW dialog and promoted RAW uses the
+   registered profile.
+4. **Help > Copy Diagnostics** remains on-demand only and includes
+   **Promoted to foreground: N** after a promotion without exposing private data.
 
-Later-slice matrices remain:
-
-- **P2-E:** agreed FHD/UHD and RAW matrix on Windows 10/11.
-- **P7:** executable file, pinned shortcut, installer shortcut, final packaged
-  shell grouping, signing, and clean-PC release smoke.
+P2-F owns the agreed FHD/UHD and RAW characterization matrix on Windows 10/11.
+P7 owns executable-file, pinned-shortcut, installer-shortcut, final packaged shell
+grouping, signing, and clean-PC release smoke.
 
 ## Owner decisions
 
@@ -370,9 +456,14 @@ Resolved:
 - Dock/layout persistence remains workspace-owned rather than duplicated in
   Settings.
 - Preload default: Enabled.
+- P2-E promotion: exact matching RUNNING request only; authority transition in
+  place; no thread migration.
+- P2-E resource policy: unchanged `+1`, one-position depth, preload concurrency
+  one, no new Performance setting.
+- P2-F owns final characterization/hardening and evidence-based resource-policy
+  review.
 
-Pending: none for P2-D product design. Preload promotion, concurrency, direction,
-and resource controls remain deferred pending P2-E/post-P2 evidence.
+Pending: none for P2-E product design.
 
 ## Progress log
 
@@ -380,7 +471,7 @@ and resource controls remain deferred pending P2-E/post-P2 evidence.
 - 2026-08-07: P2-0 merged as PR #13.
 - 2026-08-07: PR #14 established and completed the P2-A1 identity/resource
   foundation; merge commit `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
-- 2026-08-07: P2-A2 implementation added typed/versioned application settings,
+- 2026-08-08: P2-A2 implementation added typed/versioned application settings,
   RAW preference migration, Settings UI, restart/reset semantics, and Difference
   startup injection on `feature/p2-a-settings-foundation`.
 - 2026-08-08: P2-A2 evolved to schema v3 with exact RAW validation and persistent
@@ -388,43 +479,34 @@ and resource controls remain deferred pending P2-E/post-P2 evidence.
 - 2026-08-08: final review found three runtime integration gaps and stale v2
   documentation. Exact RAW propagation/sidecar matching, Difference-default
   startup/live application, immutable RAW preference preservation, regression
-  coverage, and durable schema-v3 documentation were added. Fresh full
-  validation remains the final merge gate.
+  coverage, and durable schema-v3 documentation were added.
 - 2026-08-08: P2-A2 merged as PR #15. P2-B replaced the fixed-count residency
   authority with exact byte accounting, protected LRU planning, reload and
   invalidation integration, independent startup budgets, and schema v4.
 - 2026-08-08: PR #16 review fixes restored this phase-level plan, aligned durable
   validation evidence, hardened positive-integer budget contracts, and added
   normal-worker oversized-source and real Difference lifecycle regressions.
-- 2026-08-08: Latest automated evidence is 309 passed / 3 reproducible
-  offscreen-only failures. The same three tests fail from an isolated
-  `origin/main` archive under the identical environment, confirming they are not
-  P2-B regressions. Ruff, format, mypy, docs, dependency, performance, diff, and
-  startup checks passed before PR #16 merged.
 - 2026-08-08: P2-B merged as PR #16. P2-C generalized registered Folder Position
   navigation, added a shared planner and bounded preload controller/runtime,
-  schema-v5 enablement, ordinary residency retention, race/RAW tests, and
-  minimal counters. Full automated validation reports 359 passed / the same
-  three reproducible offscreen baseline failures; manual Windows validation is pending.
-- 2026-08-08: PR #17 review follow-up bounds cancellation de-duplication state to
-  the active worker lifecycle and adds a 100-generation regression. Latest full
-  validation reports 360 passed / the same three reproducible offscreen baseline
-  failures. The owner reports basic Windows behavior checked; the full manual
-  matrix remains pending.
+  schema-v5 enablement, ordinary residency retention, race/RAW tests, and minimal
+  counters.
+- 2026-08-08: PR #17 review follow-up bounded cancellation de-duplication state to
+  the active worker lifecycle and added a 100-generation regression.
 - 2026-08-09: P2-C merged as PR #17 at
-  `812982dacdecca155f7b53ab42ef2bd9fba68a77`. P2-D added the immutable diagnostics
-  core/formatter (`4ad6f20`), runtime aggregation and stale/failure instrumentation
-  (`92e484b`), Help/Copy/Save UI (`eac66b5`), and Help-menu regression fix
-  (`b678cc4`). Focused diagnostics validation reported 20 passed; full pytest
-  reported 378 passed / three failures reproduced on the merged baseline.
+  `812982dacdecca155f7b53ab42ef2bd9fba68a77`. P2-D added immutable runtime
+  diagnostics, sanitized bounded failure visibility, and support-copy behavior.
 - 2026-08-09: PR #18 independent review redirected the end-user surface to
-  **Help > Copy Diagnostics** only and identified credential-value, stale preload
-  failure-history, and ROADMAP blockers. The follow-up removes dialog/export code,
-  gates preload failure history on controller acceptance, hardens credential
-  sanitization, adds regressions, and reconciles durable documentation. Fresh
-  standard validation and owner Windows Copy smoke remain before merge.
+  **Help > Copy Diagnostics** only and hardened credential redaction, stale
+  preload-failure filtering, deterministic copy behavior, and durable docs.
+- 2026-08-09: P2-D merged as PR #18 at
+  `a7b4ddf62af95e86b9d9e38a4328cf9572226114`.
+- 2026-08-09: P2 program sequence changed to insert P2-E Running Preload Promotion
+  before final hardening. `feature/p2-e-preload-promotion` adds exact RUNNING
+  request authority promotion, foreground result/failure parity, rapid-navigation
+  stale protection, promotion diagnostics, and deterministic duplicate-decode
+  regressions. The prior hardening scope becomes P2-F.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
-  after the major phases; it is not a P2-A2 merge blocker.
+  after the major phases; it is not a P2 merge blocker.
 
 ## P2 exit criteria
 
@@ -433,7 +515,11 @@ and resource controls remain deferred pending P2-E/post-P2 evidence.
   live analysis defaults.
 - Native source residency is byte-accounted with protection, eviction, reload,
   and diagnostics.
-- Preload is bounded, lower priority than normal load, and rejects stale results.
+- Preload remains bounded, lower priority than normal load, and rejects stale
+  results.
+- An exact matching RUNNING preload that becomes foreground-required is reused by
+  authority promotion rather than cancelled merely to start the same decode.
 - Diagnostics are deterministic, sanitized, inexpensive to observe, and exposed
   to users only through on-demand support copy.
-- P2 passes the full repository contract and agreed Windows characterization.
+- P2-F characterizes/hardens the completed runtime and P2 passes the full
+  repository contract and agreed Windows characterization before closure.
