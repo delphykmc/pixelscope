@@ -172,6 +172,7 @@ class PreloadController:
         request_key = (request.plan_generation, request.document_id)
         if self._active_requests.get(request_key) == request:
             self._active_requests.pop(request_key)
+            self._cancelled_requests.discard(request_key)
 
     def _is_current_target(self, generation: int, document_id: str) -> bool:
         return (

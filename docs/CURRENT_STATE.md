@@ -158,7 +158,8 @@ This document records the implementation baseline that new work must use.
   cancellation. Correctness relies on plan/document generation, path/profile,
   exact-RAW-policy, and normal-load-token validation before result application.
   A normal load never waits for speculative work; short duplicate decode is
-  allowed and late preload results are dropped.
+  allowed and late preload results are dropped. Cancellation de-duplication state
+  exists only for an active worker request and is discarded on worker completion.
 - Valid preload results become ordinary native source residency, receive no
   special protection, and may be evicted immediately under source-budget pressure.
   Speculative failure is silent and leaves normal retry available.
@@ -174,14 +175,15 @@ This document records the implementation baseline that new work must use.
 
 ## Validation evidence
 
-Focused P2-C navigation/preload/settings integration validation reports 125
+Focused P2-C navigation/preload/settings integration validation reports 120
 passed; the selected keyboard/navigation smoke slice reports 6 passed and 33
-deselected. Full pytest reports 359 passed with three reproducible offscreen
+deselected. Full pytest reports 360 passed with three reproducible offscreen
 failures: floating Plots geometry restore and two pyqtgraph hover-coordinate
 assertions. The same three tests fail from an isolated `origin/main` archive in
 the identical environment, confirming they are baseline/environment failures,
-not P2-C regressions. They were not skipped or rewritten. Manual Windows P2-C
-navigation/preload validation remains outstanding before merge.
+not P2-C regressions. They were not skipped or rewritten. The owner reports that
+basic Windows behavior was checked; the complete P2-C manual matrix remains
+outstanding before merge.
 
 ## Active plan
 

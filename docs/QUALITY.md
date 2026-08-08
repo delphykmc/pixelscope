@@ -83,9 +83,9 @@ Preserve deterministic fixtures and smoke paths for:
   resident sources when their bytes fit.
 - Exactly-one-position preload, foreground-idle start, separate max-one pool,
   resident reuse, disabled runtime, rapid navigation, plan replacement,
-  cancellation request, late-result rejection, removal/generation/profile races,
-  RAW exact-size/profile reuse, silent retryable failure, and ordinary
-  low-budget residency eviction without a reload loop.
+  worker-lifetime-bounded cancellation de-duplication, late-result rejection,
+  removal/generation/profile races, RAW exact-size/profile reuse, silent retryable
+  failure, and ordinary low-budget residency eviction without a reload loop.
 - Canonical application-icon loading from package resources independent of CWD.
 
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer

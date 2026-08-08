@@ -221,7 +221,8 @@ Status: Complete; merged as PR #16.
 ### P2-C — Bounded next-position preload
 
 Status: Active on `feature/p2-c-folder-preload`; implementation and automated
-validation complete, owner manual Windows validation pending.
+validation complete. The owner reports basic Windows behavior checked; the full
+manual Windows matrix remains pending.
 
 - Generalizes the former two-folder runtime navigation to one-to-six-folder Folder
   Position semantics with atomic endpoint behavior.
@@ -231,6 +232,8 @@ validation complete, owner manual Windows validation pending.
 - Uses a separate max-one pool so normal loads never wait behind preload.
 - Requests cancellation on replacement and rejects late results by plan,
   document generation, path/profile/exact-size identity, and normal-load token.
+- Retains cancellation de-duplication only for the active worker request and
+  discards that per-request state when the worker finishes.
 - Applies valid results to ordinary source residency with no preload protection;
   low-budget eviction is allowed and does not restart the same completed plan.
 - Extends schema v5 and Performance with enabled-by-default, startup-only
@@ -293,11 +296,12 @@ Full repository contract for this runtime/docs change:
 git diff --check
 ```
 
-On the latest working head, focused P2-C tests report 125 passed and the selected
+On the latest working head, focused P2-C tests report 120 passed and the selected
 keyboard/navigation smoke slice reports 6 passed / 33 deselected. Full pytest
-reports 359 passed and the same three offscreen-only
+reports 360 passed and the same three offscreen-only
 failures reproduced on `origin/main`: floating Plots geometry restore and two
-pyqtgraph hover-coordinate assertions. Manual Windows validation remains open.
+pyqtgraph hover-coordinate assertions. The owner reports basic Windows behavior
+checked; the complete manual matrix remains open.
 
 ## Manual Windows matrix
 
@@ -373,6 +377,11 @@ Pending: none for P2-C.
   schema-v5 enablement, ordinary residency retention, race/RAW tests, and
   minimal counters. Full automated validation reports 359 passed / the same
   three reproducible offscreen baseline failures; manual Windows validation is pending.
+- 2026-08-08: PR #17 review follow-up bounds cancellation de-duplication state to
+  the active worker lifecycle and adds a 100-generation regression. Latest full
+  validation reports 360 passed / the same three reproducible offscreen baseline
+  failures. The owner reports basic Windows behavior checked; the full manual
+  matrix remains pending.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2-A2 merge blocker.
 

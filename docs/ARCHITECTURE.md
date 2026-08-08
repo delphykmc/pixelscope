@@ -182,6 +182,8 @@ same source is still decoding speculatively. Late or incompatible results are
 dropped; cancellation is not correctness authority. Valid results enter normal
 source residency, receive no preload protection, and may be evicted immediately.
 Preload failures do not mutate the document into foreground error state.
+Cancellation-request de-duplication is retained only while its worker request is
+active and is discarded together with that request when the worker finishes.
 
 ## Current Difference lifecycle
 

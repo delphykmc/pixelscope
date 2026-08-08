@@ -113,6 +113,28 @@ def test_diagnostics_count_cancellation_and_failure_without_history() -> None:
     assert diagnostics.active_worker_count == 1
 
 
+def test_cancellation_deduplication_is_bounded_to_active_worker_lifetime() -> None:
+    controller = PreloadController()
+
+    for index in range(100):
+        document_id = f"document-{index}"
+        plan = controller.set_plan((document_id,))
+        assert plan is not None
+        request = _request(plan.generation, document_id)
+        assert controller.start_member(request)
+
+        controller.record_cancellation_request(request)
+        controller.record_cancellation_request(request)
+        controller.invalidate()
+        controller.record_cancellation_request(request)
+        controller.finish_worker(request)
+
+        assert controller.diagnostics.active_worker_count == 0
+        assert controller._cancelled_requests == set()
+
+    assert controller.diagnostics.cancellation_request_count == 100
+
+
 @pytest.mark.parametrize("targets", ((), ("",), ("a", "a"), tuple(str(i) for i in range(7))))
 def test_invalid_or_empty_target_groups_do_not_expand_ownership(
     targets: tuple[str, ...],
