@@ -112,7 +112,7 @@ def test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette(qtbot: o
     assert not window.redock_plots_action.icon().isNull()
     assert "QMenu::item:disabled" in window.menuBar().styleSheet()
     popup_menus = window.menuBar().findChildren(QMenu)
-    assert len(popup_menus) == 4
+    assert len(popup_menus) == 5
     assert all("QMenu::item:disabled" in menu.styleSheet() for menu in popup_menus)
     assert all(
         menu.style().styleHint(QStyle.StyleHint.SH_EtchDisabledText) == 0 for menu in popup_menus
