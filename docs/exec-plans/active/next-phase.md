@@ -46,19 +46,24 @@ optimization.
   package-data declaration, CWD-independent resource loading, stable Windows
   source-run AppUserModelID, and `QApplication`/main-window icon assignment.
 - P2-A2 implements frozen typed `ApplicationSettings`, schema-aware
-  `SettingsRepository` + `QSettingsAdapter`, RAW preference migration,
-  multi-page Settings UI, optional file-dialog locations, restart/reset
-  semantics, and Difference-cache startup injection. Merge and final owner
-  validation remain pending in the active PR.
-- Settings schema v2 owns General RAW confirmation, Files default Open/Export
-  folders, and Performance Difference-cache MiB. Schema v1 migrates forward.
-- Difference cache preference defaults to 512 MiB and accepts 64–8192 MiB.
+  `SettingsRepository` + `QSettingsAdapter`, RAW preference migration, a flat
+  VS Code-inspired Settings UI, optional file-dialog locations, exact RAW size
+  policy, live Difference Threshold/Gain defaults, restart/reset semantics, and
+  Difference Map Cache startup injection.
+- Settings schema v3 owns RAW confirmation, exact RAW validation, Files default
+  Open/Export folders, Difference Threshold/Gain, and Performance Difference Map
+  Cache MiB. Schema v2/v1 migrate forward.
+- Difference Map Cache preference defaults to 512 MiB and accepts 64–8192 MiB.
 - Source residency remains a reloadable fixed seven-document policy in
-  `MainWindow`; visible documents and active load targets are protected.
+  `MainWindow`; visible documents and active load targets are protected. This
+  remains P2-B scope and is independent of Difference Map Cache.
 - Image loading uses a pool capped at two workers; shared numerical work uses a
   pool capped at four.
 - Normal-load stale-result handling relies on target document ID, load tokens,
   worker registration, and cancelled-worker rejection.
+- A final review found runtime-integration gaps after the owner had recorded a
+  passing suite on the prior head. The gaps have been corrected; a fresh full
+  validation run is required before P2-A2 merges.
 
 ## Invariants
 
@@ -77,11 +82,12 @@ optimization.
   model. Workspace/session keys remain separately owned.
 - Exact dock geometry, splitters, layout mode, and Plots visibility remain
   workspace state and are not duplicated as application defaults.
-- Performance settings are immutable startup snapshots; startup-only changes
-  require restart indication and never live-mutate existing runtime caches.
-- File-location and RAW confirmation preferences are live settings and do not
-  require restart.
-- Difference cache and decoded-source residency remain separate budgets.
+- Performance settings are immutable startup snapshots; startup-only cache
+  changes require restart indication and never live-mutate existing runtime
+  caches.
+- File-location, RAW, Difference Threshold, and Difference Gain preferences are
+  live settings and do not require restart.
+- Difference Map Cache and decoded-source residency remain separate budgets.
 - Source-residency accounting covers native decoded `ImageDocument.source`
   arrays only, not total process memory.
 - Source budget is soft because protected documents may temporarily exceed it.
@@ -141,28 +147,37 @@ Excluded: settings models, Settings UI, Difference startup injection,
 PyInstaller icon binding, installer, signing, pinned shortcuts, and final
 packaged release identity.
 
-### P2-A2 — Settings foundation and Difference startup injection
+### P2-A2 — Settings foundation and runtime integration
 
-Status: Active; Settings UX follow-up and final owner validation pending.  
+Status: Active; final blocker fixes implemented, fresh owner validation pending.  
 Branch: `feature/p2-a-settings-foundation`
 
-- Frozen typed `ApplicationSettings` with RAW confirmation, optional default
-  Open/Export folders, and Difference cache MiB.
+- Frozen typed `ApplicationSettings` with RAW confirmation, exact RAW file-size
+  validation, optional default Open/Export folders, Difference Threshold/Gain,
+  and Difference Map Cache MiB.
 - `SettingsRepository` plus QSettings adapter.
-- Schema version 2, schema-v1 migration, legacy RAW migration, validation,
+- Schema version 3, schema-v2/v1 migration, legacy RAW migration, validation,
   defaults, reset, invalid-state normalization, and non-destructive future-schema
   handling.
-- `Edit > Settings...` with left-side General / Files / Performance navigation.
+- `Edit > Settings...` with left-side General / Files / Performance navigation
+  and flat VS Code-inspired content hierarchy.
 - General is the sole persistent UI surface for **Don't Show RAW JSON Profiles**;
   the duplicate File-menu action is removed while RAW-dialog opt-in remains.
+- **Require Exact RAW File Size** propagates through `MainWindow` →
+  `ImageLoadWorker` → `read_raw`. The same exact/minimum byte rule controls JSON
+  sidecar auto-approval.
+- RAW don't-show-again uses a single-field immutable settings update and preserves
+  all other schema-v3 values.
+- General **Threshold** and **Gain** initialize `DifferencePanel` from persisted
+  settings and apply immediately to the live panel after Settings saves.
 - Files contains optional **Default Open Folder** and **Default Export Folder**.
   Blank preserves last-used-folder behavior; configured existing paths only seed
   file-dialog start locations.
-- Difference cache default 512 MiB, accepted range 64–8192 MiB.
+- Difference Map Cache default 512 MiB, accepted range 64–8192 MiB.
 - Immutable byte-based `PerformanceSettings` startup snapshot injected through
   `MainWindow` → `DifferencePanel` → `DifferenceMapCache`.
-- Restart-required indication compares the editable Difference value with the
-  current runtime snapshot; live cache mutation is prohibited.
+- Restart-required indication compares the editable Difference Map Cache value
+  with the current runtime snapshot; live cache mutation is prohibited.
 - `Reset Settings` resets application preferences only and does not reset
   workspace/session persistence.
 - Docking/layout settings are deliberately excluded because exact workspace
@@ -211,11 +226,12 @@ Status: Next after P2-A2 merge.
 ## Merge gates
 
 - **P2-A1:** complete and merged as PR #14.
-- **P2-A2:** fresh/saved/schema-v1/legacy/invalid/future/reset settings tests,
-  category-page Settings UI tests, file-location behavior, Settings-only RAW
-  preference regression, restart indication, Difference budget startup
-  injection, P2-A1 application-icon regression, full repository contract, and
-  manual Windows settings/startup validation.
+- **P2-A2:** schema-v3 fresh/save/reset/migration/invalid/future tests,
+  category-page Settings UI tests, file-location behavior, exact RAW worker/reader
+  and sidecar-policy integration, RAW partial-update preservation, persisted and
+  live Difference Threshold/Gain integration, Difference Map Cache startup
+  injection/restart indication, P2-A1 application-icon regression, durable-doc
+  contract, full repository contract, and manual Windows Settings validation.
 - **P2-B:** deterministic accounting, protection, eviction, oversized-source, and
   reload tests; fixed-count policy no longer authoritative.
 - **P2-C:** normal-load priority, bounded ownership, cancellation request,
@@ -231,14 +247,16 @@ P2-A2 focused checks:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
     tests\unit\test_settings_repository.py `
+    tests\unit\test_settings_schema_v3.py `
     tests\ui\test_settings_dialog.py `
+    tests\ui\test_settings_v3_controls.py `
+    tests\ui\test_settings_v3_runtime_integration.py `
     tests\ui\test_p1c_raw_json_preference.py `
     tests\ui\test_difference_cache_panel.py `
     tests\ui\test_application_icon.py
 ```
 
-Full repository contract for runtime, test, script, dependency, or packaging
-changes:
+Full repository contract for this runtime/docs change:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -250,6 +268,8 @@ changes:
 git diff --check
 ```
 
+No post-fix pass is claimed until the owner runs this contract on the new head.
+
 ## Manual Windows matrix
 
 P2-A2 merge requires owner validation of:
@@ -258,19 +278,23 @@ P2-A2 merge requires owner validation of:
 2. P2-A1 title/taskbar icon behavior has no regression.
 3. **Edit > Settings...** opens with General / Files / Performance navigation.
 4. **Don't Show RAW JSON Profiles** is absent from File and persists from General.
-5. Existing RAW JSON confirmation and don't-show-again behavior remain correct.
-6. Blank Default Open/Export folders retain last-used-folder behavior.
-7. Configured Default Open Folder seeds Open Images/Open Folder/Open RAW dialogs.
-8. Configured Default Export Folder seeds Statistics CSV export.
-9. Unavailable configured folders fall back to the remembered last directory.
-10. Difference cache value displays correctly.
-11. Changing Difference cache shows restart-required indication.
-12. Restart applies the changed Difference cache budget.
-13. File-location or RAW-only changes do not require restart.
-14. **Reset Settings** restores application defaults.
-15. **Reset Workspace Layout** and **Reset Settings** do not affect each other's
+5. RAW don't-show-again preserves all other schema-v3 Settings values.
+6. Oversized RAW loads when exact validation is off and fails when it is on.
+7. JSON sidecar auto-approval follows the same exact/minimum byte policy.
+8. Persisted Difference Threshold/Gain initialize the Difference panel.
+9. Saving Threshold/Gain updates the current Difference panel without restart.
+10. Blank Default Open/Export folders retain last-used-folder behavior.
+11. Configured Default Open Folder seeds Open Images/Open Folder/Open RAW dialogs.
+12. Configured Default Export Folder seeds Statistics CSV export.
+13. Unavailable configured folders fall back to the remembered last directory.
+14. Difference Map Cache value displays correctly.
+15. Changing Difference Map Cache shows restart-required indication.
+16. Restart applies the changed Difference Map Cache budget.
+17. File-location, RAW, Threshold, or Gain-only changes do not require restart.
+18. **Reset Settings** restores application defaults.
+19. **Reset Workspace Layout** and **Reset Settings** do not affect each other's
     owned state.
-16. Invalid persisted application settings recover without startup failure.
+20. Invalid persisted application settings recover without startup failure.
 
 Later-slice matrices remain:
 
@@ -289,7 +313,7 @@ Resolved:
 
 - Canonical icon: blue-gray image/scope/pixel mark with restrained amber accent,
   provisional until P7 branding review.
-- Difference-cache default: 512 MiB.
+- Difference Map Cache default: 512 MiB.
 - P2-A2 cache preference range: 64–8192 MiB.
 - P2-A2 Settings template: category/page navigation using General, Files, and
   Performance.
@@ -312,14 +336,21 @@ Pending:
 - 2026-08-07: P2-A2 implementation added typed/versioned application settings,
   RAW preference migration, Settings UI, restart/reset semantics, and Difference
   startup injection on `feature/p2-a-settings-foundation`.
-- 2026-08-08: P2-A2 Settings UX follow-up adopted schema v2, General / Files /
-  Performance pages, Settings-only RAW preference ownership, and optional
-  Default Open/Export folders after reviewing candidate hard-coded defaults.
+- 2026-08-08: P2-A2 evolved to schema v3 with exact RAW validation and persistent
+  Difference Threshold/Gain defaults, plus the polished flat Settings UI.
+- 2026-08-08: final review found three runtime integration gaps and stale v2
+  documentation. Exact RAW propagation/sidecar matching, Difference-default
+  startup/live application, immutable RAW preference preservation, regression
+  coverage, and durable schema-v3 documentation were added. Fresh full
+  validation remains the final merge gate.
+- Deferred: the brief Windows startup white-frame flash is startup-polish work
+  after the major phases; it is not a P2-A2 merge blocker.
 
 ## P2 exit criteria
 
 - Settings and persistence are stable with explicit restart semantics.
-- Difference budget is loaded at startup.
+- Difference Map Cache budget is loaded at startup; Threshold/Gain are applied as
+  live analysis defaults.
 - Native source residency is byte-accounted with protection, eviction, reload,
   and diagnostics.
 - Preload is bounded, lower priority than normal load, and rejects stale results.
