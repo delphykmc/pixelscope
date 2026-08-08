@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -170,6 +170,10 @@ class MainWindow(QMainWindow):
         self.comparison_analysis_panel = ComparisonAnalysisPanel()
         self.line_profile_panel = LineProfilePanel()
         self.difference_panel = DifferencePanel(self.performance_settings.difference_cache_bytes)
+        self.difference_panel.set_display_defaults(
+            self.application_settings.difference_threshold,
+            self.application_settings.difference_gain,
+        )
         self.analysis_tabs = QTabWidget()
         self.analysis_tabs.addTab(self.comparison_analysis_panel, "Statistics")
         self.analysis_tabs.addTab(self.difference_panel, "Difference")
@@ -375,6 +379,10 @@ class MainWindow(QMainWindow):
             return
         self.application_settings = settings
         self._dont_show_raw_json_profiles = settings.dont_show_raw_json_profiles
+        self.difference_panel.set_display_defaults(
+            settings.difference_threshold,
+            settings.difference_gain,
+        )
 
     def _create_toolbar(self) -> None:
         toolbar = QToolBar("Main", self)
@@ -892,12 +900,9 @@ class MainWindow(QMainWindow):
         return document.document_id
 
     def _set_dont_show_raw_json_profiles(self, enabled: bool) -> None:
-        enabled = bool(enabled)
-        settings = ApplicationSettings(
-            dont_show_raw_json_profiles=enabled,
-            difference_cache_mib=self.application_settings.difference_cache_mib,
-            default_open_directory=self.application_settings.default_open_directory,
-            default_export_directory=self.application_settings.default_export_directory,
+        settings = replace(
+            self.application_settings,
+            dont_show_raw_json_profiles=bool(enabled),
         )
         self.settings_repository.save(settings)
         self._application_settings_saved(settings)
@@ -931,8 +936,12 @@ class MainWindow(QMainWindow):
         source_matches_profile = False
         if initial_profile is not None:
             try:
-                source_matches_profile = image_input.path.stat().st_size >= required_file_size(
-                    initial_profile
+                actual_size = image_input.path.stat().st_size
+                required_size = required_file_size(initial_profile)
+                source_matches_profile = (
+                    actual_size == required_size
+                    if self.application_settings.require_exact_raw_file_size
+                    else actual_size >= required_size
                 )
             except OSError:
                 source_matches_profile = False
@@ -1021,7 +1030,11 @@ class MainWindow(QMainWindow):
     def _start_load(self, target_id: str, path: Path, raw_profile: RawProfile | None) -> None:
         request_token = self._load_tokens.get(target_id, 0) + 1
         self._load_tokens[target_id] = request_token
-        worker = ImageLoadWorker(path, raw_profile)
+        worker = ImageLoadWorker(
+            path,
+            raw_profile,
+            require_exact_raw_size=self.application_settings.require_exact_raw_file_size,
+        )
         worker.signals.started.connect(
             lambda _task_id, _document_id, _generation: self._load_started(path)
         )

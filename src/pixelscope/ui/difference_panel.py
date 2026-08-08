@@ -176,6 +176,12 @@ class DifferencePanel(QWidget):
         control.setKeyboardTracking(True)
         return control
 
+    def set_display_defaults(self, threshold: int, gain: int) -> None:
+        """Apply persisted Difference display defaults to the live controls."""
+
+        self.threshold.setValue(threshold)
+        self.gain.setValue(gain)
+
     def set_documents(
         self,
         documents: list[ImageDocument],
