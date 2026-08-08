@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -18,6 +19,7 @@ from PySide6.QtGui import (
     QShortcut,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QDockWidget,
@@ -38,6 +40,16 @@ from PySide6.QtWidgets import (
 from pixelscope.app.settings import ApplicationSettings, SettingsRepository
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
+from pixelscope.core.diagnostics import (
+    MAX_RECENT_FAILURES,
+    DifferenceCacheDiagnostics,
+    FailureDiagnostic,
+    RuntimeDiagnosticsSnapshot,
+    SourceResidencyDiagnostics,
+    WorkerDiagnostics,
+    WorkerPoolDiagnostics,
+    format_runtime_diagnostics,
+)
 from pixelscope.core.folder_navigation import (
     FolderNavigationPlan,
     plan_folder_navigation,
@@ -128,6 +140,8 @@ class MainWindow(QMainWindow):
         self.preload_controller = PreloadController(self.performance_settings.preload_enabled)
         self._preload_workers: dict[str, TaskWorker] = {}
         self._preload_worker_requests: dict[str, PreloadMemberRequest] = {}
+        self._normal_load_stale_drop_count = 0
+        self._recent_failures: deque[FailureDiagnostic] = deque(maxlen=MAX_RECENT_FAILURES)
         self._closing = False
         self.residency_manager = ResidencyManager(self.performance_settings.source_residency_bytes)
         self._visible_document_ids: set[str] = set()
@@ -300,6 +314,7 @@ class MainWindow(QMainWindow):
             "Edit": menu_bar.addMenu("&Edit"),
             "Selection": menu_bar.addMenu("&Selection"),
             "View": menu_bar.addMenu("&View"),
+            "Help": menu_bar.addMenu("&Help"),
         }
         for menu in menus.values():
             menu.setStyleSheet(menu_style())
@@ -377,6 +392,7 @@ class MainWindow(QMainWindow):
         self.redock_plots_action.setStatusTip(self.redock_plots_action.toolTip())
         self.redock_plots_action.setEnabled(False)
         add_action("View", "Reset Workspace Layout", self.reset_workspace_layout)
+        add_action("Help", "Copy Diagnostics", self.copy_diagnostics)
         self._update_action_states()
 
     def create_settings_dialog(self) -> SettingsDialog:
@@ -392,6 +408,11 @@ class MainWindow(QMainWindow):
     def open_settings(self) -> None:
         dialog = self.create_settings_dialog()
         dialog.exec()
+
+    def copy_diagnostics(self) -> None:
+        text = format_runtime_diagnostics(self.runtime_diagnostics_snapshot())
+        QApplication.clipboard().setText(text)
+        self.statusBar().showMessage("Diagnostics copied to clipboard", 3000)
 
     def _application_settings_saved(self, settings: object) -> None:
         if not isinstance(settings, ApplicationSettings):
@@ -1071,11 +1092,10 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Loading {path.name}...")
 
     def _load_succeeded(self, target_id: str, request_token: int, result: object) -> None:
-        if (
-            not isinstance(result, ImageDocument)
-            or target_id not in self.documents
-            or self._load_tokens.get(target_id) != request_token
-        ):
+        if target_id not in self.documents or self._load_tokens.get(target_id) != request_token:
+            self._normal_load_stale_drop_count += 1
+            return
+        if not isinstance(result, ImageDocument):
             return
         previous_generation = self.documents[target_id].generation
         result.document_id = target_id
@@ -1098,7 +1118,9 @@ class MainWindow(QMainWindow):
         request_token: int | None = None,
     ) -> None:
         if request_token is not None and self._load_tokens.get(target_id) != request_token:
+            self._normal_load_stale_drop_count += 1
             return
+        self._record_runtime_failure("foreground-load", "decode", error)
         LOGGER.error("Image load failed: %s\n%s", error.message, error.traceback_text)
         self.residency_manager.remove(target_id)
         document = ImageDocument.error_document(path.name, error.message, path)
@@ -1249,14 +1271,15 @@ class MainWindow(QMainWindow):
         )
 
     def _preload_failed(self, task_id: str, error: object) -> None:
-        del error
         request = self._preload_worker_requests.get(task_id)
         if request is None:
             return
-        self.preload_controller.record_failure(
+        accepted = self.preload_controller.record_failure(
             request.plan_generation,
             request.document_id,
         )
+        if accepted:
+            self._record_runtime_failure("preload", "decode", error)
 
     def _preload_worker_finished(self, task_id: str) -> None:
         request = self._preload_worker_requests.pop(task_id, None)
@@ -1275,6 +1298,57 @@ class MainWindow(QMainWindow):
     def _invalidate_preload_plan(self) -> None:
         self.preload_controller.invalidate()
         self._cancel_preload_workers()
+
+    def runtime_diagnostics_snapshot(self) -> RuntimeDiagnosticsSnapshot:
+        """Read current bounded runtime state without triggering work or LRU access."""
+
+        source = self.residency_manager
+        difference = self.difference_panel.difference_cache
+        return RuntimeDiagnosticsSnapshot(
+            source=SourceResidencyDiagnostics(
+                used_bytes=source.used_bytes,
+                budget_bytes=source.budget_bytes,
+                resident_count=source.resident_count,
+                over_budget_bytes=source.over_budget_bytes,
+            ),
+            difference=DifferenceCacheDiagnostics(
+                used_bytes=difference.used_bytes,
+                budget_bytes=difference.budget_bytes,
+                entry_count=difference.entry_count,
+            ),
+            workers=WorkerDiagnostics(
+                foreground_loads=WorkerPoolDiagnostics(
+                    active_count=len(self._workers),
+                    max_count=self._load_pool.maxThreadCount(),
+                ),
+                preload=WorkerPoolDiagnostics(
+                    active_count=len(self._preload_workers),
+                    max_count=self._preload_pool.maxThreadCount(),
+                ),
+            ),
+            preload=self.preload_controller.diagnostics,
+            normal_load_stale_drop_count=self._normal_load_stale_drop_count,
+            recent_failures=tuple(self._recent_failures),
+        )
+
+    def _record_runtime_failure(self, subsystem: str, category: str, error: object) -> None:
+        if isinstance(error, TaskError):
+            exception_type = error.exception_type
+            message = error.message
+        elif isinstance(error, BaseException):
+            exception_type = type(error).__name__
+            message = str(error)
+        else:
+            exception_type = type(error).__name__
+            message = str(error)
+        self._recent_failures.append(
+            FailureDiagnostic(
+                subsystem=subsystem,
+                category=category,
+                exception_type=exception_type,
+                message=message,
+            )
+        )
 
     @staticmethod
     def _raw_profile_identity(profile: RawProfile | None) -> str:

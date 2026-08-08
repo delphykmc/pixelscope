@@ -36,6 +36,9 @@
   P2-A2 merged as PR #15 and owns typed settings, persistence, the Settings
   dialog, Difference display defaults, RAW size policy, and Difference Map Cache
   startup injection.
+- P2-B and P2-C merged as PR #16 and PR #17. P2-D starts from
+  `main@812982dacdecca155f7b53ab42ef2bd9fba68a77` and adds observation-only
+  diagnostics without changing resource policy.
 - QSettings is a persistence adapter, not the application settings domain model.
   Frozen `ApplicationSettings` is the persisted typed model;
   `SettingsRepository` owns defaults, validation, migration, save, and reset;
@@ -150,9 +153,30 @@
   retryable through normal loading.
 - Cancellation and stale-result rejection are distinct; obsolete results must
   not apply even when a decoder cannot stop immediately.
-- Diagnostics redact full paths and sanitize failures by default. They contain no
-  credentials, bearer tokens, pixel content, or unbounded raw traceback and do
-  not start expensive work.
+- P2-D establishes deterministic, inexpensive, sanitized runtime observability for
+  automated validation, P2-E characterization, and support troubleshooting. The
+  only end-user surface is an on-demand **Help > Copy Diagnostics** action.
+- Runtime diagnostics are frozen Qt-free snapshots with a pure deterministic text
+  formatter. They reuse the existing source, Difference-cache, and preload owners;
+  foreground/preload workers use general active/max pairs. P2-E may consume
+  `MainWindow.runtime_diagnostics_snapshot()` directly without any diagnostics UI.
+- Diagnostics retain at most ten recent accepted failures. Obsolete cancelled or
+  replanned preload failures are not promoted into recent failure history. Failure
+  text redacts absolute Windows/POSIX paths, complete credential-like assignment
+  values including multi-word values, bearer tokens, URL detail, multiline
+  traceback context, and excess message length. Diagnostics contain no pixel
+  content, raw traceback, environment dump, username, hostname, CWD, or timestamp.
+- **Help > Copy Diagnostics** obtains one current snapshot, formats it once with
+  the canonical formatter, copies that exact sanitized text to the clipboard,
+  and provides a short status-bar confirmation. There is no diagnostics modal,
+  live monitor, Refresh/timer, or diagnostics text-file export.
+- Reading or copying diagnostics may not load images, calculate Difference,
+  mutate an LRU, start/cancel workers, refresh preload, scan files, or change
+  selection/rendering.
+- P2-D preserves the merged P2-C preload policy: exactly `plan(+1)`, fixed preload
+  concurrency one, and foreground priority. Promotion, concurrency two,
+  bidirectional prediction, and configurable CPU/I/O aggressiveness are deferred
+  to an evidence-driven post-P2 optimization review.
 - Packaging, signing, update strategy, and release engineering are P7.
 - Login, SSO, token/credential lifecycle, access policy, and remote operations
   administration are P6. P2 does not introduce credentials.
@@ -172,4 +196,6 @@
 
 ## Pending owner decisions
 
-There are no pending P2-C owner decisions.
+There are no pending P2-D owner decisions. P2-E and post-P2 evidence determine
+whether preload promotion, direction, concurrency, or resource controls warrant
+a separate change.

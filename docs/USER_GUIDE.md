@@ -190,6 +190,34 @@ layout state instead.
 Docking and layout defaults are intentionally not duplicated in Settings because
 PixelScope already restores the exact saved workspace.
 
+## Runtime Diagnostics
+
+P2-D establishes deterministic, inexpensive, sanitized runtime observability for
+automated validation, P2-E characterization, and support troubleshooting. The
+only end-user surface is **Help > Copy Diagnostics**.
+
+Choose **Help > Copy Diagnostics** when support or development asks for runtime
+context. PixelScope takes one current bounded snapshot, formats the canonical
+sanitized text, copies that exact text to the clipboard, and briefly shows
+**Diagnostics copied to clipboard** in the status bar. There is no diagnostics
+window, live monitor, Refresh control, timer, or diagnostics text-file export.
+
+The copied text reports Decoded Source residency, Difference Map Cache usage,
+foreground and preload worker counts, preload counters, stale results, and up to
+ten recent accepted foreground/preload failures. Obsolete cancelled or replanned
+preload failures are not promoted into recent failure history.
+
+Diagnostics omit registered source paths and image content. Failure messages
+redact absolute Windows/POSIX paths, credential-like assignments including
+multi-word values, bearer tokens, URL detail, traceback context, and excess
+length. Copying diagnostics does not start image/preload work, calculate
+Difference, alter cache LRU order, scan files, cancel workers, refresh preload,
+or change selection/rendering. Unchanged runtime state produces identical,
+timestamp-free text.
+
+P2-E and automated tests can consume `MainWindow.runtime_diagnostics_snapshot()`
+directly; the support-copy action is not required to access the diagnostics API.
+
 ## Plots dock
 
 The title bar provides Float/Dock, Maximize/Restore, and Hide. The toolbar

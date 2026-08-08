@@ -74,6 +74,7 @@ def test_application_and_selection_driven_main_window(qtbot: object) -> None:
         "&Edit",
         "&Selection",
         "&View",
+        "&Help",
     ]
     assert "Select A" not in window.action_map
     assert "Compare A/B" not in window.action_map

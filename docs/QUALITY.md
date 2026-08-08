@@ -86,6 +86,17 @@ Preserve deterministic fixtures and smoke paths for:
   worker-lifetime-bounded cancellation de-duplication, late-result rejection,
   removal/generation/profile races, RAW exact-size/profile reuse, silent retryable
   failure, and ordinary low-budget residency eviction without a reload loop.
+- Frozen deterministic runtime diagnostics over exact source/cache/worker/preload
+  values; foreground/preload stale and failure instrumentation; stale cancelled or
+  replanned preload failures excluded from recent failure history; bounded failure
+  history; Windows/POSIX path, complete credential-assignment, bearer, traceback,
+  multiline, and truncation sanitization; and repeated observation without LRU,
+  worker, preload, selection, render, or filesystem mutation.
+- **Help > Copy Diagnostics** as the only diagnostics product surface: old
+  Diagnostics dialog absent, clipboard text exactly equals the canonical formatter
+  output, a short status-bar confirmation is shown, repeated unchanged copies are
+  identical and timestamp-free, registered paths/credentials/traceback/image
+  content are excluded, and copying starts/cancels no work or runtime mutation.
 - Canonical application-icon loading from package resources independent of CWD.
 
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer

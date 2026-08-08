@@ -43,13 +43,16 @@ Sequential dependency: `P2-0 → P2-A → P2-B → P2-C → P2-D → P2-E`.
 - **P2-B — Byte-budgeted decoded-source residency:** native-source byte
   accounting, protected LRU, soft budget, eviction/reload, invalidation, setting,
   and diagnostics API. Complete; merged as PR #16.
-- **P2-C — Bounded next-position preload:** active on
-  `feature/p2-c-folder-preload`; one registered Folder Position ahead,
-  normal-load priority, bounded ownership, stale cancellation/drop, request
-  validation, ordinary residency retention, startup setting, and counters.
-- **P2-D — Runtime diagnostics and failure visibility:** deterministic/redacted
-  source/cache/worker/preload/stale/failure snapshot, Copy Diagnostics, and
-  optional text export.
+- **P2-C — Bounded next-position preload:** complete; merged as PR #17 at
+  `812982dacdecca155f7b53ab42ef2bd9fba68a77`. It owns one registered Folder
+  Position ahead, normal-load priority, bounded ownership, stale
+  cancellation/drop, request validation, ordinary residency retention, the
+  startup setting, and bounded counters.
+- **P2-D — Runtime diagnostics and failure visibility:** active on
+  `feature/p2-d-runtime-diagnostics`; deterministic/redacted
+  source/cache/worker/preload/stale/failure snapshots plus the single on-demand
+  **Help > Copy Diagnostics** support surface. No live diagnostics UI or text-file
+  export.
 - **P2-E — Performance characterization and phase hardening:** integration,
   settings migration/default tests, FHD/UHD and image-format matrices,
   low-budget/oversize/rapid-navigation characterization, deterministic smoke

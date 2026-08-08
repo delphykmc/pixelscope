@@ -1,8 +1,8 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-08  
-P2-B / PR #16 merge commit and P2-C branch base:
-`453b718535bdbdce2a9225c01f6144d7f2df40b0`
+Snapshot date: 2026-08-09
+P2-C / PR #17 merge commit and P2-D branch base:
+`812982dacdecca155f7b53ab42ef2bd9fba68a77`
 
 This document records the implementation baseline that new work must use.
 
@@ -19,7 +19,9 @@ This document records the implementation baseline that new work must use.
   `1869764a74b01cebebaf8fa915b11a2a696be6cb`.
 - P2-B merged as PR #16 at
   `453b718535bdbdce2a9225c01f6144d7f2df40b0`.
-- P2-C is active on `feature/p2-c-folder-preload`.
+- P2-C merged as PR #17 at
+  `812982dacdecca155f7b53ab42ef2bd9fba68a77`.
+- P2-D is active on `feature/p2-d-runtime-diagnostics`.
 
 ## Implemented baseline
 
@@ -163,10 +165,26 @@ This document records the implementation baseline that new work must use.
 - Valid preload results become ordinary native source residency, receive no
   special protection, and may be evicted immediately under source-budget pressure.
   Speculative failure is silent and leaves normal retry available.
+- Frozen Qt-free `RuntimeDiagnosticsSnapshot` values aggregate exact source,
+  Difference-cache, foreground/preload worker, preload counter, foreground stale
+  drop, and bounded recent failure state. `MainWindow.runtime_diagnostics_snapshot()`
+  reads existing cheap owners without touching either LRU or starting work.
+- Recent failures are limited to ten entries. Accepted current foreground/preload
+  failures are recorded; obsolete cancelled or replanned preload failures are not.
+  Sanitization removes Windows/POSIX absolute paths, complete credential-like
+  assignment values, bearer tokens, URL detail, multiline traceback context, and
+  long messages.
+- P2-D establishes deterministic, inexpensive, sanitized runtime observability for
+  automated validation, P2-E characterization, and support troubleshooting. The
+  only end-user surface is **Help > Copy Diagnostics**. It obtains one snapshot,
+  copies the exact canonical formatter output, and reports **Diagnostics copied to
+  clipboard** in the status bar. No diagnostics modal, refresh loop, live monitor,
+  timer, or diagnostics file export remains. P2-E can consume the snapshot API
+  directly without invoking UI.
 
 ## Not implemented
 
-- Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export (P2-D).
+- P2-E performance characterization and phase hardening.
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
   distribution work.
@@ -175,15 +193,17 @@ This document records the implementation baseline that new work must use.
 
 ## Validation evidence
 
-Focused P2-C navigation/preload/settings integration validation reports 120
-passed; the selected keyboard/navigation smoke slice reports 6 passed and 33
-deselected. Full pytest reports 360 passed with three reproducible offscreen
+Before the Copy-only follow-up, focused P2-D diagnostics validation reported 20
+passed. Full pytest reported 378 passed with three reproducible offscreen
 failures: floating Plots geometry restore and two pyqtgraph hover-coordinate
-assertions. The same three tests fail from an isolated `origin/main` archive in
-the identical environment, confirming they are baseline/environment failures,
-not P2-C regressions. They were not skipped or rewritten. The owner reports that
-basic Windows behavior was checked; the complete P2-C manual matrix remains
-outstanding before merge.
+assertions. The same three tests failed from an isolated
+`origin/main@812982dacdecca155f7b53ab42ef2bd9fba68a77` archive in the identical
+environment, confirming they were baseline/environment failures rather than
+P2-D regressions. The Copy-only follow-up adds focused regressions for complete
+credential redaction, stale cancelled/replanned preload failures, exact clipboard
+text, status feedback, and observation-only repeated copy. Fresh standard-suite
+validation and the owner Windows **Help > Copy Diagnostics** smoke remain merge
+gates until their results are observed.
 
 ## Active plan
 
@@ -192,5 +212,6 @@ outstanding before merge.
 - P2-A1: complete; merged as PR #14.
 - P2-A2: complete; merged as PR #15.
 - P2-B: complete; merged as PR #16.
-- P2-C: active on `feature/p2-c-folder-preload`.
-- Next slice after P2-C merge: P2-D — runtime diagnostics and failure visibility.
+- P2-C: complete; merged as PR #17.
+- P2-D: active on `feature/p2-d-runtime-diagnostics`.
+- Next slice after P2-D merge: P2-E — performance characterization and hardening.

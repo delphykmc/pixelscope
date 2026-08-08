@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: repository owner + P2 orchestration agents
-Last updated: 2026-08-08
+Last updated: 2026-08-09
 
 ## Goal
 
@@ -28,8 +28,8 @@ Each slice starts from the latest merged prerequisite on `main`.
 | 5 | P2-D diagnostics | `feature/p2-d-runtime-diagnostics` | P2-C merged |
 | 6 | P2-E hardening | `feature/p2-e-performance-hardening` | P2-D merged |
 
-P2-A1, P2-A2, and P2-B are merged as PR #14, PR #15, and PR #16. P2-C is the
-current active slice.
+P2-A1 through P2-C are merged as PR #14 through PR #17. P2-D is the current
+active slice.
 
 Out of scope for P2: persistent comparison sessions, broader export workflows,
 RAW demosaic/level processing, remote service UI, authentication, installer,
@@ -45,7 +45,9 @@ optimization.
 - P2-A2 merged as PR #15 at
   `1869764a74b01cebebaf8fa915b11a2a696be6cb`.
 - P2-B merged as PR #16 at
-  `453b718535bdbdce2a9225c01f6144d7f2df40b0`; P2-C branches from this commit.
+  `453b718535bdbdce2a9225c01f6144d7f2df40b0`.
+- P2-C merged as PR #17 at
+  `812982dacdecca155f7b53ab42ef2bd9fba68a77`; P2-D branches from this commit.
 - P2-A1 provides canonical SVG/PNG/ICO assets, exact derivative reproduction,
   package-data declaration, CWD-independent resource loading, stable Windows
   source-run AppUserModelID, and `QApplication`/main-window icon assignment.
@@ -73,6 +75,10 @@ optimization.
   preload prediction over one-to-six distinct registered folders.
 - P2-C uses a separate max-one preload pool, generation/path/profile/token stale
   validation, ordinary residency retention, and bounded read-only counters.
+- P2-D establishes frozen deterministic diagnostics, bounded sanitized failure
+  history, stale-drop visibility, and the single observation-only
+  **Help > Copy Diagnostics** support surface. P2-E consumes the same snapshot
+  API directly without requiring diagnostics UI.
 
 ## Invariants
 
@@ -101,13 +107,19 @@ optimization.
   arrays only, not total process memory.
 - Source budget is soft because protected documents may temporarily exceed it.
 - Normal load has priority over preload.
+- The merged preload baseline remains exactly `plan(+1)` with fixed concurrency
+  one; promotion, additional directions/workers, and resource tuning are deferred.
+- Diagnostics observation may not start/cancel work, touch either LRU, scan files,
+  calculate Difference, refresh preload, or change selection/rendering.
+- Diagnostics output is bounded, timestamp-free, deterministic for unchanged
+  runtime state, and sanitized before it reaches the clipboard.
 - Remote access policy is not introduced in P2.
 - Agent-generated commits and GitHub activity follow the provenance convention
   in `AGENTS.md` and `docs/AGENT_HARNESS_NOTES.md`.
 
 ## Target boundaries
 
-Implemented by P2-A, P2-B, and P2-C:
+Implemented by P2-A through P2-D:
 
 - `pixelscope.app.resources`: packaged application resources.
 - `ApplicationSettings`: validated persisted choices.
@@ -120,10 +132,13 @@ Implemented by P2-A, P2-B, and P2-C:
   navigation and preload.
 - `PreloadController`: one-position target ownership, generation, completion,
   active state, and minimal counters.
+- `RuntimeDiagnosticsSnapshot`: immutable source/cache/worker/preload/stale/failure
+  aggregation with a pure sanitized formatter.
+- Diagnostics product surface: one on-demand **Help > Copy Diagnostics** action
+  that obtains a snapshot, formats it once, copies the exact canonical text, and
+  reports status-bar feedback. No diagnostics modal/live monitor/file export.
 
-Remaining P2 target boundaries:
-
-- immutable diagnostics model: deterministic and inexpensive runtime snapshot.
+P2-E remains characterization and phase hardening, not a new broad runtime boundary.
 
 ## Slice definitions
 
@@ -197,8 +212,7 @@ Branch: `feature/p2-a-settings-foundation`
   broader than Statistics CSV.
 - Durable agent provenance rules recorded for future ChatGPT/Codex work.
 
-Excluded: source-residency budget, preload, diagnostics dialog, installer, and
-signing.
+Excluded: source-residency budget, preload, diagnostics UI, installer, and signing.
 
 ### P2-B — Byte-budgeted decoded-source residency
 
@@ -220,9 +234,8 @@ Status: Complete; merged as PR #16.
 
 ### P2-C — Bounded next-position preload
 
-Status: Active on `feature/p2-c-folder-preload`; implementation and automated
-validation complete. The owner reports basic Windows behavior checked; the full
-manual Windows matrix remains pending.
+Status: Complete; merged as PR #17 at
+`812982dacdecca155f7b53ab42ef2bd9fba68a77`.
 
 - Generalizes the former two-folder runtime navigation to one-to-six-folder Folder
   Position semantics with atomic endpoint behavior.
@@ -242,17 +255,35 @@ manual Windows matrix remains pending.
 
 ### P2-D — Runtime diagnostics and failure visibility
 
-- Produce deterministic source-residency, Difference-cache, worker, preload,
-  stale-drop, and sanitized failure state.
-- Add copy and optional text export.
-- Avoid unnecessary path detail and never include image content.
-- Reading diagnostics must not start expensive work.
+Status: Active on `feature/p2-d-runtime-diagnostics`; Copy-only review follow-up
+implemented. Fresh standard validation and owner Windows Copy smoke remain merge
+gates until observed.
+
+- Produces frozen deterministic source-residency, Difference-cache, worker,
+  preload, stale-drop, and bounded recent-failure state.
+- Records only accepted current foreground/preload failures in recent history;
+  stale cancelled or replanned preload failures are excluded.
+- Sanitizes Windows/POSIX paths, complete credential-like assignment values,
+  URL/bearer detail, multiline traceback context, and long messages without
+  storing image content.
+- Uses one pure fixed-order, timestamp-free formatter. **Help > Copy Diagnostics**
+  obtains one snapshot, formats once, copies the exact sanitized text, and shows
+  **Diagnostics copied to clipboard** in the status bar.
+- Removes the previous diagnostics dialog, Refresh flow, Save as Text export, and
+  their dialog-only tests. P2-E and automated tests consume
+  `MainWindow.runtime_diagnostics_snapshot()` directly.
+- Reads only cheap existing properties/registries. Observation does not touch an
+  LRU, start/cancel work, refresh preload, scan files, or change selection/render.
+- Preserves P2-C exactly-one-ahead, fixed-one-concurrency, foreground-priority
+  preload semantics; scheduler/policy optimization remains deferred.
 
 ### P2-E — Performance characterization and phase hardening
 
 - Integrate P2 and complete default/migration/invalid-state tests.
 - Characterize FHD/UHD, uint8/uint16, RGB/grayscale/Bayer/RAW, low budgets,
   oversized sources, rapid navigation, cancellation, and diagnostics.
+- Consume the P2-D snapshot API directly for deterministic characterization where
+  useful; do not add a live diagnostics UI solely for P2-E.
 - Add deterministic smoke checks rather than unstable timing thresholds.
 - Complete durable P2 documentation without adding a large feature.
 
@@ -262,26 +293,26 @@ manual Windows matrix remains pending.
 - **P2-A2:** complete and merged as PR #15.
 - **P2-B:** deterministic accounting, protection, eviction, oversized-source, and
   reload tests; fixed-count policy no longer authoritative.
-- **P2-C:** normal-load priority, bounded ownership, cancellation request,
-  stale-result rejection, token/generation validation, and rapid navigation.
-- **P2-D:** deterministic sanitized snapshot, cheap inspection, and copy/export.
+- **P2-C:** complete and merged as PR #17; normal-load priority, bounded ownership,
+  stale-result rejection, and fixed exactly-one-ahead preload remain authoritative.
+- **P2-D:** deterministic sanitized snapshot, bounded accepted failure history,
+  complete credential redaction, stale preload-failure rejection, observation-only
+  inspection, exact canonical clipboard output, status feedback, no old
+  diagnostics dialog/export, focused automated regressions, and owner Windows
+  Copy smoke.
 - **P2-E:** full standard validation, deterministic performance smoke coverage,
   Windows characterization, and coherent durable docs.
 
 ## Validation
 
-P2-C focused checks:
+P2-D focused checks:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_settings_repository.py `
-    tests\unit\test_settings_schema_v5.py `
-    tests\unit\test_folder_navigation_planner.py `
-    tests\unit\test_preload_controller.py `
-    tests\ui\test_settings_dialog.py `
-    tests\ui\test_folder_navigation.py `
-    tests\ui\test_preload_runtime.py `
-    tests\ui\test_source_residency.py
+    tests\unit\test_diagnostics.py `
+    tests\ui\test_runtime_diagnostics.py `
+    tests\ui\test_ui_smoke.py::test_application_and_selection_driven_main_window `
+    tests\ui\test_toolbar_icons.py::test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette
 ```
 
 Full repository contract for this runtime/docs change:
@@ -296,33 +327,30 @@ Full repository contract for this runtime/docs change:
 git diff --check
 ```
 
-On the latest working head, focused P2-C tests report 120 passed and the selected
-keyboard/navigation smoke slice reports 6 passed / 33 deselected. Full pytest
-reports 360 passed and the same three offscreen-only
-failures reproduced on `origin/main`: floating Plots geometry restore and two
-pyqtgraph hover-coordinate assertions. The owner reports basic Windows behavior
-checked; the complete manual matrix remains open.
+Before the Copy-only review follow-up, focused P2-D tests reported 20 passed. Full
+pytest reported 378 passed and the same three offscreen-only failures reproduced
+from an isolated `origin/main@812982dacdecca155f7b53ab42ef2bd9fba68a77`
+archive: floating Plots geometry restore and two pyqtgraph hover-coordinate
+assertions. No skip or expectation rewrite was added. Those results are prior
+evidence only; the follow-up requires a fresh focused/full run before merge.
 
 ## Manual Windows matrix
 
-P2-C merge requires owner validation of:
+P2-D merge requires owner validation of:
 
-1. Files Up/Down row navigation and Left/Right selected-image navigation remain.
-2. PageUp/PageDown labels and one-to-six-folder atomic navigation are correct.
-3. Single, pair, and three-to-six-folder groups move in registered natural order.
-4. Any participating endpoint makes the whole group a no-op.
-5. Preload defaults enabled and a toggle/revert/reset reports restart correctly.
-6. Foreground completion precedes exactly-one-position-ahead preload.
-7. Next-next is not preloaded and PageDown reuses a resident preload.
-8. Rapid navigation remains responsive; late speculative results do not apply.
-9. Low-budget preload follows ordinary residency without protection or a loop.
-10. Existing selected/visible/Difference protections and Files green state remain.
-11. Statistics, Histogram, Line Profile, Difference, and Split Channels regressions
-    are absent.
+1. **Help > Copy Diagnostics** exists and the previous **Diagnostics...** modal
+   surface is absent.
+2. Triggering Copy places the canonical current diagnostics text on the clipboard,
+   shows **Diagnostics copied to clipboard**, and causes no visible stall or new
+   runtime work.
+3. Registered paths, usernames, credential/token values, traceback content, and
+   image content are absent from realistic failure samples.
+4. Repeated Copy with unchanged runtime state is identical and timestamp-free;
+   foreground loading, exactly-one-ahead fixed-one preload, Difference, and source
+   residency behavior remain unchanged.
 
 Later-slice matrices remain:
 
-- **P2-D:** readable diagnostics, copy/export, sanitized failures, and no UI stall.
 - **P2-E:** agreed FHD/UHD and RAW matrix on Windows 10/11.
 - **P7:** executable file, pinned shortcut, installer shortcut, final packaged
   shell grouping, signing, and clean-PC release smoke.
@@ -343,7 +371,8 @@ Resolved:
   Settings.
 - Preload default: Enabled.
 
-Pending: none for P2-C.
+Pending: none for P2-D product design. Preload promotion, concurrency, direction,
+and resource controls remain deferred pending P2-E/post-P2 evidence.
 
 ## Progress log
 
@@ -382,6 +411,18 @@ Pending: none for P2-C.
   validation reports 360 passed / the same three reproducible offscreen baseline
   failures. The owner reports basic Windows behavior checked; the full manual
   matrix remains pending.
+- 2026-08-09: P2-C merged as PR #17 at
+  `812982dacdecca155f7b53ab42ef2bd9fba68a77`. P2-D added the immutable diagnostics
+  core/formatter (`4ad6f20`), runtime aggregation and stale/failure instrumentation
+  (`92e484b`), Help/Copy/Save UI (`eac66b5`), and Help-menu regression fix
+  (`b678cc4`). Focused diagnostics validation reported 20 passed; full pytest
+  reported 378 passed / three failures reproduced on the merged baseline.
+- 2026-08-09: PR #18 independent review redirected the end-user surface to
+  **Help > Copy Diagnostics** only and identified credential-value, stale preload
+  failure-history, and ROADMAP blockers. The follow-up removes dialog/export code,
+  gates preload failure history on controller acceptance, hardens credential
+  sanitization, adds regressions, and reconciles durable documentation. Fresh
+  standard validation and owner Windows Copy smoke remain before merge.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2-A2 merge blocker.
 
@@ -393,5 +434,6 @@ Pending: none for P2-C.
 - Native source residency is byte-accounted with protection, eviction, reload,
   and diagnostics.
 - Preload is bounded, lower priority than normal load, and rejects stale results.
-- Diagnostics are deterministic, sanitized, and inexpensive to inspect.
+- Diagnostics are deterministic, sanitized, inexpensive to observe, and exposed
+  to users only through on-demand support copy.
 - P2 passes the full repository contract and agreed Windows characterization.

@@ -185,6 +185,44 @@ Preload failures do not mutate the document into foreground error state.
 Cancellation-request de-duplication is retained only while its worker request is
 active and is discarded together with that request when the worker finishes.
 
+## Current runtime diagnostics lifecycle
+
+P2-D establishes deterministic, inexpensive, sanitized runtime observability for
+automated validation, P2-E characterization, and support troubleshooting. The
+only end-user surface is an on-demand `Help > Copy Diagnostics` action.
+
+`RuntimeDiagnosticsSnapshot` and its nested source, Difference-cache, worker-pool,
+and failure values are frozen, Qt-free domain models. The snapshot reuses the
+existing `PreloadDiagnostics` value instead of introducing duplicate preload
+counters. Worker pools are represented by general `active_count` / `max_count`
+pairs; the current preload maximum remains one.
+
+`MainWindow.runtime_diagnostics_snapshot()` is the sole runtime aggregator. It
+reads `ResidencyManager` byte/count properties, `DifferenceMapCache` byte/entry
+properties, the foreground/preload worker registries and pool maxima, existing
+preload diagnostics, the foreground stale-drop counter, and a ten-entry recent
+failure deque. It does not call cache `get()`, residency `touch()`, preload plan
+refresh, worker start/cancel, selection/render, or filesystem discovery. P2-E can
+consume this API directly; no diagnostics widget is required.
+
+Foreground load token/document rejections increment one bounded counter. Accepted
+current foreground-load and speculative-preload failures enter the recent deque
+with a subsystem/category, exception type, and short message. A preload failure
+from an obsolete cancelled or replanned generation is rejected by
+`PreloadController.record_failure()` before it can enter recent failure history.
+Sanitization removes Windows/POSIX absolute paths, URL detail, complete
+credential-like assignment values including unquoted multi-word values, bearer
+values, multiline traceback context, and excess length; raw traceback and image
+content are never stored in diagnostics.
+
+`format_runtime_diagnostics()` is pure and emits a fixed section/field order with
+no timestamp. `MainWindow.copy_diagnostics()` takes one current snapshot, formats
+it once, copies that exact sanitized text to `QApplication.clipboard()`, and shows
+`Diagnostics copied to clipboard` in the status bar. There is no diagnostics
+modal, live monitor, timer, refresh control, or diagnostics text-file export.
+Copying remains observation-only with respect to workers, navigation, render,
+preload counters/policy, and both LRU owners.
+
 ## Current Difference lifecycle
 
 `DifferenceMapCache` owns order-independent native absolute maps with a
@@ -249,15 +287,12 @@ the source byte count must exactly equal the profile requirement. The same rule
 controls both worker decoding and whether a matching JSON sidecar may bypass the
 profile-confirmation dialog.
 
-## Planned P2 boundaries
+## P2 boundary status
 
-The remaining target boundary is:
-
-- `DiagnosticsSnapshot` or equivalent: deterministic, redacted, cheap-to-read
-  cache/residency/worker/preload/failure state.
-
-P2 introduces these boundaries incrementally; it is not a broad MainWindow
-rewrite.
+The P2 runtime boundaries for settings, source residency, bounded preload, and
+deterministic diagnostics are implemented incrementally without a broad
+`MainWindow` rewrite. P2-E owns characterization and hardening rather than a new
+runtime policy boundary.
 
 ## P2 request and cancellation target
 
