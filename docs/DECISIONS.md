@@ -40,9 +40,9 @@
 - P2-B and P2-C merged as PR #16 and PR #17. P2-D merged as PR #18 at
   `a7b4ddf62af95e86b9d9e38a4328cf9572226114` and owns observation-only runtime
   diagnostics without changing resource policy.
-- P2-E owns only **Running Preload Promotion / Foreground Reuse**. The previous
-  P2-E Performance Characterization & Phase Hardening scope moves intact to
-  P2-F, which is now the final P2 closure slice.
+- P2-E **Running Preload Promotion / Foreground Reuse** is complete and merged as
+  PR #19 at `7ee7aec2980baeef9d511f3db5c71f89fa319a64`. P2-F is the final P2
+  Performance Characterization & Phase Hardening closure slice.
 - QSettings is a persistence adapter, not the application settings domain model.
   Frozen `ApplicationSettings` is the persisted typed model;
   `SettingsRepository` owns defaults, validation, migration, save, and reset;
@@ -224,15 +224,49 @@
   worker is observed once under logical foreground activity and is excluded from
   speculative preload active counts; diagnostics remain observation-only.
 - P2-E adds no new setting and does not change settings schema version 5.
-- P2-F owns final performance/resource characterization and phase hardening. Any
-  change to preload direction, depth, concurrency, worker/resource controls, or
-  aggressiveness requires later evidence rather than assumption in P2-E.
 - Packaging, signing, update strategy, and release engineering are P7.
 - Login, SSO, token/credential lifecycle, access policy, and remote operations
   administration are P6. P2 does not introduce credentials.
 - The brief Windows startup white-frame flash has no intentional splash or
   pre-render owner in the current startup path. Investigation is deferred to
   startup polish after the major phases and is not a P2 merge blocker.
+
+## Accepted P2-F characterization decisions
+
+- P2-F is a final characterization/hardening slice, not a feature or scheduler
+  redesign. Production changes are justified only by an observed correctness,
+  resource, or lifecycle defect.
+- Performance merge gates are deterministic. Shape, dtype, pixel/count results,
+  exact native byte accounting, cache/residency state, request identity, decode
+  count, worker ownership, cancellation/stale rejection, and bounded diagnostics
+  may fail a test; elapsed wall-clock time may not.
+- `perf_counter()` measurements may remain in performance smoke output as
+  hardware-specific observational evidence. The former `threshold_mask < 0.5 s`
+  assertion is not an acceptable P2 merge gate and is removed rather than
+  replaced by another arbitrary threshold.
+- Representative automated coverage is intentionally not a Cartesian product.
+  P2-F uses FHD RGB uint8, FHD grayscale uint16, and UHD Bayer uint16
+  profile-described RAW characterization, with the existing real 4K RGB/RGGB10
+  integration fixture retained as complementary evidence.
+- No large binary fixture is added for characterization; synthetic arrays and
+  temporary RAW files are preferred when resolution/resource behavior itself is
+  under test.
+- P2-F preserves settings schema v5, the 128 MiB Difference default, the 256 MiB
+  source-residency default, enabled preload, and the existing combined-RAM guard.
+- P2-F preserves preload direction `+1`, depth exactly one Folder Position,
+  preload concurrency one, normal pool max two, preload pool max one, exact
+  RUNNING promotion, foreground priority, ordinary preload residency, and
+  independent Difference caching.
+- Process RSS, preview/Qt-texture totals, telemetry, benchmark UI, and live
+  diagnostics remain outside P2 resource accounting.
+- The repository currently has no GitHub Actions workflow. A new Windows Qt gate
+  is not introduced without observed PySide6/pytest-qt/offscreen stability and
+  runtime/resource evidence. For P2 closure, Windows CI introduction is deferred
+  and owner/local Windows validation remains authoritative.
+- Post-P2 optimization candidates remain evidence-driven separate work:
+  preload concurrency one versus two, directional/bidirectional prediction,
+  deeper preload, CPU/I/O aggressiveness, and broader resource-policy Settings
+  exposure. P2-F does not implement them speculatively.
 
 ## Current resource policy
 
@@ -248,6 +282,7 @@
 
 ## Pending owner decisions
 
-There are no pending P2-E product decisions. P2-F characterization determines
-whether direction, depth, concurrency, or other resource controls warrant a
-later evidence-driven change.
+There are no pending P2-F product-design decisions. Independent review, the full
+standard validation commands, and the agreed Windows characterization matrix are
+closure evidence still required before merge; they do not authorize speculative
+runtime-policy expansion.

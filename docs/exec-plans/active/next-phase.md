@@ -29,9 +29,8 @@ Each slice starts from the latest merged prerequisite on `main`.
 | 6 | P2-E running preload promotion | `feature/p2-e-preload-promotion` | P2-D merged |
 | 7 | P2-F performance hardening | `feature/p2-f-performance-hardening` | P2-E merged |
 
-P2-A1 through P2-D are complete and merged as PR #14 through PR #18. P2-E is
-the current active slice. The previous P2-E Performance Characterization & Phase
-Hardening scope is retained below as P2-F and remains the final P2 closure slice.
+P2-A1 through P2-E are complete and merged as PR #14 through PR #19. P2-F is
+the current active slice and remains the final P2 closure slice.
 
 Out of scope for P2: persistent comparison sessions, broader export workflows,
 RAW demosaic/level processing, remote service UI, authentication, installer,
@@ -51,7 +50,9 @@ optimization without evidence.
 - P2-C merged as PR #17 at
   `812982dacdecca155f7b53ab42ef2bd9fba68a77`.
 - P2-D merged as PR #18 at
-  `a7b4ddf62af95e86b9d9e38a4328cf9572226114`; P2-E branches from this commit.
+  `a7b4ddf62af95e86b9d9e38a4328cf9572226114`.
+- P2-E merged as PR #19 at
+  `7ee7aec2980baeef9d511f3db5c71f89fa319a64`; P2-F branches from this commit.
 - P2-A1 provides canonical SVG/PNG/ICO assets, exact derivative reproduction,
   package-data declaration, CWD-independent resource loading, stable Windows
   source-run AppUserModelID, and `QApplication`/main-window icon assignment.
@@ -122,6 +123,11 @@ optimization without evidence.
   calculate Difference, refresh preload, or change selection/rendering.
 - Diagnostics output is bounded, timestamp-free, deterministic for unchanged
   runtime state, and sanitized before it reaches the clipboard.
+- P2-F does not change settings schema v5, preload direction/depth/concurrency,
+  worker-pool sizes, or resource ownership unless characterization demonstrates
+  a correctness blocker.
+- P2-F wall-clock measurements are observational evidence only. Deterministic
+  correctness/resource/request/lifecycle invariants are merge gates.
 - Remote access policy is not introduced in P2.
 - Agent-generated commits and GitHub activity follow the provenance convention
   in `AGENTS.md` and `docs/AGENT_HARNESS_NOTES.md`.
@@ -266,7 +272,8 @@ Status: Complete; merged as PR #18 at
 
 ### P2-E — Running Preload Promotion / Foreground Reuse
 
-Status: Active on `feature/p2-e-preload-promotion`.
+Status: Complete; merged as PR #19 at
+`7ee7aec2980baeef9d511f3db5c71f89fa319a64`.
 
 #### Goal
 
@@ -359,21 +366,55 @@ decode again.
 
 ### P2-F — Performance Characterization & Phase Hardening
 
-Status: Next after P2-E merge.
+Status: Active on `feature/p2-f-performance-hardening`.
+Base: `7ee7aec2980baeef9d511f3db5c71f89fa319a64`.
 
-The former P2-E hardening scope moves here unchanged in intent, and evaluates the
-completed P2 runtime including running-preload promotion.
+P2-F evaluates the completed P2 runtime including running-preload promotion.
 
-- Integrate P2 and complete default/migration/invalid-state tests.
-- Characterize FHD/UHD, uint8/uint16, RGB/grayscale/Bayer/RAW, low budgets,
-  oversized sources, rapid navigation, cancellation, and diagnostics.
-- Consume the P2-D snapshot API directly for deterministic characterization where
-  useful; do not add a live diagnostics UI solely for P2-F.
-- Add deterministic smoke checks rather than unstable timing thresholds.
-- Complete durable P2 documentation without adding a large feature.
-- Use evidence from the completed runtime to decide whether any later preload
-  direction/depth/concurrency/resource tuning is warranted; P2-F does not assume
-  such tuning is necessary.
+- Audit existing P2 settings, source residency, Difference cache, folder
+  navigation, preload/promotion, diagnostics, RAW, and performance tests before
+  adding coverage. Add only real regression gaps.
+- Settings audit confirms coverage for fresh/default and round-trip state,
+  v4-to-v5 and v3-to-current migration, old Difference-cache clamp,
+  malformed/invalid and legacy RAW state, future-schema non-destructive behavior,
+  reset/workspace separation, restart semantics, preload default, and the
+  combined RAM guard at/above its exact limit.
+- Resource audit confirms exact native `source.nbytes`, protected/ordinary LRU,
+  low and soft over-budget behavior, oversized required sources, reload/no-loop,
+  independent Difference budget/accounting, and Difference survival under source
+  pressure.
+- Preload/promotion audit distinguishes already-resident reuse, completed preload
+  reuse, exact RUNNING promotion with the same decoder, and ordinary foreground
+  fallback. Existing tests also cover rapid stale rejection, exactly-once
+  success/failure, pair/group completion, RAW identity, promotion diagnostics,
+  and no new speculative work while foreground authority occupies the max-one
+  preload pool.
+- Diagnostics audit preserves exact source/Difference/worker/preload values,
+  bounded sanitized failures, **Copy Diagnostics** only, and observation-only
+  reads/copies without LRU, worker, preload, render, or filesystem mutation.
+- Representative deterministic performance matrix:
+  - FHD RGB uint8,
+  - FHD grayscale uint16,
+  - UHD Bayer uint16 profile-described RAW,
+  - existing real 4K RGB plus RGGB10-u16 RAW integration fixture.
+- Do not add a Cartesian matrix or new large binary fixture. Synthetic arrays and
+  temporary RAW files are preferred when resolution/resource behavior is the
+  subject of the test.
+- `perf_counter()` output may remain for characterization, but elapsed time is
+  observational only. The historical `threshold_mask < 0.5` assertion is removed
+  and is not replaced with another arbitrary hardware/load threshold.
+- Deterministic merge gates include shape, dtype, values/counts, native bytes,
+  cache/residency state, duplicate-decode count, bounded worker ownership,
+  request identity, and stale-result rejection.
+- Initial audit found no production-code correctness/resource/lifecycle defect
+  that justifies an architecture change. Production code remains unchanged unless
+  local characterization exposes a focused reproducible issue.
+- Keep schema v5 and the established `+1` one-position, concurrency-one preload
+  policy unchanged. Process RSS, live diagnostics, benchmark UI, telemetry, CPU
+  aggressiveness, bidirectional/deeper preload, and resource-policy expansion are
+  excluded.
+- Complete durable P2 documentation without declaring P2-F merged before merge,
+  independent review, and owner/local validation.
 
 ## Merge gates
 
@@ -386,25 +427,40 @@ completed P2 runtime including running-preload promotion.
 - **P2-D:** complete and merged as PR #18; deterministic sanitized snapshot,
   bounded accepted failure history, observation-only Copy Diagnostics, and no
   live diagnostics surface remain authoritative.
-- **P2-E:** deterministic authority-promotion coverage, duplicate decode removal,
-  foreground success/failure parity, rapid-navigation stale safety, pair/group and
-  RAW coverage, no worker-policy expansion, diagnostics promotion observability,
-  full standard validation, and coherent durable docs.
-- **P2-F:** full standard validation, deterministic performance smoke coverage,
-  Windows characterization, final resource-policy evidence review, and coherent
-  P2 completion docs.
+- **P2-E:** complete and merged as PR #19 at
+  `7ee7aec2980baeef9d511f3db5c71f89fa319a64`; exact RUNNING authority promotion,
+  duplicate-decode elimination, foreground success/failure parity,
+  rapid-navigation stale safety, pair/group and RAW coverage, fixed worker policy,
+  and promotion diagnostics remain authoritative.
+- **P2-F:** full standard validation, deterministic representative performance
+  smoke, final settings/resource/preload/diagnostics audit, agreed Windows
+  characterization, coherent P2 closure docs, and no unresolved independent
+  reviewer blocker.
 
 ## Validation
 
-P2-E focused checks:
+P2-F performance characterization:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q -s tests\performance
+```
+
+P2-F focused contract after coverage audit:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_settings_repository.py `
+    tests\unit\test_settings_schema_v5.py `
+    tests\unit\test_residency_manager.py `
+    tests\unit\test_difference_cache.py `
     tests\unit\test_preload_controller.py `
-    tests\unit\test_diagnostics.py `
+    tests\ui\test_settings_dialog.py `
+    tests\ui\test_source_residency.py `
+    tests\ui\test_folder_navigation.py `
     tests\ui\test_preload_runtime.py `
     tests\ui\test_preload_promotion.py `
-    tests\ui\test_runtime_diagnostics.py
+    tests\ui\test_runtime_diagnostics.py `
+    tests\integration\test_4k_samples.py
 ```
 
 Full repository contract for this runtime/docs change:
@@ -419,30 +475,47 @@ Full repository contract for this runtime/docs change:
 git diff --check
 ```
 
-Owner/local Windows validation after the final P2-E follow-up fixes: **PASS** for
-the focused checks and full repository contract above.
+Optional syntax sweep when useful:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q src tests scripts
+```
 
 Connector-only implementation must not claim these commands passed unless their
 actual output is observed. Owner/local execution of the exact commands above is
 the validation source when the connector environment cannot run Python/Qt tests.
+A failure may be called baseline only after the same environment reproduces it
+against latest `origin/main`.
 
 ## Manual Windows matrix
 
-P2-E does not use subjective speedup as a merge gate. A practical owner smoke may
-confirm:
+P2-F does not use subjective speedup as a merge gate. Owner/local Windows 10/11
+validation must confirm at least:
 
-1. With preload enabled, PageDown during a visible next-position preload transition
-   remains responsive and the selected image reaches normal Ready/error behavior.
-2. Pair/group navigation still loads all required members and preserves fixed
-   one-position-ahead behavior.
-3. RAW navigation does not open a speculative RAW dialog and promoted RAW uses the
-   registered profile.
-4. **Help > Copy Diagnostics** remains on-demand only and includes
-   **Promoted to foreground: N** after a promotion without exposing private data.
+1. FHD RGB normal navigation.
+2. UHD/uint16 navigation.
+3. Bayer/RAW navigation.
+4. Pair/group PageDown.
+5. Already-resident transition.
+6. Preload-completed transition.
+7. RUNNING-preload promotion.
+8. Rapid repeated PageDown.
+9. Low source-memory budget.
+10. Oversized required source.
+11. Difference cache under source pressure.
+12. Settings restart semantics.
+13. **Help > Copy Diagnostics**.
+14. Statistics / Histogram / Line Profile / Difference / Split Channels regression.
 
-P2-F owns the agreed FHD/UHD and RAW characterization matrix on Windows 10/11.
-P7 owns executable-file, pinned-shortcut, installer-shortcut, final packaged shell
-grouping, signing, and clean-PC release smoke.
+The manual gate is absence of visible stall/regression, incorrect reload,
+duplicated-load symptoms, error/state corruption, or broken expected workflow.
+Any timing numbers are hardware-specific observational evidence only.
+
+The repository currently has no GitHub Actions workflow. P2-F does not add an
+unobserved Windows Qt gate without first establishing PySide6/pytest-qt/offscreen
+reliability, CPython 3.10 availability, and acceptable runner runtime/resource
+use. Windows CI introduction is deferred; owner/local Windows validation remains
+the authoritative P2 closure evidence. Packaging/installer CI remains P7.
 
 ## Owner decisions
 
@@ -461,12 +534,17 @@ Resolved:
 - Preload default: Enabled.
 - P2-E promotion: exact matching RUNNING request only; authority transition in
   place; no thread migration.
-- P2-E resource policy: unchanged `+1`, one-position depth, preload concurrency
-  one, no new Performance setting.
-- P2-F owns final characterization/hardening and evidence-based resource-policy
-  review.
+- P2-E/P2-F resource policy: unchanged `+1`, one-position depth, preload
+  concurrency one, normal pool max two, preload pool max one, no new Performance
+  setting.
+- P2-F timing policy: hardware-dependent elapsed time is observational only;
+  deterministic correctness/resource/lifecycle invariants are merge gates.
+- P2-F Windows CI: deferred until a stable runner contract is demonstrated;
+  owner/local Windows validation remains authoritative for P2 closure.
 
-Pending: none for P2-E product design.
+Pending product-design decisions: none. Independent review and owner/local
+validation remain closure evidence rather than authorization for speculative
+optimization.
 
 ## Progress log
 
@@ -504,10 +582,15 @@ Pending: none for P2-E product design.
 - 2026-08-09: P2-D merged as PR #18 at
   `a7b4ddf62af95e86b9d9e38a4328cf9572226114`.
 - 2026-08-09: P2 program sequence changed to insert P2-E Running Preload Promotion
-  before final hardening. `feature/p2-e-preload-promotion` adds exact RUNNING
+  before final hardening. `feature/p2-e-preload-promotion` added exact RUNNING
   request authority promotion, foreground result/failure parity, rapid-navigation
   stale protection, promotion diagnostics, and deterministic duplicate-decode
-  regressions. The prior hardening scope becomes P2-F.
+  regressions. The prior hardening scope became P2-F.
+- 2026-08-09: P2-E merged as PR #19 at
+  `7ee7aec2980baeef9d511f3db5c71f89fa319a64`. P2-F started from that exact main
+  commit, audited existing P2 coverage, and expanded performance smoke to FHD
+  RGB8, FHD Gray16, and UHD Bayer16 RAW deterministic characterization while
+  removing the hardware-dependent threshold-mask timing gate.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2 merge blocker.
 
@@ -524,5 +607,7 @@ Pending: none for P2-E product design.
   authority promotion rather than cancelled merely to start the same decode.
 - Diagnostics are deterministic, sanitized, inexpensive to observe, and exposed
   to users only through on-demand support copy.
-- P2-F characterizes/hardens the completed runtime and P2 passes the full
-  repository contract and agreed Windows characterization before closure.
+- P2-F uses deterministic performance/resource/lifecycle merge gates; wall-clock
+  timing remains observational only.
+- P2-F passes the full repository contract and agreed Windows characterization,
+  and independent review has no unresolved merge blocker before P2 closure.
