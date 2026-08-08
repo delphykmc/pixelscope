@@ -45,8 +45,9 @@ results.
   Blank preserves the remembered last-used-folder behavior; configured existing
   folders only seed dialog starting locations and apply without restart.
 - Performance owns two independent startup budgets. **Decoded Source Memory**
-  defaults to 1024 MiB and accepts 128–32768 MiB; **Difference Map Cache**
-  defaults to 512 MiB and accepts 64–8192 MiB. Changed values apply after
+  defaults to 256 MiB and accepts 128–2560 MiB; **Difference Map Cache**
+  defaults to 128 MiB and accepts 64–1280 MiB. Their combined value must remain
+  below detected physical RAM. Changed values apply after
   PixelScope restarts and do not resize current runtime owners live.
 - Decoded Source Memory accounts native registered `ImageDocument.source` arrays
   only. The Files green residency indicator reflects this state, not Difference

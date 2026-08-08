@@ -13,6 +13,7 @@ from pixelscope.core.performance_settings import (
     DEFAULT_SOURCE_RESIDENCY_BYTES,
     MIB,
     PerformanceSettings,
+    memory_budgets_fit_physical_memory,
 )
 
 
@@ -31,17 +32,27 @@ def _cached(size: int, value: int = 0) -> CachedDifferenceMap:
     )
 
 
-def test_default_performance_settings_use_512_mib_difference_cache() -> None:
+def test_default_performance_settings_use_recommended_uhd_budgets() -> None:
     settings = PerformanceSettings()
     assert MIB == 1024 * 1024
-    assert settings.difference_cache_bytes == 512 * MIB
+    assert settings.difference_cache_bytes == 128 * MIB
     assert settings.difference_cache_bytes == DEFAULT_DIFFERENCE_CACHE_BYTES
-    assert settings.source_residency_bytes == 1024 * MIB
+    assert settings.source_residency_bytes == 256 * MIB
     assert settings.source_residency_bytes == DEFAULT_SOURCE_RESIDENCY_BYTES
     with pytest.raises(ValueError, match="positive"):
         PerformanceSettings(difference_cache_bytes=0)
     with pytest.raises(ValueError, match="positive"):
         PerformanceSettings(source_residency_bytes=0)
+    with pytest.raises(TypeError, match="integer"):
+        PerformanceSettings(difference_cache_bytes=True)
+    with pytest.raises(TypeError, match="integer"):
+        PerformanceSettings(source_residency_bytes=1.5)  # type: ignore[arg-type]
+
+
+def test_combined_budgets_must_be_strictly_below_known_physical_memory() -> None:
+    assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 512 * MIB)
+    assert not memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 384 * MIB)
+    assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, None)
 
 
 def test_difference_cache_uses_byte_budget_and_true_lru_order() -> None:

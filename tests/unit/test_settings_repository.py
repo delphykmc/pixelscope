@@ -50,8 +50,8 @@ def _repository() -> tuple[SettingsRepository, QSettings]:
 def test_application_settings_defaults_custom_validation_and_immutability() -> None:
     defaults = ApplicationSettings()
     assert defaults.dont_show_raw_json_profiles is False
-    assert defaults.difference_cache_mib == 512
-    assert defaults.source_residency_mib == 1024
+    assert defaults.difference_cache_mib == 128
+    assert defaults.source_residency_mib == 256
     assert defaults.default_open_directory == ""
     assert defaults.default_export_directory == ""
 
@@ -106,8 +106,8 @@ def test_saved_state_round_trips_and_converts_mib_to_runtime_bytes() -> None:
     repository, _settings = _repository()
     expected = ApplicationSettings(
         dont_show_raw_json_profiles=True,
-        difference_cache_mib=1536,
-        source_residency_mib=3072,
+        difference_cache_mib=1280,
+        source_residency_mib=2560,
         default_open_directory="C:/open",
         default_export_directory="D:/export",
     )
@@ -116,8 +116,8 @@ def test_saved_state_round_trips_and_converts_mib_to_runtime_bytes() -> None:
     loaded = repository.load()
 
     assert loaded == expected
-    assert loaded.performance_settings().difference_cache_bytes == 1536 * MIB
-    assert loaded.performance_settings().source_residency_bytes == 3072 * MIB
+    assert loaded.performance_settings().difference_cache_bytes == 1280 * MIB
+    assert loaded.performance_settings().source_residency_bytes == 2560 * MIB
 
 
 def test_schema_v1_migrates_to_v2_with_default_file_locations() -> None:
@@ -259,7 +259,7 @@ def test_future_schema_uses_safe_defaults_without_rewrite() -> None:
     assert settings.value(DEFAULT_OPEN_DIRECTORY_KEY) == "C:/future-open"
     assert settings.value(DEFAULT_EXPORT_DIRECTORY_KEY) == "D:/future-export"
     with pytest.raises(UnsupportedSettingsSchemaError):
-        repository.save(ApplicationSettings(True, 2048))
+        repository.save(ApplicationSettings(True, 1280))
 
 
 def test_reset_only_changes_application_settings_keys() -> None:
@@ -267,8 +267,8 @@ def test_reset_only_changes_application_settings_keys() -> None:
     repository.save(
         ApplicationSettings(
             dont_show_raw_json_profiles=True,
-            difference_cache_mib=2048,
-            source_residency_mib=4096,
+            difference_cache_mib=1280,
+            source_residency_mib=2560,
             default_open_directory="C:/open",
             default_export_directory="D:/export",
         )
@@ -281,8 +281,8 @@ def test_reset_only_changes_application_settings_keys() -> None:
 
     assert reset == ApplicationSettings()
     assert settings.value(DONT_SHOW_RAW_JSON_PROFILES_KEY, type=bool) is False
-    assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 512
-    assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 1024
+    assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 128
+    assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
     assert settings.value(DEFAULT_OPEN_DIRECTORY_KEY, type=str) == ""
     assert settings.value(DEFAULT_EXPORT_DIRECTORY_KEY, type=str) == ""
     assert settings.value("ui/window_geometry") == "geometry"

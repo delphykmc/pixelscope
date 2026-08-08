@@ -189,6 +189,8 @@ class DifferencePanel(QWidget):
         active_roi: RoiBounds | None = None,
     ) -> None:
         previous_key = self._cache_key()
+        previous_metric_key = self._metric_key()
+        previous_status = self.status.text()
         previous_roi = self._active_roi
         current_a = self.a_selector.currentData()
         current_b = self.b_selector.currentData()
@@ -234,7 +236,9 @@ class DifferencePanel(QWidget):
             self.last_result = None
             self._clear_metrics()
         self._validate()
-        self._restore_or_refresh_metrics()
+        self._restore_or_refresh_metrics(
+            previous_status if previous_metric_key == self._metric_key() else None
+        )
 
     def set_active_roi(self, bounds: RoiBounds | None) -> None:
         if bounds == self._active_roi:
@@ -382,7 +386,7 @@ class DifferencePanel(QWidget):
         region: object = "full" if self.region.currentText() == "Full image" else bounds
         return (*key, self.channel.currentText(), region)
 
-    def _restore_or_refresh_metrics(self) -> None:
+    def _restore_or_refresh_metrics(self, presented_status: str | None = None) -> None:
         if self._validate() is not None:
             return
         difference_map = self.cached_result_for_current()
@@ -391,9 +395,13 @@ class DifferencePanel(QWidget):
             return
         metrics = self._metric_cache.get(metric_key)
         if metrics is not None:
+            already_presented = self.last_result is metrics
             self.last_result = metrics
             self._render_metrics(metrics)
-            self.status.setText("Cached metrics restored")
+            if already_presented and presented_status is not None:
+                self.status.setText(presented_status)
+            else:
+                self.status.setText("Cached metrics restored")
             return
         self.calculate_difference(publish_result=False)
 

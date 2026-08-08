@@ -4,13 +4,15 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialog, QDialogButtonBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QMessageBox
 
 from pixelscope.app.application import load_startup_settings
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.settings import (
+    DEFAULT_DIFFERENCE_CACHE_MIB,
     DEFAULT_EXPORT_DIRECTORY_KEY,
     DEFAULT_OPEN_DIRECTORY_KEY,
+    DEFAULT_SOURCE_RESIDENCY_MIB,
     DIFFERENCE_CACHE_MIB_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
     ApplicationSettings,
@@ -104,14 +106,14 @@ def test_settings_prefill_save_cancel_and_runtime_cache_is_immutable(
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     assert dialog.dont_show_raw_json_profiles.isChecked()
     assert dialog.difference_cache_mib.value() == 1024
-    assert dialog.source_residency_mib.value() == 1024
+    assert dialog.source_residency_mib.value() == 256
     assert not dialog.restart_required
 
     dialog.dont_show_raw_json_profiles.setChecked(False)
     dialog.default_open_directory.setText("C:/open")
     dialog.default_export_directory.setText("D:/export")
-    dialog.difference_cache_mib.setValue(2048)
-    dialog.source_residency_mib.setValue(4096)
+    dialog.difference_cache_mib.setValue(1280)
+    dialog.source_residency_mib.setValue(2560)
     assert dialog.restart_required
     save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
     assert save is not None
@@ -119,21 +121,21 @@ def test_settings_prefill_save_cancel_and_runtime_cache_is_immutable(
 
     expected = ApplicationSettings(
         dont_show_raw_json_profiles=False,
-        difference_cache_mib=2048,
-        source_residency_mib=4096,
+        difference_cache_mib=1280,
+        source_residency_mib=2560,
         default_open_directory="C:/open",
         default_export_directory="D:/export",
     )
     assert repository.load() == expected
     assert window.application_settings == expected
     assert window.difference_panel.difference_cache.budget_bytes == 1024 * MIB
-    assert window.residency_manager.budget_bytes == 1024 * MIB
+    assert window.residency_manager.budget_bytes == 256 * MIB
 
     cancelled = window.create_settings_dialog()
     qtbot.addWidget(cancelled)  # type: ignore[attr-defined]
     cancelled.default_open_directory.setText("C:/cancelled")
-    cancelled.difference_cache_mib.setValue(4096)
-    cancelled.source_residency_mib.setValue(8192)
+    cancelled.difference_cache_mib.setValue(1280)
+    cancelled.source_residency_mib.setValue(2560)
     cancel = cancelled.button_box.button(QDialogButtonBox.StandardButton.Cancel)
     assert cancel is not None
     qtbot.mouseClick(cancel, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
@@ -154,7 +156,7 @@ def test_restart_required_changed_reverted_reset_and_reopen(qtbot: object) -> No
     assert not dialog.restart_required
     dialog.source_residency_mib.setValue(2048)
     assert dialog.restart_required
-    dialog.source_residency_mib.setValue(1024)
+    dialog.source_residency_mib.setValue(256)
     assert not dialog.restart_required
 
     repository.save(
@@ -172,15 +174,15 @@ def test_restart_required_changed_reverted_reset_and_reopen(qtbot: object) -> No
         Qt.MouseButton.LeftButton,
     )
     assert repository.load() == ApplicationSettings()
-    assert not dialog.restart_required
+    assert dialog.restart_required
 
     reopened = SettingsDialog(repository, repository.load(), runtime)
     qtbot.addWidget(reopened)  # type: ignore[attr-defined]
     assert reopened.default_open_directory.text() == ""
     assert reopened.default_export_directory.text() == ""
-    assert reopened.difference_cache_mib.value() == 512
-    assert reopened.source_residency_mib.value() == 1024
-    assert not reopened.restart_required
+    assert reopened.difference_cache_mib.value() == 128
+    assert reopened.source_residency_mib.value() == 256
+    assert reopened.restart_required
 
 
 def test_restart_required_tracks_source_difference_both_and_runtime_reverts(
@@ -223,20 +225,20 @@ def test_difference_value_validation_and_startup_injection(qtbot: object) -> Non
     dialog = window.create_settings_dialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
     assert dialog.difference_cache_mib.minimum() == 64
-    assert dialog.difference_cache_mib.maximum() == 8192
+    assert dialog.difference_cache_mib.maximum() == 1280
     assert dialog.source_residency_mib.minimum() == 128
-    assert dialog.source_residency_mib.maximum() == 32768
+    assert dialog.source_residency_mib.maximum() == 2560
     dialog.difference_cache_mib.setValue(1)
     assert dialog.difference_cache_mib.value() == 64
     dialog.difference_cache_mib.setValue(99999)
-    assert dialog.difference_cache_mib.value() == 8192
+    assert dialog.difference_cache_mib.value() == 1280
     dialog.difference_cache_mib.setValue(1024)
     dialog.source_residency_mib.setValue(2048)
     assert persisted.difference_cache_mib == 768
     assert runtime.difference_cache_bytes == 768 * MIB
-    assert runtime.source_residency_bytes == 1024 * MIB
+    assert runtime.source_residency_bytes == 256 * MIB
     assert window.difference_panel.difference_cache.budget_bytes == 768 * MIB
-    assert window.residency_manager.budget_bytes == 1024 * MIB
+    assert window.residency_manager.budget_bytes == 256 * MIB
 
     save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
     assert save is not None
@@ -244,7 +246,66 @@ def test_difference_value_validation_and_startup_injection(qtbot: object) -> Non
     assert QSettings().value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 1024
     assert QSettings().value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 2048
     assert window.difference_panel.difference_cache.budget_bytes == 768 * MIB
-    assert window.residency_manager.budget_bytes == 1024 * MIB
+    assert window.residency_manager.budget_bytes == 256 * MIB
+
+
+def test_memory_sliders_use_coarse_bounded_steps(qtbot: object) -> None:
+    repository = _repository()
+    initial = repository.load()
+    dialog = SettingsDialog(repository, initial, initial.performance_settings())
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+
+    assert dialog.source_residency_mib.singleStep() == 128
+    assert dialog.source_residency_slider.minimum() == 1
+    assert dialog.source_residency_slider.maximum() == 20
+    assert dialog.source_residency_slider.pageStep() == 4
+    assert dialog.difference_cache_mib.singleStep() == 64
+    assert dialog.difference_cache_slider.minimum() == 1
+    assert dialog.difference_cache_slider.maximum() == 20
+    assert dialog.difference_cache_slider.pageStep() == 4
+
+
+def test_save_resets_combined_budget_when_it_reaches_physical_memory(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _repository()
+    initial = repository.load()
+    dialog = SettingsDialog(
+        repository,
+        initial,
+        initial.performance_settings(),
+        physical_memory_bytes=1024 * MIB,
+    )
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    warnings: list[tuple[str, str]] = []
+
+    def capture_warning(
+        _parent: object,
+        title: str,
+        message: str,
+    ) -> QMessageBox.StandardButton:
+        warnings.append((title, message))
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "warning", capture_warning)
+    dialog.source_residency_mib.setValue(896)
+    dialog.difference_cache_mib.setValue(128)
+    save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
+    assert save is not None
+
+    qtbot.mouseClick(save, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+
+    assert dialog.result() == int(QDialog.DialogCode.Rejected)
+    assert dialog.source_residency_mib.value() == DEFAULT_SOURCE_RESIDENCY_MIB
+    assert dialog.difference_cache_mib.value() == DEFAULT_DIFFERENCE_CACHE_MIB
+    assert repository.load() == initial
+    assert warnings and warnings[0][0] == "Memory budget reset"
+    assert "must be lower than installed physical memory" in warnings[0][1]
+
+    qtbot.mouseClick(save, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    assert dialog.result() == int(QDialog.DialogCode.Accepted)
+    assert repository.load() == ApplicationSettings()
 
 
 def test_settings_raw_preference_is_the_persistent_surface(qtbot: object) -> None:

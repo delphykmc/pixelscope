@@ -50,8 +50,8 @@
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
   - `settings/performance/source_residency_mib`
-- Schema v3 migrates to v4 by preserving every existing value and adding
-  `source_residency_mib = 1024`. Schema v2/v1 and legacy
+- Schema v4 migrates to v5 using the reduced validated memory ranges. Schema v3
+  adds the current source-residency default. Schema v2/v1 and legacy
   `raw/dont_show_json_profiles` also migrate into the current model.
 - Invalid current values fall back to validated defaults and are normalized. A
   persisted schema newer than the running application is never destructively
@@ -86,11 +86,13 @@
 - Performance settings are immutable startup snapshots. Difference Map Cache and
   Decoded Source Memory edits are persisted immediately but do not mutate their
   existing runtime owners.
-- Difference Map Cache preference default is 512 MiB with an accepted range of
-  64–8192 MiB. Runtime receives bytes through `PerformanceSettings`.
-- Decoded Source Memory defaults to 1024 MiB, accepts 128–32768 MiB, and uses
+- Difference Map Cache preference default is 128 MiB with an accepted range of
+  64–1280 MiB. Runtime receives bytes through `PerformanceSettings`.
+- Decoded Source Memory defaults to 256 MiB, accepts 128–2560 MiB, and uses
   128 MiB UI increments. Runtime receives bytes through
   `PerformanceSettings.source_residency_bytes`.
+- The Settings UI requires both budgets together to remain below installed
+  physical RAM. An invalid Save resets only the memory fields and requires review.
 - Restart-required UI compares both saved/editable startup-only budget values to
   the current runtime snapshot. Returning both to their runtime values clears
   the indication. File-location, RAW, Threshold, and Gain changes do not require
@@ -148,8 +150,7 @@
   package-resource loader, `QApplication`/main-window assignment, and source-run
   Windows AppUserModelID are P2-A1 boundaries.
 - `DifferenceMapCache` is byte-budgeted and persistence-free. P2-A2 injects its
-  startup budget through immutable `PerformanceSettings`; the default remains
-  512 MiB.
+  startup budget through immutable `PerformanceSettings`; the default is 128 MiB.
 - Decoded-source residency uses the P2-B byte-budgeted manager and protected-set
   policy. The former fixed seven-document limit is no longer authoritative.
 

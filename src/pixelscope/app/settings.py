@@ -12,13 +12,15 @@ from pixelscope.core.performance_settings import (
     PerformanceSettings,
 )
 
-CURRENT_SETTINGS_SCHEMA_VERSION: Final = 4
+CURRENT_SETTINGS_SCHEMA_VERSION: Final = 5
 DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
-MAX_DIFFERENCE_CACHE_MIB: Final = 8192
+MAX_DIFFERENCE_CACHE_MIB: Final = 1280
+DIFFERENCE_CACHE_STEP_MIB: Final = 64
 DEFAULT_SOURCE_RESIDENCY_MIB: Final = DEFAULT_SOURCE_RESIDENCY_BYTES // MIB
 MIN_SOURCE_RESIDENCY_MIB: Final = 128
-MAX_SOURCE_RESIDENCY_MIB: Final = 32768
+MAX_SOURCE_RESIDENCY_MIB: Final = 2560
+SOURCE_RESIDENCY_STEP_MIB: Final = 128
 DEFAULT_DIFFERENCE_THRESHOLD: Final = 10
 MIN_DIFFERENCE_THRESHOLD: Final = 0
 MAX_DIFFERENCE_THRESHOLD: Final = 2_147_483_647
@@ -172,7 +174,9 @@ class SettingsRepository:
                 self._write_current(settings)
             return settings
 
-        if schema_version == 3:
+        if schema_version == 4:
+            settings, _ = self._load_current_values()
+        elif schema_version == 3:
             settings = self._load_schema_v3_values()
         elif schema_version == 2:
             settings = self._load_schema_v2_values()

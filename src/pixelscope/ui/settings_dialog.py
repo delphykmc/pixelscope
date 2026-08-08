@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -11,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -21,6 +24,9 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.app.settings import (
+    DEFAULT_DIFFERENCE_CACHE_MIB,
+    DEFAULT_SOURCE_RESIDENCY_MIB,
+    DIFFERENCE_CACHE_STEP_MIB,
     MAX_DIFFERENCE_CACHE_MIB,
     MAX_DIFFERENCE_GAIN,
     MAX_DIFFERENCE_THRESHOLD,
@@ -29,13 +35,16 @@ from pixelscope.app.settings import (
     MIN_DIFFERENCE_GAIN,
     MIN_DIFFERENCE_THRESHOLD,
     MIN_SOURCE_RESIDENCY_MIB,
+    SOURCE_RESIDENCY_STEP_MIB,
     ApplicationSettings,
     SettingsRepository,
 )
-from pixelscope.core.performance_settings import MIB, PerformanceSettings
-
-_DIFFERENCE_CACHE_STEP_MIB = 64
-_SOURCE_RESIDENCY_STEP_MIB = 128
+from pixelscope.core.performance_settings import (
+    MIB,
+    PerformanceSettings,
+    detect_physical_memory_bytes,
+    memory_budgets_fit_physical_memory,
+)
 
 
 class _SettingRow(QWidget):
@@ -148,6 +157,7 @@ class SettingsDialog(QDialog):
         initial_settings: ApplicationSettings,
         runtime_performance_settings: PerformanceSettings,
         parent: QWidget | None = None,
+        physical_memory_bytes: int | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Settings")
@@ -157,6 +167,11 @@ class SettingsDialog(QDialog):
         self.setObjectName("settingsDialog")
         self._repository = repository
         self._runtime_performance_settings = runtime_performance_settings
+        self._physical_memory_bytes = (
+            detect_physical_memory_bytes()
+            if physical_memory_bytes is None
+            else physical_memory_bytes
+        )
 
         self.category_list = QListWidget()
         self.category_list.setObjectName("settingsCategoryList")
@@ -208,18 +223,18 @@ class SettingsDialog(QDialog):
         )
         self.difference_cache_mib.setSuffix(" MiB")
         self.difference_cache_mib.setKeyboardTracking(False)
-        self.difference_cache_mib.setSingleStep(_DIFFERENCE_CACHE_STEP_MIB)
+        self.difference_cache_mib.setSingleStep(DIFFERENCE_CACHE_STEP_MIB)
         self.difference_cache_mib.setMaximumWidth(132)
 
         self.difference_cache_slider = QSlider(Qt.Orientation.Horizontal)
         self.difference_cache_slider.setObjectName("performanceDifferenceCacheSlider")
         self.difference_cache_slider.setRange(
-            MIN_DIFFERENCE_CACHE_MIB // _DIFFERENCE_CACHE_STEP_MIB,
-            MAX_DIFFERENCE_CACHE_MIB // _DIFFERENCE_CACHE_STEP_MIB,
+            MIN_DIFFERENCE_CACHE_MIB // DIFFERENCE_CACHE_STEP_MIB,
+            MAX_DIFFERENCE_CACHE_MIB // DIFFERENCE_CACHE_STEP_MIB,
         )
         self.difference_cache_slider.setSingleStep(1)
-        self.difference_cache_slider.setPageStep(8)
-        self.difference_cache_slider.setTickInterval(16)
+        self.difference_cache_slider.setPageStep(4)
+        self.difference_cache_slider.setTickInterval(4)
         self.difference_cache_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
 
         self.source_residency_mib = QSpinBox()
@@ -230,24 +245,29 @@ class SettingsDialog(QDialog):
         )
         self.source_residency_mib.setSuffix(" MiB")
         self.source_residency_mib.setKeyboardTracking(False)
-        self.source_residency_mib.setSingleStep(_SOURCE_RESIDENCY_STEP_MIB)
+        self.source_residency_mib.setSingleStep(SOURCE_RESIDENCY_STEP_MIB)
         self.source_residency_mib.setMaximumWidth(132)
 
         self.source_residency_slider = QSlider(Qt.Orientation.Horizontal)
         self.source_residency_slider.setObjectName("performanceSourceResidencySlider")
         self.source_residency_slider.setRange(
-            MIN_SOURCE_RESIDENCY_MIB // _SOURCE_RESIDENCY_STEP_MIB,
-            MAX_SOURCE_RESIDENCY_MIB // _SOURCE_RESIDENCY_STEP_MIB,
+            MIN_SOURCE_RESIDENCY_MIB // SOURCE_RESIDENCY_STEP_MIB,
+            MAX_SOURCE_RESIDENCY_MIB // SOURCE_RESIDENCY_STEP_MIB,
         )
         self.source_residency_slider.setSingleStep(1)
-        self.source_residency_slider.setPageStep(8)
-        self.source_residency_slider.setTickInterval(16)
+        self.source_residency_slider.setPageStep(4)
+        self.source_residency_slider.setTickInterval(4)
         self.source_residency_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
 
         self.restart_required_label = QLabel("Changes take effect after restarting PixelScope.")
         self.restart_required_label.setObjectName("restartRequiredLabel")
         self.restart_required_label.setProperty("settingsRole", "supportingText")
         self.restart_required_label.setWordWrap(True)
+
+        self.memory_budget_summary = QLabel()
+        self.memory_budget_summary.setObjectName("memoryBudgetSummary")
+        self.memory_budget_summary.setProperty("settingsRole", "supportingText")
+        self.memory_budget_summary.setWordWrap(True)
 
         self.compatibility_label = QLabel()
         self.compatibility_label.setObjectName("settingsCompatibilityLabel")
@@ -428,7 +448,8 @@ class SettingsDialog(QDialog):
                 "Decoded Source Memory",
                 "Memory budget for decoded source image arrays kept resident for "
                 "fast navigation. The green residency indicator in Files reflects "
-                "this source residency.",
+                "this source residency. 256 MiB is roughly 8 UHD working images "
+                "with headroom; actual capacity depends on dtype and channels.",
                 self._memory_budget_control(
                     self.source_residency_slider,
                     self.source_residency_mib,
@@ -440,8 +461,9 @@ class SettingsDialog(QDialog):
         memory_section.add_row(
             _SettingRow(
                 "Difference Map Cache",
-                "Memory budget for cached Difference maps. Adjust in 64 MiB steps; "
-                "the configured value is applied on the next PixelScope launch.",
+                "Memory budget for cached Difference maps. 128 MiB is roughly 4 UHD "
+                "maps with headroom. Adjust in 64 MiB steps; changes apply on the "
+                "next PixelScope launch.",
                 self._memory_budget_control(
                     self.difference_cache_slider,
                     self.difference_cache_mib,
@@ -450,6 +472,7 @@ class SettingsDialog(QDialog):
                 ),
             )
         )
+        memory_section.add_widget(self.memory_budget_summary)
         memory_section.add_widget(self.restart_required_label)
         page.add_section(memory_section)
         page.finish()
@@ -639,7 +662,33 @@ class SettingsDialog(QDialog):
         self._update_restart_required()
 
     def _save(self) -> None:
-        settings = self._repository.save(self.settings())
+        requested = self.settings()
+        if not memory_budgets_fit_physical_memory(
+            requested.source_residency_mib * MIB,
+            requested.difference_cache_mib * MIB,
+            self._physical_memory_bytes,
+        ):
+            corrected = replace(
+                requested,
+                difference_cache_mib=DEFAULT_DIFFERENCE_CACHE_MIB,
+                source_residency_mib=DEFAULT_SOURCE_RESIDENCY_MIB,
+            )
+            self.set_settings(corrected)
+            total_mib = requested.source_residency_mib + requested.difference_cache_mib
+            physical_mib = (
+                self._physical_memory_bytes // MIB if self._physical_memory_bytes is not None else 0
+            )
+            QMessageBox.warning(
+                self,
+                "Memory budget reset",
+                f"The combined image-memory budget ({total_mib} MiB) must be lower "
+                f"than installed physical memory ({physical_mib} MiB). The Source "
+                f"and Difference budgets were reset to {DEFAULT_SOURCE_RESIDENCY_MIB} "
+                f"MiB and {DEFAULT_DIFFERENCE_CACHE_MIB} MiB. Review the corrected "
+                "values, then select Save again.",
+            )
+            return
+        settings = self._repository.save(requested)
         self.settings_saved.emit(settings)
         self.accept()
 
@@ -666,7 +715,7 @@ class SettingsDialog(QDialog):
             target.setText(path)
 
     def _difference_cache_slider_changed(self, slider_value: int) -> None:
-        requested_mib = slider_value * _DIFFERENCE_CACHE_STEP_MIB
+        requested_mib = slider_value * DIFFERENCE_CACHE_STEP_MIB
         if self.difference_cache_mib.value() != requested_mib:
             self.difference_cache_mib.setValue(requested_mib)
         else:
@@ -677,7 +726,7 @@ class SettingsDialog(QDialog):
         self._update_restart_required()
 
     def _sync_difference_cache_slider(self, value_mib: int) -> None:
-        slider_value = round(value_mib / _DIFFERENCE_CACHE_STEP_MIB)
+        slider_value = round(value_mib / DIFFERENCE_CACHE_STEP_MIB)
         slider_value = max(
             self.difference_cache_slider.minimum(),
             min(self.difference_cache_slider.maximum(), slider_value),
@@ -689,7 +738,7 @@ class SettingsDialog(QDialog):
         self.difference_cache_slider.blockSignals(was_blocked)
 
     def _source_residency_slider_changed(self, slider_value: int) -> None:
-        requested_mib = slider_value * _SOURCE_RESIDENCY_STEP_MIB
+        requested_mib = slider_value * SOURCE_RESIDENCY_STEP_MIB
         if self.source_residency_mib.value() != requested_mib:
             self.source_residency_mib.setValue(requested_mib)
         else:
@@ -700,7 +749,7 @@ class SettingsDialog(QDialog):
         self._update_restart_required()
 
     def _sync_source_residency_slider(self, value_mib: int) -> None:
-        slider_value = round(value_mib / _SOURCE_RESIDENCY_STEP_MIB)
+        slider_value = round(value_mib / SOURCE_RESIDENCY_STEP_MIB)
         slider_value = max(
             self.source_residency_slider.minimum(),
             min(self.source_residency_slider.maximum(), slider_value),
@@ -713,6 +762,14 @@ class SettingsDialog(QDialog):
 
     def _update_restart_required(self) -> None:
         requested_bytes = self.difference_cache_mib.value() * MIB
+        combined_mib = self.difference_cache_mib.value() + self.source_residency_mib.value()
+        if self._physical_memory_bytes is None:
+            physical_text = "Physical memory unavailable"
+        else:
+            physical_text = f"Physical memory: {self._physical_memory_bytes // MIB} MiB"
+        self.memory_budget_summary.setText(
+            f"Combined image budget: {combined_mib} MiB  ·  {physical_text}"
+        )
         self.restart_required_label.setVisible(
             requested_bytes != self._runtime_performance_settings.difference_cache_bytes
             or self.source_residency_mib.value() * MIB

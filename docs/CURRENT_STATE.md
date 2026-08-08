@@ -17,8 +17,8 @@ This document records the implementation baseline that new work must use.
   `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
 - P2-A2 merged as PR #15 at
   `1869764a74b01cebebaf8fa915b11a2a696be6cb`.
-- P2-B is implemented on `feature/p2-b-source-residency-budget`; final full and
-  manual validation remain before merge.
+- P2-B is implemented on `feature/p2-b-source-residency-budget`; automated
+  validation is recorded below and manual Windows validation remains before merge.
 
 ## Implemented baseline
 
@@ -93,17 +93,19 @@ This document records the implementation baseline that new work must use.
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
   - `settings/performance/source_residency_mib`
-- Schema v3 migrates to v4 by preserving every v3 value and adding the 1024 MiB
-  source-residency default. Schema v2/v1 and the legacy RAW key continue to
+- Schema v4 migrates to v5 under the reduced memory ranges. Schema v3 migration
+  adds the current source-residency default. Schema v2/v1 and the legacy RAW key continue to
   migrate into the current model.
 - `Edit > Settings...` uses left-side **General / Files / Performance** page
   navigation with a flat VS Code-inspired content hierarchy.
 - Blank default Open/Export locations preserve the existing last-used-folder
   behavior. A configured existing location only seeds the corresponding file
   dialog and applies without restart.
-- Difference Map Cache defaults to 512 MiB and accepts 64–8192 MiB.
-- Decoded Source Memory defaults to 1024 MiB, accepts 128–32768 MiB, and uses
+- Difference Map Cache defaults to 128 MiB and accepts 64–1280 MiB.
+- Decoded Source Memory defaults to 256 MiB, accepts 128–2560 MiB, and uses
   128 MiB UI increments.
+- Settings rejects a combined image-memory budget that is not strictly below
+  detected physical RAM and resets the two fields to their defaults for review.
 - Application startup converts persisted MiB into immutable
   `PerformanceSettings.difference_cache_bytes` and
   `PerformanceSettings.source_residency_bytes`. `MainWindow` injects the former
@@ -148,9 +150,14 @@ This document records the implementation baseline that new work must use.
 
 ## Validation evidence
 
-Focused P2-B residency/settings integration validation has passed on the branch.
-The full repository contract and manual Windows matrix remain to be recorded
-before merge; no unobserved result is pre-claimed here.
+Focused P2-B residency/settings integration validation passes on the latest
+working head. The standard static/docs/dependency/performance/startup checks pass.
+Full pytest was executed and reports 300 passed with three reproducible offscreen
+failures: floating Plots geometry restore and two pyqtgraph hover-coordinate
+assertions. The same three tests fail from an isolated `origin/main` archive in
+the identical environment, confirming they are baseline/environment failures,
+not P2-B regressions. They were not skipped or rewritten. Manual Windows
+residency/settings validation remains outstanding before merge.
 
 ## Active plan
 

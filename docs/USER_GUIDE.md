@@ -130,10 +130,12 @@ apply immediately and do not require restart.
 ### Performance
 
 **Decoded Source Memory** is the budget for native decoded source image arrays
-kept resident for fast navigation. The default is 1024 MiB and the allowed range
-is 128–32768 MiB. The green residency indicator in Files means that source's
-native decoded array is currently resident; it does not mean total application
-memory or a Difference cache entry.
+kept resident for fast navigation. The default is 256 MiB, the allowed range is
+128–2560 MiB, and the control moves in 128 MiB steps. The default targets about
+eight typical UHD working images with headroom; actual capacity varies with
+resolution, dtype, and channel count. The green residency indicator in Files
+means that source's native decoded array is currently resident; it does not mean
+total application memory or a Difference cache entry.
 
 PixelScope releases the least-recently-used unprotected sources when their bytes
 exceed this budget. Visible, selected, active/analysis, current Difference-pair,
@@ -143,14 +145,19 @@ while protected. Selecting a released source reloads it through the normal image
 load path.
 
 **Difference Map Cache** is the separate memory budget for calculated Difference
-maps. Its default is 512 MiB and allowed range is 64–8192 MiB. Releasing a source
-for Decoded Source Memory does not by itself discard a valid Difference map.
+maps. Its default is 128 MiB, allowed range is 64–1280 MiB, and the control moves
+in 64 MiB steps. Releasing a source for Decoded Source Memory does not by itself
+discard a valid Difference map.
 
 Both memory budgets are startup settings. Changing either saves the preference
 but does not resize the current runtime owner. When an editable value differs
 from its current startup value, the dialog shows **Changes take effect after
 restarting PixelScope.** Returning both values to their current runtime settings
 clears that indication.
+
+The combined Source and Difference budgets must remain below installed physical
+memory. If Save detects an invalid total, PixelScope warns, resets only those two
+fields to their recommended defaults, and leaves Settings open for review.
 
 **Reset Settings** restores only application preferences to their defaults. It
 does not reset window layout, dock/splitter geometry, remembered last directory,

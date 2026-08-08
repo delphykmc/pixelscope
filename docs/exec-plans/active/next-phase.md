@@ -1,191 +1,382 @@
-# Execution plan: P2-B byte-budgeted decoded-source residency
+# Execution plan: P2 — Runtime Foundation, Settings & Performance
 
 Status: Active
-Owner: ChatGPT-assisted implementation agent
-Branch/PR: `feature/p2-b-source-residency-budget`
+Owner: repository owner + P2 orchestration agents
 Last updated: 2026-08-08
 
 ## Goal
 
-Replace `MainWindow`'s fixed seven-document decoded-source policy with a
-deterministic native-source byte budget. Completion is observable when Files
-residency badges track `ImageDocument.source`, protected sources remain usable
-even above the soft budget, unprotected least-recently-used sources are released
-and reload through the existing load path, and Settings persists the startup
-budget through schema v4.
+Establish application identity, typed startup settings, byte-budgeted source
+residency, bounded preload, deterministic diagnostics, and performance hardening
+without a broad `MainWindow` rewrite.
 
-## Scope
+## Scope and sequence
 
-### In scope
+The authoritative dependency is:
 
-- Pure-core `ResidencyManager` for byte accounting, LRU ordering, protected
-  eviction planning, and minimal diagnostics.
-- Native `ImageDocument.source.nbytes` accounting for reloadable registered
-  sources, with preview, Difference-map, transient-worker, Qt, and derived
-  channel memory excluded.
-- Protection for visible, selected, active/analysis, Difference-pair, and active
-  load-target document IDs.
-- Source release, dependent document-local cache invalidation, Files badge
-  updates, and reuse of the existing tokenized normal-load path.
-- A 1024 MiB default decoded-source budget, 128–32768 MiB validation, immutable
-  startup injection, schema-v3-to-v4 migration, Performance UI, and restart
-  indication.
-- Deterministic unit/UI regression tests and durable documentation updates.
+`P2-0 → P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E`
 
-### Out of scope
+Each slice starts from the latest merged prerequisite on `main`.
 
-- Preload, next-group prediction, a preload worker pool, or a preload setting.
-- Full diagnostics UI, copy/export, failure history, worker-count controls, or
-  process RSS tracking.
-- Difference Map Cache redesign or coupling source eviction to Difference-map
-  eviction.
-- RAW expansion, sessions, remote/auth, packaging/signing, and startup-frame
-  polish.
+| Order | Slice | Branch | Merge prerequisite |
+|---|---|---|---|
+| 0 | P2-0 program transition | `docs/p2-0-program-setup` | PR #12 merged |
+| 1 | P2-A1 identity/resources | `feature/p2-a-settings-identity` | P2-0 merged |
+| 2 | P2-A2 settings foundation | `feature/p2-a-settings-foundation` | P2-A1 merged |
+| 3 | P2-B source residency | `feature/p2-b-source-residency-budget` | P2-A2 merged |
+| 4 | P2-C folder preload | `feature/p2-c-folder-preload` | P2-B merged |
+| 5 | P2-D diagnostics | `feature/p2-d-runtime-diagnostics` | P2-C merged |
+| 6 | P2-E hardening | `feature/p2-e-performance-hardening` | P2-D merged |
 
-## Current state
+P2-A1 and P2-A2 are merged as PR #14 and PR #15. P2-B is the current active
+slice; P2-C remains blocked until P2-B merges.
 
-PR #15 merged P2-A2 into `main` at
-`1869764a74b01cebebaf8fa915b11a2a696be6cb`; this branch starts at that commit.
-`MainWindow` previously owned `_resident_order`, `_resident_document_limit = 7`,
-`_touch_resident()`, and `_evict_resident_documents()`. Successful normal loads
-replace pending documents and the existing load-token/worker registry rejects
-stale results. Eviction clears source, preview, Statistics/Histogram caches, and
-source-derived channel views. `ApplicationSettings` schema v3 currently exposes
-only the Difference Map Cache startup budget through frozen
-`PerformanceSettings`.
+Out of scope for P2: persistent comparison sessions, broader export workflows,
+RAW demosaic/level processing, remote service UI, authentication, installer,
+signing, update delivery, broad shortcut redesign, and speculative native
+optimization.
 
-The checkout also contains pre-existing untracked files under `docs/temp/` and
-`pixelscope-p1f.zip`. They are outside this plan and must not be modified or
-staged.
+## Current baseline
 
-## Invariants and constraints
+- P2-0 merged as PR #13 at
+  `52daa63425a286e370aa5ef36f59ba51a8acd565`.
+- P2-A1 merged as PR #14 at
+  `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
+- P2-A2 merged as PR #15 at
+  `1869764a74b01cebebaf8fa915b11a2a696be6cb`; P2-B branches from this commit.
+- P2-A1 provides canonical SVG/PNG/ICO assets, exact derivative reproduction,
+  package-data declaration, CWD-independent resource loading, stable Windows
+  source-run AppUserModelID, and `QApplication`/main-window icon assignment.
+- P2-A2 implements frozen typed `ApplicationSettings`, schema-aware
+  `SettingsRepository` + `QSettingsAdapter`, RAW preference migration, a flat
+  VS Code-inspired Settings UI, optional file-dialog locations, exact RAW size
+  policy, live Difference Threshold/Gain defaults, restart/reset semantics, and
+  Difference Map Cache startup injection.
+- Settings schema v5 owns RAW confirmation, exact RAW validation, Files default
+  Open/Export folders, Difference Threshold/Gain, and Performance Difference Map
+  Cache and Decoded Source Memory MiB. Earlier schemas migrate forward.
+- Difference Map Cache defaults to 128 MiB and accepts 64–1280 MiB. Decoded
+  Source Memory defaults to 256 MiB and accepts 128–2560 MiB.
+- Source residency is an exact native-`source.nbytes`, protected, soft-budget
+  LRU policy. The former fixed seven-document count is no longer authoritative,
+  and source residency remains independent of Difference Map Cache.
+- Image loading uses a pool capped at two workers; shared numerical work uses a
+  pool capped at four.
+- Normal-load stale-result handling relies on target document ID, load tokens,
+  worker registration, and cancelled-worker rejection.
+- A final review found runtime-integration gaps after the owner had recorded a
+  passing suite on the prior head. The gaps have been corrected; a fresh full
+  validation run is required before P2-A2 merges.
 
-- Target CPython 3.10 x64 and keep expensive decode/analysis off the UI thread.
-- Preserve native dtype, channel meaning, strides, endianness, alignment, and
-  bounds; the manager stores only integer byte counts and imports no Qt.
-- The budget is soft: protected sources and one oversized protected source may
-  remain resident above budget.
-- Only unprotected resident sources are eviction candidates, ordered oldest to
-  newest. Manager planning and `MainWindow` mutation remain separate.
-- Channel-split and Difference result documents are not independent source
-  residency entries.
-- Source eviction invalidates source-local derived state but does not evict a
-  valid `DifferenceMapCache` entry solely because source bytes were released.
-- Performance settings remain immutable startup snapshots; saves never mutate
-  the current residency manager's budget.
-- Existing human commits are not rewritten. Owner-authenticated commits use the
-  repository's `Co-authored-by: ChatGPT <noreply@openai.com>` fallback.
+## Invariants
 
-## Proposed design
+- Target CPython 3.10 x64, PySide6 6.4.2, pyqtgraph 0.13.3, and exactly
+  PyInstaller 5.7 `onedir`.
+- Resource lookup must not depend on the source tree or current working directory.
+- The SVG is the only hand-edited icon source. PNG and ICO are generated by
+  `scripts/generate_icon_assets.py` with dev-pinned `resvg_py` and Pillow.
+- Windows source runs set `PixelScope.PixelScope` before `QApplication` creation.
+- Executable metadata, pinned shortcuts, installer shortcuts, final packaged
+  shell grouping, signing, and final release identity remain P7 acceptance work.
+- Expensive I/O and numerics remain off the UI thread.
+- Source dtype, channel meaning, strides, endianness, alignment, and
+  overflow-safe arithmetic remain explicit.
+- QSettings is an adapter for application preferences, not the settings domain
+  model. Workspace/session keys remain separately owned.
+- Exact dock geometry, splitters, layout mode, and Plots visibility remain
+  workspace state and are not duplicated as application defaults.
+- Performance settings are immutable startup snapshots; startup-only cache
+  changes require restart indication and never live-mutate existing runtime
+  caches.
+- File-location, RAW, Difference Threshold, and Difference Gain preferences are
+  live settings and do not require restart.
+- Difference Map Cache and decoded-source residency remain separate budgets.
+- Source-residency accounting covers native decoded `ImageDocument.source`
+  arrays only, not total process memory.
+- Source budget is soft because protected documents may temporarily exceed it.
+- Normal load has priority over preload.
+- Remote access policy is not introduced in P2.
+- Agent-generated commits and GitHub activity follow the provenance convention
+  in `AGENTS.md` and `docs/AGENT_HARNESS_NOTES.md`.
 
-`core.residency.ResidencyManager` owns an ordered mapping from registered
-document ID to resident source bytes. `record()` updates accounting, `touch()`
-promotes an existing ID, `remove()` drops it, and `eviction_candidates()` plans
-the oldest unprotected removals needed to reach the byte budget without
-mutating documents. Read-only properties expose budget, used bytes, resident
-count, over-budget bytes, and deterministic LRU IDs.
+## Target boundaries
 
-`MainWindow` owns actual `ImageDocument` mutation. It records exact
-`int(document.source.nbytes)` for registered native sources and after successful loads, removes entries on reload
-reset/failure/document removal, computes protected registered IDs from current
-application state, applies planned eviction, invalidates Statistics/Histogram
-and channel-view state, updates Files badges, and lets newly required pending
-documents use `_ensure_loaded()` and the existing tokenized worker path.
+Implemented by P2-A:
 
-Settings schema v4 adds `settings/performance/source_residency_mib`. Startup
-converts both independent MiB preferences into frozen byte budgets. The
-Performance page presents distinct **Decoded Source Memory** and **Difference
-Map Cache** controls; either startup-only difference from the runtime snapshot
-shows the existing restart message.
+- `pixelscope.app.resources`: packaged application resources.
+- `ApplicationSettings`: validated persisted choices.
+- `SettingsRepository`: schema-aware load/save/reset and migration.
+- immutable `PerformanceSettings`: startup resource snapshot.
+- category/page Settings UI: General, Files, Performance.
 
-## Implementation slices
+Remaining P2 target boundaries:
 
-1. **Pure-core policy**
-   - Files/components: `core/residency.py`, focused unit tests.
-   - Observable result: exact deterministic accounting and protected LRU plans.
-   - Tests: dtype/shape `nbytes`, ordering, changed sizes, boundaries,
-     protection, oversized sources, and diagnostics.
-2. **Settings v4 and startup injection**
-   - Files/components: settings domain/repository, `PerformanceSettings`,
-     Settings dialog, application composition, settings tests.
-   - Observable result: validated 1024 MiB preference persists and applies only
-     after restart, independently from Difference Map Cache.
-   - Tests: fresh/migration/round-trip/invalid/future/reset, immutability,
-     injection, UI controls, save/revert/reset/restart combinations.
-3. **MainWindow integration**
-   - Files/components: `MainWindow`, source-residency UI tests.
-   - Observable result: byte-based protected eviction, badge updates, cache
-     invalidation, and normal-path reload replace fixed-count behavior.
-   - Tests: eviction/protection/soft oversize/reload/stale result/cache
-     independence/fixed-seven regression.
-4. **Durable state and evidence**
-   - Files/components: product, architecture, decisions, current state, roadmap,
-     user guide, quality contract, and this plan.
-   - Observable result: no implemented P2-B behavior remains described as
-     future or count-based authority; P2-C remains planned.
-   - Tests: documentation contract and full repository validation.
+- `ResidencyManager`: source-byte accounting, protection, LRU eviction, reload,
+  invalidation, and diagnostics.
+- `PreloadController`: one-group-ahead planning, bounded ownership, stale-result
+  rejection, and budget-aware retention.
+- immutable diagnostics model: deterministic and inexpensive runtime snapshot.
 
-## Validation plan
+## Slice definitions
 
-- Targeted automated tests: new ResidencyManager, schema-v4, source-residency,
-  Settings, and Difference-cache independence tests.
-- Full checks: `scripts/check_docs.py`, `pytest -q`, `ruff check .`,
-  `ruff format --check .`, `mypy src`, `pip check`, and `git diff --check`.
-- Manual Windows checks: startup, Settings terminology/default/restart state,
-  high/low budgets, selected/visible/active/Difference protection, reload,
-  oversized source, green Files badges, rapid navigation, and analysis regressions.
-- Performance or memory checks: deterministic small-array byte budgets only;
-  no wall-clock thresholds or process-RSS claims.
+### P2-0 — Program setup and roadmap transition
 
-## Risks and mitigations
+Status: Complete; merged as PR #13.
 
-| Risk | Detection | Mitigation |
-|---|---|---|
-| Manager/document accounting diverges | diagnostics and integration assertions | centralize record/remove/release helpers and remove stale entries defensively |
-| A required source is evicted and reload-thrashes | per-protection and oversized tests | compute one explicit protected registered-ID set before planning |
-| Source eviction corrupts Difference caching | cache-retention integration test | never invalidate Difference maps on source-only eviction |
-| Schema migration loses P2-A2 values | schema-v3-to-v4 preservation test | construct v4 from validated v3 fields plus only the new default |
-| Async stale results repopulate obsolete documents | token/cancellation regression test | retain the current load-token and worker-registry apply checks |
-| Unrelated owner files enter the PR | status/diff/staging review | stage only explicit tracked P2-B paths |
+- Archive P1 completion state.
+- Transition ROADMAP to P2–P7.
+- Establish this active plan and reconcile durable documentation.
+- Documentation-only scope.
+
+### P2-A1 — Application identity and resource foundation
+
+Status: Complete; merged as PR #14.
+Branch: `feature/p2-a-settings-identity`
+
+- Canonical editable SVG, transparent 256 px runtime PNG, and nine-frame ICO.
+- Reproducible PNG/ICO generation using dev-pinned `resvg_py` and Pillow.
+- Temporary exact-reproduction check that leaves canonical assets untouched and
+  removes generated temp files after validation.
+- Package-byte lookup through `importlib.resources`.
+- Windows source-run AppUserModelID before `QApplication` creation.
+- `QApplication` and explicit main-window runtime icon assignment.
+- Setuptools package-data declaration.
+- Strong SVG/PNG/ICO tests, reproduction test, Qt icon/AppUserModelID tests,
+  wheel-content checker, and durable branding/architecture/quality documentation.
+- Preserve synchronized Multi View ranges when primary promotion rebinds the
+  same document count into the same fixed geometry.
+
+Excluded: settings models, Settings UI, Difference startup injection,
+PyInstaller icon binding, installer, signing, pinned shortcuts, and final
+packaged release identity.
+
+### P2-A2 — Settings foundation and runtime integration
+
+Status: Active; final blocker fixes implemented, fresh owner validation pending.
+Branch: `feature/p2-a-settings-foundation`
+
+- Frozen typed `ApplicationSettings` with RAW confirmation, exact RAW file-size
+  validation, optional default Open/Export folders, Difference Threshold/Gain,
+  and Difference Map Cache MiB.
+- `SettingsRepository` plus QSettings adapter.
+- Schema version 3, schema-v2/v1 migration, legacy RAW migration, validation,
+  defaults, reset, invalid-state normalization, and non-destructive future-schema
+  handling.
+- `Edit > Settings...` with left-side General / Files / Performance navigation
+  and flat VS Code-inspired content hierarchy.
+- General is the sole persistent UI surface for **Don't Show RAW JSON Profiles**;
+  the duplicate File-menu action is removed while RAW-dialog opt-in remains.
+- **Require Exact RAW File Size** propagates through `MainWindow` →
+  `ImageLoadWorker` → `read_raw`. The same exact/minimum byte rule controls JSON
+  sidecar auto-approval.
+- RAW don't-show-again uses a single-field immutable settings update and preserves
+  all other schema-v3 values.
+- General **Threshold** and **Gain** initialize `DifferencePanel` from persisted
+  settings and apply immediately to the live panel after Settings saves.
+- Files contains optional **Default Open Folder** and **Default Export Folder**.
+  Blank preserves last-used-folder behavior; configured existing paths only seed
+  file-dialog start locations.
+- Difference Map Cache default 512 MiB, accepted range 64–8192 MiB.
+- Immutable byte-based `PerformanceSettings` startup snapshot injected through
+  `MainWindow` → `DifferencePanel` → `DifferenceMapCache`.
+- Restart-required indication compares the editable Difference Map Cache value
+  with the current runtime snapshot; live cache mutation is prohibited.
+- `Reset Settings` resets application preferences only and does not reset
+  workspace/session persistence.
+- Docking/layout settings are deliberately excluded because exact workspace
+  state already owns those values.
+- Broader export format/naming controls are deferred until the export surface is
+  broader than Statistics CSV.
+- Durable agent provenance rules recorded for future ChatGPT/Codex work.
+
+Excluded: source-residency budget, preload, diagnostics dialog, installer, and
+signing.
+
+### P2-B — Byte-budgeted decoded-source residency
+
+Status: Active on PR #16; implementation and review fixes complete, owner manual
+Windows validation pending.
+
+- Replaced the fixed seven-document policy with exact native-source byte
+  accounting and deterministic protected LRU eviction planning.
+- Protects visible, selected, analysis, Difference-pair, active-load, and
+  non-reloadable programmatic documents.
+- Implements normal-worker reload, soft-limit and oversized-source behavior,
+  dependent invalidation, Files residency state, and minimal diagnostics.
+- Extends Performance settings with independent Source and Difference budgets,
+  coarse bounded controls, physical-memory validation, and restart semantics.
+- Runtime regressions cover oversized selected worker completion and real
+  Difference-pair/cache independence under source-budget pressure.
+
+### P2-C — Bounded next-group preload
+
+- Predict one next folder group only.
+- Keep preload ownership bounded and lower priority than normal loads.
+- Request cancellation where possible and always reject stale results.
+- Retain results only when compatible with the source budget.
+- Extend the Performance page with the preload preference and add diagnostics.
+
+### P2-D — Runtime diagnostics and failure visibility
+
+- Produce deterministic source-residency, Difference-cache, worker, preload,
+  stale-drop, and sanitized failure state.
+- Add copy and optional text export.
+- Avoid unnecessary path detail and never include image content.
+- Reading diagnostics must not start expensive work.
+
+### P2-E — Performance characterization and phase hardening
+
+- Integrate P2 and complete default/migration/invalid-state tests.
+- Characterize FHD/UHD, uint8/uint16, RGB/grayscale/Bayer/RAW, low budgets,
+  oversized sources, rapid navigation, cancellation, and diagnostics.
+- Add deterministic smoke checks rather than unstable timing thresholds.
+- Complete durable P2 documentation without adding a large feature.
+
+## Merge gates
+
+- **P2-A1:** complete and merged as PR #14.
+- **P2-A2:** schema-v3 fresh/save/reset/migration/invalid/future tests,
+  category-page Settings UI tests, file-location behavior, exact RAW worker/reader
+  and sidecar-policy integration, RAW partial-update preservation, persisted and
+  live Difference Threshold/Gain integration, Difference Map Cache startup
+  injection/restart indication, P2-A1 application-icon regression, durable-doc
+  contract, full repository contract, and manual Windows Settings validation.
+- **P2-B:** deterministic accounting, protection, eviction, oversized-source, and
+  reload tests; fixed-count policy no longer authoritative.
+- **P2-C:** normal-load priority, bounded ownership, cancellation request,
+  stale-result rejection, token/generation validation, and rapid navigation.
+- **P2-D:** deterministic sanitized snapshot, cheap inspection, and copy/export.
+- **P2-E:** full standard validation, deterministic performance smoke coverage,
+  Windows characterization, and coherent durable docs.
+
+## Validation
+
+P2-B focused checks:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_settings_repository.py `
+    tests\unit\test_settings_schema_v4.py `
+    tests\unit\test_residency_manager.py `
+    tests\ui\test_settings_dialog.py `
+    tests\ui\test_settings_v3_controls.py `
+    tests\ui\test_settings_v3_runtime_integration.py `
+    tests\ui\test_p1c_raw_json_preference.py `
+    tests\ui\test_difference_cache_panel.py `
+    tests\ui\test_source_residency.py `
+    tests\ui\test_application_icon.py
+```
+
+Full repository contract for this runtime/docs change:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_docs.py
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy src
+.\.venv\Scripts\python.exe -m pip check
+git diff --check
+```
+
+On the latest working head, focused P2-B tests and every static/docs/dependency
+check pass. Full pytest reports 300 passed and the same three offscreen-only
+failures reproduced on `origin/main`: floating Plots geometry restore and two
+pyqtgraph hover-coordinate assertions. Manual Windows validation remains open.
+
+## Manual Windows matrix
+
+P2-A2 merge requires owner validation of:
+
+1. PixelScope starts normally.
+2. P2-A1 title/taskbar icon behavior has no regression.
+3. **Edit > Settings...** opens with General / Files / Performance navigation.
+4. **Don't Show RAW JSON Profiles** is absent from File and persists from General.
+5. RAW don't-show-again preserves all other schema-v3 Settings values.
+6. Oversized RAW loads when exact validation is off and fails when it is on.
+7. JSON sidecar auto-approval follows the same exact/minimum byte policy.
+8. Persisted Difference Threshold/Gain initialize the Difference panel.
+9. Saving Threshold/Gain updates the current Difference panel without restart.
+10. Blank Default Open/Export folders retain last-used-folder behavior.
+11. Configured Default Open Folder seeds Open Images/Open Folder/Open RAW dialogs.
+12. Configured Default Export Folder seeds Statistics CSV export.
+13. Unavailable configured folders fall back to the remembered last directory.
+14. Difference Map Cache value displays correctly.
+15. Changing Difference Map Cache shows restart-required indication.
+16. Restart applies the changed Difference Map Cache budget.
+17. File-location, RAW, Threshold, or Gain-only changes do not require restart.
+18. **Reset Settings** restores application defaults.
+19. **Reset Workspace Layout** and **Reset Settings** do not affect each other's
+    owned state.
+20. Invalid persisted application settings recover without startup failure.
+
+Later-slice matrices remain:
+
+- **P2-B:** low-budget navigation, protected documents, oversized source,
+  eviction, and reload.
+- **P2-C:** next-group prediction, normal-load responsiveness, rapid navigation,
+  stale preload rejection, and disable/restart behavior.
+- **P2-D:** readable diagnostics, copy/export, sanitized failures, and no UI stall.
+- **P2-E:** agreed FHD/UHD and RAW matrix on Windows 10/11.
+- **P7:** executable file, pinned shortcut, installer shortcut, final packaged
+  shell grouping, signing, and clean-PC release smoke.
+
+## Owner decisions
+
+Resolved:
+
+- Canonical icon: blue-gray image/scope/pixel mark with restrained amber accent,
+  provisional until P7 branding review.
+- Difference Map Cache default: 128 MiB; accepted range 64–1280 MiB.
+- Decoded Source Memory default: 256 MiB; accepted range 128–2560 MiB.
+- P2-A2 Settings template: category/page navigation using General, Files, and
+  Performance.
+- P2-A2 file-location preferences: optional Default Open/Export folders with
+  blank meaning last-used-folder behavior.
+- Dock/layout persistence remains workspace-owned rather than duplicated in
+  Settings.
+
+Pending:
+
+- Preload default — recommendation Enabled; decide before P2-C.
 
 ## Progress log
 
-- 2026-08-08: Verified PR #15 merged at `1869764a74b01cebebaf8fa915b11a2a696be6cb`,
-  `origin/main` matches, no conflicting open PR exists, and the P2-B branch starts
-  at that SHA.
-- 2026-08-08: Recorded the pre-existing untracked-file exclusion and activated
-  the P2-B implementation plan.
-- 2026-08-08: Implemented and focused-validated pure-core byte/LRU accounting,
-  schema v4 plus both startup budgets, Performance UI restart behavior, and
-  protected `MainWindow` eviction/reload/invalidation integration. The focused
-  residency/settings/Difference set passed 125 tests with two unrelated hover
-  tests deliberately excluded after their baseline failures were reproduced.
-- 2026-08-08: The documentation contract, Ruff lint, Ruff format, mypy, pip
-  dependency check, diff whitespace check, compileall, and hidden application
-  startup smoke passed. The mandatory Ruff format check exposed ten pre-existing
-  `origin/main` formatting mismatches; they were normalized mechanically without
-  behavior changes so the repository-wide formatter contract now passes.
-- 2026-08-08: Full pytest was run both sandboxed and in the owner context. Both
-  runs produced 293 passed and the same three pre-existing offscreen UI failures:
-  floating Plots geometry restore and two pyqtgraph hover-coordinate assertions.
-  These unrelated assertions were not skipped or rewritten to manufacture a
-  passing result; they remain an explicit draft-PR validation limitation.
+- 2026-08-06: PR #12 merged.
+- 2026-08-07: P2-0 merged as PR #13.
+- 2026-08-07: PR #14 established and completed the P2-A1 identity/resource
+  foundation; merge commit `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
+- 2026-08-07: P2-A2 implementation added typed/versioned application settings,
+  RAW preference migration, Settings UI, restart/reset semantics, and Difference
+  startup injection on `feature/p2-a-settings-foundation`.
+- 2026-08-08: P2-A2 evolved to schema v3 with exact RAW validation and persistent
+  Difference Threshold/Gain defaults, plus the polished flat Settings UI.
+- 2026-08-08: final review found three runtime integration gaps and stale v2
+  documentation. Exact RAW propagation/sidecar matching, Difference-default
+  startup/live application, immutable RAW preference preservation, regression
+  coverage, and durable schema-v3 documentation were added. Fresh full
+  validation remains the final merge gate.
+- 2026-08-08: P2-A2 merged as PR #15. P2-B replaced the fixed-count residency
+  authority with exact byte accounting, protected LRU planning, reload and
+  invalidation integration, independent startup budgets, and schema v5.
+- 2026-08-08: PR #16 review fixes restored this phase-level plan, aligned durable
+  validation evidence, hardened positive-integer budget contracts, and added
+  normal-worker oversized-source and real Difference lifecycle regressions.
+- 2026-08-08: Latest automated evidence is 300 passed / 3 reproducible
+  offscreen-only failures. The same three tests fail from an isolated
+  `origin/main` archive under the identical environment, confirming they are not
+  P2-B regressions. Ruff, format, mypy, docs, dependency, performance, diff, and
+  startup checks pass. Manual Windows P2-B validation remains pending.
+- Deferred: the brief Windows startup white-frame flash is startup-polish work
+  after the major phases; it is not a P2-A2 merge blocker.
 
-## Completion summary
+## P2 exit criteria
 
-- Delivered behavior: Exact native-source byte accounting; deterministic
-  protected LRU soft budget; source eviction/reload/invalidation; schema-v4
-  1024 MiB startup setting and minimal diagnostics.
-- Changed files: Core residency/performance policy, application settings and
-  lifecycle integration, Performance UI, focused tests, durable P2 docs, plus
-  ten mechanical baseline-format normalizations required by the full contract.
-- Validation results: Focused P2-B suite 125 passed / 2 unrelated tests
-  deselected; all static/docs/dependency/startup-smoke checks passed; full suite
-  293 passed / 3 unrelated offscreen UI failures.
-- Remaining limitations: Manual visual Windows residency/settings matrix is not
-  executed in this automated run; the three reproducible baseline UI failures
-  prevent claiming a fully passing repository pytest contract.
-- Follow-up issues: P2-C bounded next-group preload remains next. The existing
-  P1-E geometry/hover test environment needs owner follow-up outside P2-B.
-- Durable docs updated: Architecture, decisions, product, user guide, current
-  state, roadmap, quality, UI status, and this execution plan.
+- Settings and persistence are stable with explicit restart semantics.
+- Difference Map Cache budget is loaded at startup; Threshold/Gain are applied as
+  live analysis defaults.
+- Native source residency is byte-accounted with protection, eviction, reload,
+  and diagnostics.
+- Preload is bounded, lower priority than normal load, and rejects stale results.
+- Diagnostics are deterministic, sanitized, and inexpensive to inspect.
+- P2 passes the full repository contract and agreed Windows characterization.

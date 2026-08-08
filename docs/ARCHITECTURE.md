@@ -84,8 +84,8 @@ Schema version 4 owns:
 - `settings/performance/difference_cache_mib`
 - `settings/performance/source_residency_mib`
 
-Schema version 3 migrates to v4 by preserving every v3 value and adding the
-1024 MiB source-residency default. Schema v2/v1 migration and legacy
+Schema version 4 migrates to v5 with the reduced memory validation ranges.
+Schema v3 adds the current source-residency default. Schema v2/v1 migration and legacy
 `raw/dont_show_json_profiles` input remain supported. Invalid current values
 normalize to validated defaults. A future schema version is not guessed or
 rewritten; the current process uses safe defaults and exposes application
@@ -164,17 +164,19 @@ startup-selected byte budget, LRU promotion/eviction, oversized-map rejection,
 and `used_bytes`, `budget_bytes`, and `entry_count` diagnostics. Metric and
 preview entries are invalidated when a map leaves the cache.
 
-P2-A2 persists the Difference Map Cache preference in MiB with a 512 MiB default
-and 64–8192 MiB validation range. Startup converts MiB to bytes in frozen
+P2-A2 persists the Difference Map Cache preference in MiB with a 128 MiB default
+and 64–1280 MiB validation range. Startup converts MiB to bytes in frozen
 `PerformanceSettings` and injects that value through `MainWindow` →
 `DifferencePanel` → `DifferenceMapCache`. Saving a different value during the
 session does not mutate the existing cache; the Settings dialog reports
 restart-required state against the startup snapshot.
 
-P2-B persists Decoded Source Memory independently with a 1024 MiB default,
-128–32768 MiB validation range, and 128 MiB UI increment. Saving either
+P2-B persists Decoded Source Memory independently with a 256 MiB default,
+128–2560 MiB validation range, and 128 MiB UI increment. Saving either
 startup-only budget never mutates its current runtime owner; the Settings dialog
 compares both editable values with the startup snapshot for restart indication.
+The dialog detects installed physical RAM without a production dependency and
+does not save a combined memory budget greater than or equal to that capacity.
 
 Difference Threshold and Gain are persisted analysis display defaults. They are
 applied to `DifferencePanel` when `MainWindow` starts and immediately after a

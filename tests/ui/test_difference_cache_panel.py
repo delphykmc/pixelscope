@@ -100,3 +100,24 @@ def test_expanded_metrics_render_exact_values(qtbot: object) -> None:
     assert panel.metrics.item(5, 1).text() == "30"
     assert panel.metrics.item(6, 1).text() == "30"
     assert panel.metrics.item(7, 1).text() == "0.75"
+
+
+def test_same_pair_rerender_does_not_relabel_fresh_metrics_as_restored(
+    qtbot: object,
+) -> None:
+    panel = DifferencePanel(difference_cache_budget_bytes=1024)
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    documents = _documents()[:2]
+    panel.set_documents(documents, None)
+
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None and panel.status.text() == "Ready",
+        timeout=3000,
+    )
+    result = panel.last_result
+
+    panel.set_documents(documents, None)
+
+    assert panel.last_result is result
+    assert panel.status.text() == "Ready"

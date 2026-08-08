@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from pixelscope.core.performance_settings import MIB
 from pixelscope.core.residency import ResidencyManager
 
 
@@ -25,6 +26,19 @@ def test_records_exact_native_source_nbytes(
 
     assert manager.used_bytes == source.nbytes
     assert manager.resident_count == 1
+
+
+def test_twenty_one_fhd_rgb8_sources_fit_in_128_mib() -> None:
+    source_bytes = 1920 * 1080 * 3
+    manager = ResidencyManager(128 * MIB)
+
+    for index in range(21):
+        manager.record(f"fhd-{index}", source_bytes)
+
+    assert manager.used_bytes == 21 * source_bytes
+    assert manager.used_bytes < manager.budget_bytes
+    assert manager.resident_count == 21
+    assert manager.eviction_candidates(set()) == ()
 
 
 def test_lru_touch_remove_reregister_and_changed_size_are_deterministic() -> None:

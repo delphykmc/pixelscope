@@ -1465,6 +1465,7 @@ def test_folder_pair_navigation_recalculates_enabled_difference_and_keeps_focus(
     assert window._difference_document is not None
     assert window._focus_document_id == window._difference_document.document_id
     assert window.multi_compare_view.viewers[0].document is window._difference_document
+    assert window.difference_panel.status.text() == "Ready"
     window.close()
 
 

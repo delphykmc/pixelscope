@@ -12,6 +12,7 @@ from pixelscope.app.settings import ApplicationSettings
 from pixelscope.core.difference_cache import CachedDifferenceMap
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.performance_settings import PerformanceSettings
+from pixelscope.io.path_discovery import ImageInput
 
 
 @pytest.fixture(autouse=True)
@@ -196,6 +197,34 @@ def test_evicted_document_reloads_through_normal_worker_path(qtbot: object, tmp_
     assert window.residency_manager.resident_count == 1
 
 
+def test_selected_oversized_source_survives_real_worker_completion_without_reload_loop(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "oversized-worker.png"
+    assert cv2.imwrite(str(path), np.arange(8, dtype=np.uint8).reshape(2, 4))
+    window = _window(qtbot, source_budget=4)
+
+    document_ids = window._register_inputs((ImageInput(path),), select_all=True)
+    assert len(document_ids) == 1
+    document_id = document_ids[0]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not window._workers and window.documents[document_id].loading_state == "ready",
+        timeout=3000,
+    )
+    qtbot.wait(50)  # type: ignore[attr-defined]
+
+    loaded = window.documents[document_id]
+    assert loaded.source is not None
+    assert loaded.document_id in {document.document_id for document in window.selected_documents}
+    assert window.residency_manager.used_bytes == 8
+    assert window.residency_manager.over_budget_bytes == 4
+    assert window.residency_manager.resident_document_ids == (document_id,)
+    assert window._load_tokens[document_id] == 1
+    assert not window._workers
+    assert not window._load_worker_targets
+
+
 def test_stale_load_result_does_not_change_document_or_accounting(
     qtbot: object, tmp_path: Path
 ) -> None:
@@ -249,6 +278,50 @@ def test_source_eviction_invalidates_local_state_but_keeps_difference_map(
     assert first.histogram_cache == {}
     assert not any(key[0] == first.document_id for key in window._channel_view_cache)
     assert window.difference_panel.difference_cache.peek(difference_key) is difference
+
+
+def test_real_difference_pair_is_protected_and_cached_map_survives_unrelated_eviction(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window = _window(qtbot, source_budget=6)
+    first = ImageDocument.from_array(
+        np.full((1, 1, 3), 10, dtype=np.uint8),
+        "difference-first.png",
+        source_path=tmp_path / "difference-first.png",
+    )
+    second = ImageDocument.from_array(
+        np.full((1, 1, 3), 20, dtype=np.uint8),
+        "difference-second.png",
+        source_path=tmp_path / "difference-second.png",
+    )
+    window.add_document(first, select=False)
+    window.add_document(second, select=False)
+    window._select_document_ids([first.document_id, second.document_id])
+
+    window.difference_panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.difference_panel.difference_cache.entry_count == 1
+        and window._difference_document is not None,
+        timeout=3000,
+    )
+    difference_key = window.difference_panel._cache_key()
+    assert difference_key is not None
+    cached = window.difference_panel.difference_cache.peek(difference_key)
+    assert cached is not None
+
+    unrelated = ImageDocument.from_array(
+        np.full((1, 1, 3), 30, dtype=np.uint8),
+        "unrelated.png",
+        source_path=tmp_path / "unrelated.png",
+    )
+    window.add_document(unrelated, select=False)
+
+    assert first.source is not None
+    assert second.source is not None
+    assert unrelated.source is None
+    assert window.residency_manager.used_bytes == 6
+    assert window.difference_panel.difference_cache.peek(difference_key) is cached
 
 
 def test_document_removal_drops_residency_accounting(qtbot: object, tmp_path: Path) -> None:

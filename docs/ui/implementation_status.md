@@ -21,7 +21,7 @@ P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
 | P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
 | P2-A1 / #14 | Complete | Application identity and packaged resources |
 | P2-A2 / #15 | Complete | Typed Settings schema v3 and runtime integration |
-| P2-B | Active | Byte-budgeted decoded-source residency and schema v4 |
+| P2-B | Active | Byte-budgeted decoded-source residency and schema v5 |
 
 ## Current UI behavior
 
@@ -42,7 +42,7 @@ P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
 - Statistics supports Full image and Active ROI with stable copy/CSV behavior.
 - Histogram exposes explicit bins and Count/Normalized/Log count modes.
 - Line Profile exposes compact legends and explicit Difference reference.
-- Difference uses a 512 MiB native-map byte LRU with diagnostics.
+- Difference uses a 128 MiB native-map byte LRU with diagnostics.
 - Floating Plots geometry and selected tab persist; title double-click
   maximizes/restores.
 - Esc clears ROI; Shift+Esc clears Line Profile; Ctrl+drag creates ROI;
@@ -72,11 +72,11 @@ Windows evidence was not re-verified by P2-0.
 Implemented now:
 
 - Difference byte-budget LRU and diagnostics.
-- Byte-budgeted native decoded-source LRU with a 1024 MiB default.
+- Byte-budgeted native decoded-source LRU with a 256 MiB default.
 - Soft-budget protection for visible, selected, active/analysis, Difference-pair,
   and active load-target sources.
 - Exact native `source.nbytes` accounting and minimal residency diagnostics.
-- Schema-v4 General / Files / Performance Settings with distinct Decoded Source
+- Schema-v5 General / Files / Performance Settings with distinct Decoded Source
   Memory and Difference Map Cache startup budgets.
 - Canonical application icon/resource foundation and immutable
   `PerformanceSettings` startup injection.

@@ -9,7 +9,7 @@
   cursor/range/ROI/line state, and fixed one-to-six-image layouts.
 - Statistics, Histogram, Line Profile, Difference, Split Channels, structured
   status, and persisted workspace/Plots state.
-- Byte-budgeted `DifferenceMapCache` with a 512 MiB default, LRU eviction,
+- Byte-budgeted `DifferenceMapCache` with a 128 MiB default, LRU eviction,
   chunked native metrics, and `used_bytes`/`budget_bytes`/`entry_count`
   diagnostics.
 - Byte-budgeted decoded-source residency with exact native-source accounting,
