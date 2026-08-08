@@ -8,7 +8,11 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
 from pixelscope.app.main_window import MainWindow
-from pixelscope.app.settings import ApplicationSettings, QSettingsAdapter, SettingsRepository
+from pixelscope.app.settings import (
+    ApplicationSettings,
+    QSettingsAdapter,
+    SettingsRepository,
+)
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
@@ -71,8 +75,9 @@ def test_exact_raw_setting_reaches_worker_and_reader(
     relaxed_window._start_load(relaxed_document.document_id, raw_path, profile)
     _wait_for_load(qtbot, relaxed_window, relaxed_document.document_id)
 
-    assert relaxed_window.documents[relaxed_document.document_id].loading_state == "ready"
-    assert relaxed_window.documents[relaxed_document.document_id].source is not None
+    relaxed_loaded = relaxed_window.documents[relaxed_document.document_id]
+    assert relaxed_loaded.loading_state == "ready"
+    assert relaxed_loaded.source is not None
     relaxed_window.close()
 
     exact = ApplicationSettings(require_exact_raw_file_size=True)
@@ -115,7 +120,8 @@ def test_exact_raw_setting_controls_sidecar_auto_approval(
     )
     relaxed_window = MainWindow(relaxed, relaxed.performance_settings(), _repository())
     qtbot.addWidget(relaxed_window)  # type: ignore[attr-defined]
-    assert relaxed_window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) == profile
+    confirmed = relaxed_window._confirm_raw_profile(ImageInput(raw_path, sidecar), None)
+    assert confirmed == profile
     relaxed_window.close()
 
     class ExactMismatchDialog:
@@ -144,12 +150,15 @@ def test_exact_raw_setting_controls_sidecar_auto_approval(
     exact_window = MainWindow(exact, exact.performance_settings(), _repository())
     qtbot.addWidget(exact_window)  # type: ignore[attr-defined]
 
-    assert exact_window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) is None
+    confirmed = exact_window._confirm_raw_profile(ImageInput(raw_path, sidecar), None)
+    assert confirmed is None
     assert ExactMismatchDialog.constructed
     exact_window.close()
 
 
-def test_difference_defaults_apply_at_startup_and_on_settings_save(qtbot: object) -> None:
+def test_difference_defaults_apply_at_startup_and_on_settings_save(
+    qtbot: object,
+) -> None:
     repository = _repository()
     initial = ApplicationSettings(difference_threshold=37, difference_gain=5)
     repository.save(initial)
@@ -177,7 +186,10 @@ def test_difference_defaults_apply_at_startup_and_on_settings_save(qtbot: object
     window.close()
 
 
-def test_raw_dont_show_update_preserves_all_v3_settings(qtbot: object, tmp_path: Path) -> None:
+def test_raw_dont_show_update_preserves_all_v3_settings(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
     repository = _repository()
     initial = ApplicationSettings(
         dont_show_raw_json_profiles=False,
