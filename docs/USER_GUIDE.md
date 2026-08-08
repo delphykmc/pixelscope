@@ -190,6 +190,24 @@ layout state instead.
 Docking and layout defaults are intentionally not duplicated in Settings because
 PixelScope already restores the exact saved workspace.
 
+## Runtime Diagnostics
+
+Open **Help > Diagnostics...** to inspect a read-only runtime snapshot. The text
+reports Decoded Source residency, Difference Map Cache usage, foreground and
+preload worker counts, preload counters, foreground/preload stale results, and up
+to ten recent foreground/preload failures.
+
+Use **Refresh** to read the current snapshot, **Copy Diagnostics** to place the
+displayed text on the clipboard, or **Save as Text...** to write the same text as
+UTF-8. The suggested filename is `pixelscope-diagnostics.txt`; saving diagnostics
+does not create a new application preference.
+
+Diagnostics omit registered source paths and image content. Failure messages
+redact absolute Windows/POSIX paths, credential-like values, bearer tokens,
+traceback detail, and excess length. Opening, refreshing, copying, or saving this
+dialog does not start image/preload work, calculate Difference, alter cache LRU
+order, scan files, cancel workers, or change selection/rendering.
+
 ## Plots dock
 
 The title bar provides Float/Dock, Maximize/Restore, and Hide. The toolbar

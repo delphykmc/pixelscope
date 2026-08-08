@@ -86,6 +86,13 @@ Preserve deterministic fixtures and smoke paths for:
   worker-lifetime-bounded cancellation de-duplication, late-result rejection,
   removal/generation/profile races, RAW exact-size/profile reuse, silent retryable
   failure, and ordinary low-budget residency eviction without a reload loop.
+- Frozen deterministic runtime diagnostics over exact source/cache/worker/preload
+  values; foreground/preload stale and failure instrumentation; bounded failure
+  history; Windows/POSIX path, credential, traceback, multiline, and truncation
+  sanitization; and repeated observation without LRU, worker, preload, selection,
+  render, or filesystem mutation.
+- Help Diagnostics display/Refresh, displayed-text-equal Copy and UTF-8 Save,
+  registered-path exclusion, and no-work observation behavior.
 - Canonical application-icon loading from package resources independent of CWD.
 
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer

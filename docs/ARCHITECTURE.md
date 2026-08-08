@@ -185,6 +185,34 @@ Preload failures do not mutate the document into foreground error state.
 Cancellation-request de-duplication is retained only while its worker request is
 active and is discarded together with that request when the worker finishes.
 
+## Current runtime diagnostics lifecycle
+
+`RuntimeDiagnosticsSnapshot` and its nested source, Difference-cache, worker-pool,
+and failure values are frozen, Qt-free domain models. The snapshot reuses the
+existing `PreloadDiagnostics` value instead of introducing duplicate preload
+counters. Worker pools are represented by general `active_count` / `max_count`
+pairs; the current preload maximum remains one.
+
+`MainWindow.runtime_diagnostics_snapshot()` is the sole runtime aggregator. It
+reads `ResidencyManager` byte/count properties, `DifferenceMapCache` byte/entry
+properties, the foreground/preload worker registries and pool maxima, existing
+preload diagnostics, the foreground stale-drop counter, and a ten-entry recent
+failure deque. It does not call cache `get()`, residency `touch()`, preload plan
+refresh, worker start/cancel, selection/render, or filesystem discovery.
+
+Foreground load token/document rejections increment one bounded counter. Accepted
+foreground-load and speculative-preload failures enter the recent deque with a
+subsystem/category, exception type, and short message. Sanitization removes
+Windows/POSIX absolute paths, URL detail, credential-like assignments and bearer
+values, multiline traceback context, and excess length; raw traceback and image
+content are never stored in diagnostics.
+
+`format_runtime_diagnostics()` is pure and emits a fixed section/field order.
+`DiagnosticsDialog` refreshes only by requesting another snapshot. Copy and UTF-8
+text save consume the exact currently displayed sanitized text and add no
+persistent setting. Reading, refreshing, copying, or saving diagnostics does not
+mutate runtime policy or start work.
+
 ## Current Difference lifecycle
 
 `DifferenceMapCache` owns order-independent native absolute maps with a
@@ -249,15 +277,12 @@ the source byte count must exactly equal the profile requirement. The same rule
 controls both worker decoding and whether a matching JSON sidecar may bypass the
 profile-confirmation dialog.
 
-## Planned P2 boundaries
+## P2 boundary status
 
-The remaining target boundary is:
-
-- `DiagnosticsSnapshot` or equivalent: deterministic, redacted, cheap-to-read
-  cache/residency/worker/preload/failure state.
-
-P2 introduces these boundaries incrementally; it is not a broad MainWindow
-rewrite.
+The P2 runtime boundaries for settings, source residency, bounded preload, and
+deterministic diagnostics are implemented incrementally without a broad
+`MainWindow` rewrite. P2-E owns characterization and hardening rather than a new
+runtime policy boundary.
 
 ## P2 request and cancellation target
 
