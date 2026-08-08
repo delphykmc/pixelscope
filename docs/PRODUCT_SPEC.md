@@ -33,15 +33,23 @@ results.
 - Resizable, collapsible, floating, and maximizable Plots dock.
 - Persisted main geometry, dock state, splitters, last directory, layout,
   analysis state, and selected Plots tab.
-- `Edit > Settings...` uses **General / Files / Performance** category pages.
-- General owns the persistent RAW JSON confirmation preference; it is not
-  duplicated in the File menu.
+- `Edit > Settings...` uses **General / Files / Performance** category pages with
+  a flat VS Code-inspired hierarchy.
+- General owns the persistent RAW JSON confirmation preference, exact RAW
+  file-size validation, and Difference Threshold/Gain defaults. RAW confirmation
+  is not duplicated in the File menu.
+- Exact RAW validation is propagated to the load worker/reader and to JSON
+  sidecar auto-approval. Difference Threshold/Gain initialize at startup and
+  apply to the live Difference panel after Settings saves without restart.
 - Files provides optional Default Open Folder and Default Export Folder values.
   Blank preserves the remembered last-used-folder behavior; configured existing
   folders only seed dialog starting locations and apply without restart.
-- Performance owns Difference Cache. It defaults to 512 MiB, accepts 64–8192
-  MiB, and applies a changed value after PixelScope restarts. The current runtime
-  cache is not resized live.
+- Performance owns **Difference Map Cache**. It defaults to 512 MiB, accepts
+  64–8192 MiB, and applies a changed value after PixelScope restarts. The current
+  runtime cache is not resized live.
+- Difference Map Cache is separate from decoded source-image residency. The
+  latter remains a fixed seven-document policy until P2-B replaces it with a
+  byte-budgeted manager.
 - `Reset Settings` restores application preferences without resetting workspace
   layout, window geometry, dock/splitter state, or remembered last-directory
   state.
@@ -55,9 +63,14 @@ positions are occupied.
 
 RAW opens through a validated profile workflow. A same-name JSON sidecar can
 pre-fill the profile; the General Settings preference may skip repeated
-confirmation for those JSON profiles. The RAW dialog's explicit don't-show-again
-choice persists the same typed preference. The same RAW path may be reloaded with
-corrected settings.
+confirmation for those JSON profiles when the configured file-size policy also
+matches. The RAW dialog's explicit don't-show-again choice updates only that one
+typed preference and preserves the other schema-v3 settings. The same RAW path
+may be reloaded with corrected settings.
+
+When **Require Exact RAW File Size** is disabled, RAW files may contain trailing
+bytes but may not be undersized. When enabled, the file byte count must exactly
+match the selected profile's requirement.
 
 The profile separates:
 
