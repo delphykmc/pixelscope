@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-08  
-P2-A2 / PR #15 merge commit and P2-B branch base:
-`1869764a74b01cebebaf8fa915b11a2a696be6cb`
+P2-B / PR #16 merge commit and P2-C branch base:
+`453b718535bdbdce2a9225c01f6144d7f2df40b0`
 
 This document records the implementation baseline that new work must use.
 
@@ -17,8 +17,9 @@ This document records the implementation baseline that new work must use.
   `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
 - P2-A2 merged as PR #15 at
   `1869764a74b01cebebaf8fa915b11a2a696be6cb`.
-- P2-B is implemented on `feature/p2-b-source-residency-budget`; automated
-  validation is recorded below and manual Windows validation remains before merge.
+- P2-B merged as PR #16 at
+  `453b718535bdbdce2a9225c01f6144d7f2df40b0`.
+- P2-C is active on `feature/p2-c-folder-preload`.
 
 ## Implemented baseline
 
@@ -35,7 +36,9 @@ This document records the implementation baseline that new work must use.
   resize-driven range changes.
 - Two/four/six views remain equal; three/five enlarge the first tile.
 - Split RGB/Bayer component order is fixed and transitions are applied atomically.
-- Page Up/Page Down folder-pair navigation is implemented.
+- Page Up/Page Down atomically moves a registered one-to-six-folder selection by
+  one Folder Position. Left/Right moves within the selected-image set, while
+  Up/Down remains native Files-tree row navigation.
 
 ### Analysis
 
@@ -62,7 +65,7 @@ This document records the implementation baseline that new work must use.
   value exposed through **Settings > General**, not the File menu. Legacy
   `raw/dont_show_json_profiles` values are migrated to the versioned namespace.
 - The RAW confirmation dialog may still set the same preference through its
-  explicit don't-show-again choice; that update preserves all other schema-v4
+  explicit don't-show-again choice; that update preserves all other schema-v5
   settings.
 - `Require Exact RAW File Size` is a General setting. Disabled allows trailing
   bytes while still rejecting undersized files; enabled requires exact byte
@@ -79,11 +82,11 @@ This document records the implementation baseline that new work must use.
 - `ApplicationSettings` is the frozen typed model for persisted user preferences.
   P2-A2 owns RAW confirmation, exact RAW file-size validation, default
   Open/Export folders, Difference Threshold/Gain defaults, and Difference Map
-  Cache MiB. P2-B adds Decoded Source Memory MiB.
+  Cache MiB. P2-B adds Decoded Source Memory MiB and P2-C adds preload enablement.
 - `SettingsRepository` owns defaults, schema migration, validation, save/reset,
   invalid-state recovery, and future-schema compatibility; `QSettingsAdapter`
   owns raw application-setting keys.
-- Settings schema version 4 uses:
+- Settings schema version 5 uses:
   - `settings/schema_version`
   - `settings/general/dont_show_raw_json_profiles`
   - `settings/general/require_exact_raw_file_size`
@@ -93,7 +96,10 @@ This document records the implementation baseline that new work must use.
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
   - `settings/performance/source_residency_mib`
-- Schema v3 migrates directly to v4. Difference-cache values valid in the v3
+  - `settings/performance/preload_enabled`
+- Schema v4 migrates directly to v5 by adding enabled preload while preserving
+  every v4 application preference and unrelated/workspace key.
+- Schema v3 migrates directly to v5. Difference-cache values valid in the v3
   64–8192 MiB range are preserved up to 1280 MiB and clamped to 1280 MiB above
   that new maximum; malformed or genuinely invalid values use the new default.
   The migration adds the 256 MiB source-residency default and preserves unrelated
@@ -112,11 +118,12 @@ This document records the implementation baseline that new work must use.
   configuration guard, not an out-of-memory guarantee.
 - Application startup converts persisted MiB into immutable
   `PerformanceSettings.difference_cache_bytes` and
-  `PerformanceSettings.source_residency_bytes`. `MainWindow` injects the former
+  `PerformanceSettings.source_residency_bytes`, and snapshots preload enablement.
+  `MainWindow` injects the former
   into `DifferencePanel`/`DifferenceMapCache` and the latter into
   `ResidencyManager`.
-- Both performance-budget edits are saved for the next launch; existing runtime
-  cache/manager budgets are not mutated live.
+- Both budget edits and preload enablement are saved for the next launch;
+  existing runtime cache/manager/controller state is not mutated live.
 - `Reset Settings` resets only schema-owned application preferences. Workspace
   geometry, dock/splitter state, remembered last directory, and unrelated
   QSettings keys remain independently owned.
@@ -139,12 +146,26 @@ This document records the implementation baseline that new work must use.
   maps remain independently owned and are not evicted solely for source-budget
   pressure.
 - The dedicated image-load pool is bounded at two workers; the shared numeric
-  pool is bounded at four.
+  pool is bounded at four. A separate preload pool is bounded at one worker, so
+  speculative decode cannot occupy a normal-load slot.
+- Pure-core `FolderNavigationPlan` is the shared PageUp/PageDown and preload
+  prediction authority over registered `_folder_documents` sequences.
+- Pure-core `PreloadController` owns exactly one next-position plan (zero to six
+  targets), request generation, active/completed state, and bounded counters.
+  Preload starts only after foreground loads become idle and never scans or
+  auto-registers filesystem siblings.
+- Navigation or selection replacement invalidates the old plan and requests
+  cancellation. Correctness relies on plan/document generation, path/profile,
+  exact-RAW-policy, and normal-load-token validation before result application.
+  A normal load never waits for speculative work; short duplicate decode is
+  allowed and late preload results are dropped. Cancellation de-duplication state
+  exists only for an active worker request and is discarded on worker completion.
+- Valid preload results become ordinary native source residency, receive no
+  special protection, and may be evicted immediately under source-budget pressure.
+  Speculative failure is silent and leaves normal retry available.
 
 ## Not implemented
 
-- One-group-ahead preload (P2-C). Its preference will extend Performance when
-  that lifecycle exists.
 - Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export (P2-D).
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
@@ -154,14 +175,15 @@ This document records the implementation baseline that new work must use.
 
 ## Validation evidence
 
-Focused P2-B residency/settings integration validation passes on the latest
-working head. The standard static/docs/dependency/performance/startup checks pass.
-Full pytest was executed and reports 309 passed with three reproducible offscreen
+Focused P2-C navigation/preload/settings integration validation reports 120
+passed; the selected keyboard/navigation smoke slice reports 6 passed and 33
+deselected. Full pytest reports 360 passed with three reproducible offscreen
 failures: floating Plots geometry restore and two pyqtgraph hover-coordinate
 assertions. The same three tests fail from an isolated `origin/main` archive in
 the identical environment, confirming they are baseline/environment failures,
-not P2-B regressions. They were not skipped or rewritten. Manual Windows
-residency/settings validation remains outstanding before merge.
+not P2-C regressions. They were not skipped or rewritten. The owner reports that
+basic Windows behavior was checked; the complete P2-C manual matrix remains
+outstanding before merge.
 
 ## Active plan
 
@@ -169,5 +191,6 @@ residency/settings validation remains outstanding before merge.
 - P2 active plan: [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
 - P2-A1: complete; merged as PR #14.
 - P2-A2: complete; merged as PR #15.
-- P2-B: active on `feature/p2-b-source-residency-budget`.
-- Next slice after P2-B merge: P2-C — bounded one-group-ahead preload.
+- P2-B: complete; merged as PR #16.
+- P2-C: active on `feature/p2-c-folder-preload`.
+- Next slice after P2-C merge: P2-D — runtime diagnostics and failure visibility.

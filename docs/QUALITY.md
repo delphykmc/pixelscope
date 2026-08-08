@@ -57,19 +57,23 @@ Preserve deterministic fixtures and smoke paths for:
 - RAW exact-size policy through `MainWindow` → worker → reader, including
   oversized relaxed/exact behavior and matching JSON-sidecar auto-approval.
 - Ordered selection, folder navigation, and fixed one-to-six-image layouts.
+- Folder Position planning for one-to-six distinct registered folders, atomic
+  endpoint no-op, natural ordering, and predicted PageDown/actual target equality.
+- Keyboard separation: Files Up/Down rows, Left/Right selected-image activity,
+  and PageUp/PageDown Folder Position membership.
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
 - Difference calculation, cache reuse/eviction, metrics, display-only updates,
   and startup cache-budget injection.
 - Decoded-source exact-byte accounting, deterministic LRU/protection, soft
   over-budget and oversized-source behavior, eviction invalidation, Files badge
   state, existing-path reload, and stale-result rejection.
-- Settings fresh state, round-trip, schema-v3-to-v4 and older migration, legacy
+- Settings fresh state, round-trip, schema-v4-to-v5, schema-v3 and older migration, legacy
   RAW migration, corrupt-state recovery, future-schema protection, and reset
   separation from workspace persistence.
 - General / Files / Performance Settings page navigation, Settings-only RAW
   preference ownership, RAW don't-show partial-update preservation, optional
   default Open/Export locations, last-used-folder fallback, and Difference Map
-  Cache/Decoded Source Memory independent restart indication.
+  Cache/Decoded Source Memory/preload independent and combined restart indication.
 - Persisted Difference Threshold/Gain startup injection and live Settings-save
   propagation without restart-required state.
 - Split-channel loading placeholders and stale-result rejection.
@@ -77,6 +81,11 @@ Preserve deterministic fixtures and smoke paths for:
   restoration.
 - Resident-image byte-budget eviction and reload, including more than seven
   resident sources when their bytes fit.
+- Exactly-one-position preload, foreground-idle start, separate max-one pool,
+  resident reuse, disabled runtime, rapid navigation, plan replacement,
+  worker-lifetime-bounded cancellation de-duplication, late-result rejection,
+  removal/generation/profile races, RAW exact-size/profile reuse, silent retryable
+  failure, and ordinary low-budget residency eviction without a reload loop.
 - Canonical application-icon loading from package resources independent of CWD.
 
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer

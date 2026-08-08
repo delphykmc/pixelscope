@@ -87,6 +87,8 @@ def test_settings_uses_general_files_and_performance_pages(qtbot: object) -> Non
     assert dialog.page_stack.currentIndex() == 2
     assert dialog.difference_cache_mib.value() == 1024
     assert dialog.source_residency_mib.value() == 2048
+    assert dialog.preload_enabled.isChecked()
+    assert dialog.preload_enabled.text() == "Preload Next Folder Position"
 
 
 def test_settings_prefill_save_cancel_and_runtime_cache_is_immutable(
@@ -112,6 +114,7 @@ def test_settings_prefill_save_cancel_and_runtime_cache_is_immutable(
     dialog.default_export_directory.setText("D:/export")
     dialog.difference_cache_mib.setValue(1280)
     dialog.source_residency_mib.setValue(2560)
+    dialog.preload_enabled.setChecked(False)
     assert dialog.restart_required
     save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
     assert save is not None
@@ -123,11 +126,13 @@ def test_settings_prefill_save_cancel_and_runtime_cache_is_immutable(
         source_residency_mib=2560,
         default_open_directory="C:/open",
         default_export_directory="D:/export",
+        preload_enabled=False,
     )
     assert repository.load() == expected
     assert window.application_settings == expected
     assert window.difference_panel.difference_cache.budget_bytes == 1024 * MIB
     assert window.residency_manager.budget_bytes == 256 * MIB
+    assert window.preload_controller.enabled is True
 
     cancelled = window.create_settings_dialog()
     qtbot.addWidget(cancelled)  # type: ignore[attr-defined]
@@ -199,8 +204,20 @@ def test_restart_required_tracks_source_difference_both_and_runtime_reverts(
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
 
     assert not dialog.restart_required
+    dialog.preload_enabled.setChecked(False)
+    assert dialog.restart_required
+    dialog.preload_enabled.setChecked(True)
+    assert not dialog.restart_required
     dialog.source_residency_mib.setValue(2048)
     assert dialog.restart_required
+    dialog.source_residency_mib.setValue(1536)
+    assert not dialog.restart_required
+    dialog.preload_enabled.setChecked(False)
+    dialog.difference_cache_mib.setValue(1024)
+    dialog.source_residency_mib.setValue(2048)
+    assert dialog.restart_required
+    dialog.preload_enabled.setChecked(True)
+    dialog.difference_cache_mib.setValue(768)
     dialog.source_residency_mib.setValue(1536)
     assert not dialog.restart_required
     dialog.difference_cache_mib.setValue(1024)
@@ -450,4 +467,30 @@ def test_reset_to_default_requires_restart_when_runtime_is_nondefault(
     )
 
     assert repository.load() == ApplicationSettings()
+    assert dialog.restart_required
+
+
+def test_preload_toggle_reset_and_live_only_edits_follow_restart_contract(
+    qtbot: object,
+) -> None:
+    repository = _repository()
+    initial = repository.save(ApplicationSettings(preload_enabled=False))
+    dialog = SettingsDialog(repository, initial, initial.performance_settings())
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+
+    assert not dialog.restart_required
+    dialog.default_open_directory.setText("C:/live-only")
+    dialog.require_exact_raw_file_size.setChecked(True)
+    dialog.difference_threshold.setValue(99)
+    assert not dialog.restart_required
+    dialog.preload_enabled.setChecked(True)
+    assert dialog.restart_required
+    dialog.preload_enabled.setChecked(False)
+    assert not dialog.restart_required
+
+    qtbot.mouseClick(  # type: ignore[attr-defined]
+        dialog.reset_button,
+        Qt.MouseButton.LeftButton,
+    )
+    assert repository.load().preload_enabled is True
     assert dialog.restart_required

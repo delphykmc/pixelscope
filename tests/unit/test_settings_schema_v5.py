@@ -12,6 +12,7 @@ from pixelscope.app.settings import (
     DIFFERENCE_GAIN_KEY,
     DIFFERENCE_THRESHOLD_KEY,
     DONT_SHOW_RAW_JSON_PROFILES_KEY,
+    PRELOAD_ENABLED_KEY,
     REQUIRE_EXACT_RAW_FILE_SIZE_KEY,
     SCHEMA_VERSION_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
@@ -39,14 +40,47 @@ def _repository() -> tuple[SettingsRepository, QSettings]:
     return SettingsRepository(QSettingsAdapter(settings)), settings
 
 
-def test_schema_v4_fresh_default_is_256_mib() -> None:
+def test_schema_v5_fresh_defaults_include_enabled_preload() -> None:
     repository, settings = _repository()
 
     loaded = repository.load()
 
     assert loaded.source_residency_mib == DEFAULT_SOURCE_RESIDENCY_MIB == 256
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
+    assert loaded.preload_enabled is True
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
+    assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is True
+
+
+def test_schema_v4_migration_preserves_values_and_adds_enabled_preload() -> None:
+    repository, settings = _repository()
+    settings.setValue(SCHEMA_VERSION_KEY, 4)
+    settings.setValue(DONT_SHOW_RAW_JSON_PROFILES_KEY, True)
+    settings.setValue(REQUIRE_EXACT_RAW_FILE_SIZE_KEY, True)
+    settings.setValue("settings/files/default_open_directory", "C:/images")
+    settings.setValue("settings/files/default_export_directory", "D:/exports")
+    settings.setValue(DIFFERENCE_THRESHOLD_KEY, 32)
+    settings.setValue(DIFFERENCE_GAIN_KEY, 4)
+    settings.setValue(DIFFERENCE_CACHE_MIB_KEY, 1024)
+    settings.setValue(SOURCE_RESIDENCY_MIB_KEY, 2048)
+    settings.setValue("unrelated/workspace", "keep")
+
+    loaded = repository.load()
+
+    assert loaded == ApplicationSettings(
+        dont_show_raw_json_profiles=True,
+        difference_cache_mib=1024,
+        source_residency_mib=2048,
+        default_open_directory="C:/images",
+        default_export_directory="D:/exports",
+        require_exact_raw_file_size=True,
+        difference_threshold=32,
+        difference_gain=4,
+        preload_enabled=True,
+    )
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
+    assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is True
+    assert settings.value("unrelated/workspace") == "keep"
 
 
 def test_schema_v3_migration_preserves_every_value_and_adds_source_default() -> None:
@@ -73,7 +107,7 @@ def test_schema_v3_migration_preserves_every_value_and_adds_source_default() -> 
         difference_threshold=32,
         difference_gain=4,
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION == 4
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION == 5
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
     assert settings.value("unrelated/workspace") == "keep"
 
@@ -89,7 +123,7 @@ def test_schema_v3_old_valid_cache_budget_clamps_to_new_maximum(
 
     assert repository.load().difference_cache_mib == 1280
     assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 1280
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
     assert settings.value("unrelated/workspace") == "keep"
 
 
@@ -105,15 +139,16 @@ def test_schema_v3_invalid_cache_budget_uses_new_default(
     assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 128
 
 
-def test_schema_v4_source_budget_round_trips() -> None:
+def test_schema_v5_source_budget_and_preload_round_trip() -> None:
     repository, settings = _repository()
-    expected = ApplicationSettings(source_residency_mib=2048)
+    expected = ApplicationSettings(source_residency_mib=2048, preload_enabled=False)
 
     repository.save(expected)
 
     assert repository.load() == expected
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 2048
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
+    assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is False
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
 
 
 def test_schema_v2_still_migrates_all_later_fields_to_defaults() -> None:
@@ -132,7 +167,7 @@ def test_schema_v2_still_migrates_all_later_fields_to_defaults() -> None:
         default_open_directory="C:/images",
         default_export_directory="D:/exports",
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
     assert settings.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY, type=bool) is False
     assert settings.value(DIFFERENCE_THRESHOLD_KEY, type=int) == 10
     assert settings.value(DIFFERENCE_GAIN_KEY, type=int) == 1

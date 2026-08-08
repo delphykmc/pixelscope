@@ -62,8 +62,8 @@ class DocumentListWidget(QTreeWidget):
     """Folder-grouped, multi-select file tree with local path drop support."""
 
     paths_dropped = Signal(object)
-    previous_pair_requested = Signal()
-    next_pair_requested = Signal()
+    previous_position_requested = Signal()
+    next_position_requested = Signal()
     activate_requested = Signal(str)
     remove_requested = Signal(object)
     compare_requested = Signal()
@@ -280,11 +280,11 @@ class DocumentListWidget(QTreeWidget):
         if event.modifiers() == Qt.KeyboardModifier.NoModifier:
             if event.key() == Qt.Key.Key_PageUp:
                 event.accept()
-                self.previous_pair_requested.emit()
+                self.previous_position_requested.emit()
                 return
             if event.key() == Qt.Key.Key_PageDown:
                 event.accept()
-                self.next_pair_requested.emit()
+                self.next_position_requested.emit()
                 return
         super().keyPressEvent(event)
 

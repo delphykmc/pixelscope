@@ -12,7 +12,7 @@ from pixelscope.core.performance_settings import (
     PerformanceSettings,
 )
 
-CURRENT_SETTINGS_SCHEMA_VERSION: Final = 4
+CURRENT_SETTINGS_SCHEMA_VERSION: Final = 5
 DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
 MAX_DIFFERENCE_CACHE_MIB: Final = 1280
@@ -38,6 +38,7 @@ DIFFERENCE_THRESHOLD_KEY: Final = "settings/analysis/difference_threshold"
 DIFFERENCE_GAIN_KEY: Final = "settings/analysis/difference_gain"
 DIFFERENCE_CACHE_MIB_KEY: Final = "settings/performance/difference_cache_mib"
 SOURCE_RESIDENCY_MIB_KEY: Final = "settings/performance/source_residency_mib"
+PRELOAD_ENABLED_KEY: Final = "settings/performance/preload_enabled"
 LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = "raw/dont_show_json_profiles"
 
 OWNED_SETTINGS_KEYS: Final = (
@@ -50,6 +51,7 @@ OWNED_SETTINGS_KEYS: Final = (
     DIFFERENCE_GAIN_KEY,
     DIFFERENCE_CACHE_MIB_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
+    PRELOAD_ENABLED_KEY,
 )
 
 _TRUE_STRINGS = frozenset({"true", "1", "yes", "on"})
@@ -68,12 +70,15 @@ class ApplicationSettings:
     difference_threshold: int = DEFAULT_DIFFERENCE_THRESHOLD
     difference_gain: int = DEFAULT_DIFFERENCE_GAIN
     source_residency_mib: int = DEFAULT_SOURCE_RESIDENCY_MIB
+    preload_enabled: bool = True
 
     def __post_init__(self) -> None:
         if not isinstance(self.dont_show_raw_json_profiles, bool):
             raise TypeError("dont_show_raw_json_profiles must be bool")
         if not isinstance(self.require_exact_raw_file_size, bool):
             raise TypeError("require_exact_raw_file_size must be bool")
+        if not isinstance(self.preload_enabled, bool):
+            raise TypeError("preload_enabled must be bool")
         self._validate_int_range(
             "difference_cache_mib",
             self.difference_cache_mib,
@@ -118,6 +123,7 @@ class ApplicationSettings:
         return PerformanceSettings(
             difference_cache_bytes=self.difference_cache_mib * MIB,
             source_residency_bytes=self.source_residency_mib * MIB,
+            preload_enabled=self.preload_enabled,
         )
 
 
@@ -175,7 +181,9 @@ class SettingsRepository:
                 self._write_current(settings)
             return settings
 
-        if schema_version == 3:
+        if schema_version == 4:
+            settings = self._load_schema_v4_values()
+        elif schema_version == 3:
             settings = self._load_schema_v3_values()
         elif schema_version == 2:
             settings = self._load_schema_v2_values()
@@ -224,6 +232,10 @@ class SettingsRepository:
             MIN_SOURCE_RESIDENCY_MIB,
             MAX_SOURCE_RESIDENCY_MIB,
         )
+        parsed_preload_enabled, preload_valid = self._parse_bool(
+            self._adapter.value(PRELOAD_ENABLED_KEY)
+        )
+        preload_enabled = parsed_preload_enabled if preload_valid else True
         threshold, threshold_valid = self._parse_int_range(
             self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
             DEFAULT_DIFFERENCE_THRESHOLD,
@@ -246,6 +258,7 @@ class SettingsRepository:
             dont_show_raw_json_profiles=dont_show,
             difference_cache_mib=cache_mib,
             source_residency_mib=source_mib,
+            preload_enabled=preload_enabled,
             default_open_directory=open_directory,
             default_export_directory=export_directory,
             require_exact_raw_file_size=exact_size,
@@ -257,12 +270,58 @@ class SettingsRepository:
             and exact_size_valid
             and cache_valid
             and source_valid
+            and preload_valid
             and threshold_valid
             and gain_valid
             and open_valid
             and export_valid
         )
         return settings, not valid
+
+    def _load_schema_v4_values(self) -> ApplicationSettings:
+        """Preserve every v4 value while enabling bounded preload by default."""
+
+        dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
+        exact_size, _ = self._parse_bool(self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY))
+        cache_mib, _ = self._parse_int_range(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY),
+            DEFAULT_DIFFERENCE_CACHE_MIB,
+            MIN_DIFFERENCE_CACHE_MIB,
+            MAX_DIFFERENCE_CACHE_MIB,
+        )
+        source_mib, _ = self._parse_int_range(
+            self._adapter.value(SOURCE_RESIDENCY_MIB_KEY),
+            DEFAULT_SOURCE_RESIDENCY_MIB,
+            MIN_SOURCE_RESIDENCY_MIB,
+            MAX_SOURCE_RESIDENCY_MIB,
+        )
+        threshold, _ = self._parse_int_range(
+            self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
+            DEFAULT_DIFFERENCE_THRESHOLD,
+            MIN_DIFFERENCE_THRESHOLD,
+            MAX_DIFFERENCE_THRESHOLD,
+        )
+        gain, _ = self._parse_int_range(
+            self._adapter.value(DIFFERENCE_GAIN_KEY),
+            DEFAULT_DIFFERENCE_GAIN,
+            MIN_DIFFERENCE_GAIN,
+            MAX_DIFFERENCE_GAIN,
+        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
+        export_directory, _ = self._parse_directory(
+            self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
+        )
+        return ApplicationSettings(
+            dont_show_raw_json_profiles=dont_show,
+            difference_cache_mib=cache_mib,
+            source_residency_mib=source_mib,
+            default_open_directory=open_directory,
+            default_export_directory=export_directory,
+            require_exact_raw_file_size=exact_size,
+            difference_threshold=threshold,
+            difference_gain=gain,
+            preload_enabled=True,
+        )
 
     def _load_schema_v3_values(self) -> ApplicationSettings:
         """Preserve every v3 value while adding the decoded-source default."""
@@ -377,6 +436,7 @@ class SettingsRepository:
         self._adapter.set_value(DIFFERENCE_GAIN_KEY, settings.difference_gain)
         self._adapter.set_value(DIFFERENCE_CACHE_MIB_KEY, settings.difference_cache_mib)
         self._adapter.set_value(SOURCE_RESIDENCY_MIB_KEY, settings.source_residency_mib)
+        self._adapter.set_value(PRELOAD_ENABLED_KEY, settings.preload_enabled)
         self._adapter.sync()
 
     def _guard_writable_schema(self) -> None:

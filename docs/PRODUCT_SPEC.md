@@ -10,7 +10,11 @@ results.
 
 - Folder-grouped Files tree with drag-and-drop, context actions, natural order,
   and loading/resident/error indicators.
-- Ordered multi-selection and atomic Page Up/Page Down folder navigation.
+- Ordered multi-selection and atomic Page Up/Page Down Folder Position navigation
+  for one to six distinct registered folders.
+- Up/Down retains Files-tree row navigation. Left/Right changes only the active
+  image within the selected set; PageUp/PageDown changes selection membership by
+  one registered Folder Position.
 - Auto, Single, and Multi View with synchronized cursor, zoom, offset, ROI, and
   line coordinates.
 - Fixed two/three/four/five/six-image layouts with primary-image ordering for
@@ -51,6 +55,11 @@ results.
   user's values visible. Unknown RAM uses product bounds only. This is a
   conservative configuration guard rather than OOM protection. Changes apply after
   PixelScope restarts and do not resize current runtime owners live.
+- **Preload Next Folder Position** is enabled by default and is the third
+  startup-only Performance setting. After foreground loading becomes idle,
+  PixelScope decodes exactly the next Folder Position produced by the PageDown planner on
+  a separate single-worker pool. It never scans unregistered siblings, preloads
+  previous/next-next positions, or delays normal loading.
 - Decoded Source Memory accounts native registered `ImageDocument.source` arrays
   only. The Files green residency indicator reflects this state, not Difference
   cache entries or total application memory.
@@ -62,6 +71,9 @@ results.
 - Source eviction clears source-local Statistics/Histogram/channel-derived state
   but does not evict Difference maps solely because native source bytes were
   released.
+- Valid preload results become ordinary decoded-source residents and receive no
+  special protection. Stale/cancelled results and changed path/profile/generation
+  identities are dropped; speculative failures remain silent and retryable.
 - `Reset Settings` restores application preferences without resetting workspace
   layout, window geometry, dock/splitter state, or remembered last-directory
   state.
@@ -98,7 +110,7 @@ mosaic planes; demosaic is outside the current product contract.
 
 ## Future product scope
 
-The complete product adds bounded next-group preload, RAW
-demosaic/normalization/profile suggestion, alpha overlay, persistent sessions
+The complete product adds RAW demosaic/normalization/profile suggestion, alpha
+overlay, persistent sessions
 and ROI management, live GPU IQA/image evaluation, heatmaps, and a validated
 standalone Windows distribution.

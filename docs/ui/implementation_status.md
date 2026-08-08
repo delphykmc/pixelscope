@@ -1,8 +1,8 @@
 # PixelScope UI/performance iteration status
 
 Snapshot date: 2026-08-08
-Current merged runtime baseline: PR #15 merge commit
-P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
+Current merged runtime baseline: PR #16 merge commit
+P2-C branch base: `453b718535bdbdce2a9225c01f6144d7f2df40b0`
 
 ## Completed iterations
 
@@ -21,7 +21,8 @@ P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
 | P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
 | P2-A1 / #14 | Complete | Application identity and packaged resources |
 | P2-A2 / #15 | Complete | Typed Settings schema v3 and runtime integration |
-| P2-B | Active | Byte-budgeted decoded-source residency and schema v4 |
+| P2-B | Complete / PR #16 merged | Byte-budgeted decoded-source residency and schema v4 |
+| P2-C | Active / PR #17 draft | One-to-six-folder navigation, bounded next-position preload, schema v5 |
 
 ## Current UI behavior
 
@@ -34,6 +35,9 @@ P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
 - Every regular two-to-six-image Multi View exposes primary behavior. Promotion
   preserves Files order, logical badges, viewer identity, and synchronized range.
 - Two/four/six views remain equal; three/five enlarge the first tile.
+- PageUp/PageDown atomically moves one-to-six distinct registered folders by one
+  Folder Position. Left/Right remains selected-image navigation and Up/Down
+  remains native Files-tree row navigation.
 - `_fixed_geometry()` is the sole Multi View geometry contract; no arrangement
   menu, runtime field, or persisted setting remains.
 
@@ -76,16 +80,27 @@ Implemented now:
 - Soft-budget protection for visible, selected, active/analysis, Difference-pair,
   and active load-target sources.
 - Exact native `source.nbytes` accounting and minimal residency diagnostics.
-- Schema-v4 General / Files / Performance Settings with distinct Decoded Source
-  Memory and Difference Map Cache startup budgets.
+- Schema-v5 General / Files / Performance Settings with distinct Decoded Source
+  Memory and Difference Map Cache startup budgets plus enabled-by-default,
+  startup-only **Preload Next Folder Position**.
 - Canonical application icon/resource foundation and immutable
   `PerformanceSettings` startup injection.
-- Bounded normal-load and numeric worker pools.
+- One pure Folder Position planner shared by PageUp/PageDown and next-position
+  prediction, plus a Qt-free `PreloadController` that owns exactly `plan(+1)`.
+- A dedicated max-one preload pool remains separate from the max-two normal-load
+  pool, so foreground loading never waits behind speculative decode. The shared
+  numeric pool remains bounded at four workers.
+- Preload cancellation is cooperative; stale results are rejected by plan,
+  document generation, path/profile/exact-size identity, and normal-load token.
+  Valid results enter ordinary source residency without separate protection or
+  budget, and cancellation de-duplication state ends with its worker request.
 
 Not implemented yet:
 
-- One-group-ahead preload.
 - Runtime diagnostics UI/snapshot and Copy Diagnostics.
 
-P2-C preload and P2-D diagnostics remain the next runtime slices. P2-B behavior
-must not be treated as merged release behavior until its phase PR is merged.
+P2-B is merged release behavior as of PR #16. P2-C is the active PR #17 runtime
+slice; P2-D diagnostics remains next after P2-C merges. P2-C behavior must not be
+treated as merged release behavior until PR #17 is merged. The owner reports
+basic Windows behavior checked, while the complete P2-C manual matrix remains a
+merge gate.

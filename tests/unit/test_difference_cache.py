@@ -40,6 +40,7 @@ def test_default_performance_settings_use_recommended_uhd_budgets() -> None:
     assert settings.difference_cache_bytes == DEFAULT_DIFFERENCE_CACHE_BYTES
     assert settings.source_residency_bytes == 256 * MIB
     assert settings.source_residency_bytes == DEFAULT_SOURCE_RESIDENCY_BYTES
+    assert settings.preload_enabled is True
     with pytest.raises(ValueError, match="positive"):
         PerformanceSettings(difference_cache_bytes=0)
     with pytest.raises(ValueError, match="positive"):
@@ -48,6 +49,8 @@ def test_default_performance_settings_use_recommended_uhd_budgets() -> None:
         PerformanceSettings(difference_cache_bytes=True)
     with pytest.raises(TypeError, match="integer"):
         PerformanceSettings(source_residency_bytes=1.5)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="bool"):
+        PerformanceSettings(preload_enabled=1)  # type: ignore[arg-type]
 
 
 def test_combined_budgets_use_half_of_known_physical_memory_as_envelope() -> None:

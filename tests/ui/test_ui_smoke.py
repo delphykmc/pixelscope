@@ -86,8 +86,8 @@ def test_application_and_selection_driven_main_window(qtbot: object) -> None:
     view_menu = view_action.menu()
     assert view_menu is not None
     assert not any("Difference" in action.text() for action in view_menu.actions())
-    assert window.action_map["Previous Image"].shortcut().isEmpty()
-    assert window.action_map["Next Image"].shortcut().isEmpty()
+    assert window.action_map["Previous Selected Image"].shortcut().isEmpty()
+    assert window.action_map["Next Selected Image"].shortcut().isEmpty()
     assert QKeySequence(Qt.Key.Key_Left) in shortcut_keys
     assert QKeySequence(Qt.Key.Key_Right) in shortcut_keys
     window.close()
@@ -1364,7 +1364,9 @@ def test_auto_grid_paging_with_seven_selected_images(qtbot: object) -> None:
     window.close()
 
 
-def test_folder_pairs_are_naturally_sorted_and_loaded_lazily(qtbot: object, tmp_path: Path) -> None:
+def test_folder_positions_are_naturally_sorted_and_loaded_lazily(
+    qtbot: object, tmp_path: Path
+) -> None:
     folder_a = tmp_path / "a"
     folder_b = tmp_path / "b"
     folder_a.mkdir()
@@ -1375,7 +1377,7 @@ def test_folder_pairs_are_naturally_sorted_and_loaded_lazily(qtbot: object, tmp_
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    window.register_folder_pair(folder_a, folder_b)
+    window.register_folder_group((folder_a, folder_b))
     assert window.document_list.topLevelItemCount() == 2
     assert sorted(
         window.document_list.topLevelItem(index).childCount()
@@ -1414,7 +1416,7 @@ def test_folder_pairs_are_naturally_sorted_and_loaded_lazily(qtbot: object, tmp_
     qtbot.wait(10)  # type: ignore[attr-defined]
     qtbot.keyClick(window.viewer, Qt.Key.Key_PageDown)  # type: ignore[attr-defined]
     assert [document.document_id for document in window.selected_documents] == selected_at_end
-    assert "No next image" in window.statusBar().currentMessage()
+    assert "No next folder position" in window.statusBar().currentMessage()
     qtbot.keyClick(window.viewer, Qt.Key.Key_PageUp)  # type: ignore[attr-defined]
     assert [document.display_name for document in window.selected_documents] == [
         "image2.png",
@@ -1423,7 +1425,7 @@ def test_folder_pairs_are_naturally_sorted_and_loaded_lazily(qtbot: object, tmp_
     window.close()
 
 
-def test_folder_pair_navigation_recalculates_enabled_difference_and_keeps_focus(
+def test_folder_position_navigation_recalculates_enabled_difference_and_keeps_focus(
     qtbot: object, tmp_path: Path
 ) -> None:
     folders = [tmp_path / name for name in ("reference", "candidate")]
@@ -1436,7 +1438,7 @@ def test_folder_pair_navigation_recalculates_enabled_difference_and_keeps_focus(
             )
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    window.register_folder_pair(folders[0], folders[1])
+    window.register_folder_group(folders)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(document.source is not None for document in window.selected_documents),
         timeout=3000,
@@ -1448,7 +1450,7 @@ def test_folder_pair_navigation_recalculates_enabled_difference_and_keeps_focus(
     )
     stale_difference = window._difference_document
     window._set_focus_document(window.selected_documents[1])
-    window.next_folder_pair()
+    window.next_folder_position()
     assert window._view_capacity == 4
     assert window._difference_document is stale_difference
     assert len(window.multi_compare_view.occupied_viewers) == 3
@@ -1490,7 +1492,7 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
 
     window._select_document_ids(first_ids)
     for _index in range(5):
-        window.next_folder_pair()
+        window.next_folder_position()
     assert [document.display_name for document in window.selected_documents] == [
         "chart-05.jpg",
         "chart-05.jpg",
@@ -1505,7 +1507,7 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
     # Walk the remaining positions normally as well; decoded arrays behind the
     # current working set must be released instead of accumulating indefinitely.
     for _index in range(2):
-        window.next_folder_pair()
+        window.next_folder_position()
         qtbot.waitUntil(  # type: ignore[attr-defined]
             lambda: not window._workers
             and all(document.source is not None for document in window.selected_documents),
@@ -1528,7 +1530,7 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
     window.close()
 
 
-def test_new_files_update_an_active_multi_folder_pair(
+def test_new_files_update_active_multi_folder_navigation(
     qtbot: object, tmp_path: Path, monkeypatch: object
 ) -> None:
     folders = [tmp_path / name for name in ("a", "b", "c")]
@@ -1546,7 +1548,7 @@ def test_new_files_update_an_active_multi_folder_pair(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    window.register_folder_pair(folders[0], folders[1])
+    window.register_folder_group(folders[:2])
     monkeypatch.setattr(  # type: ignore[attr-defined]
         QMessageBox,
         "question",
@@ -1565,11 +1567,11 @@ def test_new_files_update_an_active_multi_folder_pair(
     ]
 
     selection_at_shortest_end = [document.document_id for document in window.selected_documents]
-    window.next_folder_pair()
+    window.next_folder_position()
     assert [
         document.document_id for document in window.selected_documents
     ] == selection_at_shortest_end
-    assert "No next image" in window.statusBar().currentMessage()
+    assert "No next folder position" in window.statusBar().currentMessage()
 
     monkeypatch.setattr(  # type: ignore[attr-defined]
         QMessageBox,

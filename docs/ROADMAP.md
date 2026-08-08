@@ -5,7 +5,7 @@
 ### P0/P1 product foundation
 
 - PNG/BMP/JPEG and profile-described RAW loading with native source preservation.
-- Ordered selection, folder-pair Page Up/Page Down navigation, synchronized
+- Ordered selection, registered one-to-six-folder Page Up/Page Down navigation, synchronized
   cursor/range/ROI/line state, and fixed one-to-six-image layouts.
 - Statistics, Histogram, Line Profile, Difference, Split Channels, structured
   status, and persisted workspace/Plots state.
@@ -40,13 +40,13 @@ Sequential dependency: `P2-0 → P2-A → P2-B → P2-C → P2-D → P2-E`.
   packaged-safe resources, typed settings, QSettings adapter/migration,
   Settings dialog, restart-required/reset behavior, and Difference-cache startup
   injection.
-- **P2-B — Byte-budgeted decoded-source residency:** replace the fixed-count
-  policy with native-source byte accounting, protected LRU, soft budget,
-  eviction/reload, invalidation, setting, and diagnostics API. Implemented on
-  `feature/p2-b-source-residency-budget`; validation/merge are in progress.
-- **P2-C — Bounded next-group preload:** one folder group ahead, normal-load
-  priority, bounded ownership, stale cancellation/drop, request validation,
-  budget-aware retention, setting, and counters.
+- **P2-B — Byte-budgeted decoded-source residency:** native-source byte
+  accounting, protected LRU, soft budget, eviction/reload, invalidation, setting,
+  and diagnostics API. Complete; merged as PR #16.
+- **P2-C — Bounded next-position preload:** active on
+  `feature/p2-c-folder-preload`; one registered Folder Position ahead,
+  normal-load priority, bounded ownership, stale cancellation/drop, request
+  validation, ordinary residency retention, startup setting, and counters.
 - **P2-D — Runtime diagnostics and failure visibility:** deterministic/redacted
   source/cache/worker/preload/stale/failure snapshot, Copy Diagnostics, and
   optional text export.

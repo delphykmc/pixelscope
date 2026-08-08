@@ -79,10 +79,13 @@ class PerformanceSettings:
 
     difference_cache_bytes: int = DEFAULT_DIFFERENCE_CACHE_BYTES
     source_residency_bytes: int = DEFAULT_SOURCE_RESIDENCY_BYTES
+    preload_enabled: bool = True
 
     def __post_init__(self) -> None:
         self._validate_budget("difference cache", self.difference_cache_bytes)
         self._validate_budget("source residency", self.source_residency_bytes)
+        if not isinstance(self.preload_enabled, bool):
+            raise TypeError("preload enabled must be bool")
 
     @staticmethod
     def _validate_budget(name: str, value: object) -> None:

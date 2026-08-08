@@ -40,7 +40,7 @@
   Frozen `ApplicationSettings` is the persisted typed model;
   `SettingsRepository` owns defaults, validation, migration, save, and reset;
   `QSettingsAdapter` owns raw application-preference keys.
-- Application settings schema version 4 owns:
+- Application settings schema version 5 owns:
   - `settings/schema_version`
   - `settings/general/dont_show_raw_json_profiles`
   - `settings/general/require_exact_raw_file_size`
@@ -50,7 +50,9 @@
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
   - `settings/performance/source_residency_mib`
-- Schema v3 migrates directly to v4 and adds the current source-residency
+  - `settings/performance/preload_enabled`
+- Schema v4 migrates directly to v5, preserving all v4 values and adding enabled
+  preload. Schema v3 migration adds the current source-residency
   default. A v3 Difference-cache value valid in the former 64–8192 MiB range is
   clamped to the new 1280 MiB maximum instead of reset to 128 MiB. Schema v2/v1
   and legacy `raw/dont_show_json_profiles` also migrate into the current model.
@@ -96,8 +98,9 @@
   remain at or below 50% of RAM. An above-limit Save retains both entered values,
   warns, and stays open. Unknown RAM uses product bounds only. This is a
   conservative configuration envelope, not an out-of-memory guarantee.
-- Restart-required UI compares both saved/editable startup-only budget values to
-  the current runtime snapshot. Returning both to their runtime values clears
+- Restart-required UI compares both saved/editable startup-only budget values and
+  preload enablement to the current runtime snapshot. Returning all three to
+  their runtime values clears
   the indication. File-location, RAW, Threshold, and Gain changes do not require
   restart.
 - `Reset Settings` resets only schema-owned application preferences. `Reset
@@ -131,10 +134,20 @@
   existing-path reloads.
 - Source-only eviction does not invalidate a valid Difference map. Difference
   maps remain under their own budget/generation contract.
-- P2-C's preload preference extends the existing Performance Settings page when
-  that runtime lifecycle is implemented.
-- Preload has bounded ownership separate from normal load and may not starve
-  interactive work.
+- Folder Position navigation operates only on registered `_folder_documents`
+  sequences. One-to-six selected file-backed documents from distinct folders
+  move atomically; any endpoint or invalid member makes the whole move a no-op.
+- Up/Down remains native Files-tree row navigation. Left/Right remains
+  Previous/Next Selected Image. PageUp/PageDown owns Previous/Next Folder Position.
+- One pure folder-navigation planner is authoritative for actual PageDown targets
+  and preload prediction.
+- **Preload Next Folder Position** is enabled by default and is an immutable
+  startup setting. It owns exactly `plan(+1)`, never previous or next-next work.
+- Preload uses a dedicated max-one worker pool, has bounded ownership separate
+  from normal load, and may not starve interactive work.
+- Successful preload results enter ordinary source residency with no speculative
+  protection or separate memory budget. Silent speculative failure remains
+  retryable through normal loading.
 - Cancellation and stale-result rejection are distinct; obsolete results must
   not apply even when a decoder cannot stop immediately.
 - Diagnostics redact full paths and sanitize failures by default. They contain no
@@ -159,6 +172,4 @@
 
 ## Pending owner decisions
 
-This recommendation is not an accepted value until the owner confirms it:
-
-- Preload default — recommendation: Enabled; pending before P2-C.
+There are no pending P2-C owner decisions.
