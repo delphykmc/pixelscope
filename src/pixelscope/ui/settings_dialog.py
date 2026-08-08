@@ -424,7 +424,7 @@ class SettingsDialog(QDialog):
 
         memory_section.add_row(
             _SettingRow(
-                "Difference Cache",
+                "Difference Map Cache",
                 "Memory budget for cached Difference maps. Adjust in 64 MiB steps; "
                 "the configured value is applied on the next PixelScope launch.",
                 cache_control,
