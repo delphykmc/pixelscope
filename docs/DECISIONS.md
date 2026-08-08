@@ -33,31 +33,44 @@
   **P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E** after the P2-0 documentation
   transition. Each slice starts from the latest merged prerequisite on `main`.
 - P2-A1 is the application identity/resource foundation merged as PR #14.
-  P2-A2 owns typed settings, persistence, the Settings dialog, and
-  Difference-cache startup injection.
+  P2-A2 owns typed settings, persistence, the Settings dialog, Difference
+  display defaults, RAW size policy, and Difference Map Cache startup injection.
 - QSettings is a persistence adapter, not the application settings domain model.
   Frozen `ApplicationSettings` is the persisted typed model;
   `SettingsRepository` owns defaults, validation, migration, save, and reset;
   `QSettingsAdapter` owns raw application-preference keys.
-- Application settings schema version 2 owns:
+- Application settings schema version 3 owns:
   - `settings/schema_version`
   - `settings/general/dont_show_raw_json_profiles`
+  - `settings/general/require_exact_raw_file_size`
   - `settings/files/default_open_directory`
   - `settings/files/default_export_directory`
+  - `settings/analysis/difference_threshold`
+  - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
-- Schema v1 migrates to v2 by preserving the RAW and Difference-cache values and
-  initializing both file-location values to blank. Legacy
-  `raw/dont_show_json_profiles` remains migration input only.
+- Schema v2 migrates to v3 by preserving its existing values and initializing
+  exact RAW validation, Difference Threshold, and Difference Gain to their v3
+  defaults. Schema v1 and legacy `raw/dont_show_json_profiles` also migrate into
+  the current model.
 - Invalid current values fall back to validated defaults and are normalized. A
   persisted schema newer than the running application is never destructively
   guessed or rewritten; application preferences remain read-only until a
   compatible version is used.
-- Settings uses an Excel-style category/page structure rather than a single long
-  form: **General**, **Files**, and **Performance**. This supports later additions
-  without adopting VS Code's search-heavy settings UX before it is needed.
+- Settings uses a restrained VS Code-inspired category/page structure:
+  **General**, **Files**, and **Performance**. It uses hierarchy, spacing, and
+  flat setting rows rather than nested legacy group boxes; search is deferred
+  until the settings count justifies it.
 - **Don't Show RAW JSON Profiles** is a persistent General setting and is removed
-  from the File menu. The RAW open dialog may still persist the same preference
-  from its explicit don't-show-again interaction.
+  from the File menu. The RAW open dialog may still persist that one field from
+  its explicit don't-show-again interaction without resetting other settings.
+- **Require Exact RAW File Size** is a persistent General setting. Disabled
+  accepts trailing bytes while rejecting undersized inputs; enabled requires
+  exact byte equality. `MainWindow` passes the policy to RAW workers and uses the
+  same rule for JSON-sidecar auto-approval.
+- **Difference Threshold** and **Difference Gain** are persistent General
+  analysis defaults. They initialize the Difference panel at startup and apply
+  to the live panel immediately after Settings saves; they do not require
+  restart.
 - **Default Open Folder** and **Default Export Folder** are optional Files
   preferences. Blank means use the remembered last-used folder; a configured
   existing path only seeds the corresponding dialog and applies immediately.
@@ -67,15 +80,16 @@
   precedence conflicts.
 - Broader export format, naming, and destination policy is deferred until
   PixelScope has more than the current Statistics CSV export surface.
-- Worker counts, zoom/sync state, Difference gain/threshold, and other transient
-  analysis/runtime state are not general user preferences in P2-A2.
-- Performance settings are immutable startup snapshots. Difference-cache edits
-  are persisted immediately but do not mutate an existing runtime cache.
-- Difference-cache preference default is 512 MiB with an accepted range of
+- Worker counts, zoom/sync state, and other transient runtime state remain outside
+  P2-A2 application preferences.
+- Performance settings are immutable startup snapshots. Difference Map Cache
+  edits are persisted immediately but do not mutate an existing runtime cache.
+- Difference Map Cache preference default is 512 MiB with an accepted range of
   64–8192 MiB. Runtime receives bytes through `PerformanceSettings`.
 - Restart-required UI is determined by comparing the saved/editable startup-only
-  value to the current runtime snapshot. Returning to the runtime value clears
-  the indication. File-location and RAW changes do not require restart.
+  cache value to the current runtime snapshot. Returning to the runtime value
+  clears the indication. File-location, RAW, Threshold, and Gain changes do not
+  require restart.
 - `Reset Settings` resets only schema-owned application preferences. `Reset
   Workspace Layout` remains a separate action and application reset does not
   remove window/dock/splitter geometry, remembered last-directory state, or
@@ -112,6 +126,9 @@
 - Packaging, signing, update strategy, and release engineering are P7.
 - Login, SSO, token/credential lifecycle, access policy, and remote operations
   administration are P6. P2 does not introduce credentials.
+- The brief Windows startup white-frame flash has no intentional splash or
+  pre-render owner in the current startup path. Investigation is deferred to
+  startup polish after the major phases and is not a P2-A2 merge blocker.
 
 ## Current resource policy
 
