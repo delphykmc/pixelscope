@@ -99,7 +99,21 @@ Open **Edit > Settings...**. The left side selects **General**, **Files**, or
 **Don't Show RAW JSON Profiles** controls repeated confirmation for valid RAW
 JSON sidecars. This persistent preference lives in Settings; it is not duplicated
 in the File menu. Choosing the equivalent don't-show-again option from the RAW
-confirmation dialog updates the same preference.
+confirmation dialog updates only this setting and preserves the other Settings
+values.
+
+**Require Exact RAW File Size** controls RAW byte-count validation. When off,
+PixelScope accepts files that contain at least the bytes required by the selected
+profile, so trailing bytes are allowed. Undersized files are always rejected.
+When on, the file size must exactly match the profile requirement. The same
+policy is used when deciding whether a JSON sidecar may bypass the RAW profile
+confirmation dialog.
+
+Under **Difference Defaults**, **Threshold** sets the initial Difference mask
+threshold and **Gain** sets the initial Absolute Difference amplification.
+Persisted values initialize the Difference panel on startup. Saving either value
+from Settings updates the current Difference panel immediately and does not
+require restart.
 
 ### Files
 
@@ -115,12 +129,13 @@ apply immediately and do not require restart.
 
 ### Performance
 
-**Difference Cache** is stored in MiB. The default is 512 MiB and the allowed
-range is 64–8192 MiB. This is a startup setting: changing it saves the preference
-but does not resize the current cache. When the editable value differs from the
-current startup value, the dialog shows **Changes take effect after restarting
-PixelScope.** Returning the value to the current runtime setting clears that
-indication.
+**Difference Map Cache** is the memory budget for calculated Difference maps; it
+does not control the decoded source images indicated by the green residency
+badges in Files. The default is 512 MiB and the allowed range is 64–8192 MiB.
+This is a startup setting: changing it saves the preference but does not resize
+the current cache. When the editable value differs from the current startup
+value, the dialog shows **Changes take effect after restarting PixelScope.**
+Returning the value to the current runtime setting clears that indication.
 
 **Reset Settings** restores only application preferences to their defaults. It
 does not reset window layout, dock/splitter geometry, remembered last directory,
@@ -128,9 +143,10 @@ or other workspace/session state. Use **View > Reset Workspace Layout** for
 layout state instead.
 
 Docking and layout defaults are intentionally not duplicated in Settings because
-PixelScope already restores the exact saved workspace. Later runtime preferences,
-such as the P2-B decoded-source budget and P2-C preload option, extend the
-Performance page when those features are implemented.
+PixelScope already restores the exact saved workspace. The green Files residency
+badge currently reflects a separate fixed seven-source decoded-image policy.
+P2-B replaces that policy with a byte-budgeted source residency manager; P2-C
+adds preload behavior afterward.
 
 ## Plots dock
 
@@ -147,7 +163,8 @@ state transition.
 
 Opening RAW uses a validated profile. A same-name JSON sidecar pre-fills the
 dialog. The **Don't Show RAW JSON Profiles** preference can accept those
-profiles without repeated confirmation. Reloading the same path is allowed.
+profiles without repeated confirmation when the file-size policy also matches.
+Reloading the same path is allowed.
 
 Unpacked profiles specify `uint8` or `uint16`, effective bit depth, byte order,
 and LSB/MSB alignment where applicable. Packed choices are MIPI RAW10, RAW12,
