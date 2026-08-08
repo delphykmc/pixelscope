@@ -35,6 +35,10 @@ source and tests before changing behavior.
 - Never log credentials, image content, or unnecessary sensitive paths.
 - Do not modify files outside this repository or perform destructive Git
   operations.
+- Keep agent-generated Git and GitHub activity explicitly attributable. Prefer
+  a verified OpenAI bot identity; when owner-authenticated tooling is used, add
+  `Co-authored-by: ChatGPT <noreply@openai.com>` to agent commits and mark PR
+  bodies/comments as ChatGPT-assisted. Never rewrite existing human commits.
 
 ## Working method
 
@@ -52,4 +56,5 @@ source and tests before changing behavior.
 8. Report only validation output that was actually observed.
 
 Final reports must list changed files, observable behavior, validation commands
-and exact results, manual checks, known constraints, and deferred work.
+and exact results, manual checks, known constraints, deferred work, and the
+actual agent-attribution method used for commits and GitHub activity.

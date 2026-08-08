@@ -4,10 +4,17 @@ import logging
 import sys
 from collections.abc import Sequence
 
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.resources import load_application_icon
+from pixelscope.app.settings import (
+    ApplicationSettings,
+    QSettingsAdapter,
+    SettingsRepository,
+)
+from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.ui.design_tokens import apply_engineering_palette
 
 LOGGER = logging.getLogger(__name__)
@@ -59,13 +66,22 @@ def create_application(arguments: Sequence[str] | None = None) -> QApplication:
     return app
 
 
+def load_startup_settings() -> tuple[SettingsRepository, ApplicationSettings, PerformanceSettings]:
+    """Load and validate persisted preferences, then freeze the runtime snapshot."""
+
+    repository = SettingsRepository(QSettingsAdapter(QSettings()))
+    application_settings = repository.load()
+    return repository, application_settings, application_settings.performance_settings()
+
+
 def main(arguments: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     app = create_application(arguments)
-    window = MainWindow()
+    repository, application_settings, performance_settings = load_startup_settings()
+    window = MainWindow(application_settings, performance_settings, repository)
     window.setWindowIcon(app.windowIcon())
     window.show()
     return app.exec()

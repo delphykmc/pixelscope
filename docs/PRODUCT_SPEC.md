@@ -29,10 +29,32 @@ results.
   image, then the active image, then the first displayed image.
 - RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
 - Order-independent native absolute Difference cache with Absolute/Mask display,
-  ROI metrics, LRU eviction, and diagnostics.
+  ROI metrics, LRU eviction, diagnostics, and a startup-configurable byte budget.
 - Resizable, collapsible, floating, and maximizable Plots dock.
 - Persisted main geometry, dock state, splitters, last directory, layout,
   analysis state, and selected Plots tab.
+- `Edit > Settings...` uses **General / Files / Performance** category pages with
+  a flat VS Code-inspired hierarchy.
+- General owns the persistent RAW JSON confirmation preference, exact RAW
+  file-size validation, and Difference Threshold/Gain defaults. RAW confirmation
+  is not duplicated in the File menu.
+- Exact RAW validation is propagated to the load worker/reader and to JSON
+  sidecar auto-approval. Difference Threshold/Gain initialize at startup and
+  apply to the live Difference panel after Settings saves without restart.
+- Files provides optional Default Open Folder and Default Export Folder values.
+  Blank preserves the remembered last-used-folder behavior; configured existing
+  folders only seed dialog starting locations and apply without restart.
+- Performance owns **Difference Map Cache**. It defaults to 512 MiB, accepts
+  64–8192 MiB, and applies a changed value after PixelScope restarts. The current
+  runtime cache is not resized live.
+- Difference Map Cache is separate from decoded source-image residency. The
+  latter remains a fixed seven-document policy until P2-B replaces it with a
+  byte-budgeted manager.
+- `Reset Settings` restores application preferences without resetting workspace
+  layout, window geometry, dock/splitter state, or remembered last-directory
+  state.
+- Exact docking/layout values remain workspace state rather than configurable
+  defaults because the saved workspace is already authoritative.
 
 A seventh derived Difference result is shown in Single View when all six source
 positions are occupied.
@@ -40,8 +62,15 @@ positions are occupied.
 ## RAW contract
 
 RAW opens through a validated profile workflow. A same-name JSON sidecar can
-pre-fill the profile; the user preference may skip repeated confirmation for
-those JSON profiles. The same RAW path may be reloaded with corrected settings.
+pre-fill the profile; the General Settings preference may skip repeated
+confirmation for those JSON profiles when the configured file-size policy also
+matches. The RAW dialog's explicit don't-show-again choice updates only that one
+typed preference and preserves the other schema-v3 settings. The same RAW path
+may be reloaded with corrected settings.
+
+When **Require Exact RAW File Size** is disabled, RAW files may contain trailing
+bytes but may not be undersized. When enabled, the file byte count must exactly
+match the selected profile's requirement.
 
 The profile separates:
 
@@ -57,7 +86,7 @@ mosaic planes; demosaic is outside the current product contract.
 
 ## Future product scope
 
-The complete product adds performance Preferences, byte-budgeted source
-residency and preload, RAW demosaic/normalization/profile suggestion, alpha
-overlay, persistent sessions and ROI management, live GPU IQA/image evaluation,
-heatmaps, and a validated standalone Windows distribution.
+The complete product adds byte-budgeted decoded-source residency and preload,
+RAW demosaic/normalization/profile suggestion, alpha overlay, persistent
+sessions and ROI management, live GPU IQA/image evaluation, heatmaps, and a
+validated standalone Windows distribution.

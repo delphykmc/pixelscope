@@ -100,6 +100,34 @@ progress and packed RAW was unimplemented. High throughput increases this kind
 of drift unless documentation freshness and compatibility cleanup are explicit
 deliverables.
 
+## Agent provenance and GitHub attribution
+
+PixelScope keeps human-authored work and agent-generated work distinguishable in
+Git history and GitHub activity. Attribution is part of the engineering record,
+not decorative PR text.
+
+- Prefer a verified OpenAI GitHub App/bot identity as commit author or committer
+  whenever the active tooling actually exposes that identity.
+- When work must be committed through owner-authenticated tooling, use the
+  repository-verified fallback from PR #9:
+  `Co-authored-by: ChatGPT <noreply@openai.com>`.
+- Never invent or guess a bot email address. Use only an identity already
+  verified by the repository/tooling.
+- PR comments and reviews do not have Git commit co-author metadata. Prefer a
+  bot-authenticated account. When only owner-authenticated posting is available
+  and automated posting is authorized, explicitly identify the body/comment as
+  **ChatGPT-assisted** rather than presenting it as unaided owner activity.
+- PR bodies for agent-assisted work record the actual commit attribution method,
+  the account used for comments/reviews, and whether human commits were
+  rewritten.
+- Existing human-authored commits are never amended, rebased for author rewrite,
+  given fabricated co-authors, or force-pushed merely to change provenance.
+- Validation and final reports state the observed GitHub author/committer and
+  the attribution fallback actually used.
+
+This convention applies to future ChatGPT/Codex agents unless the repository
+owner explicitly replaces it with another verified attribution mechanism.
+
 ## PixelScope adoption status
 
 ### Existing strengths
@@ -118,7 +146,8 @@ deliverables.
 - Quality/completion contract and execution-plan template.
 - Active plan for the next verified phase.
 - Mechanical required-doc/local-link check.
-- PR template requiring outcome, exclusions, evidence, and deferred work.
+- PR template requiring outcome, exclusions, evidence, deferred work, and agent
+  provenance when applicable.
 
 ### Next harness improvements
 

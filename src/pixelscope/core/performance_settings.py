@@ -8,7 +8,7 @@ DEFAULT_DIFFERENCE_CACHE_BYTES = 512 * MIB
 
 @dataclass(frozen=True)
 class PerformanceSettings:
-    """Startup-only performance limits prepared for a future Preferences service."""
+    """Immutable startup-only performance limits injected into runtime services."""
 
     difference_cache_bytes: int = DEFAULT_DIFFERENCE_CACHE_BYTES
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -35,10 +35,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.app.settings import ApplicationSettings, SettingsRepository
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
+from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.path_discovery import (
     ImageInput,
@@ -62,13 +64,13 @@ from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.multi_compare_view import MultiCompareView, MultiCompareViewState
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
+from pixelscope.ui.settings_dialog import SettingsDialog
 from pixelscope.ui.structured_status_bar import StructuredStatusBar
 from pixelscope.ui.toolbar_icons import toolbar_icon
 from pixelscope.workers.image_load_worker import ImageLoadWorker
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 LOGGER = logging.getLogger(__name__)
-RAW_DONT_SHOW_JSON_SETTING = "raw/dont_show_json_profiles"
 
 
 @dataclass(frozen=True)
@@ -87,23 +89,24 @@ class SixImageDiffRestoreState:
 class MainWindow(QMainWindow):
     """Document registration, selection-driven comparison, and analysis lifecycle."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        application_settings: ApplicationSettings | None = None,
+        performance_settings: PerformanceSettings | None = None,
+        settings_repository: SettingsRepository | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("PixelScope")
         self.resize(1400, 850)
         self.setAcceptDrops(True)
         self.settings = QSettings()
-        self._last_directory = str(self.settings.value("paths/last_directory", ""))
-        stored_dont_show_raw_json = self.settings.value(
-            RAW_DONT_SHOW_JSON_SETTING,
-            False,
+        self.settings_repository = settings_repository or SettingsRepository()
+        self.application_settings = application_settings or self.settings_repository.load()
+        self.performance_settings = (
+            performance_settings or self.application_settings.performance_settings()
         )
-        if isinstance(stored_dont_show_raw_json, bool):
-            self._dont_show_raw_json_profiles = stored_dont_show_raw_json
-        else:
-            self._dont_show_raw_json_profiles = str(
-                stored_dont_show_raw_json
-            ).strip().casefold() in {"true", "1", "yes", "on"}
+        self._last_directory = str(self.settings.value("paths/last_directory", ""))
+        self._dont_show_raw_json_profiles = self.application_settings.dont_show_raw_json_profiles
 
         self.documents: dict[str, ImageDocument] = {}
         self._document_id_by_path: dict[str, str] = {}
@@ -166,7 +169,11 @@ class MainWindow(QMainWindow):
 
         self.comparison_analysis_panel = ComparisonAnalysisPanel()
         self.line_profile_panel = LineProfilePanel()
-        self.difference_panel = DifferencePanel()
+        self.difference_panel = DifferencePanel(self.performance_settings.difference_cache_bytes)
+        self.difference_panel.set_display_defaults(
+            self.application_settings.difference_threshold,
+            self.application_settings.difference_gain,
+        )
         self.analysis_tabs = QTabWidget()
         self.analysis_tabs.addTab(self.comparison_analysis_panel, "Statistics")
         self.analysis_tabs.addTab(self.difference_panel, "Difference")
@@ -288,16 +295,6 @@ class MainWindow(QMainWindow):
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
         add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
         add_action("File", "Open RAW with Profile...", self.open_raw)
-        self.dont_show_raw_json_action = add_action(
-            "File",
-            "Don't Show RAW JSON Profiles",
-            lambda _checked=False: None,
-        )
-        self.dont_show_raw_json_action.setCheckable(True)
-        self.dont_show_raw_json_action.setChecked(self._dont_show_raw_json_profiles)
-        self.dont_show_raw_json_action.toggled.connect(  # type: ignore[attr-defined]
-            self._set_dont_show_raw_json_profiles
-        )
         menus["File"].addSeparator()
         add_action("File", "Export Statistics CSV...", self.export_statistics)
         menus["File"].addSeparator()
@@ -306,6 +303,8 @@ class MainWindow(QMainWindow):
         add_action("Edit", "Remove Selected", self.remove_selected, "Delete")
         add_action("Edit", "Clear ROI", self._escape_action, "Esc")
         add_action("Edit", "Clear Line Profile", self.clear_line, "Shift+Esc")
+        menus["Edit"].addSeparator()
+        add_action("Edit", "Settings...", self.open_settings)
 
         add_action(
             "Selection",
@@ -360,6 +359,30 @@ class MainWindow(QMainWindow):
         self.redock_plots_action.setEnabled(False)
         add_action("View", "Reset Workspace Layout", self.reset_workspace_layout)
         self._update_action_states()
+
+    def create_settings_dialog(self) -> SettingsDialog:
+        dialog = SettingsDialog(
+            self.settings_repository,
+            self.application_settings,
+            self.performance_settings,
+            self,
+        )
+        dialog.settings_saved.connect(self._application_settings_saved)
+        return dialog
+
+    def open_settings(self) -> None:
+        dialog = self.create_settings_dialog()
+        dialog.exec()
+
+    def _application_settings_saved(self, settings: object) -> None:
+        if not isinstance(settings, ApplicationSettings):
+            return
+        self.application_settings = settings
+        self._dont_show_raw_json_profiles = settings.dont_show_raw_json_profiles
+        self.difference_panel.set_display_defaults(
+            settings.difference_threshold,
+            settings.difference_gain,
+        )
 
     def _create_toolbar(self) -> None:
         toolbar = QToolBar("Main", self)
@@ -514,12 +537,16 @@ class MainWindow(QMainWindow):
         if self.comparison_analysis_panel.table.columnCount() == 0:
             self.statusBar().showMessage("No statistics to export", 3000)
             return
+        export_directory = self._export_dialog_directory()
+        initial_path = (
+            str(Path(export_directory) / "pixelscope_statistics.csv")
+            if export_directory
+            else "pixelscope_statistics.csv"
+        )
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export statistics",
-            str(Path(self._last_directory) / "pixelscope_statistics.csv")
-            if self._last_directory
-            else "pixelscope_statistics.csv",
+            initial_path,
             "CSV (*.csv)",
         )
         if not path:
@@ -723,7 +750,7 @@ class MainWindow(QMainWindow):
         paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Open images",
-            self._last_directory,
+            self._open_dialog_directory(),
             "Images (*.png *.bmp *.jpg *.jpeg *.raw);;All files (*)",
         )
         if paths:
@@ -737,7 +764,11 @@ class MainWindow(QMainWindow):
             self._register_inputs(inputs, select_all=True)
 
     def open_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "Open image folder", self._last_directory)
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Open image folder",
+            self._open_dialog_directory(),
+        )
         if path:
             folder = Path(path)
             self._remember_directory(folder)
@@ -749,10 +780,18 @@ class MainWindow(QMainWindow):
             self._register_inputs(inputs, select_all=False)
 
     def compare_two_folders(self) -> None:
-        first = QFileDialog.getExistingDirectory(self, "Select first image folder")
+        first = QFileDialog.getExistingDirectory(
+            self,
+            "Select first image folder",
+            self._open_dialog_directory(),
+        )
         if not first:
             return
-        second = QFileDialog.getExistingDirectory(self, "Select second image folder")
+        second = QFileDialog.getExistingDirectory(
+            self,
+            "Select second image folder",
+            self._open_dialog_directory(),
+        )
         if second:
             self.register_folder_pair(Path(first), Path(second))
 
@@ -781,7 +820,10 @@ class MainWindow(QMainWindow):
 
     def open_raw(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open RAW", self._last_directory, "RAW files (*.*)"
+            self,
+            "Open RAW",
+            self._open_dialog_directory(),
+            "RAW files (*.*)",
         )
         if not path:
             return
@@ -858,17 +900,12 @@ class MainWindow(QMainWindow):
         return document.document_id
 
     def _set_dont_show_raw_json_profiles(self, enabled: bool) -> None:
-        enabled = bool(enabled)
-        self._dont_show_raw_json_profiles = enabled
-        self.settings.setValue(RAW_DONT_SHOW_JSON_SETTING, enabled)
-        self.settings.sync()
-        if (
-            hasattr(self, "dont_show_raw_json_action")
-            and self.dont_show_raw_json_action.isChecked() != enabled
-        ):
-            self.dont_show_raw_json_action.blockSignals(True)
-            self.dont_show_raw_json_action.setChecked(enabled)
-            self.dont_show_raw_json_action.blockSignals(False)
+        settings = replace(
+            self.application_settings,
+            dont_show_raw_json_profiles=bool(enabled),
+        )
+        self.settings_repository.save(settings)
+        self._application_settings_saved(settings)
 
     def _confirm_raw_profile(
         self,
@@ -899,8 +936,12 @@ class MainWindow(QMainWindow):
         source_matches_profile = False
         if initial_profile is not None:
             try:
-                source_matches_profile = image_input.path.stat().st_size >= required_file_size(
-                    initial_profile
+                actual_size = image_input.path.stat().st_size
+                required_size = required_file_size(initial_profile)
+                source_matches_profile = (
+                    actual_size == required_size
+                    if self.application_settings.require_exact_raw_file_size
+                    else actual_size >= required_size
                 )
             except OSError:
                 source_matches_profile = False
@@ -989,7 +1030,11 @@ class MainWindow(QMainWindow):
     def _start_load(self, target_id: str, path: Path, raw_profile: RawProfile | None) -> None:
         request_token = self._load_tokens.get(target_id, 0) + 1
         self._load_tokens[target_id] = request_token
-        worker = ImageLoadWorker(path, raw_profile)
+        worker = ImageLoadWorker(
+            path,
+            raw_profile,
+            require_exact_raw_size=self.application_settings.require_exact_raw_file_size,
+        )
         worker.signals.started.connect(
             lambda _task_id, _document_id, _generation: self._load_started(path)
         )
@@ -2530,6 +2575,24 @@ class MainWindow(QMainWindow):
             seen_folders.add(folder_key)
             session.append((folder_key, document.document_id))
         return session
+
+    def _preferred_dialog_directory(self, configured: str) -> str:
+        configured = configured.strip()
+        if configured:
+            path = Path(configured).expanduser()
+            if path.is_dir():
+                return str(path)
+        return self._last_directory
+
+    def _open_dialog_directory(self) -> str:
+        return self._preferred_dialog_directory(
+            self.application_settings.default_open_directory
+        )
+
+    def _export_dialog_directory(self) -> str:
+        return self._preferred_dialog_directory(
+            self.application_settings.default_export_directory
+        )
 
     def _remember_directory(self, directory: Path) -> None:
         self._last_directory = str(directory)

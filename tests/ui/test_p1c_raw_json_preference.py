@@ -7,10 +7,11 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.app.settings import LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
 
-SETTING_KEY = "raw/dont_show_json_profiles"
+LEGACY_SETTING_KEY = LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY
 
 
 @pytest.fixture(autouse=True)
@@ -43,25 +44,16 @@ def _profile() -> RawProfile:
     )
 
 
-def test_raw_json_dont_show_menu_defaults_off_and_persists(qtbot: object) -> None:
+def test_raw_json_preference_is_settings_only_and_defaults_off(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
-    action = window.action_map["Don't Show RAW JSON Profiles"]
-    assert action.isCheckable()
-    assert not action.isChecked()
-    action.trigger()
-    assert action.isChecked()
-    assert window.settings.value(SETTING_KEY, False, type=bool) is True
+    assert "Don't Show RAW JSON Profiles" not in window.action_map
+    assert window.settings_repository.load().dont_show_raw_json_profiles is False
     window.close()
 
-    restored = MainWindow()
-    qtbot.addWidget(restored)  # type: ignore[attr-defined]
-    assert restored.action_map["Don't Show RAW JSON Profiles"].isChecked()
-    restored.close()
 
-
-def test_valid_json_sidecar_skips_dialog_when_dont_show_is_enabled(
+def test_valid_json_sidecar_skips_dialog_when_legacy_dont_show_is_migrated(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -72,7 +64,7 @@ def test_valid_json_sidecar_skips_dialog_when_dont_show_is_enabled(
     profile = _profile()
     profile.save_json(sidecar)
     settings = QSettings()
-    settings.setValue(SETTING_KEY, True)
+    settings.setValue(LEGACY_SETTING_KEY, True)
     settings.sync()
 
     class UnexpectedDialog:
@@ -87,6 +79,7 @@ def test_valid_json_sidecar_skips_dialog_when_dont_show_is_enabled(
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     assert window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) == profile
+    assert not settings.contains(LEGACY_SETTING_KEY)
     window.close()
 
 
@@ -100,7 +93,7 @@ def test_too_small_source_still_opens_dialog_when_dont_show_is_enabled(
     sidecar = tmp_path / "small.json"
     _profile().save_json(sidecar)
     settings = QSettings()
-    settings.setValue(SETTING_KEY, True)
+    settings.setValue(LEGACY_SETTING_KEY, True)
     settings.sync()
 
     class SizeErrorDialog:
@@ -178,6 +171,6 @@ def test_dialog_dont_show_opt_in_enables_future_skip(
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     assert window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) == profile
-    assert window.action_map["Don't Show RAW JSON Profiles"].isChecked()
-    assert window.settings.value(SETTING_KEY, False, type=bool) is True
+    assert window.application_settings.dont_show_raw_json_profiles is True
+    assert window.settings_repository.load().dont_show_raw_json_profiles is True
     window.close()

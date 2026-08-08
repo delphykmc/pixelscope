@@ -1,43 +1,47 @@
 ## Observable outcome
 
-Describe the user-visible or engineering result and how a reviewer can observe
-completion.
+- What user-visible or repository-visible behavior changed?
+- What behavior was intentionally preserved?
 
 ## Scope
 
-### In scope
-
-- 
-
-### Out of scope
-
-- 
+- In scope:
+- Explicitly out of scope:
 
 ## Implementation
 
-Summarize state ownership, important invariants, compatibility impact, and
-notable file/component changes.
+- Main architectural or behavioral changes:
+- Migration / compatibility behavior:
+
+## Agent provenance
+
+- Agent-generated commits:
+- GitHub comments/reviews posted as:
+- ChatGPT-assisted activity disclosed: Yes / No / N/A
+- Existing human commits rewritten: No
 
 ## Validation evidence
 
-- [ ] Targeted tests:
-- [ ] Full pytest:
-- [ ] Ruff check:
-- [ ] Ruff format check:
-- [ ] mypy:
-- [ ] pip check:
-- [ ] Documentation contract (`scripts/check_docs.py`):
-- [ ] Manual Windows checks:
+Only mark checks that were actually run and observed.
 
-Record exact commands and results. Mark unavailable checks with the reason and
-remaining risk; do not report unobserved checks as passed.
+- [ ] Focused tests:
+- [ ] Full `pytest -q`:
+- [ ] `ruff check .`:
+- [ ] `ruff format --check .`:
+- [ ] `mypy src`:
+- [ ] `pip check`:
+- [ ] `scripts/check_docs.py` when docs changed:
+- [ ] `git diff --check`:
+- [ ] Manual Windows validation when required:
 
 ## Risks and deferred work
 
-List known limitations, compatibility bridges, follow-up issues, and explicit
-removal conditions for temporary code.
+- Known limitations / unverified areas:
+- Deferred to a later phase:
 
 ## Durable documentation
 
-List updates to current state, product, architecture, decisions, roadmap,
-quality, user guide, UI notes, or execution plans.
+- [ ] Product behavior updated if needed
+- [ ] Architecture/decision docs updated if needed
+- [ ] Current state / execution plan updated if needed
+- [ ] No stale future-tense description remains for implemented behavior
