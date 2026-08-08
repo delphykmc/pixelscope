@@ -1247,14 +1247,15 @@ class MainWindow(QMainWindow):
         if not self.preload_controller.request_is_running(request):
             return False
         document = self.documents.get(request.document_id)
+        if document is None or document.source_path is None:
+            return False
+        source_path = document.source_path
         profile = self._raw_profiles.get(request.document_id)
         valid = (
-            document is not None
-            and document.source is None
+            document.source is None
             and document.loading_state == "pending"
-            and document.source_path is not None
             and document.generation == request.document_generation
-            and self._path_key(document.source_path) == request.source_path_identity
+            and self._path_key(source_path) == request.source_path_identity
             and self._raw_profile_identity(profile) == request.profile_identity
             and self.application_settings.require_exact_raw_file_size
             == request.require_exact_raw_size
@@ -1270,7 +1271,7 @@ class MainWindow(QMainWindow):
         document.loading_state = "loading"
         document.error_state = None
         self._update_document_item(document)
-        self._load_started(document.source_path)
+        self._load_started(source_path)
         return True
 
     def _promoted_preload_is_current(
@@ -1547,9 +1548,6 @@ class MainWindow(QMainWindow):
             if pair is not None:
                 protected.update(document.document_id for document in pair)
 
-        # Statistics, Histogram, Line Profile, and Difference currently consume
-        # the first six selected registered sources. Keep this input explicit
-        # even though it overlaps the broader selected-document protection.
         protected.update(document.document_id for document in self.selected_documents[:6])
         protected.update(
             document.document_id
@@ -1816,8 +1814,6 @@ class MainWindow(QMainWindow):
         self,
         document: ImageDocument,
     ) -> tuple[list[ImageDocument], bool]:
-        """Return real channel views or stable loading placeholders for split mode."""
-
         if document.source is not None:
             cache_key = (document.document_id, document.generation)
             channel_documents = self._channel_view_cache.get(cache_key)
@@ -1831,12 +1827,7 @@ class MainWindow(QMainWindow):
         profile = document.raw_profile or self._raw_profiles.get(document.document_id)
         is_bayer = (
             document.channel_layout == "BAYER"
-            or getattr(
-                profile,
-                "channel_layout",
-                None,
-            )
-            == "BAYER"
+            or getattr(profile, "channel_layout", None) == "BAYER"
         )
         labels = ("R", "Gr", "Gb", "B") if is_bayer else ("R", "G", "B")
         placeholders = [
@@ -1928,8 +1919,6 @@ class MainWindow(QMainWindow):
             self._navigate_single_view("difference")
 
     def _layout_mode_is_presented(self, mode: str) -> bool:
-        """Return whether the stacked workspace already represents the requested mode."""
-
         document_count = len(self.selected_documents)
         expects_multi = mode != "Single View" and (document_count > 1 or self._split_channels)
         expected_widget = self.multi_compare_view if expects_multi else self.viewer
@@ -2215,8 +2204,6 @@ class MainWindow(QMainWindow):
         self._show_single_document(documents[selected_index], selected_index)
 
     def _show_single_document(self, document: ImageDocument, selected_index: int) -> None:
-        """Switch a single tile without rebuilding the complete comparison workspace."""
-
         self._layout_mode = "Single View"
         self._view_capacity = 1
         self._current_index = selected_index
@@ -2919,9 +2906,8 @@ class MainWindow(QMainWindow):
                     )
                     if answer == QMessageBox.StandardButton.Yes:
                         selected_ids[selected_ids.index(current_id)] = primary_id
-            else:
-                if len(selected_ids) < 6:
-                    selected_ids.append(primary_id)
+            elif len(selected_ids) < 6:
+                selected_ids.append(primary_id)
 
         if len(selected_ids) > self._view_capacity and self._view_capacity > 1:
             self._view_capacity = 4 if len(selected_ids) <= 4 else 6
