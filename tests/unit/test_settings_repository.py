@@ -19,6 +19,7 @@ from pixelscope.app.settings import (
     MAX_SOURCE_RESIDENCY_MIB,
     MIN_DIFFERENCE_CACHE_MIB,
     MIN_SOURCE_RESIDENCY_MIB,
+    PRELOAD_ENABLED_KEY,
     SCHEMA_VERSION_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
     ApplicationSettings,
@@ -52,6 +53,7 @@ def test_application_settings_defaults_custom_validation_and_immutability() -> N
     assert defaults.dont_show_raw_json_profiles is False
     assert defaults.difference_cache_mib == 128
     assert defaults.source_residency_mib == 256
+    assert defaults.preload_enabled is True
     assert defaults.default_open_directory == ""
     assert defaults.default_export_directory == ""
 
@@ -61,10 +63,12 @@ def test_application_settings_defaults_custom_validation_and_immutability() -> N
         source_residency_mib=2048,
         default_open_directory="C:/images",
         default_export_directory="D:/exports",
+        preload_enabled=False,
     )
     runtime = custom.performance_settings()
     assert runtime.difference_cache_bytes == 1024 * MIB
     assert runtime.source_residency_bytes == 2048 * MIB
+    assert runtime.preload_enabled is False
 
     with pytest.raises(ValueError):
         ApplicationSettings(difference_cache_mib=MIN_DIFFERENCE_CACHE_MIB - 1)
@@ -76,6 +80,8 @@ def test_application_settings_defaults_custom_validation_and_immutability() -> N
         ApplicationSettings(source_residency_mib=MAX_SOURCE_RESIDENCY_MIB + 1)
     with pytest.raises(TypeError):
         ApplicationSettings(dont_show_raw_json_profiles=1)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        ApplicationSettings(preload_enabled=1)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
         ApplicationSettings(default_open_directory=1)  # type: ignore[arg-type]
     with pytest.raises(ValueError):
@@ -98,6 +104,7 @@ def test_fresh_repository_normalizes_defaults_and_schema() -> None:
     assert settings.value(DONT_SHOW_RAW_JSON_PROFILES_KEY, type=bool) is False
     assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == DEFAULT_DIFFERENCE_CACHE_MIB
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == DEFAULT_SOURCE_RESIDENCY_MIB
+    assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is True
     assert settings.value(DEFAULT_OPEN_DIRECTORY_KEY, type=str) == ""
     assert settings.value(DEFAULT_EXPORT_DIRECTORY_KEY, type=str) == ""
 
@@ -221,6 +228,19 @@ def test_invalid_source_budget_falls_back_and_normalizes(persisted: object) -> N
 
     assert loaded.source_residency_mib == DEFAULT_SOURCE_RESIDENCY_MIB
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == DEFAULT_SOURCE_RESIDENCY_MIB
+
+
+@pytest.mark.parametrize("persisted", (None, "invalid", 2))
+def test_invalid_preload_setting_defaults_enabled_and_normalizes(persisted: object) -> None:
+    repository, settings = _repository()
+    settings.setValue(SCHEMA_VERSION_KEY, CURRENT_SETTINGS_SCHEMA_VERSION)
+    if persisted is not None:
+        settings.setValue(PRELOAD_ENABLED_KEY, persisted)
+
+    loaded = repository.load()
+
+    assert loaded.preload_enabled is True
+    assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is True
 
 
 def test_invalid_file_locations_fall_back_and_normalize() -> None:

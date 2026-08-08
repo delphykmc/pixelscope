@@ -256,6 +256,9 @@ class SettingsDialog(QDialog):
         self.source_residency_slider.setTickInterval(4)
         self.source_residency_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
 
+        self.preload_enabled = QCheckBox("Preload Next Folder Position")
+        self.preload_enabled.setObjectName("performancePreloadEnabled")
+
         self.restart_required_label = QLabel("Changes take effect after restarting PixelScope.")
         self.restart_required_label.setObjectName("restartRequiredLabel")
         self.restart_required_label.setProperty("settingsRole", "supportingText")
@@ -337,6 +340,9 @@ class SettingsDialog(QDialog):
         )
         self.source_residency_mib.valueChanged.connect(  # type: ignore[attr-defined]
             self._source_residency_spin_changed
+        )
+        self.preload_enabled.toggled.connect(  # type: ignore[attr-defined]
+            self._update_restart_required
         )
         self.button_box.accepted.connect(self._save)  # type: ignore[attr-defined]
         self.button_box.rejected.connect(self.reject)  # type: ignore[attr-defined]
@@ -472,6 +478,17 @@ class SettingsDialog(QDialog):
         memory_section.add_widget(self.memory_budget_summary)
         memory_section.add_widget(self.restart_required_label)
         page.add_section(memory_section)
+        preload_section = _SettingsSection("Background Loading")
+        preload_section.add_row(
+            _SettingRow(
+                "Preload Next Folder Position",
+                "Decode the next registered folder position in the background after "
+                "interactive loading becomes idle. Preloading is limited to one "
+                "position ahead and always yields to normal image loading.",
+                self.preload_enabled,
+            )
+        )
+        page.add_section(preload_section)
         page.finish()
         return self._scrollable_page(page, "performanceSettingsPage")
 
@@ -643,6 +660,7 @@ class SettingsDialog(QDialog):
             require_exact_raw_file_size=self.require_exact_raw_file_size.isChecked(),
             difference_threshold=self.difference_threshold.value(),
             difference_gain=self.difference_gain.value(),
+            preload_enabled=self.preload_enabled.isChecked(),
         )
 
     def set_settings(self, settings: ApplicationSettings) -> None:
@@ -654,6 +672,7 @@ class SettingsDialog(QDialog):
         self.default_export_directory.setText(settings.default_export_directory)
         self.difference_cache_mib.setValue(settings.difference_cache_mib)
         self.source_residency_mib.setValue(settings.source_residency_mib)
+        self.preload_enabled.setChecked(settings.preload_enabled)
         self._sync_difference_cache_slider(settings.difference_cache_mib)
         self._sync_source_residency_slider(settings.source_residency_mib)
         self._update_restart_required()
@@ -772,6 +791,8 @@ class SettingsDialog(QDialog):
             requested_bytes != self._runtime_performance_settings.difference_cache_bytes
             or self.source_residency_mib.value() * MIB
             != self._runtime_performance_settings.source_residency_bytes
+            or self.preload_enabled.isChecked()
+            != self._runtime_performance_settings.preload_enabled
         )
 
     def _set_future_schema_read_only(self, version: int | None) -> None:
@@ -787,6 +808,7 @@ class SettingsDialog(QDialog):
         self.difference_cache_slider.setEnabled(False)
         self.source_residency_mib.setEnabled(False)
         self.source_residency_slider.setEnabled(False)
+        self.preload_enabled.setEnabled(False)
         self.reset_button.setEnabled(False)
         save_button = self.button_box.button(QDialogButtonBox.StandardButton.Save)
         if save_button is not None:

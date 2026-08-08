@@ -38,9 +38,14 @@ from PySide6.QtWidgets import (
 from pixelscope.app.settings import ApplicationSettings, SettingsRepository
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
+from pixelscope.core.folder_navigation import (
+    FolderNavigationPlan,
+    plan_folder_navigation,
+)
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
 from pixelscope.core.performance_settings import PerformanceSettings
+from pixelscope.core.preload import PreloadController, PreloadMemberRequest
 from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.path_discovery import (
@@ -118,6 +123,12 @@ class MainWindow(QMainWindow):
         self._load_tokens: dict[str, int] = {}
         self._load_pool = QThreadPool(self)
         self._load_pool.setMaxThreadCount(2)
+        self._preload_pool = QThreadPool(self)
+        self._preload_pool.setMaxThreadCount(1)
+        self.preload_controller = PreloadController(self.performance_settings.preload_enabled)
+        self._preload_workers: dict[str, TaskWorker] = {}
+        self._preload_worker_requests: dict[str, PreloadMemberRequest] = {}
+        self._closing = False
         self.residency_manager = ResidencyManager(self.performance_settings.source_residency_bytes)
         self._visible_document_ids: set[str] = set()
         self._selection_order: list[str] = []
@@ -137,7 +148,7 @@ class MainWindow(QMainWindow):
         self._active_document_id: str | None = None
         self._difference_document: ImageDocument | None = None
         self._difference_source_ids: tuple[str, str] | None = None
-        self._pending_pair_focus: int | str | None = None
+        self._pending_position_focus: int | str | None = None
         self._channel_view_cache: dict[tuple[str, int], list[ImageDocument]] = {}
         self._six_image_diff_restore_state: SixImageDiffRestoreState | None = None
 
@@ -158,8 +169,8 @@ class MainWindow(QMainWindow):
             self._selection_changed
         )
         self.document_list.paths_dropped.connect(self._handle_dropped_paths)
-        self.document_list.previous_pair_requested.connect(self.previous_folder_pair)
-        self.document_list.next_pair_requested.connect(self.next_folder_pair)
+        self.document_list.previous_position_requested.connect(self.previous_folder_position)
+        self.document_list.next_position_requested.connect(self.next_folder_position)
         self.document_list.activate_requested.connect(
             lambda document_id: self._select_document_ids([document_id])
         )
@@ -314,14 +325,22 @@ class MainWindow(QMainWindow):
         )
         add_action("Selection", "Select All", self.select_all_documents, "Ctrl+A")
         menus["Selection"].addSeparator()
-        previous_image = add_action("Selection", "Previous Image", self.previous_image)
-        next_image = add_action("Selection", "Next Image", self.next_image)
-        previous_image.setText("Previous Image\tLeft")
-        next_image.setText("Next Image\tRight")
-        previous_pair = add_action("Selection", "Previous Folder Pair", self.previous_folder_pair)
-        next_pair = add_action("Selection", "Next Folder Pair", self.next_folder_pair)
-        previous_pair.setText("Previous Folder Pair\tPageUp")
-        next_pair.setText("Next Folder Pair\tPageDown")
+        previous_image = add_action("Selection", "Previous Selected Image", self.previous_image)
+        next_image = add_action("Selection", "Next Selected Image", self.next_image)
+        previous_image.setText("Previous Selected Image\tLeft")
+        next_image.setText("Next Selected Image\tRight")
+        previous_position = add_action(
+            "Selection",
+            "Previous Folder Position",
+            self.previous_folder_position,
+        )
+        next_position = add_action(
+            "Selection",
+            "Next Folder Position",
+            self.next_folder_position,
+        )
+        previous_position.setText("Previous Folder Position\tPageUp")
+        next_position.setText("Next Folder Position\tPageDown")
 
         add_action("View", "Auto Layout", lambda: self.set_layout_mode("Auto"))
         add_action("View", "Single View", lambda: self.set_layout_mode("Single View"), "Ctrl+1")
@@ -566,8 +585,8 @@ class MainWindow(QMainWindow):
             )
             self._selection_shortcuts.append(shortcut)
         for key, callback in (
-            (Qt.Key.Key_PageUp, self.previous_folder_pair),
-            (Qt.Key.Key_PageDown, self.next_folder_pair),
+            (Qt.Key.Key_PageUp, self.previous_folder_position),
+            (Qt.Key.Key_PageDown, self.next_folder_position),
         ):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
@@ -759,9 +778,9 @@ class MainWindow(QMainWindow):
         if paths:
             supplied_paths = [Path(path) for path in paths]
             self._remember_directory(supplied_paths[0].parent)
-            session = self._active_folder_selection()
+            session = self._folder_navigation_selection()
             if session is not None:
-                self._register_paths_during_pair(supplied_paths, session)
+                self._register_paths_during_navigation(supplied_paths, session)
                 return
             inputs = discover_image_inputs(supplied_paths)
             self._register_inputs(inputs, select_all=True)
@@ -775,51 +794,37 @@ class MainWindow(QMainWindow):
         if path:
             folder = Path(path)
             self._remember_directory(folder)
-            session = self._active_folder_selection()
+            session = self._folder_navigation_selection()
             if session is not None:
-                self._register_paths_during_pair([folder], session)
+                self._register_paths_during_navigation([folder], session)
                 return
             inputs = discover_image_inputs((folder,))
             self._register_inputs(inputs, select_all=False)
 
-    def compare_two_folders(self) -> None:
-        first = QFileDialog.getExistingDirectory(
-            self,
-            "Select first image folder",
-            self._open_dialog_directory(),
-        )
-        if not first:
-            return
-        second = QFileDialog.getExistingDirectory(
-            self,
-            "Select second image folder",
-            self._open_dialog_directory(),
-        )
-        if second:
-            self.register_folder_pair(Path(first), Path(second))
-
-    def register_folder_pair(self, folder_a: Path, folder_b: Path) -> None:
-        inputs_a = discover_image_inputs((folder_a,))
-        inputs_b = discover_image_inputs((folder_b,))
-        ids_a = [
-            document_id
-            for image_input in inputs_a
-            if (document_id := self._register_input(image_input)) is not None
+    def register_folder_group(self, folders: Sequence[Path]) -> None:
+        if not 1 <= len(folders) <= 6:
+            raise ValueError("folder group must contain one to six folders")
+        registered_by_folder = [
+            [
+                document_id
+                for image_input in discover_image_inputs((folder,))
+                if (document_id := self._register_input(image_input)) is not None
+            ]
+            for folder in folders
         ]
-        ids_b = [
-            document_id
-            for image_input in inputs_b
-            if (document_id := self._register_input(image_input)) is not None
-        ]
-        if ids_a and ids_b:
-            self.set_view_capacity(2)
-            self._select_document_ids([ids_a[0], ids_b[0]])
+        if all(registered_by_folder):
+            if len(folders) > 1:
+                capacity = 2 if len(folders) == 2 else 4 if len(folders) <= 4 else 6
+                self.set_view_capacity(capacity)
+            self._select_document_ids([document_ids[0] for document_ids in registered_by_folder])
             self.statusBar().showMessage(
-                f"Folder comparison ready · {min(len(ids_a), len(ids_b))} aligned position(s)",
+                "Folder navigation ready · "
+                f"{min(len(document_ids) for document_ids in registered_by_folder)} "
+                "aligned position(s)",
                 5000,
             )
         else:
-            self.statusBar().showMessage("No supported image pairs found", 5000)
+            self.statusBar().showMessage("No supported aligned images found", 5000)
 
     def open_raw(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -988,6 +993,7 @@ class MainWindow(QMainWindow):
         return profile
 
     def _mark_raw_for_reload(self, document_id: str, profile: RawProfile) -> None:
+        self._invalidate_preload_plan()
         document = self.documents.get(document_id)
         if document is None:
             return
@@ -1009,6 +1015,8 @@ class MainWindow(QMainWindow):
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
             return
+        if self._preload_workers:
+            self._invalidate_preload_plan()
         document.loading_state = "loading"
         self._update_document_item(document)
         profile = self._raw_profiles.get(document.document_id)
@@ -1103,7 +1111,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Failed to load {path.name}: {error.message}", 5000)
 
     def _selected_load_batch_complete(self) -> bool:
-        """Avoid presenting partially replaced pages during asynchronous pair loads."""
+        """Avoid presenting partially replaced pages during asynchronous group loads."""
 
         return all(
             document.loading_state not in ("pending", "loading")
@@ -1116,6 +1124,161 @@ class MainWindow(QMainWindow):
         self._evict_resident_documents()
         if not self._workers:
             self.structured_status.task.setText("Ready")
+            self._refresh_preload_plan()
+
+    def _refresh_preload_plan(self) -> None:
+        """Reconcile and start exactly the predicted next position when idle."""
+
+        if self._closing:
+            self._invalidate_preload_plan()
+            return
+        navigation_plan = (
+            self._plan_folder_navigation(1) if self.preload_controller.enabled else None
+        )
+        target_ids = navigation_plan.document_ids if navigation_plan is not None else ()
+        previous = self.preload_controller.current_plan
+        current = self.preload_controller.set_plan(target_ids)
+        if previous is not current:
+            self._cancel_preload_workers()
+        if current is None or self._workers or self._preload_workers:
+            return
+
+        for document_id in self.preload_controller.pending_document_ids:
+            document = self.documents.get(document_id)
+            if document is None:
+                self.preload_controller.complete_available_member(current.generation, document_id)
+                continue
+            if document.source is not None or document.loading_state == "error":
+                self.preload_controller.complete_available_member(current.generation, document_id)
+                continue
+            if document.source_path is None or document.loading_state != "pending":
+                self.preload_controller.complete_available_member(current.generation, document_id)
+                continue
+
+            profile = self._raw_profiles.get(document_id)
+            if document.source_path.suffix.casefold() == ".raw" and profile is None:
+                self.preload_controller.complete_available_member(current.generation, document_id)
+                continue
+            self._start_preload(current.generation, document, profile)
+            return
+
+    def _start_preload(
+        self,
+        plan_generation: int,
+        document: ImageDocument,
+        raw_profile: RawProfile | None,
+    ) -> None:
+        source_path = document.source_path
+        if source_path is None:
+            return
+        request = PreloadMemberRequest(
+            plan_generation=plan_generation,
+            document_id=document.document_id,
+            document_generation=document.generation,
+            source_path_identity=self._path_key(source_path),
+            profile_identity=self._raw_profile_identity(raw_profile),
+            require_exact_raw_size=self.application_settings.require_exact_raw_file_size,
+            normal_load_token=self._load_tokens.get(document.document_id, 0),
+        )
+        if not self.preload_controller.start_member(request):
+            return
+        worker = ImageLoadWorker(
+            source_path,
+            raw_profile,
+            require_exact_raw_size=request.require_exact_raw_size,
+        )
+        worker.signals.succeeded.connect(
+            lambda task_id, _document_id, _generation, result: self._preload_succeeded(
+                task_id, result
+            )
+        )
+        worker.signals.failed.connect(
+            lambda task_id, _document_id, _generation, error: self._preload_failed(task_id, error)
+        )
+        worker.signals.finished.connect(self._preload_worker_finished)
+        self._preload_workers[worker.task_id] = worker
+        self._preload_worker_requests[worker.task_id] = request
+        self._preload_pool.start(worker)
+
+    def _preload_succeeded(self, task_id: str, result: object) -> None:
+        request = self._preload_worker_requests.get(task_id)
+        if request is None or not isinstance(result, ImageDocument):
+            self.preload_controller.record_stale_drop()
+            return
+        document = self.documents.get(request.document_id)
+        current_plan = self.preload_controller.current_plan
+        profile = self._raw_profiles.get(request.document_id)
+        valid = (
+            current_plan is not None
+            and current_plan.generation == request.plan_generation
+            and request.document_id in current_plan.document_ids
+            and self.preload_controller.request_is_current(request)
+            and document is not None
+            and document.source is None
+            and document.source_path is not None
+            and document.generation == request.document_generation
+            and self._path_key(document.source_path) == request.source_path_identity
+            and result.source_path is not None
+            and self._path_key(result.source_path) == request.source_path_identity
+            and self._raw_profile_identity(profile) == request.profile_identity
+            and self._raw_profile_identity(
+                result.raw_profile if isinstance(result.raw_profile, RawProfile) else None
+            )
+            == request.profile_identity
+            and self.application_settings.require_exact_raw_file_size
+            == request.require_exact_raw_size
+            and self._load_tokens.get(request.document_id, 0) == request.normal_load_token
+            and request.document_id not in self._load_worker_targets.values()
+        )
+        if not valid:
+            self.preload_controller.record_stale_drop()
+            return
+
+        result.document_id = request.document_id
+        result.generation = request.document_generation
+        self.documents[request.document_id] = result
+        self._record_resident_source(result)
+        self.residency_manager.touch(request.document_id)
+        self._update_document_item(result)
+        self._evict_resident_documents()
+        retained = self.documents[request.document_id].source is not None
+        self.preload_controller.accept_success(
+            request.plan_generation,
+            request.document_id,
+            retained=retained,
+        )
+
+    def _preload_failed(self, task_id: str, error: object) -> None:
+        del error
+        request = self._preload_worker_requests.get(task_id)
+        if request is None:
+            return
+        self.preload_controller.record_failure(
+            request.plan_generation,
+            request.document_id,
+        )
+
+    def _preload_worker_finished(self, task_id: str) -> None:
+        request = self._preload_worker_requests.pop(task_id, None)
+        self._preload_workers.pop(task_id, None)
+        if request is not None:
+            self.preload_controller.finish_worker(request)
+        self._refresh_preload_plan()
+
+    def _cancel_preload_workers(self) -> None:
+        for task_id, worker in tuple(self._preload_workers.items()):
+            request = self._preload_worker_requests.get(task_id)
+            if request is not None:
+                self.preload_controller.record_cancellation_request(request)
+            worker.cancel()
+
+    def _invalidate_preload_plan(self) -> None:
+        self.preload_controller.invalidate()
+        self._cancel_preload_workers()
+
+    @staticmethod
+    def _raw_profile_identity(profile: RawProfile | None) -> str:
+        return "" if profile is None else profile.json(sort_keys=True)
 
     def _cancel_obsolete_loads(self, required_ids: set[str]) -> None:
         """Invalidate queued loads that rapid navigation has moved away from."""
@@ -1199,6 +1362,7 @@ class MainWindow(QMainWindow):
         }
 
     def _selection_changed(self) -> None:
+        self._invalidate_preload_plan()
         selected_ids = [
             str(item.data(0, Qt.ItemDataRole.UserRole))
             for item in self.document_list.document_items()
@@ -1263,6 +1427,7 @@ class MainWindow(QMainWindow):
             self.structured_status.set_active_document()
             self._evict_resident_documents()
             self._update_file_states([], None)
+            self._refresh_preload_plan()
             return
 
         analysis_candidates = documents[:6]
@@ -1415,6 +1580,7 @@ class MainWindow(QMainWindow):
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
         self._update_file_states(visible_state, active)
+        self._refresh_preload_plan()
 
     def _split_display_documents(
         self,
@@ -1922,58 +2088,53 @@ class MainWindow(QMainWindow):
         self._render_selection(preserve_view=True)
         return True
 
-    def next_folder_pair(self) -> None:
-        self._navigate_folder_pair(1)
+    def next_folder_position(self) -> None:
+        self._apply_folder_navigation(1)
 
-    def previous_folder_pair(self) -> None:
-        self._navigate_folder_pair(-1)
+    def previous_folder_position(self) -> None:
+        self._apply_folder_navigation(-1)
 
-    def _navigate_folder_pair(self, step: int) -> None:
-        session = self._active_folder_selection()
-        if session is None:
+    def _plan_folder_navigation(self, step: int) -> FolderNavigationPlan | None:
+        selection = self._folder_navigation_selection()
+        if selection is None:
+            return None
+        return plan_folder_navigation(selection, self._folder_documents, step)
+
+    def _apply_folder_navigation(self, step: int) -> None:
+        selection = self._folder_navigation_selection()
+        if selection is None:
             self.statusBar().showMessage(
-                "Pair navigation requires one selected file from each different folder",
+                "Folder navigation requires one to six selected files from different folders",
                 5000,
             )
             return
-        target_ids: list[str] = []
-        target_indices: list[int] = []
-        for folder_key, current_id in session:
-            folder_documents = self._folder_documents.get(folder_key, [])
-            try:
-                current_index = folder_documents.index(current_id)
-            except ValueError:
-                return
-            target_index = current_index + step
-            if target_index < 0 or target_index >= len(folder_documents):
-                direction = "previous" if step < 0 else "next"
-                folder_name = self._folder_paths[folder_key].name
-                self.statusBar().showMessage(
-                    f"No {direction} image in {folder_name}; pair was not changed",
-                    5000,
-                )
-                return
-            target_ids.append(folder_documents[target_index])
-            target_indices.append(target_index)
+        plan = plan_folder_navigation(selection, self._folder_documents, step)
+        if plan is None:
+            direction = "previous" if step < 0 else "next"
+            self.statusBar().showMessage(
+                f"No {direction} folder position; selection was not changed",
+                5000,
+            )
+            return
         if self.diff_action.isChecked() and len(self.selected_documents) == 2:
             current_ids = [document.document_id for document in self.selected_documents]
             if self._focus_document_id in current_ids:
-                self._pending_pair_focus = current_ids.index(self._focus_document_id)
+                self._pending_position_focus = current_ids.index(self._focus_document_id)
             else:
-                self._pending_pair_focus = "difference"
-        for (folder_key, _current_id), index in zip(session, target_indices, strict=True):
+                self._pending_position_focus = "difference"
+        for folder_key, index in zip(plan.folder_keys, plan.indices, strict=True):
             self._folder_indices[folder_key] = index
-        if isinstance(self._pending_pair_focus, int):
-            self._focus_document_id = target_ids[self._pending_pair_focus]
+        if isinstance(self._pending_position_focus, int):
+            self._focus_document_id = plan.document_ids[self._pending_position_focus]
             self._promote_multi_document(self._focus_document_id)
         self._select_document_ids(
-            target_ids,
+            list(plan.document_ids),
             preserve_view=True,
             preserve_overlays=True,
         )
         positions = ", ".join(
             f"{index + 1}/{len(self._folder_documents[folder_key])}"
-            for (folder_key, _current_id), index in zip(session, target_indices, strict=True)
+            for folder_key, index in zip(plan.folder_keys, plan.indices, strict=True)
         )
         self.statusBar().showMessage(f"Folder positions · {positions}", 3000)
 
@@ -1990,6 +2151,7 @@ class MainWindow(QMainWindow):
     def _remove_document_ids(self, selected_ids: object) -> None:
         if not isinstance(selected_ids, list):
             return
+        self._invalidate_preload_plan()
         self.document_list.blockSignals(True)
         try:
             for document_id in selected_ids:
@@ -2014,6 +2176,7 @@ class MainWindow(QMainWindow):
         preserve_view: bool = False,
         preserve_overlays: bool = False,
     ) -> None:
+        self._invalidate_preload_plan()
         selected = set(document_ids)
         self.document_list.blockSignals(True)
         self.document_list.clearSelection()
@@ -2211,7 +2374,7 @@ class MainWindow(QMainWindow):
         if self._difference_document is not None:
             self._focus_document_id = self._difference_document.document_id
             self._promote_multi_document(self._difference_document.document_id)
-        self._pending_pair_focus = None
+        self._pending_position_focus = None
         self.layout_selector.blockSignals(True)
         self.layout_selector.setCurrentText("Multi View")
         self.layout_selector.blockSignals(False)
@@ -2432,11 +2595,11 @@ class MainWindow(QMainWindow):
             return
         folders = [path for path in paths if path.is_dir()]
         if len(paths) == 2 and len(folders) == 2:
-            self.register_folder_pair(folders[0], folders[1])
+            self.register_folder_group(folders)
             return
-        session = self._active_folder_selection()
+        session = self._folder_navigation_selection()
         if session is not None:
-            self._register_paths_during_pair(paths, session)
+            self._register_paths_during_navigation(paths, session)
             return
         inputs = discover_image_inputs(paths)
         self._register_inputs(
@@ -2445,7 +2608,7 @@ class MainWindow(QMainWindow):
             append_selection=self._view_capacity > 1 and bool(self.selected_documents),
         )
 
-    def _register_paths_during_pair(
+    def _register_paths_during_navigation(
         self,
         paths: list[Path],
         session: list[tuple[str, str]],
@@ -2607,9 +2770,9 @@ class MainWindow(QMainWindow):
         if document_id in folder_documents:
             self._folder_indices[folder_key] = folder_documents.index(document_id)
 
-    def _active_folder_selection(self) -> list[tuple[str, str]] | None:
+    def _folder_navigation_selection(self) -> list[tuple[str, str]] | None:
         documents = self.selected_documents
-        if len(documents) < 2 or len(documents) > 6:
+        if not 1 <= len(documents) <= 6:
             return None
         session: list[tuple[str, str]] = []
         seen_folders: set[str] = set()
@@ -2703,15 +2866,21 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Workspace layout reset", 3000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._closing = True
         self._save_ui_state()
         self.comparison_analysis_panel.shutdown()
         self.line_profile_panel.shutdown()
         self.difference_panel.shutdown()
         for worker in tuple(self._workers.values()):
             worker.cancel()
+        self._invalidate_preload_plan()
         if not self._load_pool.waitForDone(3000):
             LOGGER.warning("Image loads did not finish within the shutdown grace period")
+        if not self._preload_pool.waitForDone(3000):
+            LOGGER.warning("Image preloads did not finish within the shutdown grace period")
         if not QThreadPool.globalInstance().waitForDone(3000):
             LOGGER.warning("Background tasks did not finish within the shutdown grace period")
         self._workers.clear()
+        self._preload_workers.clear()
+        self._preload_worker_requests.clear()
         event.accept()
