@@ -420,9 +420,10 @@ P2-F evaluates the completed P2 runtime including running-preload promotion.
   loaded source identity, document generation, layout/Bayer semantics, ROI, and
   histogram specification. Identical scheduled/running/completed requests are
   no-ops; changed numerical inputs remain normal invalidation/recompute triggers.
-- `tests/ui/test_p2f_analysis_request_dedup.py` is the focused regression for
-  completed no-op, in-flight worker reuse without cancellation, and changed
-  request cancellation.
+- `tests/ui/test_p2f_analysis_request_dedup.py` is the focused regression for all
+  three identical-request states: pending QTimer identity preservation, completed
+  no-op, running-worker reuse without cancellation, plus changed-request
+  cancellation/restart.
 - Keep schema v5 and the established `+1` one-position, concurrency-one preload
   policy unchanged. Process RSS, live diagnostics, benchmark UI, telemetry, CPU
   aggressiveness, bidirectional/deeper preload, and resource-policy expansion are
@@ -446,11 +447,10 @@ P2-F evaluates the completed P2 runtime including running-preload promotion.
   duplicate-decode elimination, foreground success/failure parity,
   rapid-navigation stale safety, pair/group and RAW coverage, fixed worker policy,
   and promotion diagnostics remain authoritative.
-- **P2-F:** latest-head focused/full validation, deterministic representative
-  performance smoke, final settings/resource/preload/diagnostics/analysis-lifecycle
-  audit, agreed Windows characterization including repeated Single View number-key
-  navigation, coherent P2 closure docs, and no unresolved independent reviewer
-  blocker.
+- **P2-F:** deterministic representative performance smoke, final
+  settings/resource/preload/diagnostics/analysis-lifecycle audit, completed agreed
+  Windows characterization, coherent P2 closure docs, final follow-up automated
+  validation, and no unresolved independent reviewer blocker.
 
 ## Validation
 
@@ -497,18 +497,21 @@ Optional syntax sweep when useful:
 .\.venv\Scripts\python.exe -m compileall -q src tests scripts
 ```
 
-Connector-only implementation must not claim these commands passed unless their
-actual output is observed. Owner/local execution of the exact commands above is
-the validation source when the connector environment cannot run Python/Qt tests.
-The earlier automated PASS was reported against `80949af...`; because the focused
-analysis-lifecycle hardening changes `src/`, latest-head validation must be rerun.
-A failure may be called baseline only after the same environment reproduces it
-against latest `origin/main`.
+Owner/local execution is the validation source when the connector environment
+cannot run Python/Qt tests. Full automated validation passed on production
+hardening head `e558f1ab94a0a30d5cc2a5a9d2d4af82a4bead3a`, including focused
+request-lifecycle tests, performance smoke, the P2 focused suite, full pytest,
+ruff check/format, mypy, pip check, docs checker, and `git diff --check`.
+Review follow-up commit `6ff46e0e38931b04de546ae3f967b9aa327b2fcf`
+adds only the missing pending-QTimer deterministic regression; that newly added
+test must be executed and recorded before final merge. A failure may be called
+baseline only after the same environment reproduces it against latest
+`origin/main`.
 
 ## Manual Windows matrix
 
 P2-F does not use subjective speedup as a merge gate. Owner/local Windows 10/11
-validation must confirm at least:
+validation confirms the representative matrix:
 
 1. FHD RGB normal navigation.
 2. UHD/uint16 navigation.
@@ -527,10 +530,12 @@ validation must confirm at least:
     including repeated number-key switching in Single View without Statistics
     preparation churn for an unchanged selected set.
 
-The manual gate is absence of visible stall/regression, incorrect reload,
-duplicated-load symptoms, unnecessary identical analysis restart/cancellation,
-error/state corruption, or broken expected workflow. Any timing numbers are
-hardware-specific observational evidence only.
+The owner intentionally exercised the phase-level matrix on Windows and reported
+no visible stall/regression, incorrect reload, duplicated-load symptoms,
+unnecessary identical analysis restart/cancellation, error/state corruption, or
+broken expected workflow. Repeated Single View number-key switching specifically
+retained Statistics values, changed only the viewer image quickly, and did not
+show **Preparing analysis...** again. Timing remains observational only.
 
 The repository currently has no GitHub Actions workflow. P2-F does not add an
 unobserved Windows Qt gate without first establishing PySide6/pytest-qt/offscreen
@@ -620,6 +625,11 @@ optimization.
   broadly functional but exposed repeated Statistics preparation during unchanged
   Single View number-key navigation, leading to focused request-idempotency
   hardening in `a73489f...` and a dedicated regression suite.
+- 2026-08-09: owner/local automated validation passed on `e558f1ab...`, the
+  affected Single View number-key regression passed manually, and the full agreed
+  Windows characterization matrix was intentionally exercised without observed
+  failure. Independent review then requested one missing deterministic pending-
+  timer regression; `6ff46e0e...` adds that test without production changes.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2 merge blocker.
 

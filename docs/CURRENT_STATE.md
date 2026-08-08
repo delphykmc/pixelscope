@@ -254,10 +254,10 @@ This document records the implementation baseline that new work must use.
   per-plane sample counts, 4096-bin placement, preview channel structure/content,
   exact native bytes, and zero-difference invariants. Timing output remains
   observational only.
-- `tests/ui/test_p2f_analysis_request_dedup.py` covers completed-request no-op,
-  preservation of an identical in-flight Statistics worker without cancellation,
-  and cancellation/restart only when a numerical request identity actually
-  changes.
+- `tests/ui/test_p2f_analysis_request_dedup.py` covers the complete identical-
+  request lifecycle: pending preparation preserves the active QTimer identity,
+  completed requests are no-ops, identical running workers are preserved without
+  cancellation, and changed numerical request identity cancels/restarts normally.
 - Existing `tests/integration/test_4k_samples.py` remains the real 3840x2160 RGB
   plus RGGB10-u16 RAW fixture path; no new large binary fixture is added by P2-F.
 - Process RSS remains outside P2 source-memory accounting and no benchmark/live
@@ -265,9 +265,8 @@ This document records the implementation baseline that new work must use.
 
 ## Not implemented
 
-- P2-F independent re-review and owner/local validation of the latest hardening
-  head are still required before merge; this branch must not describe P2-F as
-  merged.
+- P2-F independent re-review of the final follow-up head remains required before
+  merge; this branch must not describe P2-F as merged.
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
   distribution work.
@@ -291,21 +290,25 @@ This document records the implementation baseline that new work must use.
   characterization gap by exercising production Bayer preview loading, Auto
   4096-bin selection, and CFA-specific analysis instead of generic grayscale
   preview/histogram semantics.
-- Owner/local automated validation was reported PASS against `80949af...` for
-  performance smoke, the focused P2 suite, full pytest, ruff check/format, mypy,
-  pip check, docs checker, and `git diff --check`.
-- Owner/local Windows program testing against `80949af...` was broadly functional
-  but exposed repeated **Preparing analysis...** churn while switching already
-  selected images in Single View with number keys. P2-F hardening commit
-  `a73489fdbf65eb62c4c96f6f8e12c48aef662a7b` suppresses identical Statistics /
-  Histogram requests and adds deterministic regression coverage.
-- Because `a73489f...` changes production UI lifecycle code, the prior automated
-  PASS and manual observation are historical evidence, not final evidence for the
-  latest head. Focused/full automated validation and the affected Windows Single
-  View analysis-navigation check must be rerun before merge.
+- Owner/local automated validation was reported PASS against production hardening
+  head `e558f1ab94a0a30d5cc2a5a9d2d4af82a4bead3a`: focused analysis-request tests,
+  performance smoke, the P2 focused suite, full pytest, ruff check/format, mypy,
+  pip check, docs checker, and `git diff --check` all passed.
+- Owner/local Windows characterization against `e558f1ab...` is complete for the
+  agreed phase-level matrix: FHD/UHD navigation, Bayer/RAW, PageDown navigation,
+  residency/preload behavior, Difference under source-memory pressure, Settings
+  restart semantics, **Help > Copy Diagnostics**, and the analysis-function
+  regression set were intentionally exercised without observed failure.
+- The affected Single View path also passed explicitly: repeated number-key
+  switching retained Statistics values, changed only the viewer image quickly,
+  and no longer showed repeated **Preparing analysis...** messages.
+- Review follow-up commit `6ff46e0e38931b04de546ae3f967b9aa327b2fcf`
+  adds the missing deterministic pending-QTimer identity regression only; it does
+  not change production `src/` behavior. Owner/local execution of this newly added
+  test remains the final automated evidence to record for that follow-up.
 - The GitHub connector implementation environment does not provide the repository
-  Python/Qt runtime, so it does not independently claim those latest-head commands
-  as passing.
+  Python/Qt runtime, so it does not independently claim the new follow-up test as
+  passing.
 - There is no GitHub Actions workflow today. Introducing an unobserved Windows Qt
   gate during P2 closure is deferred; owner/local Windows validation remains the
   authoritative P2-F closure evidence.
