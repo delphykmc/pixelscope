@@ -54,16 +54,21 @@ Preserve deterministic fixtures and smoke paths for:
 
 - Standard image and unpacked RAW loading.
 - MIPI RAW10/12/14 decoding and packed/unpacked equivalence.
+- RAW exact-size policy through `MainWindow` → worker → reader, including
+  oversized relaxed/exact behavior and matching JSON-sidecar auto-approval.
 - Ordered selection, folder navigation, and fixed one-to-six-image layouts.
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
 - Difference calculation, cache reuse/eviction, metrics, display-only updates,
   and startup cache-budget injection.
-- Settings fresh state, round-trip, schema-v1-to-v2 migration, legacy RAW
-  migration, corrupt-state recovery, future-schema protection, and reset
+- Settings fresh state, round-trip, schema-v2-to-v3 and older migration, legacy
+  RAW migration, corrupt-state recovery, future-schema protection, and reset
   separation from workspace persistence.
 - General / Files / Performance Settings page navigation, Settings-only RAW
-  preference ownership, optional default Open/Export locations, last-used-folder
-  fallback, and Difference-only restart indication.
+  preference ownership, RAW don't-show partial-update preservation, optional
+  default Open/Export locations, last-used-folder fallback, and Difference Map
+  Cache-only restart indication.
+- Persisted Difference Threshold/Gain startup injection and live Settings-save
+  propagation without restart-required state.
 - Split-channel loading placeholders and stale-result rejection.
 - Plots visibility, selected tab, floating/docked/maximized state, and workspace
   restoration.
