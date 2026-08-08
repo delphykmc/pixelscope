@@ -72,6 +72,7 @@ from pixelscope.ui.design_tokens import (
     panel_heading_style,
     toolbar_style,
 )
+from pixelscope.ui.diagnostics_dialog import DiagnosticsDialog
 from pixelscope.ui.difference_panel import DifferencePanel
 from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
@@ -312,6 +313,7 @@ class MainWindow(QMainWindow):
             "Edit": menu_bar.addMenu("&Edit"),
             "Selection": menu_bar.addMenu("&Selection"),
             "View": menu_bar.addMenu("&View"),
+            "Help": menu_bar.addMenu("&Help"),
         }
         for menu in menus.values():
             menu.setStyleSheet(menu_style())
@@ -389,6 +391,7 @@ class MainWindow(QMainWindow):
         self.redock_plots_action.setStatusTip(self.redock_plots_action.toolTip())
         self.redock_plots_action.setEnabled(False)
         add_action("View", "Reset Workspace Layout", self.reset_workspace_layout)
+        add_action("Help", "Diagnostics...", self.open_diagnostics)
         self._update_action_states()
 
     def create_settings_dialog(self) -> SettingsDialog:
@@ -404,6 +407,12 @@ class MainWindow(QMainWindow):
     def open_settings(self) -> None:
         dialog = self.create_settings_dialog()
         dialog.exec()
+
+    def create_diagnostics_dialog(self) -> DiagnosticsDialog:
+        return DiagnosticsDialog(self.runtime_diagnostics_snapshot, self)
+
+    def open_diagnostics(self) -> None:
+        self.create_diagnostics_dialog().exec()
 
     def _application_settings_saved(self, settings: object) -> None:
         if not isinstance(settings, ApplicationSettings):
