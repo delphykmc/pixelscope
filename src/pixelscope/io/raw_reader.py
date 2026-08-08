@@ -22,7 +22,12 @@ def required_file_size(profile: RawProfile) -> int:
     )
 
 
-def _map_source(path: Path, profile: RawProfile) -> NDArray[np.uint8]:
+def _map_source(
+    path: Path,
+    profile: RawProfile,
+    *,
+    require_exact_size: bool = False,
+) -> NDArray[np.uint8]:
     try:
         actual_size = path.stat().st_size
     except OSError as exc:
@@ -31,6 +36,11 @@ def _map_source(path: Path, profile: RawProfile) -> NDArray[np.uint8]:
     if actual_size < required:
         raise RawReadError(
             f"RAW file is too small: {actual_size} bytes, at least {required} required"
+        )
+    if require_exact_size and actual_size != required:
+        raise RawReadError(
+            "RAW file size does not match profile: "
+            f"{actual_size} bytes, exactly {required} required"
         )
     return np.memmap(path, mode="r", dtype=np.uint8)
 
@@ -117,11 +127,20 @@ def _decode_mipi_raw14(rows: NDArray[np.uint8]) -> NDArray[np.uint16]:
     return result
 
 
-def read_raw(path: str | Path, profile: RawProfile) -> NDArray[np.generic]:
+def read_raw(
+    path: str | Path,
+    profile: RawProfile,
+    *,
+    require_exact_size: bool = False,
+) -> NDArray[np.generic]:
     """Decode one supported unpacked or MIPI-packed RAW file."""
 
     source_path = Path(path)
-    mapped = _map_source(source_path, profile)
+    mapped = _map_source(
+        source_path,
+        profile,
+        require_exact_size=require_exact_size,
+    )
     if profile.storage_format == "unpacked":
         return _read_unpacked(mapped, profile)
     rows = _packed_rows(mapped, profile)
