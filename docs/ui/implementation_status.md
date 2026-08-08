@@ -21,7 +21,8 @@ P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
 | P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
 | P2-A1 / #14 | Complete | Application identity and packaged resources |
 | P2-A2 / #15 | Complete | Typed Settings schema v3 and runtime integration |
-| P2-B | Active | Byte-budgeted decoded-source residency and schema v4 |
+| P2-B | Complete / PR #16 merged | Byte-budgeted decoded-source residency and schema v4 |
+| P2-C | Active | One-to-six-folder navigation, bounded next-position preload, schema v5 |
 
 ## Current UI behavior
 

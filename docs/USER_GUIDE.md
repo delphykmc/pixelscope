@@ -7,16 +7,21 @@ files/folders into the application. Files are grouped by parent folder.
 Ctrl/Shift selection forms the ordered comparison set; up to six source images
 can be visible.
 
-When one file is selected from each participating folder, Page Down/Page Up
-moves every folder atomically in natural filename order. The shortcuts work
+When one to six files are selected from distinct participating folders, Page
+Down/Page Up moves every folder atomically in natural filename order. Navigation
+uses files already registered in PixelScope; it does not discover or register
+new siblings. The shortcuts work
 while the Files view or a visible image tile has focus. If any folder reaches
 an endpoint, no folder changes and the status bar reports the boundary.
 
 ## View and navigate
 
 - **Auto** chooses Single or Multi View from the selection.
-- **Single View** shows the active image. Use Left/Right, keys 1–6, or header
-  navigation without changing zoom or offset.
+- **Single View** shows the active image. Use **Previous/Next Selected Image**
+  (Left/Right), keys 1–6, or header navigation without changing selection
+  membership, zoom, or offset.
+- Up/Down remains the Files tree's previous/next row navigation. PageUp/PageDown
+  performs Previous/Next Folder Position navigation.
 - **Multi View** uses fixed layouts for two through six images.
 - Every regular Multi View containing two through six images shows a primary
   flag. The first displayed image is the implicit primary until another flag is
@@ -163,14 +168,27 @@ limit is a conservative configuration guard, not a guarantee against OOM:
 previews, Qt textures, worker temporaries, Python/Qt overhead, and protected
 soft-budget overage are outside these two counters.
 
+**Preload Next Folder Position** decodes exactly one registered Folder Position
+ahead after normal image loading becomes idle. It is enabled by default. Preload
+uses a separate single-worker queue and never makes interactive loading wait.
+Already resident targets are reused, previous and next-next positions are not
+decoded, and no filesystem siblings are discovered automatically.
+
+Preloaded sources use the ordinary Decoded Source Memory budget and have no
+special protection, so low-budget pressure may release them before navigation.
+Cancellation is advisory; PixelScope validates plan, document generation,
+path/RAW profile, and normal-load authority before keeping a result. A speculative
+failure shows no modal error and the normal load still retries when you navigate
+to that position. Preload enablement is startup-only and participates in the same
+restart-required indication as both memory budgets.
+
 **Reset Settings** restores only application preferences to their defaults. It
 does not reset window layout, dock/splitter geometry, remembered last directory,
 or other workspace/session state. Use **View > Reset Workspace Layout** for
 layout state instead.
 
 Docking and layout defaults are intentionally not duplicated in Settings because
-PixelScope already restores the exact saved workspace. P2-C adds bounded preload
-behavior after the current byte-budgeted source residency lifecycle.
+PixelScope already restores the exact saved workspace.
 
 ## Plots dock
 

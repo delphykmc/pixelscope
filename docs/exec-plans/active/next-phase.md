@@ -28,8 +28,8 @@ Each slice starts from the latest merged prerequisite on `main`.
 | 5 | P2-D diagnostics | `feature/p2-d-runtime-diagnostics` | P2-C merged |
 | 6 | P2-E hardening | `feature/p2-e-performance-hardening` | P2-D merged |
 
-P2-A1 and P2-A2 are merged as PR #14 and PR #15. P2-B is the current active
-slice; P2-C remains blocked until P2-B merges.
+P2-A1, P2-A2, and P2-B are merged as PR #14, PR #15, and PR #16. P2-C is the
+current active slice.
 
 Out of scope for P2: persistent comparison sessions, broader export workflows,
 RAW demosaic/level processing, remote service UI, authentication, installer,
@@ -43,7 +43,9 @@ optimization.
 - P2-A1 merged as PR #14 at
   `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
 - P2-A2 merged as PR #15 at
-  `1869764a74b01cebebaf8fa915b11a2a696be6cb`; P2-B branches from this commit.
+  `1869764a74b01cebebaf8fa915b11a2a696be6cb`.
+- P2-B merged as PR #16 at
+  `453b718535bdbdce2a9225c01f6144d7f2df40b0`; P2-C branches from this commit.
 - P2-A1 provides canonical SVG/PNG/ICO assets, exact derivative reproduction,
   package-data declaration, CWD-independent resource loading, stable Windows
   source-run AppUserModelID, and `QApplication`/main-window icon assignment.
@@ -52,9 +54,10 @@ optimization.
   VS Code-inspired Settings UI, optional file-dialog locations, exact RAW size
   policy, live Difference Threshold/Gain defaults, restart/reset semantics, and
   Difference Map Cache startup injection.
-- Settings schema v4 owns RAW confirmation, exact RAW validation, Files default
+- Settings schema v5 owns RAW confirmation, exact RAW validation, Files default
   Open/Export folders, Difference Threshold/Gain, and Performance Difference Map
-  Cache and Decoded Source Memory MiB. Earlier schemas migrate forward.
+  Cache, Decoded Source Memory MiB, and preload enablement. Earlier schemas
+  migrate forward; v4 adds enabled preload without changing existing values.
 - Difference Map Cache defaults to 128 MiB and accepts 64–1280 MiB. Decoded
   Source Memory defaults to 256 MiB and accepts 128–2560 MiB.
 - Source residency is an exact native-`source.nbytes`, protected, soft-budget
@@ -66,6 +69,10 @@ optimization.
   worker registration, and cancelled-worker rejection.
 - P2-B review fixes preserve the released v3 Difference-cache domain through an
   explicit clamp migration and add the accepted source-residency setting.
+- Folder Position navigation uses one pure planner for actual PageDown and
+  preload prediction over one-to-six distinct registered folders.
+- P2-C uses a separate max-one preload pool, generation/path/profile/token stale
+  validation, ordinary residency retention, and bounded read-only counters.
 
 ## Invariants
 
@@ -100,7 +107,7 @@ optimization.
 
 ## Target boundaries
 
-Implemented by P2-A and P2-B:
+Implemented by P2-A, P2-B, and P2-C:
 
 - `pixelscope.app.resources`: packaged application resources.
 - `ApplicationSettings`: validated persisted choices.
@@ -109,11 +116,13 @@ Implemented by P2-A and P2-B:
 - category/page Settings UI: General, Files, Performance.
 - `ResidencyManager`: source-byte accounting, protection, LRU eviction planning,
   reload integration, invalidation, and minimal diagnostics.
+- `FolderNavigationPlan`: atomic one-to-six-folder target planning shared by
+  navigation and preload.
+- `PreloadController`: one-position target ownership, generation, completion,
+  active state, and minimal counters.
 
 Remaining P2 target boundaries:
 
-- `PreloadController`: one-group-ahead planning, bounded ownership, stale-result
-  rejection, and budget-aware retention.
 - immutable diagnostics model: deterministic and inexpensive runtime snapshot.
 
 ## Slice definitions
@@ -193,8 +202,7 @@ signing.
 
 ### P2-B — Byte-budgeted decoded-source residency
 
-Status: Active on PR #16; implementation and review fixes complete, owner manual
-Windows validation pending.
+Status: Complete; merged as PR #16.
 
 - Replaced the fixed seven-document policy with exact native-source byte
   accounting and deterministic protected LRU eviction planning.
@@ -210,13 +218,24 @@ Windows validation pending.
 - Runtime regressions cover oversized selected worker completion and real
   Difference-pair/cache independence under source-budget pressure.
 
-### P2-C — Bounded next-group preload
+### P2-C — Bounded next-position preload
 
-- Predict one next folder group only.
-- Keep preload ownership bounded and lower priority than normal loads.
-- Request cancellation where possible and always reject stale results.
-- Retain results only when compatible with the source budget.
-- Extend the Performance page with the preload preference and add diagnostics.
+Status: Active on `feature/p2-c-folder-preload`; implementation and automated
+validation complete, owner manual Windows validation pending.
+
+- Generalizes the former two-folder runtime navigation to one-to-six-folder Folder
+  Position semantics with atomic endpoint behavior.
+- Uses one immutable planner for PageUp/PageDown and next-position prediction.
+- Preloads only `plan(+1)` after foreground loads become idle; previous and
+  next-next positions are excluded.
+- Uses a separate max-one pool so normal loads never wait behind preload.
+- Requests cancellation on replacement and rejects late results by plan,
+  document generation, path/profile/exact-size identity, and normal-load token.
+- Applies valid results to ordinary source residency with no preload protection;
+  low-budget eviction is allowed and does not restart the same completed plan.
+- Extends schema v5 and Performance with enabled-by-default, startup-only
+  **Preload Next Folder Position** and full restart/revert/reset behavior.
+- Exposes bounded counters/state for P2-D without adding diagnostics UI/export.
 
 ### P2-D — Runtime diagnostics and failure visibility
 
@@ -248,20 +267,18 @@ Windows validation pending.
 
 ## Validation
 
-P2-B focused checks:
+P2-C focused checks:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
     tests\unit\test_settings_repository.py `
-    tests\unit\test_settings_schema_v4.py `
-    tests\unit\test_residency_manager.py `
+    tests\unit\test_settings_schema_v5.py `
+    tests\unit\test_folder_navigation_planner.py `
+    tests\unit\test_preload_controller.py `
     tests\ui\test_settings_dialog.py `
-    tests\ui\test_settings_v3_controls.py `
-    tests\ui\test_settings_v3_runtime_integration.py `
-    tests\ui\test_p1c_raw_json_preference.py `
-    tests\ui\test_difference_cache_panel.py `
-    tests\ui\test_source_residency.py `
-    tests\ui\test_application_icon.py
+    tests\ui\test_folder_navigation.py `
+    tests\ui\test_preload_runtime.py `
+    tests\ui\test_source_residency.py
 ```
 
 Full repository contract for this runtime/docs change:
@@ -276,33 +293,31 @@ Full repository contract for this runtime/docs change:
 git diff --check
 ```
 
-On the latest working head, focused P2-B tests and every static/docs/dependency
-check pass. Full pytest reports 309 passed and the same three offscreen-only
+On the latest working head, focused P2-C tests report 125 passed and the selected
+keyboard/navigation smoke slice reports 6 passed / 33 deselected. Full pytest
+reports 359 passed and the same three offscreen-only
 failures reproduced on `origin/main`: floating Plots geometry restore and two
 pyqtgraph hover-coordinate assertions. Manual Windows validation remains open.
 
 ## Manual Windows matrix
 
-P2-B merge requires owner validation of:
+P2-C merge requires owner validation of:
 
-1. PixelScope starts normally with no P2-A icon or Settings regression.
-2. Source 256 MiB / 128–2560 / 128-step and Difference 128 MiB / 64–1280 /
-   64-step display correctly.
-3. The combined-budget summary shows 50% of detected physical RAM.
-4. A total at the machine limit saves; an above-limit total warns, preserves both
-   values, and keeps Settings open.
-5. Restart applies both startup budgets and reverting both clears restart state.
-6. Low-budget navigation evicts only unprotected sources and reloads them through
-   the normal worker path.
-7. Selected, visible, analysis, Difference-pair, active-load, and oversized
-   required sources remain protected without a reload loop.
-8. Files residency badges, Statistics, Histogram, Split Channels, and Difference
-   cache independence show no regression.
+1. Files Up/Down row navigation and Left/Right selected-image navigation remain.
+2. PageUp/PageDown labels and one-to-six-folder atomic navigation are correct.
+3. Single, pair, and three-to-six-folder groups move in registered natural order.
+4. Any participating endpoint makes the whole group a no-op.
+5. Preload defaults enabled and a toggle/revert/reset reports restart correctly.
+6. Foreground completion precedes exactly-one-position-ahead preload.
+7. Next-next is not preloaded and PageDown reuses a resident preload.
+8. Rapid navigation remains responsive; late speculative results do not apply.
+9. Low-budget preload follows ordinary residency without protection or a loop.
+10. Existing selected/visible/Difference protections and Files green state remain.
+11. Statistics, Histogram, Line Profile, Difference, and Split Channels regressions
+    are absent.
 
 Later-slice matrices remain:
 
-- **P2-C:** next-group prediction, normal-load responsiveness, rapid navigation,
-  stale preload rejection, and disable/restart behavior.
 - **P2-D:** readable diagnostics, copy/export, sanitized failures, and no UI stall.
 - **P2-E:** agreed FHD/UHD and RAW matrix on Windows 10/11.
 - **P7:** executable file, pinned shortcut, installer shortcut, final packaged
@@ -322,10 +337,9 @@ Resolved:
   blank meaning last-used-folder behavior.
 - Dock/layout persistence remains workspace-owned rather than duplicated in
   Settings.
+- Preload default: Enabled.
 
-Pending:
-
-- Preload default — recommendation Enabled; decide before P2-C.
+Pending: none for P2-C.
 
 ## Progress log
 
@@ -353,7 +367,12 @@ Pending:
   offscreen-only failures. The same three tests fail from an isolated
   `origin/main` archive under the identical environment, confirming they are not
   P2-B regressions. Ruff, format, mypy, docs, dependency, performance, diff, and
-  startup checks pass. Manual Windows P2-B validation remains pending.
+  startup checks passed before PR #16 merged.
+- 2026-08-08: P2-B merged as PR #16. P2-C generalized registered Folder Position
+  navigation, added a shared planner and bounded preload controller/runtime,
+  schema-v5 enablement, ordinary residency retention, race/RAW tests, and
+  minimal counters. Full automated validation reports 359 passed / the same
+  three reproducible offscreen baseline failures; manual Windows validation is pending.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2-A2 merge blocker.
 

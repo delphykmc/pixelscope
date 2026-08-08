@@ -43,7 +43,7 @@ separate even though both ultimately use Qt persistence.
 - Frozen `ApplicationSettings` is the typed persisted domain model. P2-A2 owns
   RAW JSON confirmation, exact RAW file-size validation, default Open/Export
   folders, Difference Threshold/Gain defaults, and the Difference Map Cache MiB
-  preference. P2-B adds the Decoded Source Memory MiB preference.
+  preference. P2-B adds Decoded Source Memory MiB and P2-C adds preload enablement.
 - `SettingsRepository` owns defaults, versioned schema behavior, migration,
   validation, invalid-state recovery, save, and reset.
 - `QSettingsAdapter` is the only application-settings component that knows raw
@@ -51,7 +51,7 @@ separate even though both ultimately use Qt persistence.
 - `Edit > Settings...` uses a category/page template with **General**, **Files**,
   and **Performance** pages. The left navigation is intentionally simple at the
   current settings count; a VS Code-style settings search is not required yet.
-- Application bootstrap loads `ApplicationSettings`, converts both performance
+- Application bootstrap loads `ApplicationSettings`, converts the performance
   preferences to an immutable byte-based `PerformanceSettings` startup snapshot,
   and passes both settings objects plus the repository to `MainWindow`.
 - `MainWindow` injects `PerformanceSettings.difference_cache_bytes` into
@@ -70,9 +70,9 @@ separate even though both ultimately use Qt persistence.
   `PerformanceSettings.source_residency_bytes`. The manager never reads
   persistence and the Difference cache remains a separate owner.
 - Runtime edits to startup-only performance values are persisted for the next
-  launch; existing runtime caches and managers are not mutated.
+  launch; existing runtime caches, managers, and preload controller are not mutated.
 
-Schema version 4 owns:
+Schema version 5 owns:
 
 - `settings/schema_version`
 - `settings/general/dont_show_raw_json_profiles`
@@ -83,8 +83,10 @@ Schema version 4 owns:
 - `settings/analysis/difference_gain`
 - `settings/performance/difference_cache_mib`
 - `settings/performance/source_residency_mib`
+- `settings/performance/preload_enabled`
 
-Schema v3 migrates directly to v4 and adds the source-residency preference. A
+Schema v4 migrates directly to v5 and adds enabled preload without changing any
+v4 preference. Schema v3 migration still adds the source-residency preference. A
 legacy Difference-cache value valid in v3's 64–8192 MiB range is clamped to the
 new 1280 MiB maximum rather than replaced by the 128 MiB default. Malformed and
 genuinely invalid values normalize to validated defaults. Schema v2/v1 migration
@@ -130,8 +132,10 @@ is bound, preserving atomic Bayer/RGB-to-GRAY transitions.
 
 ## Current thread, request, and document lifecycle
 
-A dedicated image-load pool runs at most two workers. The shared numerical pool
-runs at most four. Registered paths begin as lightweight pending documents.
+A dedicated image-load pool runs at most two workers. A separate preload pool
+runs at most one worker, so speculative decode cannot occupy or queue behind a
+normal-load slot. The shared numerical pool runs at most four. Registered paths
+begin as lightweight pending documents.
 
 Normal image-load stale-result validation primarily depends on the target
 document ID, `MainWindow._load_tokens`, the load-worker registry, and rejection
@@ -159,6 +163,26 @@ and reloads through the existing load-token/worker path when required again.
 Successful loads refresh accounting from the new `source.nbytes`; stale or
 failed loads do not add resident bytes.
 
+Pure-core `FolderNavigationPlan` is the single index authority for PageUp,
+PageDown, and next-position prediction. It accepts only one-to-six selected
+registered documents from distinct folders and returns no plan when any folder
+is at the requested endpoint. `MainWindow` alone applies the plan atomically.
+
+Pure-core `PreloadController` owns the current one-position target IDs, request
+generation, completion/active state, and cheap bounded counters. `MainWindow`
+owns document/profile lookup, worker creation, cancellation requests, stale
+validation, result application, residency mutation, and Files-state updates.
+Only `plan(+1)` is preloaded after foreground loading becomes idle.
+
+Preload request identity captures plan generation, document generation, source
+path, RAW profile, exact-size policy, and the authoritative normal-load token.
+Navigation or state replacement invalidates the plan and requests cooperative
+cancellation. A normal load starts immediately on its own pool even when the
+same source is still decoding speculatively. Late or incompatible results are
+dropped; cancellation is not correctness authority. Valid results enter normal
+source residency, receive no preload protection, and may be evicted immediately.
+Preload failures do not mutate the document into foreground error state.
+
 ## Current Difference lifecycle
 
 `DifferenceMapCache` owns order-independent native absolute maps with a
@@ -183,6 +207,10 @@ and otherwise rejects Save without mutating either field. If detection fails,
 only product bounds apply. This guard is deliberately conservative; it does not
 model previews, Qt textures, workers, Python overhead, or protected soft-budget
 overage and therefore is not an out-of-memory guarantee.
+
+P2-C persists **Preload Next Folder Position**, enabled by default. It is the
+third startup-only Performance setting and participates in the same restart
+indication/revert/reset contract without changing the two memory budgets.
 
 Difference Threshold and Gain are persisted analysis display defaults. They are
 applied to `DifferencePanel` when `MainWindow` starts and immediately after a
@@ -221,11 +249,8 @@ profile-confirmation dialog.
 
 ## Planned P2 boundaries
 
-The following are target boundaries, not implemented components:
+The remaining target boundary is:
 
-- `PreloadController`: one-group-ahead planning, bounded ownership, normal-load
-  priority, cancellation requests, stale-result rejection, and retention. Its
-  enabled/default choice belongs on Performance when P2-C lands.
 - `DiagnosticsSnapshot` or equivalent: deterministic, redacted, cheap-to-read
   cache/residency/worker/preload/failure state.
 
