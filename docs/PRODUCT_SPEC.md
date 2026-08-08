@@ -46,8 +46,10 @@ results.
   folders only seed dialog starting locations and apply without restart.
 - Performance owns two independent startup budgets. **Decoded Source Memory**
   defaults to 256 MiB and accepts 128–2560 MiB; **Difference Map Cache**
-  defaults to 128 MiB and accepts 64–1280 MiB. Their combined value must remain
-  below detected physical RAM. Changed values apply after
+  defaults to 128 MiB and accepts 64–1280 MiB. When physical RAM is known, their
+  combined value must be no more than 50% of RAM; an invalid Save keeps the
+  user's values visible. Unknown RAM uses product bounds only. This is a
+  conservative configuration guard rather than OOM protection. Changes apply after
   PixelScope restarts and do not resize current runtime owners live.
 - Decoded Source Memory accounts native registered `ImageDocument.source` arrays
   only. The Files green residency indicator reflects this state, not Difference

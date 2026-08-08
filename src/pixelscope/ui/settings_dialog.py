@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -24,8 +22,6 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.app.settings import (
-    DEFAULT_DIFFERENCE_CACHE_MIB,
-    DEFAULT_SOURCE_RESIDENCY_MIB,
     DIFFERENCE_CACHE_STEP_MIB,
     MAX_DIFFERENCE_CACHE_MIB,
     MAX_DIFFERENCE_GAIN,
@@ -44,6 +40,7 @@ from pixelscope.core.performance_settings import (
     PerformanceSettings,
     detect_physical_memory_bytes,
     memory_budgets_fit_physical_memory,
+    recommended_combined_memory_limit_bytes,
 )
 
 
@@ -668,24 +665,20 @@ class SettingsDialog(QDialog):
             requested.difference_cache_mib * MIB,
             self._physical_memory_bytes,
         ):
-            corrected = replace(
-                requested,
-                difference_cache_mib=DEFAULT_DIFFERENCE_CACHE_MIB,
-                source_residency_mib=DEFAULT_SOURCE_RESIDENCY_MIB,
-            )
-            self.set_settings(corrected)
             total_mib = requested.source_residency_mib + requested.difference_cache_mib
             physical_mib = (
                 self._physical_memory_bytes // MIB if self._physical_memory_bytes is not None else 0
             )
+            allowed_bytes = recommended_combined_memory_limit_bytes(self._physical_memory_bytes)
+            allowed_mib = allowed_bytes // MIB if allowed_bytes is not None else 0
             QMessageBox.warning(
                 self,
-                "Memory budget reset",
-                f"The combined image-memory budget ({total_mib} MiB) must be lower "
-                f"than installed physical memory ({physical_mib} MiB). The Source "
-                f"and Difference budgets were reset to {DEFAULT_SOURCE_RESIDENCY_MIB} "
-                f"MiB and {DEFAULT_DIFFERENCE_CACHE_MIB} MiB. Review the corrected "
-                "values, then select Save again.",
+                "Memory budget too high",
+                f"The combined image-memory budget ({total_mib} MiB) exceeds the "
+                f"recommended machine limit ({allowed_mib} MiB, 50% of the "
+                f"detected {physical_mib} MiB physical RAM). The values were not "
+                "saved. Reduce either budget and select Save again. This limit is "
+                "a conservative configuration guard, not an out-of-memory guarantee.",
             )
             return
         settings = self._repository.save(requested)
@@ -764,9 +757,14 @@ class SettingsDialog(QDialog):
         requested_bytes = self.difference_cache_mib.value() * MIB
         combined_mib = self.difference_cache_mib.value() + self.source_residency_mib.value()
         if self._physical_memory_bytes is None:
-            physical_text = "Physical memory unavailable"
+            physical_text = "Machine limit unavailable; product bounds apply"
         else:
-            physical_text = f"Physical memory: {self._physical_memory_bytes // MIB} MiB"
+            allowed_bytes = recommended_combined_memory_limit_bytes(self._physical_memory_bytes)
+            assert allowed_bytes is not None
+            physical_text = (
+                f"Recommended limit: {allowed_bytes // MIB} MiB "
+                f"(50% of {self._physical_memory_bytes // MIB} MiB RAM)"
+            )
         self.memory_budget_summary.setText(
             f"Combined image budget: {combined_mib} MiB  ·  {physical_text}"
         )

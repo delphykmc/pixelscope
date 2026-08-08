@@ -55,11 +55,22 @@ def memory_budgets_fit_physical_memory(
     difference_cache_bytes: int,
     physical_memory_bytes: int | None,
 ) -> bool:
-    """Keep configured image budgets strictly below installed physical RAM."""
+    """Keep configured budgets within the conservative machine envelope."""
 
-    if physical_memory_bytes is None:
+    limit = recommended_combined_memory_limit_bytes(physical_memory_bytes)
+    if limit is None:
         return True
-    return source_residency_bytes + difference_cache_bytes < physical_memory_bytes
+    return source_residency_bytes + difference_cache_bytes <= limit
+
+
+def recommended_combined_memory_limit_bytes(
+    physical_memory_bytes: int | None,
+) -> int | None:
+    """Return the recommended 50% RAM envelope, when RAM is detectable."""
+
+    if physical_memory_bytes is None or physical_memory_bytes <= 0:
+        return None
+    return physical_memory_bytes // 2
 
 
 @dataclass(frozen=True)

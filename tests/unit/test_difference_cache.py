@@ -14,6 +14,7 @@ from pixelscope.core.performance_settings import (
     MIB,
     PerformanceSettings,
     memory_budgets_fit_physical_memory,
+    recommended_combined_memory_limit_bytes,
 )
 
 
@@ -49,9 +50,11 @@ def test_default_performance_settings_use_recommended_uhd_budgets() -> None:
         PerformanceSettings(source_residency_bytes=1.5)  # type: ignore[arg-type]
 
 
-def test_combined_budgets_must_be_strictly_below_known_physical_memory() -> None:
-    assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 512 * MIB)
-    assert not memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 384 * MIB)
+def test_combined_budgets_use_half_of_known_physical_memory_as_envelope() -> None:
+    assert recommended_combined_memory_limit_bytes(1024 * MIB) == 512 * MIB
+    assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 1024 * MIB)
+    assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 768 * MIB)
+    assert not memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 767 * MIB)
     assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, None)
 
 

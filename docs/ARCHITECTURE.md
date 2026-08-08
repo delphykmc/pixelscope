@@ -84,10 +84,12 @@ Schema version 4 owns:
 - `settings/performance/difference_cache_mib`
 - `settings/performance/source_residency_mib`
 
-Schema version 4 migrates to v5 with the reduced memory validation ranges.
-Schema v3 adds the current source-residency default. Schema v2/v1 migration and legacy
-`raw/dont_show_json_profiles` input remain supported. Invalid current values
-normalize to validated defaults. A future schema version is not guessed or
+Schema v3 migrates directly to v4 and adds the source-residency preference. A
+legacy Difference-cache value valid in v3's 64–8192 MiB range is clamped to the
+new 1280 MiB maximum rather than replaced by the 128 MiB default. Malformed and
+genuinely invalid values normalize to validated defaults. Schema v2/v1 migration
+and legacy `raw/dont_show_json_profiles` input remain supported. A future schema
+version is not guessed or
 rewritten; the current process uses safe defaults and exposes application
 settings as read-only compatibility state.
 
@@ -175,8 +177,12 @@ P2-B persists Decoded Source Memory independently with a 256 MiB default,
 128–2560 MiB validation range, and 128 MiB UI increment. Saving either
 startup-only budget never mutates its current runtime owner; the Settings dialog
 compares both editable values with the startup snapshot for restart indication.
-The dialog detects installed physical RAM without a production dependency and
-does not save a combined memory budget greater than or equal to that capacity.
+The dialog detects installed physical RAM without a production dependency. It
+accepts the two configured budgets when their sum is at most 50% of detected RAM
+and otherwise rejects Save without mutating either field. If detection fails,
+only product bounds apply. This guard is deliberately conservative; it does not
+model previews, Qt textures, workers, Python overhead, or protected soft-budget
+overage and therefore is not an out-of-memory guarantee.
 
 Difference Threshold and Gain are persisted analysis display defaults. They are
 applied to `DifferencePanel` when `MainWindow` starts and immediately after a

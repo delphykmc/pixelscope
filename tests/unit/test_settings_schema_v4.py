@@ -39,13 +39,13 @@ def _repository() -> tuple[SettingsRepository, QSettings]:
     return SettingsRepository(QSettingsAdapter(settings)), settings
 
 
-def test_schema_v5_fresh_default_is_256_mib() -> None:
+def test_schema_v4_fresh_default_is_256_mib() -> None:
     repository, settings = _repository()
 
     loaded = repository.load()
 
     assert loaded.source_residency_mib == DEFAULT_SOURCE_RESIDENCY_MIB == 256
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
 
 
@@ -73,19 +73,47 @@ def test_schema_v3_migration_preserves_every_value_and_adds_source_default() -> 
         difference_threshold=32,
         difference_gain=4,
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION == 5
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION == 4
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
     assert settings.value("unrelated/workspace") == "keep"
 
 
-def test_schema_v4_migration_preserves_in_range_source_budget() -> None:
+@pytest.mark.parametrize("legacy_cache_mib", (2048, 4096, 8192))
+def test_schema_v3_old_valid_cache_budget_clamps_to_new_maximum(
+    legacy_cache_mib: int,
+) -> None:
     repository, settings = _repository()
-    settings.setValue(SCHEMA_VERSION_KEY, 4)
-    settings.setValue(SOURCE_RESIDENCY_MIB_KEY, 2048)
+    settings.setValue(SCHEMA_VERSION_KEY, 3)
+    settings.setValue(DIFFERENCE_CACHE_MIB_KEY, legacy_cache_mib)
+    settings.setValue("unrelated/workspace", "keep")
 
-    assert repository.load().source_residency_mib == 2048
+    assert repository.load().difference_cache_mib == 1280
+    assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 1280
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
+    assert settings.value("unrelated/workspace") == "keep"
+
+
+@pytest.mark.parametrize("legacy_cache_mib", ("bad", 0, 8193))
+def test_schema_v3_invalid_cache_budget_uses_new_default(
+    legacy_cache_mib: object,
+) -> None:
+    repository, settings = _repository()
+    settings.setValue(SCHEMA_VERSION_KEY, 3)
+    settings.setValue(DIFFERENCE_CACHE_MIB_KEY, legacy_cache_mib)
+
+    assert repository.load().difference_cache_mib == 128
+    assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 128
+
+
+def test_schema_v4_source_budget_round_trips() -> None:
+    repository, settings = _repository()
+    expected = ApplicationSettings(source_residency_mib=2048)
+
+    repository.save(expected)
+
+    assert repository.load() == expected
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 2048
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
 
 
 def test_schema_v2_still_migrates_all_later_fields_to_defaults() -> None:
@@ -104,7 +132,7 @@ def test_schema_v2_still_migrates_all_later_fields_to_defaults() -> None:
         default_open_directory="C:/images",
         default_export_directory="D:/exports",
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 5
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 4
     assert settings.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY, type=bool) is False
     assert settings.value(DIFFERENCE_THRESHOLD_KEY, type=int) == 10
     assert settings.value(DIFFERENCE_GAIN_KEY, type=int) == 1

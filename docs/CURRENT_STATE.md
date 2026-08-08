@@ -93,9 +93,11 @@ This document records the implementation baseline that new work must use.
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
   - `settings/performance/source_residency_mib`
-- Schema v4 migrates to v5 under the reduced memory ranges. Schema v3 migration
-  adds the current source-residency default. Schema v2/v1 and the legacy RAW key continue to
-  migrate into the current model.
+- Schema v3 migrates directly to v4. Difference-cache values valid in the v3
+  64–8192 MiB range are preserved up to 1280 MiB and clamped to 1280 MiB above
+  that new maximum; malformed or genuinely invalid values use the new default.
+  The migration adds the 256 MiB source-residency default and preserves unrelated
+  keys. Schema v2/v1 and the legacy RAW key continue to migrate forward.
 - `Edit > Settings...` uses left-side **General / Files / Performance** page
   navigation with a flat VS Code-inspired content hierarchy.
 - Blank default Open/Export locations preserve the existing last-used-folder
@@ -104,8 +106,10 @@ This document records the implementation baseline that new work must use.
 - Difference Map Cache defaults to 128 MiB and accepts 64–1280 MiB.
 - Decoded Source Memory defaults to 256 MiB, accepts 128–2560 MiB, and uses
   128 MiB UI increments.
-- Settings rejects a combined image-memory budget that is not strictly below
-  detected physical RAM and resets the two fields to their defaults for review.
+- When physical RAM is detected, Settings accepts a combined image-memory budget
+  up to 50% of RAM. Above-limit saves are rejected without changing either input.
+  Unknown RAM falls back to product bounds only. This is a conservative
+  configuration guard, not an out-of-memory guarantee.
 - Application startup converts persisted MiB into immutable
   `PerformanceSettings.difference_cache_bytes` and
   `PerformanceSettings.source_residency_bytes`. `MainWindow` injects the former
@@ -152,7 +156,7 @@ This document records the implementation baseline that new work must use.
 
 Focused P2-B residency/settings integration validation passes on the latest
 working head. The standard static/docs/dependency/performance/startup checks pass.
-Full pytest was executed and reports 300 passed with three reproducible offscreen
+Full pytest was executed and reports 309 passed with three reproducible offscreen
 failures: floating Plots geometry restore and two pyqtgraph hover-coordinate
 assertions. The same three tests fail from an isolated `origin/main` archive in
 the identical environment, confirming they are baseline/environment failures,

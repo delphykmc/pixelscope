@@ -155,9 +155,13 @@ from its current startup value, the dialog shows **Changes take effect after
 restarting PixelScope.** Returning both values to their current runtime settings
 clears that indication.
 
-The combined Source and Difference budgets must remain below installed physical
-memory. If Save detects an invalid total, PixelScope warns, resets only those two
-fields to their recommended defaults, and leaves Settings open for review.
+When physical RAM is detected, the combined Source and Difference budgets may be
+at most 50% of it. If Save detects a higher total, PixelScope warns, preserves
+both entered values, and leaves Settings open so either value can be reduced. If
+RAM detection is unavailable, product bounds alone apply. The machine-aware
+limit is a conservative configuration guard, not a guarantee against OOM:
+previews, Qt textures, worker temporaries, Python/Qt overhead, and protected
+soft-budget overage are outside these two counters.
 
 **Reset Settings** restores only application preferences to their defaults. It
 does not reset window layout, dock/splitter geometry, remembered last directory,

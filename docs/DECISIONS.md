@@ -50,9 +50,10 @@
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
   - `settings/performance/source_residency_mib`
-- Schema v4 migrates to v5 using the reduced validated memory ranges. Schema v3
-  adds the current source-residency default. Schema v2/v1 and legacy
-  `raw/dont_show_json_profiles` also migrate into the current model.
+- Schema v3 migrates directly to v4 and adds the current source-residency
+  default. A v3 Difference-cache value valid in the former 64–8192 MiB range is
+  clamped to the new 1280 MiB maximum instead of reset to 128 MiB. Schema v2/v1
+  and legacy `raw/dont_show_json_profiles` also migrate into the current model.
 - Invalid current values fall back to validated defaults and are normalized. A
   persisted schema newer than the running application is never destructively
   guessed or rewritten; application preferences remain read-only until a
@@ -91,8 +92,10 @@
 - Decoded Source Memory defaults to 256 MiB, accepts 128–2560 MiB, and uses
   128 MiB UI increments. Runtime receives bytes through
   `PerformanceSettings.source_residency_bytes`.
-- The Settings UI requires both budgets together to remain below installed
-  physical RAM. An invalid Save resets only the memory fields and requires review.
+- When physical RAM is known, the Settings UI requires both budgets together to
+  remain at or below 50% of RAM. An above-limit Save retains both entered values,
+  warns, and stays open. Unknown RAM uses product bounds only. This is a
+  conservative configuration envelope, not an out-of-memory guarantee.
 - Restart-required UI compares both saved/editable startup-only budget values to
   the current runtime snapshot. Returning both to their runtime values clears
   the indication. File-location, RAW, Threshold, and Gain changes do not require

@@ -12,11 +12,12 @@ from pixelscope.core.performance_settings import (
     PerformanceSettings,
 )
 
-CURRENT_SETTINGS_SCHEMA_VERSION: Final = 5
+CURRENT_SETTINGS_SCHEMA_VERSION: Final = 4
 DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
 MAX_DIFFERENCE_CACHE_MIB: Final = 1280
 DIFFERENCE_CACHE_STEP_MIB: Final = 64
+LEGACY_MAX_DIFFERENCE_CACHE_MIB: Final = 8192
 DEFAULT_SOURCE_RESIDENCY_MIB: Final = DEFAULT_SOURCE_RESIDENCY_BYTES // MIB
 MIN_SOURCE_RESIDENCY_MIB: Final = 128
 MAX_SOURCE_RESIDENCY_MIB: Final = 2560
@@ -174,9 +175,7 @@ class SettingsRepository:
                 self._write_current(settings)
             return settings
 
-        if schema_version == 4:
-            settings, _ = self._load_current_values()
-        elif schema_version == 3:
+        if schema_version == 3:
             settings = self._load_schema_v3_values()
         elif schema_version == 2:
             settings = self._load_schema_v2_values()
@@ -270,11 +269,8 @@ class SettingsRepository:
 
         dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
         exact_size, _ = self._parse_bool(self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY))
-        cache_mib, _ = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY),
-            DEFAULT_DIFFERENCE_CACHE_MIB,
-            MIN_DIFFERENCE_CACHE_MIB,
-            MAX_DIFFERENCE_CACHE_MIB,
+        cache_mib = self._parse_legacy_difference_cache(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
         threshold, _ = self._parse_int_range(
             self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
@@ -304,11 +300,8 @@ class SettingsRepository:
 
     def _load_schema_v2_values(self) -> ApplicationSettings:
         dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
-        cache_mib, _ = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY),
-            DEFAULT_DIFFERENCE_CACHE_MIB,
-            MIN_DIFFERENCE_CACHE_MIB,
-            MAX_DIFFERENCE_CACHE_MIB,
+        cache_mib = self._parse_legacy_difference_cache(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
         open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
@@ -323,11 +316,8 @@ class SettingsRepository:
 
     def _load_schema_v1_values(self) -> ApplicationSettings:
         dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
-        cache_mib, _ = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY),
-            DEFAULT_DIFFERENCE_CACHE_MIB,
-            MIN_DIFFERENCE_CACHE_MIB,
-            MAX_DIFFERENCE_CACHE_MIB,
+        cache_mib = self._parse_legacy_difference_cache(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
         return ApplicationSettings(
             dont_show_raw_json_profiles=dont_show,
@@ -342,11 +332,8 @@ class SettingsRepository:
         )
         dont_show, _ = self._parse_bool(raw_bool)
         exact_size, _ = self._parse_bool(self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY))
-        cache_mib, _ = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY),
-            DEFAULT_DIFFERENCE_CACHE_MIB,
-            MIN_DIFFERENCE_CACHE_MIB,
-            MAX_DIFFERENCE_CACHE_MIB,
+        cache_mib = self._parse_legacy_difference_cache(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
         threshold, _ = self._parse_int_range(
             self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
@@ -441,6 +428,18 @@ class SettingsRepository:
         if not minimum <= parsed <= maximum:
             return default, False
         return parsed, True
+
+    @classmethod
+    def _parse_legacy_difference_cache(cls, value: object) -> int:
+        parsed, valid = cls._parse_int_range(
+            value,
+            DEFAULT_DIFFERENCE_CACHE_MIB,
+            MIN_DIFFERENCE_CACHE_MIB,
+            LEGACY_MAX_DIFFERENCE_CACHE_MIB,
+        )
+        if not valid:
+            return DEFAULT_DIFFERENCE_CACHE_MIB
+        return min(parsed, MAX_DIFFERENCE_CACHE_MIB)
 
     @staticmethod
     def _parse_directory(value: object) -> tuple[str, bool]:

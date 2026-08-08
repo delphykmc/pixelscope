@@ -9,10 +9,8 @@ from PySide6.QtWidgets import QDialog, QDialogButtonBox, QMessageBox
 from pixelscope.app.application import load_startup_settings
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.settings import (
-    DEFAULT_DIFFERENCE_CACHE_MIB,
     DEFAULT_EXPORT_DIRECTORY_KEY,
     DEFAULT_OPEN_DIRECTORY_KEY,
-    DEFAULT_SOURCE_RESIDENCY_MIB,
     DIFFERENCE_CACHE_MIB_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
     ApplicationSettings,
@@ -265,7 +263,37 @@ def test_memory_sliders_use_coarse_bounded_steps(qtbot: object) -> None:
     assert dialog.difference_cache_slider.pageStep() == 4
 
 
-def test_save_resets_combined_budget_when_it_reaches_physical_memory(
+@pytest.mark.parametrize(
+    ("source_mib", "difference_mib"),
+    ((384, 64), (384, 128)),
+)
+def test_save_accepts_combined_budget_below_or_at_half_physical_memory(
+    qtbot: object,
+    source_mib: int,
+    difference_mib: int,
+) -> None:
+    repository = _repository()
+    initial = repository.load()
+    dialog = SettingsDialog(
+        repository,
+        initial,
+        initial.performance_settings(),
+        physical_memory_bytes=1024 * MIB,
+    )
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.source_residency_mib.setValue(source_mib)
+    dialog.difference_cache_mib.setValue(difference_mib)
+    save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
+    assert save is not None
+
+    qtbot.mouseClick(save, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+
+    assert dialog.result() == int(QDialog.DialogCode.Accepted)
+    assert repository.load().source_residency_mib == source_mib
+    assert repository.load().difference_cache_mib == difference_mib
+
+
+def test_save_above_half_physical_memory_preserves_entered_values(
     qtbot: object,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -289,7 +317,7 @@ def test_save_resets_combined_budget_when_it_reaches_physical_memory(
         return QMessageBox.StandardButton.Ok
 
     monkeypatch.setattr(QMessageBox, "warning", capture_warning)
-    dialog.source_residency_mib.setValue(896)
+    dialog.source_residency_mib.setValue(512)
     dialog.difference_cache_mib.setValue(128)
     save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
     assert save is not None
@@ -297,15 +325,38 @@ def test_save_resets_combined_budget_when_it_reaches_physical_memory(
     qtbot.mouseClick(save, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
 
     assert dialog.result() == int(QDialog.DialogCode.Rejected)
-    assert dialog.source_residency_mib.value() == DEFAULT_SOURCE_RESIDENCY_MIB
-    assert dialog.difference_cache_mib.value() == DEFAULT_DIFFERENCE_CACHE_MIB
+    assert dialog.source_residency_mib.value() == 512
+    assert dialog.difference_cache_mib.value() == 128
     assert repository.load() == initial
-    assert warnings and warnings[0][0] == "Memory budget reset"
-    assert "must be lower than installed physical memory" in warnings[0][1]
+    assert warnings and warnings[0][0] == "Memory budget too high"
+    assert "recommended machine limit (512 MiB" in warnings[0][1]
+    assert "values were not saved" in warnings[0][1]
+    assert "Recommended limit: 512 MiB" in dialog.memory_budget_summary.text()
+
+
+def test_unknown_physical_memory_uses_product_bounds_only(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "pixelscope.ui.settings_dialog.detect_physical_memory_bytes",
+        lambda: None,
+    )
+    repository = _repository()
+    initial = repository.load()
+    dialog = SettingsDialog(repository, initial, initial.performance_settings())
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.source_residency_mib.setValue(2560)
+    dialog.difference_cache_mib.setValue(1280)
+    save = dialog.button_box.button(QDialogButtonBox.StandardButton.Save)
+    assert save is not None
 
     qtbot.mouseClick(save, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+
     assert dialog.result() == int(QDialog.DialogCode.Accepted)
-    assert repository.load() == ApplicationSettings()
+    assert repository.load().source_residency_mib == 2560
+    assert repository.load().difference_cache_mib == 1280
+    assert "product bounds apply" in dialog.memory_budget_summary.text()
 
 
 def test_settings_raw_preference_is_the_persistent_surface(qtbot: object) -> None:

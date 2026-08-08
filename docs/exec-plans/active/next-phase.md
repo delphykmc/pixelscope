@@ -52,7 +52,7 @@ optimization.
   VS Code-inspired Settings UI, optional file-dialog locations, exact RAW size
   policy, live Difference Threshold/Gain defaults, restart/reset semantics, and
   Difference Map Cache startup injection.
-- Settings schema v5 owns RAW confirmation, exact RAW validation, Files default
+- Settings schema v4 owns RAW confirmation, exact RAW validation, Files default
   Open/Export folders, Difference Threshold/Gain, and Performance Difference Map
   Cache and Decoded Source Memory MiB. Earlier schemas migrate forward.
 - Difference Map Cache defaults to 128 MiB and accepts 64–1280 MiB. Decoded
@@ -64,9 +64,8 @@ optimization.
   pool capped at four.
 - Normal-load stale-result handling relies on target document ID, load tokens,
   worker registration, and cancelled-worker rejection.
-- A final review found runtime-integration gaps after the owner had recorded a
-  passing suite on the prior head. The gaps have been corrected; a fresh full
-  validation run is required before P2-A2 merges.
+- P2-B review fixes preserve the released v3 Difference-cache domain through an
+  explicit clamp migration and add the accepted source-residency setting.
 
 ## Invariants
 
@@ -101,18 +100,18 @@ optimization.
 
 ## Target boundaries
 
-Implemented by P2-A:
+Implemented by P2-A and P2-B:
 
 - `pixelscope.app.resources`: packaged application resources.
 - `ApplicationSettings`: validated persisted choices.
 - `SettingsRepository`: schema-aware load/save/reset and migration.
 - immutable `PerformanceSettings`: startup resource snapshot.
 - category/page Settings UI: General, Files, Performance.
+- `ResidencyManager`: source-byte accounting, protection, LRU eviction planning,
+  reload integration, invalidation, and minimal diagnostics.
 
 Remaining P2 target boundaries:
 
-- `ResidencyManager`: source-byte accounting, protection, LRU eviction, reload,
-  invalidation, and diagnostics.
 - `PreloadController`: one-group-ahead planning, bounded ownership, stale-result
   rejection, and budget-aware retention.
 - immutable diagnostics model: deterministic and inexpensive runtime snapshot.
@@ -152,7 +151,7 @@ packaged release identity.
 
 ### P2-A2 — Settings foundation and runtime integration
 
-Status: Active; final blocker fixes implemented, fresh owner validation pending.
+Status: Complete; merged as PR #15.
 Branch: `feature/p2-a-settings-foundation`
 
 - Frozen typed `ApplicationSettings` with RAW confirmation, exact RAW file-size
@@ -204,7 +203,10 @@ Windows validation pending.
 - Implements normal-worker reload, soft-limit and oversized-source behavior,
   dependent invalidation, Files residency state, and minimal diagnostics.
 - Extends Performance settings with independent Source and Difference budgets,
-  coarse bounded controls, physical-memory validation, and restart semantics.
+  coarse bounded controls, a conservative 50%-of-RAM configuration guard, and
+  restart semantics. Above-limit saves preserve both entered values.
+- Migrates released schema v3 directly to v4, clamping old-valid Difference
+  budgets above 1280 MiB instead of resetting them to the new default.
 - Runtime regressions cover oversized selected worker completion and real
   Difference-pair/cache independence under source-budget pressure.
 
@@ -235,12 +237,7 @@ Windows validation pending.
 ## Merge gates
 
 - **P2-A1:** complete and merged as PR #14.
-- **P2-A2:** schema-v3 fresh/save/reset/migration/invalid/future tests,
-  category-page Settings UI tests, file-location behavior, exact RAW worker/reader
-  and sidecar-policy integration, RAW partial-update preservation, persisted and
-  live Difference Threshold/Gain integration, Difference Map Cache startup
-  injection/restart indication, P2-A1 application-icon regression, durable-doc
-  contract, full repository contract, and manual Windows Settings validation.
+- **P2-A2:** complete and merged as PR #15.
 - **P2-B:** deterministic accounting, protection, eviction, oversized-source, and
   reload tests; fixed-count policy no longer authoritative.
 - **P2-C:** normal-load priority, bounded ownership, cancellation request,
@@ -280,40 +277,30 @@ git diff --check
 ```
 
 On the latest working head, focused P2-B tests and every static/docs/dependency
-check pass. Full pytest reports 300 passed and the same three offscreen-only
+check pass. Full pytest reports 309 passed and the same three offscreen-only
 failures reproduced on `origin/main`: floating Plots geometry restore and two
 pyqtgraph hover-coordinate assertions. Manual Windows validation remains open.
 
 ## Manual Windows matrix
 
-P2-A2 merge requires owner validation of:
+P2-B merge requires owner validation of:
 
-1. PixelScope starts normally.
-2. P2-A1 title/taskbar icon behavior has no regression.
-3. **Edit > Settings...** opens with General / Files / Performance navigation.
-4. **Don't Show RAW JSON Profiles** is absent from File and persists from General.
-5. RAW don't-show-again preserves all other schema-v3 Settings values.
-6. Oversized RAW loads when exact validation is off and fails when it is on.
-7. JSON sidecar auto-approval follows the same exact/minimum byte policy.
-8. Persisted Difference Threshold/Gain initialize the Difference panel.
-9. Saving Threshold/Gain updates the current Difference panel without restart.
-10. Blank Default Open/Export folders retain last-used-folder behavior.
-11. Configured Default Open Folder seeds Open Images/Open Folder/Open RAW dialogs.
-12. Configured Default Export Folder seeds Statistics CSV export.
-13. Unavailable configured folders fall back to the remembered last directory.
-14. Difference Map Cache value displays correctly.
-15. Changing Difference Map Cache shows restart-required indication.
-16. Restart applies the changed Difference Map Cache budget.
-17. File-location, RAW, Threshold, or Gain-only changes do not require restart.
-18. **Reset Settings** restores application defaults.
-19. **Reset Workspace Layout** and **Reset Settings** do not affect each other's
-    owned state.
-20. Invalid persisted application settings recover without startup failure.
+1. PixelScope starts normally with no P2-A icon or Settings regression.
+2. Source 256 MiB / 128–2560 / 128-step and Difference 128 MiB / 64–1280 /
+   64-step display correctly.
+3. The combined-budget summary shows 50% of detected physical RAM.
+4. A total at the machine limit saves; an above-limit total warns, preserves both
+   values, and keeps Settings open.
+5. Restart applies both startup budgets and reverting both clears restart state.
+6. Low-budget navigation evicts only unprotected sources and reloads them through
+   the normal worker path.
+7. Selected, visible, analysis, Difference-pair, active-load, and oversized
+   required sources remain protected without a reload loop.
+8. Files residency badges, Statistics, Histogram, Split Channels, and Difference
+   cache independence show no regression.
 
 Later-slice matrices remain:
 
-- **P2-B:** low-budget navigation, protected documents, oversized source,
-  eviction, and reload.
 - **P2-C:** next-group prediction, normal-load responsiveness, rapid navigation,
   stale preload rejection, and disable/restart behavior.
 - **P2-D:** readable diagnostics, copy/export, sanitized failures, and no UI stall.
@@ -358,11 +345,11 @@ Pending:
   validation remains the final merge gate.
 - 2026-08-08: P2-A2 merged as PR #15. P2-B replaced the fixed-count residency
   authority with exact byte accounting, protected LRU planning, reload and
-  invalidation integration, independent startup budgets, and schema v5.
+  invalidation integration, independent startup budgets, and schema v4.
 - 2026-08-08: PR #16 review fixes restored this phase-level plan, aligned durable
   validation evidence, hardened positive-integer budget contracts, and added
   normal-worker oversized-source and real Difference lifecycle regressions.
-- 2026-08-08: Latest automated evidence is 300 passed / 3 reproducible
+- 2026-08-08: Latest automated evidence is 309 passed / 3 reproducible
   offscreen-only failures. The same three tests fail from an isolated
   `origin/main` archive under the identical environment, confirming they are not
   P2-B regressions. Ruff, format, mypy, docs, dependency, performance, diff, and

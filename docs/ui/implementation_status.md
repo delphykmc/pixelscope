@@ -21,7 +21,7 @@ P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
 | P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
 | P2-A1 / #14 | Complete | Application identity and packaged resources |
 | P2-A2 / #15 | Complete | Typed Settings schema v3 and runtime integration |
-| P2-B | Active | Byte-budgeted decoded-source residency and schema v5 |
+| P2-B | Active | Byte-budgeted decoded-source residency and schema v4 |
 
 ## Current UI behavior
 
@@ -76,7 +76,7 @@ Implemented now:
 - Soft-budget protection for visible, selected, active/analysis, Difference-pair,
   and active load-target sources.
 - Exact native `source.nbytes` accounting and minimal residency diagnostics.
-- Schema-v5 General / Files / Performance Settings with distinct Decoded Source
+- Schema-v4 General / Files / Performance Settings with distinct Decoded Source
   Memory and Difference Map Cache startup budgets.
 - Canonical application icon/resource foundation and immutable
   `PerformanceSettings` startup injection.
