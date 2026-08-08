@@ -14,13 +14,23 @@ from pixelscope.workers.task_worker import TaskWorker
 class ImageLoadWorker(TaskWorker):
     """Background image/RAW decoder with normal TaskWorker lifecycle signals."""
 
-    def __init__(self, path: str | Path, raw_profile: RawProfile | None = None) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        raw_profile: RawProfile | None = None,
+        *,
+        require_exact_raw_size: bool = False,
+    ) -> None:
         source_path = Path(path)
 
         def load() -> ImageDocument:
             if raw_profile is None:
                 return read_image(source_path)
-            source = read_raw(source_path, raw_profile)
+            source = read_raw(
+                source_path,
+                raw_profile,
+                require_exact_size=require_exact_raw_size,
+            )
             transform = DisplayTransform(
                 black_level=raw_profile.display_black_level,
                 white_level=raw_profile.white_level,
