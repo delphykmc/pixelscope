@@ -22,7 +22,11 @@ from PySide6.QtWidgets import (
 
 from pixelscope.app.settings import (
     MAX_DIFFERENCE_CACHE_MIB,
+    MAX_DIFFERENCE_GAIN,
+    MAX_DIFFERENCE_THRESHOLD,
     MIN_DIFFERENCE_CACHE_MIB,
+    MIN_DIFFERENCE_GAIN,
+    MIN_DIFFERENCE_THRESHOLD,
     ApplicationSettings,
     SettingsRepository,
 )
@@ -54,7 +58,6 @@ class _SettingRow(QWidget):
         description_label.setProperty("settingsRole", "description")
         description_label.setWordWrap(True)
         layout.addWidget(description_label)
-
         layout.addWidget(control)
 
 
@@ -163,6 +166,25 @@ class SettingsDialog(QDialog):
         self.dont_show_raw_json_profiles.setObjectName(
             "generalDontShowRawJsonProfiles"
         )
+        self.require_exact_raw_file_size = QCheckBox("Require Exact RAW File Size")
+        self.require_exact_raw_file_size.setObjectName(
+            "generalRequireExactRawFileSize"
+        )
+
+        self.difference_threshold = QSpinBox()
+        self.difference_threshold.setObjectName("generalDifferenceThreshold")
+        self.difference_threshold.setRange(
+            MIN_DIFFERENCE_THRESHOLD,
+            MAX_DIFFERENCE_THRESHOLD,
+        )
+        self.difference_threshold.setKeyboardTracking(False)
+        self.difference_threshold.setMaximumWidth(160)
+
+        self.difference_gain = QSpinBox()
+        self.difference_gain.setObjectName("generalDifferenceGain")
+        self.difference_gain.setRange(MIN_DIFFERENCE_GAIN, MAX_DIFFERENCE_GAIN)
+        self.difference_gain.setKeyboardTracking(False)
+        self.difference_gain.setMaximumWidth(160)
 
         self.default_open_directory = QLineEdit()
         self.default_open_directory.setObjectName("filesDefaultOpenDirectory")
@@ -286,6 +308,7 @@ class SettingsDialog(QDialog):
             "General",
             "Configure application-wide preferences for PixelScope behavior.",
         )
+
         raw_section = _SettingsSection("RAW Profiles")
         raw_section.add_row(
             _SettingRow(
@@ -295,7 +318,38 @@ class SettingsDialog(QDialog):
                 self.dont_show_raw_json_profiles,
             )
         )
+        raw_section.add_row(
+            _SettingRow(
+                "RAW File Size Validation",
+                "Require the RAW file size to exactly match the bytes required by "
+                "the selected profile. When disabled, larger files are allowed; "
+                "too-small files are always rejected.",
+                self.require_exact_raw_file_size,
+            )
+        )
         page.add_section(raw_section)
+
+        difference_section = _SettingsSection(
+            "Difference Defaults",
+            "Set the initial display controls used by Difference analysis.",
+        )
+        difference_section.add_row(
+            _SettingRow(
+                "Threshold",
+                "Default threshold used by the Difference mask display. Changes "
+                "apply immediately to the current Difference panel.",
+                self.difference_threshold,
+            )
+        )
+        difference_section.add_row(
+            _SettingRow(
+                "Gain",
+                "Default amplification used by the Absolute Difference display. "
+                "Changes apply immediately to the current Difference panel.",
+                self.difference_gain,
+            )
+        )
+        page.add_section(difference_section)
         page.finish()
         return self._scrollable_page(page, "generalSettingsPage")
 
@@ -511,12 +565,20 @@ class SettingsDialog(QDialog):
             difference_cache_mib=self.difference_cache_mib.value(),
             default_open_directory=self.default_open_directory.text().strip(),
             default_export_directory=self.default_export_directory.text().strip(),
+            require_exact_raw_file_size=self.require_exact_raw_file_size.isChecked(),
+            difference_threshold=self.difference_threshold.value(),
+            difference_gain=self.difference_gain.value(),
         )
 
     def set_settings(self, settings: ApplicationSettings) -> None:
         self.dont_show_raw_json_profiles.setChecked(
             settings.dont_show_raw_json_profiles
         )
+        self.require_exact_raw_file_size.setChecked(
+            settings.require_exact_raw_file_size
+        )
+        self.difference_threshold.setValue(settings.difference_threshold)
+        self.difference_gain.setValue(settings.difference_gain)
         self.default_open_directory.setText(settings.default_open_directory)
         self.default_export_directory.setText(settings.default_export_directory)
         self.difference_cache_mib.setValue(settings.difference_cache_mib)
@@ -581,6 +643,9 @@ class SettingsDialog(QDialog):
 
     def _set_future_schema_read_only(self, version: int | None) -> None:
         self.dont_show_raw_json_profiles.setEnabled(False)
+        self.require_exact_raw_file_size.setEnabled(False)
+        self.difference_threshold.setEnabled(False)
+        self.difference_gain.setEnabled(False)
         self.default_open_directory.setEnabled(False)
         self.default_open_browse.setEnabled(False)
         self.default_export_directory.setEnabled(False)
