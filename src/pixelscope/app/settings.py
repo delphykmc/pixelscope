@@ -7,14 +7,18 @@ from PySide6.QtCore import QSettings
 
 from pixelscope.core.performance_settings import (
     DEFAULT_DIFFERENCE_CACHE_BYTES,
+    DEFAULT_SOURCE_RESIDENCY_BYTES,
     MIB,
     PerformanceSettings,
 )
 
-CURRENT_SETTINGS_SCHEMA_VERSION: Final = 3
+CURRENT_SETTINGS_SCHEMA_VERSION: Final = 4
 DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
 MAX_DIFFERENCE_CACHE_MIB: Final = 8192
+DEFAULT_SOURCE_RESIDENCY_MIB: Final = DEFAULT_SOURCE_RESIDENCY_BYTES // MIB
+MIN_SOURCE_RESIDENCY_MIB: Final = 128
+MAX_SOURCE_RESIDENCY_MIB: Final = 32768
 DEFAULT_DIFFERENCE_THRESHOLD: Final = 10
 MIN_DIFFERENCE_THRESHOLD: Final = 0
 MAX_DIFFERENCE_THRESHOLD: Final = 2_147_483_647
@@ -30,6 +34,7 @@ DEFAULT_EXPORT_DIRECTORY_KEY: Final = "settings/files/default_export_directory"
 DIFFERENCE_THRESHOLD_KEY: Final = "settings/analysis/difference_threshold"
 DIFFERENCE_GAIN_KEY: Final = "settings/analysis/difference_gain"
 DIFFERENCE_CACHE_MIB_KEY: Final = "settings/performance/difference_cache_mib"
+SOURCE_RESIDENCY_MIB_KEY: Final = "settings/performance/source_residency_mib"
 LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = "raw/dont_show_json_profiles"
 
 OWNED_SETTINGS_KEYS: Final = (
@@ -41,6 +46,7 @@ OWNED_SETTINGS_KEYS: Final = (
     DIFFERENCE_THRESHOLD_KEY,
     DIFFERENCE_GAIN_KEY,
     DIFFERENCE_CACHE_MIB_KEY,
+    SOURCE_RESIDENCY_MIB_KEY,
 )
 
 _TRUE_STRINGS = frozenset({"true", "1", "yes", "on"})
@@ -58,6 +64,7 @@ class ApplicationSettings:
     require_exact_raw_file_size: bool = False
     difference_threshold: int = DEFAULT_DIFFERENCE_THRESHOLD
     difference_gain: int = DEFAULT_DIFFERENCE_GAIN
+    source_residency_mib: int = DEFAULT_SOURCE_RESIDENCY_MIB
 
     def __post_init__(self) -> None:
         if not isinstance(self.dont_show_raw_json_profiles, bool):
@@ -69,6 +76,12 @@ class ApplicationSettings:
             self.difference_cache_mib,
             MIN_DIFFERENCE_CACHE_MIB,
             MAX_DIFFERENCE_CACHE_MIB,
+        )
+        self._validate_int_range(
+            "source_residency_mib",
+            self.source_residency_mib,
+            MIN_SOURCE_RESIDENCY_MIB,
+            MAX_SOURCE_RESIDENCY_MIB,
         )
         self._validate_int_range(
             "difference_threshold",
@@ -99,7 +112,10 @@ class ApplicationSettings:
     def performance_settings(self) -> PerformanceSettings:
         """Build the immutable runtime snapshot consumed at application startup."""
 
-        return PerformanceSettings(difference_cache_bytes=self.difference_cache_mib * MIB)
+        return PerformanceSettings(
+            difference_cache_bytes=self.difference_cache_mib * MIB,
+            source_residency_bytes=self.source_residency_mib * MIB,
+        )
 
 
 class UnsupportedSettingsSchemaError(RuntimeError):
@@ -156,7 +172,9 @@ class SettingsRepository:
                 self._write_current(settings)
             return settings
 
-        if schema_version == 2:
+        if schema_version == 3:
+            settings = self._load_schema_v3_values()
+        elif schema_version == 2:
             settings = self._load_schema_v2_values()
         elif schema_version == 1:
             settings = self._load_schema_v1_values()
@@ -197,6 +215,12 @@ class SettingsRepository:
             MIN_DIFFERENCE_CACHE_MIB,
             MAX_DIFFERENCE_CACHE_MIB,
         )
+        source_mib, source_valid = self._parse_int_range(
+            self._adapter.value(SOURCE_RESIDENCY_MIB_KEY),
+            DEFAULT_SOURCE_RESIDENCY_MIB,
+            MIN_SOURCE_RESIDENCY_MIB,
+            MAX_SOURCE_RESIDENCY_MIB,
+        )
         threshold, threshold_valid = self._parse_int_range(
             self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
             DEFAULT_DIFFERENCE_THRESHOLD,
@@ -218,6 +242,7 @@ class SettingsRepository:
         settings = ApplicationSettings(
             dont_show_raw_json_profiles=dont_show,
             difference_cache_mib=cache_mib,
+            source_residency_mib=source_mib,
             default_open_directory=open_directory,
             default_export_directory=export_directory,
             require_exact_raw_file_size=exact_size,
@@ -228,12 +253,50 @@ class SettingsRepository:
             dont_show_valid
             and exact_size_valid
             and cache_valid
+            and source_valid
             and threshold_valid
             and gain_valid
             and open_valid
             and export_valid
         )
         return settings, not valid
+
+    def _load_schema_v3_values(self) -> ApplicationSettings:
+        """Preserve every v3 value while adding the decoded-source default."""
+
+        dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
+        exact_size, _ = self._parse_bool(self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY))
+        cache_mib, _ = self._parse_int_range(
+            self._adapter.value(DIFFERENCE_CACHE_MIB_KEY),
+            DEFAULT_DIFFERENCE_CACHE_MIB,
+            MIN_DIFFERENCE_CACHE_MIB,
+            MAX_DIFFERENCE_CACHE_MIB,
+        )
+        threshold, _ = self._parse_int_range(
+            self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
+            DEFAULT_DIFFERENCE_THRESHOLD,
+            MIN_DIFFERENCE_THRESHOLD,
+            MAX_DIFFERENCE_THRESHOLD,
+        )
+        gain, _ = self._parse_int_range(
+            self._adapter.value(DIFFERENCE_GAIN_KEY),
+            DEFAULT_DIFFERENCE_GAIN,
+            MIN_DIFFERENCE_GAIN,
+            MAX_DIFFERENCE_GAIN,
+        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
+        export_directory, _ = self._parse_directory(
+            self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
+        )
+        return ApplicationSettings(
+            dont_show_raw_json_profiles=dont_show,
+            difference_cache_mib=cache_mib,
+            default_open_directory=open_directory,
+            default_export_directory=export_directory,
+            require_exact_raw_file_size=exact_size,
+            difference_threshold=threshold,
+            difference_gain=gain,
+        )
 
     def _load_schema_v2_values(self) -> ApplicationSettings:
         dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
@@ -243,9 +306,7 @@ class SettingsRepository:
             MIN_DIFFERENCE_CACHE_MIB,
             MAX_DIFFERENCE_CACHE_MIB,
         )
-        open_directory, _ = self._parse_directory(
-            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
-        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
@@ -295,9 +356,7 @@ class SettingsRepository:
             MIN_DIFFERENCE_GAIN,
             MAX_DIFFERENCE_GAIN,
         )
-        open_directory, _ = self._parse_directory(
-            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
-        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
@@ -326,6 +385,7 @@ class SettingsRepository:
         self._adapter.set_value(DIFFERENCE_THRESHOLD_KEY, settings.difference_threshold)
         self._adapter.set_value(DIFFERENCE_GAIN_KEY, settings.difference_gain)
         self._adapter.set_value(DIFFERENCE_CACHE_MIB_KEY, settings.difference_cache_mib)
+        self._adapter.set_value(SOURCE_RESIDENCY_MIB_KEY, settings.source_residency_mib)
         self._adapter.sync()
 
     def _guard_writable_schema(self) -> None:

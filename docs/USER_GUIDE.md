@@ -129,13 +129,28 @@ apply immediately and do not require restart.
 
 ### Performance
 
-**Difference Map Cache** is the memory budget for calculated Difference maps; it
-does not control the decoded source images indicated by the green residency
-badges in Files. The default is 512 MiB and the allowed range is 64–8192 MiB.
-This is a startup setting: changing it saves the preference but does not resize
-the current cache. When the editable value differs from the current startup
-value, the dialog shows **Changes take effect after restarting PixelScope.**
-Returning the value to the current runtime setting clears that indication.
+**Decoded Source Memory** is the budget for native decoded source image arrays
+kept resident for fast navigation. The default is 1024 MiB and the allowed range
+is 128–32768 MiB. The green residency indicator in Files means that source's
+native decoded array is currently resident; it does not mean total application
+memory or a Difference cache entry.
+
+PixelScope releases the least-recently-used unprotected sources when their bytes
+exceed this budget. Visible, selected, active/analysis, current Difference-pair,
+and currently loading sources are protected. The budget is therefore soft: a
+required image, including one larger than the whole budget, remains available
+while protected. Selecting a released source reloads it through the normal image
+load path.
+
+**Difference Map Cache** is the separate memory budget for calculated Difference
+maps. Its default is 512 MiB and allowed range is 64–8192 MiB. Releasing a source
+for Decoded Source Memory does not by itself discard a valid Difference map.
+
+Both memory budgets are startup settings. Changing either saves the preference
+but does not resize the current runtime owner. When an editable value differs
+from its current startup value, the dialog shows **Changes take effect after
+restarting PixelScope.** Returning both values to their current runtime settings
+clears that indication.
 
 **Reset Settings** restores only application preferences to their defaults. It
 does not reset window layout, dock/splitter geometry, remembered last directory,
@@ -143,10 +158,8 @@ or other workspace/session state. Use **View > Reset Workspace Layout** for
 layout state instead.
 
 Docking and layout defaults are intentionally not duplicated in Settings because
-PixelScope already restores the exact saved workspace. The green Files residency
-badge currently reflects a separate fixed seven-source decoded-image policy.
-P2-B replaces that policy with a byte-budgeted source residency manager; P2-C
-adds preload behavior afterward.
+PixelScope already restores the exact saved workspace. P2-C adds bounded preload
+behavior after the current byte-budgeted source residency lifecycle.
 
 ## Plots dock
 

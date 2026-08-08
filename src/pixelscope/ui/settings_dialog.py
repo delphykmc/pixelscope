@@ -24,15 +24,18 @@ from pixelscope.app.settings import (
     MAX_DIFFERENCE_CACHE_MIB,
     MAX_DIFFERENCE_GAIN,
     MAX_DIFFERENCE_THRESHOLD,
+    MAX_SOURCE_RESIDENCY_MIB,
     MIN_DIFFERENCE_CACHE_MIB,
     MIN_DIFFERENCE_GAIN,
     MIN_DIFFERENCE_THRESHOLD,
+    MIN_SOURCE_RESIDENCY_MIB,
     ApplicationSettings,
     SettingsRepository,
 )
 from pixelscope.core.performance_settings import MIB, PerformanceSettings
 
 _DIFFERENCE_CACHE_STEP_MIB = 64
+_SOURCE_RESIDENCY_STEP_MIB = 128
 
 
 class _SettingRow(QWidget):
@@ -89,6 +92,9 @@ class _SettingsSection(QWidget):
 
     def add_row(self, row: _SettingRow) -> None:
         self._layout.addWidget(row)
+
+    def add_widget(self, widget: QWidget) -> None:
+        self._layout.addWidget(widget)
 
 
 class _SettingsPage(QWidget):
@@ -163,13 +169,9 @@ class SettingsDialog(QDialog):
         self.page_stack.setObjectName("settingsPageStack")
 
         self.dont_show_raw_json_profiles = QCheckBox("Don't Show RAW JSON Profiles")
-        self.dont_show_raw_json_profiles.setObjectName(
-            "generalDontShowRawJsonProfiles"
-        )
+        self.dont_show_raw_json_profiles.setObjectName("generalDontShowRawJsonProfiles")
         self.require_exact_raw_file_size = QCheckBox("Require Exact RAW File Size")
-        self.require_exact_raw_file_size.setObjectName(
-            "generalRequireExactRawFileSize"
-        )
+        self.require_exact_raw_file_size.setObjectName("generalRequireExactRawFileSize")
 
         self.difference_threshold = QSpinBox()
         self.difference_threshold.setObjectName("generalDifferenceThreshold")
@@ -220,9 +222,29 @@ class SettingsDialog(QDialog):
         self.difference_cache_slider.setTickInterval(16)
         self.difference_cache_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
 
-        self.restart_required_label = QLabel(
-            "Changes take effect after restarting PixelScope."
+        self.source_residency_mib = QSpinBox()
+        self.source_residency_mib.setObjectName("performanceSourceResidencyMiB")
+        self.source_residency_mib.setRange(
+            MIN_SOURCE_RESIDENCY_MIB,
+            MAX_SOURCE_RESIDENCY_MIB,
         )
+        self.source_residency_mib.setSuffix(" MiB")
+        self.source_residency_mib.setKeyboardTracking(False)
+        self.source_residency_mib.setSingleStep(_SOURCE_RESIDENCY_STEP_MIB)
+        self.source_residency_mib.setMaximumWidth(132)
+
+        self.source_residency_slider = QSlider(Qt.Orientation.Horizontal)
+        self.source_residency_slider.setObjectName("performanceSourceResidencySlider")
+        self.source_residency_slider.setRange(
+            MIN_SOURCE_RESIDENCY_MIB // _SOURCE_RESIDENCY_STEP_MIB,
+            MAX_SOURCE_RESIDENCY_MIB // _SOURCE_RESIDENCY_STEP_MIB,
+        )
+        self.source_residency_slider.setSingleStep(1)
+        self.source_residency_slider.setPageStep(8)
+        self.source_residency_slider.setTickInterval(16)
+        self.source_residency_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+
+        self.restart_required_label = QLabel("Changes take effect after restarting PixelScope.")
         self.restart_required_label.setObjectName("restartRequiredLabel")
         self.restart_required_label.setProperty("settingsRole", "supportingText")
         self.restart_required_label.setWordWrap(True)
@@ -240,8 +262,7 @@ class SettingsDialog(QDialog):
         self.reset_button = QPushButton("Reset Settings")
         self.reset_button.setObjectName("resetSettingsButton")
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save
-            | QDialogButtonBox.StandardButton.Cancel
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
         self.button_box.setObjectName("settingsButtonBox")
 
@@ -293,6 +314,12 @@ class SettingsDialog(QDialog):
         )
         self.difference_cache_mib.valueChanged.connect(  # type: ignore[attr-defined]
             self._difference_cache_spin_changed
+        )
+        self.source_residency_slider.valueChanged.connect(  # type: ignore[attr-defined]
+            self._source_residency_slider_changed
+        )
+        self.source_residency_mib.valueChanged.connect(  # type: ignore[attr-defined]
+            self._source_residency_spin_changed
         )
         self.button_box.accepted.connect(self._save)  # type: ignore[attr-defined]
         self.button_box.rejected.connect(self.reject)  # type: ignore[attr-defined]
@@ -360,8 +387,7 @@ class SettingsDialog(QDialog):
         )
         locations_section = _SettingsSection(
             "Default Locations",
-            "Leave fields blank to keep using PixelScope's remembered "
-            "last-used folder.",
+            "Leave fields blank to keep using PixelScope's remembered " "last-used folder.",
         )
         locations_section.add_row(
             _SettingRow(
@@ -397,39 +423,34 @@ class SettingsDialog(QDialog):
             "Control memory budgets used by analysis features.",
         )
 
-        cache_control = QWidget()
-        cache_control.setMaximumWidth(680)
-        cache_layout = QVBoxLayout(cache_control)
-        cache_layout.setContentsMargins(0, 0, 0, 0)
-        cache_layout.setSpacing(6)
-
-        value_row = QHBoxLayout()
-        value_row.setContentsMargins(0, 0, 0, 0)
-        value_row.setSpacing(12)
-        value_row.addWidget(self.difference_cache_slider, 1)
-        value_row.addWidget(self.difference_cache_mib)
-        cache_layout.addLayout(value_row)
-
-        endpoint_row = QHBoxLayout()
-        endpoint_row.setContentsMargins(0, 0, 144, 0)
-        minimum_label = QLabel(f"{MIN_DIFFERENCE_CACHE_MIB} MiB")
-        minimum_label.setProperty("settingsRole", "supportingText")
-        maximum_label = QLabel(f"{MAX_DIFFERENCE_CACHE_MIB} MiB")
-        maximum_label.setProperty("settingsRole", "supportingText")
-        endpoint_row.addWidget(minimum_label)
-        endpoint_row.addStretch(1)
-        endpoint_row.addWidget(maximum_label)
-        cache_layout.addLayout(endpoint_row)
-        cache_layout.addWidget(self.restart_required_label)
-
+        memory_section.add_row(
+            _SettingRow(
+                "Decoded Source Memory",
+                "Memory budget for decoded source image arrays kept resident for "
+                "fast navigation. The green residency indicator in Files reflects "
+                "this source residency.",
+                self._memory_budget_control(
+                    self.source_residency_slider,
+                    self.source_residency_mib,
+                    MIN_SOURCE_RESIDENCY_MIB,
+                    MAX_SOURCE_RESIDENCY_MIB,
+                ),
+            )
+        )
         memory_section.add_row(
             _SettingRow(
                 "Difference Map Cache",
                 "Memory budget for cached Difference maps. Adjust in 64 MiB steps; "
                 "the configured value is applied on the next PixelScope launch.",
-                cache_control,
+                self._memory_budget_control(
+                    self.difference_cache_slider,
+                    self.difference_cache_mib,
+                    MIN_DIFFERENCE_CACHE_MIB,
+                    MAX_DIFFERENCE_CACHE_MIB,
+                ),
             )
         )
+        memory_section.add_widget(self.restart_required_label)
         page.add_section(memory_section)
         page.finish()
         return self._scrollable_page(page, "performanceSettingsPage")
@@ -454,6 +475,38 @@ class SettingsDialog(QDialog):
         layout.addWidget(line_edit, 1)
         layout.addWidget(browse_button)
         return container
+
+    @staticmethod
+    def _memory_budget_control(
+        slider: QSlider,
+        spin_box: QSpinBox,
+        minimum_mib: int,
+        maximum_mib: int,
+    ) -> QWidget:
+        control = QWidget()
+        control.setMaximumWidth(680)
+        layout = QVBoxLayout(control)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        value_row = QHBoxLayout()
+        value_row.setContentsMargins(0, 0, 0, 0)
+        value_row.setSpacing(12)
+        value_row.addWidget(slider, 1)
+        value_row.addWidget(spin_box)
+        layout.addLayout(value_row)
+
+        endpoint_row = QHBoxLayout()
+        endpoint_row.setContentsMargins(0, 0, 144, 0)
+        minimum_label = QLabel(f"{minimum_mib} MiB")
+        minimum_label.setProperty("settingsRole", "supportingText")
+        maximum_label = QLabel(f"{maximum_mib} MiB")
+        maximum_label.setProperty("settingsRole", "supportingText")
+        endpoint_row.addWidget(minimum_label)
+        endpoint_row.addStretch(1)
+        endpoint_row.addWidget(maximum_label)
+        layout.addLayout(endpoint_row)
+        return control
 
     def _apply_style(self) -> None:
         self.setStyleSheet(
@@ -544,7 +597,8 @@ class SettingsDialog(QDialog):
                 selection-background-color: palette(highlight);
                 selection-color: palette(highlighted-text);
             }
-            QSlider#performanceDifferenceCacheSlider {
+            QSlider#performanceDifferenceCacheSlider,
+            QSlider#performanceSourceResidencySlider {
                 min-height: 30px;
             }
             QPushButton {
@@ -563,6 +617,7 @@ class SettingsDialog(QDialog):
         return ApplicationSettings(
             dont_show_raw_json_profiles=self.dont_show_raw_json_profiles.isChecked(),
             difference_cache_mib=self.difference_cache_mib.value(),
+            source_residency_mib=self.source_residency_mib.value(),
             default_open_directory=self.default_open_directory.text().strip(),
             default_export_directory=self.default_export_directory.text().strip(),
             require_exact_raw_file_size=self.require_exact_raw_file_size.isChecked(),
@@ -571,18 +626,16 @@ class SettingsDialog(QDialog):
         )
 
     def set_settings(self, settings: ApplicationSettings) -> None:
-        self.dont_show_raw_json_profiles.setChecked(
-            settings.dont_show_raw_json_profiles
-        )
-        self.require_exact_raw_file_size.setChecked(
-            settings.require_exact_raw_file_size
-        )
+        self.dont_show_raw_json_profiles.setChecked(settings.dont_show_raw_json_profiles)
+        self.require_exact_raw_file_size.setChecked(settings.require_exact_raw_file_size)
         self.difference_threshold.setValue(settings.difference_threshold)
         self.difference_gain.setValue(settings.difference_gain)
         self.default_open_directory.setText(settings.default_open_directory)
         self.default_export_directory.setText(settings.default_export_directory)
         self.difference_cache_mib.setValue(settings.difference_cache_mib)
+        self.source_residency_mib.setValue(settings.source_residency_mib)
         self._sync_difference_cache_slider(settings.difference_cache_mib)
+        self._sync_source_residency_slider(settings.source_residency_mib)
         self._update_restart_required()
 
     def _save(self) -> None:
@@ -635,10 +688,35 @@ class SettingsDialog(QDialog):
         self.difference_cache_slider.setValue(slider_value)
         self.difference_cache_slider.blockSignals(was_blocked)
 
+    def _source_residency_slider_changed(self, slider_value: int) -> None:
+        requested_mib = slider_value * _SOURCE_RESIDENCY_STEP_MIB
+        if self.source_residency_mib.value() != requested_mib:
+            self.source_residency_mib.setValue(requested_mib)
+        else:
+            self._update_restart_required()
+
+    def _source_residency_spin_changed(self, value: int) -> None:
+        self._sync_source_residency_slider(value)
+        self._update_restart_required()
+
+    def _sync_source_residency_slider(self, value_mib: int) -> None:
+        slider_value = round(value_mib / _SOURCE_RESIDENCY_STEP_MIB)
+        slider_value = max(
+            self.source_residency_slider.minimum(),
+            min(self.source_residency_slider.maximum(), slider_value),
+        )
+        if self.source_residency_slider.value() == slider_value:
+            return
+        was_blocked = self.source_residency_slider.blockSignals(True)
+        self.source_residency_slider.setValue(slider_value)
+        self.source_residency_slider.blockSignals(was_blocked)
+
     def _update_restart_required(self) -> None:
         requested_bytes = self.difference_cache_mib.value() * MIB
         self.restart_required_label.setVisible(
             requested_bytes != self._runtime_performance_settings.difference_cache_bytes
+            or self.source_residency_mib.value() * MIB
+            != self._runtime_performance_settings.source_residency_bytes
         )
 
     def _set_future_schema_read_only(self, version: int | None) -> None:
@@ -652,6 +730,8 @@ class SettingsDialog(QDialog):
         self.default_export_browse.setEnabled(False)
         self.difference_cache_mib.setEnabled(False)
         self.difference_cache_slider.setEnabled(False)
+        self.source_residency_mib.setEnabled(False)
+        self.source_residency_slider.setEnabled(False)
         self.reset_button.setEnabled(False)
         save_button = self.button_box.button(QDialogButtonBox.StandardButton.Save)
         if save_button is not None:

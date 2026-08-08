@@ -1,8 +1,8 @@
 # PixelScope UI/performance iteration status
 
-Snapshot date: 2026-08-07  
-Current runtime baseline: PR #12 merge commit  
-P2-0 branch base: `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
+Snapshot date: 2026-08-08
+Current merged runtime baseline: PR #15 merge commit
+P2-B branch base: `1869764a74b01cebebaf8fa915b11a2a696be6cb`
 
 ## Completed iterations
 
@@ -19,6 +19,9 @@ P2-0 branch base: `1f13e85bccf3ef1eab7f27c87c84f798eadfcc2f`
 | P1-D / #10 | Complete | Primary ordering, atomic Split transitions, folder navigation |
 | P1-E / #11 | Complete | Plots persistence, gestures, Statistics workspace |
 | P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
+| P2-A1 / #14 | Complete | Application identity and packaged resources |
+| P2-A2 / #15 | Complete | Typed Settings schema v3 and runtime integration |
+| P2-B | Active | Byte-budgeted decoded-source residency and schema v4 |
 
 ## Current UI behavior
 
@@ -69,19 +72,20 @@ Windows evidence was not re-verified by P2-0.
 Implemented now:
 
 - Difference byte-budget LRU and diagnostics.
-- Fixed seven-document, count-based decoded-source residency.
-- Current residency protection inputs: visible documents and active load targets.
+- Byte-budgeted native decoded-source LRU with a 1024 MiB default.
+- Soft-budget protection for visible, selected, active/analysis, Difference-pair,
+  and active load-target sources.
+- Exact native `source.nbytes` accounting and minimal residency diagnostics.
+- Schema-v4 General / Files / Performance Settings with distinct Decoded Source
+  Memory and Difference Map Cache startup budgets.
+- Canonical application icon/resource foundation and immutable
+  `PerformanceSettings` startup injection.
 - Bounded normal-load and numeric worker pools.
 
 Not implemented yet:
 
-- Settings dialog and typed settings repository.
-- Canonical application icon/resource foundation.
-- Startup injection of `PerformanceSettings`.
-- Byte-budgeted decoded-source residency.
-- Selected/analysis protection as explicit residency policy inputs.
 - One-group-ahead preload.
 - Runtime diagnostics UI/snapshot and Copy Diagnostics.
 
-These items are the active P2 program. P2 functionality must not be treated as
-available until its phase PR is merged.
+P2-C preload and P2-D diagnostics remain the next runtime slices. P2-B behavior
+must not be treated as merged release behavior until its phase PR is merged.

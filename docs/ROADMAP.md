@@ -12,8 +12,9 @@
 - Byte-budgeted `DifferenceMapCache` with a 512 MiB default, LRU eviction,
   chunked native metrics, and `used_bytes`/`budget_bytes`/`entry_count`
   diagnostics.
-- Reloadable decoded-source residency with the current fixed seven-document,
-  count-based policy.
+- Byte-budgeted decoded-source residency with exact native-source accounting,
+  protected LRU soft-budget behavior, reload, invalidation, and minimal
+  diagnostics.
 - RAW profile workflow, unpacked uint8/uint16 alignment/endian support, MIPI
   RAW10/12/14, Bayer mosaic analysis, JSON migration, and deterministic fixtures.
 - Fixed Multi View geometry, primary-image behavior, exact six-source Difference
@@ -41,7 +42,8 @@ Sequential dependency: `P2-0 → P2-A → P2-B → P2-C → P2-D → P2-E`.
   injection.
 - **P2-B — Byte-budgeted decoded-source residency:** replace the fixed-count
   policy with native-source byte accounting, protected LRU, soft budget,
-  eviction/reload, invalidation, setting, and diagnostics API.
+  eviction/reload, invalidation, setting, and diagnostics API. Implemented on
+  `feature/p2-b-source-residency-budget`; validation/merge are in progress.
 - **P2-C — Bounded next-group preload:** one folder group ahead, normal-load
   priority, bounded ownership, stale cancellation/drop, request validation,
   budget-aware retention, setting, and counters.

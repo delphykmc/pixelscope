@@ -804,7 +804,7 @@ def test_six_images_with_difference_force_single_view_and_lock_multi(
     assert window.viewer.document is window._difference_document
     assert window._layout_mode == "Single View"
     assert not window.action_map["Multi View"].isEnabled()
-    assert window._resident_document_limit == 7
+    assert not hasattr(window, "_resident_document_limit")
     layout_model = window.layout_selector.model()
     multi_index = window.layout_selector.findText("Multi View")
     assert not layout_model.item(multi_index).isEnabled()
@@ -1054,10 +1054,7 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     assert summary.item(1, 2).text() == "8-bit"
     assert summary.item(1, 3).text() == "64"
     assert window.comparison_analysis_panel.status.text() == ""
-    assert (
-        window.comparison_analysis_panel.roi_label.text()
-        == "x=0, y=0, width=8, height=8"
-    )
+    assert window.comparison_analysis_panel.roi_label.text() == "x=0, y=0, width=8, height=8"
     histogram_plots = window.comparison_analysis_panel.plots[:2]
     assert all(not plot.isHidden() for plot in histogram_plots)
     assert window.comparison_analysis_panel.histogram_layout.getItemPosition(
@@ -1471,7 +1468,7 @@ def test_folder_pair_navigation_recalculates_enabled_difference_and_keeps_focus(
     window.close()
 
 
-def test_rapid_three_folder_navigation_coalesces_loads_and_bounds_resident_images(
+def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
     qtbot: object, tmp_path: Path
 ) -> None:
     folders = [tmp_path / name for name in ("camera-a", "camera-b", "camera-c")]
@@ -1518,7 +1515,11 @@ def test_rapid_three_folder_navigation_coalesces_loads_and_bounds_resident_image
         for document in window.documents.values()
         if document.source_path is not None and document.source is not None
     ]
-    assert len(resident) <= window._resident_document_limit
+    assert len(resident) > 7
+    assert window.residency_manager.used_bytes == sum(
+        int(document.source.nbytes) for document in resident if document.source is not None
+    )
+    assert window.residency_manager.used_bytes <= window.residency_manager.budget_bytes
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: len(window.comparison_analysis_panel.last_results) == 3,
         timeout=3000,

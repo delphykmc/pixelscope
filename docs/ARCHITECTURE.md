@@ -43,7 +43,7 @@ separate even though both ultimately use Qt persistence.
 - Frozen `ApplicationSettings` is the typed persisted domain model. P2-A2 owns
   RAW JSON confirmation, exact RAW file-size validation, default Open/Export
   folders, Difference Threshold/Gain defaults, and the Difference Map Cache MiB
-  preference.
+  preference. P2-B adds the Decoded Source Memory MiB preference.
 - `SettingsRepository` owns defaults, versioned schema behavior, migration,
   validation, invalid-state recovery, save, and reset.
 - `QSettingsAdapter` is the only application-settings component that knows raw
@@ -51,10 +51,9 @@ separate even though both ultimately use Qt persistence.
 - `Edit > Settings...` uses a category/page template with **General**, **Files**,
   and **Performance** pages. The left navigation is intentionally simple at the
   current settings count; a VS Code-style settings search is not required yet.
-- Application bootstrap loads `ApplicationSettings`, converts the Difference
-  Map Cache preference to an immutable byte-based `PerformanceSettings` startup
-  snapshot, and passes both settings objects plus the repository to
-  `MainWindow`.
+- Application bootstrap loads `ApplicationSettings`, converts both performance
+  preferences to an immutable byte-based `PerformanceSettings` startup snapshot,
+  and passes both settings objects plus the repository to `MainWindow`.
 - `MainWindow` injects `PerformanceSettings.difference_cache_bytes` into
   `DifferencePanel`, which passes the fixed budget to `DifferenceMapCache`.
   Neither the panel nor the cache reads persistence.
@@ -67,10 +66,13 @@ separate even though both ultimately use Qt persistence.
 - Default Open/Export folders are live preferences. A blank value preserves the
   existing last-used-folder behavior; a configured existing folder only changes
   the starting location of the corresponding file dialog.
+- `MainWindow` constructs `ResidencyManager` from
+  `PerformanceSettings.source_residency_bytes`. The manager never reads
+  persistence and the Difference cache remains a separate owner.
 - Runtime edits to startup-only performance values are persisted for the next
-  launch; existing runtime caches are not mutated.
+  launch; existing runtime caches and managers are not mutated.
 
-Schema version 3 owns:
+Schema version 4 owns:
 
 - `settings/schema_version`
 - `settings/general/dont_show_raw_json_profiles`
@@ -80,15 +82,14 @@ Schema version 3 owns:
 - `settings/analysis/difference_threshold`
 - `settings/analysis/difference_gain`
 - `settings/performance/difference_cache_mib`
+- `settings/performance/source_residency_mib`
 
-Schema version 2 is migrated by preserving its RAW-confirmation, file-location,
-and Difference Map Cache values while adding the v3 defaults for exact RAW
-validation, Difference Threshold, and Difference Gain. Schema version 1 is also
-migrated through the same current model. Legacy `raw/dont_show_json_profiles`
-remains migration input only. Invalid current values normalize to validated
-defaults. A future schema version is not guessed or rewritten; the current
-process uses safe defaults and exposes application settings as read-only
-compatibility state.
+Schema version 3 migrates to v4 by preserving every v3 value and adding the
+1024 MiB source-residency default. Schema v2/v1 migration and legacy
+`raw/dont_show_json_profiles` input remain supported. Invalid current values
+normalize to validated defaults. A future schema version is not guessed or
+rewritten; the current process uses safe defaults and exposes application
+settings as read-only compatibility state.
 
 `Reset Settings` resets only schema-owned application preferences. It is
 separate from `Reset Workspace Layout` and does not remove window geometry,
@@ -140,12 +141,21 @@ Statistics and Histogram cache keys include document generation and operation
 parameters. Line Profile caches by generation and line coordinates. Rapid
 navigation invalidates obsolete work through current MainWindow/worker rules.
 
-Decoded sources use a reloadable working set owned by `MainWindow`. Recency and
-a protected set of visible documents and active load targets are used to keep at
-most seven native source arrays resident, with dependent channel state cleared
-during eviction. This is a count-based UI/application policy, not a byte-based
-manager. Selected and analysis documents are not yet explicit policy inputs;
-those protections are planned for P2-B.
+Decoded sources use a reloadable byte-budgeted working set. Pure-core
+`ResidencyManager` owns exact native-source byte accounting, LRU order,
+protected eviction planning, and minimal diagnostics without importing Qt or
+mutating documents. `MainWindow` owns document lookup and mutation. Its
+protected registered-ID set includes visible, selected, active/analysis,
+current Difference-pair, and active load-target sources.
+
+The budget is soft: protected sources may keep `used_bytes` above
+`budget_bytes`, including one source larger than the entire budget. Only
+unprotected resident sources are planned for oldest-first eviction. A released
+document sets source and preview to `None`, clears Statistics/Histogram and
+source-dependent channel-view state, becomes pending, updates its Files badge,
+and reloads through the existing load-token/worker path when required again.
+Successful loads refresh accounting from the new `source.nbytes`; stale or
+failed loads do not add resident bytes.
 
 ## Current Difference lifecycle
 
@@ -161,6 +171,11 @@ and 64–8192 MiB validation range. Startup converts MiB to bytes in frozen
 session does not mutate the existing cache; the Settings dialog reports
 restart-required state against the startup snapshot.
 
+P2-B persists Decoded Source Memory independently with a 1024 MiB default,
+128–32768 MiB validation range, and 128 MiB UI increment. Saving either
+startup-only budget never mutates its current runtime owner; the Settings dialog
+compares both editable values with the startup snapshot for restart indication.
+
 Difference Threshold and Gain are persisted analysis display defaults. They are
 applied to `DifferencePanel` when `MainWindow` starts and immediately after a
 Settings save; changing them does not require restart. Difference-map memory and
@@ -168,10 +183,14 @@ decoded-source residency remain separate policies.
 
 ## Current source-memory boundary
 
-`ImageDocument.from_array()` retains both native source and preview. A future
-source-residency budget therefore accounts only native decoded source arrays and
-must not be presented as process memory. Preview arrays, Qt textures, Difference
-and derived caches, and transient worker arrays are outside that accounting.
+`ImageDocument.from_array()` retains both native source and preview. Decoded
+Source Memory accounts only registered native `ImageDocument.source.nbytes`.
+Registered programmatic sources without a reload path are counted and protected
+rather than discarded. Preview arrays, Qt textures, Difference and
+derived caches, channel-split documents, transient worker arrays, Python/Qt
+object overhead, and process RSS are outside that accounting. The Files green
+residency state means the registered document's native source is currently
+resident; it does not describe Difference-map cache state.
 
 ## Current RAW boundary
 
@@ -196,9 +215,6 @@ profile-confirmation dialog.
 
 The following are target boundaries, not implemented components:
 
-- `ResidencyManager`: native-source byte accounting, protected LRU, soft-budget
-  policy, eviction/reload, invalidation, and diagnostics. Its user-facing source
-  budget belongs on the existing Performance Settings page when P2-B lands.
 - `PreloadController`: one-group-ahead planning, bounded ownership, normal-load
   priority, cancellation requests, stale-result rejection, and retention. Its
   enabled/default choice belongs on Performance when P2-C lands.

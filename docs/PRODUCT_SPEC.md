@@ -44,12 +44,21 @@ results.
 - Files provides optional Default Open Folder and Default Export Folder values.
   Blank preserves the remembered last-used-folder behavior; configured existing
   folders only seed dialog starting locations and apply without restart.
-- Performance owns **Difference Map Cache**. It defaults to 512 MiB, accepts
-  64–8192 MiB, and applies a changed value after PixelScope restarts. The current
-  runtime cache is not resized live.
-- Difference Map Cache is separate from decoded source-image residency. The
-  latter remains a fixed seven-document policy until P2-B replaces it with a
-  byte-budgeted manager.
+- Performance owns two independent startup budgets. **Decoded Source Memory**
+  defaults to 1024 MiB and accepts 128–32768 MiB; **Difference Map Cache**
+  defaults to 512 MiB and accepts 64–8192 MiB. Changed values apply after
+  PixelScope restarts and do not resize current runtime owners live.
+- Decoded Source Memory accounts native registered `ImageDocument.source` arrays
+  only. The Files green residency indicator reflects this state, not Difference
+  cache entries or total application memory.
+- Source residency is a protected LRU soft budget. Visible, selected,
+  active/analysis, current Difference-pair, and active load-target sources remain
+  resident even when their bytes exceed the budget. Unprotected oldest sources
+  are released and reload normally when required again; an oversized required
+  source is not rejected or repeatedly load/evicted.
+- Source eviction clears source-local Statistics/Histogram/channel-derived state
+  but does not evict Difference maps solely because native source bytes were
+  released.
 - `Reset Settings` restores application preferences without resetting workspace
   layout, window geometry, dock/splitter state, or remembered last-directory
   state.
@@ -86,7 +95,7 @@ mosaic planes; demosaic is outside the current product contract.
 
 ## Future product scope
 
-The complete product adds byte-budgeted decoded-source residency and preload,
-RAW demosaic/normalization/profile suggestion, alpha overlay, persistent
-sessions and ROI management, live GPU IQA/image evaluation, heatmaps, and a
-validated standalone Windows distribution.
+The complete product adds bounded next-group preload, RAW
+demosaic/normalization/profile suggestion, alpha overlay, persistent sessions
+and ROI management, live GPU IQA/image evaluation, heatmaps, and a validated
+standalone Windows distribution.

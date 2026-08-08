@@ -10,6 +10,7 @@ from pixelscope.core.difference_cache import (
 )
 from pixelscope.core.performance_settings import (
     DEFAULT_DIFFERENCE_CACHE_BYTES,
+    DEFAULT_SOURCE_RESIDENCY_BYTES,
     MIB,
     PerformanceSettings,
 )
@@ -35,8 +36,12 @@ def test_default_performance_settings_use_512_mib_difference_cache() -> None:
     assert MIB == 1024 * 1024
     assert settings.difference_cache_bytes == 512 * MIB
     assert settings.difference_cache_bytes == DEFAULT_DIFFERENCE_CACHE_BYTES
+    assert settings.source_residency_bytes == 1024 * MIB
+    assert settings.source_residency_bytes == DEFAULT_SOURCE_RESIDENCY_BYTES
     with pytest.raises(ValueError, match="positive"):
         PerformanceSettings(difference_cache_bytes=0)
+    with pytest.raises(ValueError, match="positive"):
+        PerformanceSettings(source_residency_bytes=0)
 
 
 def test_difference_cache_uses_byte_budget_and_true_lru_order() -> None:
