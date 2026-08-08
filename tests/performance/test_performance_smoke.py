@@ -5,6 +5,7 @@ from time import perf_counter
 
 import numpy as np
 
+from pixelscope.core.bayer import analyze_bayer_roi
 from pixelscope.core.diff_engine import (
     absolute_difference_metrics,
     compact_absolute_difference,
@@ -15,9 +16,11 @@ from pixelscope.core.display_transform import (
     render_threshold_mask,
     to_display_uint8,
 )
+from pixelscope.core.roi import RoiBounds
 from pixelscope.core.statistics import histogram
+from pixelscope.io.image_reader import read_raw_document
 from pixelscope.io.raw_profile import RawProfile
-from pixelscope.io.raw_reader import read_raw
+from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
 
 
 def test_fhd_rgb_uint8_characterization() -> None:
@@ -99,8 +102,14 @@ def test_fhd_grayscale_uint16_characterization() -> None:
 
 def test_uhd_bayer_uint16_raw_characterization(tmp_path: Path) -> None:
     shape = (2160, 3840)
-    source = np.arange(shape[0] * shape[1], dtype=np.uint16).reshape(shape)
+    plane_values = (0, 16384, 32768, 65535)
+    source = np.empty(shape, dtype=np.uint16)
+    source[0::2, 0::2] = plane_values[0]
+    source[0::2, 1::2] = plane_values[1]
+    source[1::2, 0::2] = plane_values[2]
+    source[1::2, 1::2] = plane_values[3]
     raw_path = tmp_path / "uhd-rggb16.raw"
+    profile_path = tmp_path / "uhd-rggb16.json"
     source.tofile(raw_path)
     profile = RawProfile(
         name="uhd-rggb16",
@@ -115,17 +124,27 @@ def test_uhd_bayer_uint16_raw_characterization(tmp_path: Path) -> None:
         black_level=0,
         white_level=65535,
     )
+    profile.save_json(profile_path)
 
     timings: dict[str, float] = {}
     start = perf_counter()
-    mapped = read_raw(raw_path, profile)
-    timings["memmap"] = perf_counter() - start
+    document = read_raw_document(raw_path, profile_path)
+    timings["raw_document_load"] = perf_counter() - start
+    mapped = document.source
+    preview = document.preview
+    assert mapped is not None
+    assert preview is not None
+
+    bins, value_range = automatic_histogram_spec(document)
     start = perf_counter()
-    preview = to_display_uint8(mapped, DisplayTransform(0, 65535))
-    timings["preview"] = perf_counter() - start
-    start = perf_counter()
-    result = histogram(mapped, 1024)
-    timings["histogram"] = perf_counter() - start
+    analysis = analyze_bayer_roi(
+        mapped,
+        RoiBounds(0, 0, shape[1], shape[0]),
+        "RGGB",
+        bins,
+        value_range,
+    )
+    timings["bayer_analysis"] = perf_counter() - start
     start = perf_counter()
     signed = signed_difference(mapped, source)
     timings["signed_difference"] = perf_counter() - start
@@ -153,15 +172,41 @@ def test_uhd_bayer_uint16_raw_characterization(tmp_path: Path) -> None:
             "mask": mask.nbytes,
         },
     )
+    assert document.channel_layout == "BAYER"
+    assert document.bit_depth == 16
+    assert document.raw_profile == profile
     assert mapped.shape == shape
     assert mapped.dtype.itemsize == 2
     assert np.issubdtype(mapped.dtype, np.unsignedinteger)
     assert mapped.nbytes == source.nbytes == 2160 * 3840 * 2
     assert np.array_equal(mapped, source)
-    assert result.channel_names == ("Gray",)
-    assert int(result.counts[0].sum()) == source.size
-    assert preview.shape == shape
+
+    assert preview.shape == (2160, 3840, 3)
     assert preview.dtype == np.uint8
+    assert tuple(preview[0, 0]) == (0, 0, 0)
+    assert tuple(preview[0, 1]) == (24, 64, 24)
+    assert tuple(preview[1, 0]) == (49, 128, 49)
+    assert tuple(preview[1, 1]) == (97, 255, 97)
+    assert np.array_equal(preview[..., 0], preview[..., 2])
+
+    assert bins == 4096
+    assert value_range == (0.0, 65536.0)
+    assert analysis.channel_names == ("R", "Gr", "Gb", "B")
+    assert analysis.histogram.channel_names == analysis.channel_names
+    assert analysis.channel_sample_counts == (2_073_600,) * 4
+    assert sum(analysis.channel_sample_counts) == source.size
+    expected_bins = (0, 1024, 2048, 4095)
+    for counts, expected_bin in zip(
+        analysis.histogram.counts,
+        expected_bins,
+        strict=True,
+    ):
+        assert int(counts.sum()) == 2_073_600
+        assert np.count_nonzero(counts) == 1
+        assert int(counts[expected_bin]) == 2_073_600
+    channel_means = [statistics.mean for statistics in analysis.channel_statistics]
+    assert channel_means == list(plane_values)
+
     assert signed.dtype == np.int32
     assert absolute.dtype == np.uint16
     assert not np.any(signed)

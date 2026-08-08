@@ -235,12 +235,14 @@ This document records the implementation baseline that new work must use.
   values, bounded sanitized failures, **Copy Diagnostics** as the only surface,
   and observation-only reads with no LRU touch, load/preload/cancellation/render,
   or filesystem work.
-- `tests/performance/test_performance_smoke.py` now supplies a representative
+- `tests/performance/test_performance_smoke.py` supplies a representative
   synthetic/temp-file matrix for FHD RGB uint8, FHD grayscale uint16, and UHD
-  Bayer uint16 profile-described RAW. It observes operation timings but gates on
-  shape, dtype, values/counts, exact native bytes, zero-difference invariants, and
-  output structure. The former hardware/load-dependent threshold-mask elapsed
-  assertion is removed.
+  Bayer uint16 profile-described RAW. The UHD case runs the production
+  `read_raw_document()` Bayer preview path and `automatic_histogram_spec()` Auto
+  policy, then verifies `analyze_bayer_roi()` RGGB R/Gr/Gb/B separation,
+  per-plane sample counts, 4096-bin placement, preview channel structure/content,
+  exact native bytes, and zero-difference invariants. Timing output remains
+  observational only.
 - Existing `tests/integration/test_4k_samples.py` remains the real 3840x2160 RGB
   plus RGGB10-u16 RAW fixture path; no new large binary fixture is added by P2-F.
 - Process RSS remains outside P2 source-memory accounting and no benchmark/live
@@ -248,7 +250,7 @@ This document records the implementation baseline that new work must use.
 
 ## Not implemented
 
-- P2-F independent review and owner/local Windows closure validation are still
+- P2-F independent re-review and owner/local Windows closure validation are still
   required before merge; this branch must not describe P2-F as merged.
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
@@ -269,6 +271,10 @@ This document records the implementation baseline that new work must use.
   replaces the performance-smoke wall-clock merge gate with deterministic
   representative FHD/UHD correctness/resource invariants while retaining timing
   output as observational evidence.
+- P2-F review follow-up commit `3e0cb616cecc88b3962bf6f564c9fc9feddedb41`
+  closes the UHD Bayer characterization gap by exercising production Bayer
+  preview loading, Auto 4096-bin selection, and CFA-specific analysis instead of
+  generic grayscale preview/histogram semantics.
 - The GitHub connector implementation environment does not provide the repository
   Python/Qt runtime. No P2-F pytest/ruff/mypy/pip/docs command is recorded as
   passing until its output is actually observed on the owner/local environment.
