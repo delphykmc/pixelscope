@@ -47,12 +47,8 @@ def test_primary_flag_is_visible_and_defaults_to_first_multi_view_image(
     assert [flag.isChecked() for flag in flags] == (
         [False] if count == 1 else [True, *([False] * (count - 1))]
     )
-    assert view.focus_document_id == (
-        None if count == 1 else documents[0].document_id
-    )
-    assert all(
-        flag.toolTip() in {"Set as primary image", "Primary image"} for flag in flags
-    )
+    assert view.focus_document_id == (None if count == 1 else documents[0].document_id)
+    assert all(flag.toolTip() in {"Set as primary image", "Primary image"} for flag in flags)
 
 
 def test_primary_flags_are_hidden_for_transient_split_channels(qtbot: object) -> None:

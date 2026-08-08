@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-08  
-P2-A1 / PR #14 merge commit and P2-A2 branch base:
-`c3ddb91f4644eae981d4683fe42d9b8219ad76fe`
+P2-A2 / PR #15 merge commit and P2-B branch base:
+`1869764a74b01cebebaf8fa915b11a2a696be6cb`
 
 This document records the implementation baseline that new work must use.
 
@@ -15,9 +15,10 @@ This document records the implementation baseline that new work must use.
   `52daa63425a286e370aa5ef36f59ba51a8acd565`.
 - P2-A1 merged as PR #14 at
   `c3ddb91f4644eae981d4683fe42d9b8219ad76fe`.
-- P2-A2 is implemented on `feature/p2-a-settings-foundation`; merge remains
-  pending while the final schema-v3 runtime-integration review fixes are
-  revalidated.
+- P2-A2 merged as PR #15 at
+  `1869764a74b01cebebaf8fa915b11a2a696be6cb`.
+- P2-B is implemented on `feature/p2-b-source-residency-budget`; automated
+  validation is recorded below and manual Windows validation remains before merge.
 
 ## Implemented baseline
 
@@ -61,7 +62,7 @@ This document records the implementation baseline that new work must use.
   value exposed through **Settings > General**, not the File menu. Legacy
   `raw/dont_show_json_profiles` values are migrated to the versioned namespace.
 - The RAW confirmation dialog may still set the same preference through its
-  explicit don't-show-again choice; that update preserves all other schema-v3
+  explicit don't-show-again choice; that update preserves all other schema-v4
   settings.
 - `Require Exact RAW File Size` is a General setting. Disabled allows trailing
   bytes while still rejecting undersized files; enabled requires exact byte
@@ -78,11 +79,11 @@ This document records the implementation baseline that new work must use.
 - `ApplicationSettings` is the frozen typed model for persisted user preferences.
   P2-A2 owns RAW confirmation, exact RAW file-size validation, default
   Open/Export folders, Difference Threshold/Gain defaults, and Difference Map
-  Cache MiB.
+  Cache MiB. P2-B adds Decoded Source Memory MiB.
 - `SettingsRepository` owns defaults, schema migration, validation, save/reset,
   invalid-state recovery, and future-schema compatibility; `QSettingsAdapter`
   owns raw application-setting keys.
-- Settings schema version 3 uses:
+- Settings schema version 4 uses:
   - `settings/schema_version`
   - `settings/general/dont_show_raw_json_profiles`
   - `settings/general/require_exact_raw_file_size`
@@ -91,20 +92,31 @@ This document records the implementation baseline that new work must use.
   - `settings/analysis/difference_threshold`
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
-- Schema v2 migrates to v3 by preserving its existing values and adding exact RAW
-  validation plus Difference Threshold/Gain defaults. Schema v1 and the legacy
-  RAW key are also migrated into the current model.
+  - `settings/performance/source_residency_mib`
+- Schema v3 migrates directly to v4. Difference-cache values valid in the v3
+  64–8192 MiB range are preserved up to 1280 MiB and clamped to 1280 MiB above
+  that new maximum; malformed or genuinely invalid values use the new default.
+  The migration adds the 256 MiB source-residency default and preserves unrelated
+  keys. Schema v2/v1 and the legacy RAW key continue to migrate forward.
 - `Edit > Settings...` uses left-side **General / Files / Performance** page
   navigation with a flat VS Code-inspired content hierarchy.
 - Blank default Open/Export locations preserve the existing last-used-folder
   behavior. A configured existing location only seeds the corresponding file
   dialog and applies without restart.
-- Difference Map Cache defaults to 512 MiB and accepts 64–8192 MiB.
+- Difference Map Cache defaults to 128 MiB and accepts 64–1280 MiB.
+- Decoded Source Memory defaults to 256 MiB, accepts 128–2560 MiB, and uses
+  128 MiB UI increments.
+- When physical RAM is detected, Settings accepts a combined image-memory budget
+  up to 50% of RAM. Above-limit saves are rejected without changing either input.
+  Unknown RAM falls back to product bounds only. This is a conservative
+  configuration guard, not an out-of-memory guarantee.
 - Application startup converts persisted MiB into immutable
-  `PerformanceSettings.difference_cache_bytes` and injects it through
-  `MainWindow` into `DifferencePanel` and `DifferenceMapCache`.
-- Difference Map Cache edits are saved for the next launch; an existing cache
-  budget is not mutated live.
+  `PerformanceSettings.difference_cache_bytes` and
+  `PerformanceSettings.source_residency_bytes`. `MainWindow` injects the former
+  into `DifferencePanel`/`DifferenceMapCache` and the latter into
+  `ResidencyManager`.
+- Both performance-budget edits are saved for the next launch; existing runtime
+  cache/manager budgets are not mutated live.
 - `Reset Settings` resets only schema-owned application preferences. Workspace
   geometry, dock/splitter state, remembered last directory, and unrelated
   QSettings keys remain independently owned.
@@ -114,15 +126,23 @@ This document records the implementation baseline that new work must use.
 - Unknown future settings schemas are not rewritten; the current application
   uses safe defaults and treats application settings as read-only compatibility
   state.
-- Decoded-source residency remains a reloadable fixed seven-document,
-  count-based policy owned by `MainWindow`; P2-B replaces that policy.
+- `ResidencyManager` owns exact native `ImageDocument.source.nbytes` accounting,
+  deterministic LRU order, protected eviction planning, and
+  `budget_bytes`/`used_bytes`/`resident_count`/`over_budget_bytes` diagnostics.
+- `MainWindow` protects visible, selected, active/analysis, current Difference
+  pair, and active load-target registered sources. Protected bytes may exceed
+  the soft budget; an oversized required source is retained without load/evict
+  thrash.
+- Eviction releases source and preview, clears Statistics/Histogram and
+  source-dependent channel views, updates the Files residency state, and marks
+  the document pending for the existing tokenized normal-load path. Difference
+  maps remain independently owned and are not evicted solely for source-budget
+  pressure.
 - The dedicated image-load pool is bounded at two workers; the shared numeric
   pool is bounded at four.
 
 ## Not implemented
 
-- Byte-budgeted decoded-source setting and `ResidencyManager` (P2-B). Its budget
-  will extend the Performance Settings page.
 - One-group-ahead preload (P2-C). Its preference will extend Performance when
   that lifecycle exists.
 - Runtime diagnostics dialog/snapshot, Copy Diagnostics, or export (P2-D).
@@ -134,20 +154,20 @@ This document records the implementation baseline that new work must use.
 
 ## Validation evidence
 
-The repository owner recorded the full automated validation contract as passed
-for P1-D, P1-E, P1-F, final P2-A1, and the P2-A2 head before the final runtime
-integration review. That prior result remains useful evidence, but it predates
-the final merge-blocker fixes for exact RAW propagation, Difference defaults,
-partial-settings preservation, and schema-v3 documentation alignment.
-
-A fresh full validation run is therefore required on the new P2-A2 head before
-merge. No post-fix full-suite result is pre-claimed here.
+Focused P2-B residency/settings integration validation passes on the latest
+working head. The standard static/docs/dependency/performance/startup checks pass.
+Full pytest was executed and reports 309 passed with three reproducible offscreen
+failures: floating Plots geometry restore and two pyqtgraph hover-coordinate
+assertions. The same three tests fail from an isolated `origin/main` archive in
+the identical environment, confirming they are baseline/environment failures,
+not P2-B regressions. They were not skipped or rewritten. Manual Windows
+residency/settings validation remains outstanding before merge.
 
 ## Active plan
 
 - P1 history: [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md)
 - P2 active plan: [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
 - P2-A1: complete; merged as PR #14.
-- P2-A2: final runtime-integration fixes and revalidation on
-  `feature/p2-a-settings-foundation`.
-- Next slice after P2-A2 merge: P2-B — byte-budgeted decoded-source residency.
+- P2-A2: complete; merged as PR #15.
+- P2-B: active on `feature/p2-b-source-residency-budget`.
+- Next slice after P2-B merge: P2-C — bounded one-group-ahead preload.

@@ -59,9 +59,7 @@ def test_primary_flag_uses_checked_state_and_clear_terminology(qtbot: object) ->
     assert header.focus.accessibleName() == "Primary image"
     assert header.focus.isCheckable()
     assert not header.focus.icon().isNull()
-    assert header.focus.statusTip() == (
-        "Set as primary image and move it to the first tile"
-    )
+    assert header.focus.statusTip() == ("Set as primary image and move it to the first tile")
 
     size = QSize(16, 16)
     hover_outline = header.focus.icon().pixmap(size, QIcon.Mode.Active, QIcon.State.Off)

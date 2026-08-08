@@ -33,13 +33,14 @@
   **P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E** after the P2-0 documentation
   transition. Each slice starts from the latest merged prerequisite on `main`.
 - P2-A1 is the application identity/resource foundation merged as PR #14.
-  P2-A2 owns typed settings, persistence, the Settings dialog, Difference
-  display defaults, RAW size policy, and Difference Map Cache startup injection.
+  P2-A2 merged as PR #15 and owns typed settings, persistence, the Settings
+  dialog, Difference display defaults, RAW size policy, and Difference Map Cache
+  startup injection.
 - QSettings is a persistence adapter, not the application settings domain model.
   Frozen `ApplicationSettings` is the persisted typed model;
   `SettingsRepository` owns defaults, validation, migration, save, and reset;
   `QSettingsAdapter` owns raw application-preference keys.
-- Application settings schema version 3 owns:
+- Application settings schema version 4 owns:
   - `settings/schema_version`
   - `settings/general/dont_show_raw_json_profiles`
   - `settings/general/require_exact_raw_file_size`
@@ -48,10 +49,11 @@
   - `settings/analysis/difference_threshold`
   - `settings/analysis/difference_gain`
   - `settings/performance/difference_cache_mib`
-- Schema v2 migrates to v3 by preserving its existing values and initializing
-  exact RAW validation, Difference Threshold, and Difference Gain to their v3
-  defaults. Schema v1 and legacy `raw/dont_show_json_profiles` also migrate into
-  the current model.
+  - `settings/performance/source_residency_mib`
+- Schema v3 migrates directly to v4 and adds the current source-residency
+  default. A v3 Difference-cache value valid in the former 64–8192 MiB range is
+  clamped to the new 1280 MiB maximum instead of reset to 128 MiB. Schema v2/v1
+  and legacy `raw/dont_show_json_profiles` also migrate into the current model.
 - Invalid current values fall back to validated defaults and are normalized. A
   persisted schema newer than the running application is never destructively
   guessed or rewritten; application preferences remain read-only until a
@@ -82,14 +84,22 @@
   PixelScope has more than the current Statistics CSV export surface.
 - Worker counts, zoom/sync state, and other transient runtime state remain outside
   P2-A2 application preferences.
-- Performance settings are immutable startup snapshots. Difference Map Cache
-  edits are persisted immediately but do not mutate an existing runtime cache.
-- Difference Map Cache preference default is 512 MiB with an accepted range of
-  64–8192 MiB. Runtime receives bytes through `PerformanceSettings`.
-- Restart-required UI is determined by comparing the saved/editable startup-only
-  cache value to the current runtime snapshot. Returning to the runtime value
-  clears the indication. File-location, RAW, Threshold, and Gain changes do not
-  require restart.
+- Performance settings are immutable startup snapshots. Difference Map Cache and
+  Decoded Source Memory edits are persisted immediately but do not mutate their
+  existing runtime owners.
+- Difference Map Cache preference default is 128 MiB with an accepted range of
+  64–1280 MiB. Runtime receives bytes through `PerformanceSettings`.
+- Decoded Source Memory defaults to 256 MiB, accepts 128–2560 MiB, and uses
+  128 MiB UI increments. Runtime receives bytes through
+  `PerformanceSettings.source_residency_bytes`.
+- When physical RAM is known, the Settings UI requires both budgets together to
+  remain at or below 50% of RAM. An above-limit Save retains both entered values,
+  warns, and stays open. Unknown RAM uses product bounds only. This is a
+  conservative configuration envelope, not an out-of-memory guarantee.
+- Restart-required UI compares both saved/editable startup-only budget values to
+  the current runtime snapshot. Returning both to their runtime values clears
+  the indication. File-location, RAW, Threshold, and Gain changes do not require
+  restart.
 - `Reset Settings` resets only schema-owned application preferences. `Reset
   Workspace Layout` remains a separate action and application reset does not
   remove window/dock/splitter geometry, remembered last-directory state, or
@@ -112,10 +122,17 @@
   arrays only. It excludes previews, Qt textures, Difference/derived caches, and
   transient worker arrays and is not total process memory.
 - The decoded-source budget is a soft limit because protected documents may
-  temporarily exceed it. P2-B extends the protected-set policy beyond the
-  current visible-document and active-load-target inputs.
-- P2-B's source-residency budget and P2-C's preload preference extend the existing
-  Performance Settings page when those runtime lifecycles are implemented.
+  temporarily exceed it. Visible, selected, active/analysis, current Difference
+  pair, and active load-target registered sources are protected. A required
+  source larger than the budget remains resident while protected.
+- Pure-core `ResidencyManager` owns byte accounting, LRU order, protected
+  eviction planning, and minimal diagnostics. `MainWindow` alone mutates
+  documents, invalidates source-local caches, updates Files state, and triggers
+  existing-path reloads.
+- Source-only eviction does not invalidate a valid Difference map. Difference
+  maps remain under their own budget/generation contract.
+- P2-C's preload preference extends the existing Performance Settings page when
+  that runtime lifecycle is implemented.
 - Preload has bounded ownership separate from normal load and may not starve
   interactive work.
 - Cancellation and stale-result rejection are distinct; obsolete results must
@@ -136,16 +153,12 @@
   package-resource loader, `QApplication`/main-window assignment, and source-run
   Windows AppUserModelID are P2-A1 boundaries.
 - `DifferenceMapCache` is byte-budgeted and persistence-free. P2-A2 injects its
-  startup budget through immutable `PerformanceSettings`; the default remains
-  512 MiB.
-- Decoded-source residency currently uses a fixed seven-document reloadable
-  policy in `MainWindow`; P2-B moves policy ownership to a byte-budgeted manager.
-- The current residency protection inputs are visible documents and active load
-  targets. Selected and analysis protection are P2-B additions.
+  startup budget through immutable `PerformanceSettings`; the default is 128 MiB.
+- Decoded-source residency uses the P2-B byte-budgeted manager and protected-set
+  policy. The former fixed seven-document limit is no longer authoritative.
 
 ## Pending owner decisions
 
-These recommendations are not accepted values until the owner confirms them:
+This recommendation is not an accepted value until the owner confirms it:
 
-- Decoded-source budget default — recommendation: 1024 MiB; pending before P2-B.
 - Preload default — recommendation: Enabled; pending before P2-C.

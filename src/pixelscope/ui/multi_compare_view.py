@@ -115,8 +115,7 @@ class MultiCompareView(QWidget):
         self._document_count = min(len(documents), self.capacity)
         displayed_documents = documents[: self._document_count]
         self._primary_controls_enabled = self._document_count > 1 and all(
-            not document.channel_layout.startswith("CHANNEL_")
-            for document in displayed_documents
+            not document.channel_layout.startswith("CHANNEL_") for document in displayed_documents
         )
         displayed_ids = {document.document_id for document in displayed_documents}
         if self._primary_controls_enabled and self.focus_document_id not in displayed_ids:
@@ -152,9 +151,7 @@ class MultiCompareView(QWidget):
                     document is not None and document.document_id == self.focus_document_id
                 )
                 viewer.set_focus_control_visible(
-                    document is not None
-                    and self._primary_controls_enabled
-                    and controls_realized
+                    document is not None and self._primary_controls_enabled and controls_realized
                 )
                 viewer.set_document(document, fit=not preserve_view)
                 if document is None:

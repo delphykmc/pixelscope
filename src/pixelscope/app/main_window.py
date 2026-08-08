@@ -41,6 +41,7 @@ from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
 from pixelscope.core.performance_settings import PerformanceSettings
+from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.path_discovery import (
     ImageInput,
@@ -117,8 +118,7 @@ class MainWindow(QMainWindow):
         self._load_tokens: dict[str, int] = {}
         self._load_pool = QThreadPool(self)
         self._load_pool.setMaxThreadCount(2)
-        self._resident_order: list[str] = []
-        self._resident_document_limit = 7
+        self.residency_manager = ResidencyManager(self.performance_settings.source_residency_bytes)
         self._visible_document_ids: set[str] = set()
         self._selection_order: list[str] = []
         self._folder_documents: dict[str, list[str]] = {}
@@ -743,8 +743,11 @@ class MainWindow(QMainWindow):
             loading_state=document.loading_state,
             resident=document.source is not None,
         )
+        self._record_resident_source(document)
         if select:
             self._select_document_ids([document.document_id])
+        else:
+            self._evict_resident_documents()
 
     def open_images(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
@@ -989,6 +992,7 @@ class MainWindow(QMainWindow):
         if document is None:
             return
         self._load_tokens[document_id] = self._load_tokens.get(document_id, 0) + 1
+        self.residency_manager.remove(document_id)
         document.source = None
         document.preview = None
         document.channel_layout = profile.channel_layout
@@ -999,6 +1003,7 @@ class MainWindow(QMainWindow):
         document.generation += 1
         document.statistics_cache.clear()
         document.histogram_cache.clear()
+        self._invalidate_channel_views(document_id)
         self._update_document_item(document)
 
     def _ensure_loaded(self, document: ImageDocument) -> None:
@@ -1068,7 +1073,8 @@ class MainWindow(QMainWindow):
         result.document_id = target_id
         result.generation = previous_generation
         self.documents[target_id] = result
-        self._touch_resident(target_id)
+        self._record_resident_source(result)
+        self.residency_manager.touch(target_id)
         self._update_document_item(result)
         if self._selected_load_batch_complete():
             self._render_selection(preserve_view=True)
@@ -1086,6 +1092,7 @@ class MainWindow(QMainWindow):
         if request_token is not None and self._load_tokens.get(target_id) != request_token:
             return
         LOGGER.error("Image load failed: %s\n%s", error.message, error.traceback_text)
+        self.residency_manager.remove(target_id)
         document = ImageDocument.error_document(path.name, error.message, path)
         document.document_id = target_id
         self.documents[target_id] = document
@@ -1106,6 +1113,7 @@ class MainWindow(QMainWindow):
     def _worker_finished(self, task_id: str) -> None:
         self._workers.pop(task_id, None)
         self._load_worker_targets.pop(task_id, None)
+        self._evict_resident_documents()
         if not self._workers:
             self.structured_status.task.setText("Ready")
 
@@ -1124,46 +1132,71 @@ class MainWindow(QMainWindow):
                 document.loading_state = "pending"
                 self._update_document_item(document)
 
-    def _touch_resident(self, document_id: str) -> None:
-        if document_id in self._resident_order:
-            self._resident_order.remove(document_id)
-        self._resident_order.append(document_id)
+    def _record_resident_source(self, document: ImageDocument) -> None:
+        """Synchronize exact native-source accounting for one reloadable document."""
+
+        if document.source is None:
+            self.residency_manager.remove(document.document_id)
+            return
+        self.residency_manager.record(document.document_id, int(document.source.nbytes))
+
+    def _residency_protected_document_ids(self) -> set[str]:
+        """Return registered sources required by the current UI/runtime state."""
+
+        protected = set(self._visible_document_ids)
+        protected.update(document.document_id for document in self.selected_documents)
+        protected.update(self._load_worker_targets.values())
+        if self._active_document_id is not None:
+            protected.add(self._active_document_id)
+        if self._difference_source_ids is not None:
+            protected.update(self._difference_source_ids)
+        if hasattr(self, "difference_panel"):
+            pair = self.difference_panel.selected_documents()
+            if pair is not None:
+                protected.update(document.document_id for document in pair)
+
+        # Statistics, Histogram, Line Profile, and Difference currently consume
+        # the first six selected registered sources. Keep this input explicit
+        # even though it overlaps the broader selected-document protection.
+        protected.update(document.document_id for document in self.selected_documents[:6])
+        protected.update(
+            document.document_id
+            for document in self.documents.values()
+            if document.source is not None and document.source_path is None
+        )
+        return {document_id for document_id in protected if document_id in self.documents}
 
     def _evict_resident_documents(self) -> None:
-        """Keep only a small reloadable working set of decoded image arrays."""
+        """Release planned unprotected native sources while preserving reload state."""
 
-        resident = [
-            document_id
-            for document_id in self._resident_order
-            if (document := self.documents.get(document_id)) is not None
-            and document.source_path is not None
-            and document.source is not None
-        ]
-        excess = len(resident) - self._resident_document_limit
-        if excess <= 0:
-            return
-        protected = self._visible_document_ids | set(self._load_worker_targets.values())
-        for document_id in resident:
-            if excess <= 0:
-                break
-            if document_id in protected:
-                continue
+        for document_id in self.residency_manager.resident_document_ids:
             document = self.documents.get(document_id)
-            if document is None or document.source_path is None:
+            if document is None or document.source is None:
+                self.residency_manager.remove(document_id)
+                continue
+            self._record_resident_source(document)
+
+        protected = self._residency_protected_document_ids()
+        for document_id in self.residency_manager.eviction_candidates(protected):
+            document = self.documents.get(document_id)
+            if document is None or document.source is None:
+                self.residency_manager.remove(document_id)
+                continue
+            if document.source_path is None:
                 continue
             document.source = None
             document.preview = None
             document.statistics_cache.clear()
             document.histogram_cache.clear()
             document.loading_state = "pending"
-            self._channel_view_cache = {
-                key: value
-                for key, value in self._channel_view_cache.items()
-                if key[0] != document_id
-            }
-            self._resident_order.remove(document_id)
+            self._invalidate_channel_views(document_id)
+            self.residency_manager.remove(document_id)
             self._update_document_item(document)
-            excess -= 1
+
+    def _invalidate_channel_views(self, document_id: str) -> None:
+        self._channel_view_cache = {
+            key: value for key, value in self._channel_view_cache.items() if key[0] != document_id
+        }
 
     def _selection_changed(self) -> None:
         selected_ids = [
@@ -1228,6 +1261,7 @@ class MainWindow(QMainWindow):
             self.central_stack.setCurrentWidget(self.empty_workspace)
             self._active_document_id = None
             self.structured_status.set_active_document()
+            self._evict_resident_documents()
             self._update_file_states([], None)
             return
 
@@ -1237,6 +1271,8 @@ class MainWindow(QMainWindow):
         analysis_ready = [
             document for document in analysis_candidates if document.source is not None
         ]
+        for document in analysis_ready:
+            self.residency_manager.touch(document.document_id)
 
         self.difference_panel.set_documents(
             analysis_ready,
@@ -1343,7 +1379,7 @@ class MainWindow(QMainWindow):
         self._cancel_obsolete_loads(self._visible_document_ids | analysis_ids)
         for document in visible_state:
             if document.source is not None:
-                self._touch_resident(document.document_id)
+                self.residency_manager.touch(document.document_id)
         self._evict_resident_documents()
 
         visible_ready = [document for document in visible_state if document.source is not None]
@@ -1610,6 +1646,7 @@ class MainWindow(QMainWindow):
             self.structured_status.set_active_document()
             return
         self._active_document_id = document.document_id
+        self.residency_manager.touch(document.document_id)
         shape = document.shape
         resolution = f"{shape[1]}×{shape[0]}" if len(shape) >= 2 else "—"
         file_format = (document.source_path or Path(document.display_name)).suffix.upper().lstrip(
@@ -1634,6 +1671,7 @@ class MainWindow(QMainWindow):
             self._line_reference_priority_ids(visible, document)
         )
         self._update_file_states(visible, document)
+        self._evict_resident_documents()
 
     def _set_zoom_status(self, percent: float) -> None:
         self.structured_status.zoom.setText(f"Zoom {percent:.0f}%")
@@ -1955,11 +1993,13 @@ class MainWindow(QMainWindow):
         self.document_list.blockSignals(True)
         try:
             for document_id in selected_ids:
+                self.residency_manager.remove(document_id)
                 document = self.documents.pop(document_id, None)
                 if document is not None and document.source_path is not None:
                     self._document_id_by_path.pop(self._path_key(document.source_path), None)
                     self._remove_document_from_folder(document_id, document.source_path)
                 self.document_list.remove_document_item(document_id)
+                self._invalidate_channel_views(document_id)
         finally:
             self.document_list.blockSignals(False)
         selected_set = set(selected_ids)
@@ -2500,6 +2540,13 @@ class MainWindow(QMainWindow):
             self._document_item_text(document),
             document.error_state or str(document.source_path or ""),
         )
+        self.document_list.set_document_state(
+            document.document_id,
+            visible=document.document_id in self._visible_document_ids,
+            active=document.document_id == self._active_document_id,
+            loading_state=document.loading_state,
+            resident=document.source is not None,
+        )
 
     @staticmethod
     def _document_item_text(document: ImageDocument) -> str:
@@ -2585,14 +2632,10 @@ class MainWindow(QMainWindow):
         return self._last_directory
 
     def _open_dialog_directory(self) -> str:
-        return self._preferred_dialog_directory(
-            self.application_settings.default_open_directory
-        )
+        return self._preferred_dialog_directory(self.application_settings.default_open_directory)
 
     def _export_dialog_directory(self) -> str:
-        return self._preferred_dialog_directory(
-            self.application_settings.default_export_directory
-        )
+        return self._preferred_dialog_directory(self.application_settings.default_export_directory)
 
     def _remember_directory(self, directory: Path) -> None:
         self._last_directory = str(directory)
