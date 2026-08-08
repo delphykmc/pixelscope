@@ -51,6 +51,14 @@ This document records the implementation baseline that new work must use.
 
 - Full-image and Active ROI Statistics.
 - Histogram Auto/256/1024/4096 bins and Count/Normalized/Log count modes.
+- Statistics/Histogram numerical requests are identity-aware. Rebinding the same
+  loaded document set with the same source identity, generation, Bayer/layout
+  semantics, ROI, and histogram specification does not restart the 140 ms
+  preparation timer, cancel/recreate the same numerical worker, or rerender an
+  already-completed identical result. Changed numerical input still invalidates
+  the old request and recomputes normally.
+- Histogram display-only controls continue to rerender cached numerical results
+  without changing the numerical request identity.
 - Line Profile absolute, normalized, and Difference-from-reference modes.
 - Reference priority: primary image, active image, then first displayed image.
 - Floating Plots geometry and selected tab persistence; title double-click
@@ -213,9 +221,12 @@ This document records the implementation baseline that new work must use.
 
 ### P2-F characterization state
 
-- P2-F changes no production runtime policy in its initial audit. Settings schema
-  remains v5; preload remains `+1`, one Folder Position deep, normal pool max two,
-  preload pool max one, and preload concurrency one.
+- P2-F keeps settings schema v5, source/Difference ownership, preload direction,
+  depth/concurrency, and worker-pool policy unchanged. A late Windows manual
+  observation did justify one focused production hardening in the Statistics /
+  Histogram request lifecycle: identical numerical requests are now idempotent
+  instead of restarting preparation/cancellation/render work during Single View
+  number-key navigation.
 - Existing settings tests already cover fresh/default state, current round-trip,
   v4-to-v5 and v3-to-current migration, old Difference-cache clamping,
   malformed/invalid state, legacy RAW migration, future-schema non-destructive
@@ -243,6 +254,10 @@ This document records the implementation baseline that new work must use.
   per-plane sample counts, 4096-bin placement, preview channel structure/content,
   exact native bytes, and zero-difference invariants. Timing output remains
   observational only.
+- `tests/ui/test_p2f_analysis_request_dedup.py` covers completed-request no-op,
+  preservation of an identical in-flight Statistics worker without cancellation,
+  and cancellation/restart only when a numerical request identity actually
+  changes.
 - Existing `tests/integration/test_4k_samples.py` remains the real 3840x2160 RGB
   plus RGGB10-u16 RAW fixture path; no new large binary fixture is added by P2-F.
 - Process RSS remains outside P2 source-memory accounting and no benchmark/live
@@ -250,8 +265,9 @@ This document records the implementation baseline that new work must use.
 
 ## Not implemented
 
-- P2-F independent re-review and owner/local Windows closure validation are still
-  required before merge; this branch must not describe P2-F as merged.
+- P2-F independent re-review and owner/local validation of the latest hardening
+  head are still required before merge; this branch must not describe P2-F as
+  merged.
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
   distribution work.
@@ -265,19 +281,31 @@ This document records the implementation baseline that new work must use.
 
 - P2-E is merged as PR #19 at
   `7ee7aec2980baeef9d511f3db5c71f89fa319a64`.
-- P2-F coverage audit found no production-code correctness/resource/lifecycle
-  blocker requiring an architecture change before characterization.
+- P2-F coverage audit found no broad architecture blocker requiring a rewrite.
 - P2-F commit `35480a4e74963de9721c448b8541069748392723`
   replaces the performance-smoke wall-clock merge gate with deterministic
   representative FHD/UHD correctness/resource invariants while retaining timing
   output as observational evidence.
-- P2-F review follow-up commit `3e0cb616cecc88b3962bf6f564c9fc9feddedb41`
-  closes the UHD Bayer characterization gap by exercising production Bayer
-  preview loading, Auto 4096-bin selection, and CFA-specific analysis instead of
-  generic grayscale preview/histogram semantics.
+- Published P2-F Bayer review follow-up commit
+  `80949af7703bcf3567f91046b3a6fedd7f0a5363` closes the UHD Bayer
+  characterization gap by exercising production Bayer preview loading, Auto
+  4096-bin selection, and CFA-specific analysis instead of generic grayscale
+  preview/histogram semantics.
+- Owner/local automated validation was reported PASS against `80949af...` for
+  performance smoke, the focused P2 suite, full pytest, ruff check/format, mypy,
+  pip check, docs checker, and `git diff --check`.
+- Owner/local Windows program testing against `80949af...` was broadly functional
+  but exposed repeated **Preparing analysis...** churn while switching already
+  selected images in Single View with number keys. P2-F hardening commit
+  `a73489fdbf65eb62c4c96f6f8e12c48aef662a7b` suppresses identical Statistics /
+  Histogram requests and adds deterministic regression coverage.
+- Because `a73489f...` changes production UI lifecycle code, the prior automated
+  PASS and manual observation are historical evidence, not final evidence for the
+  latest head. Focused/full automated validation and the affected Windows Single
+  View analysis-navigation check must be rerun before merge.
 - The GitHub connector implementation environment does not provide the repository
-  Python/Qt runtime. No P2-F pytest/ruff/mypy/pip/docs command is recorded as
-  passing until its output is actually observed on the owner/local environment.
+  Python/Qt runtime, so it does not independently claim those latest-head commands
+  as passing.
 - There is no GitHub Actions workflow today. Introducing an unobserved Windows Qt
   gate during P2 closure is deferred; owner/local Windows validation remains the
   authoritative P2-F closure evidence.

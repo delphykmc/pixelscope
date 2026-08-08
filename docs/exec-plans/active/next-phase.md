@@ -119,6 +119,11 @@ optimization without evidence.
   correctness paths.
 - Cancellation remains advisory. Token/generation/request identity is the
   correctness authority for every late result.
+- Rebinding an identical Statistics/Histogram numerical request is idempotent:
+  unchanged loaded source identity/generation/layout/Bayer semantics, ROI, and
+  histogram specification must not restart preparation, cancel/recreate the same
+  worker, or rerender a completed identical result. A changed numerical identity
+  remains an explicit invalidation/recompute boundary.
 - Diagnostics observation may not start/cancel work, touch either LRU, scan files,
   calculate Difference, refresh preload, or change selection/rendering.
 - Diagnostics output is bounded, timestamp-free, deterministic for unchanged
@@ -155,8 +160,8 @@ Implemented by P2-A through P2-D:
 
 P2-E minimally extends `PreloadController` with running/promotion authority and a
 promotion counter, and extends `MainWindow` with the corresponding foreground
-reuse lifecycle. P2-F remains characterization and phase hardening, not a new
-broad runtime boundary.
+reuse lifecycle. P2-F remains characterization and focused phase hardening, not a
+new broad runtime boundary.
 
 ## Slice definitions
 
@@ -406,9 +411,18 @@ P2-F evaluates the completed P2 runtime including running-preload promotion.
 - Deterministic merge gates include shape, dtype, values/counts, native bytes,
   cache/residency state, duplicate-decode count, bounded worker ownership,
   request identity, and stale-result rejection.
-- Initial audit found no production-code correctness/resource/lifecycle defect
-  that justifies an architecture change. Production code remains unchanged unless
-  local characterization exposes a focused reproducible issue.
+- Initial audit found no broad production architecture defect. Owner/local Windows
+  testing later exposed one focused analysis-lifecycle inefficiency: repeated
+  number-key switching in Single View rebound the same selected analysis set,
+  causing **Preparing analysis...** churn and potentially cancelling/replacing an
+  identical in-flight Statistics worker even though cancellation is advisory.
+- P2-F hardens `ComparisonAnalysisPanel` with a numerical request identity over
+  loaded source identity, document generation, layout/Bayer semantics, ROI, and
+  histogram specification. Identical scheduled/running/completed requests are
+  no-ops; changed numerical inputs remain normal invalidation/recompute triggers.
+- `tests/ui/test_p2f_analysis_request_dedup.py` is the focused regression for
+  completed no-op, in-flight worker reuse without cancellation, and changed
+  request cancellation.
 - Keep schema v5 and the established `+1` one-position, concurrency-one preload
   policy unchanged. Process RSS, live diagnostics, benchmark UI, telemetry, CPU
   aggressiveness, bidirectional/deeper preload, and resource-policy expansion are
@@ -432,10 +446,11 @@ P2-F evaluates the completed P2 runtime including running-preload promotion.
   duplicate-decode elimination, foreground success/failure parity,
   rapid-navigation stale safety, pair/group and RAW coverage, fixed worker policy,
   and promotion diagnostics remain authoritative.
-- **P2-F:** full standard validation, deterministic representative performance
-  smoke, final settings/resource/preload/diagnostics audit, agreed Windows
-  characterization, coherent P2 closure docs, and no unresolved independent
-  reviewer blocker.
+- **P2-F:** latest-head focused/full validation, deterministic representative
+  performance smoke, final settings/resource/preload/diagnostics/analysis-lifecycle
+  audit, agreed Windows characterization including repeated Single View number-key
+  navigation, coherent P2 closure docs, and no unresolved independent reviewer
+  blocker.
 
 ## Validation
 
@@ -460,6 +475,7 @@ P2-F focused contract after coverage audit:
     tests\ui\test_preload_runtime.py `
     tests\ui\test_preload_promotion.py `
     tests\ui\test_runtime_diagnostics.py `
+    tests\ui\test_p2f_analysis_request_dedup.py `
     tests\integration\test_4k_samples.py
 ```
 
@@ -484,6 +500,8 @@ Optional syntax sweep when useful:
 Connector-only implementation must not claim these commands passed unless their
 actual output is observed. Owner/local execution of the exact commands above is
 the validation source when the connector environment cannot run Python/Qt tests.
+The earlier automated PASS was reported against `80949af...`; because the focused
+analysis-lifecycle hardening changes `src/`, latest-head validation must be rerun.
 A failure may be called baseline only after the same environment reproduces it
 against latest `origin/main`.
 
@@ -505,11 +523,14 @@ validation must confirm at least:
 11. Difference cache under source pressure.
 12. Settings restart semantics.
 13. **Help > Copy Diagnostics**.
-14. Statistics / Histogram / Line Profile / Difference / Split Channels regression.
+14. Statistics / Histogram / Line Profile / Difference / Split Channels regression,
+    including repeated number-key switching in Single View without Statistics
+    preparation churn for an unchanged selected set.
 
 The manual gate is absence of visible stall/regression, incorrect reload,
-duplicated-load symptoms, error/state corruption, or broken expected workflow.
-Any timing numbers are hardware-specific observational evidence only.
+duplicated-load symptoms, unnecessary identical analysis restart/cancellation,
+error/state corruption, or broken expected workflow. Any timing numbers are
+hardware-specific observational evidence only.
 
 The repository currently has no GitHub Actions workflow. P2-F does not add an
 unobserved Windows Qt gate without first establishing PySide6/pytest-qt/offscreen
@@ -539,6 +560,8 @@ Resolved:
   setting.
 - P2-F timing policy: hardware-dependent elapsed time is observational only;
   deterministic correctness/resource/lifecycle invariants are merge gates.
+- P2-F analysis lifecycle: identical numerical Statistics/Histogram requests are
+  idempotent; presentation-only Single View navigation must not restart them.
 - P2-F Windows CI: deferred until a stable runner contract is demonstrated;
   owner/local Windows validation remains authoritative for P2 closure.
 
@@ -591,6 +614,12 @@ optimization.
   commit, audited existing P2 coverage, and expanded performance smoke to FHD
   RGB8, FHD Gray16, and UHD Bayer16 RAW deterministic characterization while
   removing the hardware-dependent threshold-mask timing gate.
+- 2026-08-09: independent review drove the UHD Bayer characterization through the
+  production Bayer preview/CFA analysis path. Owner/local automated validation
+  then passed on published follow-up `80949af...`. Windows program testing was
+  broadly functional but exposed repeated Statistics preparation during unchanged
+  Single View number-key navigation, leading to focused request-idempotency
+  hardening in `a73489f...` and a dedicated regression suite.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2 merge blocker.
 
@@ -605,6 +634,9 @@ optimization.
   results.
 - An exact matching RUNNING preload that becomes foreground-required is reused by
   authority promotion rather than cancelled merely to start the same decode.
+- Identical Statistics/Histogram numerical requests are idempotent across
+  presentation-only Single View navigation; changed numerical identity still
+  invalidates and recomputes.
 - Diagnostics are deterministic, sanitized, inexpensive to observe, and exposed
   to users only through on-demand support copy.
 - P2-F uses deterministic performance/resource/lifecycle merge gates; wall-clock

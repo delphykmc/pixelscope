@@ -75,6 +75,11 @@ Preserve deterministic fixtures and smoke paths for:
 - Keyboard separation: Files Up/Down rows, Left/Right selected-image activity,
   and PageUp/PageDown Folder Position membership.
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
+- Repeated Single View number-key navigation across an unchanged selected set must
+  not restart an identical Statistics/Histogram request, flash **Preparing
+  analysis...**, cancel/recreate the same in-flight numerical worker, or rerender
+  a completed identical result. ROI, histogram-bin, generation/source-identity,
+  channel-layout, or Bayer-pattern changes remain valid recomputation triggers.
 - Difference calculation, cache reuse/eviction, metrics, display-only updates,
   and startup cache-budget injection.
 - Decoded-source exact-byte accounting, deterministic LRU/protection, soft
@@ -154,13 +159,14 @@ The final P2 automated matrix is representative rather than Cartesian:
 |---|---|
 | FHD RGB uint8 | native byte count, RGB histogram counts, preview/difference/mask shape and dtype, zero self-difference |
 | FHD grayscale uint16 | native byte count, Gray histogram count, preview, promoted signed dtype, compact absolute dtype, zero self-difference |
-| UHD Bayer uint16 profile-described RAW | temp RAW mapping, profile-compatible shape/dtype/bytes, histogram, preview, difference metrics, threshold mask |
+| UHD Bayer uint16 profile-described RAW | production RAW/Bayer preview path, Auto 4096-bin RGGB CFA analysis, exact plane counts/content, native bytes, difference metrics, threshold mask |
+| Single View repeated Statistics request | identical completed/in-flight request is a no-op; changed ROI/request identity cancels/replaces obsolete work |
 | Existing real 4K RGB + RGGB10-u16 RAW fixture | reader/RAW integration and expected image/difference metrics without adding a new large binary fixture |
 
 `tests/performance/test_performance_smoke.py` may print `perf_counter()` timings
-for memmap/preview/histogram/difference/metrics/threshold-mask work. No timing
-number is a merge gate. The removed historical `threshold_mask < 0.5` assertion
-must not be replaced with another arbitrary hardware/load threshold.
+for raw-document load/Bayer analysis/difference/metrics/threshold-mask work. No
+timing number is a merge gate. The removed historical `threshold_mask < 0.5`
+assertion must not be replaced with another arbitrary hardware/load threshold.
 
 P2-wide audit evidence remains distributed through the focused suites rather than
 duplicated into one mega-test:
@@ -182,6 +188,9 @@ duplicated into one mega-test:
   count, bounded sanitized failures, Copy Diagnostics only, and observation-only
   reads/copies with no LRU, load, preload, cancellation, render, or filesystem
   side effect.
+- `tests/ui/test_p2f_analysis_request_dedup.py` covers completed identical-request
+  no-op, in-flight worker preservation without cancellation, and changed-request
+  cancellation/restart.
 
 Process RSS accounting, live monitoring, telemetry, benchmark UI, preload policy
 expansion, new settings/schema, and native optimization are outside P2-F.
@@ -204,11 +213,14 @@ P2-F. Check at minimum:
 11. Difference cache under source pressure.
 12. Settings restart semantics.
 13. **Help > Copy Diagnostics**.
-14. Statistics / Histogram / Line Profile / Difference / Split Channels regression.
+14. Statistics / Histogram / Line Profile / Difference / Split Channels regression,
+    including repeated number-key switching in Single View without Statistics
+    preparation churn for an unchanged selected set.
 
 The manual gate is absence of visible stall/regression, incorrect reload,
-duplicated-load symptoms, error/state corruption, or workflow breakage. Any
-collected timing numbers are hardware-specific observational evidence only.
+duplicated-load symptoms, unnecessary identical analysis restart/cancellation,
+error/state corruption, or workflow breakage. Any collected timing numbers are
+hardware-specific observational evidence only.
 
 The repository has no GitHub Actions workflow. P2-F does not introduce a Windows
 CI gate without first observing PySide6/pytest-qt/offscreen reliability and

@@ -141,9 +141,16 @@ document ID, `MainWindow._load_tokens`, the load-worker registry, and rejection
 of results from obsolete authority. `ImageLoadWorker` remains a physical work
 unit; `MainWindow` owns foreground authority and token acceptance.
 
-Statistics and Histogram cache keys include document generation and operation
-parameters. Line Profile caches by generation and line coordinates. Rapid
-navigation invalidates obsolete work through current MainWindow/worker rules.
+Statistics/Histogram cache keys include document generation and operation
+parameters. P2-F also gives `ComparisonAnalysisPanel` an explicit current
+numerical-request identity over the loaded document/source identity, generation,
+channel-layout/Bayer semantics, ROI, and histogram specification. Rebinding the
+same selected analysis set during presentation-only Single View navigation is
+therefore idempotent: an identical scheduled request is not rescheduled, an
+identical running worker is not cancelled/recreated, and an identical completed
+result is not rerendered. A changed numerical identity still cancels obsolete
+work when present and follows the normal cache/recompute path. Line Profile
+continues to cache by generation and line coordinates.
 
 Decoded sources use a reloadable byte-budgeted working set. Pure-core
 `ResidencyManager` owns exact native-source byte accounting, LRU order,
@@ -370,16 +377,19 @@ identity matching.
 
 P2-F does not add a new production ownership layer. It exercises the existing
 `io`, `core`, `workers`, `ui`, and `app` boundaries and records evidence against
-their existing contracts.
+their existing contracts. A focused `ComparisonAnalysisPanel` lifecycle hardening
+is permitted because Windows characterization demonstrated duplicate identical
+analysis preparation/cancellation during presentation-only navigation; this does
+not introduce a new scheduler or ownership boundary.
 
 The representative performance matrix uses FHD RGB uint8, FHD grayscale uint16,
 and UHD Bayer uint16 profile-described RAW synthetic/temp data; the existing real
 4K RGB and RGGB10-u16 integration fixtures remain complementary coverage. The
-matrix observes memmap/preview/histogram/difference/metric/threshold timings when
-useful, but elapsed time is never an automated PASS/FAIL condition. Deterministic
-shape, dtype, values/counts, native byte accounting, Difference results, worker
-ownership, decode count, request identity, and stale-result rejection are the
-merge gates.
+matrix observes raw-document load/Bayer analysis/difference/metric/threshold
+timings when useful, but elapsed time is never an automated PASS/FAIL condition.
+Deterministic shape, dtype, values/counts, native byte accounting, Difference
+results, worker ownership, decode count, request identity, and stale-result
+rejection are the merge gates.
 
 Source residency and `DifferenceMapCache` remain independent byte-budget owners.
 P2-F does not add process-RSS accounting and does not reinterpret preview arrays,
@@ -403,16 +413,20 @@ validation as authoritative closure evidence; packaging/installer CI remains P7.
 The P2 runtime boundaries for settings, source residency, bounded preload,
 deterministic diagnostics, and running-preload foreground reuse are implemented
 incrementally without a broad `MainWindow` rewrite. P2-F is active as the final
-characterization/hardening and documentation closure slice; it does not change
-those runtime ownership boundaries.
+characterization/hardening and documentation closure slice. Its analysis-request
+idempotency fix is a local lifecycle guard and does not alter settings, resource,
+preload, Difference, or diagnostics ownership.
 
 ## P2 request and cancellation target
 
-Normal load, speculative preload, and promoted foreground authority require
-explicit request identity/token or generation validation before applying results.
-Cancellation means obsolete work should be requested to stop when possible; it
-does not guarantee a running decoder halts immediately. Stale-result rejection
-remains mandatory even after cancellation.
+Normal load, speculative preload, promoted foreground authority, and numerical
+analysis work require explicit request identity or generation/input validation
+before results are applied. Cancellation means obsolete work should be requested
+to stop when possible; it does not guarantee a running decoder or numerical
+kernel halts immediately. For that reason, an unchanged numerical analysis
+request must not be cancelled and recreated merely because presentation state is
+rebound. Stale-result rejection remains mandatory after genuinely obsolete work
+is cancelled.
 
 ## Extension and packaging boundaries
 
