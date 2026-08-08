@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QPushButton,
     QScrollArea,
+    QSlider,
     QSpinBox,
     QStackedWidget,
     QVBoxLayout,
@@ -27,9 +28,11 @@ from pixelscope.app.settings import (
 )
 from pixelscope.core.performance_settings import MIB, PerformanceSettings
 
+_DIFFERENCE_CACHE_STEP_MIB = 64
+
 
 class _SettingRow(QWidget):
-    """Flat setting row with a title, description, and aligned control area."""
+    """Flat setting row with consistent title, description, and control spacing."""
 
     def __init__(
         self,
@@ -39,73 +42,54 @@ class _SettingRow(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._container = QWidget()
-        self._container.setObjectName("settingsRowContainer")
-
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self._container)
-
-        container_layout = QVBoxLayout(self._container)
-        container_layout.setContentsMargins(0, 14, 0, 14)
-        container_layout.setSpacing(8)
+        layout.setContentsMargins(0, 10, 0, 10)
+        layout.setSpacing(7)
 
         title_label = QLabel(title)
         title_label.setProperty("settingsRole", "settingTitle")
-        container_layout.addWidget(title_label)
+        layout.addWidget(title_label)
 
         description_label = QLabel(description)
         description_label.setProperty("settingsRole", "description")
         description_label.setWordWrap(True)
-        container_layout.addWidget(description_label)
+        layout.addWidget(description_label)
 
-        container_layout.addWidget(control)
-
-    def set_separator_visible(self, visible: bool) -> None:
-        self._container.setProperty("withSeparator", visible)
-        self._container.style().unpolish(self._container)
-        self._container.style().polish(self._container)
-        self._container.update()
+        layout.addWidget(control)
 
 
 class _SettingsSection(QWidget):
-    """Optional section block that groups related setting rows."""
+    """Named group of related setting rows with a clear visual hierarchy."""
 
     def __init__(
         self,
-        title: str = "",
+        title: str,
         description: str = "",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._rows: list[_SettingRow] = []
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
 
-        if title:
-            title_label = QLabel(title)
-            title_label.setProperty("settingsRole", "sectionTitle")
-            self._layout.addWidget(title_label)
+        title_label = QLabel(title)
+        title_label.setProperty("settingsRole", "sectionTitle")
+        self._layout.addWidget(title_label)
+
         if description:
             description_label = QLabel(description)
             description_label.setProperty("settingsRole", "sectionDescription")
             description_label.setWordWrap(True)
             self._layout.addWidget(description_label)
-        if title or description:
-            self._layout.addSpacing(6)
+
+        self._layout.addSpacing(8)
 
     def add_row(self, row: _SettingRow) -> None:
-        if self._rows:
-            self._rows[-1].set_separator_visible(True)
-        row.set_separator_visible(False)
-        self._rows.append(row)
         self._layout.addWidget(row)
 
 
 class _SettingsPage(QWidget):
-    """Scrollable page content with VS Code-inspired hierarchy."""
+    """Scrollable page content with a restrained VS Code-style hierarchy."""
 
     def __init__(
         self,
@@ -114,16 +98,16 @@ class _SettingsPage(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._outer_layout = QVBoxLayout(self)
-        self._outer_layout.setContentsMargins(0, 0, 0, 0)
-        self._outer_layout.setSpacing(0)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
 
-        self._content = QWidget()
-        self._content.setObjectName("settingsPageContent")
-        self._content.setMaximumWidth(900)
-        self._layout = QVBoxLayout(self._content)
-        self._layout.setContentsMargins(28, 24, 28, 32)
-        self._layout.setSpacing(20)
+        content = QWidget()
+        content.setObjectName("settingsPageContent")
+        content.setMaximumWidth(880)
+        self._layout = QVBoxLayout(content)
+        self._layout.setContentsMargins(30, 26, 32, 36)
+        self._layout.setSpacing(22)
 
         title_label = QLabel(title)
         title_label.setProperty("settingsRole", "pageTitle")
@@ -134,14 +118,14 @@ class _SettingsPage(QWidget):
         description_label.setWordWrap(True)
         self._layout.addWidget(description_label)
 
-        self._outer_layout.addWidget(self._content, 0, Qt.AlignmentFlag.AlignTop)
+        outer_layout.addWidget(content, 0, Qt.AlignmentFlag.AlignTop)
+        outer_layout.addStretch(1)
 
     def add_section(self, section: _SettingsSection) -> None:
         self._layout.addWidget(section)
 
     def finish(self) -> None:
         self._layout.addStretch(1)
-        self._outer_layout.addStretch(1)
 
 
 class SettingsDialog(QDialog):
@@ -175,9 +159,7 @@ class SettingsDialog(QDialog):
         self.page_stack = QStackedWidget()
         self.page_stack.setObjectName("settingsPageStack")
 
-        self.dont_show_raw_json_profiles = QCheckBox(
-            "Don't Show RAW JSON Profiles"
-        )
+        self.dont_show_raw_json_profiles = QCheckBox("Don't Show RAW JSON Profiles")
         self.dont_show_raw_json_profiles.setObjectName(
             "generalDontShowRawJsonProfiles"
         )
@@ -202,7 +184,19 @@ class SettingsDialog(QDialog):
         )
         self.difference_cache_mib.setSuffix(" MiB")
         self.difference_cache_mib.setKeyboardTracking(False)
-        self.difference_cache_mib.setMaximumWidth(160)
+        self.difference_cache_mib.setSingleStep(_DIFFERENCE_CACHE_STEP_MIB)
+        self.difference_cache_mib.setMaximumWidth(132)
+
+        self.difference_cache_slider = QSlider(Qt.Orientation.Horizontal)
+        self.difference_cache_slider.setObjectName("performanceDifferenceCacheSlider")
+        self.difference_cache_slider.setRange(
+            MIN_DIFFERENCE_CACHE_MIB // _DIFFERENCE_CACHE_STEP_MIB,
+            MAX_DIFFERENCE_CACHE_MIB // _DIFFERENCE_CACHE_STEP_MIB,
+        )
+        self.difference_cache_slider.setSingleStep(1)
+        self.difference_cache_slider.setPageStep(8)
+        self.difference_cache_slider.setTickInterval(16)
+        self.difference_cache_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
 
         self.restart_required_label = QLabel(
             "Changes take effect after restarting PixelScope."
@@ -245,12 +239,9 @@ class SettingsDialog(QDialog):
         body.addWidget(sidebar)
         body.addWidget(self.page_stack, 1)
 
-        footer_separator = QFrame()
-        footer_separator.setObjectName("settingsFooterSeparator")
-        footer_separator.setFrameShape(QFrame.Shape.HLine)
-        footer_separator.setFrameShadow(QFrame.Shadow.Plain)
-
-        button_row = QHBoxLayout()
+        footer = QWidget()
+        footer.setObjectName("settingsFooter")
+        button_row = QHBoxLayout(footer)
         button_row.setContentsMargins(16, 10, 16, 12)
         button_row.setSpacing(8)
         button_row.addWidget(self.reset_button)
@@ -262,8 +253,7 @@ class SettingsDialog(QDialog):
         layout.setSpacing(0)
         layout.addWidget(self.compatibility_label)
         layout.addLayout(body, 1)
-        layout.addWidget(footer_separator)
-        layout.addLayout(button_row)
+        layout.addWidget(footer)
 
         self._apply_style()
 
@@ -276,8 +266,11 @@ class SettingsDialog(QDialog):
         self.default_export_browse.clicked.connect(  # type: ignore[attr-defined]
             self._browse_default_export_directory
         )
+        self.difference_cache_slider.valueChanged.connect(  # type: ignore[attr-defined]
+            self._difference_cache_slider_changed
+        )
         self.difference_cache_mib.valueChanged.connect(  # type: ignore[attr-defined]
-            self._update_restart_required
+            self._difference_cache_spin_changed
         )
         self.button_box.accepted.connect(self._save)  # type: ignore[attr-defined]
         self.button_box.rejected.connect(self.reject)  # type: ignore[attr-defined]
@@ -293,10 +286,10 @@ class SettingsDialog(QDialog):
             "General",
             "Configure application-wide preferences for PixelScope behavior.",
         )
-        raw_section = _SettingsSection("RAW profiles")
+        raw_section = _SettingsSection("RAW Profiles")
         raw_section.add_row(
             _SettingRow(
-                "RAW JSON confirmation",
+                "RAW JSON Confirmation",
                 "Skip repeated confirmation when a valid RAW JSON sidecar matches "
                 "the source file.",
                 self.dont_show_raw_json_profiles,
@@ -312,7 +305,7 @@ class SettingsDialog(QDialog):
             "Choose optional starting locations for PixelScope file dialogs.",
         )
         locations_section = _SettingsSection(
-            "Locations",
+            "Default Locations",
             "Leave fields blank to keep using PixelScope's remembered last-used folder.",
         )
         locations_section.add_row(
@@ -344,28 +337,41 @@ class SettingsDialog(QDialog):
             "Performance",
             "Tune startup performance limits without changing the current session.",
         )
-        memory_section = _SettingsSection("Memory")
+        memory_section = _SettingsSection(
+            "Memory",
+            "Control memory budgets used by analysis features.",
+        )
 
         cache_control = QWidget()
+        cache_control.setMaximumWidth(680)
         cache_layout = QVBoxLayout(cache_control)
         cache_layout.setContentsMargins(0, 0, 0, 0)
         cache_layout.setSpacing(6)
-        cache_layout.addWidget(self.difference_cache_mib)
-        range_label = QLabel(
-            f"Allowed range: {MIN_DIFFERENCE_CACHE_MIB}–"
-            f"{MAX_DIFFERENCE_CACHE_MIB} MiB"
-        )
-        range_label.setObjectName("differenceCacheRangeLabel")
-        range_label.setProperty("settingsRole", "supportingText")
-        range_label.setWordWrap(True)
-        cache_layout.addWidget(range_label)
+
+        value_row = QHBoxLayout()
+        value_row.setContentsMargins(0, 0, 0, 0)
+        value_row.setSpacing(12)
+        value_row.addWidget(self.difference_cache_slider, 1)
+        value_row.addWidget(self.difference_cache_mib)
+        cache_layout.addLayout(value_row)
+
+        endpoint_row = QHBoxLayout()
+        endpoint_row.setContentsMargins(0, 0, 144, 0)
+        minimum_label = QLabel(f"{MIN_DIFFERENCE_CACHE_MIB} MiB")
+        minimum_label.setProperty("settingsRole", "supportingText")
+        maximum_label = QLabel(f"{MAX_DIFFERENCE_CACHE_MIB} MiB")
+        maximum_label.setProperty("settingsRole", "supportingText")
+        endpoint_row.addWidget(minimum_label)
+        endpoint_row.addStretch(1)
+        endpoint_row.addWidget(maximum_label)
+        cache_layout.addLayout(endpoint_row)
         cache_layout.addWidget(self.restart_required_label)
 
         memory_section.add_row(
             _SettingRow(
                 "Difference Cache",
-                "Memory budget for cached Difference maps. The configured value "
-                "is applied on the next PixelScope launch.",
+                "Memory budget for cached Difference maps. Adjust in 64 MiB steps; "
+                "the configured value is applied on the next PixelScope launch.",
                 cache_control,
             )
         )
@@ -379,15 +385,14 @@ class SettingsDialog(QDialog):
         scroll.setObjectName(object_name)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setWidget(page)
         return scroll
 
     @staticmethod
     def _directory_editor(line_edit: QLineEdit, browse_button: QPushButton) -> QWidget:
         container = QWidget()
+        container.setMaximumWidth(700)
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
@@ -404,6 +409,10 @@ class SettingsDialog(QDialog):
             QWidget#settingsSidebar {
                 background: palette(alternate-base);
                 border-right: 1px solid palette(mid);
+            }
+            QWidget#settingsFooter {
+                background: palette(alternate-base);
+                border-top: 1px solid palette(mid);
             }
             QListWidget#settingsCategoryList {
                 background: transparent;
@@ -425,49 +434,50 @@ class SettingsDialog(QDialog):
             QWidget#settingsPageContent {
                 background: transparent;
             }
-            QWidget#settingsRowContainer {
-                background: transparent;
-                border-bottom: 0px solid transparent;
-            }
-            QWidget#settingsRowContainer[withSeparator="true"] {
-                border-bottom: 1px solid palette(mid);
-            }
             QLabel {
                 color: palette(text);
             }
             QLabel[settingsRole="sidebarTitle"] {
+                font-size: 13px;
                 font-weight: 600;
                 padding: 0 8px 4px 8px;
             }
             QLabel[settingsRole="pageTitle"] {
-                font-size: 18px;
+                font-size: 20px;
                 font-weight: 600;
             }
             QLabel[settingsRole="pageDescription"] {
+                font-size: 12px;
+                font-weight: 400;
                 color: palette(text);
             }
             QLabel[settingsRole="sectionTitle"] {
-                font-size: 11px;
+                font-size: 15px;
                 font-weight: 600;
-                color: palette(midlight);
+                color: palette(text);
                 padding-top: 2px;
             }
-            QLabel[settingsRole="sectionDescription"],
-            QLabel[settingsRole="description"],
-            QLabel[settingsRole="supportingText"] {
+            QLabel[settingsRole="sectionDescription"] {
+                font-size: 12px;
+                font-weight: 400;
                 color: palette(text);
+                padding-top: 3px;
             }
             QLabel[settingsRole="settingTitle"] {
+                font-size: 13px;
                 font-weight: 600;
+            }
+            QLabel[settingsRole="description"],
+            QLabel[settingsRole="supportingText"] {
+                font-size: 12px;
+                font-weight: 400;
+                color: palette(text);
             }
             QLabel[settingsRole="compatibility"] {
                 background: palette(alternate-base);
                 color: palette(text);
                 border-bottom: 1px solid palette(mid);
                 padding: 8px 16px;
-            }
-            QFrame#settingsFooterSeparator {
-                color: palette(mid);
             }
             QLineEdit,
             QSpinBox {
@@ -478,6 +488,9 @@ class SettingsDialog(QDialog):
                 background: palette(base);
                 selection-background-color: palette(highlight);
                 selection-color: palette(highlighted-text);
+            }
+            QSlider#performanceDifferenceCacheSlider {
+                min-height: 30px;
             }
             QPushButton {
                 min-height: 28px;
@@ -500,12 +513,11 @@ class SettingsDialog(QDialog):
         )
 
     def set_settings(self, settings: ApplicationSettings) -> None:
-        self.dont_show_raw_json_profiles.setChecked(
-            settings.dont_show_raw_json_profiles
-        )
+        self.dont_show_raw_json_profiles.setChecked(settings.dont_show_raw_json_profiles)
         self.default_open_directory.setText(settings.default_open_directory)
         self.default_export_directory.setText(settings.default_export_directory)
         self.difference_cache_mib.setValue(settings.difference_cache_mib)
+        self._sync_difference_cache_slider(settings.difference_cache_mib)
         self._update_restart_required()
 
     def _save(self) -> None:
@@ -535,7 +547,30 @@ class SettingsDialog(QDialog):
         if path:
             target.setText(path)
 
-    def _update_restart_required(self, _value: int | None = None) -> None:
+    def _difference_cache_slider_changed(self, slider_value: int) -> None:
+        requested_mib = slider_value * _DIFFERENCE_CACHE_STEP_MIB
+        if self.difference_cache_mib.value() != requested_mib:
+            self.difference_cache_mib.setValue(requested_mib)
+        else:
+            self._update_restart_required()
+
+    def _difference_cache_spin_changed(self, value: int) -> None:
+        self._sync_difference_cache_slider(value)
+        self._update_restart_required()
+
+    def _sync_difference_cache_slider(self, value_mib: int) -> None:
+        slider_value = round(value_mib / _DIFFERENCE_CACHE_STEP_MIB)
+        slider_value = max(
+            self.difference_cache_slider.minimum(),
+            min(self.difference_cache_slider.maximum(), slider_value),
+        )
+        if self.difference_cache_slider.value() == slider_value:
+            return
+        was_blocked = self.difference_cache_slider.blockSignals(True)
+        self.difference_cache_slider.setValue(slider_value)
+        self.difference_cache_slider.blockSignals(was_blocked)
+
+    def _update_restart_required(self) -> None:
         requested_bytes = self.difference_cache_mib.value() * MIB
         self.restart_required_label.setVisible(
             requested_bytes != self._runtime_performance_settings.difference_cache_bytes
@@ -548,6 +583,7 @@ class SettingsDialog(QDialog):
         self.default_export_directory.setEnabled(False)
         self.default_export_browse.setEnabled(False)
         self.difference_cache_mib.setEnabled(False)
+        self.difference_cache_slider.setEnabled(False)
         self.reset_button.setEnabled(False)
         save_button = self.button_box.button(QDialogButtonBox.StandardButton.Save)
         if save_button is not None:
