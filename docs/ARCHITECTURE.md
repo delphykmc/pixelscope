@@ -41,8 +41,9 @@ Application preferences and workspace/session persistence are intentionally
 separate even though both ultimately use Qt persistence.
 
 - Frozen `ApplicationSettings` is the typed persisted domain model. P2-A2 owns
-  the RAW JSON confirmation preference, default Open/Export folders, and the
-  Difference-cache MiB preference.
+  RAW JSON confirmation, exact RAW file-size validation, default Open/Export
+  folders, Difference Threshold/Gain defaults, and the Difference Map Cache MiB
+  preference.
 - `SettingsRepository` owns defaults, versioned schema behavior, migration,
   validation, invalid-state recovery, save, and reset.
 - `QSettingsAdapter` is the only application-settings component that knows raw
@@ -51,32 +52,43 @@ separate even though both ultimately use Qt persistence.
   and **Performance** pages. The left navigation is intentionally simple at the
   current settings count; a VS Code-style settings search is not required yet.
 - Application bootstrap loads `ApplicationSettings`, converts the Difference
-  cache preference to an immutable byte-based `PerformanceSettings` startup
+  Map Cache preference to an immutable byte-based `PerformanceSettings` startup
   snapshot, and passes both settings objects plus the repository to
   `MainWindow`.
 - `MainWindow` injects `PerformanceSettings.difference_cache_bytes` into
   `DifferencePanel`, which passes the fixed budget to `DifferenceMapCache`.
   Neither the panel nor the cache reads persistence.
+- `MainWindow` also applies persisted Difference Threshold/Gain values to the
+  live `DifferencePanel` at startup and after Settings saves. Those display
+  defaults do not require restart.
+- `MainWindow` passes `require_exact_raw_file_size` into every RAW
+  `ImageLoadWorker`; JSON-sidecar auto-approval uses the same exact-versus-
+  minimum-size policy before skipping the profile dialog.
 - Default Open/Export folders are live preferences. A blank value preserves the
   existing last-used-folder behavior; a configured existing folder only changes
   the starting location of the corresponding file dialog.
 - Runtime edits to startup-only performance values are persisted for the next
   launch; existing runtime caches are not mutated.
 
-Schema version 2 owns:
+Schema version 3 owns:
 
 - `settings/schema_version`
 - `settings/general/dont_show_raw_json_profiles`
+- `settings/general/require_exact_raw_file_size`
 - `settings/files/default_open_directory`
 - `settings/files/default_export_directory`
+- `settings/analysis/difference_threshold`
+- `settings/analysis/difference_gain`
 - `settings/performance/difference_cache_mib`
 
-Schema version 1 is migrated by preserving the existing RAW and Difference-cache
-values and adding blank file-location preferences. Legacy
-`raw/dont_show_json_profiles` remains migration input only. Invalid current
-values normalize to validated defaults. A future schema version is not guessed
-or rewritten; the current process uses safe defaults and exposes application
-settings as read-only compatibility state.
+Schema version 2 is migrated by preserving its RAW-confirmation, file-location,
+and Difference Map Cache values while adding the v3 defaults for exact RAW
+validation, Difference Threshold, and Difference Gain. Schema version 1 is also
+migrated through the same current model. Legacy `raw/dont_show_json_profiles`
+remains migration input only. Invalid current values normalize to validated
+defaults. A future schema version is not guessed or rewritten; the current
+process uses safe defaults and exposes application settings as read-only
+compatibility state.
 
 `Reset Settings` resets only schema-owned application preferences. It is
 separate from `Reset Workspace Layout` and does not remove window geometry,
@@ -142,14 +154,17 @@ startup-selected byte budget, LRU promotion/eviction, oversized-map rejection,
 and `used_bytes`, `budget_bytes`, and `entry_count` diagnostics. Metric and
 preview entries are invalidated when a map leaves the cache.
 
-P2-A2 persists the user preference in MiB with a 512 MiB default and 64–8192 MiB
-validation range. Startup converts MiB to bytes in frozen `PerformanceSettings`
-and injects that value through `MainWindow` → `DifferencePanel` →
-`DifferenceMapCache`. Saving a different value during the session does not
-mutate the existing cache; the Settings dialog reports restart-required state
-against the startup snapshot.
+P2-A2 persists the Difference Map Cache preference in MiB with a 512 MiB default
+and 64–8192 MiB validation range. Startup converts MiB to bytes in frozen
+`PerformanceSettings` and injects that value through `MainWindow` →
+`DifferencePanel` → `DifferenceMapCache`. Saving a different value during the
+session does not mutate the existing cache; the Settings dialog reports
+restart-required state against the startup snapshot.
 
-Difference-cache memory and decoded-source residency are separate policies.
+Difference Threshold and Gain are persisted analysis display defaults. They are
+applied to `DifferencePanel` when `MainWindow` starts and immediately after a
+Settings save; changing them does not require restart. Difference-map memory and
+decoded-source residency remain separate policies.
 
 ## Current source-memory boundary
 
@@ -168,7 +183,14 @@ suggestion remain outside the current implementation.
 
 The persistent RAW JSON confirmation preference is exposed through the General
 Settings page rather than the File menu. The RAW open dialog may still set the
-same typed preference when the user chooses its "don't show again" option.
+same typed preference when the user chooses its "don't show again" option; that
+single-field update preserves every other schema-v3 preference.
+
+`Require Exact RAW File Size` is also a General preference. When disabled,
+trailing bytes are allowed and undersized RAW files are rejected. When enabled,
+the source byte count must exactly equal the profile requirement. The same rule
+controls both worker decoding and whether a matching JSON sidecar may bypass the
+profile-confirmation dialog.
 
 ## Planned P2 boundaries
 
