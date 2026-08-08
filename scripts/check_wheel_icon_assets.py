@@ -19,9 +19,7 @@ def _resolve_wheel(path: Path) -> Path:
 
     wheels = sorted(path.glob("pixelscope-*.whl"))
     if len(wheels) != 1:
-        raise ValueError(
-            f"expected exactly one pixelscope wheel under {path}, found {len(wheels)}"
-        )
+        raise ValueError(f"expected exactly one pixelscope wheel under {path}, found {len(wheels)}")
     return wheels[0]
 
 

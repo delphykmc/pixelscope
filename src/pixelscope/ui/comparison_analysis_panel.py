@@ -238,9 +238,7 @@ class ComparisonAnalysisPanel(QWidget):
         channel_controls.addStretch(1)
 
         self.image_summary = QTableWidget(0, 4)
-        self.image_summary.setHorizontalHeaderLabels(
-            ("Id", "Image", "Bit depth", "Pixels")
-        )
+        self.image_summary.setHorizontalHeaderLabels(("Id", "Image", "Bit depth", "Pixels"))
         summary_vertical_header = self.image_summary.verticalHeader()
         summary_vertical_header.hide()
         summary_vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)

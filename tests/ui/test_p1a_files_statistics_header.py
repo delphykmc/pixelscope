@@ -111,15 +111,11 @@ def test_statistics_sections_align_region_bounds_and_image_metadata(
     active_roi_index = panel.region_scope.findText("Active ROI")
     active_roi_model_index = panel.region_scope.model().index(active_roi_index, 0)
     assert not (
-        panel.region_scope.model().flags(active_roi_model_index)
-        & Qt.ItemFlag.ItemIsEnabled
+        panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     )
     assert not panel.image_summary.wordWrap()
     assert panel.image_summary.textElideMode() == Qt.TextElideMode.ElideMiddle
-    assert (
-        panel.image_summary.verticalHeader().sectionResizeMode(0)
-        == QHeaderView.ResizeMode.Fixed
-    )
+    assert panel.image_summary.verticalHeader().sectionResizeMode(0) == QHeaderView.ResizeMode.Fixed
     assert panel.region_group.title() == "1. Region"
     assert panel.image_summary_group.title() == "2. Images"
     assert panel.statistics_group.title() == "3. Channel statistics"
@@ -141,10 +137,7 @@ def test_statistics_sections_align_region_bounds_and_image_metadata(
     assert panel.image_summary.horizontalHeaderItem(2).text() == "Bit depth"
     assert panel.image_summary.horizontalHeaderItem(3).text() == "Pixels"
     assert panel.roi_label.text() == "x=0, y=0, width=10, height=8"
-    assert (
-        panel.image_summary.item(0, 1).text()
-        == "base / chart_03_frequency_patterns.jpg"
-    )
+    assert panel.image_summary.item(0, 1).text() == "base / chart_03_frequency_patterns.jpg"
     assert panel.image_summary.item(0, 2).text() == "8-bit"
     assert panel.image_summary.item(0, 3).text() == "80"
     assert panel.image_summary.rowHeight(0) == panel.image_summary.rowHeight(1)
@@ -157,15 +150,11 @@ def test_statistics_sections_align_region_bounds_and_image_metadata(
         timeout=3000,
     )
     assert panel.roi_label.text() == "x=1, y=2, width=3, height=4"
-    assert (
-        panel.region_scope.model().flags(active_roi_model_index)
-        & Qt.ItemFlag.ItemIsEnabled
-    )
+    assert panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     panel.set_roi_available(False)
     assert panel.region_scope.currentText() == "Full image"
     assert not (
-        panel.region_scope.model().flags(active_roi_model_index)
-        & Qt.ItemFlag.ItemIsEnabled
+        panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     )
     assert panel.activity.isHidden()
 
@@ -181,22 +170,17 @@ def test_main_window_tracks_active_roi_availability(qtbot: object) -> None:
     active_roi_index = panel.region_scope.findText("Active ROI")
     active_roi_model_index = panel.region_scope.model().index(active_roi_index, 0)
     assert not (
-        panel.region_scope.model().flags(active_roi_model_index)
-        & Qt.ItemFlag.ItemIsEnabled
+        panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     )
 
     window._shared_roi_changed(RoiBounds(1, 2, 3, 4))
-    assert (
-        panel.region_scope.model().flags(active_roi_model_index)
-        & Qt.ItemFlag.ItemIsEnabled
-    )
+    assert panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     assert panel.region_scope.currentText() == "Active ROI"
 
     window._select_document_ids([replacement.document_id])
     assert panel.region_scope.currentText() == "Full image"
     assert not (
-        panel.region_scope.model().flags(active_roi_model_index)
-        & Qt.ItemFlag.ItemIsEnabled
+        panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     )
 
     window._shared_roi_changed(RoiBounds(1, 2, 3, 4))
@@ -204,8 +188,7 @@ def test_main_window_tracks_active_roi_availability(qtbot: object) -> None:
     window.clear_roi()
     assert panel.region_scope.currentText() == "Full image"
     assert not (
-        panel.region_scope.model().flags(active_roi_model_index)
-        & Qt.ItemFlag.ItemIsEnabled
+        panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
     )
     window.close()
 

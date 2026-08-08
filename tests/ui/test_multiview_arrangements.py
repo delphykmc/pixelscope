@@ -94,9 +94,7 @@ def test_fixed_geometry_and_primary_visibility(qtbot: object, count: int) -> Non
     assert _layout_snapshot(view) == placements
     assert tuple(view._layout.rowStretch(index) for index in range(3)) == row_stretches
     assert tuple(view._layout.columnStretch(index) for index in range(3)) == column_stretches
-    assert all(
-        viewer.header.focus.isHidden() is (count == 1) for viewer in view.occupied_viewers
-    )
+    assert all(viewer.header.focus.isHidden() is (count == 1) for viewer in view.occupied_viewers)
 
 
 def test_three_view_real_geometry_uses_equal_columns_and_two_row_primary(qtbot: object) -> None:
@@ -199,8 +197,7 @@ def test_primary_reordering_preserves_fixed_layout_and_document_contracts(
         window.add_document(document, select=False)
     selected_ids = [document.document_id for document in documents]
     logical_slots = {
-        document.document_id: str(index + 1)
-        for index, document in enumerate(documents)
+        document.document_id: str(index + 1) for index, document in enumerate(documents)
     }
     window._select_document_ids(selected_ids)
     window.set_layout_mode("Multi View")
@@ -308,8 +305,7 @@ def test_six_source_diff_hide_restores_exact_multiview_state(qtbot: object) -> N
         window.add_document(document, select=False)
     selected_ids = [document.document_id for document in documents]
     logical_slots = {
-        document.document_id: str(index + 1)
-        for index, document in enumerate(documents)
+        document.document_id: str(index + 1) for index, document in enumerate(documents)
     }
     window._select_document_ids(selected_ids)
     window.set_layout_mode("Multi View")
@@ -353,11 +349,15 @@ def test_six_source_diff_hide_restores_exact_multiview_state(qtbot: object) -> N
     assert window._current_index == current_index
     assert tuple(window._multi_display_order) == display_order
     assert [document.document_id for document in window.selected_documents] == selected_ids
-    assert {
-        viewer.document.document_id: viewer.header.badge.text()
-        for viewer in window.multi_compare_view.occupied_viewers
-        if viewer.document is not None
-    } == badge_by_id == logical_slots
+    assert (
+        {
+            viewer.document.document_id: viewer.header.badge.text()
+            for viewer in window.multi_compare_view.occupied_viewers
+            if viewer.document is not None
+        }
+        == badge_by_id
+        == logical_slots
+    )
     restored = window.multi_compare_view.capture_view_state()
     assert restored.active_document_id == before.active_document_id
     assert restored.ranges is not None and before.ranges is not None

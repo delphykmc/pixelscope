@@ -48,9 +48,7 @@ class EmptyWorkspace(QWidget):
 
         self.formats_hint = QLabel("PNG · JPEG · BMP · RAW")
         self.shortcuts_hint = QLabel("Ctrl+O images · Ctrl+Shift+O folder")
-        self.gestures_hint = QLabel(
-            "On an image: Ctrl+drag ROI · Alt+drag line profile"
-        )
+        self.gestures_hint = QLabel("On an image: Ctrl+drag ROI · Alt+drag line profile")
         for hint in (
             self.formats_hint,
             self.shortcuts_hint,
