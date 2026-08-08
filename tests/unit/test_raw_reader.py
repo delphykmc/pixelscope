@@ -160,3 +160,16 @@ def test_too_small_file(tmp_path: Path) -> None:
     path.write_bytes(b"\0" * 4)
     with pytest.raises(RawReadError, match="too small"):
         read_raw(path, make_profile())
+
+
+def test_oversized_file_is_allowed_by_default_but_rejected_in_exact_mode(
+    tmp_path: Path,
+) -> None:
+    profile = make_profile()
+    required = required_file_size(profile)
+    path = tmp_path / "oversized.raw"
+    path.write_bytes(b"\0" * (required + 32))
+
+    assert read_raw(path, profile).shape == (profile.height, profile.width)
+    with pytest.raises(RawReadError, match="does not match profile"):
+        read_raw(path, profile, require_exact_size=True)
