@@ -5,11 +5,12 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialogButtonBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.settings import ApplicationSettings, QSettingsAdapter, SettingsRepository
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
 
 
@@ -86,6 +87,65 @@ def test_exact_raw_setting_reaches_worker_and_reader(
     assert loaded.loading_state == "error"
     assert loaded.source is None
     assert loaded.error_state is not None
+    exact_window.close()
+
+
+def test_exact_raw_setting_controls_sidecar_auto_approval(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    raw_path = tmp_path / "oversized.raw"
+    raw_path.write_bytes(bytes(40))
+    sidecar = tmp_path / "oversized.json"
+    profile = _raw_profile()
+    profile.save_json(sidecar)
+
+    class UnexpectedDialog:
+        def __init__(self, _parent: object) -> None:
+            raise AssertionError("relaxed valid sidecar unexpectedly opened the dialog")
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.app.main_window.RawOpenDialog",
+        UnexpectedDialog,
+    )
+    relaxed = ApplicationSettings(
+        dont_show_raw_json_profiles=True,
+        require_exact_raw_file_size=False,
+    )
+    relaxed_window = MainWindow(relaxed, relaxed.performance_settings(), _repository())
+    qtbot.addWidget(relaxed_window)  # type: ignore[attr-defined]
+    assert relaxed_window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) == profile
+    relaxed_window.close()
+
+    class ExactMismatchDialog:
+        constructed = False
+
+        def __init__(self, _parent: object) -> None:
+            type(self).constructed = True
+
+        def set_source_path(self, _path: Path) -> None:
+            pass
+
+        def set_profile(self, _profile: RawProfile) -> None:
+            pass
+
+        def set_json_confirmation_option_visible(self, _visible: bool) -> None:
+            pass
+
+        def exec(self) -> QDialog.DialogCode:
+            return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.app.main_window.RawOpenDialog",
+        ExactMismatchDialog,
+    )
+    exact = replace(relaxed, require_exact_raw_file_size=True)
+    exact_window = MainWindow(exact, exact.performance_settings(), _repository())
+    qtbot.addWidget(exact_window)  # type: ignore[attr-defined]
+
+    assert exact_window._confirm_raw_profile(ImageInput(raw_path, sidecar), None) is None
+    assert ExactMismatchDialog.constructed
     exact_window.close()
 
 
