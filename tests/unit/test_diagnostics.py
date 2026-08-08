@@ -173,11 +173,32 @@ def test_failure_sanitization_redacts_windows_and_posix_paths(message: str) -> N
         assert "expected 4096, actual 2048" in sanitized
 
 
+@pytest.mark.parametrize(
+    ("message", "secret_value"),
+    (
+        ("Authorization: Basic dXNlcjpwYXNz", "dXNlcjpwYXNz"),
+        (
+            "decode failed; password=correct horse battery staple; retryable",
+            "correct horse battery staple",
+        ),
+        ("api_key = first second third, decode failed", "first second third"),
+    ),
+)
+def test_failure_sanitization_redacts_complete_unquoted_credential_values(
+    message: str,
+    secret_value: str,
+) -> None:
+    sanitized = sanitize_failure_message(message)
+
+    assert secret_value not in sanitized
+    assert "<redacted>" in sanitized
+
+
 def test_failure_sanitization_removes_traceback_multiline_and_credentials() -> None:
     message = (
         "Traceback (most recent call last):\n"
         '  File "C:\\Users\\alice\\decoder.py", line 7\n'
-        "RuntimeError: token=secret-value Bearer abc.def.ghi decode failed"
+        "RuntimeError: token=secret-value; Bearer abc.def.ghi decode failed"
     )
 
     diagnostic = FailureDiagnostic.from_exception(

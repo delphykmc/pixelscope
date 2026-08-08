@@ -16,7 +16,7 @@ _POSIX_ABSOLUTE_PATH_RE = re.compile(r"(?<![A-Za-z0-9_])/(?:[^/\s]+/)*[^/\s,;:]+
 _BEARER_RE = re.compile(r"\bBearer\s+[^\s,;]+", re.IGNORECASE)
 _SECRET_ASSIGNMENT_RE = re.compile(
     r"\b(token|password|passwd|secret|api[_-]?key|authorization)\b"
-    r"\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+    r"\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^,;]*)",
     re.IGNORECASE,
 )
 _WHITESPACE_RE = re.compile(r"\s+")

@@ -187,6 +187,10 @@ active and is discarded together with that request when the worker finishes.
 
 ## Current runtime diagnostics lifecycle
 
+P2-D establishes deterministic, inexpensive, sanitized runtime observability for
+automated validation, P2-E characterization, and support troubleshooting. The
+only end-user surface is an on-demand `Help > Copy Diagnostics` action.
+
 `RuntimeDiagnosticsSnapshot` and its nested source, Difference-cache, worker-pool,
 and failure values are frozen, Qt-free domain models. The snapshot reuses the
 existing `PreloadDiagnostics` value instead of introducing duplicate preload
@@ -198,20 +202,26 @@ reads `ResidencyManager` byte/count properties, `DifferenceMapCache` byte/entry
 properties, the foreground/preload worker registries and pool maxima, existing
 preload diagnostics, the foreground stale-drop counter, and a ten-entry recent
 failure deque. It does not call cache `get()`, residency `touch()`, preload plan
-refresh, worker start/cancel, selection/render, or filesystem discovery.
+refresh, worker start/cancel, selection/render, or filesystem discovery. P2-E can
+consume this API directly; no diagnostics widget is required.
 
 Foreground load token/document rejections increment one bounded counter. Accepted
-foreground-load and speculative-preload failures enter the recent deque with a
-subsystem/category, exception type, and short message. Sanitization removes
-Windows/POSIX absolute paths, URL detail, credential-like assignments and bearer
+current foreground-load and speculative-preload failures enter the recent deque
+with a subsystem/category, exception type, and short message. A preload failure
+from an obsolete cancelled or replanned generation is rejected by
+`PreloadController.record_failure()` before it can enter recent failure history.
+Sanitization removes Windows/POSIX absolute paths, URL detail, complete
+credential-like assignment values including unquoted multi-word values, bearer
 values, multiline traceback context, and excess length; raw traceback and image
 content are never stored in diagnostics.
 
-`format_runtime_diagnostics()` is pure and emits a fixed section/field order.
-`DiagnosticsDialog` refreshes only by requesting another snapshot. Copy and UTF-8
-text save consume the exact currently displayed sanitized text and add no
-persistent setting. Reading, refreshing, copying, or saving diagnostics does not
-mutate runtime policy or start work.
+`format_runtime_diagnostics()` is pure and emits a fixed section/field order with
+no timestamp. `MainWindow.copy_diagnostics()` takes one current snapshot, formats
+it once, copies that exact sanitized text to `QApplication.clipboard()`, and shows
+`Diagnostics copied to clipboard` in the status bar. There is no diagnostics
+modal, live monitor, timer, refresh control, or diagnostics text-file export.
+Copying remains observation-only with respect to workers, navigation, render,
+preload counters/policy, and both LRU owners.
 
 ## Current Difference lifecycle
 

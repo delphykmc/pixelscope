@@ -153,16 +153,26 @@
   retryable through normal loading.
 - Cancellation and stale-result rejection are distinct; obsolete results must
   not apply even when a decoder cannot stop immediately.
+- P2-D establishes deterministic, inexpensive, sanitized runtime observability for
+  automated validation, P2-E characterization, and support troubleshooting. The
+  only end-user surface is an on-demand **Help > Copy Diagnostics** action.
 - Runtime diagnostics are frozen Qt-free snapshots with a pure deterministic text
   formatter. They reuse the existing source, Difference-cache, and preload owners;
-  foreground/preload workers use general active/max pairs.
-- Diagnostics retain at most ten recent failures. They redact absolute Windows and
-  POSIX paths, credential-like values, bearer tokens, URL detail, multiline
-  traceback context, and excess message length. They contain no pixel content,
-  raw traceback, environment dump, username, hostname, or CWD.
-- **Help > Diagnostics...** reads, refreshes, copies, and saves the same sanitized
-  text. These operations may not load images, calculate Difference, mutate an LRU,
-  start/cancel workers, refresh preload, scan files, or change selection/rendering.
+  foreground/preload workers use general active/max pairs. P2-E may consume
+  `MainWindow.runtime_diagnostics_snapshot()` directly without any diagnostics UI.
+- Diagnostics retain at most ten recent accepted failures. Obsolete cancelled or
+  replanned preload failures are not promoted into recent failure history. Failure
+  text redacts absolute Windows/POSIX paths, complete credential-like assignment
+  values including multi-word values, bearer tokens, URL detail, multiline
+  traceback context, and excess message length. Diagnostics contain no pixel
+  content, raw traceback, environment dump, username, hostname, CWD, or timestamp.
+- **Help > Copy Diagnostics** obtains one current snapshot, formats it once with
+  the canonical formatter, copies that exact sanitized text to the clipboard,
+  and provides a short status-bar confirmation. There is no diagnostics modal,
+  live monitor, Refresh/timer, or diagnostics text-file export.
+- Reading or copying diagnostics may not load images, calculate Difference,
+  mutate an LRU, start/cancel workers, refresh preload, scan files, or change
+  selection/rendering.
 - P2-D preserves the merged P2-C preload policy: exactly `plan(+1)`, fixed preload
   concurrency one, and foreground priority. Promotion, concurrency two,
   bidirectional prediction, and configurable CPU/I/O aggressiveness are deferred

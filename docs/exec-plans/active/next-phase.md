@@ -75,8 +75,10 @@ optimization.
   preload prediction over one-to-six distinct registered folders.
 - P2-C uses a separate max-one preload pool, generation/path/profile/token stale
   validation, ordinary residency retention, and bounded read-only counters.
-- P2-D adds frozen deterministic diagnostics, bounded sanitized failures,
-  foreground stale-drop visibility, and observation-only Help/Copy/Save UI.
+- P2-D establishes frozen deterministic diagnostics, bounded sanitized failure
+  history, stale-drop visibility, and the single observation-only
+  **Help > Copy Diagnostics** support surface. P2-E consumes the same snapshot
+  API directly without requiring diagnostics UI.
 
 ## Invariants
 
@@ -108,7 +110,9 @@ optimization.
 - The merged preload baseline remains exactly `plan(+1)` with fixed concurrency
   one; promotion, additional directions/workers, and resource tuning are deferred.
 - Diagnostics observation may not start/cancel work, touch either LRU, scan files,
-  calculate Difference, or change selection/rendering.
+  calculate Difference, refresh preload, or change selection/rendering.
+- Diagnostics output is bounded, timestamp-free, deterministic for unchanged
+  runtime state, and sanitized before it reaches the clipboard.
 - Remote access policy is not introduced in P2.
 - Agent-generated commits and GitHub activity follow the provenance convention
   in `AGENTS.md` and `docs/AGENT_HARNESS_NOTES.md`.
@@ -130,7 +134,9 @@ Implemented by P2-A through P2-D:
   active state, and minimal counters.
 - `RuntimeDiagnosticsSnapshot`: immutable source/cache/worker/preload/stale/failure
   aggregation with a pure sanitized formatter.
-- Diagnostics UI: observation-only display/Refresh plus identical Copy/UTF-8 save.
+- Diagnostics product surface: one on-demand **Help > Copy Diagnostics** action
+  that obtains a snapshot, formats it once, copies the exact canonical text, and
+  reports status-bar feedback. No diagnostics modal/live monitor/file export.
 
 P2-E remains characterization and phase hardening, not a new broad runtime boundary.
 
@@ -206,8 +212,7 @@ Branch: `feature/p2-a-settings-foundation`
   broader than Statistics CSV.
 - Durable agent provenance rules recorded for future ChatGPT/Codex work.
 
-Excluded: source-residency budget, preload, diagnostics dialog, installer, and
-signing.
+Excluded: source-residency budget, preload, diagnostics UI, installer, and signing.
 
 ### P2-B — Byte-budgeted decoded-source residency
 
@@ -250,15 +255,23 @@ Status: Complete; merged as PR #17 at
 
 ### P2-D — Runtime diagnostics and failure visibility
 
-Status: Active on `feature/p2-d-runtime-diagnostics`; implementation and automated
-validation complete, manual Windows dialog validation pending.
+Status: Active on `feature/p2-d-runtime-diagnostics`; Copy-only review follow-up
+implemented. Fresh standard validation and owner Windows Copy smoke remain merge
+gates until observed.
 
 - Produces frozen deterministic source-residency, Difference-cache, worker,
   preload, stale-drop, and bounded recent-failure state.
-- Sanitizes Windows/POSIX paths, credential-like values, URL/bearer detail,
-  multiline traceback context, and long messages without storing image content.
-- Uses one pure fixed-order formatter and **Help > Diagnostics...** with read-only
-  Refresh, Copy Diagnostics, UTF-8 Save as Text, and Close.
+- Records only accepted current foreground/preload failures in recent history;
+  stale cancelled or replanned preload failures are excluded.
+- Sanitizes Windows/POSIX paths, complete credential-like assignment values,
+  URL/bearer detail, multiline traceback context, and long messages without
+  storing image content.
+- Uses one pure fixed-order, timestamp-free formatter. **Help > Copy Diagnostics**
+  obtains one snapshot, formats once, copies the exact sanitized text, and shows
+  **Diagnostics copied to clipboard** in the status bar.
+- Removes the previous diagnostics dialog, Refresh flow, Save as Text export, and
+  their dialog-only tests. P2-E and automated tests consume
+  `MainWindow.runtime_diagnostics_snapshot()` directly.
 - Reads only cheap existing properties/registries. Observation does not touch an
   LRU, start/cancel work, refresh preload, scan files, or change selection/render.
 - Preserves P2-C exactly-one-ahead, fixed-one-concurrency, foreground-priority
@@ -269,6 +282,8 @@ validation complete, manual Windows dialog validation pending.
 - Integrate P2 and complete default/migration/invalid-state tests.
 - Characterize FHD/UHD, uint8/uint16, RGB/grayscale/Bayer/RAW, low budgets,
   oversized sources, rapid navigation, cancellation, and diagnostics.
+- Consume the P2-D snapshot API directly for deterministic characterization where
+  useful; do not add a live diagnostics UI solely for P2-E.
 - Add deterministic smoke checks rather than unstable timing thresholds.
 - Complete durable P2 documentation without adding a large feature.
 
@@ -280,8 +295,11 @@ validation complete, manual Windows dialog validation pending.
   reload tests; fixed-count policy no longer authoritative.
 - **P2-C:** complete and merged as PR #17; normal-load priority, bounded ownership,
   stale-result rejection, and fixed exactly-one-ahead preload remain authoritative.
-- **P2-D:** deterministic sanitized snapshot, bounded failures, observation-only
-  inspection, and displayed-text-identical Copy/UTF-8 export.
+- **P2-D:** deterministic sanitized snapshot, bounded accepted failure history,
+  complete credential redaction, stale preload-failure rejection, observation-only
+  inspection, exact canonical clipboard output, status feedback, no old
+  diagnostics dialog/export, focused automated regressions, and owner Windows
+  Copy smoke.
 - **P2-E:** full standard validation, deterministic performance smoke coverage,
   Windows characterization, and coherent durable docs.
 
@@ -293,7 +311,6 @@ P2-D focused checks:
 .\.venv\Scripts\python.exe -m pytest -q `
     tests\unit\test_diagnostics.py `
     tests\ui\test_runtime_diagnostics.py `
-    tests\ui\test_diagnostics_dialog.py `
     tests\ui\test_ui_smoke.py::test_application_and_selection_driven_main_window `
     tests\ui\test_toolbar_icons.py::test_disabled_menu_actions_keep_icons_and_use_disabled_text_palette
 ```
@@ -310,24 +327,27 @@ Full repository contract for this runtime/docs change:
 git diff --check
 ```
 
-On the latest working head, focused P2-D tests report 20 passed. Full pytest
-reports 378 passed and the same three offscreen-only failures reproduce from an
-isolated `origin/main@812982dacdecca155f7b53ab42ef2bd9fba68a77` archive:
-floating Plots geometry restore and two pyqtgraph hover-coordinate assertions.
-No skip or expectation rewrite was added.
+Before the Copy-only review follow-up, focused P2-D tests reported 20 passed. Full
+pytest reported 378 passed and the same three offscreen-only failures reproduced
+from an isolated `origin/main@812982dacdecca155f7b53ab42ef2bd9fba68a77`
+archive: floating Plots geometry restore and two pyqtgraph hover-coordinate
+assertions. No skip or expectation rewrite was added. Those results are prior
+evidence only; the follow-up requires a fresh focused/full run before merge.
 
 ## Manual Windows matrix
 
 P2-D merge requires owner validation of:
 
-1. **Help > Diagnostics...** opens a readable, resizable read-only dialog.
-2. Refresh updates current counters without visible UI stall or starting work.
-3. Copy Diagnostics exactly matches the displayed text.
-4. Save as Text produces the same UTF-8 text and suggested filename behavior.
-5. Registered paths, usernames, credential-like values, traceback, and image
-   content are absent from realistic failure samples.
-6. Foreground loading, exactly-one-ahead fixed-one preload, Difference, and source
-   residency behavior remain unchanged while the dialog is used.
+1. **Help > Copy Diagnostics** exists and the previous **Diagnostics...** modal
+   surface is absent.
+2. Triggering Copy places the canonical current diagnostics text on the clipboard,
+   shows **Diagnostics copied to clipboard**, and causes no visible stall or new
+   runtime work.
+3. Registered paths, usernames, credential/token values, traceback content, and
+   image content are absent from realistic failure samples.
+4. Repeated Copy with unchanged runtime state is identical and timestamp-free;
+   foreground loading, exactly-one-ahead fixed-one preload, Difference, and source
+   residency behavior remain unchanged.
 
 Later-slice matrices remain:
 
@@ -351,8 +371,8 @@ Resolved:
   Settings.
 - Preload default: Enabled.
 
-Pending: none for P2-D. Preload promotion, concurrency, direction, and resource
-controls remain deferred pending P2-E/post-P2 evidence.
+Pending: none for P2-D product design. Preload promotion, concurrency, direction,
+and resource controls remain deferred pending P2-E/post-P2 evidence.
 
 ## Progress log
 
@@ -395,8 +415,14 @@ controls remain deferred pending P2-E/post-P2 evidence.
   `812982dacdecca155f7b53ab42ef2bd9fba68a77`. P2-D added the immutable diagnostics
   core/formatter (`4ad6f20`), runtime aggregation and stale/failure instrumentation
   (`92e484b`), Help/Copy/Save UI (`eac66b5`), and Help-menu regression fix
-  (`b678cc4`). Focused diagnostics validation reports 20 passed; full pytest
-  reports 378 passed / three failures reproduced on the merged baseline.
+  (`b678cc4`). Focused diagnostics validation reported 20 passed; full pytest
+  reported 378 passed / three failures reproduced on the merged baseline.
+- 2026-08-09: PR #18 independent review redirected the end-user surface to
+  **Help > Copy Diagnostics** only and identified credential-value, stale preload
+  failure-history, and ROADMAP blockers. The follow-up removes dialog/export code,
+  gates preload failure history on controller acceptance, hardens credential
+  sanitization, adds regressions, and reconciles durable documentation. Fresh
+  standard validation and owner Windows Copy smoke remain before merge.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2-A2 merge blocker.
 
@@ -408,5 +434,6 @@ controls remain deferred pending P2-E/post-P2 evidence.
 - Native source residency is byte-accounted with protection, eviction, reload,
   and diagnostics.
 - Preload is bounded, lower priority than normal load, and rejects stale results.
-- Diagnostics are deterministic, sanitized, and inexpensive to inspect.
+- Diagnostics are deterministic, sanitized, inexpensive to observe, and exposed
+  to users only through on-demand support copy.
 - P2 passes the full repository contract and agreed Windows characterization.

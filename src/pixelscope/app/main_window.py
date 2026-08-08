@@ -19,6 +19,7 @@ from PySide6.QtGui import (
     QShortcut,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QDialog,
     QDockWidget,
@@ -47,6 +48,7 @@ from pixelscope.core.diagnostics import (
     SourceResidencyDiagnostics,
     WorkerDiagnostics,
     WorkerPoolDiagnostics,
+    format_runtime_diagnostics,
 )
 from pixelscope.core.folder_navigation import (
     FolderNavigationPlan,
@@ -72,7 +74,6 @@ from pixelscope.ui.design_tokens import (
     panel_heading_style,
     toolbar_style,
 )
-from pixelscope.ui.diagnostics_dialog import DiagnosticsDialog
 from pixelscope.ui.difference_panel import DifferencePanel
 from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
@@ -391,7 +392,7 @@ class MainWindow(QMainWindow):
         self.redock_plots_action.setStatusTip(self.redock_plots_action.toolTip())
         self.redock_plots_action.setEnabled(False)
         add_action("View", "Reset Workspace Layout", self.reset_workspace_layout)
-        add_action("Help", "Diagnostics...", self.open_diagnostics)
+        add_action("Help", "Copy Diagnostics", self.copy_diagnostics)
         self._update_action_states()
 
     def create_settings_dialog(self) -> SettingsDialog:
@@ -408,11 +409,10 @@ class MainWindow(QMainWindow):
         dialog = self.create_settings_dialog()
         dialog.exec()
 
-    def create_diagnostics_dialog(self) -> DiagnosticsDialog:
-        return DiagnosticsDialog(self.runtime_diagnostics_snapshot, self)
-
-    def open_diagnostics(self) -> None:
-        self.create_diagnostics_dialog().exec()
+    def copy_diagnostics(self) -> None:
+        text = format_runtime_diagnostics(self.runtime_diagnostics_snapshot())
+        QApplication.clipboard().setText(text)
+        self.statusBar().showMessage("Diagnostics copied to clipboard", 3000)
 
     def _application_settings_saved(self, settings: object) -> None:
         if not isinstance(settings, ApplicationSettings):
@@ -1274,11 +1274,12 @@ class MainWindow(QMainWindow):
         request = self._preload_worker_requests.get(task_id)
         if request is None:
             return
-        self._record_runtime_failure("preload", "decode", error)
-        self.preload_controller.record_failure(
+        accepted = self.preload_controller.record_failure(
             request.plan_generation,
             request.document_id,
         )
+        if accepted:
+            self._record_runtime_failure("preload", "decode", error)
 
     def _preload_worker_finished(self, task_id: str) -> None:
         request = self._preload_worker_requests.pop(task_id, None)

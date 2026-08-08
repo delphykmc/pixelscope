@@ -169,11 +169,18 @@ This document records the implementation baseline that new work must use.
   Difference-cache, foreground/preload worker, preload counter, foreground stale
   drop, and bounded recent failure state. `MainWindow.runtime_diagnostics_snapshot()`
   reads existing cheap owners without touching either LRU or starting work.
-- Recent failures are limited to ten entries and sanitize Windows/POSIX absolute
-  paths, credential-like values, multiline traceback content, and long messages.
-  The pure formatter uses a fixed section order. **Help > Diagnostics...** exposes
-  read-only Refresh, Copy Diagnostics, UTF-8 text save, and Close actions; display,
-  clipboard, and saved content are identical sanitized text.
+- Recent failures are limited to ten entries. Accepted current foreground/preload
+  failures are recorded; obsolete cancelled or replanned preload failures are not.
+  Sanitization removes Windows/POSIX absolute paths, complete credential-like
+  assignment values, bearer tokens, URL detail, multiline traceback context, and
+  long messages.
+- P2-D establishes deterministic, inexpensive, sanitized runtime observability for
+  automated validation, P2-E characterization, and support troubleshooting. The
+  only end-user surface is **Help > Copy Diagnostics**. It obtains one snapshot,
+  copies the exact canonical formatter output, and reports **Diagnostics copied to
+  clipboard** in the status bar. No diagnostics modal, refresh loop, live monitor,
+  timer, or diagnostics file export remains. P2-E can consume the snapshot API
+  directly without invoking UI.
 
 ## Not implemented
 
@@ -186,14 +193,17 @@ This document records the implementation baseline that new work must use.
 
 ## Validation evidence
 
-Focused P2-D diagnostics validation reports 20 passed. Full pytest reports 378
-passed with three reproducible offscreen
+Before the Copy-only follow-up, focused P2-D diagnostics validation reported 20
+passed. Full pytest reported 378 passed with three reproducible offscreen
 failures: floating Plots geometry restore and two pyqtgraph hover-coordinate
-assertions. The same three tests fail from an isolated
-`origin/main@812982dacdecca155f7b53ab42ef2bd9fba68a77` archive in
-the identical environment, confirming they are baseline/environment failures,
-not P2-D regressions. They were not skipped or rewritten. Manual Windows P2-D
-dialog, clipboard, save, sanitization, and responsiveness validation remains.
+assertions. The same three tests failed from an isolated
+`origin/main@812982dacdecca155f7b53ab42ef2bd9fba68a77` archive in the identical
+environment, confirming they were baseline/environment failures rather than
+P2-D regressions. The Copy-only follow-up adds focused regressions for complete
+credential redaction, stale cancelled/replanned preload failures, exact clipboard
+text, status feedback, and observation-only repeated copy. Fresh standard-suite
+validation and the owner Windows **Help > Copy Diagnostics** smoke remain merge
+gates until their results are observed.
 
 ## Active plan
 

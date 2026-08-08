@@ -5,8 +5,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.core.diagnostics import format_runtime_diagnostics
 from pixelscope.core.difference_cache import CachedDifferenceMap
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.preload import PreloadMemberRequest
@@ -170,3 +172,133 @@ def test_stale_and_failure_instrumentation_is_bounded_and_sanitized(
     assert "secret" not in joined
     assert "hunter2" not in joined
     assert "Traceback" not in joined
+
+
+def test_stale_cancelled_replanned_preload_failure_is_not_recorded(
+    qtbot: object,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    plan = window.preload_controller.set_plan(("obsolete-preload",))
+    assert plan is not None
+    request = PreloadMemberRequest(
+        plan_generation=plan.generation,
+        document_id="obsolete-preload",
+        document_generation=0,
+        source_path_identity="obsolete-identity",
+        profile_identity="",
+        require_exact_raw_size=False,
+        normal_load_token=0,
+    )
+    assert window.preload_controller.start_member(request)
+    window._preload_worker_requests["obsolete-task"] = request
+    window.preload_controller.record_cancellation_request(request)
+
+    replacement = window.preload_controller.set_plan(("replacement-preload",))
+    assert replacement is not None
+    before = window.runtime_diagnostics_snapshot()
+
+    window._preload_failed(
+        "obsolete-task",
+        _task_error("obsolete decode failed; password=do not retain this secret"),
+    )
+
+    after = window.runtime_diagnostics_snapshot()
+
+    assert after.preload.failure_count == before.preload.failure_count == 0
+    assert after.preload.cancellation_request_count == 1
+    assert after.recent_failures == before.recent_failures == ()
+    assert window.preload_controller.current_plan == replacement
+
+
+def test_help_copy_diagnostics_is_exact_sanitized_observation(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    private_path = tmp_path / "private-user" / "registered.png"
+    document = ImageDocument.from_array(
+        np.full((2, 3), 173, dtype=np.uint8),
+        private_path.name,
+        source_path=private_path,
+    )
+    window.add_document(document, select=False)
+    window._record_runtime_failure(
+        "foreground-load",
+        "decode",
+        _task_error(
+            r"decode failed at C:\Users\private-user\registered.png; "
+            "Authorization: Basic dXNlcjpwYXNz; password=correct horse battery staple"
+        ),
+    )
+
+    difference = window.difference_panel.difference_cache
+    difference_key = (("copy-a", 0), ("copy-b", 0))
+    cached = CachedDifferenceMap(
+        absolute=np.ones((2, 2), dtype=np.uint8),
+        data_range=255.0,
+        channel_layout="GRAY",
+        bayer_pattern=None,
+    )
+    assert difference.put(difference_key, cached).stored
+
+    source_order = window.residency_manager.resident_document_ids
+    difference_order = difference.keys()
+    preload_generation = window.preload_controller.generation
+    selection = tuple(window._selection_order)
+    original_snapshot_provider = window.runtime_diagnostics_snapshot
+    snapshot_before = original_snapshot_provider()
+    expected = format_runtime_diagnostics(snapshot_before)
+    calls = 0
+
+    def counted_snapshot_provider():  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original_snapshot_provider()
+
+    def unexpected_work(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("copy diagnostics started or refreshed runtime work")
+
+    monkeypatch.setattr(window, "runtime_diagnostics_snapshot", counted_snapshot_provider)
+    monkeypatch.setattr(window, "_start_load", unexpected_work)
+    monkeypatch.setattr(window, "_start_preload", unexpected_work)
+    monkeypatch.setattr(window, "_refresh_preload_plan", unexpected_work)
+    monkeypatch.setattr(window, "_render_selection", unexpected_work)
+
+    help_action = next(action for action in window.menuBar().actions() if action.text() == "&Help")
+    help_menu = help_action.menu()
+    assert help_menu is not None
+    assert [action.text() for action in help_menu.actions()] == ["Copy Diagnostics"]
+    assert "Diagnostics..." not in window.action_map
+
+    window.action_map["Copy Diagnostics"].trigger()
+
+    copied = QApplication.clipboard().text()
+    assert calls == 1
+    assert copied == expected
+    assert window.statusBar().currentMessage() == "Diagnostics copied to clipboard"
+    assert "private-user" not in copied
+    assert "registered.png" not in copied
+    assert "dXNlcjpwYXNz" not in copied
+    assert "correct horse battery staple" not in copied
+    assert "private.py" not in copied
+    assert "Traceback" not in copied
+    assert "[[173" not in copied
+    assert window.residency_manager.resident_document_ids == source_order
+    assert difference.keys() == difference_order
+    assert window.preload_controller.generation == preload_generation
+    assert tuple(window._selection_order) == selection
+
+    window.action_map["Copy Diagnostics"].trigger()
+
+    assert calls == 2
+    assert QApplication.clipboard().text() == expected
+    assert original_snapshot_provider() == snapshot_before
+    assert window.residency_manager.resident_document_ids == source_order
+    assert difference.keys() == difference_order
+    assert window.preload_controller.generation == preload_generation
+    assert tuple(window._selection_order) == selection
