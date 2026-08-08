@@ -140,6 +140,7 @@ class MainWindow(QMainWindow):
         self.preload_controller = PreloadController(self.performance_settings.preload_enabled)
         self._preload_workers: dict[str, TaskWorker] = {}
         self._preload_worker_requests: dict[str, PreloadMemberRequest] = {}
+        self._promoted_preload_tokens: dict[str, int] = {}
         self._normal_load_stale_drop_count = 0
         self._recent_failures: deque[FailureDiagnostic] = deque(maxlen=MAX_RECENT_FAILURES)
         self._closing = False
@@ -1144,7 +1145,7 @@ class MainWindow(QMainWindow):
         self._workers.pop(task_id, None)
         self._load_worker_targets.pop(task_id, None)
         self._evict_resident_documents()
-        if not self._workers:
+        if not self._workers and not self._promoted_preload_tokens:
             self.structured_status.task.setText("Ready")
             self._refresh_preload_plan()
 
@@ -1209,6 +1210,9 @@ class MainWindow(QMainWindow):
             raw_profile,
             require_exact_raw_size=request.require_exact_raw_size,
         )
+        worker.signals.started.connect(
+            lambda task_id, _document_id, _generation: self._preload_started(task_id)
+        )
         worker.signals.succeeded.connect(
             lambda task_id, _document_id, _generation, result: self._preload_succeeded(
                 task_id, result
@@ -1222,9 +1226,113 @@ class MainWindow(QMainWindow):
         self._preload_worker_requests[worker.task_id] = request
         self._preload_pool.start(worker)
 
+    def _preload_started(self, task_id: str) -> None:
+        request = self._preload_worker_requests.get(task_id)
+        if request is not None:
+            self.preload_controller.mark_running(request)
+
+    def _promote_running_preloads(self, required_ids: Sequence[str]) -> None:
+        required = set(required_ids)
+        for task_id, request in tuple(self._preload_worker_requests.items()):
+            if request.document_id in required:
+                self._promote_preload_worker(task_id)
+
+    def _promote_preload_worker(self, task_id: str) -> bool:
+        request = self._preload_worker_requests.get(task_id)
+        worker = self._preload_workers.get(task_id)
+        if request is None or worker is None or worker.is_cancelled:
+            return False
+        if not self.preload_controller.request_is_current(request):
+            return False
+        if not self.preload_controller.request_is_running(request):
+            return False
+        document = self.documents.get(request.document_id)
+        if document is None or document.source_path is None:
+            return False
+        source_path = document.source_path
+        profile = self._raw_profiles.get(request.document_id)
+        valid = (
+            document.source is None
+            and document.loading_state == "pending"
+            and document.generation == request.document_generation
+            and self._path_key(source_path) == request.source_path_identity
+            and self._raw_profile_identity(profile) == request.profile_identity
+            and self.application_settings.require_exact_raw_file_size
+            == request.require_exact_raw_size
+            and self._load_tokens.get(request.document_id, 0) == request.normal_load_token
+            and request.document_id not in self._load_worker_targets.values()
+        )
+        if not valid or not self.preload_controller.promote(request):
+            return False
+
+        foreground_token = request.normal_load_token + 1
+        self._load_tokens[request.document_id] = foreground_token
+        self._promoted_preload_tokens[task_id] = foreground_token
+        document.loading_state = "loading"
+        document.error_state = None
+        self._update_document_item(document)
+        self._load_started(source_path)
+        return True
+
+    def _promoted_preload_is_current(
+        self,
+        task_id: str,
+        request: PreloadMemberRequest,
+        *,
+        require_result: ImageDocument | None = None,
+    ) -> bool:
+        foreground_token = self._promoted_preload_tokens.get(task_id)
+        if foreground_token is None or not self.preload_controller.request_is_promoted(request):
+            return False
+        document = self.documents.get(request.document_id)
+        profile = self._raw_profiles.get(request.document_id)
+        if not (
+            document is not None
+            and document.source is None
+            and document.loading_state == "loading"
+            and document.source_path is not None
+            and document.generation == request.document_generation
+            and self._path_key(document.source_path) == request.source_path_identity
+            and self._raw_profile_identity(profile) == request.profile_identity
+            and self.application_settings.require_exact_raw_file_size
+            == request.require_exact_raw_size
+            and self._load_tokens.get(request.document_id) == foreground_token
+            and request.document_id not in self._load_worker_targets.values()
+        ):
+            return False
+        if require_result is None:
+            return True
+        return (
+            require_result.source_path is not None
+            and self._path_key(require_result.source_path) == request.source_path_identity
+            and self._raw_profile_identity(
+                require_result.raw_profile
+                if isinstance(require_result.raw_profile, RawProfile)
+                else None
+            )
+            == request.profile_identity
+        )
+
     def _preload_succeeded(self, task_id: str, result: object) -> None:
         request = self._preload_worker_requests.get(task_id)
-        if request is None or not isinstance(result, ImageDocument):
+        promoted_token = self._promoted_preload_tokens.get(task_id)
+        if request is None:
+            if promoted_token is not None:
+                self._normal_load_stale_drop_count += 1
+            else:
+                self.preload_controller.record_stale_drop()
+            return
+        if promoted_token is not None:
+            if not isinstance(result, ImageDocument) or not self._promoted_preload_is_current(
+                task_id,
+                request,
+                require_result=result,
+            ):
+                self._normal_load_stale_drop_count += 1
+                return
+            self._load_succeeded(request.document_id, promoted_token, result)
+            return
+        if not isinstance(result, ImageDocument):
             self.preload_controller.record_stale_drop()
             return
         document = self.documents.get(request.document_id)
@@ -1274,6 +1382,24 @@ class MainWindow(QMainWindow):
         request = self._preload_worker_requests.get(task_id)
         if request is None:
             return
+        promoted_token = self._promoted_preload_tokens.get(task_id)
+        if promoted_token is not None:
+            document = self.documents.get(request.document_id)
+            if (
+                isinstance(error, TaskError)
+                and self._promoted_preload_is_current(task_id, request)
+                and document is not None
+                and document.source_path is not None
+            ):
+                self._load_failed(
+                    request.document_id,
+                    document.source_path,
+                    error,
+                    promoted_token,
+                )
+            else:
+                self._normal_load_stale_drop_count += 1
+            return
         accepted = self.preload_controller.record_failure(
             request.plan_generation,
             request.document_id,
@@ -1284,26 +1410,37 @@ class MainWindow(QMainWindow):
     def _preload_worker_finished(self, task_id: str) -> None:
         request = self._preload_worker_requests.pop(task_id, None)
         self._preload_workers.pop(task_id, None)
+        self._promoted_preload_tokens.pop(task_id, None)
         if request is not None:
             self.preload_controller.finish_worker(request)
+        if not self._workers and not self._promoted_preload_tokens:
+            self.structured_status.task.setText("Ready")
         self._refresh_preload_plan()
 
-    def _cancel_preload_workers(self) -> None:
+    def _cancel_preload_workers(self, *, include_promoted: bool = False) -> None:
         for task_id, worker in tuple(self._preload_workers.items()):
             request = self._preload_worker_requests.get(task_id)
+            if request is not None and self.preload_controller.request_is_promoted(request):
+                if include_promoted:
+                    worker.cancel()
+                continue
             if request is not None:
                 self.preload_controller.record_cancellation_request(request)
             worker.cancel()
 
-    def _invalidate_preload_plan(self) -> None:
+    def _invalidate_preload_plan(self, *, include_promoted: bool = False) -> None:
         self.preload_controller.invalidate()
-        self._cancel_preload_workers()
+        self._cancel_preload_workers(include_promoted=include_promoted)
 
     def runtime_diagnostics_snapshot(self) -> RuntimeDiagnosticsSnapshot:
         """Read current bounded runtime state without triggering work or LRU access."""
 
         source = self.residency_manager
         difference = self.difference_panel.difference_cache
+        promoted_count = len(self._promoted_preload_tokens)
+        speculative_preload_count = sum(
+            task_id not in self._promoted_preload_tokens for task_id in self._preload_workers
+        )
         return RuntimeDiagnosticsSnapshot(
             source=SourceResidencyDiagnostics(
                 used_bytes=source.used_bytes,
@@ -1318,11 +1455,11 @@ class MainWindow(QMainWindow):
             ),
             workers=WorkerDiagnostics(
                 foreground_loads=WorkerPoolDiagnostics(
-                    active_count=len(self._workers),
+                    active_count=len(self._workers) + promoted_count,
                     max_count=self._load_pool.maxThreadCount(),
                 ),
                 preload=WorkerPoolDiagnostics(
-                    active_count=len(self._preload_workers),
+                    active_count=speculative_preload_count,
                     max_count=self._preload_pool.maxThreadCount(),
                 ),
             ),
@@ -1355,7 +1492,7 @@ class MainWindow(QMainWindow):
         return "" if profile is None else profile.json(sort_keys=True)
 
     def _cancel_obsolete_loads(self, required_ids: set[str]) -> None:
-        """Invalidate queued loads that rapid navigation has moved away from."""
+        """Invalidate queued or promoted loads that rapid navigation moved away from."""
 
         for task_id, target_id in tuple(self._load_worker_targets.items()):
             if target_id in required_ids:
@@ -1365,6 +1502,20 @@ class MainWindow(QMainWindow):
                 worker.cancel()
             self._load_tokens[target_id] = self._load_tokens.get(target_id, 0) + 1
             document = self.documents.get(target_id)
+            if document is not None and document.loading_state == "loading":
+                document.loading_state = "pending"
+                self._update_document_item(document)
+
+        for task_id, foreground_token in tuple(self._promoted_preload_tokens.items()):
+            request = self._preload_worker_requests.get(task_id)
+            if request is None or request.document_id in required_ids:
+                continue
+            worker = self._preload_workers.get(task_id)
+            if worker is not None:
+                worker.cancel()
+            if self._load_tokens.get(request.document_id) == foreground_token:
+                self._load_tokens[request.document_id] = foreground_token + 1
+            document = self.documents.get(request.document_id)
             if document is not None and document.loading_state == "loading":
                 document.loading_state = "pending"
                 self._update_document_item(document)
@@ -1383,6 +1534,11 @@ class MainWindow(QMainWindow):
         protected = set(self._visible_document_ids)
         protected.update(document.document_id for document in self.selected_documents)
         protected.update(self._load_worker_targets.values())
+        protected.update(
+            request.document_id
+            for task_id, request in self._preload_worker_requests.items()
+            if task_id in self._promoted_preload_tokens
+        )
         if self._active_document_id is not None:
             protected.add(self._active_document_id)
         if self._difference_source_ids is not None:
@@ -1392,9 +1548,6 @@ class MainWindow(QMainWindow):
             if pair is not None:
                 protected.update(document.document_id for document in pair)
 
-        # Statistics, Histogram, Line Profile, and Difference currently consume
-        # the first six selected registered sources. Keep this input explicit
-        # even though it overlaps the broader selected-document protection.
         protected.update(document.document_id for document in self.selected_documents[:6])
         protected.update(
             document.document_id
@@ -1436,12 +1589,13 @@ class MainWindow(QMainWindow):
         }
 
     def _selection_changed(self) -> None:
-        self._invalidate_preload_plan()
         selected_ids = [
             str(item.data(0, Qt.ItemDataRole.UserRole))
             for item in self.document_list.document_items()
             if item.isSelected()
         ]
+        self._promote_running_preloads(selected_ids)
+        self._invalidate_preload_plan()
         selected_set = set(selected_ids)
         if (
             self._difference_source_ids is not None
@@ -1660,8 +1814,6 @@ class MainWindow(QMainWindow):
         self,
         document: ImageDocument,
     ) -> tuple[list[ImageDocument], bool]:
-        """Return real channel views or stable loading placeholders for split mode."""
-
         if document.source is not None:
             cache_key = (document.document_id, document.generation)
             channel_documents = self._channel_view_cache.get(cache_key)
@@ -1675,12 +1827,7 @@ class MainWindow(QMainWindow):
         profile = document.raw_profile or self._raw_profiles.get(document.document_id)
         is_bayer = (
             document.channel_layout == "BAYER"
-            or getattr(
-                profile,
-                "channel_layout",
-                None,
-            )
-            == "BAYER"
+            or getattr(profile, "channel_layout", None) == "BAYER"
         )
         labels = ("R", "Gr", "Gb", "B") if is_bayer else ("R", "G", "B")
         placeholders = [
@@ -1772,8 +1919,6 @@ class MainWindow(QMainWindow):
             self._navigate_single_view("difference")
 
     def _layout_mode_is_presented(self, mode: str) -> bool:
-        """Return whether the stacked workspace already represents the requested mode."""
-
         document_count = len(self.selected_documents)
         expects_multi = mode != "Single View" and (document_count > 1 or self._split_channels)
         expected_widget = self.multi_compare_view if expects_multi else self.viewer
@@ -2059,8 +2204,6 @@ class MainWindow(QMainWindow):
         self._show_single_document(documents[selected_index], selected_index)
 
     def _show_single_document(self, document: ImageDocument, selected_index: int) -> None:
-        """Switch a single tile without rebuilding the complete comparison workspace."""
-
         self._layout_mode = "Single View"
         self._view_capacity = 1
         self._current_index = selected_index
@@ -2225,6 +2368,13 @@ class MainWindow(QMainWindow):
     def _remove_document_ids(self, selected_ids: object) -> None:
         if not isinstance(selected_ids, list):
             return
+        self._cancel_obsolete_loads(
+            {
+                document.document_id
+                for document in self.selected_documents
+                if document.document_id not in set(selected_ids)
+            }
+        )
         self._invalidate_preload_plan()
         self.document_list.blockSignals(True)
         try:
@@ -2250,6 +2400,7 @@ class MainWindow(QMainWindow):
         preserve_view: bool = False,
         preserve_overlays: bool = False,
     ) -> None:
+        self._promote_running_preloads(document_ids)
         self._invalidate_preload_plan()
         selected = set(document_ids)
         self.document_list.blockSignals(True)
@@ -2755,9 +2906,8 @@ class MainWindow(QMainWindow):
                     )
                     if answer == QMessageBox.StandardButton.Yes:
                         selected_ids[selected_ids.index(current_id)] = primary_id
-            else:
-                if len(selected_ids) < 6:
-                    selected_ids.append(primary_id)
+            elif len(selected_ids) < 6:
+                selected_ids.append(primary_id)
 
         if len(selected_ids) > self._view_capacity and self._view_capacity > 1:
             self._view_capacity = 4 if len(selected_ids) <= 4 else 6
@@ -2947,7 +3097,7 @@ class MainWindow(QMainWindow):
         self.difference_panel.shutdown()
         for worker in tuple(self._workers.values()):
             worker.cancel()
-        self._invalidate_preload_plan()
+        self._invalidate_preload_plan(include_promoted=True)
         if not self._load_pool.waitForDone(3000):
             LOGGER.warning("Image loads did not finish within the shutdown grace period")
         if not self._preload_pool.waitForDone(3000):
@@ -2957,4 +3107,5 @@ class MainWindow(QMainWindow):
         self._workers.clear()
         self._preload_workers.clear()
         self._preload_worker_requests.clear()
+        self._promoted_preload_tokens.clear()
         event.accept()

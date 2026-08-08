@@ -10,9 +10,9 @@ can be visible.
 When one to six files are selected from distinct participating folders, Page
 Down/Page Up moves every folder atomically in natural filename order. Navigation
 uses files already registered in PixelScope; it does not discover or register
-new siblings. The shortcuts work
-while the Files view or a visible image tile has focus. If any folder reaches
-an endpoint, no folder changes and the status bar reports the boundary.
+new siblings. The shortcuts work while the Files view or a visible image tile
+has focus. If any folder reaches an endpoint, no folder changes and the status
+bar reports the boundary.
 
 ## View and navigate
 
@@ -174,13 +174,25 @@ uses a separate single-worker queue and never makes interactive loading wait.
 Already resident targets are reused, previous and next-next positions are not
 decoded, and no filesystem siblings are discovered automatically.
 
+If you navigate forward while the exact required image is still RUNNING in that
+preload worker, PixelScope reuses the same decode as foreground work instead of
+cancelling it just to start the same image again. This reuse does not add another
+worker, increase preload depth, or change direction: preload remains exactly one
+Folder Position ahead with one preload worker. For a multi-folder position, the
+one matching RUNNING preload member may be reused while the other required
+members load normally.
+
 Preloaded sources use the ordinary Decoded Source Memory budget and have no
-special protection, so low-budget pressure may release them before navigation.
-Cancellation is advisory; PixelScope validates plan, document generation,
-path/RAW profile, and normal-load authority before keeping a result. A speculative
-failure shows no modal error and the normal load still retries when you navigate
-to that position. Preload enablement is startup-only and participates in the same
-restart-required indication as both memory budgets.
+special protection after speculative completion, so low-budget pressure may
+release them before navigation. A promoted running preload becomes protected as
+foreground-required work. Cancellation is advisory; PixelScope validates plan,
+document generation, path/RAW profile, exact RAW-size policy, and normal-load
+authority before keeping a result. A speculative failure shows no modal error
+and the normal load still retries when you navigate to that position. Once a
+running preload has been promoted because you actually navigated to it, a failure
+uses the same foreground error/status behavior as a normal image load. Preload
+enablement is startup-only and participates in the same restart-required
+indication as both memory budgets.
 
 **Reset Settings** restores only application preferences to their defaults. It
 does not reset window layout, dock/splitter geometry, remembered last directory,
@@ -192,9 +204,9 @@ PixelScope already restores the exact saved workspace.
 
 ## Runtime Diagnostics
 
-P2-D establishes deterministic, inexpensive, sanitized runtime observability for
-automated validation, P2-E characterization, and support troubleshooting. The
-only end-user surface is **Help > Copy Diagnostics**.
+PixelScope provides deterministic, inexpensive, sanitized runtime observability
+for automated validation, final P2 characterization, and support troubleshooting.
+The only end-user surface is **Help > Copy Diagnostics**.
 
 Choose **Help > Copy Diagnostics** when support or development asks for runtime
 context. PixelScope takes one current bounded snapshot, formats the canonical
@@ -203,9 +215,12 @@ sanitized text, copies that exact text to the clipboard, and briefly shows
 window, live monitor, Refresh control, timer, or diagnostics text-file export.
 
 The copied text reports Decoded Source residency, Difference Map Cache usage,
-foreground and preload worker counts, preload counters, stale results, and up to
-ten recent accepted foreground/preload failures. Obsolete cancelled or replanned
-preload failures are not promoted into recent failure history.
+foreground and preload worker counts, preload counters including
+**Promoted to foreground**, stale results, and up to ten recent accepted
+foreground/preload failures. A promoted physical preload worker is reported as
+foreground work rather than being double-counted as both foreground and preload.
+Obsolete cancelled or replanned speculative preload failures are not promoted
+into recent failure history.
 
 Diagnostics omit registered source paths and image content. Failure messages
 redact absolute Windows/POSIX paths, credential-like assignments including
@@ -215,8 +230,9 @@ Difference, alter cache LRU order, scan files, cancel workers, refresh preload,
 or change selection/rendering. Unchanged runtime state produces identical,
 timestamp-free text.
 
-P2-E and automated tests can consume `MainWindow.runtime_diagnostics_snapshot()`
-directly; the support-copy action is not required to access the diagnostics API.
+Automated tests and final P2 characterization can consume
+`MainWindow.runtime_diagnostics_snapshot()` directly; the support-copy action is
+not required to access the diagnostics API.
 
 ## Plots dock
 

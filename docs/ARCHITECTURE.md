@@ -91,9 +91,8 @@ legacy Difference-cache value valid in v3's 64–8192 MiB range is clamped to th
 new 1280 MiB maximum rather than replaced by the 128 MiB default. Malformed and
 genuinely invalid values normalize to validated defaults. Schema v2/v1 migration
 and legacy `raw/dont_show_json_profiles` input remain supported. A future schema
-version is not guessed or
-rewritten; the current process uses safe defaults and exposes application
-settings as read-only compatibility state.
+version is not guessed or rewritten; the current process uses safe defaults and
+exposes application settings as read-only compatibility state.
 
 `Reset Settings` resets only schema-owned application preferences. It is
 separate from `Reset Workspace Layout` and does not remove window geometry,
@@ -139,9 +138,8 @@ begin as lightweight pending documents.
 
 Normal image-load stale-result validation primarily depends on the target
 document ID, `MainWindow._load_tokens`, the load-worker registry, and rejection
-of results from cancelled workers. The current implementation must not be
-described as if `ImageLoadWorker` independently owns a complete document
-request/generation identity contract.
+of results from obsolete authority. `ImageLoadWorker` remains a physical work
+unit; `MainWindow` owns foreground authority and token acceptance.
 
 Statistics and Histogram cache keys include document generation and operation
 parameters. Line Profile caches by generation and line coordinates. Rapid
@@ -152,7 +150,8 @@ Decoded sources use a reloadable byte-budgeted working set. Pure-core
 protected eviction planning, and minimal diagnostics without importing Qt or
 mutating documents. `MainWindow` owns document lookup and mutation. Its
 protected registered-ID set includes visible, selected, active/analysis,
-current Difference-pair, and active load-target sources.
+current Difference-pair, active normal-load targets, and any promoted preload
+that currently has foreground authority.
 
 The budget is soft: protected sources may keep `used_bytes` above
 `budget_bytes`, including one source larger than the entire budget. Only
@@ -169,45 +168,124 @@ registered documents from distinct folders and returns no plan when any folder
 is at the requested endpoint. `MainWindow` alone applies the plan atomically.
 
 Pure-core `PreloadController` owns the current one-position target IDs, request
-generation, completion/active state, and cheap bounded counters. `MainWindow`
-owns document/profile lookup, worker creation, cancellation requests, stale
-validation, result application, residency mutation, and Files-state updates.
-Only `plan(+1)` is preloaded after foreground loading becomes idle.
+generation, completion/active state, explicit running state, promotion state,
+and cheap bounded counters. `MainWindow` owns document/profile lookup, worker
+creation, cancellation requests, promotion eligibility, stale validation,
+result application, residency mutation, and Files-state updates. Only
+`plan(+1)` is preloaded after foreground loading becomes idle.
 
 Preload request identity captures plan generation, document generation, source
 path, RAW profile, exact-size policy, and the authoritative normal-load token.
-Navigation or state replacement invalidates the plan and requests cooperative
-cancellation. A normal load starts immediately on its own pool even when the
-same source is still decoding speculatively. Late or incompatible results are
-dropped; cancellation is not correctness authority. Valid results enter normal
-source residency, receive no preload protection, and may be evicted immediately.
-Preload failures do not mutate the document into foreground error state.
-Cancellation-request de-duplication is retained only while its worker request is
-active and is discarded together with that request when the worker finishes.
+The existing `TaskWorker.started` signal marks an accepted preload request as
+physically RUNNING. Queued/not-started work is not promotion-eligible.
+
+### Running preload promotion
+
+P2-E adds one narrow authority transition:
+
+```text
+speculative running preload
+        ↓ exact foreground request identity matches
+foreground authority promotion
+        ↓ same physical ImageLoadWorker stays in preload QThreadPool
+normal foreground success/failure semantics
+```
+
+Promotion is not thread migration and does not create a generic scheduler. The
+physical worker remains in the dedicated max-one preload pool. Only its logical
+runtime authority changes from speculative to foreground-required.
+
+Before selection/navigation invalidates the old preload plan, `MainWindow`
+checks future foreground-required document IDs for a matching RUNNING preload.
+Eligibility requires all of the following to remain exact:
+
+- target document ID and registered-document existence,
+- document generation,
+- source-path identity,
+- RAW profile identity,
+- exact RAW-size policy,
+- the captured normal-load token,
+- non-resident source state,
+- worker present and physically RUNNING,
+- no prior cancellation,
+- no stale/superseded request,
+- no normal foreground worker already decoding the same target.
+
+On acceptance, `PreloadController` records the request as promoted and removes it
+from speculative active/cancellation ownership. `MainWindow` advances the
+normal-load token to create current foreground authority, marks the document
+Loading, protects it as foreground-required residency input, and continues the
+selection/navigation transition. Subsequent old-plan invalidation skips the
+promoted worker. `_ensure_loaded()` therefore does not start a duplicate normal
+worker for that document.
+
+A promoted worker remains physically present in `_preload_workers` until it
+finishes. Consequently no new speculative preload starts while that promoted
+foreground decode is still using the max-one preload pool. Other foreground
+members of a pair/group remain free to use the ordinary max-two normal pool; P2-E
+does not attempt to promote a whole group.
+
+Promoted success is validated again against current document/request/token/RAW
+identity and then delegated exactly once to the existing normal
+`_load_succeeded()` path. This preserves document identity/generation, exact
+`source.nbytes` residency accounting, MRU touch, Files residency state,
+selected-batch render gating, ordinary eviction, and Ready/status behavior. The
+same result is never first applied as speculative success and then applied again
+as foreground success.
+
+Promoted failure is likewise delegated exactly once to `_load_failed()` when the
+foreground authority is still current. It therefore uses the normal document
+error/status path and P2-D `foreground-load/decode` Recent Failure category; it
+is not also recorded as a speculative preload failure.
+
+If foreground navigation moves away before completion, `_cancel_obsolete_loads()`
+handles the promoted worker as foreground authority: cancellation is requested,
+the foreground token is invalidated, and Loading may return to pending. As with
+all other asynchronous loading, cancellation remains advisory. A decoder that
+finishes late cannot apply its result because token/generation/request identity
+is the correctness authority.
+
+Completed speculative preload behavior is unchanged: a valid result enters
+ordinary source residency with no speculative protection and may be evicted
+immediately. Already-resident next targets remain the immediate-reuse fast path.
+Unmatched/stale/cancelled/not-started preload requests fall back to the existing
+normal-load correctness path.
+
+The preload policy itself remains unchanged by promotion: direction `+1` only,
+depth exactly one Folder Position, preload concurrency fixed one, normal pool max
+two, and preload pool max one. Previous/bidirectional/deeper preload, worker-count
+settings, CPU aggressiveness, and resource tuning are deferred to evidence from
+P2-F.
 
 ## Current runtime diagnostics lifecycle
 
-P2-D establishes deterministic, inexpensive, sanitized runtime observability for
-automated validation, P2-E characterization, and support troubleshooting. The
+P2-D established deterministic, inexpensive, sanitized runtime observability for
+automated validation, P2-F characterization, and support troubleshooting. The
 only end-user surface is an on-demand `Help > Copy Diagnostics` action.
 
 `RuntimeDiagnosticsSnapshot` and its nested source, Difference-cache, worker-pool,
 and failure values are frozen, Qt-free domain models. The snapshot reuses the
 existing `PreloadDiagnostics` value instead of introducing duplicate preload
-counters. Worker pools are represented by general `active_count` / `max_count`
-pairs; the current preload maximum remains one.
+state. P2-E adds only one cumulative counter, `promotion_count`.
 
 `MainWindow.runtime_diagnostics_snapshot()` is the sole runtime aggregator. It
 reads `ResidencyManager` byte/count properties, `DifferenceMapCache` byte/entry
 properties, the foreground/preload worker registries and pool maxima, existing
 preload diagnostics, the foreground stale-drop counter, and a ten-entry recent
 failure deque. It does not call cache `get()`, residency `touch()`, preload plan
-refresh, worker start/cancel, selection/render, or filesystem discovery. P2-E can
-consume this API directly; no diagnostics widget is required.
+refresh, worker start/cancel, selection/render, or filesystem discovery.
 
-Foreground load token/document rejections increment one bounded counter. Accepted
-current foreground-load and speculative-preload failures enter the recent deque
-with a subsystem/category, exception type, and short message. A preload failure
+A promoted physical preload worker is classified by logical authority: it is
+counted once as foreground activity and excluded from speculative preload active
+counts. `PreloadDiagnostics.active_worker_count` likewise represents only
+speculative active requests. **Copy Diagnostics** includes
+`Promoted to foreground: N`. The physical pool limits remain normal max two and
+preload max one; promotion does not change either limit.
+
+Foreground load token/document rejections increment the foreground stale counter.
+Accepted current foreground-load and speculative-preload failures enter the
+recent deque with a subsystem/category, exception type, and short message. A
+promoted failure uses the foreground path only. A speculative preload failure
 from an obsolete cancelled or replanned generation is rejected by
 `PreloadController.record_failure()` before it can enter recent failure history.
 Sanitization removes Windows/POSIX absolute paths, URL detail, complete
@@ -250,7 +328,8 @@ overage and therefore is not an out-of-memory guarantee.
 
 P2-C persists **Preload Next Folder Position**, enabled by default. It is the
 third startup-only Performance setting and participates in the same restart
-indication/revert/reset contract without changing the two memory budgets.
+indication/revert/reset contract without changing the two memory budgets. P2-E
+adds no Performance setting.
 
 Difference Threshold and Gain are persisted analysis display defaults. They are
 applied to `DifferencePanel` when `MainWindow` starts and immediately after a
@@ -279,27 +358,29 @@ suggestion remain outside the current implementation.
 The persistent RAW JSON confirmation preference is exposed through the General
 Settings page rather than the File menu. The RAW open dialog may still set the
 same typed preference when the user chooses its "don't show again" option; that
-single-field update preserves every other schema-v3 preference.
+single-field update preserves every other current preference.
 
 `Require Exact RAW File Size` is also a General preference. When disabled,
 trailing bytes are allowed and undersized RAW files are rejected. When enabled,
 the source byte count must exactly equal the profile requirement. The same rule
-controls both worker decoding and whether a matching JSON sidecar may bypass the
-profile-confirmation dialog.
+controls worker decoding, JSON-sidecar auto-approval, and preload/promotion
+identity matching.
 
 ## P2 boundary status
 
-The P2 runtime boundaries for settings, source residency, bounded preload, and
-deterministic diagnostics are implemented incrementally without a broad
-`MainWindow` rewrite. P2-E owns characterization and hardening rather than a new
+The P2 runtime boundaries for settings, source residency, bounded preload,
+deterministic diagnostics, and running-preload foreground reuse are implemented
+incrementally without a broad `MainWindow` rewrite. P2-F owns final
+characterization and hardening of the completed P2 runtime rather than a new
 runtime policy boundary.
 
 ## P2 request and cancellation target
 
-Normal load and preload require explicit request identity/token or generation
-validation before applying results. Cancellation means obsolete work should be
-requested to stop when possible; it does not guarantee a running decoder halts
-immediately. Stale-result rejection remains mandatory even after cancellation.
+Normal load, speculative preload, and promoted foreground authority require
+explicit request identity/token or generation validation before applying results.
+Cancellation means obsolete work should be requested to stop when possible; it
+does not guarantee a running decoder halts immediately. Stale-result rejection
+remains mandatory even after cancellation.
 
 ## Extension and packaging boundaries
 

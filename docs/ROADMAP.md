@@ -32,14 +32,18 @@
 
 ## P2 — Runtime Foundation, Settings & Performance
 
-Sequential dependency: `P2-0 → P2-A → P2-B → P2-C → P2-D → P2-E`.
+Sequential dependency:
+`P2-0 → P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E → P2-F`.
 
 - **P2-0 — Program setup and roadmap transition:** close P1 durable
   documentation, establish this P2 program, reconcile current state, docs only.
-- **P2-A — Application identity and Settings foundation:** canonical icon and
-  packaged-safe resources, typed settings, QSettings adapter/migration,
-  Settings dialog, restart-required/reset behavior, and Difference-cache startup
-  injection.
+- **P2-A1 — Application identity and resource foundation:** canonical icon,
+  packaged-safe resources, reproducible derivatives, source-run application
+  identity, and package-data verification. Complete; merged as PR #14.
+- **P2-A2 — Settings foundation and runtime integration:** typed settings,
+  QSettings adapter/migration, Settings dialog, restart-required/reset behavior,
+  RAW policies, analysis defaults, and Difference-cache startup injection.
+  Complete; merged as PR #15.
 - **P2-B — Byte-budgeted decoded-source residency:** native-source byte
   accounting, protected LRU, soft budget, eviction/reload, invalidation, setting,
   and diagnostics API. Complete; merged as PR #16.
@@ -48,15 +52,23 @@ Sequential dependency: `P2-0 → P2-A → P2-B → P2-C → P2-D → P2-E`.
   Position ahead, normal-load priority, bounded ownership, stale
   cancellation/drop, request validation, ordinary residency retention, the
   startup setting, and bounded counters.
-- **P2-D — Runtime diagnostics and failure visibility:** active on
-  `feature/p2-d-runtime-diagnostics`; deterministic/redacted
-  source/cache/worker/preload/stale/failure snapshots plus the single on-demand
-  **Help > Copy Diagnostics** support surface. No live diagnostics UI or text-file
-  export.
-- **P2-E — Performance characterization and phase hardening:** integration,
-  settings migration/default tests, FHD/UHD and image-format matrices,
-  low-budget/oversize/rapid-navigation characterization, deterministic smoke
-  tests, Windows CI feasibility, and P2 completion docs. No new large feature.
+- **P2-D — Runtime diagnostics and failure visibility:** complete; merged as
+  PR #18 at `a7b4ddf62af95e86b9d9e38a4328cf9572226114`. It provides deterministic,
+  sanitized source/cache/worker/preload/stale/failure snapshots plus the single
+  on-demand **Help > Copy Diagnostics** support surface. No live diagnostics UI
+  or text-file export.
+- **P2-E — Running Preload Promotion / Foreground Reuse:** active on
+  `feature/p2-e-preload-promotion`. When the exact next document is already being
+  decoded by a RUNNING preload, navigation promotes that same request from
+  speculative ownership to foreground authority instead of cancelling it and
+  starting the same decode again. This is an authority transition, not thread
+  migration. Preload remains `+1` only, exactly one Folder Position deep, and
+  fixed concurrency one.
+- **P2-F — Performance Characterization & Phase Hardening:** final P2 slice.
+  Integrate the completed runtime, finish settings migration/default coverage,
+  characterize FHD/UHD and image-format/resource-pressure matrices, add
+  deterministic smoke checks, evaluate Windows CI feasibility, and close P2
+  durable documentation. No new large feature.
 
 P2 excludes persistent sessions, Recent Files/Folders, saved ROI management,
 arbitrary-angle sampling, alpha overlay, RAW processing expansion, remote IQA,

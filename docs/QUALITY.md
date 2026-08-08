@@ -26,8 +26,8 @@ reason, and unverified risk.
 |---|---|
 | Numerical/image-processing logic | Unit tests for dtype, promotion, bounds, channel semantics, overflow, non-contiguous arrays, and edge cases |
 | Qt state/interaction | Focused UI test plus relevant smoke test; manual Windows check for visual/timing-sensitive behavior |
-| Worker/cache/asynchronous lifecycle | Tests for request identity, stale-result rejection, cancellation/invalidation, generation changes, and bounded resources |
-| File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, and bit-depth cases as applicable |
+| Worker/cache/asynchronous lifecycle | Tests for request identity, queued/running distinction, authority transition, stale-result rejection, cancellation/invalidation, generation changes, and bounded resources |
+| File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, bit-depth, profile identity, and exact-size policy cases as applicable |
 | Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, schema migration/future-version behavior, reset scope, and restart behavior |
 | Application identity/package resources | Focused SVG/PNG/ICO structure and decode tests, application-icon UI test, reproducible-generation check, wheel-content verification, unrelated-CWD launch, and Windows title-bar/Alt+Tab/running-taskbar/DPI visual checks |
 | Public workflow/terminology | Product/user documentation update and UI assertions |
@@ -67,8 +67,8 @@ Preserve deterministic fixtures and smoke paths for:
 - Decoded-source exact-byte accounting, deterministic LRU/protection, soft
   over-budget and oversized-source behavior, eviction invalidation, Files badge
   state, existing-path reload, and stale-result rejection.
-- Settings fresh state, round-trip, schema-v4-to-v5, schema-v3 and older migration, legacy
-  RAW migration, corrupt-state recovery, future-schema protection, and reset
+- Settings fresh state, round-trip, schema-v4-to-v5, schema-v3 and older migration,
+  legacy RAW migration, corrupt-state recovery, future-schema protection, and reset
   separation from workspace persistence.
 - General / Files / Performance Settings page navigation, Settings-only RAW
   preference ownership, RAW don't-show partial-update preservation, optional
@@ -86,13 +86,43 @@ Preserve deterministic fixtures and smoke paths for:
   worker-lifetime-bounded cancellation de-duplication, late-result rejection,
   removal/generation/profile races, RAW exact-size/profile reuse, silent retryable
   failure, and ordinary low-budget residency eviction without a reload loop.
+- Running-preload promotion acceptance only after the worker's `started` signal;
+  queued/not-started, cancelled, stale, generation/path/profile/exact-policy/token
+  mismatch, already-resident, or duplicate-normal-load cases must not promote.
+- Promotion once-only ownership: a matching RUNNING next target becomes logical
+  foreground authority before old-plan invalidation, leaves speculative
+  cancellation ownership, becomes foreground Loading/protected state, and starts
+  no second decoder for the same source.
+- Promoted success uses normal foreground result application exactly once,
+  including exact native `source.nbytes` residency accounting, MRU touch, Files
+  residency state, selected-batch render gating, ordinary eviction, and Ready
+  status. Deterministic tests assert duplicate decode count rather than elapsed
+  time.
+- Promoted failure uses normal foreground error/status and P2-D
+  `foreground-load/decode` failure diagnostics exactly once; it must not also
+  increment speculative preload failure history.
+- Rapid navigation away from a promoted decode requests foreground cancellation,
+  invalidates token authority, and deterministically rejects a late completion
+  even when cancellation cannot stop the decoder.
+- Pair/group navigation with preload concurrency one: one exact RUNNING member may
+  be promoted while the remaining required members use the normal pool; selected
+  batch rendering waits for all required foreground authorities.
+- RAW promotion preserves exact registered `RawProfile` identity and exact-size
+  policy without speculative dialogs or duplicated RAW decode logic.
+- Promotion does not change preload direction/depth/concurrency: still `+1`,
+  exactly one Folder Position, max-one preload pool, max-two normal pool, no
+  previous/bidirectional/next-next work, and no new Performance setting.
 - Frozen deterministic runtime diagnostics over exact source/cache/worker/preload
   values; foreground/preload stale and failure instrumentation; stale cancelled or
   replanned preload failures excluded from recent failure history; bounded failure
   history; Windows/POSIX path, complete credential-assignment, bearer, traceback,
   multiline, and truncation sanitization; and repeated observation without LRU,
   worker, preload, selection, render, or filesystem mutation.
-- **Help > Copy Diagnostics** as the only diagnostics product surface: old
+- Promotion diagnostics expose `promotion_count` / **Promoted to foreground: N**.
+  A promoted physical preload worker is classified once as logical foreground and
+  excluded from speculative preload active counts; diagnostics reads remain
+  observation-only.
+- **Help > Copy Diagnostics** remains the only diagnostics product surface: old
   Diagnostics dialog absent, clipboard text exactly equals the canonical formatter
   output, a short status-bar confirmation is shown, repeated unchanged copies are
   identical and timestamp-free, registered paths/credentials/traceback/image
@@ -102,6 +132,18 @@ Preserve deterministic fixtures and smoke paths for:
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer
 layout, geometry, memory pressure, or event order. Keep fixtures small unless
 resolution or memory behavior is the subject of the test.
+
+## P2-F characterization responsibility
+
+P2-E proves authority correctness and duplicate-decode removal deterministically;
+it does not use subjective speedup or wall-clock timing as a merge gate. P2-F is
+responsible for final P2 characterization and hardening across FHD/UHD,
+uint8/uint16, RGB/grayscale/Bayer/RAW, low budgets, oversized sources, rapid
+navigation, cancellation, diagnostics, and representative Windows behavior.
+
+Any later change to preload direction, depth, concurrency, worker count, or CPU/
+I/O aggressiveness requires evidence from that characterization. P2-E itself does
+not create those settings or policies.
 
 ## Completion evidence
 

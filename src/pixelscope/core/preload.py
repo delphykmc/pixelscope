@@ -34,6 +34,7 @@ class PreloadDiagnostics:
     stale_drop_count: int
     cancellation_request_count: int
     failure_count: int
+    promotion_count: int
 
 
 class PreloadController:
@@ -47,11 +48,14 @@ class PreloadController:
         self._plan: PreloadPlan | None = None
         self._completed_ids: set[str] = set()
         self._active_requests: dict[tuple[int, str], PreloadMemberRequest] = {}
+        self._running_requests: set[tuple[int, str]] = set()
+        self._promoted_requests: set[tuple[int, str]] = set()
         self._cancelled_requests: set[tuple[int, str]] = set()
         self._successful_retained_count = 0
         self._stale_drop_count = 0
         self._cancellation_request_count = 0
         self._failure_count = 0
+        self._promotion_count = 0
 
     @property
     def enabled(self) -> bool:
@@ -78,14 +82,18 @@ class PreloadController:
 
     @property
     def diagnostics(self) -> PreloadDiagnostics:
+        speculative_active_count = sum(
+            request_key not in self._promoted_requests for request_key in self._active_requests
+        )
         return PreloadDiagnostics(
             enabled=self._enabled,
             planned_target_count=len(self._plan.document_ids) if self._plan is not None else 0,
-            active_worker_count=len(self._active_requests),
+            active_worker_count=speculative_active_count,
             successful_retained_count=self._successful_retained_count,
             stale_drop_count=self._stale_drop_count,
             cancellation_request_count=self._cancellation_request_count,
             failure_count=self._failure_count,
+            promotion_count=self._promotion_count,
         )
 
     def set_plan(self, document_ids: Sequence[str]) -> PreloadPlan | None:
@@ -121,18 +129,59 @@ class PreloadController:
             return False
         if request.document_id in self._completed_ids:
             return False
-        request_key = (request.plan_generation, request.document_id)
+        request_key = self._request_key(request)
         if request_key in self._active_requests:
             return False
         self._active_requests[request_key] = request
         return True
 
+    def mark_running(self, request: PreloadMemberRequest) -> bool:
+        """Record that an accepted request has physically begun execution."""
+
+        request_key = self._request_key(request)
+        if self._active_requests.get(request_key) != request:
+            return False
+        if request_key in self._cancelled_requests:
+            return False
+        self._running_requests.add(request_key)
+        return True
+
     def request_is_current(self, request: PreloadMemberRequest) -> bool:
-        request_key = (request.plan_generation, request.document_id)
+        request_key = self._request_key(request)
         return (
             self._is_current_target(request.plan_generation, request.document_id)
             and self._active_requests.get(request_key) == request
+            and request_key not in self._promoted_requests
         )
+
+    def request_is_running(self, request: PreloadMemberRequest) -> bool:
+        request_key = self._request_key(request)
+        return (
+            self._active_requests.get(request_key) == request
+            and request_key in self._running_requests
+            and request_key not in self._cancelled_requests
+        )
+
+    def request_is_promoted(self, request: PreloadMemberRequest) -> bool:
+        request_key = self._request_key(request)
+        return (
+            self._active_requests.get(request_key) == request
+            and request_key in self._promoted_requests
+        )
+
+    def promote(self, request: PreloadMemberRequest) -> bool:
+        """Transfer one exact running speculative request to foreground authority."""
+
+        request_key = self._request_key(request)
+        if not self.request_is_current(request):
+            return False
+        if request_key not in self._running_requests:
+            return False
+        if request_key in self._cancelled_requests or request_key in self._promoted_requests:
+            return False
+        self._promoted_requests.add(request_key)
+        self._promotion_count += 1
+        return True
 
     def complete_available_member(self, generation: int, document_id: str) -> bool:
         if not self._is_current_target(generation, document_id):
@@ -144,6 +193,9 @@ class PreloadController:
         if not self._is_current_target(generation, document_id):
             self._stale_drop_count += 1
             return False
+        request_key = (generation, document_id)
+        if request_key in self._promoted_requests:
+            return False
         self._completed_ids.add(document_id)
         if retained:
             self._successful_retained_count += 1
@@ -151,6 +203,9 @@ class PreloadController:
 
     def record_failure(self, generation: int, document_id: str) -> bool:
         if not self._is_current_target(generation, document_id):
+            return False
+        request_key = (generation, document_id)
+        if request_key in self._promoted_requests:
             return False
         self._failure_count += 1
         self._completed_ids.add(document_id)
@@ -160,7 +215,9 @@ class PreloadController:
         self._stale_drop_count += 1
 
     def record_cancellation_request(self, request: PreloadMemberRequest) -> None:
-        request_key = (request.plan_generation, request.document_id)
+        request_key = self._request_key(request)
+        if request_key in self._promoted_requests:
+            return
         if (
             self._active_requests.get(request_key) == request
             and request_key not in self._cancelled_requests
@@ -169,10 +226,16 @@ class PreloadController:
             self._cancellation_request_count += 1
 
     def finish_worker(self, request: PreloadMemberRequest) -> None:
-        request_key = (request.plan_generation, request.document_id)
+        request_key = self._request_key(request)
         if self._active_requests.get(request_key) == request:
             self._active_requests.pop(request_key)
+            self._running_requests.discard(request_key)
+            self._promoted_requests.discard(request_key)
             self._cancelled_requests.discard(request_key)
+
+    @staticmethod
+    def _request_key(request: PreloadMemberRequest) -> tuple[int, str]:
+        return request.plan_generation, request.document_id
 
     def _is_current_target(self, generation: int, document_id: str) -> bool:
         return (

@@ -215,6 +215,7 @@ def format_runtime_diagnostics(snapshot: RuntimeDiagnosticsSnapshot) -> str:
         f"Enabled: {'yes' if preload.enabled else 'no'}",
         f"Planned targets: {preload.planned_target_count}",
         f"Active workers: {preload.active_worker_count}",
+        f"Promoted to foreground: {preload.promotion_count}",
         f"Retained successes: {preload.successful_retained_count}",
         f"Stale drops: {preload.stale_drop_count}",
         f"Cancellation requests: {preload.cancellation_request_count}",
