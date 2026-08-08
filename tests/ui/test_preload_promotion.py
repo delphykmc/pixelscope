@@ -110,7 +110,9 @@ def test_promoted_failure_uses_foreground_error_semantics_once(
     foreground_failures = [
         failure for failure in snapshot.recent_failures if failure.subsystem == "foreground-load"
     ]
-    preload_failures = [failure for failure in snapshot.recent_failures if failure.subsystem == "preload"]
+    preload_failures = [
+        failure for failure in snapshot.recent_failures if failure.subsystem == "preload"
+    ]
     assert len(foreground_failures) == 1
     assert not preload_failures
     assert foreground_failures[0].category == "decode"
@@ -250,7 +252,9 @@ def test_pair_navigation_promotes_one_running_member_and_normally_loads_other(
 
     assert calls[("a", "frame-2.png")] == 1
     assert calls[("b", "frame-2.png")] == 1
-    assert [document.document_id for document in window.selected_documents] == list(next_plan.document_ids)
+    assert [document.document_id for document in window.selected_documents] == list(
+        next_plan.document_ids
+    )
     assert window.documents[next_plan.document_ids[0]].source is not None
     assert window.documents[next_plan.document_ids[1]].source is not None
 
