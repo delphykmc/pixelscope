@@ -62,6 +62,7 @@ from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.path_discovery import (
     ImageInput,
+    SUPPORTED_IMAGE_FILTER,
     discover_image_inputs,
     natural_sort_key,
 )
@@ -228,7 +229,6 @@ class MainWindow(QMainWindow):
         self.difference_panel.preview_updated.connect(self._difference_preview_updated)
         self.empty_workspace.open_images_requested.connect(self.open_images)
         self.empty_workspace.open_folder_requested.connect(self.open_folder)
-        self.empty_workspace.open_raw_requested.connect(self.open_raw)
         self._create_actions()
         self._create_toolbar()
         self._create_selection_shortcuts()
@@ -321,7 +321,6 @@ class MainWindow(QMainWindow):
             menu.setStyleSheet(menu_style())
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
         add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
-        add_action("File", "Open RAW with Profile...", self.open_raw)
         menus["File"].addSeparator()
         add_action("File", "Export Statistics CSV...", self.export_statistics)
         menus["File"].addSeparator()
@@ -795,7 +794,7 @@ class MainWindow(QMainWindow):
             self,
             "Open images",
             self._open_dialog_directory(),
-            "Images (*.png *.bmp *.jpg *.jpeg *.raw);;All files (*)",
+            SUPPORTED_IMAGE_FILTER,
         )
         if paths:
             supplied_paths = [Path(path) for path in paths]
@@ -847,23 +846,6 @@ class MainWindow(QMainWindow):
             )
         else:
             self.statusBar().showMessage("No supported aligned images found", 5000)
-
-    def open_raw(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open RAW",
-            self._open_dialog_directory(),
-            "RAW files (*.*)",
-        )
-        if not path:
-            return
-        raw_path = Path(path).resolve()
-        self._remember_directory(raw_path.parent)
-        sidecar = raw_path.with_suffix(".json")
-        self._register_inputs(
-            (ImageInput(raw_path, sidecar if sidecar.is_file() else None),),
-            select_all=True,
-        )
 
     def _register_inputs(
         self,
