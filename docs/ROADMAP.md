@@ -127,7 +127,7 @@ P3-B intentionally adds no demosaic, white balance, CCM, tone mapping, processed
 RAW document/analysis, persistence, Settings migration, or resource-policy
 redesign.
 
-### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension — Implemented; owner validation pending
+### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension — Implemented; owner/local validation complete; independent review/merge pending
 
 P3-C implementation is on `feature/p3-c-display-gain`. It reuses the P3-B generic
 display-gain core and presentation-scoped command policy rather than creating a
@@ -162,7 +162,10 @@ Implemented Display Gain scope:
 Automated test code covers the ordinary core, RGBA alpha/RGB-only working path,
 RAW regression, mixed RAW+RGB Multi View, Difference exclusion, 1× identity,
 stale/hidden-view lifecycle, analysis/residency independence, shortcut sync/clamp,
-and Files-tree routing. Owner/local Windows validation is pending.
+Files-tree routing, and real MainWindow Split Channels → Display Gain integration.
+Owner/local Windows validation completed successfully on latest validated head
+`8f84fb13c6c61d66eb9f7e2295f1ed5154ad3b23`, including the full `docs/QUALITY.md`
+gate and required manual application checks.
 
 Additional RAW visualization/inspection candidates remain:
 
