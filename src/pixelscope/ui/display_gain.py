@@ -95,7 +95,9 @@ def install_display_gain_control(window: Any) -> QComboBox:
     state.reset()
 
     presentation_host = getattr(window, "presentation_controls", None)
-    host_parent = presentation_host if isinstance(presentation_host, QWidget) else window.main_toolbar
+    host_parent = (
+        presentation_host if isinstance(presentation_host, QWidget) else window.main_toolbar
+    )
     host = QWidget(host_parent)
     host.setObjectName("DisplayGainControl")
     layout = QHBoxLayout(host)
