@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-09
-P3-A branch base / P3-0 PR #21 merge commit:
-`5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`
+Current merged baseline / P3-A PR #22 merge commit:
+`769588bf869847da844cfc0b77c008023d8b048b`
 
 This document records the implementation baseline that new work must use.
 
@@ -20,14 +20,17 @@ This document records the implementation baseline that new work must use.
   `9c66629f6392971b8c52ac9dff27b16166cf9829`.
 - P3-0 roadmap transition merged as PR #21 at
   `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`.
+- P3-A Difference Gray/mixed-bit support merged as PR #22 at
+  `769588bf869847da844cfc0b77c008023d8b048b`.
 
 P2 — Runtime Foundation, Settings & Performance is complete. Its historical plan
 is retained at
 [`exec-plans/completed/p2-runtime-foundation-settings-performance.md`](exec-plans/completed/p2-runtime-foundation-settings-performance.md).
 
-The active plan is now
+The active plan is
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md) for
-**P3 — Image Semantics & RAW Processing**.
+**P3 — Image Semantics & RAW Processing**. P3-B RAW native/display semantics is
+the next implementation slice.
 
 ## Current product baseline
 
@@ -60,7 +63,7 @@ The active plan is now
 
 ### P3-A Difference semantics
 
-The P3-A implementation branch establishes the production Difference contract:
+P3-A is merged and establishes the production Difference contract:
 
 - Gray ↔ Gray, RGB/RGBA ↔ RGB/RGBA, and same-CFA Bayer ↔ Bayer are supported;
 - cross-family, size-mismatch, CFA-mismatch, and unsupported layouts are rejected;
@@ -94,17 +97,29 @@ Current RAW support includes:
 - JSON profile load/save/migration and same-path reload;
 - exact-versus-minimum RAW file-size policy;
 - native grayscale/Bayer analysis without demosaic;
+- `black_level` and `white_level` RAW-profile metadata;
 - deterministic Bayer/RAW fixtures and UHD characterization.
+
+The next P3-B contract is intentionally narrower than a RAW-conversion pipeline:
+
+- native decoded RAW stays authoritative and unchanged;
+- at 1× display gain, RAW is viewed in its native code domain;
+- display gain is anchored at black level using
+  `black + gain * (native - black)`;
+- black/white metadata do not silently change native analysis or P3-A Difference;
+- white level remains available as saturation/display metadata and for possible
+  future explicit processing.
 
 Not yet implemented:
 
-- explicit black/white-level processing pipeline;
-- demosaic as a processed RAW representation;
+- the revised black-anchored RAW display-gain contract;
+- RAW visualization/inspection improvements planned for P3-C;
 - reusable profile-management workflow;
 - profile suggestion.
 
-These move ahead of workflow/session work in P3 so image semantics stabilize
-before persistent session state is introduced.
+Demosaic is no longer a committed P3-C requirement. It is deferred until a
+coherent processed-preview scope defines whether white balance, CCM, tone/gamma,
+and related processing belong in PixelScope.
 
 ## P2 runtime/settings baseline
 
@@ -181,23 +196,31 @@ cost are demonstrated reliably. Packaging/installer CI remains P7.
 
 ## Revised forward roadmap
 
-The next phases are now:
+The active P3 sequence is:
 
-1. **P3 — Image Semantics & RAW Processing**
-   - P3-A Gray / mixed-bit Difference;
-   - RAW black/white-level processing;
-   - demosaic integration;
-   - reusable profile management and suggestion;
-   - integration hardening.
-2. **P4 — Workflow & Session Productivity**
-   - persistent sessions, Recent Files/Folders, saved ROI, arbitrary-angle line,
-     alpha overlay, broader productivity/export workflows.
-3. **P5 — Remote IQA Platform**.
-4. **P6 — Identity, Access & Remote Operations**.
-5. **P7 — Release Engineering & Distribution**.
+1. **P3-A — Difference Gray / Mixed Bit-Depth Support — Complete**
+2. **P3-B — RAW Native & Display Semantics**
+   - native RAW authority;
+   - black-anchored display gain;
+   - retain black/white metadata without redefining native analysis.
+3. **P3-C — RAW Visualization & Inspection Improvements**
+   - improve gain/exposure/clipping/Bayer observability where useful;
+   - keep viewer-only changes out of analysis-domain semantics;
+   - demosaic deferred unless separately approved with a coherent processing
+     boundary.
+4. **P3-D — RAW Profile Management**
+   - reusable profiles and deterministic suggestion.
+5. **P3-E — Integration & Hardening**.
 
-P3/P4 are intentionally reordered from the previous roadmap. Persistent workflow
-state should be built after Difference/RAW analysis semantics are stable.
+Then:
+
+- **P4 — Workflow & Session Productivity**;
+- **P5 — Remote IQA Platform**;
+- **P6 — Identity, Access & Remote Operations**;
+- **P7 — Release Engineering & Distribution**.
+
+P3/P4 remain intentionally reordered from the previous roadmap. Persistent
+workflow state should be built after Difference/RAW analysis semantics are stable.
 
 ## Deferred optimization candidates
 
