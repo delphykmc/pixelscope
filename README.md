@@ -1,93 +1,96 @@
 # PixelScope
 
-PixelScope is a CPU-only Windows desktop application for visual and numeric
-comparison of PNG, BMP, JPEG, and profile-described RAW images. It preserves
-native source data while providing synchronized viewers, pixel inspection,
-full-image/ROI statistics, histograms, line profiles, and overflow-safe
-Difference analysis.
+PixelScope is a CPU-only Windows image inspection and comparison tool for PNG,
+BMP, JPEG, and profile-described RAW images.
 
-## Requirements and installation
+The application is designed around native image data: decoded source pixels remain
+authoritative for inspection and analysis, while viewer transforms such as Display
+Gain are presentation-only.
 
-- Windows 10 or 11, x64
-- CPython 3.10.x x64; Python 3.11+ is intentionally unsupported
+## Core workflow
 
-```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements\runtime.txt
-.\.venv\Scripts\python.exe -m pip install -r requirements\dev.txt
-.\.venv\Scripts\python.exe -m pip install -e .
+PixelScope distinguishes four states:
+
+```text
+Registered -> Selected -> Presented -> Resident when required
 ```
 
-## Run
+- **Registered** images are known to the Files workspace/catalog.
+- **Selected** images form the current comparison/analysis set.
+- **Presented** images occupy viewer tiles; the current viewer supports at most six
+  source images simultaneously.
+- **Resident** images currently retain decoded native source under the source-memory
+  budget.
 
-```powershell
-.\.venv\Scripts\python.exe -m pixelscope
+The six-tile viewer capacity does not limit workspace registration.
+
+### Open images
+
+Use **File > Open Images...** (`Ctrl+O`) to open one or more supported image files:
+
+```text
+.png  .bmp  .jpg  .jpeg  .raw
 ```
 
-Register files or folders by drag-and-drop or through **File > Open Images /
-Open Folder**. Files are grouped by parent folder. Standard Ctrl/Shift
-selection forms the ordered comparison set, and Page Up/Page Down moves
-multi-folder selections atomically in natural filename order.
+Directly opened files are registered and selected for viewing. Ordinary images and
+RAW share the same user-facing command; RAW profile resolution remains
+format-specific internally.
 
-Auto, Single View, and Multi View provide synchronized cursor, zoom, offset,
-ROI, and line coordinates. Multi View uses fixed layouts for one to six source
-images, with focus promotion in the three- and five-image layouts. Difference
-is derived from any two selected sources and is promoted consistently without
-changing the logical source IDs.
+### Open folders
 
-Histogram supports Auto/256/1024/4096 bins, Count/Normalized/Log count modes,
-and native code-value ranges. Line Profile supports absolute values,
-normalization, and Difference-from-reference with an explicit reference
-selector. Compact legends identify image ID and channel without repeating full
-filenames.
+Use **File > Open Folders...** (`Ctrl+Shift+O`) to register one or more image
+folders. Folder input is registration-oriented: supported contents are added to
+Files without changing the current selection or viewer presentation. Folder count
+is not limited to six and no first image is selected automatically.
 
-Difference keeps a byte-budgeted native absolute-map cache and derives channel
-views, ROI metrics, gain, and threshold masks without recalculating subtraction.
-Metrics include MAE, MSE, RMSE, PSNR, P95, P99, maximum difference, and non-zero
-ratio.
+Drag/drop follows the same intent: direct image files are registered and selected;
+folders are registration-only. Mixed file + folder drops select only the directly
+dropped files.
 
-## RAW support
+## Current capabilities
 
-RAW always opens a profile workflow unless a same-name JSON profile is accepted
-through the stored preference. The profile separates storage format, sample
-container, effective bit depth, byte order, bit alignment, dimensions, stride,
-offset, and channel layout.
+- Fixed one-to-six-image Single/Multi View layouts with synchronized cursor,
+  zoom/pan, ROI, and line coordinates.
+- Files workspace with natural ordering, multi-selection, Folder Position
+  PageUp/PageDown navigation, and decoded-source residency indicators.
+- Statistics and Histogram over native source pixels.
+- Line Profile with shared horizontal/vertical selection.
+- Difference for Gray, RGB/RGBA, and same-CFA Bayer, including mixed effective bit
+  depth normalization.
+- Split-channel views for RGB/RGBA and Bayer.
+- Display Gain 1×/2×/4×/8×/16× for ordinary and RAW presentation without changing
+  native analysis data.
+- Profile-described RAW support for unpacked uint8/uint16 and MIPI RAW10/12/14,
+  including stride/offset/endian/alignment, Gray/Bayer layout, Bayer pattern,
+  Black Level, White Level, and exact/minimum file-size policy.
+- Byte-budgeted decoded-source residency, independent Difference cache, bounded
+  next-Folder-Position preload, and deterministic sanitized runtime diagnostics.
+- Typed versioned application Settings separated from workspace layout persistence.
 
-Supported storage formats are:
+## RAW profile workflow
 
-- Unpacked `uint8` and `uint16`, including little/big endian and LSB/MSB
-  alignment where applicable.
-- MIPI RAW10, RAW12, and RAW14.
-- Grayscale and Bayer mosaic channel layouts.
+For a directly opened/dropped RAW file, PixelScope first looks for an exact
+same-basename JSON sidecar. A valid sidecar follows the configured confirmation and
+file-size policy; missing or invalid metadata uses the editable RAW Profile dialog.
+Cancelling direct RAW profile entry prevents that RAW from being registered.
 
-Bayer analysis uses native R/Gr/Gb/B mosaic planes. Demosaic preview,
-black/white-level processing, and profile suggestion are not implemented.
+RAW files discovered through folder registration are kept pending without forcing
+a sequence of profile dialogs. Their profile is resolved when foreground
+selection/loading actually needs the source. Unresolved RAW is not speculatively
+preloaded and PixelScope does not guess profile parameters from file size.
 
-Example profile:
-[`examples/raw_profiles/example_unpacked_raw16.json`](examples/raw_profiles/example_unpacked_raw16.json).
+The dialog uses **Load Profile...** / **Save Profile...** terminology; JSON remains
+the compatible storage format.
 
 ## Development
 
-```powershell
-.\.venv\Scripts\python.exe scripts\check_docs.py
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
-.\.venv\Scripts\python.exe -m ruff format --check .
-.\.venv\Scripts\python.exe -m mypy src
-.\.venv\Scripts\python.exe -m pip check
-```
+PixelScope targets CPython 3.10 x64. Install the pinned runtime/development
+dependencies from the repository requirements and run the application from the
+repository root.
 
-Deterministic manual fixtures are documented in
-[`test_data/README.md`](test_data/README.md). The RAW chart set covers unpacked
-8/10/12/14/16-bit data and MIPI RAW10/12/14 equivalence.
+Standard validation is documented in [`docs/QUALITY.md`](docs/QUALITY.md). The
+repository owner runs the Windows `.venv` validation contract before merge.
 
-## Current scope and documentation
-
-The authoritative current baseline and verified backlog are in
-[`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md). Use
-[`docs/index.md`](docs/index.md) to locate product, architecture, decision,
-quality, roadmap, packaging, UI, and execution-plan documents.
-
-Standalone distribution, installer signing, live GPU IQA, heatmap overlays,
-persistent comparison sessions, saved ROI management, alpha overlay, and RAW
-demosaic remain future work.
+Durable product and architecture documentation lives under [`docs/`](docs/), with
+the active execution plan at
+[`docs/exec-plans/active/next-phase.md`](docs/exec-plans/active/next-phase.md).
