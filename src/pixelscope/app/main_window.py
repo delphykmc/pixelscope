@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -100,7 +101,6 @@ from pixelscope.workers.task_worker import TaskError, TaskWorker
 LOGGER = logging.getLogger(__name__)
 
 COMPARISON_PAGE_SIZE = 6
-COMPARISON_PAGE_MAX = 99
 
 
 @dataclass(frozen=True)
@@ -179,6 +179,7 @@ class MainWindow(QMainWindow):
         self._focus_document_id: str | None = None
         self._primary_page_slot = 0
         self._split_focus_document_id: str | None = None
+        self._split_active_document_id: str | None = None
         self._multi_display_order: list[str] = []
         self._shared_roi: RoiBounds | None = None
         self._shared_line: LineSelection | None = None
@@ -504,10 +505,23 @@ class MainWindow(QMainWindow):
         layout_group_layout.addWidget(self.layout_selector)
         self.presentation_controls_layout.addWidget(layout_group)
 
+        self.presentation_control_separator = QFrame(self.presentation_controls)
+        self.presentation_control_separator.setObjectName("presentationControlSeparator")
+        self.presentation_control_separator.setFrameShape(QFrame.Shape.VLine)
+        self.presentation_control_separator.setFrameShadow(QFrame.Shadow.Plain)
+        self.presentation_control_separator.setFixedHeight(TOKENS.control_height - 4)
+        self.presentation_control_separator.setStyleSheet(
+            f"QFrame {{ color: {TOKENS.border}; }}"
+        )
+        self.presentation_controls_layout.addWidget(self.presentation_control_separator)
+
         self.comparison_page_group = QWidget(self.presentation_controls)
+        self.comparison_page_group.setObjectName("comparisonPageGroup")
         page_layout = QHBoxLayout(self.comparison_page_group)
         page_layout.setContentsMargins(0, 0, 0, 0)
         page_layout.setSpacing(TOKENS.spacing_sm)
+        page_caption = QLabel("Page", self.comparison_page_group)
+        page_caption.setObjectName("comparisonPageCaption")
         self.previous_comparison_page_button = QPushButton("‹")
         self.previous_comparison_page_button.setObjectName("previousComparisonPage")
         self.previous_comparison_page_button.setToolTip(
@@ -517,16 +531,22 @@ class MainWindow(QMainWindow):
         self.previous_comparison_page_button.clicked.connect(  # type: ignore[attr-defined]
             self.previous_comparison_page
         )
-        self.comparison_page_label = QLabel("")
+        self.comparison_page_label = QLabel("", self.comparison_page_group)
         self.comparison_page_label.setObjectName("comparisonPageStatus")
         self.comparison_page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        max_selected = COMPARISON_PAGE_SIZE * COMPARISON_PAGE_MAX
-        width_sample = (
-            f"Page {COMPARISON_PAGE_MAX:02d} / {COMPARISON_PAGE_MAX:02d} · "
-            f"{max_selected - COMPARISON_PAGE_SIZE + 1}–{max_selected} of {max_selected}"
-        )
         self.comparison_page_label.setFixedWidth(
-            self.comparison_page_label.fontMetrics().horizontalAdvance(width_sample)
+            self.comparison_page_label.fontMetrics().horizontalAdvance("8888 / 8888")
+            + 2 * TOKENS.spacing_sm
+        )
+        self.comparison_page_range_label = QLabel("", self.comparison_page_group)
+        self.comparison_page_range_label.setObjectName("comparisonPageRange")
+        self.comparison_page_range_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.comparison_page_range_label.setFixedWidth(
+            self.comparison_page_range_label.fontMetrics().horizontalAdvance(
+                "99999–99999 of 99999"
+            )
             + 2 * TOKENS.spacing_sm
         )
         self.next_comparison_page_button = QPushButton("›")
@@ -544,9 +564,11 @@ class MainWindow(QMainWindow):
         ):
             button.setFixedHeight(TOKENS.control_height)
             button.setFixedWidth(TOKENS.control_height)
+        page_layout.addWidget(page_caption)
         page_layout.addWidget(self.previous_comparison_page_button)
         page_layout.addWidget(self.comparison_page_label)
         page_layout.addWidget(self.next_comparison_page_button)
+        page_layout.addWidget(self.comparison_page_range_label)
         self.presentation_controls_layout.addWidget(self.comparison_page_group)
         self.presentation_controls_layout.addStretch(1)
         self._update_comparison_page_controls()
@@ -734,28 +756,24 @@ class MainWindow(QMainWindow):
         start, end, total = self._comparison_page_range()
         page_count = (total + COMPARISON_PAGE_SIZE - 1) // COMPARISON_PAGE_SIZE
         current_page = start // COMPARISON_PAGE_SIZE + 1 if total else 0
-        paged = page_count > 1
-        has_previous = paged and start > 0
-        has_next = paged and end < total
-        text = (
-            f"Page {current_page:02d} / {page_count:02d} · "
-            f"{start + 1}–{end} of {total}"
-            if total
-            else ""
-        )
-        state = (total > 0, paged, has_previous, has_next, text)
+        has_previous = total > 0 and start > 0
+        has_next = total > 0 and end < total
+        page_text = f"{current_page} / {page_count}" if total else ""
+        range_text = f"{start + 1}–{end} of {total}" if total else ""
+        state = (total > 0, has_previous, has_next, page_text, range_text)
         if state == self._comparison_page_controls_state:
             return
         self._comparison_page_controls_state = state
 
         if hasattr(self, "comparison_page_group"):
             self.comparison_page_group.setVisible(total > 0)
-            self.comparison_page_label.setText(text)
+            self.comparison_page_label.setText(page_text)
+            self.comparison_page_range_label.setText(range_text)
             for button in (
                 self.previous_comparison_page_button,
                 self.next_comparison_page_button,
             ):
-                button.setVisible(paged)
+                button.setVisible(True)
             self.previous_comparison_page_button.setEnabled(has_previous)
             self.next_comparison_page_button.setEnabled(has_next)
 
@@ -1937,7 +1955,16 @@ class MainWindow(QMainWindow):
             self.difference_panel.calculate_difference()
         self._update_action_states()
 
-        display_documents = list(comparison_page)
+        split_documents = self._current_split_documents()
+        self._channel_split_active = bool(split_documents)
+        if split_documents:
+            split_ids = {document.document_id for document in split_documents}
+            if self._split_focus_document_id not in split_ids:
+                self._split_focus_document_id = split_documents[0].document_id
+            if self._split_active_document_id not in split_ids:
+                self._split_active_document_id = self._split_focus_document_id
+
+        display_documents = list(split_documents or comparison_page)
         difference_document = self._difference_document
         show_difference = (
             len(analysis_candidates) >= 2
@@ -1958,13 +1985,19 @@ class MainWindow(QMainWindow):
             and difference_document is not None
             and self._focus_document_id == difference_document.document_id
         )
-        if self._layout_mode != "Single View" and not difference_is_primary:
+        if self._channel_split_active and self._layout_mode != "Single View":
+            split_primary = self._split_focus_document_id
+            display_documents = sorted(
+                display_documents,
+                key=lambda item: 0 if item.document_id == split_primary else 1,
+            )
+        elif self._layout_mode != "Single View" and not difference_is_primary:
             primary = self._primary_document_for_page(comparison_page)
             if primary is not None:
                 self._focus_document_id = primary.document_id
                 self._promote_multi_document(primary.document_id)
 
-        if self._layout_mode != "Single View":
+        if self._layout_mode != "Single View" and not self._channel_split_active:
             display_documents = self._ordered_multi_documents(display_documents)
 
         if self._layout_mode == "Single View":
@@ -1976,34 +2009,40 @@ class MainWindow(QMainWindow):
         self._view_capacity = capacity
 
         if self._view_capacity == 1:
-            document = documents[self._current_index]
-            local_slot = self._current_index - self._page_start + 1
-            self.viewer.set_document(document, fit=not preserve_view)
-            self.viewer.set_tile_context(local_slot, "")
-            if large_selection:
-                self.viewer.set_header(f"[{local_slot}] {document.display_name}")
-            else:
+            if self._channel_split_active:
+                split_ids = [document.document_id for document in split_documents]
+                active_id = self._split_active_document_id
+                split_index = split_ids.index(active_id) if active_id in split_ids else 0
+                document = split_documents[split_index]
+                self._split_active_document_id = document.document_id
+                self.viewer.set_document(document, fit=not preserve_view)
+                self.viewer.set_tile_context(split_index + 1, "")
                 self.viewer.set_header(
-                    f"[{local_slot}/{len(documents)}] {document.display_name}"
+                    f"[{split_index + 1}/{len(split_documents)}] {document.display_name}"
                 )
-            self._set_single_navigation(document.document_id)
-            self.viewer.set_roi_bounds(self._shared_roi)
-            self.viewer.set_line_selection(self._shared_line)
-            self.central_stack.setCurrentWidget(self.viewer)
-            visible_state = [document]
-        elif self._view_capacity == 4 and self._split_channels and len(documents) == 1:
-            document = documents[0]
-            channel_documents, split_active = self._split_display_documents(document)
-            self._channel_split_active = split_active
-            if channel_documents:
-                channel_ids = [item.document_id for item in channel_documents]
-                if self._split_focus_document_id not in channel_ids:
-                    self._split_focus_document_id = channel_ids[0]
-                split_primary = self._split_focus_document_id
-                channel_documents = sorted(
-                    channel_documents,
-                    key=lambda item: 0 if item.document_id == split_primary else 1,
-                )
+                self._set_single_navigation(document.document_id)
+                self.viewer.set_roi_bounds(None)
+                self.viewer.set_line_selection(None)
+                self.central_stack.setCurrentWidget(self.viewer)
+                visible_state = [comparison_page[0]]
+            else:
+                document = documents[self._current_index]
+                local_slot = self._current_index - self._page_start + 1
+                self.viewer.set_document(document, fit=not preserve_view)
+                self.viewer.set_tile_context(local_slot, "")
+                if large_selection:
+                    self.viewer.set_header(f"[{local_slot}] {document.display_name}")
+                else:
+                    self.viewer.set_header(
+                        f"[{local_slot}/{len(documents)}] {document.display_name}"
+                    )
+                self._set_single_navigation(document.document_id)
+                self.viewer.set_roi_bounds(self._shared_roi)
+                self.viewer.set_line_selection(self._shared_line)
+                self.central_stack.setCurrentWidget(self.viewer)
+                visible_state = [document]
+        elif self._channel_split_active:
+            channel_documents = display_documents
             self.multi_compare_view.set_capacity(4)
             self.multi_compare_view.set_layout_kind(
                 "Focus + 2" if len(channel_documents) == 3 else "Grid 2x2",
@@ -2026,7 +2065,7 @@ class MainWindow(QMainWindow):
                 viewer.set_focus_control_visible(
                     viewer.document is not None and len(channel_documents) > 1
                 )
-            visible_state = [document]
+            visible_state = [comparison_page[0]]
         else:
             visible = display_documents[: self._view_capacity]
             self.multi_compare_view.set_capacity(self._view_capacity)
@@ -2075,16 +2114,26 @@ class MainWindow(QMainWindow):
             analysis_bounds,
             region_name,
         )
-        active = self.current_document
-        if self._view_capacity > 1 and self._focus_document_id is not None:
+        if self._channel_split_active:
             active = next(
                 (
                     document
-                    for document in visible_state
-                    if document.document_id == self._focus_document_id
+                    for document in split_documents
+                    if document.document_id == self._split_active_document_id
                 ),
-                active,
+                split_documents[0] if split_documents else self.current_document,
             )
+        else:
+            active = self.current_document
+            if self._view_capacity > 1 and self._focus_document_id is not None:
+                active = next(
+                    (
+                        document
+                        for document in visible_state
+                        if document.document_id == self._focus_document_id
+                    ),
+                    active,
+                )
         line_sources = self._line_source_documents()
         self.line_profile_panel.set_documents(
             line_sources,
@@ -2097,7 +2146,10 @@ class MainWindow(QMainWindow):
         if cached_display is not None and self._view_capacity == 1 and active is not None:
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
-        self._update_file_states(visible_state, active)
+        if self._channel_split_active and comparison_page:
+            self._update_file_states([comparison_page[0]], comparison_page[0])
+        else:
+            self._update_file_states(visible_state, active)
         self._update_comparison_page_controls()
         self._refresh_preload_plan()
 
@@ -2139,14 +2191,23 @@ class MainWindow(QMainWindow):
         ]
         return placeholders, False
 
+    def _current_split_documents(self) -> list[ImageDocument]:
+        if not self._split_channels:
+            return []
+        page = self.current_comparison_documents()
+        if len(page) != 1:
+            return []
+        channel_documents, split_active = self._split_display_documents(page[0])
+        return channel_documents if split_active else []
+
     def _set_split_channels(self, enabled: bool) -> None:
         self._split_channels = enabled
+        self._split_focus_document_id = None
+        self._split_active_document_id = None
         if enabled:
-            self._layout_mode = "Multi View"
-            self._view_capacity = 4
-            self._split_focus_document_id = None
-        else:
-            self._split_focus_document_id = None
+            if self._layout_mode == "Auto":
+                self._layout_mode = "Multi View"
+            self._view_capacity = 1 if self._layout_mode == "Single View" else 4
         self._reset_pixel_status()
         self._render_selection(preserve_view=False)
 
@@ -2271,11 +2332,10 @@ class MainWindow(QMainWindow):
 
     def _set_focus_document(self, document: object) -> None:
         document_id = document.document_id if isinstance(document, ImageDocument) else str(document)
-        split_prefixes = tuple(
-            f"{item.document_id}:split:" for item in self.selected_documents
-        )
-        if self._channel_split_active and document_id.startswith(split_prefixes):
+        split_ids = {item.document_id for item in self._current_split_documents()}
+        if self._channel_split_active and document_id in split_ids:
             self._split_focus_document_id = document_id
+            self._split_active_document_id = document_id
             self._render_selection(preserve_view=True)
             return
 
@@ -2384,6 +2444,15 @@ class MainWindow(QMainWindow):
         self._set_active_document(document)
         if not isinstance(document, ImageDocument):
             return
+        if self._channel_split_active:
+            split_ids = {item.document_id for item in self._current_split_documents()}
+            if document.document_id in split_ids:
+                self._split_active_document_id = document.document_id
+                page = self.current_comparison_documents()
+                if page:
+                    self._update_file_states([page[0]], page[0])
+                self._evict_resident_documents()
+                return
         selected_index = next(
             (
                 index
@@ -2440,6 +2509,12 @@ class MainWindow(QMainWindow):
     def show_selected_image(self, local_index: int) -> None:
         if self._view_capacity != 1 or local_index < 0:
             return
+        split_documents = self._current_split_documents()
+        if split_documents:
+            if local_index >= len(split_documents):
+                return
+            self._show_single_split_document(split_documents[local_index])
+            return
         page = self.current_comparison_documents()
         if local_index >= len(page):
             return
@@ -2449,9 +2524,11 @@ class MainWindow(QMainWindow):
         self._render_selection(preserve_view=True)
 
     def _set_single_navigation(self, current_key: str) -> None:
+        split_documents = self._current_split_documents()
+        navigation_documents = split_documents or self.current_comparison_documents()
         items = [
             (document.document_id, str(index + 1), document.display_name)
-            for index, document in enumerate(self.current_comparison_documents())
+            for index, document in enumerate(navigation_documents)
         ]
         if (
             self._difference_document is not None
@@ -2528,6 +2605,14 @@ class MainWindow(QMainWindow):
         self._update_action_states()
 
     def _navigate_single_view(self, key: str) -> None:
+        split_documents = self._current_split_documents()
+        split_document = next(
+            (document for document in split_documents if document.document_id == key),
+            None,
+        )
+        if split_document is not None:
+            self._show_single_split_document(split_document)
+            return
         if key == "difference":
             difference = self._difference_document
             if difference is None:
@@ -2552,6 +2637,44 @@ class MainWindow(QMainWindow):
         if selected_index is None:
             return
         self._show_single_document(documents[selected_index], selected_index)
+
+    def _show_single_split_document(self, document: ImageDocument) -> None:
+        split_documents = self._current_split_documents()
+        split_index = next(
+            (
+                index
+                for index, candidate in enumerate(split_documents)
+                if candidate.document_id == document.document_id
+            ),
+            None,
+        )
+        if split_index is None:
+            return
+        page = self.current_comparison_documents()
+        if not page:
+            return
+        self._layout_mode = "Single View"
+        self._view_capacity = 1
+        self._channel_split_active = True
+        self._split_active_document_id = document.document_id
+        self.layout_selector.blockSignals(True)
+        self.layout_selector.setCurrentText("Single View")
+        self.layout_selector.blockSignals(False)
+        self._reset_pixel_status()
+        self.viewer.set_document(document, fit=False)
+        self.viewer.set_tile_context(split_index + 1, "")
+        self.viewer.set_header(
+            f"[{split_index + 1}/{len(split_documents)}] {document.display_name}"
+        )
+        self._set_single_navigation(document.document_id)
+        self.viewer.set_roi_bounds(None)
+        self.viewer.set_line_selection(None)
+        self.central_stack.setCurrentWidget(self.viewer)
+        self._visible_document_ids = {page[0].document_id}
+        self._set_active_document(document)
+        self._update_file_states([page[0]], page[0])
+        self._update_comparison_page_controls()
+        self._refresh_preload_plan()
 
     def _show_single_document(self, document: ImageDocument, selected_index: int) -> None:
         previous_page_start = self._page_start
@@ -2699,9 +2822,14 @@ class MainWindow(QMainWindow):
             self._activate_multi_document(target.document_id)
 
     def _cycle_single_navigation(self, step: int) -> bool:
-        documents = self.selected_documents
+        split_documents = self._current_split_documents()
+        documents = split_documents or self.selected_documents
         keys = [document.document_id for document in documents]
-        if self.diff_action.isChecked() and self._difference_document is not None:
+        if (
+            not split_documents
+            and self.diff_action.isChecked()
+            and self._difference_document is not None
+        ):
             keys.append("difference")
         if len(keys) < 2:
             return False
@@ -2717,17 +2845,24 @@ class MainWindow(QMainWindow):
         return True
 
     def _cycle_visible_active(self, step: int) -> bool:
-        documents = self.current_comparison_documents()
+        split_documents = self._current_split_documents()
+        documents = split_documents or self.current_comparison_documents()
         if len(documents) < 2:
             return False
         ids = [document.document_id for document in documents]
         current_id = (
-            self._active_document_id
+            self._split_active_document_id
+            if split_documents and self._split_active_document_id in ids
+            else self._active_document_id
             if self._active_document_id in ids
             else documents[self._current_page_local_index()].document_id
         )
         current = ids.index(current_id)
         target = documents[(current + step) % len(documents)]
+        if split_documents:
+            self._split_active_document_id = target.document_id
+            self._reset_pixel_status()
+            return self._activate_multi_document(target.document_id)
         selected_index = next(
             index
             for index, document in enumerate(self.selected_documents)
@@ -3049,7 +3184,8 @@ class MainWindow(QMainWindow):
             return
 
         self._layout_mode = "Multi View"
-        if self._difference_document is not None:
+        preserve_folder_primary = isinstance(self._pending_position_focus, int)
+        if self._difference_document is not None and not preserve_folder_primary:
             self._focus_document_id = self._difference_document.document_id
             self._promote_multi_document(self._difference_document.document_id)
         self._pending_position_focus = None

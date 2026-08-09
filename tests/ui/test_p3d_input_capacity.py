@@ -13,6 +13,7 @@ from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.path_discovery import ImageInput
+from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.display_gain import install_display_gain_control
 
 
@@ -67,14 +68,19 @@ def test_selected_at_most_six_shows_stable_single_page_information(
     assert window.current_comparison_documents() == documents
     assert window._page_start == 0
     assert not window.comparison_page_group.isHidden()
-    assert window.comparison_page_label.text() == "Page 01 / 01 · 1–5 of 5"
-    assert window.previous_comparison_page_button.isHidden()
-    assert window.next_comparison_page_button.isHidden()
+    assert window.comparison_page_label.text() == "1 / 1"
+    assert window.comparison_page_range_label.text() == "1–5 of 5"
+    assert not window.previous_comparison_page_button.isHidden()
+    assert not window.next_comparison_page_button.isHidden()
+    assert not window.previous_comparison_page_button.isEnabled()
+    assert not window.next_comparison_page_button.isEnabled()
     label_width = window.comparison_page_label.width()
+    range_width = window.comparison_page_range_label.width()
     state_before = window._comparison_page_controls_state
     window._update_comparison_page_controls()
     assert window._comparison_page_controls_state == state_before
     assert window.comparison_page_label.width() == label_width
+    assert window.comparison_page_range_label.width() == range_width
     assert window.multi_compare_view.capacity == 6
     assert window.multi_compare_view._arranged_count == 5
     window.close()
@@ -91,9 +97,14 @@ def test_fifteen_selected_documents_page_without_changing_selection(
     selected_ids = tuple(document.document_id for document in window.selected_documents)
 
     assert window.current_comparison_documents() == documents[:6]
-    assert window.comparison_page_label.text() == "Page 01 / 03 · 1–6 of 15"
+    assert window.comparison_page_label.text() == "1 / 3"
+    assert window.comparison_page_range_label.text() == "1–6 of 15"
     assert not window.previous_comparison_page_button.isEnabled()
     assert window.next_comparison_page_button.isEnabled()
+    control_widths = (
+        window.comparison_page_label.width(),
+        window.comparison_page_range_label.width(),
+    )
     assert _visible_source_ids(window) == [document.document_id for document in documents[:6]]
     assert [viewer._slot for viewer in window.multi_compare_view.occupied_viewers] == list(
         range(1, COMPARISON_PAGE_SIZE + 1)
@@ -102,7 +113,12 @@ def test_fifteen_selected_documents_page_without_changing_selection(
     window.next_comparison_page()
     assert tuple(document.document_id for document in window.selected_documents) == selected_ids
     assert window.current_comparison_documents() == documents[6:12]
-    assert window.comparison_page_label.text() == "Page 02 / 03 · 7–12 of 15"
+    assert window.comparison_page_label.text() == "2 / 3"
+    assert window.comparison_page_range_label.text() == "7–12 of 15"
+    assert (
+        window.comparison_page_label.width(),
+        window.comparison_page_range_label.width(),
+    ) == control_widths
     assert _visible_source_ids(window) == [document.document_id for document in documents[6:12]]
     assert [viewer._slot for viewer in window.multi_compare_view.occupied_viewers] == list(
         range(1, COMPARISON_PAGE_SIZE + 1)
@@ -111,7 +127,12 @@ def test_fifteen_selected_documents_page_without_changing_selection(
     window.next_comparison_page()
     assert tuple(document.document_id for document in window.selected_documents) == selected_ids
     assert window.current_comparison_documents() == documents[12:15]
-    assert window.comparison_page_label.text() == "Page 03 / 03 · 13–15 of 15"
+    assert window.comparison_page_label.text() == "3 / 3"
+    assert window.comparison_page_range_label.text() == "13–15 of 15"
+    assert (
+        window.comparison_page_label.width(),
+        window.comparison_page_range_label.width(),
+    ) == control_widths
     assert window.multi_compare_view.capacity == COMPARISON_PAGE_SIZE
     assert window.multi_compare_view._arranged_count == COMPARISON_PAGE_SIZE
     assert _visible_source_ids(window) == [document.document_id for document in documents[12:15]]
@@ -339,6 +360,7 @@ def test_presentation_controls_live_above_view_and_gain_combo_does_not_take_arro
     gain_control = install_display_gain_control(window)
 
     assert window.presentation_controls.isAncestorOf(window.layout_selector)
+    assert window.presentation_controls.isAncestorOf(window.presentation_control_separator)
     assert window.presentation_controls.isAncestorOf(window.comparison_page_group)
     assert window.presentation_controls.isAncestorOf(gain_control)
     assert gain_control.focusPolicy() == Qt.FocusPolicy.NoFocus
@@ -423,6 +445,88 @@ def test_split_channel_multi_view_exposes_explicit_primary_control(
         not viewer.header.focus.isChecked()
         for viewer in window.multi_compare_view.occupied_viewers[1:]
     )
+    window.close()
+
+
+@pytest.mark.parametrize(
+    ("layout", "expected_layouts"),
+    (
+        ("RGB", ["CHANNEL_R", "CHANNEL_G", "CHANNEL_B"]),
+        ("BAYER", ["CHANNEL_R", "CHANNEL_Gr", "CHANNEL_Gb", "CHANNEL_B"]),
+    ),
+)
+def test_split_channels_form_transient_single_and_multi_presentation_working_set(
+    qtbot: object,
+    tmp_path: Path,
+    layout: str,
+    expected_layouts: list[str],
+) -> None:
+    if layout == "RGB":
+        document = ImageDocument.from_array(
+            np.arange(4 * 4 * 3, dtype=np.uint8).reshape(4, 4, 3),
+            "rgb.png",
+            source_path=tmp_path / "rgb.png",
+            channel_layout="RGB",
+        )
+    else:
+        profile = RawProfile(
+            name="bayer",
+            width=4,
+            height=4,
+            stride_bytes=8,
+            bit_depth=10,
+            channel_layout="BAYER",
+            bayer_pattern="RGGB",
+            black_level=0,
+            white_level=1023,
+        )
+        document = ImageDocument.from_array(
+            np.arange(16, dtype=np.uint16).reshape(4, 4),
+            "bayer.raw",
+            source_path=tmp_path / "bayer.raw",
+            channel_layout="BAYER",
+            bit_depth=10,
+            raw_profile=profile,
+        )
+
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.add_document(document)
+    selected_ids = [item.document_id for item in window.selected_documents]
+
+    window._set_split_channels(True)
+
+    assert [item.document_id for item in window.selected_documents] == selected_ids
+    assert [
+        viewer.document.channel_layout
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is not None
+    ] == expected_layouts
+
+    window.set_layout_mode("Single View")
+
+    assert window.viewer.document is not None
+    assert window.viewer.document.channel_layout == expected_layouts[0]
+    navigation_labels = [
+        window.viewer.header.navigation_layout.itemAt(index).widget().text()
+        for index in range(window.viewer.header.navigation_layout.count())
+    ]
+    assert navigation_labels == [str(index + 1) for index in range(len(expected_layouts))]
+
+    window.show_selected_image(len(expected_layouts) - 1)
+    assert window.viewer.document is not None
+    assert window.viewer.document.channel_layout == expected_layouts[-1]
+    window.previous_image()
+    assert window.viewer.document is not None
+    assert window.viewer.document.channel_layout == expected_layouts[-2]
+
+    window.set_layout_mode("Multi View")
+    assert {item.document_id for item in window.selected_documents} == set(selected_ids)
+    assert {
+        viewer.document.channel_layout
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is not None
+    } == set(expected_layouts)
     window.close()
 
 

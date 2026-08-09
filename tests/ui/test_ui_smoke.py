@@ -324,7 +324,7 @@ def test_difference_display_updates_roi_metrics_and_session_cache(qtbot: object)
         for index in range(window.viewer.header.navigation_layout.count())
     ]
     assert navigation_labels == ["1", "2", "Diff"]
-    window.show_selected_image(2)
+    window._navigate_single_view("difference")
     assert window.viewer.document is window._difference_document
     window.close()
 
