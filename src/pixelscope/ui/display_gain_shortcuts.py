@@ -8,22 +8,26 @@ from PySide6.QtWidgets import QComboBox, QWidget
 
 
 def install_display_gain_shortcuts(
-    window: QWidget,
+    presentation_scope: QWidget,
     control: QComboBox,
 ) -> tuple[QShortcut, QShortcut]:
-    """Bind window-level +/- commands to a discrete display-gain control.
+    """Bind +/- commands to a discrete gain control inside the viewer surface.
 
     The binding is intentionally presentation-generic: P3-B supplies the RAW Gain
     combo, while P3-C can reuse the same command layer when the viewer surface is
     generalized to ordinary Gray/RGB/RGBA Display Gain.
+
+    ``WidgetWithChildrenShortcut`` is deliberate. Display Gain owns +/- only while
+    focus is inside the image-presentation subtree; sibling UI such as the Files
+    tree keeps its native Qt key handling, including +/- expand/collapse.
     """
 
     control_alive = True
 
-    increase = QShortcut(QKeySequence("+"), window)
-    decrease = QShortcut(QKeySequence("-"), window)
+    increase = QShortcut(QKeySequence("+"), presentation_scope)
+    decrease = QShortcut(QKeySequence("-"), presentation_scope)
     for shortcut in (increase, decrease):
-        shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
     def step(delta: int) -> None:
         if not control_alive or not control.isEnabled() or control.count() <= 0:
@@ -44,7 +48,8 @@ def install_display_gain_shortcuts(
 
     control.destroyed.connect(control_destroyed)  # type: ignore[attr-defined]
 
-    # Keep the Python wrappers explicitly owned by the MainWindow as well as by
-    # Qt parentage. Future Display Gain controls can reuse this same command slot.
-    setattr(window, "_display_gain_shortcuts", (increase, decrease))
+    # Retain Python wrappers explicitly on the presentation owner in addition to
+    # Qt parentage. P3-C can reuse this same command slot when the toolbar surface
+    # is generalized from RAW Gain to Display Gain.
+    setattr(presentation_scope, "_display_gain_shortcuts", (increase, decrease))
     return increase, decrease
