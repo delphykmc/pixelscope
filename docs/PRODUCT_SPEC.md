@@ -3,11 +3,11 @@
 PixelScope is a CPU-only Windows engineering tool for rapid visual and numeric
 comparison of PNG, BMP, JPEG, and profile-described RAW images. The workflow is
 selection-driven for analysis while the Files workspace may register a much larger
-catalog than the viewer presents simultaneously.
+catalog than the viewer works on simultaneously.
 
 ## Implemented workflow
 
-### Registration, selection, presentation, and residency
+### Registration, selection, Current Comparison Page, presentation, and residency
 
 These terms have distinct product meanings:
 
@@ -15,21 +15,32 @@ These terms have distinct product meanings:
 Registered
     ↓ user selection
 Selected
-    ↓ viewer capacity / layout
+    ↓ Selected ordering + page offset
+Current Comparison Page
+    ↓ viewer representation
 Presented
     ↓ source lifecycle
 Resident when required
 ```
 
 - **Registered** means known to the Files workspace/catalog. Registration is not
-  capped by the six-tile viewer capacity.
-- **Selected** means chosen as the current comparison/analysis set.
-- **Presented** means currently occupying viewer tiles. Existing one-to-six-image
-  layout capacity remains the presentation boundary.
+  capped by the six-image comparison working set.
+- **Selected** means the ordered logical comparison set. Selected may contain more
+  than six images.
+- **Current Comparison Page** is a derived maximum-six working subset of Selected.
+  Page membership follows Selected ordering and page offset; it is not a second
+  independently owned document collection.
+- **Presented** means the current viewer representation. Multi View presents the
+  current page; Single View presents one active image within that page.
 - **Resident** means decoded native source is currently retained under the P2
-  source-memory budget.
+  source-memory budget because current runtime correctness requires it.
 
-Registration does not imply selection, presentation, decode, or residency.
+`Analysis Working Set = Current Comparison Page`.
+Viewer slots are always local `1..6` within the Current Comparison Page. Global
+Selected ordinal and viewer slot are distinct concepts.
+
+Registration does not imply selection, page membership, presentation, decode, or
+residency. Selected membership alone does not imply residency.
 
 ### Image and folder input
 
@@ -45,33 +56,65 @@ There is no separate top-level RAW-open command and unsupported extensions are n
 silently interpreted as RAW.
 
 **Open Images...** supports multi-file selection. Every supported selected file is
-registered and becomes part of the current selection. The viewer then presents at
-most its existing layout capacity; files beyond that capacity are not discarded or
-rejected from registration/selection.
+registered and becomes part of the ordered Selected set. If more than six files are
+supplied, none are discarded: the initial Current Comparison Page contains the
+first six and later pages preserve the same Selected membership/order.
 
 **Open Folders...** supports multiple existing directories in one Qt-only picker.
 Resolved folder paths are deduplicated and ordered deterministically. Folder count
 has no artificial six-item limit. Supported immediate contents are registered in
-Files, but current selection and presentation are not changed and no first image is
-automatically selected. A two-folder input is not a special comparison command.
-Folders with no supported images are skipped without failing other selected
-folders.
+Files, but current Selected, Current Comparison Page, and presentation are not
+changed and no first image is automatically selected. A two-folder input is not a
+special comparison command. Folders with no supported images are skipped without
+failing other selected folders.
 
 Drag/drop preserves the same intent split:
 
-- direct image files → register + select/present;
+- direct image files → register + make them the Selected set;
 - folders → register only;
-- mixed direct files + folders → direct files become the selection while folder
+- mixed direct files + folders → direct files become Selected while folder
   contents are registered only.
 
 `.json` sidecars are metadata for exact same-basename RAW inputs and never appear
 as independent image documents. Files remain grouped by parent folder with natural
 order and loading/resident/error indicators.
 
-A stable state with registered documents and zero selected documents is supported.
+A stable state with registered documents and zero Selected documents is supported.
 The central workspace prompts **Select an image from Files to view**. A truly empty
 workspace instead prompts **Drop images or folders here** and exposes Open Images
 and Open Folders actions.
+
+### Current Comparison Page and navigation
+
+For `Selected <= 6`, Current Comparison Page equals Selected. Existing production
+Auto/Single/Multi behavior, primary semantics, number keys, Left/Right, ROI,
+Statistics/Histogram/Line Profile, Difference, Folder Position, source residency,
+and Folder Position preload remain the compatibility baseline.
+
+For `Selected > 6`:
+
+- pages are derived in six-image chunks from Selected ordering;
+- page movement does not modify Selected membership/order;
+- Multi View uses Current Comparison Page as its comparison workspace;
+- large-selection Multi View keeps six-slot Grid 3x2 geometry on every page,
+  including a short final page with unused slots cleared;
+- Single View presents one active local slot while retaining the full current-page
+  analysis/load context;
+- keys `1..6` always select current-page local slots;
+- Left/Right remains Previous/Next Selected Image across the complete Selected set;
+- crossing a page boundary with Left/Right automatically changes the page so the
+  active image remains in context;
+- Ctrl+Left/Ctrl+Right moves Previous/Next Comparison Page;
+- Comparison Page navigation does not wrap at endpoints;
+- a compact affordance exposes current range and total, e.g. `7–12 of 15`;
+- page navigation preserves the active local slot when possible and clamps it on a
+  short final page;
+- primary/focus presentation ordering is page-local and cannot change Selected
+  ordering or page membership.
+
+PageUp/PageDown remains exclusively Folder Position. Folder Position accepts only
+one-to-six Selected documents from distinct folders. `Selected > 6` makes Folder
+Position unavailable rather than applying it to only the current page.
 
 ### RAW input resolution
 
@@ -89,47 +132,57 @@ opening/drop must resolve a validated profile first:
 Folder registration uses a lazy RAW boundary to avoid repeated dialogs while
 registering datasets. A RAW path and deterministic same-basename sidecar path may
 be registered as a pending catalog document without resolving the profile or
-decoding source. Profile resolution occurs when foreground selection/loading
-actually requires that RAW. Unresolved RAW is not speculatively preloaded until a
-profile is resolved. PixelScope does not infer a profile from byte size or other
-weak evidence.
+decoding source.
 
-The product does not automatically reuse the previous RAW profile, apply one
-profile to all selected RAW files, or pick a profile from byte size alone.
+A folder-registered unresolved RAW may also be Selected while off-page. Selected
+membership alone does not prompt, decode, or require residency. Profile resolution
+occurs when foreground Current Comparison Page work actually requires that RAW.
+Unresolved RAW is not speculatively preloaded until a profile is resolved.
+
+Within one foreground presentation attempt, an unresolved RAW may prompt at most
+once. Cancel leaves it registered/pending, starts no worker, and passive rerenders
+do not immediately re-open the dialog. A later explicit foreground user action may
+retry profile resolution.
+
+PixelScope does not infer a profile from byte size or other weak evidence. The
+product does not automatically reuse the previous RAW profile, apply one profile to
+all selected RAW files, or pick a profile from byte size alone.
 
 ### Workspace and analysis
 
-- Ordered multi-selection is independent from total Files registration count.
-- Page Up/Page Down Folder Position uses one to six **currently selected**
-  documents from distinct folders. Other registered folders do not participate.
+- Ordered Selected membership is independent from total Files registration count.
+- Current Comparison Page is the default working set for Statistics, Histogram,
+  Line Profile, selection-derived Difference inputs, ROI/Line normalization,
+  foreground page-load completion, and current-page source protection.
+- Difference's explicit Image 1/Image 2 pair remains feature-owned authority.
 - Up/Down retains Files-tree row navigation. Left/Right changes the active image
-  within the selected set.
+  across the complete Selected set.
 - Files-tree `+` / `-` retains Qt-native folder expand/collapse. Display Gain
   `+` / `-` is scoped to the image-presentation subtree.
-- Auto, Single, and Multi View with synchronized cursor, zoom, offset, ROI, and
+- Auto, Single, and Multi View retain synchronized cursor, zoom, offset, ROI, and
   line coordinates.
-- Fixed two/three/four/five/six-image presentation layouts with primary-image
-  ordering.
-- Structured status for active file, format/resolution, coordinate, pixel value,
-  zoom, and background work.
-- Statistics with explicit image/channel fields and full-image/ROI scope.
-- Histogram Auto/256/1024/4096 bins with Count, Normalized, and Log count.
-- Line Profile with primary→active→first-displayed reference priority in
+- Fixed two/three/four/five/six-image presentation layouts remain for
+  `Selected <= 6`; large selections use fixed six-slot page geometry.
+- Structured status reports active file, format/resolution, coordinate, pixel
+  value, zoom, and background work.
+- Statistics uses explicit image/channel fields and full-image/ROI scope.
+- Histogram supports Auto/256/1024/4096 bins with Count, Normalized, and Log count.
+- Line Profile uses primary→active→first-displayed reference priority in
   Difference-from-reference mode.
 - RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
-- Order-independent Difference cache with native compact maps for equal effective
+- Order-independent Difference cache keeps native compact maps for equal effective
   bit depth and normalized float32 maps for mixed effective bit depth, plus
   Absolute/Mask display, ROI metrics, LRU eviction, diagnostics, and a
   startup-configurable byte budget.
-- Resizable/floating Plots dock with persisted workspace state.
+- Resizable/floating Plots dock retains persisted workspace state.
 
-A seventh derived Difference result is shown in Single View when all six source
-positions are occupied.
+A derived Difference result uses the existing six-source Diff-only presentation
+contract when all six Current Comparison Page source slots are occupied.
 
 Folder-only registration is not a presentation lifecycle operation: it must not
-reset the current comparison, layout, active/primary state, ROI, Line Profile,
-Difference presentation/cache, Display Gain, zoom/pan preservation state, or
-source-residency ownership.
+reset Selected, Current Comparison Page, layout, active/primary state, ROI, Line
+Profile, Difference presentation/cache, Display Gain, zoom/pan preservation state,
+or source-residency ownership.
 
 ## Settings and runtime policy
 
@@ -143,11 +196,19 @@ Cache, and preload settings.
 
 Decoded Source Memory accounts native resident `ImageDocument.source` arrays only
 and uses protected soft-budget LRU semantics. Source eviction and Difference cache
-ownership remain independent. Registration alone does not make source data
-resident. **Preload Next Folder Position** remains exactly `+1`, one selected
-Folder Position deep, on a dedicated max-one worker; an exact matching physically
-RUNNING preload may transfer logical authority to foreground without duplicate
-decode.
+ownership remain independent. Registration and off-page Selected membership do not
+make source data resident.
+
+For large logical selections, **Selected alone is not a source-protection owner**.
+Current Comparison Page plus correctness dependencies such as foreground load,
+promoted foreground preload, explicit Difference dependencies, and non-reloadable
+sources are protected. Selected-but-off-page resident sources may therefore be
+evicted under the P2 budget and normally reload when their page is revisited.
+
+**Preload Next Folder Position** remains exactly `+1`, one valid one-to-six
+Selected Folder Position deep, on a dedicated max-one worker; an exact matching
+physically RUNNING preload may transfer logical authority to foreground without
+duplicate decode. P3-D adds no Comparison Page preload system.
 
 P3-D adds no Settings key, Settings-owned profile library, or new RAW profile
 version field.
@@ -290,8 +351,9 @@ analysis are outside the current product contract.
 - P3-B RAW native/display semantics: complete, PR #24.
 - P3-C Display Gain generalization: complete, PR #25, merge commit
   `7f6bef73e6712f6a14a4d401820a915196e25da2`.
-- P3-D Unified Image Opening & RAW Profile Resolution: current slice.
-- P3-E integrates and hardens the completed Difference/Display Gain/RAW/input
+- P3-D Unified Image Opening, Current Comparison Page & RAW Profile Resolution:
+  current slice.
+- P3-E integrates and hardens the completed Difference/Display Gain/RAW/input/page
   semantics.
 
 The earlier P3-D reusable Profile Library/suggestion plan is deferred. It should
