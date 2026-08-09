@@ -24,10 +24,13 @@ py -3.10 -m venv .venv
 .\.venv\Scripts\python.exe -m pixelscope
 ```
 
-Register files or folders by drag-and-drop or through **File > Open Images /
-Open Folder**. Files are grouped by parent folder. Standard Ctrl/Shift
-selection forms the ordered comparison set, and Page Up/Page Down moves
-multi-folder selections atomically in natural filename order.
+Use **File > Open Images...** for selection-oriented direct file input and
+**File > Open Folders...** for registration-oriented folder input. Direct image
+files are registered and selected; folder contents are registered in Files without
+changing the current selection or presentation. Registration is not limited by the
+six-tile viewer capacity. Files are grouped by parent folder, and Page Up/Page Down
+moves only the currently selected multi-folder comparison set atomically in natural
+filename order.
 
 Auto, Single View, and Multi View provide synchronized cursor, zoom, offset,
 ROI, and line coordinates. Multi View uses fixed layouts for one to six source
@@ -48,10 +51,12 @@ ratio.
 
 ## RAW support
 
-RAW always opens a profile workflow unless a same-name JSON profile is accepted
-through the stored preference. The profile separates storage format, sample
-container, effective bit depth, byte order, bit alignment, dimensions, stride,
-offset, and channel layout.
+Direct RAW file input resolves a profile before loading unless a valid same-name
+JSON sidecar is accepted through the stored preference. RAW discovered through
+folder registration remains pending and resolves its profile when foreground
+selection/loading actually requires it, avoiding registration-time dialog storms.
+The profile separates storage format, sample container, effective bit depth, byte
+order, bit alignment, dimensions, stride, offset, and channel layout.
 
 Supported storage formats are:
 
