@@ -25,7 +25,7 @@ encode compatibility or RAW-display rules that are about to change.
 |---|---|---|---|
 | 0 | P3-0 roadmap transition | Close/archive P2 and establish P3 | Complete — PR #21 |
 | 1 | P3-A Difference domain extension | Gray + mixed-bit Difference semantics | Complete — PR #22 |
-| 2 | P3-B RAW native/display semantics | Native RAW authority + black-anchored display gain | Implementation complete on feature branch; owner validation/merge pending |
+| 2 | P3-B RAW native/display semantics | Native RAW authority + black-anchored display gain | Implementation/review follow-up complete; current-head revalidation/merge pending |
 | 3 | P3-C RAW visualization/inspection | Improve RAW observability without processed-RAW scope creep | Next after P3-B merge |
 | 4 | P3-D RAW profile management | Reusable profiles and profile suggestion workflow | After P3-C |
 | 5 | P3-E integration hardening | Cross-analysis regressions, docs, Windows characterization | After P3-D |
@@ -82,8 +82,11 @@ separation remains an invariant for later P3 slices.
 
 ## P3-B — RAW Native & Display Semantics
 
-Status: Implementation complete on `feature/p3-b-raw-native-display-semantics`;
-owner/local Windows validation and merge pending.
+Status: Implementation and independent-review follow-up are complete on
+`feature/p3-b-raw-native-display-semantics`. Owner/local Windows quality
+validation passed on pre-review HEAD
+`e7c1cc2ea0b08f43d3d513f6712035aa828eec5b`; the current review-fix HEAD requires
+revalidation before merge.
 
 ### Implemented native-source authority
 
@@ -91,6 +94,10 @@ owner/local Windows validation and merge pending.
   `ImageDocument.source`.
 - Existing `black_level` and `white_level` profile metadata remain supported with
   their current JSON/schema compatibility.
+- A schema-valid four-value `black_level` on a GRAY profile remains accepted.
+  Its global/GRAY gain anchor preserves the pre-P3-B rule `min(black_level)`;
+  Bayer mosaics still use all four CFA-specific anchors and split CFA planes use
+  their named anchor.
 - Black/white metadata and RAW display gain do not alter pixel inspection,
   Statistics, Histogram, Line Profile source data, Split Channels, source
   residency accounting, or P3-A Difference.
@@ -135,6 +142,10 @@ White level remains stored RAW-profile metadata for future explicit processing.
 - The derived gained preview is viewer presentation only. `ImageDocument.preview`
   remains the replaceable 1× base preview and `ImageDocument.source` remains the
   analysis authority.
+- Hidden RAW viewers release any gain>1 derived buffer by restoring the canonical
+  1× document preview. When shown again they regenerate the current session gain
+  on demand, preventing hidden Multi View tiles from retaining persistent UHD
+  gained-preview allocations.
 
 ### P3-B regression coverage added
 
@@ -146,6 +157,8 @@ Coverage was added for:
 - known-value `B + G * (X - B)` arithmetic and below-black underflow prevention;
 - final-only clipping;
 - RGGB/GRBG/GBRG/BGGR CFA-specific black anchors and unchanged native mosaics;
+- schema-valid GRAY four-value Black Level through JSON profile load and
+  deterministic legacy `min(tuple)` gain anchoring;
 - native pixel/Statistics/Histogram/Line Profile/Split Channels values;
 - same-bit and mixed-bit P3-A Difference independence;
 - source generation/residency accounting independence;
@@ -153,12 +166,16 @@ Coverage was added for:
 - RAW load preservation and current profile metadata;
 - Single/Multi View gain behavior, default 1×, session-only state, and stale gain
   request rejection;
+- 6→2→6 Multi View lifecycle release/regeneration of viewer-local gained previews;
 - existing Bayer and RAW chart characterization call sites under the explicit
   display API.
 
-The Chat implementation agent intentionally did **not** execute pytest, ruff,
-mypy, docs checker, pip check, or packaging commands. Owner/local Windows
-validation remains pending.
+The Chat implementation agent intentionally does **not** execute pytest, ruff,
+mypy, docs checker, pip check, or packaging commands. Owner/local Windows ran the
+full quality gate successfully on pre-review HEAD
+`e7c1cc2ea0b08f43d3d513f6712035aa828eec5b`. Because the independent-review
+follow-up changes production code and tests, the current review-fix HEAD requires
+owner/local revalidation before merge.
 
 ### P3-B exclusions retained
 
@@ -282,8 +299,9 @@ git diff --check
 ```
 
 Execution agents must not claim these passed unless their output was actually
-observed. For P3-B these commands remain owner/local Windows validation work; the
-Chat implementation agent did not run them.
+observed. For P3-B, owner/local Windows observed the full gate passing on
+`e7c1cc2ea0b08f43d3d513f6712035aa828eec5b`; the independent-review follow-up
+requires the same gate to be rerun on the new HEAD before merge.
 
 ## P3 exit criteria
 
