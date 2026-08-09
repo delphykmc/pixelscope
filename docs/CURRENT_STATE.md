@@ -35,9 +35,10 @@ The active plan is
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md) for
 **P3 — Image Semantics & RAW Processing**. P3-B is complete as PR #24. P3-C
 Display Gain Generalization & RAW Visualization is implemented on
-`feature/p3-c-display-gain`; owner/local Windows validation is pending before
-merge. The merge-critical P3-C scope is Display Gain generalization. Additional
-RAW clipping/highlight/shadow/Bayer observability remains optional/deferred.
+`feature/p3-c-display-gain`; owner/local Windows validation is complete and
+independent review/merge is pending. The merge-critical P3-C scope is Display
+Gain generalization. Additional RAW clipping/highlight/shadow/Bayer observability
+remains optional/deferred.
 
 ## Current product baseline
 
@@ -286,7 +287,7 @@ The active P3 sequence is:
    - effective-full-scale RAW display and Black-anchored RAW gain;
    - presentation-scoped `+` / `-` command policy preserving Files-tree keys;
    - retain Black/White metadata without redefining native analysis.
-3. **P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension — Implemented; owner validation pending**
+3. **P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension — Implemented; owner/local validation complete; independent review/merge pending**
    - generalize one Display Gain UI/session/worker lifecycle to ordinary
      Gray/RGB/RGBA and RAW;
    - ordinary Gray/RGB anchor is zero; RGBA alpha is canonical 1× alpha;
