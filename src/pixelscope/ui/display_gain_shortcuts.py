@@ -42,9 +42,10 @@ def install_display_gain_shortcuts(
 
     def control_destroyed(*_args: Any) -> None:
         nonlocal control_alive
+        # Do not touch the shortcut wrappers here: during parent teardown Qt may
+        # already have deleted them before the sibling toolbar control emits
+        # destroyed. The Python guard is sufficient to prevent later control use.
         control_alive = False
-        increase.setEnabled(False)
-        decrease.setEnabled(False)
 
     control.destroyed.connect(control_destroyed)  # type: ignore[attr-defined]
 
