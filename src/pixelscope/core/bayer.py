@@ -3,6 +3,10 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from pixelscope.core.display_transform import (
+    apply_display_affine_inplace,
+    display_normalization_affine,
+)
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, extract_roi
 from pixelscope.core.statistics import (
     HistogramResult,
@@ -120,12 +124,12 @@ def render_bayer_preview(
     bit_depth: int,
     gain: float = 1.0,
 ) -> NDArray[np.uint8]:
-    """Render a native Bayer mosaic with black-anchored display gain.
+    """Render a native Bayer mosaic through the generic display-gain affine.
 
     The source is promoted to one float32 scratch buffer. CFA-specific anchors
-    are applied by parity without materializing a full-size anchor array. Values
-    are clipped only when the effective-bit-depth full scale is converted to the
-    final uint8 preview.
+    reuse the generic anchor/gain/range affine on parity-plane views, so no
+    full-size Black Level map is materialized. Gain and normalization are fused
+    before clipping and final uint8 conversion.
     """
 
     if source.ndim != 2:
@@ -145,22 +149,31 @@ def render_bayer_preview(
         anchors = {name: black_level for name in BAYER_CHANNEL_NAMES}
 
     working = source.astype(np.float32, copy=True)
-    if gain != 1.0:
+    full_scale = float((1 << bit_depth) - 1)
+    if gain == 1.0:
+        scale, offset = display_normalization_affine(0.0, full_scale)
+        apply_display_affine_inplace(working, scale, offset)
+    else:
         positions = bayer_channel_positions(pattern)
-        gain_value = np.float32(gain)
         for name in BAYER_CHANNEL_NAMES:
             row_parity, column_parity = positions[name]
             plane = working[row_parity::2, column_parity::2]
-            anchor = np.float32(anchors[name])
-            np.subtract(plane, anchor, out=plane)
-            np.multiply(plane, gain_value, out=plane)
-            np.add(plane, anchor, out=plane)
+            scale, offset = display_normalization_affine(
+                0.0,
+                full_scale,
+                gain,
+                float(anchors[name]),
+            )
+            apply_display_affine_inplace(plane, scale, offset)
 
-    full_scale = np.float32((1 << bit_depth) - 1)
-    np.multiply(working, np.float32(1.0) / full_scale, out=working)
     np.clip(working, 0.0, 1.0, out=working)
     np.multiply(working, np.float32(255.0), out=working)
     np.rint(working, out=working)
-    gray = working.astype(np.uint8)
-    red_blue = np.rint(gray.astype(np.float32) * np.float32(0.38)).astype(np.uint8)
-    return np.ascontiguousarray(np.stack((red_blue, gray, red_blue), axis=-1))
+
+    preview = np.empty((*working.shape, 3), dtype=np.uint8)
+    preview[..., 1] = working
+    np.multiply(working, np.float32(0.38), out=working)
+    np.rint(working, out=working)
+    preview[..., 0] = working
+    preview[..., 2] = working
+    return np.ascontiguousarray(preview)
