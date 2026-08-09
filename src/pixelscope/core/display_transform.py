@@ -13,8 +13,13 @@ class DisplayTransform:
 
     ``display_low``/``display_high`` describe the code range mapped to the
     preview endpoints. ``gain`` is presentation-only and is applied around
-    ``gain_anchor`` before the final range mapping. None of these values redefine
-    the source or analysis domain.
+    ``gain_anchor`` before the final range mapping. The gain model is generic:
+
+    ``display = anchor + gain * (source - anchor)``
+
+    RAW chooses its anchor from Black Level metadata in P3-B. Ordinary Gray/RGB
+    can reuse the same core with anchor zero in P3-C. None of these parameters
+    redefine the source or analysis domain.
     """
 
     display_low: float | None = None
@@ -36,6 +41,73 @@ class DisplayTransform:
             raise ValueError("display_high must be greater than display_low")
 
 
+def display_gain_affine(gain: float, anchor: float = 0.0) -> tuple[np.float32, np.float32]:
+    """Return float32 ``scale, offset`` for anchor-based display gain.
+
+    The returned values satisfy ``gained = source * scale + offset`` and are
+    algebraically identical to ``anchor + gain * (source - anchor)``.
+    """
+
+    if gain <= 0:
+        raise ValueError("display gain must be greater than zero")
+    gain32 = np.float32(gain)
+    anchor32 = np.float32(anchor)
+    offset = np.float32(anchor32 * np.float32(np.float32(1.0) - gain32))
+    return gain32, offset
+
+
+def display_normalization_affine(
+    display_low: float,
+    display_high: float,
+    gain: float = 1.0,
+    anchor: float = 0.0,
+) -> tuple[np.float32, np.float32]:
+    """Return a fused float32 affine from source codes to normalized display.
+
+    Gain and display-range normalization are combined so callers need only one
+    multiply and, when required, one add over the target samples before clipping.
+    """
+
+    low32 = np.float32(display_low)
+    high32 = np.float32(display_high)
+    span = np.float32(high32 - low32)
+    if span <= 0:
+        raise ValueError("display_high must be greater than display_low")
+    gain_scale, gain_offset = display_gain_affine(gain, anchor)
+    inverse_span = np.float32(np.float32(1.0) / span)
+    scale = np.float32(gain_scale * inverse_span)
+    offset = np.float32((gain_offset - low32) * inverse_span)
+    return scale, offset
+
+
+def apply_display_affine_inplace(
+    values: NDArray[np.float32],
+    scale: np.float32,
+    offset: np.float32,
+) -> None:
+    """Apply one float32 display affine to an array or array view in place.
+
+    Accepting arbitrary views lets callers target only selected channels. A future
+    RGBA viewer can therefore apply gain to ``[..., :3]`` while leaving alpha
+    untouched without requiring a second generic gain implementation.
+    """
+
+    np.multiply(values, scale, out=values)
+    if offset != np.float32(0.0):
+        np.add(values, offset, out=values)
+
+
+def apply_display_gain_inplace(
+    values: NDArray[np.float32],
+    gain: float,
+    anchor: float = 0.0,
+) -> None:
+    """Apply generic anchor-based display gain to float32 values in place."""
+
+    scale, offset = display_gain_affine(gain, anchor)
+    apply_display_affine_inplace(values, scale, offset)
+
+
 def _default_range(array: NDArray[np.generic]) -> tuple[float, float]:
     if np.issubdtype(array.dtype, np.integer):
         bits = array.dtype.itemsize * 8
@@ -54,9 +126,10 @@ def to_display_uint8(
 ) -> NDArray[np.uint8]:
     """Return a C-contiguous uint8 preview without modifying *source*.
 
-    Gain arithmetic is promoted to float32 so unsigned values below the anchor
-    retain their sign. Clipping is deferred until the final display-range
-    conversion.
+    Source values are promoted once to float32. Anchor-based gain and display
+    normalization are fused into one scale/offset affine, avoiding the previous
+    subtract/multiply/add plus subtract/multiply full-frame sequence. Clipping is
+    deferred until the final display conversion.
     """
 
     if source.size == 0:
@@ -69,14 +142,13 @@ def to_display_uint8(
         high = low + 1.0
 
     working = source.astype(np.float32, copy=True)
-    if parameters.gain != 1.0:
-        anchor = np.float32(parameters.gain_anchor)
-        np.subtract(working, anchor, out=working)
-        np.multiply(working, np.float32(parameters.gain), out=working)
-        np.add(working, anchor, out=working)
-
-    np.subtract(working, np.float32(low), out=working)
-    np.multiply(working, np.float32(1.0 / (high - low)), out=working)
+    scale, offset = display_normalization_affine(
+        low,
+        high,
+        parameters.gain,
+        parameters.gain_anchor,
+    )
+    apply_display_affine_inplace(working, scale, offset)
     np.clip(working, 0.0, 1.0, out=working)
     if parameters.gamma != 1.0:
         np.power(working, np.float32(1.0 / parameters.gamma), out=working)
