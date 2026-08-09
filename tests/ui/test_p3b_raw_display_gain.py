@@ -13,7 +13,7 @@ from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.raw_display import render_raw_preview
 from pixelscope.io.raw_profile import RawProfile
-from pixelscope.ui.raw_display import install_raw_gain_control
+from pixelscope.ui.raw_display import install_raw_gain_control, raw_display_state
 
 
 def _repository(path: Path) -> tuple[SettingsRepository, QSettings]:
@@ -61,7 +61,11 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
 ) -> None:
     ui_settings = QSettings(str(tmp_path / "ui.ini"), QSettings.Format.IniFormat)
     ui_settings.clear()
-    monkeypatch.setattr(main_window_module, "QSettings", lambda: ui_settings)  # type: ignore[attr-defined]
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        main_window_module,
+        "QSettings",
+        lambda: ui_settings,
+    )
     repository, app_store = _repository(tmp_path / "app.ini")
     window = MainWindow(settings_repository=repository)
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -121,7 +125,10 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
         )
     )
 
-    non_raw = ImageDocument.from_array(np.arange(16, dtype=np.uint8).reshape(4, 4), "gray")
+    non_raw = ImageDocument.from_array(
+        np.arange(16, dtype=np.uint8).reshape(4, 4),
+        "gray",
+    )
     window.add_document(non_raw, select=False)
     window._select_document_ids([non_raw.document_id])
     window.set_layout_mode("Single View")
@@ -130,3 +137,4 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
     assert not any("raw_gain" in key.casefold() for key in app_store.allKeys())
     assert not any("raw_display" in key.casefold() for key in app_store.allKeys())
     window.close()
+    raw_display_state().reset()
