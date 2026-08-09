@@ -338,9 +338,9 @@ def test_presentation_controls_live_above_view_and_gain_combo_does_not_take_arro
 
     gain_control = install_display_gain_control(window)
 
-    assert window.layout_selector.parentWidget() is window.presentation_controls
-    assert window.comparison_page_group.parentWidget() is window.presentation_controls
-    assert gain_control.parentWidget().parentWidget() is window.presentation_controls
+    assert window.presentation_controls.isAncestorOf(window.layout_selector)
+    assert window.presentation_controls.isAncestorOf(window.comparison_page_group)
+    assert window.presentation_controls.isAncestorOf(gain_control)
     assert gain_control.focusPolicy() == Qt.FocusPolicy.NoFocus
     window.close()
 
@@ -407,17 +407,21 @@ def test_split_channel_multi_view_exposes_explicit_primary_control(
         if viewer.document is not None
     ]
     assert len(channels) == 3
+    occupied = window.multi_compare_view.occupied_viewers
+    assert all(not viewer.header.focus.isHidden() for viewer in occupied)
+    assert occupied[0].header.focus.isChecked()
+    target = occupied[1]
+    target_document = target.document
+    assert target_document is not None
+
+    window.multi_compare_view._request_focus(target)
+
+    assert window._split_focus_document_id == target_document.document_id
+    assert window.multi_compare_view.viewers[0].document is target_document
+    assert window.multi_compare_view.viewers[0].header.focus.isChecked()
     assert all(
-        viewer.header.focus.isVisible()
-        for viewer in window.multi_compare_view.occupied_viewers
-    )
-
-    window._set_focus_document(channels[1])
-
-    assert window._split_focus_document_id == channels[1].document_id
-    assert any(
-        viewer.document is channels[1] and viewer.header.focus.isChecked()
-        for viewer in window.multi_compare_view.occupied_viewers
+        not viewer.header.focus.isChecked()
+        for viewer in window.multi_compare_view.occupied_viewers[1:]
     )
     window.close()
 

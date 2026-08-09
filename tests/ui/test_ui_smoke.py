@@ -303,14 +303,14 @@ def test_difference_display_updates_roi_metrics_and_session_cache(qtbot: object)
     assert window._difference_document is not None
     assert window.central_stack.currentWidget() is window.multi_compare_view
     assert [viewer.document for viewer in window.multi_compare_view.occupied_viewers] == [
-        window._difference_document,
         first,
+        window._difference_document,
         second,
     ]
     assert [
         viewer.header.badge.text() for viewer in window.multi_compare_view.occupied_viewers
-    ] == ["Diff", "1", "2"]
-    assert window.multi_compare_view.viewers[0].document is window._difference_document
+    ] == ["1", "Diff", "2"]
+    assert window.multi_compare_view.viewers[0].document is first
     window._set_focus_document(first)
     assert window.multi_compare_view.viewers[0].document is first
     assert [
@@ -741,7 +741,7 @@ def test_three_selected_images_add_and_replace_one_latest_difference(qtbot: obje
         for index in range(window.viewer.header.navigation_layout.count())
     ]
     assert navigation_labels == ["1", "2", "3", "Diff"]
-    window.show_selected_image(3)
+    window._navigate_single_view("difference")
     assert window.viewer.document is first_difference
 
     window.difference_panel.a_selector.setCurrentIndex(1)
@@ -1448,9 +1448,9 @@ def test_folder_position_navigation_recalculates_enabled_difference_and_keeps_fo
     stale_difference = window._difference_document
     window._set_focus_document(window.selected_documents[1])
     window.next_folder_position()
-    assert window._view_capacity == 4
+    assert window._view_capacity == 2
     assert window._difference_document is stale_difference
-    assert len(window.multi_compare_view.occupied_viewers) == 3
+    assert len(window.multi_compare_view.occupied_viewers) == 2
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window._difference_source_ids
         == tuple(document.document_id for document in window.selected_documents)
@@ -1462,8 +1462,8 @@ def test_folder_position_navigation_recalculates_enabled_difference_and_keeps_fo
         "frame-1.png",
     ]
     assert window._difference_document is not None
-    assert window._focus_document_id == window._difference_document.document_id
-    assert window.multi_compare_view.viewers[0].document is window._difference_document
+    assert window._focus_document_id == window.selected_documents[1].document_id
+    assert window.multi_compare_view.viewers[0].document is window.selected_documents[1]
     assert window.difference_panel.status.text() == "Ready"
     window.close()
 

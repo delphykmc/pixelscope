@@ -14,8 +14,8 @@ from PySide6.QtCore import (
     QItemSelectionModel,
     QSettings,
     QSize,
-    Qt,
     QThreadPool,
+    Qt,
 )
 from PySide6.QtGui import (
     QAction,
@@ -1758,6 +1758,8 @@ class MainWindow(QMainWindow):
         """Protect only current-page and correctness-required native sources."""
 
         protected = set(self._visible_document_ids)
+        if self._active_document_id is not None:
+            protected.add(self._active_document_id)
         protected.update(
             document.document_id for document in self.current_comparison_documents()
         )
@@ -2552,6 +2554,7 @@ class MainWindow(QMainWindow):
         self._show_single_document(documents[selected_index], selected_index)
 
     def _show_single_document(self, document: ImageDocument, selected_index: int) -> None:
+        previous_page_start = self._page_start
         self._layout_mode = "Single View"
         self._view_capacity = 1
         self._current_index = selected_index
@@ -2561,7 +2564,29 @@ class MainWindow(QMainWindow):
         self.layout_selector.setCurrentText("Single View")
         self.layout_selector.blockSignals(False)
         self._reset_pixel_status()
-        self._render_selection(preserve_view=True)
+        if self._page_start != previous_page_start:
+            self._render_selection(preserve_view=True)
+            return
+
+        self._ensure_loaded(document)
+        local_slot = selected_index - self._page_start + 1
+        self.viewer.set_document(document, fit=False)
+        self.viewer.set_tile_context(local_slot, "")
+        if len(self.selected_documents) > COMPARISON_PAGE_SIZE:
+            self.viewer.set_header(f"[{local_slot}] {document.display_name}")
+        else:
+            self.viewer.set_header(
+                f"[{local_slot}/{len(self.selected_documents)}] {document.display_name}"
+            )
+        self._set_single_navigation(document.document_id)
+        self.viewer.set_roi_bounds(self._shared_roi)
+        self.viewer.set_line_selection(self._shared_line)
+        self.central_stack.setCurrentWidget(self.viewer)
+        self._visible_document_ids = {document.document_id}
+        self._set_active_document(document)
+        self._update_file_states([document], document)
+        self._update_comparison_page_controls()
+        self._refresh_preload_plan()
 
     def next_image(self) -> None:
         documents = self.selected_documents
