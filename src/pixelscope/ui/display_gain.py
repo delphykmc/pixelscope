@@ -89,12 +89,14 @@ def is_display_gain_capable(document: object) -> bool:
 
 
 def install_display_gain_control(window: Any) -> QComboBox:
-    """Install the session-local Display Gain control beside the image-view controls."""
+    """Install the session-local Display Gain control beside image-view controls."""
 
     state = display_gain_state()
     state.reset()
 
-    host = QWidget(window.presentation_controls)
+    presentation_host = getattr(window, "presentation_controls", None)
+    host_parent = presentation_host if isinstance(presentation_host, QWidget) else window.main_toolbar
+    host = QWidget(host_parent)
     host.setObjectName("DisplayGainControl")
     layout = QHBoxLayout(host)
     layout.setContentsMargins(4, 0, 4, 0)
@@ -135,6 +137,11 @@ def install_display_gain_control(window: Any) -> QComboBox:
     for viewer in [window.viewer, *window.multi_compare_view.viewers]:
         viewer.document_changed.connect(update_enabled)
 
-    window.presentation_controls_layout.addWidget(host)
+    presentation_layout = getattr(window, "presentation_controls_layout", None)
+    if isinstance(presentation_host, QWidget) and presentation_layout is not None:
+        presentation_layout.addWidget(host)
+    else:
+        window.main_toolbar.addSeparator()
+        window.main_toolbar.addWidget(host)
     update_enabled()
     return combo
