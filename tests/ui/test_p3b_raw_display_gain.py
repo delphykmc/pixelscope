@@ -13,6 +13,7 @@ from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.raw_display import render_raw_preview
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.ui.multi_compare_view import MultiCompareView
 from pixelscope.ui.raw_display import install_raw_gain_control, raw_display_state
 
 
@@ -138,3 +139,56 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
     assert not any("raw_display" in key.casefold() for key in app_store.allKeys())
     window.close()
     raw_display_state().reset()
+
+
+def test_hidden_multi_viewers_release_gained_preview_and_regenerate_when_shown(
+    qtbot: object,
+) -> None:
+    state = raw_display_state()
+    state.reset()
+    view = MultiCompareView()
+    qtbot.addWidget(view)  # type: ignore[attr-defined]
+    documents = [_raw_document(f"raw-{index}", index) for index in range(6)]
+
+    view.set_capacity(6)
+    view.show()
+    view.set_documents(documents, 0, 6, None, None)
+    state.set_gain(4.0)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            viewer._displayed_raw_gain == 4.0 and viewer._raw_preview_worker is None
+            for viewer in view.viewers
+        )
+    )
+    assert all(
+        viewer.document is not None and viewer._displayed_preview is not viewer.document.preview
+        for viewer in view.viewers
+    )
+
+    view.set_capacity(2)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(viewer.isHidden() for viewer in view.viewers[2:])
+    )
+    for viewer in view.viewers[2:]:
+        assert viewer.document is not None
+        assert viewer._displayed_preview is viewer.document.preview
+        assert viewer._displayed_raw_gain == 1.0
+        assert viewer._raw_preview_worker is None
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(viewer._displayed_raw_gain == 4.0 for viewer in view.viewers[:2])
+    )
+    view.set_capacity(6)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            viewer._displayed_raw_gain == 4.0 and viewer._raw_preview_worker is None
+            for viewer in view.viewers
+        )
+    )
+    assert all(
+        viewer.document is not None and viewer._displayed_preview is not viewer.document.preview
+        for viewer in view.viewers
+    )
+
+    view.close()
+    state.reset()
