@@ -101,14 +101,15 @@ RAW loading into a RAW-conversion pipeline.
   `display = black + gain * (native - black)`.
 - Bayer profiles may use their existing R/Gr/Gb/B black levels as channel-specific
   display anchors.
-- White level remains available as saturation/display metadata and for future
-  explicit processing, but must not redefine native pixel values.
+- P3-B does not apply `white_level` to native or gained display mapping; effective
+  full scale remains the display-range authority. White is retained as metadata
+  for future explicit tone-map or processed-RAW features.
 - Pixel inspection, Statistics, Histogram, Line Profile source data, Split
   Channels, and P3-A Difference remain native-domain operations.
 - Gain is display-only; it must not mutate `ImageDocument.source` or silently
   create a new analysis domain.
-- Preserve black/white metadata for future explicit tone-map or processed-RAW
-  features without adding those processing stages in P3-B.
+- Preserve black/white metadata for future explicit processing without adding
+  those processing stages in P3-B.
 
 ### P3-C — RAW Visualization & Inspection Improvements
 
