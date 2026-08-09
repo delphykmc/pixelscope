@@ -8,37 +8,62 @@ source-local caches. `core` performs Bayer handling, display conversion,
 statistics/histogram, line-profile, and Difference math without Qt. `workers` runs
 expensive I/O and numerics in bounded `QThreadPool` workers. `ui` renders derived
 presentation and emits lightweight interaction state. `app.MainWindow` owns the
-registered document catalog, ordered selection, presentation orchestration,
-settings composition, load identity, source residency integration, and window
-lifecycle.
+registered document catalog, ordered selection, Current Comparison Page derivation,
+presentation orchestration, settings composition, load identity, source residency
+integration, and window lifecycle.
 
 Native `ImageDocument.source` remains authoritative for analysis. Viewer preview
 is derived presentation and must not redefine source, Difference, Statistics,
 Histogram, Line Profile, Split Channel, or residency domains.
 
-## P3-D input ownership model
+## P3-D input and comparison ownership model
 
-P3-D separates four ownership layers:
+P3-D separates five runtime layers:
 
 ```text
 Registered
     ↓ user selection
 Selected
-    ↓ viewer capacity / layout
+    ↓ Selected ordering + page offset / size 6
+Current Comparison Page
+    ↓ viewer representation
 Presented
-    ↓ source lifecycle
+    ↓ native-source lifecycle
 Resident when required
 ```
 
 - **Registered** is catalog membership in `MainWindow.documents` / Files tree.
-- **Selected** is the ordered user comparison set represented by Files selection
-  plus `_selection_order`.
-- **Presented** is the bounded subset currently bound to `ImageViewer` or
-  `MultiCompareView` tiles.
-- **Resident** is native decoded source retained by `ResidencyManager`.
+- **Selected** is the ordered logical comparison set represented by Files selection
+  plus `_selection_order`; it may exceed six images.
+- **Current Comparison Page** is a derived bounded view of Selected, calculated from
+  Selected ordering and `_page_start` with `COMPARISON_PAGE_SIZE = 6`. It is not a
+  separately owned document collection.
+- **Presented** is the viewer representation of that page. Multi View presents the
+  current page; Single View presents one active image while retaining page context.
+- **Resident** is native decoded source retained by `ResidencyManager` only while
+  required by current correctness/runtime owners.
 
-The one-to-six viewer geometry is a presentation constraint, not a registration
-constraint. Registration may contain arbitrary practical image/folder counts.
+`MainWindow.current_comparison_documents()` is the semantic authority for the
+bounded comparison working set. The following consume the same page:
+
+- Multi View binding and Single View page context;
+- Statistics and Histogram;
+- Line Profile;
+- selection-derived Difference inputs;
+- ROI/Line normalization;
+- foreground page-load completion;
+- current-page source-residency protection;
+- local viewer slot mapping.
+
+Feature-owned explicit Difference pair/reference authority remains separate.
+
+`Analysis Working Set = Current Comparison Page`.
+Viewer slots are always `1..6` within the Current Comparison Page. A global Selected
+ordinal is never used as a viewer slot.
+
+The six-image Current Comparison Page is a working-set boundary, not a registration
+or logical-selection limit. Registration and Selected may contain arbitrary
+practical image counts.
 
 ### Discovery contract
 
@@ -56,6 +81,8 @@ becomes a standalone image document.
 `MainWindow._register_input()` creates or reuses pending catalog documents.
 `_register_inputs()` is registration-only; callers own subsequent selection.
 This separation prevents registration from implicitly resetting presentation.
+The obsolete exactly-two-folder `pair_folders()` abstraction is not part of the
+P3-D input architecture.
 
 ### Selection-oriented image input
 
@@ -66,14 +93,16 @@ discover inputs
     ↓
 register every supported direct file
     ↓
-select the registered direct files
+replace current Selected with the ordered direct-file set
     ↓
-present according to existing viewer capacity
+derive Current Comparison Page
+    ↓
+present current page
 ```
 
 Multi-file selection is preserved. More than six directly supplied images remain
-registered and selected even though at most six are presented simultaneously in
-Multi View.
+registered and Selected. The first Current Comparison Page contains images 1–6;
+later pages are reached without changing Selected membership/order.
 
 ### Registration-oriented folder input
 
@@ -89,19 +118,21 @@ discover supported immediate contents
     ↓
 register catalog documents
     ↓
-no selection change
+no Selected change
+    ↓
+no Current Comparison Page change
     ↓
 no presentation change
 ```
 
 There is no six-folder limit and no exactly-two-folder comparison special case.
 Folder registration does not call `_select_document_ids()` or `_render_selection()`.
-Therefore current layout, active/focus state, ROI, Line Profile, Difference state,
+Therefore current layout, active/primary state, ROI, Line Profile, Difference state,
 Display Gain, zoom/pan preservation state, resident ownership, and Difference
 cache remain untouched by the registration operation itself.
 
 Mixed file + folder drop keeps both intents: folders register first without
-selection mutation; explicit dropped files then register and become the selection.
+selection mutation; explicit dropped files then register and become Selected.
 Folder contents are never implicitly added to that explicit selection.
 
 Folders with no supported images are skipped independently. Registration status
@@ -115,8 +146,40 @@ uses the same central-stack component in two modes:
 - truly empty: **Drop images or folders here**, with Open Images/Open Folders;
 - registered but unselected: **Select an image from Files to view**.
 
-Actions that require presented/selected source remain unavailable until selection
-creates an applicable presentation lifecycle.
+Actions that require a Selected/current-page source remain unavailable until
+selection creates an applicable comparison lifecycle.
+
+## Current Comparison Page navigation
+
+The page size is conceptually fixed at six even when Single View presents only one
+image. `_view_capacity` is therefore not the logical page-size authority.
+
+For `Selected <= 6`, Current Comparison Page equals Selected and existing
+Auto/Single/Multi semantics remain unchanged.
+
+For `Selected > 6`:
+
+- `_page_start` is aligned in six-image increments and page membership is derived
+  from Selected ordering;
+- Previous/Next Comparison Page are separate coarse actions using
+  `Ctrl+Left` / `Ctrl+Right` with non-wrapping endpoints;
+- compact toolbar controls show the current Selected range such as `7–12 of 15`;
+- `Left` / `Right` remain Previous/Next Selected Image fine navigation across the
+  complete ordered Selected set;
+- fine navigation crossing a page boundary updates `_page_start` so the active
+  image remains inside Current Comparison Page;
+- number keys `1..6` use the current page-local slot in Single View;
+- page movement preserves the active local slot when possible and clamps it on a
+  short final page;
+- primary/focus reordering is applied only to documents already in the Current
+  Comparison Page and does not change Selected ordering or page membership;
+- large-selection Multi View uses six-slot `Grid 3x2` geometry even on a partial
+  final page; unused slots are cleared rather than reflowing to 3/4/5-image
+  geometry.
+
+`MultiCompareView.set_documents()` accepts a fixed geometry count and local-slot
+presentation mode for this bounded large-selection case. For `Selected <= 6`, the
+existing fixed two/three/four/five/six geometry contract is retained.
 
 ## RAW profile-resolution boundary
 
@@ -137,14 +200,23 @@ the existing P3-D contract before direct-file registration:
 
 Folder registration uses `_register_input(..., resolve_raw_profile=False)`. It
 records the RAW path and deterministic sidecar path but does not show a dialog or
-decode the source. `_ensure_loaded()` becomes the lazy foreground boundary: when a
-pending RAW without resolved profile is actually selected/presented, it invokes
-the same `_confirm_raw_profile()` policy and only then starts `ImageLoadWorker`.
+decode the source.
+
+A folder-registered unresolved RAW does not prompt/decode merely because it belongs
+to Selected. Off-page Selected RAW stays pending and unprotected. When it enters
+Current Comparison Page, `_ensure_loaded()` becomes the foreground profile/load
+boundary.
+
+`_raw_profile_prompt_suppressed` defines the cancel retry boundary: one foreground
+attempt prompts an unresolved RAW at most once. Cancel leaves the document pending
+and starts no worker; passive rerenders do not immediately prompt again. Explicit
+foreground intents such as page/selection navigation clear suppression for the
+required current-page document(s) and may retry.
 
 Unresolved RAW is skipped by speculative preload because `_refresh_preload_plan()`
 requires an existing resolved RAW profile before constructing a RAW preload
-worker. This avoids registration-time dialog storms without guessing profiles or
-redesigning the P2 worker/residency system.
+worker. P3-D does not add Comparison Page preloading; preload remains exclusively
+Folder Position +1.
 
 `RawProfile` JSON migration remains the durable compatibility boundary. P3-D adds
 no profile-library persistence, profile schema version, last-profile reuse,
@@ -156,18 +228,18 @@ Files groups documents by parent folder in natural filename order. Folder catalo
 membership and active comparison membership are independent.
 
 `_folder_navigation_selection()` derives Folder Position only from currently
-selected documents. It accepts one to six selected documents from distinct
+Selected documents. It accepts one to six Selected documents from distinct
 folders. `FolderNavigationPlan` is the single index authority for PageUp/PageDown
 and next-position prediction. Other registered folders do not participate.
 
-A valid PageUp/PageDown plan atomically replaces the selected documents with the
-corresponding previous/next members while preserving the existing Folder Position
-view/overlay policy. Endpoint or invalid-member plans remain no-ops.
+`Selected > 6` makes Folder Position unavailable. PageUp/PageDown remain Folder
+Position shortcuts and become a no-op with compact status; the current page is not
+partially moved.
 
-Multi View geometry remains fixed by `MultiCompareView._fixed_geometry()` and
-`MainWindow._effective_layout()`; one-to-six simultaneous presentation remains the
-viewer contract. Larger registered/selected catalogs are not truncated at
-registration time.
+A valid PageUp/PageDown plan for `Selected <= 6` atomically replaces Selected with
+the corresponding previous/next members while preserving the existing Folder
+Position view/overlay and preload/promotion contract. Endpoint or invalid-member
+plans remain no-ops.
 
 ## Display Gain architecture
 
@@ -222,8 +294,10 @@ correctness depends on document ID, load token, generation/input identity, worke
 registry, and stale-result rejection. Cancellation is advisory; result acceptance
 is authoritative.
 
-Selection/presentation triggers `_ensure_loaded()` only for the current applicable
-presentation/analysis subset. Registration alone does not decode unrelated images.
+Selection/page presentation triggers `_ensure_loaded()` only for Current Comparison
+Page requirements. Registration and off-page Selected membership alone do not
+decode unrelated images. `_selected_load_batch_complete()` uses the Current
+Comparison Page rather than an independent first-six slice.
 
 Statistics/Histogram request identity includes generation and operation parameters
 so rebinding an unchanged request does not restart work. Line Profile caches by
@@ -235,10 +309,16 @@ generation and line coordinates.
 order, protected eviction planning, and bounded diagnostics. `MainWindow` owns
 actual document mutation and Files-state updates.
 
-Visible, selected, active/analysis, Difference-pair, foreground-load, and promoted-
-preload authorities are protected as applicable. The budget is soft: protected
-sources may exceed it, including one required source larger than budget. Only
-unprotected resident sources are evicted.
+P2 established protected soft-budget LRU semantics. P3-D refines the generic
+selection owner for arbitrarily large logical selections: **Selected membership by
+itself is not protected**. `MainWindow._residency_protected_document_ids()` protects
+Current Comparison Page plus correctness dependencies, including foreground-load,
+promoted-preload, Difference pair/result dependencies, and non-reloadable sources.
+Selected-but-off-page sources may be evicted and return to normal pending/reload
+state without losing Registered or Selected identity.
+
+The budget remains soft: protected sources may exceed it, including one required
+source larger than budget. Only unprotected resident sources are evicted.
 
 Registration does not add residency bytes. Eviction clears reloadable native source
 and source-local caches, returns the document to pending, and preserves its catalog
@@ -248,8 +328,8 @@ source accounting.
 
 ## Preload and promotion boundary
 
-Preload remains tied to the predicted `+1` Folder Position of the current selected
-comparison set:
+Preload remains tied to the predicted `+1` Folder Position of a valid one-to-six
+Selected Folder Position set:
 
 - direction +1 only;
 - depth exactly one Folder Position;
@@ -264,7 +344,9 @@ non-resident/running/not-cancelled state.
 
 Promoted success/failure delegates once to normal foreground paths. Folder
 registration alone does not create new speculative work; unresolved RAW without a
-profile is not preloaded.
+profile is not preloaded. Comparison Page navigation starts no new speculative page
+preload system; sources needed for a newly foreground page use normal foreground
+requirements.
 
 ## Difference boundary
 
@@ -281,10 +363,11 @@ domain selection.
   retaining order-independent generation-pair identity.
 - Difference cache ownership remains independent from source residency.
 
-Difference never consumes general Display Gain, RAW Black/White metadata,
-`DisplayTransform`, or preview pixels. Folder-only registration does not invalidate
-Difference cache or presentation because it does not change the current selected
-pair/presentation lifecycle.
+Difference panel inputs default to the Current Comparison Page, while the panel's
+explicit Image 1/Image 2 pair remains feature-owned authority. Difference never
+consumes general Display Gain, RAW Black/White metadata, `DisplayTransform`, or
+preview pixels. Folder-only registration does not invalidate Difference cache or
+presentation because it does not change Selected/current-page lifecycle.
 
 ## RAW decode/display boundary
 
