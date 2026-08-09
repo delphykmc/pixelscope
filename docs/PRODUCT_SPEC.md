@@ -2,16 +2,39 @@
 
 PixelScope is a CPU-only Windows engineering tool for rapid visual and numeric
 comparison of PNG, BMP, JPEG, and profile-described RAW images. The workflow is
-selection-driven rather than fixed A/B: register files or folders, select up to
-six sources, inspect them in Single or Multi View, and compare full-image or ROI
-results.
+selection-driven for analysis while the Files workspace may register a much larger
+catalog than the viewer presents simultaneously.
 
 ## Implemented workflow
 
-### Image registration
+### Registration, selection, presentation, and residency
 
-PixelScope exposes one file-opening command, **Open Images...**, and one folder
-command, **Open Folder...**. The exact file contract is:
+These terms have distinct product meanings:
+
+```text
+Registered
+    ↓ user selection
+Selected
+    ↓ viewer capacity / layout
+Presented
+    ↓ source lifecycle
+Resident when required
+```
+
+- **Registered** means known to the Files workspace/catalog. Registration is not
+  capped by the six-tile viewer capacity.
+- **Selected** means chosen as the current comparison/analysis set.
+- **Presented** means currently occupying viewer tiles. Existing one-to-six-image
+  layout capacity remains the presentation boundary.
+- **Resident** means decoded native source is currently retained under the P2
+  source-memory budget.
+
+Registration does not imply selection, presentation, decode, or residency.
+
+### Image and folder input
+
+PixelScope exposes **Open Images...** for selection-oriented image input and
+**Open Folders...** for registration-oriented dataset input. Supported images are:
 
 ```text
 .png  .bmp  .jpg  .jpeg  .raw
@@ -21,37 +44,72 @@ The file picker displays `Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)`.
 There is no separate top-level RAW-open command and unsupported extensions are not
 silently interpreted as RAW.
 
-Folder discovery and drag/drop use the same supported input family. `.json`
-sidecars are metadata for same-basename RAW inputs and never appear as independent
-image entries. Files are grouped by parent folder with natural order and
-loading/resident/error indicators.
+**Open Images...** supports multi-file selection. Every supported selected file is
+registered and becomes part of the current selection. The viewer then presents at
+most its existing layout capacity; files beyond that capacity are not discarded or
+rejected from registration/selection.
 
-Ordinary PNG/BMP/JPEG inputs register directly for ordinary decoding. A RAW input
-must resolve a validated profile first:
+**Open Folders...** supports multiple existing directories in one Qt-only picker.
+Resolved folder paths are deduplicated and ordered deterministically. Folder count
+has no artificial six-item limit. Supported immediate contents are registered in
+Files, but current selection and presentation are not changed and no first image is
+automatically selected. A two-folder input is not a special comparison command.
+Folders with no supported images are skipped without failing other selected
+folders.
+
+Drag/drop preserves the same intent split:
+
+- direct image files → register + select/present;
+- folders → register only;
+- mixed direct files + folders → direct files become the selection while folder
+  contents are registered only.
+
+`.json` sidecars are metadata for exact same-basename RAW inputs and never appear
+as independent image documents. Files remain grouped by parent folder with natural
+order and loading/resident/error indicators.
+
+A stable state with registered documents and zero selected documents is supported.
+The central workspace prompts **Select an image from Files to view**. A truly empty
+workspace instead prompts **Drop images or folders here** and exposes Open Images
+and Open Folders actions.
+
+### RAW input resolution
+
+Ordinary PNG/BMP/JPEG inputs register without RAW profile UI. Direct RAW file
+opening/drop must resolve a validated profile first:
 
 - same-basename sidecar present: parse/validate it and preserve the current
   confirmation and exact/minimum-size policy;
 - no sidecar: open the editable RAW Profile dialog;
 - invalid sidecar: warn and open editable fallback instead of applying invalid
   metadata;
-- cancelled profile dialog: do not register that RAW document;
-- multi-file RAW open: resolve each selected RAW independently.
+- cancelled direct-file profile dialog: do not register that RAW document;
+- multi-file direct RAW open: resolve each selected RAW independently.
+
+Folder registration uses a lazy RAW boundary to avoid repeated dialogs while
+registering datasets. A RAW path and deterministic same-basename sidecar path may
+be registered as a pending catalog document without resolving the profile or
+decoding source. Profile resolution occurs when foreground selection/loading
+actually requires that RAW. Unresolved RAW is not speculatively preloaded until a
+profile is resolved. PixelScope does not infer a profile from byte size or other
+weak evidence.
 
 The product does not automatically reuse the previous RAW profile, apply one
 profile to all selected RAW files, or pick a profile from byte size alone.
 
 ### Workspace and analysis
 
-- Ordered multi-selection and atomic Page Up/Page Down Folder Position navigation
-  for one to six distinct registered folders.
-- Up/Down retains Files-tree row navigation. Left/Right changes only the active
-  image within the selected set; PageUp/PageDown changes selection membership by
-  one registered Folder Position.
+- Ordered multi-selection is independent from total Files registration count.
+- Page Up/Page Down Folder Position uses one to six **currently selected**
+  documents from distinct folders. Other registered folders do not participate.
+- Up/Down retains Files-tree row navigation. Left/Right changes the active image
+  within the selected set.
 - Files-tree `+` / `-` retains Qt-native folder expand/collapse. Display Gain
   `+` / `-` is scoped to the image-presentation subtree.
 - Auto, Single, and Multi View with synchronized cursor, zoom, offset, ROI, and
   line coordinates.
-- Fixed two/three/four/five/six-image layouts with primary-image ordering.
+- Fixed two/three/four/five/six-image presentation layouts with primary-image
+  ordering.
 - Structured status for active file, format/resolution, coordinate, pixel value,
   zoom, and background work.
 - Statistics with explicit image/channel fields and full-image/ROI scope.
@@ -68,6 +126,11 @@ profile to all selected RAW files, or pick a profile from byte size alone.
 A seventh derived Difference result is shown in Single View when all six source
 positions are occupied.
 
+Folder-only registration is not a presentation lifecycle operation: it must not
+reset the current comparison, layout, active/primary state, ROI, Line Profile,
+Difference presentation/cache, Display Gain, zoom/pan preservation state, or
+source-residency ownership.
+
 ## Settings and runtime policy
 
 `Edit > Settings...` uses **General / Files / Performance** category pages.
@@ -78,12 +141,13 @@ and native Difference Threshold/Gain defaults. Files owns optional default Open
 and Export folders. Performance owns startup Decoded Source Memory, Difference Map
 Cache, and preload settings.
 
-Decoded Source Memory accounts native registered `ImageDocument.source` arrays
-only and uses protected soft-budget LRU semantics. Source eviction and Difference
-cache ownership remain independent. **Preload Next Folder Position** remains
-exactly `+1`, one Folder Position deep, on a dedicated max-one worker; an exact
-matching physically RUNNING preload may transfer logical authority to foreground
-without duplicate decode.
+Decoded Source Memory accounts native resident `ImageDocument.source` arrays only
+and uses protected soft-budget LRU semantics. Source eviction and Difference cache
+ownership remain independent. Registration alone does not make source data
+resident. **Preload Next Folder Position** remains exactly `+1`, one selected
+Folder Position deep, on a dedicated max-one worker; an exact matching physically
+RUNNING preload may transfer logical authority to foreground without duplicate
+decode.
 
 P3-D adds no Settings key, Settings-owned profile library, or new RAW profile
 version field.
@@ -155,7 +219,7 @@ to the image-presentation subtree so Files retains native key behavior.
 
 ## RAW profile and decode contract
 
-RAW profile resolution is conditional logic inside the unified image-opening
+RAW profile resolution is conditional logic inside the unified image-input
 workflow; it is not a separate top-level file-opening mode.
 
 A same-name JSON sidecar may pre-fill/resolve the profile. The General Settings
