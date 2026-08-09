@@ -20,7 +20,7 @@ class EmptyWorkspace(QWidget):
         self.title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.open_images_button = QPushButton("Open Images...")
-        self.open_folders_button = QPushButton("Open Folders...")
+        self.open_folders_button = QPushButton("Open Folder...")
         for button in (
             self.open_images_button,
             self.open_folders_button,
@@ -40,7 +40,7 @@ class EmptyWorkspace(QWidget):
         buttons.addWidget(self.open_folders_button)
 
         self.formats_hint = QLabel("PNG · JPEG · BMP · RAW")
-        self.shortcuts_hint = QLabel("Ctrl+O images · Ctrl+Shift+O folders")
+        self.shortcuts_hint = QLabel("Ctrl+O images · Ctrl+Shift+O folder")
         self.gestures_hint = QLabel("On an image: Ctrl+drag ROI · Shift+drag line profile")
         for hint in (
             self.formats_hint,
