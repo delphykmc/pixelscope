@@ -127,13 +127,12 @@ P3-B intentionally adds no demosaic, white balance, CCM, tone mapping, processed
 RAW document/analysis, persistence, Settings migration, or resource-policy
 redesign.
 
-### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension — Implemented; owner/local validation complete; independent review/merge pending
+### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension — Complete
 
-P3-C implementation is on `feature/p3-c-display-gain`. It reuses the P3-B generic
-display-gain core and presentation-scoped command policy rather than creating a
-second ordinary-image gain engine or a window-global shortcut owner.
+P3-C merged as PR #25 at
+`7f6bef73e6712f6a14a4d401820a915196e25da2`.
 
-Implemented Display Gain scope:
+Delivered Display Gain scope:
 
 - one application-session **Display Gain** state/control provides
   `1× / 2× / 4× / 8× / 16×` across supported viewer presentations;
@@ -159,39 +158,51 @@ Implemented Display Gain scope:
   remains intact;
 - Settings schema remains v5 and Display Gain is not persisted.
 
-Automated test code covers the ordinary core, RGBA alpha/RGB-only working path,
-RAW regression, mixed RAW+RGB Multi View, Difference exclusion, 1× identity,
-stale/hidden-view lifecycle, analysis/residency independence, shortcut sync/clamp,
-Files-tree routing, and real MainWindow Split Channels → Display Gain integration.
-Owner/local Windows validation completed successfully on latest validated head
-`8f84fb13c6c61d66eb9f7e2295f1ed5154ad3b23`, including the full `docs/QUALITY.md`
-gate and required manual application checks.
-
-Additional RAW visualization/inspection candidates remain:
-
-- optional highlight/shadow clipping visualization where materially useful;
-- improved Bayer-channel/native-mosaic visualization and inspection affordances;
-- keep viewer affordances explicitly display-only.
-
-These candidates are not merge-critical for P3-C and were not added merely to
-expand scope.
+Owner/local Windows validation was completed on the implementation before merge.
+Additional RAW clipping/highlight/shadow/Bayer observability remains optional and
+deferred rather than part of the completed P3-C contract.
 
 Demosaic remains deferred. A future demosaic feature must first define the
 processed-preview boundary and whether white balance, color correction,
-tone/gamma, and related metadata belong in the same feature. Until that product
-need is explicit, P3 should not grow into a partial RAW-conversion pipeline.
+tone/gamma, and related metadata belong in the same feature.
 
-### P3-D — RAW Profile Management
+### P3-D — Unified Image Opening & RAW Profile Resolution — In progress
 
-- Reusable profile storage/selection.
-- Stable profile identity/versioning.
-- Safe profile edit/reuse workflow.
-- Deterministic profile suggestion with no silent ambiguous application.
-- Preserve existing JSON migration and exact-size policy.
+P3-D replaces the earlier speculative Profile Library/suggestion scope with the
+workflow actually needed by the product.
+
+Authoritative contract:
+
+- one top-level **Open Images...** command handles `.png`, `.bmp`, `.jpg`, `.jpeg`,
+  and `.raw`; **Open Folder...** remains the folder entry point;
+- there is no separate **Open RAW with Profile...** command or Empty Workspace
+  RAW-open button/signal;
+- `ImageInput`/path discovery is the common input contract for file picker,
+  folder discovery, drag/drop, Folder Position registration/navigation, preload,
+  reload, and sidecar reload ownership;
+- ordinary PNG/BMP/JPEG bypass RAW profile UI and use the ordinary decoder;
+- RAW with an exact same-basename `.json` sidecar retains current validation,
+  confirmation suppression, and exact/minimum file-size policy;
+- RAW without a sidecar opens the editable RAW Profile dialog;
+- invalid sidecars warn and fall back to editable profile entry; cancel does not
+  register the RAW document;
+- multi-file RAW open resolves each RAW independently and does not introduce last-
+  profile reuse or apply-to-all behavior;
+- profile UI uses **Load Profile...** / **Save Profile...** terminology while JSON
+  remains the compatible storage format;
+- existing `RawProfile` schema/migration, packed/unpacked validation, Bayer
+  pattern, Black/White metadata, and Settings schema v5 remain unchanged.
+
+P3-D explicitly does **not** add a global profile library, favorites/CRUD manager,
+profile search, file-size-only/fuzzy suggestion, sensor/Bayer inference, automatic
+Black/White estimation, or a new profile version field. Same-basename sidecars are
+kept because they are deterministic evidence. A broader reusable-profile workflow
+is deferred until real workflow evidence justifies it.
 
 ### P3-E — Integration & Hardening
 
-- Cross-check native/normalized Difference with RAW native/display ownership.
+- Cross-check native/normalized Difference with RAW native/display ownership and
+  unified input/profile resolution.
 - Characterize representative Gray/RGB/RGBA/Bayer/RAW and bit-depth combinations.
 - Preserve P2 residency/preload/diagnostics contracts.
 - Complete automated/Windows validation and durable P3 documentation.
