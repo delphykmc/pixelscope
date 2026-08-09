@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QAbstractItemView, QFileDialog, QListView, QTreeView
+from PySide6.QtWidgets import QFileDialog
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
@@ -13,7 +13,6 @@ from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.display_gain import display_gain_state
-from pixelscope.ui.folder_selection_dialog import MultiFolderDialog
 
 
 @pytest.fixture(autouse=True)
@@ -54,7 +53,10 @@ def _write_images(folder: Path, count: int, suffix: str = ".png") -> list[Path]:
     return paths
 
 
-def _disable_background_loading(window: MainWindow, monkeypatch: pytest.MonkeyPatch) -> None:
+def _disable_background_loading(
+    window: MainWindow,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(window, "_ensure_loaded", lambda _document: None)
     monkeypatch.setattr(window, "_refresh_preload_plan", lambda: None)
 
@@ -78,40 +80,6 @@ def _document_id_for_path(window: MainWindow, path: Path) -> str:
     )
 
 
-def test_multi_folder_dialog_enables_extended_directory_selection(
-    qtbot: object,
-    tmp_path: Path,
-) -> None:
-    dialog = MultiFolderDialog(directory=str(tmp_path))
-    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
-
-    assert dialog.testOption(QFileDialog.Option.DontUseNativeDialog)
-    assert dialog.fileMode() == QFileDialog.FileMode.Directory
-    for name, view_type in (("listView", QListView), ("treeView", QTreeView)):
-        view = dialog.findChild(view_type, name)
-        assert view is not None
-        assert view.selectionMode() == QAbstractItemView.SelectionMode.ExtendedSelection
-
-
-def test_multi_folder_dialog_deduplicates_and_orders_existing_directories(
-    qtbot: object,
-    tmp_path: Path,
-) -> None:
-    folder_b = tmp_path / "b"
-    folder_a = tmp_path / "a"
-    folder_a.mkdir()
-    folder_b.mkdir()
-
-    class StubDialog(MultiFolderDialog):
-        def selectedFiles(self) -> list[str]:  # type: ignore[override]
-            return [str(folder_b), str(folder_a), str(folder_b)]
-
-    dialog = StubDialog(directory=str(tmp_path))
-    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
-
-    assert dialog.selected_directories() == (folder_a.resolve(), folder_b.resolve())
-
-
 def test_open_images_registers_and_selects_more_than_six_files(
     qtbot: object,
     tmp_path: Path,
@@ -129,8 +97,10 @@ def test_open_images_registers_and_selects_more_than_six_files(
     assert [document.source_path for document in window.selected_documents] == [
         path.resolve() for path in paths
     ]
+    assert [document.source_path for document in window.current_comparison_documents()] == [
+        path.resolve() for path in paths[:6]
+    ]
     assert window._view_capacity == 6
-    assert len(window.multi_compare_view.occupied_viewers) == 6
     assert window.statusBar().currentMessage() == "Opened 8 image(s)"
     window.close()
 
@@ -197,31 +167,26 @@ def test_folder_registration_has_no_viewer_capacity_limit_or_implicit_selection(
     window.close()
 
 
-def test_open_folders_uses_multi_selection_and_reports_empty_folders(
+def test_open_folder_uses_native_single_directory_picker_and_registers_only(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    first = tmp_path / "first"
-    second = tmp_path / "second"
-    empty = tmp_path / "empty"
-    _write_images(first, 2)
-    _write_images(second, 1)
-    empty.mkdir()
+    folder = tmp_path / "dataset"
+    _write_images(folder, 2)
     monkeypatch.setattr(
-        "pixelscope.app.main_window.choose_directories",
-        lambda *_args, **_kwargs: (second, first, second, empty),
+        QFileDialog,
+        "getExistingDirectory",
+        lambda *_args, **_kwargs: str(folder),
     )
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     window.open_folders()
 
-    assert len(window.documents) == 3
+    assert len(window.documents) == 2
     assert window.selected_documents == []
-    assert window.statusBar().currentMessage() == (
-        "Registered 3 image(s) from 3 folder(s) · 1 contained no supported images"
-    )
+    assert window.statusBar().currentMessage() == "Registered 2 image(s) from 1 folder(s)"
     window.close()
 
 
@@ -286,7 +251,9 @@ def test_registered_raw_sidecar_resolves_when_document_is_actually_loaded(
     monkeypatch.setattr(
         window,
         "_start_load",
-        lambda target_id, path, raw_profile: started.append((target_id, path, raw_profile)),
+        lambda target_id, path, raw_profile: started.append(
+            (target_id, path, raw_profile)
+        ),
     )
 
     window._ensure_loaded(document)
@@ -302,7 +269,6 @@ def test_registered_raw_sidecar_resolves_when_document_is_actually_loaded(
 def test_folder_drop_registers_only_and_preserves_current_selection(
     qtbot: object,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
     folder_count: int,
 ) -> None:
     current = ImageDocument.from_array(
@@ -349,9 +315,8 @@ def test_image_drop_registers_and_selects_all_direct_files(
     assert [document.source_path for document in window.selected_documents] == [
         path.resolve() for path in paths
     ]
-    assert window._view_capacity == (1 if image_count == 1 else 6 if image_count > 4 else 4)
-    if image_count > 6:
-        assert len(window.multi_compare_view.occupied_viewers) == 6
+    expected_capacity = 1 if image_count == 1 else 6
+    assert window._view_capacity == expected_capacity
     window.close()
 
 
@@ -378,9 +343,8 @@ def test_mixed_drop_selects_explicit_files_but_not_folder_contents(
         direct_png.resolve(),
         direct_jpg.resolve(),
     }
-    assert not {
-        path.resolve() for path in folder_paths
-    }.intersection(document.source_path for document in window.selected_documents)
+    selected_paths = {document.source_path for document in window.selected_documents}
+    assert not {path.resolve() for path in folder_paths}.intersection(selected_paths)
     window.close()
 
 
@@ -393,7 +357,6 @@ def test_registered_but_unselected_state_is_stable_and_does_not_decode(
     _write_images(folder, 3)
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-
     monkeypatch.setattr(
         window,
         "_start_load",
@@ -401,6 +364,7 @@ def test_registered_but_unselected_state_is_stable_and_does_not_decode(
             AssertionError("registration must not start a source load")
         ),
     )
+
     window.register_folders([folder])
 
     assert len(window.documents) == 3
@@ -427,19 +391,23 @@ def test_folder_position_uses_only_selected_folders_among_many_registered(
     _disable_background_loading(window, monkeypatch)
     selected_folder_indices = [0, 3, 7, 9]
     selected_ids = [
-        _document_id_for_path(window, by_folder[index][0]) for index in selected_folder_indices
+        _document_id_for_path(window, by_folder[index][0])
+        for index in selected_folder_indices
     ]
     expected_next_ids = tuple(
-        _document_id_for_path(window, by_folder[index][1]) for index in selected_folder_indices
+        _document_id_for_path(window, by_folder[index][1])
+        for index in selected_folder_indices
     )
     window._select_document_ids(selected_ids)
 
     plan = window._plan_folder_navigation(1)
+
     assert plan is not None
     assert plan.document_ids == expected_next_ids
-
     window.next_folder_position()
-    assert tuple(document.document_id for document in window.selected_documents) == expected_next_ids
+    assert tuple(document.document_id for document in window.selected_documents) == (
+        expected_next_ids
+    )
     window.close()
 
 
