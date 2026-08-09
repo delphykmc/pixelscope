@@ -211,6 +211,20 @@ surface. P3-B activates gain only for RAW.
   connections therefore use QObject receiver lifetime rather than Python closures
   that can retain dead Qt wrappers.
 
+### P3-B Display Gain keyboard-command policy
+
+- `+` / `-` is a presentation command, not a window-global navigation override.
+- The shortcut owner is the main image-presentation subtree (`central_stack`) and
+  uses `Qt.WidgetWithChildrenShortcut`.
+- The gain command therefore runs only while focus is within the viewer/presentation
+  subtree. Sibling UI retains its native key behavior.
+- In particular, the Files tree continues to use Qt-native `+` / `-` folder
+  expand/collapse even when RAW Gain is enabled.
+- A disabled RAW Gain control does not change session gain; outside the
+  presentation subtree its shortcuts do not participate in key routing at all.
+- P3-C must reuse this command ownership/focus rule when RAW Gain is generalized
+  to Display Gain; it must not add a second competing shortcut layer.
+
 ### P3-B scope exclusions
 
 P3-B adds no ordinary-image gain UI/runtime activation, demosaic, white balance,
@@ -233,8 +247,11 @@ ordinary-image activation of the P3-B generic display-gain core.
   remain unchanged.
 - P3-C must retain a 1× identity/no-work fast path and deterministic final
   clipping.
+- P3-C reuses the P3-B presentation-scoped `+` / `-` command layer and focus
+  policy; Files-tree native expand/collapse remains protected.
 - Required regression scope includes 1× identity, clipping, Gray, RGB, RGBA alpha
-  preservation, Single/Multi consistency, and analysis independence.
+  preservation, Single/Multi consistency, analysis independence, command/control
+  synchronization, and Files-tree key-routing preservation.
 - Large-image gain work remains off the UI thread where full-frame numerical work
   is required; stale result identity remains mandatory.
 - Additional clipping/highlight/shadow and Bayer observability may be added where
@@ -256,15 +273,21 @@ ordinary-image activation of the P3-B generic display-gain core.
   added to decoded-source residency or Difference cache ownership.
 - The generic gain core does not become a cache, persistence, or resource-policy
   owner.
+- Rapid large-RAW gain stepping may temporarily leave superseded full-frame work
+  running because cancellation is advisory. This is not a correctness blocker;
+  coalescing/debounce/cancellable chunking requires profiling evidence before any
+  scheduler redesign.
 
 ## Validation and merge state
 
-Owner/local Windows quality validation passed after the independent-review,
-GRAY-tuple compatibility, hidden-preview lifecycle, and Qt control-lifetime fixes
-at `1a8a904895566f27e17d175b43a94997e43401e4`.
+Owner/local Windows quality validation passed on
+`424144215b1df97c71a84ddca79a17bfccb1feef` after the generic display-gain core,
+shortcut implementation, PySide6 typing-stub fix, and manual runtime checks.
 
-The later owner-approved generic display-gain core refactor changes production
-core code, tests, architecture, and P3 planning docs. Therefore final P3-B
-latest-head validation is required again before merge. The Chat implementation
-agent must not claim that latest-head gate passed until owner/local output is
-observed.
+The final independent re-review found one merge blocker in that validated head:
+window-level `+` / `-` shortcuts intercepted the Files tree's native Qt
+expand/collapse keys. The follow-up scopes the command to the viewer-presentation
+subtree and adds real key-routing coverage. Because that changes production UI
+composition and tests after the validated head, latest-head owner/local validation
+is required again before merge. The Chat implementation agent must not claim that
+new gate passed until owner/local output is observed.
