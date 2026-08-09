@@ -1,121 +1,188 @@
-# Agent harness notes
+# Agent harness engineering notes
 
-This file records repository-specific lessons for future Chat/Codex work. It is not
-a substitute for product, architecture, or execution-plan documentation.
+## Definition
 
-## Work from the merged baseline
+For coding agents, the harness is the environment that turns a broad request
+into reliable, reviewable work. It is not one prompt or one tool. It includes:
 
-Before implementation or review:
+- A navigable repository and explicit architecture boundaries.
+- Short persistent instructions pointing to focused sources of truth.
+- Current-state records, product specifications, decisions, and execution plans.
+- Deterministic setup, fixtures, tests, linters, and completion evidence.
+- Runtime observability and failure diagnostics.
+- Small reviewable changes, PR conventions, and human checkpoints.
+- Recurring cleanup of stale rules, duplicate utilities, compatibility paths,
+  and architectural drift.
 
-1. resolve the actual latest `main` commit;
-2. identify the merged PR that established the current product contract;
-3. create/review the requested feature branch from that exact baseline;
-4. inspect intervening PRs before applying an older plan;
-5. do not infer current behavior from stale roadmap prose alone.
+The model produces code inside this system. The harness makes correct behavior
+easier, incorrect behavior visible, and recovery inexpensive.
 
-When a newer owner instruction explicitly supersedes an older plan, update durable
-docs in the same change so future agents do not resurrect the superseded scope.
+## OpenAI Codex lessons
 
-## Keep product-state terms exact
+OpenAI's
+[Harness engineering](https://openai.com/index/harness-engineering/) report
+describes an internal product whose application code, tests, CI,
+documentation, observability, and tools were written by Codex. Human work moved
+toward specifying intent, designing the environment, and building feedback
+loops. The associated Codex guidance also emphasizes configured development
+environments, reliable tests, and repository-level instructions.
 
-PixelScope currently distinguishes:
+### 1. Give agents a map, not a manual
 
-```text
-Registered -> Selected -> Presented -> Resident when required
-```
+A large `AGENTS.md` consumes context, makes every rule appear equally
+important, becomes stale, and is difficult to verify. PixelScope therefore uses
+`AGENTS.md` as a short table of contents and keeps durable knowledge under
+`docs/`.
 
-Do not collapse these terms:
+### 2. Make repository knowledge the system of record
 
-- Registered is Files/catalog membership.
-- Selected is the user comparison/analysis set.
-- Presented is bounded viewer occupancy.
-- Resident is decoded-native-source memory ownership.
+Important context must survive chat sessions, model changes, and parallel work.
+A durable document should answer one of these questions:
 
-The six-tile viewer capacity is not a registration limit. Future agents must not
-reuse layout capacity as a folder/image registration cap.
+- What does the product do now?
+- Where does a responsibility live?
+- Why was a design chosen?
+- What work is active, complete, or deferred?
+- What evidence is required before completion?
 
-P3-D input intent is also explicit:
+`docs/CURRENT_STATE.md` is the dated planning entry point. Product,
+architecture, decisions, roadmap, quality, UI notes, and execution plans have
+separate ownership.
 
-- Open Images/direct image D&D = register + select/present;
-- Open Folders/folder D&D = register only;
-- mixed D&D = direct files selected, folder contents registration-only.
+### 3. Optimize for agent legibility
 
-Folder registration must not silently invoke selection/render lifecycle or reset
-active comparison state.
+Prefer explicit ownership, predictable names, narrow interfaces, versioned
+schemas, and local invariants over hidden coupling. For PixelScope this means
+preserving boundaries among `io`, `core`, `workers`, `ui`, `app`, and `remote`;
+keeping numerical code outside widgets; and making generation, cache, and
+stale-result rules explicit.
 
-## Prefer one authoritative path
+### 4. Enforce architecture mechanically
 
-When consolidating UX, first identify whether the repository already has the
-correct low-level path. P3-D did not need a second RAW resolver: `ImageInput`,
-registration, `_confirm_raw_profile()`, and existing load workers already supplied
-the correct direct-input path. The change instead separated registration ownership
-from selection/presentation ownership and added a lazy foreground RAW boundary for
-folder registration.
+Prose is necessary but insufficient. Important constraints should be tests,
+static checks, schemas, or narrow interfaces where practical.
 
-Avoid parallel compatibility helpers when a product decision intentionally removes
-an old entry point. Update focused regression tests rather than preserving stale
-private APIs only to keep old tests green.
+PixelScope examples include:
 
-## Preserve worker authority rules
+- Overflow-safe Difference tests and native metric chunking.
+- Stale-result and loading-order UI tests.
+- Bit-exact unpacked/MIPI RAW fixture equivalence.
+- Fixed Python and packaging versions in machine-readable configuration.
+- `scripts/check_docs.py` and `tests/unit/test_docs_contract.py` for required
+  docs and local links.
 
-Qt/Python cancellation is advisory. Correctness comes from request identity,
-generation/tokens, current-plan authority, and stale-result rejection. Do not
-assume cancelling a worker prevents its result callback.
+### 5. Use execution plans for long work
 
-Foreground and preload pools have different ownership. A physically running
-preload may become logical foreground authority only under the exact P2 promotion
-contract; do not broaden promotion or pool limits casually.
+Long tasks fail when decisions and discoveries remain only in chat. A checked-in
+plan is a live artifact containing goal, exclusions, current code references,
+invariants, slices, validation, risks, decisions, and progress.
 
-Registration alone should not create decode/preload work. Unresolved folder RAW
-must not trigger speculative profile dialogs.
+Use a plan when work crosses components, spans sessions, changes persistence or
+schemas, or carries high regression risk.
 
-## Avoid timing as a correctness gate
+### 6. Improve feedback loops before autonomy
 
-Wall-clock timings are environment dependent. Deterministic tests should assert:
+More autonomy is justified only when the repository can answer quickly:
 
-- output values/dtypes/shapes;
-- exact native byte accounting;
-- decode count;
-- request/promotion/cancellation ownership;
-- stale-result rejection;
-- bounded worker/cache/residency state.
+- Did the targeted behavior change as intended?
+- Did focused and full checks pass?
+- Did a public contract or durable document change?
+- Did memory, thread, cache, or persistence behavior regress?
+- Is the change understandable and reversible?
 
-Use timings only as observational characterization unless the owner explicitly
-approves a hardware-specific performance threshold.
+Longer prompts do not compensate for slow, flaky, or missing feedback.
 
-## Keep source and presentation domains separate
+### 7. Treat entropy as recurring work
 
-`ImageDocument.source` is authoritative native data. Display Gain and Difference
-preview controls are presentation concerns. Statistics, Histogram, Line Profile,
-Split Channel source values, Difference domain selection, source generation, and
-residency must not accidentally consume gained preview data.
+The PR #1–#9 audit exposed a representative failure mode: implementation moved
+through P1-C, while several authoritative documents still said P1-A was in
+progress and packed RAW was unimplemented. High throughput increases this kind
+of drift unless documentation freshness and compatibility cleanup are explicit
+deliverables.
 
-For RAW gain, Black-derived anchors are presentation metadata policy. White Level
-remains metadata and is not a substitute for native effective full scale.
+## Agent provenance and GitHub attribution
 
-## Tests should mirror ownership
+PixelScope keeps human-authored work and agent-generated work distinguishable in
+Git history and GitHub activity. Attribution is part of the engineering record,
+not decorative PR text.
 
-For input-policy work, test independently that:
+- Prefer a verified OpenAI GitHub App/bot identity as commit author or committer
+  whenever the active tooling actually exposes that identity.
+- When work must be committed through owner-authenticated tooling, use the
+  repository-verified fallback from PR #9:
+  `Co-authored-by: ChatGPT <noreply@openai.com>`.
+- Never invent or guess a bot email address. Use only an identity already
+  verified by the repository/tooling.
+- PR comments and reviews do not have Git commit co-author metadata. Prefer a
+  bot-authenticated account. When only owner-authenticated posting is available
+  and automated posting is authorized, explicitly identify the body/comment as
+  **ChatGPT-assisted** rather than presenting it as unaided owner activity.
+- PR bodies for agent-assisted work record the actual commit attribution method,
+  the account used for comments/reviews, and whether human commits were
+  rewritten.
+- Existing human-authored commits are never amended, rebased for author rewrite,
+  given fabricated co-authors, or force-pushed merely to change provenance.
+- Validation and final reports state the observed GitHub author/committer and
+  the attribution fallback actually used.
 
-- registration changes Files/catalog membership;
-- selection changes only under explicit selection intent;
-- presentation stays bounded by viewer geometry;
-- decoded residency changes only when source is required;
-- folder-only registration preserves active analysis/view state;
-- PageUp/PageDown derives from selected folders rather than all registered folders.
+This convention applies to future ChatGPT/Codex agents unless the repository
+owner explicitly replaces it with another verified attribution mechanism.
 
-Prefer small deterministic fixtures. A large catalog test can use many tiny files;
-it does not need large image payloads when registration count is the subject.
+## PixelScope adoption status
 
-## Documentation and validation provenance
+### Existing strengths
 
-Do not claim a test command passed unless its output was actually observed. If the
-implementation agent was instructed not to run the Windows `.venv` suite, say so
-in the PR and leave owner validation pending.
+- Pinned CPython/dependency versions and strict packaging constraints.
+- Clear package boundaries and bounded worker pools.
+- Extensive pytest, Ruff, mypy, pip, UI smoke, and performance coverage.
+- Deterministic image and RAW fixtures.
+- Phase-scoped PRs with explicit exclusions and validation summaries.
+- Native Difference cache diagnostics and reloadable source residency.
 
-For code changes, the repository validation contract remains in `docs/QUALITY.md`.
-Packaging/signing commands belong only to their approved release scope.
+### Added by the harness foundation
 
-Every agent-assisted commit and PR commentary should retain requested provenance,
-including `Co-authored-by: ChatGPT <noreply@openai.com>` when required by the
-owner workflow.
+- Short navigational `AGENTS.md`.
+- Documentation index and dated current-state record.
+- Quality/completion contract and execution-plan template.
+- Active plan for the next verified phase.
+- Mechanical required-doc/local-link check.
+- PR template requiring outcome, exclusions, evidence, deferred work, and agent
+  provenance when applicable.
+
+### Next harness improvements
+
+1. Add a mechanical architecture-boundary check, beginning with forbidden Qt
+   imports from numerical `core` and `io` modules.
+2. Add a small technical-debt tracker with owner, trigger, and removal
+   condition for compatibility bridges.
+3. Capture runtime diagnostics for worker queues, cache budgets, stale-result
+   drops, and load failures.
+4. Add CI execution of the documentation contract and standard validation
+   matrix when a supported runner is available.
+5. Measure review/rework rate, escaped regressions, validation completeness,
+   and document freshness rather than generated lines or commit count.
+
+## Colleague-sharing outline
+
+1. **Problem:** code generation is fast; context loss and weak feedback create
+   rework.
+2. **Definition:** the harness is the repository, documentation, architecture,
+   tooling, tests, observability, and review workflow around the model.
+3. **Role shift:** humans specify intent and feedback loops; agents execute
+   bounded work.
+4. **Repository pattern:** `AGENTS.md` map → current state → focused docs →
+   execution plan → implementation slices → automated evidence → small PR.
+5. **PixelScope example:** PR-scoped delivery, deterministic fixtures, UI smoke
+   tests, cache invariants, RAW bit-exact checks, and explicit exclusions.
+6. **Failure example:** completed packed RAW and P1-B work remained documented
+   as future scope until a cross-PR audit.
+7. **Metrics:** review time, first-pass validation, rollback/rework,
+   documentation freshness, and escaped regressions.
+8. **Caution:** agent-written does not mean unreviewed; autonomy follows
+   observability and guardrails.
+
+## Practical principle
+
+> Do not spend most of the effort making the prompt longer. Make the repository
+> easier to understand, the desired behavior easier to specify, and incorrect
+> changes faster to detect.
