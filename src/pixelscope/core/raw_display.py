@@ -50,6 +50,24 @@ def raw_display_transform(
     )
 
 
+def _render_bayer_channel_preview(
+    source: NDArray[np.generic],
+    channel_name: str,
+    transform: DisplayTransform,
+) -> NDArray[np.uint8]:
+    """Preserve the existing colored Split Channels tile presentation."""
+
+    display = to_display_uint8(source, transform)
+    preview = np.zeros((*display.shape, 3), dtype=np.uint8)
+    if channel_name == "R":
+        preview[..., 0] = display
+    elif channel_name == "B":
+        preview[..., 2] = display
+    else:
+        preview[..., 1] = display
+    return np.ascontiguousarray(preview)
+
+
 def render_raw_preview(
     source: NDArray[np.generic],
     *,
@@ -86,4 +104,6 @@ def render_raw_preview(
         gain,
         channel_name=channel_name,
     )
+    if channel_name is not None:
+        return _render_bayer_channel_preview(source, channel_name, transform)
     return to_display_uint8(source, transform)
