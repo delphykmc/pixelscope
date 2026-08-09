@@ -47,5 +47,8 @@ def install_display_gain_shortcuts(
 
     # Retain Python wrappers explicitly on the presentation owner in addition to
     # Qt parentage so the command lifetime follows the viewer presentation scope.
-    presentation_scope._display_gain_shortcuts = increase, decrease
+    # QWidget intentionally has no static declaration for this private Python-only
+    # lifetime anchor, so keep the dynamic boundary local and explicit.
+    presentation_owner: Any = presentation_scope
+    presentation_owner._display_gain_shortcuts = increase, decrease
     return increase, decrease
