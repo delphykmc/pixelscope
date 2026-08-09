@@ -120,15 +120,12 @@ class MultiCompareView(QWidget):
             self.capacity,
         )
         displayed_documents = documents[: self._document_count]
-        self._primary_controls_enabled = self._document_count > 1 and all(
-            not document.channel_layout.startswith("CHANNEL_") for document in displayed_documents
-        )
+        # Every multi-image representation, including split-channel views,
+        # exposes the same explicit Primary interaction. MainWindow owns the
+        # semantic mapping for source comparisons versus derived channel views.
+        self._primary_controls_enabled = self._document_count > 1
         displayed_ids = {document.document_id for document in displayed_documents}
         if self._primary_controls_enabled and self.focus_document_id not in displayed_ids:
-            # The first displayed image is the implicit primary until the user
-            # explicitly selects another image. MainWindow already uses the first
-            # displayed image as its analysis/reference fallback, so no extra render
-            # or deferred state synchronization is needed here.
             self.focus_document_id = displayed_documents[0].document_id
         elif not self._primary_controls_enabled:
             self.focus_document_id = None
@@ -136,9 +133,6 @@ class MultiCompareView(QWidget):
         if updates_were_enabled:
             self.setUpdatesEnabled(False)
         try:
-            # Apply the final geometry and visibility before replacing tile content.
-            # This prevents Qt from painting a newly bound one-view document in the
-            # previous split grid during Bayer/RGB-to-GRAY transitions.
             self._arrange_viewers(geometry_count)
             self._layout.activate()
             controls_realized = self.isVisible() or geometry_count in (3, 5)
