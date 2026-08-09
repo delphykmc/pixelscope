@@ -1,139 +1,94 @@
-# PixelScope UI/performance iteration status
+# UI implementation status
 
-Snapshot date: 2026-08-09
-Current merged runtime baseline: P3-C / PR #25
-Merge commit: `7f6bef73e6712f6a14a4d401820a915196e25da2`
-Active slice: P3-D — Unified Image Opening & RAW Profile Resolution
+Status: Current through P3-C merge baseline; P3-D unified input work is active.
 
-## Completed iterations
+## Current shell
 
-| Phase/PR | State | Main result |
-|---|---|---|
-| P0-A / #1 | Complete | Fixed Multi View layouts and primary behavior foundation |
-| P0-B / #2 | Complete | Difference byte LRU and chunked metrics |
-| P0-C / #3 | Complete | Toolbar/primary icons and action states |
-| P0-D / #4 | Complete | Split loading, disabled menus, Difference ordering |
-| P1-A / #5 | Complete | Files, Statistics, responsive headers |
-| P1-B1 / #6 | Complete | Histogram modes and plot text |
-| P1-B2 / #8 | Complete | Line Profile reference and legends |
-| P1-C / #9 | Complete | RAW profile workflow and MIPI decoding |
-| P1-D / #10 | Complete | Primary ordering, atomic Split transitions, folder navigation |
-| P1-E / #11 | Complete | Plots persistence, gestures, Statistics workspace |
-| P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
-| P2-0 / #13 | Complete | P2 transition and roadmap |
-| P2-A1 / #14 | Complete | Application identity and packaged resources |
-| P2-A2 / #15 | Complete | Typed Settings/runtime integration |
-| P2-B / #16 | Complete | Byte-budgeted decoded-source residency |
-| P2-C / #17 | Complete | Bounded next-position preload |
-| P2-D / #18 | Complete | Deterministic runtime diagnostics |
-| P2-E / #19 | Complete | RUNNING preload foreground reuse |
-| P2-F / #20 | Complete | Runtime characterization/hardening |
-| P3-0 / #21 | Complete | P3 program transition |
-| P3-A / #22 | Complete | Gray + mixed-bit Difference semantics |
-| P3-B / #24 | Complete | Native RAW display semantics + generic gain core |
-| P3-C / #25 | Complete | Display Gain generalized to Gray/RGB/RGBA |
-| P3-D | Active | Unified image opening + deterministic RAW profile resolution |
+- Main toolbar remains focused on layout/view/analysis controls rather than file
+  opening.
+- File menu owns **Open Images...** (`Ctrl+O`) and **Open Folders...**
+  (`Ctrl+Shift+O`).
+- There is no separate **Open RAW with Profile...** action.
+- Empty Workspace exposes Open Images/Open Folders only in the truly-empty state.
+- Files tree is the catalog/selection surface and keeps native Up/Down plus
+  expand/collapse key behavior.
+- Analysis panel contains Statistics and Difference. Plots contains Histogram and
+  Line Profile with persistent dock/floating state.
 
-## Current UI behavior
+## P3-D input UI contract
 
-### Files and workspace
-
-- Files tree exposes loading/resident/error indicators and folder grouping.
-- Ordered selection drives fixed one-to-six-image layouts.
-- Difference selectors are the comparison-pair authority.
-- Split Channels supports RGB/Bayer placeholders and fixed component order.
-- Every regular two-to-six-image Multi View exposes primary behavior. Promotion
-  preserves Files order and logical identity.
-- Two/four/six views remain equal; three/five enlarge the first tile.
-- PageUp/PageDown atomically moves one-to-six distinct registered folders by one
-  Folder Position. Left/Right remains selected-image navigation and Up/Down
-  remains native Files-tree row navigation.
-- `_fixed_geometry()` remains the sole Multi View geometry contract.
-- Esc clears ROI; Shift+Esc clears Line Profile; Ctrl+drag creates ROI;
-  Shift+drag creates Line Profile; Alt+drag creates neither.
-
-### Unified image opening
-
-P3-D makes the visible opening actions:
+The UI now distinguishes:
 
 ```text
-Open Images...
-Open Folder...
+Registered -> Selected -> Presented -> Resident when required
 ```
 
-The previous **Open RAW with Profile...** File action and Empty Workspace RAW
-button/signal are removed. Open Images uses one exact supported-family picker:
+- Files registration is not capped by six.
+- Open Images is selection-oriented: all directly selected supported files are
+  registered and selected.
+- Open Folders is registration-oriented: multiple folders may be added without
+  changing current selection or viewer presentation.
+- The project-local Qt folder picker uses extended multi-directory selection,
+  deterministic resolved-path deduplication, and no six-folder limit.
+- Folder D&D is registration-only for any folder count; the old exactly-two-folder
+  auto-comparison behavior is removed.
+- Direct image-file D&D registers and selects those files.
+- Mixed D&D selects only the explicit files while folder contents remain
+  registration-only.
+- A catalog with zero selected documents is a valid state and displays **Select an
+  image from Files to view**.
+- A truly empty workspace displays **Drop images or folders here**.
 
-```text
-Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)
-```
+Folder registration does not invoke the selection/presentation lifecycle, so it
+must not reset the current layout, active/primary state, ROI, Line Profile,
+Difference presentation, Display Gain, or existing view state.
 
-`io.path_discovery.ImageInput` remains the common file/folder/drop registration
-contract. Ordinary PNG/BMP/JPEG bypass RAW profile UI. `.json` is never an image
-entry; for RAW it is attached only when it is the exact same-basename sidecar.
+## RAW input UI
 
-RAW profile resolution remains per file:
+RAW and ordinary images share **Open Images...**. Direct RAW keeps deterministic
+same-basename sidecar/profile resolution, editable fallback, warning on invalid
+sidecar, and cancel-before-registration behavior.
 
-- valid sidecar → existing confirmation and exact/minimum-size policy;
-- no sidecar → editable RAW Profile dialog;
-- invalid sidecar → warning and editable fallback;
-- cancel → no incorrect RAW registration;
-- multiple RAW files → each profile resolved independently.
+Folder RAW is registered lazily. Registration stores the RAW path and any exact
+sidecar path without immediately opening a sequence of profile dialogs. The RAW
+Profile dialog is shown when foreground loading actually needs unresolved metadata.
+Unresolved RAW is not started by speculative preload.
 
-The RAW dialog now says **Load Profile...** / **Save Profile...** while retaining
-JSON storage/schema migration. No profile library, profile CRUD UI, size-only or
-fuzzy suggestion, sensor inference, or automatic Black/White estimation is added.
+The dialog uses **Load Profile...** / **Save Profile...** terminology. JSON remains
+the compatible profile format.
 
-### Analysis
+## Presentation and interaction status
 
-- Statistics supports Full image and Active ROI with stable copy/CSV behavior.
-- Histogram exposes explicit bins and Count/Normalized/Log count modes.
-- Line Profile exposes compact legends and explicit Difference reference.
-- P3-A Difference supports Gray, RGB/RGBA, and same-CFA Bayer; mixed effective bit
-  depth uses normalized `[0,1]` float32 Difference and `%FS` threshold semantics.
-- Source residency and Difference-cache ownership remain independent.
-- Floating Plots geometry and selected tab persist; title double-click
-  maximizes/restores.
+- Auto / Single View / Multi View remain the layout selector.
+- Presentation remains bounded by the existing one-to-six-tile geometry.
+- Registration count and presentation capacity are independent.
+- Shared cursor/zoom/pan, Ctrl+drag ROI, Shift+drag Line Profile, primary/focus
+  ordering, and selected-set navigation remain active.
+- PageUp/PageDown Folder Position derives only from currently selected documents,
+  not from every registered folder.
+- Split Channels remains available for supported RGB/RGBA/Bayer sources.
 
-### Display Gain / RAW
+## Display Gain status
 
-- One session-local Display Gain control exposes 1×/2×/4×/8×/16×.
-- Ordinary Gray/RGB use zero-anchored gain; RGBA gains RGB only and preserves
-  canonical alpha.
-- RAW 1× maps effective native full scale. Gain >1 remains
-  `B + G * (X - B)` with Gray/Bayer Black-anchor policy from P3-B.
-- Gain 1× reuses canonical preview with no full-frame gained-preview worker.
-- Gain >1 is viewer-local presentation generated from resident native source.
-- Pixel readout, Statistics, Histogram, Line Profile, Split Channel source,
-  Difference, generation, source residency, and cache identity remain native and
-  independent of Display Gain.
-- Viewer `+` / `-` steps gain only inside the presentation subtree; Files keeps
-  native expand/collapse.
-- RAW profile supports unpacked uint8/uint16 and MIPI RAW10/12/14, profile JSON
-  migration, exact/minimum source-size policy, same-path reload, Bayer pattern,
-  and Black/White metadata.
-- Bayer remains native mosaic analysis; demosaic is not implemented.
+P3-C is complete as PR #25 at
+`7f6bef73e6712f6a14a4d401820a915196e25da2`.
 
-## Current performance/settings boundary
+- One session-local Display Gain control owns 1×/2×/4×/8×/16×.
+- Ordinary Gray/RGB and split RGB use anchor 0.
+- RGBA gains RGB only and preserves alpha.
+- RAW retains P3-B native 1× and Black-anchored gain semantics.
+- Difference is excluded from general Display Gain.
+- 1× reuses canonical preview; gain>1 is viewer-local async presentation.
+- Native analysis, source generation/residency, and Difference cache identity are
+  not changed by gain.
 
-- Settings schema remains v5.
-- Difference Map Cache and Decoded Source Memory remain separate startup budgets.
-- Decoded Source Memory uses exact native `source.nbytes` with protected
-  soft-budget LRU semantics.
-- Preload remains exactly one registered Folder Position ahead, max-one dedicated
-  worker, after foreground loading is idle.
-- Exact matching RUNNING preload may transfer foreground authority without a
-  duplicate decode.
-- Runtime diagnostics remain deterministic, bounded, sanitized, and
-  observation-only through **Help > Copy Diagnostics**.
-- P3-D adds no runtime memory/resource setting, worker pool, Settings key, or
-  profile-library persistence owner.
+## Validation state
 
-## P3-D validation state
+P3-D tests now cover menu/action naming, multi-image registration/selection,
+>6 direct registration, multi-folder registration/deduplication, folder/image/mixed
+D&D intent, registered-but-unselected state, lazy RAW resolution, selected-folder-
+only Folder Position, and preservation of presentation/runtime state during
+folder-only registration.
 
-Focused tests are present for menu/Empty Workspace cleanup, supported filter,
-ordinary bypass, RAW valid/no/invalid sidecars, cancel safety, multi-RAW profile
-identity, exact/minimum-size policy, mixed folder/drop discovery, and profile
-terminology.
-
-Tests were not run by this Chat implementation agent. Owner/local Windows validation is pending.
+Tests were not run by this Chat implementation agent. Owner/local Windows
+validation is pending.
