@@ -111,7 +111,7 @@ def install_raw_gain_control(window: Any) -> QComboBox:
         label.setEnabled(enabled)
         combo.setEnabled(enabled)
 
-    combo.currentIndexChanged.connect(set_state_from_combo)
+    combo.currentIndexChanged.connect(set_state_from_combo)  # type: ignore[attr-defined]
     state.gain_changed.connect(sync_combo)
     window.central_stack.currentChanged.connect(update_enabled)
     window.document_list.itemSelectionChanged.connect(update_enabled)
