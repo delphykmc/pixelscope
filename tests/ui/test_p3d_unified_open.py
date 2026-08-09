@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
-import pytest
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.io.path_discovery import ImageInput, SUPPORTED_IMAGE_FILTER
