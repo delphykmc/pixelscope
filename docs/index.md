@@ -1,47 +1,67 @@
-# PixelScope documentation
+# PixelScope documentation map
 
-Use durable documentation according to the question being answered:
+The repository is the system of record. `AGENTS.md` is the entry map; durable
+knowledge belongs in focused documents under `docs/`.
 
-- [`CURRENT_STATE.md`](CURRENT_STATE.md) — current merged/active implementation
-  baseline and product-state snapshot.
-- [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) — user-visible product contract.
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — component ownership, data flow, worker,
-  registration/selection/presentation, residency, Difference, Display Gain, and RAW
-  boundaries.
-- [`DECISIONS.md`](DECISIONS.md) — accepted engineering/product decisions.
-- [`USER_GUIDE.md`](USER_GUIDE.md) — end-user workflow and controls.
-- [`QUALITY.md`](QUALITY.md) — validation and completion contract.
-- [`ROADMAP.md`](ROADMAP.md) — phase ordering and planned scope.
-- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md) — active P3
-  implementation/validation plan.
-- [`exec-plans/completed/`](exec-plans/completed/) — historical completed plans.
-- [`PACKAGING_CONSTRAINTS.md`](PACKAGING_CONSTRAINTS.md) — release/package version
-  constraints.
-- [`BRANDING.md`](BRANDING.md) — application identity and icon rules.
-- [`AGENT_HARNESS_NOTES.md`](AGENT_HARNESS_NOTES.md) — repository-specific agent
-  workflow lessons.
-- [`ui/implementation_status.md`](ui/implementation_status.md) — current UI
-  implementation notes.
+## Read by task
 
-## Current P3 terminology
+| Task type | Read first | Update when |
+|---|---|---|
+| Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
+| User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `ui/` note | Behavior, terminology, shortcut, or workflow changes |
+| Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
+| Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
+| RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
+| Branding/application identity | `BRANDING.md`, `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Product mark, canonical assets, resource loading, or release-icon use changes |
+| Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Runtime, dependency, installer, or resource-loading constraints change |
+| Test/validation | `QUALITY.md` | Required checks, fixtures, smoke paths, or evidence standards change |
+| Agent-assisted workflow | `AGENT_HARNESS_NOTES.md` | A durable harness lesson or guardrail changes |
 
-P3-D uses the following ownership model throughout durable docs:
+## Document roles
 
-```text
-Registered -> Selected -> Presented -> Resident when required
+- `CURRENT_STATE.md`: dated implementation baseline, corrected assumptions, and
+  prioritized backlog.
+- `PRODUCT_SPEC.md`: stable user-visible contracts.
+- `ARCHITECTURE.md`: current component boundaries, state ownership, data flow,
+  and lifecycle invariants; planned components are explicitly marked.
+- `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
+- `ROADMAP.md`: phase-level delivered and future scope.
+- `BRANDING.md`: canonical application identity, asset roles, visual constraints,
+  supported icon sizes, and release-tool consumption rules.
+- `PACKAGING_CONSTRAINTS.md`: deployment environment and fixed packaging rules.
+- `USER_GUIDE.md`: end-user workflows.
+- `QUALITY.md`: change-to-check matrix and completion evidence.
+- `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
+- `ui/implementation_status.md`: detailed UI iteration audit.
+- `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
+- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current P2 execution plan.
+- [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md): retained P1 workspace-polish rationale and completion evidence.
+- `exec-plans/completed/`: retained plans whose rationale remains useful.
+- `exec-plans/TEMPLATE.md`: standard long-work format.
+
+## Maintenance rules
+
+1. Keep each fact in one authoritative document and link to it elsewhere.
+2. State what is true now; do not leave completed work described as future work.
+3. Prefer focused documents over a growing monolithic instruction file.
+4. Record stable invariants, concrete paths, commands, states, and failure
+   conditions rather than chat history.
+5. Update documentation in the same PR as behavior or architecture changes.
+6. Rewrite or remove stale guidance instead of appending contradictory notes.
+7. Keep temporary compatibility paths explicitly marked with an owner and
+   removal condition.
+8. Use an execution plan when work crosses components, has unresolved design
+   choices, or is likely to span multiple commits or sessions.
+9. Move substantial completed plans to `exec-plans/completed/` and keep the
+   required active plan at `exec-plans/active/next-phase.md`.
+
+## Mechanical documentation check
+
+Run from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_docs.py
 ```
 
-Registered is Files/catalog membership, Selected is the user comparison set,
-Presented is bounded viewer occupancy, and Resident is decoded-native-source memory
-ownership. The six-tile viewer capacity must not be interpreted as a registration
-limit.
-
-P3-D input intent is:
-
-- **Open Images...** / direct image-file D&D → register + select/present;
-- **Open Folders...** / folder D&D → register only;
-- mixed D&D → direct files selected while folder contents remain registration-only.
-
-RAW and ordinary images share Open Images while RAW profile/decode policy remains
-format-specific internally. Folder RAW registration is lazy so dataset registration
-does not force profile dialogs or speculative decoding.
+The check verifies required harness files and local Markdown links. Pytest also
+runs the same contract through `tests/unit/test_docs_contract.py`.
