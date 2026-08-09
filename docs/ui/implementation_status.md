@@ -1,8 +1,9 @@
 # PixelScope UI/performance iteration status
 
-Snapshot date: 2026-08-08
-Current merged runtime baseline: PR #16 merge commit
-P2-C branch base: `453b718535bdbdce2a9225c01f6144d7f2df40b0`
+Snapshot date: 2026-08-09
+Current merged runtime baseline: P3-C / PR #25
+Merge commit: `7f6bef73e6712f6a14a4d401820a915196e25da2`
+Active slice: P3-D — Unified Image Opening & RAW Profile Resolution
 
 ## Completed iterations
 
@@ -19,88 +20,120 @@ P2-C branch base: `453b718535bdbdce2a9225c01f6144d7f2df40b0`
 | P1-D / #10 | Complete | Primary ordering, atomic Split transitions, folder navigation |
 | P1-E / #11 | Complete | Plots persistence, gestures, Statistics workspace |
 | P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
+| P2-0 / #13 | Complete | P2 transition and roadmap |
 | P2-A1 / #14 | Complete | Application identity and packaged resources |
-| P2-A2 / #15 | Complete | Typed Settings schema v3 and runtime integration |
-| P2-B | Complete / PR #16 merged | Byte-budgeted decoded-source residency and schema v4 |
-| P2-C | Active / PR #17 draft | One-to-six-folder navigation, bounded next-position preload, schema v5 |
+| P2-A2 / #15 | Complete | Typed Settings/runtime integration |
+| P2-B / #16 | Complete | Byte-budgeted decoded-source residency |
+| P2-C / #17 | Complete | Bounded next-position preload |
+| P2-D / #18 | Complete | Deterministic runtime diagnostics |
+| P2-E / #19 | Complete | RUNNING preload foreground reuse |
+| P2-F / #20 | Complete | Runtime characterization/hardening |
+| P3-0 / #21 | Complete | P3 program transition |
+| P3-A / #22 | Complete | Gray + mixed-bit Difference semantics |
+| P3-B / #24 | Complete | Native RAW display semantics + generic gain core |
+| P3-C / #25 | Complete | Display Gain generalized to Gray/RGB/RGBA |
+| P3-D | Active | Unified image opening + deterministic RAW profile resolution |
 
 ## Current UI behavior
 
 ### Files and workspace
 
-- Files tree exposes File and Type with loading/resident/error indicators.
+- Files tree exposes loading/resident/error indicators and folder grouping.
 - Ordered selection drives fixed one-to-six-image layouts.
 - Difference selectors are the comparison-pair authority.
 - Split Channels supports RGB/Bayer placeholders and fixed component order.
 - Every regular two-to-six-image Multi View exposes primary behavior. Promotion
-  preserves Files order, logical badges, viewer identity, and synchronized range.
+  preserves Files order and logical identity.
 - Two/four/six views remain equal; three/five enlarge the first tile.
 - PageUp/PageDown atomically moves one-to-six distinct registered folders by one
   Folder Position. Left/Right remains selected-image navigation and Up/Down
   remains native Files-tree row navigation.
-- `_fixed_geometry()` is the sole Multi View geometry contract; no arrangement
-  menu, runtime field, or persisted setting remains.
+- `_fixed_geometry()` remains the sole Multi View geometry contract.
+- Esc clears ROI; Shift+Esc clears Line Profile; Ctrl+drag creates ROI;
+  Shift+drag creates Line Profile; Alt+drag creates neither.
+
+### Unified image opening
+
+P3-D makes the visible opening actions:
+
+```text
+Open Images...
+Open Folder...
+```
+
+The previous **Open RAW with Profile...** File action and Empty Workspace RAW
+button/signal are removed. Open Images uses one exact supported-family picker:
+
+```text
+Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)
+```
+
+`io.path_discovery.ImageInput` remains the common file/folder/drop registration
+contract. Ordinary PNG/BMP/JPEG bypass RAW profile UI. `.json` is never an image
+entry; for RAW it is attached only when it is the exact same-basename sidecar.
+
+RAW profile resolution remains per file:
+
+- valid sidecar → existing confirmation and exact/minimum-size policy;
+- no sidecar → editable RAW Profile dialog;
+- invalid sidecar → warning and editable fallback;
+- cancel → no incorrect RAW registration;
+- multiple RAW files → each profile resolved independently.
+
+The RAW dialog now says **Load Profile...** / **Save Profile...** while retaining
+JSON storage/schema migration. No profile library, profile CRUD UI, size-only or
+fuzzy suggestion, sensor inference, or automatic Black/White estimation is added.
 
 ### Analysis
 
 - Statistics supports Full image and Active ROI with stable copy/CSV behavior.
 - Histogram exposes explicit bins and Count/Normalized/Log count modes.
 - Line Profile exposes compact legends and explicit Difference reference.
-- Difference uses a 128 MiB native-map byte LRU with diagnostics.
+- P3-A Difference supports Gray, RGB/RGBA, and same-CFA Bayer; mixed effective bit
+  depth uses normalized `[0,1]` float32 Difference and `%FS` threshold semantics.
+- Source residency and Difference-cache ownership remain independent.
 - Floating Plots geometry and selected tab persist; title double-click
   maximizes/restores.
-- Esc clears ROI; Shift+Esc clears Line Profile; Ctrl+drag creates ROI;
-  Shift+drag creates Line Profile; Alt+drag creates neither.
 
-### RAW
+### Display Gain / RAW
 
-- Profile dialog separates storage/container/depth/endian/alignment.
-- Unpacked uint8/uint16 and MIPI RAW10/12/14 are implemented.
-- JSON load/save, migration, confirmation preference, and same-path reload are
-  implemented.
+- One session-local Display Gain control exposes 1×/2×/4×/8×/16×.
+- Ordinary Gray/RGB use zero-anchored gain; RGBA gains RGB only and preserves
+  canonical alpha.
+- RAW 1× maps effective native full scale. Gain >1 remains
+  `B + G * (X - B)` with Gray/Bayer Black-anchor policy from P3-B.
+- Gain 1× reuses canonical preview with no full-frame gained-preview worker.
+- Gain >1 is viewer-local presentation generated from resident native source.
+- Pixel readout, Statistics, Histogram, Line Profile, Split Channel source,
+  Difference, generation, source residency, and cache identity remain native and
+  independent of Display Gain.
+- Viewer `+` / `-` steps gain only inside the presentation subtree; Files keeps
+  native expand/collapse.
+- RAW profile supports unpacked uint8/uint16 and MIPI RAW10/12/14, profile JSON
+  migration, exact/minimum source-size policy, same-path reload, Bayer pattern,
+  and Black/White metadata.
 - Bayer remains native mosaic analysis; demosaic is not implemented.
-
-## Completed P1 workspace-polish program
-
-P1-D, P1-E, and P1-F are complete as PR #10, #11, and #12. The former Split
-transition cause analysis is retained in the completed execution-plan history
-rather than as active remediation guidance:
-
-`docs/exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`
-
-Automated validation for P1-F was recorded by the repository owner. P1-F manual
-Windows evidence was not re-verified by P2-0.
 
 ## Current performance/settings boundary
 
-Implemented now:
+- Settings schema remains v5.
+- Difference Map Cache and Decoded Source Memory remain separate startup budgets.
+- Decoded Source Memory uses exact native `source.nbytes` with protected
+  soft-budget LRU semantics.
+- Preload remains exactly one registered Folder Position ahead, max-one dedicated
+  worker, after foreground loading is idle.
+- Exact matching RUNNING preload may transfer foreground authority without a
+  duplicate decode.
+- Runtime diagnostics remain deterministic, bounded, sanitized, and
+  observation-only through **Help > Copy Diagnostics**.
+- P3-D adds no runtime memory/resource setting, worker pool, Settings key, or
+  profile-library persistence owner.
 
-- Difference byte-budget LRU and diagnostics.
-- Byte-budgeted native decoded-source LRU with a 256 MiB default.
-- Soft-budget protection for visible, selected, active/analysis, Difference-pair,
-  and active load-target sources.
-- Exact native `source.nbytes` accounting and minimal residency diagnostics.
-- Schema-v5 General / Files / Performance Settings with distinct Decoded Source
-  Memory and Difference Map Cache startup budgets plus enabled-by-default,
-  startup-only **Preload Next Folder Position**.
-- Canonical application icon/resource foundation and immutable
-  `PerformanceSettings` startup injection.
-- One pure Folder Position planner shared by PageUp/PageDown and next-position
-  prediction, plus a Qt-free `PreloadController` that owns exactly `plan(+1)`.
-- A dedicated max-one preload pool remains separate from the max-two normal-load
-  pool, so foreground loading never waits behind speculative decode. The shared
-  numeric pool remains bounded at four workers.
-- Preload cancellation is cooperative; stale results are rejected by plan,
-  document generation, path/profile/exact-size identity, and normal-load token.
-  Valid results enter ordinary source residency without separate protection or
-  budget, and cancellation de-duplication state ends with its worker request.
+## P3-D validation state
 
-Not implemented yet:
+Focused tests are present for menu/Empty Workspace cleanup, supported filter,
+ordinary bypass, RAW valid/no/invalid sidecars, cancel safety, multi-RAW profile
+identity, exact/minimum-size policy, mixed folder/drop discovery, and profile
+terminology.
 
-- Runtime diagnostics UI/snapshot and Copy Diagnostics.
-
-P2-B is merged release behavior as of PR #16. P2-C is the active PR #17 runtime
-slice; P2-D diagnostics remains next after P2-C merges. P2-C behavior must not be
-treated as merged release behavior until PR #17 is merged. The owner reports
-basic Windows behavior checked, while the complete P2-C manual matrix remains a
-merge gate.
+Tests were not run by this Chat implementation agent. Owner/local Windows validation is pending.
