@@ -114,7 +114,7 @@ RAW opens through a validated profile workflow. A same-name JSON sidecar can
 pre-fill the profile; the General Settings preference may skip repeated
 confirmation for those JSON profiles when the configured file-size policy also
 matches. The RAW dialog's explicit don't-show-again choice updates only that one
-typed preference and preserves the other schema-v3 settings. The same RAW path
+typed preference and preserves the other schema-v5 settings. The same RAW path
 may be reloaded with corrected settings.
 
 When **Require Exact RAW File Size** is disabled, RAW files may contain trailing
@@ -128,14 +128,43 @@ The profile separates:
 - effective bit depth
 - byte order and LSB/MSB alignment where applicable
 - width, height, offset, stride, and grayscale/Bayer layout
+- `black_level` and `white_level` metadata, including R/Gr/Gb/B black tuples for
+  Bayer profiles
+
+Decoded samples in `ImageDocument.source` are the native RAW authority. Pixel
+inspection, Statistics, Histogram, Line Profile numerical data, Split Channels,
+P3-A Difference, and source residency operate on those native samples regardless
+of viewer gain.
+
+RAW display is explicitly separate from analysis:
+
+- at `RAW Gain = 1×`, the display range is native code
+  `0..((1 << bit_depth) - 1)`;
+- `black_level` is not subtracted from 1× display and `white_level` is not used as
+  the display maximum;
+- gain values 2×/4×/8×/16× use
+  `black + gain * (native - black)` so the black baseline remains stationary;
+- Bayer tuple black levels are used as CFA-specific display anchors;
+- gain arithmetic preserves below-black residuals until final display clipping;
+- `white_level` remains metadata only in the current P3-B display contract;
+- RAW Gain is session-local, shared across visible RAW Single/Multi View tiles,
+  and is not a Settings/profile persistence field;
+- ordinary PNG/BMP/JPEG/Gray/RGB display is not affected by RAW Gain.
+
+Gain changes regenerate only derived viewer presentation from resident source on
+the shared numerical worker pool. They do not reload native RAW, change source
+residency ownership, bump source generation, or change Difference cache identity.
 
 Packed formats own their byte layout and fixed bit depth, so container,
 endianness, and alignment controls do not apply. Bayer is analyzed as native
-mosaic planes; demosaic is outside the current product contract.
+mosaic planes. Demosaic, white balance, CCM, tone mapping, and processed-RAW
+analysis are outside the current product contract.
 
 ## Future product scope
 
-The complete product adds RAW demosaic/normalization/profile suggestion, alpha
-overlay, persistent sessions
-and ROI management, live GPU IQA/image evaluation, heatmaps, and a validated
-standalone Windows distribution.
+Planned work includes RAW visualization/inspection improvements, reusable RAW
+profile management and deterministic profile suggestion, alpha overlay,
+persistent sessions and ROI management, live GPU IQA/image evaluation, heatmaps,
+and a validated standalone Windows distribution. Demosaic is deferred unless a
+future owner-approved processed-preview scope defines the associated white balance,
+color, tone, metadata, and analysis boundaries coherently.
