@@ -5,7 +5,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-SUPPORTED_IMAGE_SUFFIXES = frozenset({".png", ".bmp", ".jpg", ".jpeg"})
+ORDINARY_IMAGE_SUFFIXES = frozenset({".png", ".bmp", ".jpg", ".jpeg"})
+RAW_IMAGE_SUFFIX = ".raw"
+SUPPORTED_IMAGE_SUFFIXES = ORDINARY_IMAGE_SUFFIXES | {RAW_IMAGE_SUFFIX}
+SUPPORTED_IMAGE_FILTER = "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)"
 
 
 @dataclass(frozen=True)
@@ -27,9 +30,10 @@ def image_input_for_path(path: Path) -> ImageInput | None:
     candidate = path.resolve()
     if not candidate.is_file():
         return None
-    if candidate.suffix.casefold() in SUPPORTED_IMAGE_SUFFIXES:
+    suffix = candidate.suffix.casefold()
+    if suffix in ORDINARY_IMAGE_SUFFIXES:
         return ImageInput(candidate)
-    if candidate.suffix.casefold() == ".raw":
+    if suffix == RAW_IMAGE_SUFFIX:
         sidecar = candidate.with_suffix(".json")
         return ImageInput(candidate, sidecar if sidecar.is_file() else None)
     return None
