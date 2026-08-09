@@ -481,12 +481,26 @@ class ImageViewer(QWidget):
         self._raw_preview_worker = None
         self._raw_preview_request_identity = None
 
+    def _release_derived_raw_preview(self) -> None:
+        document = self._document
+        if (
+            document is None
+            or document.preview is None
+            or not isinstance(document.raw_profile, RawProfile)
+            or self._displayed_preview is document.preview
+        ):
+            return
+        self.image_item.setImage(document.preview, autoLevels=False, levels=(0, 255))
+        self._displayed_preview = document.preview
+        self._displayed_raw_gain = 1.0
+
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
         self._ensure_raw_display_preview()
 
     def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
         self._cancel_raw_preview()
+        self._release_derived_raw_preview()
         super().hideEvent(event)
 
     def _position_loading_item(self, *_args: object) -> None:
