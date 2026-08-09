@@ -141,6 +141,40 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
     raw_display_state().reset()
 
 
+def test_raw_gain_state_disconnects_when_control_is_destroyed(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    ui_settings = QSettings(str(tmp_path / "ui-teardown.ini"), QSettings.Format.IniFormat)
+    ui_settings.clear()
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        main_window_module,
+        "QSettings",
+        lambda: ui_settings,
+    )
+    repository, _app_store = _repository(tmp_path / "app-teardown.ini")
+    window = MainWindow(settings_repository=repository)
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    combo = install_raw_gain_control(window)
+    state = raw_display_state()
+
+    state.set_gain(2.0)
+    assert combo.currentData() == 2.0
+
+    destroyed: list[bool] = []
+    combo.destroyed.connect(lambda: destroyed.append(True))
+    combo.deleteLater()
+    qtbot.waitUntil(lambda: bool(destroyed))  # type: ignore[attr-defined]
+
+    # The QApplication-owned state outlives toolbar controls. Emitting after the
+    # combo is destroyed must not call a Python closure holding its dead C++ object.
+    state.set_gain(4.0)
+    assert state.gain == 4.0
+    state.reset()
+    window.close()
+
+
 def test_hidden_multi_viewers_release_gained_preview_and_regenerate_when_shown(
     qtbot: object,
 ) -> None:
