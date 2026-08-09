@@ -65,46 +65,71 @@ the latest merged P3 prerequisite.
   the active P3 execution plan.
 - Documentation only.
 
-### P3-A — Difference Gray / Mixed Bit-Depth Support
+### P3-A — Difference Gray / Mixed Bit-Depth Support — Complete
 
-Correct and extend the existing Difference capability before RAW processing
-semantics expand.
+P3-A merged as PR #22 at
+`769588bf869847da844cfc0b77c008023d8b048b`.
 
-P3-A implementation contract:
+The completed contract is:
 
 - Gray ↔ Gray;
 - RGB/RGBA ↔ RGB/RGBA;
 - Bayer ↔ Bayer only with the same CFA pattern;
 - reject cross-family, size-mismatch, and CFA-mismatch cases;
-- no implicit RGB→Gray/luma conversion.
+- no implicit RGB→Gray/luma conversion;
+- same effective bit depth uses native code-domain Difference;
+- different effective bit depths normalize each source by its own effective
+  full-scale code value to `[0,1]` and use `%FS` threshold semantics;
+- RAW black/white metadata and display transforms do not define P3-A Difference
+  normalization.
 
-Domain policy implemented in the P3-A branch:
+P3-A also delivers explicit Gray channel support, bounded float32 mixed-bit
+Difference/metrics, cache domain metadata, compact Scope/Domain UI, and short
+validation reasons with detailed tooltips.
 
-- same effective bit depth: preserve native code-domain Difference;
-- different effective bit depths: normalize each source by its own full-scale
-  code value to `[0,1]`, then calculate Difference;
-- normalized threshold is expressed as `%FS`;
-- RAW black/white levels and display transforms do not define this normalization.
+### P3-B — RAW Native & Display Semantics
 
-The P3-A branch implements explicit Gray channel support, bounded float32
-mixed-bit Difference/metrics, cache domain metadata, compact Scope/Domain UI, and
-short validation reasons with detailed tooltips. Acceptance remains subject to
-the full repository contract, owner Windows checks, independent review, and merge.
+Keep PixelScope centered on engineering inspection rather than silently turning
+RAW loading into a RAW-conversion pipeline.
 
-### P3-B — RAW Processing Semantics
+- Native decoded RAW remains the authoritative source and is not modified by
+  black/white metadata or viewer controls.
+- Keep existing `black_level` and `white_level` RAW-profile metadata.
+- At 1× display gain, the viewer shows the native RAW code domain using effective
+  bit depth/full-scale for display mapping rather than subtracting black level.
+- When display gain is applied, anchor the transform at black level:
+  `display = black + gain * (native - black)`.
+- Bayer profiles may use their existing R/Gr/Gb/B black levels as channel-specific
+  display anchors.
+- P3-B does not apply `white_level` to native or gained display mapping; effective
+  full scale remains the display-range authority. White is retained as metadata
+  for future explicit tone-map or processed-RAW features.
+- Pixel inspection, Statistics, Histogram, Line Profile source data, Split
+  Channels, and P3-A Difference remain native-domain operations.
+- Gain is display-only; it must not mutate `ImageDocument.source` or silently
+  create a new analysis domain.
+- Preserve black/white metadata for future explicit processing without adding
+  those processing stages in P3-B.
 
-- Explicit black-level subtraction and white-level/full-scale handling.
-- Native decoded source versus processed RAW representation boundary.
-- Overflow-safe clipping/normalization.
-- Derived-data cache/generation/invalidation rules.
-- Preserve P3-A Difference full-scale semantics as a separate contract.
+### P3-C — RAW Visualization & Inspection Improvements
 
-### P3-C — Demosaic Integration
+Improve RAW observability without introducing a partial RAW converter.
 
-- Explicit demosaic algorithm/interface boundary.
-- Native Bayer versus demosaiced RGB viewing/analysis semantics.
-- Worker/cache integration without replacing native source authority.
-- Explicit Statistics/Histogram/Line Profile/Difference behavior.
+Candidate scope:
+
+- make RAW display gain/exposure inspection clearer and easier to use;
+- optional clipping/highlight or shadow visualization where it materially helps
+  sensor/ISP inspection;
+- improve Bayer-channel/native-mosaic visualization and inspection affordances;
+- preserve native source authority and explicit display-only semantics;
+- avoid changing Statistics/Histogram/Line Profile/Difference domains merely
+  because the viewer presentation changes.
+
+Demosaic is no longer a committed P3-C deliverable. A future demosaic feature
+must first define the intended processed-preview boundary and whether white
+balance, color correction, tone/gamma, and related metadata are in scope. Until
+that product need is explicit, P3 should not grow into a partial RAW-conversion
+pipeline.
 
 ### P3-D — RAW Profile Management
 
@@ -116,14 +141,15 @@ the full repository contract, owner Windows checks, independent review, and merg
 
 ### P3-E — Integration & Hardening
 
-- Cross-check native/normalized Difference with RAW processing ownership.
+- Cross-check native/normalized Difference with RAW native/display ownership.
 - Characterize representative Gray/RGB/Bayer/RAW and bit-depth combinations.
 - Preserve P2 residency/preload/diagnostics contracts.
 - Complete automated/Windows validation and durable P3 documentation.
 
 P3 excludes persistent sessions, remote/authentication work, release engineering,
-broad MainWindow/shortcut rewrites, speculative preload-policy expansion, and
-native optimization without profiling evidence.
+broad MainWindow/shortcut rewrites, speculative preload-policy expansion, native
+optimization without profiling evidence, and demosaic/white-balance/color/tone
+processing unless separately approved by the owner.
 
 ## P4 — Workflow & Session Productivity
 
