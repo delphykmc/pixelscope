@@ -33,7 +33,12 @@ def _write_images(folder: Path, count: int) -> None:
 
 
 def _register_folder(window: MainWindow, folder: Path) -> list[str]:
-    return window._register_inputs(discover_image_inputs((folder,)), select_all=False)
+    document_ids = window._register_inputs(
+        discover_image_inputs((folder,)),
+        resolve_raw_profiles=False,
+    )
+    window._select_document_ids([document_ids[0]])
+    return document_ids
 
 
 def _wait_for_running_preload(qtbot: object, window: MainWindow) -> None:
@@ -220,7 +225,12 @@ def test_pair_navigation_promotes_one_running_member_and_normally_loads_other(
     monkeypatch.setattr(main_window_module, "ImageLoadWorker", PairWorker)
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    window.register_folder_group([folder_a, folder_b])
+    window.register_folders([folder_a, folder_b])
+    first_ids = [
+        window._document_id_by_path[window._path_key(folder / "frame-1.png")]
+        for folder in (folder_a, folder_b)
+    ]
+    window._select_document_ids(first_ids)
     qtbot.waitUntil(promoted_started.is_set, timeout=3000)  # type: ignore[attr-defined]
     _wait_for_running_preload(qtbot, window)
 
