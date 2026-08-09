@@ -140,7 +140,7 @@ def render_bayer_preview(
     if isinstance(black_level, tuple):
         if len(black_level) != 4:
             raise ValueError("Bayer black_level must contain R/Gr/Gb/B values")
-        anchors = dict(zip(BAYER_CHANNEL_NAMES, black_level))
+        anchors = dict(zip(BAYER_CHANNEL_NAMES, black_level, strict=True))
     else:
         anchors = {name: black_level for name in BAYER_CHANNEL_NAMES}
 
