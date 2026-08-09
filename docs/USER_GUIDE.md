@@ -2,10 +2,22 @@
 
 ## Register and select images
 
-Use **Open Images**, **Open Folder**, **Open RAW with Profile**, or drag
-files/folders into the application. Files are grouped by parent folder.
+Use **Open Images** or **Open Folder**, or drag files/folders into the application.
+**Open Images** is the single file-opening entry point for PNG, BMP, JPEG, and RAW:
+
+```text
+.png  .bmp  .jpg  .jpeg  .raw
+```
+
+Unsupported extensions are not treated as RAW. Files are grouped by parent folder.
 Ctrl/Shift selection forms the ordered comparison set; up to six source images
 can be visible.
+
+RAW uses the same registration path as ordinary images, but profile resolution is
+conditional. A same-basename JSON sidecar is resolved for that RAW file when
+present; without a sidecar the editable RAW Profile dialog opens. An invalid
+sidecar produces a warning and then opens the editable dialog instead of silently
+applying invalid metadata. Cancelling profile entry leaves that RAW unregistered.
 
 When one to six files are selected from distinct participating folders, Page
 Down/Page Up moves every folder atomically in natural filename order. Navigation
@@ -173,9 +185,9 @@ session-local and is not a separate persisted setting in schema v5.
 
 ### Files
 
-**Default Open Folder** controls the starting location for Open Images, Open
-Folder, and Open RAW dialogs. **Default Export Folder** controls the starting
-location for export dialogs.
+**Default Open Folder** controls the starting location for **Open Images** and
+**Open Folder** dialogs. **Default Export Folder** controls the starting location
+for export dialogs.
 
 Both fields are optional. Leave a field blank to keep PixelScope's existing
 last-used-folder behavior. Setting a folder does not lock you to that folder; it
@@ -298,16 +310,32 @@ state transition.
 
 ## RAW
 
-Opening RAW uses a validated profile. A same-name JSON sidecar pre-fills the
-dialog. The **Don't Show RAW JSON Profiles** preference can accept those
-profiles without repeated confirmation when the file-size policy also matches.
-Reloading the same path is allowed.
+RAW is selected through the same **Open Images** command as PNG/BMP/JPEG; there is
+no separate top-level RAW-open command. The RAW-specific decode contract still
+requires a validated `RawProfile` before registration/load:
+
+- if `frame.raw` has `frame.json`, that exact same-basename sidecar is parsed and
+  validated for the source;
+- if no sidecar exists, the editable RAW Profile dialog opens;
+- if a sidecar is invalid, PixelScope warns and opens editable profile defaults so
+  the user can correct the profile;
+- the **Don't Show RAW JSON Profiles** preference may skip confirmation only for a
+  valid sidecar that also satisfies the current exact/minimum file-size policy;
+- selecting multiple RAW files resolves each file independently; PixelScope does
+  not silently reuse the last profile or choose profiles from file size alone.
+
+The dialog uses **Load Profile…** and **Save Profile…** terminology. Profiles are
+still stored as compatible JSON (`JSON (*.json)`), including existing legacy
+storage-field migration. There is no global profile library, favorite/profile CRUD
+manager, fuzzy profile suggestion, size-only auto-selection, sensor inference, or
+automatic Black/White estimation in the current workflow.
 
 Unpacked profiles specify `uint8` or `uint16`, effective bit depth, byte order,
 and LSB/MSB alignment where applicable. Packed choices are MIPI RAW10, RAW12,
 and RAW14; non-applicable container, byte-order, and alignment rows are hidden.
 The profile also retains Black Level and White Level metadata; Bayer profiles may
-carry independent R/Gr/Gb/B Black Levels.
+carry independent R/Gr/Gb/B Black Levels. The same RAW path may be reloaded with
+corrected profile settings while retaining its document identity.
 
 Decoded RAW samples are the authoritative native values. Pixel readout,
 Statistics, Histogram, Line Profile, Split Channels, and Difference continue to
