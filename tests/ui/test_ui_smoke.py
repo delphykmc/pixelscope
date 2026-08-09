@@ -176,7 +176,7 @@ def test_difference_action_compatibility_states(qtbot: object) -> None:
             white_level=1023,
         )
         source = np.zeros(shape, dtype=np.uint16)
-        transform = DisplayTransform(black_level=0, white_level=1023)
+        transform = DisplayTransform(display_low=0.0, display_high=1023.0)
         return ImageDocument.from_array(
             source,
             name,
@@ -184,7 +184,12 @@ def test_difference_action_compatibility_states(qtbot: object) -> None:
             bit_depth=10,
             raw_profile=profile,
             display_transform=transform,
-            prepared_preview=render_bayer_preview(source, transform),
+            prepared_preview=render_bayer_preview(
+                source,
+                profile.bayer_pattern or "RGGB",
+                profile.black_level,
+                profile.bit_depth,
+            ),
         )
 
     window = MainWindow()
@@ -1831,7 +1836,7 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
         black_level=0,
         white_level=1023,
     )
-    transform = DisplayTransform(black_level=0, white_level=1023)
+    transform = DisplayTransform(display_low=0.0, display_high=1023.0)
     document = ImageDocument.from_array(
         source,
         "bayer.raw",
@@ -1839,7 +1844,12 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
         bit_depth=10,
         raw_profile=profile,
         display_transform=transform,
-        prepared_preview=render_bayer_preview(source, transform),
+        prepared_preview=render_bayer_preview(
+            source,
+            profile.bayer_pattern or "RGGB",
+            profile.black_level,
+            profile.bit_depth,
+        ),
     )
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
