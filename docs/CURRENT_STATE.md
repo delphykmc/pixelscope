@@ -24,6 +24,8 @@ This document records the implementation baseline that new work must use.
   `769588bf869847da844cfc0b77c008023d8b048b`.
 - P3 roadmap replanning merged as PR #23 at
   `4c7d1bbbb4476134f76a204578098d35a03feca2`.
+- P3-B RAW Native & Display Semantics merged as PR #24 at
+  `1817490a08c61da9087efe9c3c6afd8bd85838f0`.
 
 P2 — Runtime Foundation, Settings & Performance is complete. Its historical plan
 is retained at
@@ -32,14 +34,13 @@ is retained at
 The active plan is
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md) for
 **P3 — Image Semantics & RAW Processing**. P3-B RAW Native & Display Semantics is
-implemented on `feature/p3-b-raw-native-display-semantics`. Owner/local Windows
-quality validation passed on `424144215b1df97c71a84ddca79a17bfccb1feef`,
-including the generic display-gain core, RAW Gain runtime behavior, and `+` / `-`
-stepping. The final independent re-review found one shortcut-focus merge blocker:
-window-wide gain shortcuts intercepted the Files tree's native expand/collapse
-keys. The follow-up now scopes Display Gain shortcuts to the viewer-presentation
-subtree and adds real key-routing coverage; latest-head revalidation and merge are
-pending. P3-C remains the next planned slice after P3-B merge.
+merged. Owner/local Windows quality validation passed on reviewed code HEAD
+`f546244766904d8102d09e2e81a4ed0a59360c54`, including the full quality gate,
+RAW Gain runtime behavior, viewer-focused `+` / `-` gain stepping, Files-tree
+native `+` / `-` expand/collapse with gain unchanged, enabled/disabled routing,
+and teardown/lifetime behavior. The final independent merge-readiness review
+found no remaining production/runtime/test blocker. P3-C is the next planned
+slice.
 
 ## Current product baseline
 
@@ -262,7 +263,7 @@ cost are demonstrated reliably. Packaging/installer CI remains P7.
 The active P3 sequence is:
 
 1. **P3-A — Difference Gray / Mixed Bit-Depth Support — Complete**
-2. **P3-B — RAW Native & Display Semantics — Implementation complete; final review follow-up revalidation/merge pending**
+2. **P3-B — RAW Native & Display Semantics — Complete — PR #24**
    - native RAW authority;
    - generic anchor-based display-gain core;
    - RAW-only UI/runtime activation in P3-B;
