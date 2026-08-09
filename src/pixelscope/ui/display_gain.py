@@ -5,11 +5,11 @@ from typing import Any
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLabel, QWidget
 
-RAW_GAIN_OPTIONS = (1.0, 2.0, 4.0, 8.0, 16.0)
+DISPLAY_GAIN_OPTIONS = (1.0, 2.0, 4.0, 8.0, 16.0)
 
 
-class RawDisplayState(QObject):
-    """Application-session-only RAW presentation state."""
+class DisplayGainState(QObject):
+    """Application-session-only viewer presentation gain state."""
 
     gain_changed = Signal(float)
 
@@ -24,7 +24,7 @@ class RawDisplayState(QObject):
     def set_gain(self, gain: float) -> None:
         value = float(gain)
         if value <= 0:
-            raise ValueError("RAW display gain must be greater than zero")
+            raise ValueError("display gain must be greater than zero")
         if value == self._gain:
             return
         self._gain = value
@@ -34,25 +34,25 @@ class RawDisplayState(QObject):
         self.set_gain(1.0)
 
 
-def raw_display_state() -> RawDisplayState:
-    """Return the one RAW display state owned by the current QApplication."""
+def display_gain_state() -> DisplayGainState:
+    """Return the one Display Gain state owned by the current QApplication."""
 
     app = QApplication.instance()
     if not isinstance(app, QApplication):
-        raise RuntimeError("RAW display state requires QApplication")
-    attribute_name = "_pixelscope_raw_display_state"
+        raise RuntimeError("Display Gain state requires QApplication")
+    attribute_name = "_pixelscope_display_gain_state"
     existing = getattr(app, attribute_name, None)
-    if isinstance(existing, RawDisplayState):
+    if isinstance(existing, DisplayGainState):
         return existing
-    state = RawDisplayState(app)
+    state = DisplayGainState(app)
     setattr(app, attribute_name, state)
     return state
 
 
-class _RawGainComboBox(QComboBox):
-    """RAW gain selector whose state subscription follows Qt object lifetime."""
+class _DisplayGainComboBox(QComboBox):
+    """Display Gain selector whose state subscription follows Qt object lifetime."""
 
-    def __init__(self, state: RawDisplayState, parent: QWidget | None = None) -> None:
+    def __init__(self, state: DisplayGainState, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._state = state
         self.currentIndexChanged.connect(self._set_state_from_index)  # type: ignore[attr-defined]
@@ -73,38 +73,44 @@ class _RawGainComboBox(QComboBox):
             self.blockSignals(False)
 
 
-def _is_raw_document(document: object) -> bool:
+def is_display_gain_capable(document: object) -> bool:
+    """Return whether a document has a viewer presentation owned by Display Gain."""
+
     if document is None:
         return False
-    if getattr(document, "raw_profile", None) is not None:
+    channel_layout = str(getattr(document, "channel_layout", "")).upper()
+    if channel_layout == "DIFFERENCE":
+        return False
+    if channel_layout in {"GRAY", "RGB", "RGBA"}:
         return True
-    source_path = getattr(document, "source_path", None)
-    return source_path is not None and str(getattr(source_path, "suffix", "")).casefold() == ".raw"
+    if channel_layout.startswith("CHANNEL_"):
+        return True
+    return channel_layout == "BAYER" and getattr(document, "raw_profile", None) is not None
 
 
-def install_raw_gain_control(window: Any) -> QComboBox:
-    """Install the compact session-local RAW Gain control into the main toolbar."""
+def install_display_gain_control(window: Any) -> QComboBox:
+    """Install the compact session-local Display Gain control into the main toolbar."""
 
-    state = raw_display_state()
+    state = display_gain_state()
     state.reset()
 
     host = QWidget(window.main_toolbar)
-    host.setObjectName("RawGainControl")
+    host.setObjectName("DisplayGainControl")
     layout = QHBoxLayout(host)
     layout.setContentsMargins(4, 0, 4, 0)
     layout.setSpacing(5)
 
-    label = QLabel("RAW Gain", host)
-    label.setObjectName("RawGainLabel")
-    combo = _RawGainComboBox(state, host)
-    combo.setObjectName("RawGainCombo")
+    label = QLabel("Display Gain", host)
+    label.setObjectName("DisplayGainLabel")
+    combo = _DisplayGainComboBox(state, host)
+    combo.setObjectName("DisplayGainCombo")
     combo.setFixedWidth(70)
-    for gain in RAW_GAIN_OPTIONS:
+    for gain in DISPLAY_GAIN_OPTIONS:
         combo.addItem(f"{gain:g}×", gain)
     combo.setCurrentIndex(0)
     combo.setToolTip(
-        "Display-only RAW gain anchored at Black Level. "
-        "Native pixel values and analysis results are unchanged."
+        "Viewer-only digital display gain. RAW is Black-anchored; ordinary images "
+        "use a zero anchor. Native pixel values and analysis results are unchanged."
     )
     label.setToolTip(combo.toolTip())
     layout.addWidget(label)
@@ -119,7 +125,7 @@ def install_raw_gain_control(window: Any) -> QComboBox:
             documents = [
                 viewer.presented_document for viewer in window.multi_compare_view.visible_viewers
             ]
-        enabled = any(_is_raw_document(document) for document in documents)
+        enabled = any(is_display_gain_capable(document) for document in documents)
         label.setEnabled(enabled)
         combo.setEnabled(enabled)
 

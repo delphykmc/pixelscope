@@ -35,13 +35,29 @@ bar reports the boundary.
 - **Fit** fits visible tiles; **100%** uses native pixel scale.
 - **Split Channels** shows RGB or Bayer channel views and retains its checked
   state while another supported image loads.
-- **RAW Gain** provides 1×, 2×, 4×, 8×, and 16× display-only gain for RAW images.
-  One session-local gain is shared by visible RAW tiles in Single and Multi View;
-  ordinary PNG/BMP/JPEG images are unaffected. With focus inside the image viewer,
-  press **+** to move one gain step higher and **-** to move one step lower. The
-  shortcuts stay at 1×/16× at the minimum/maximum and do nothing when RAW Gain is
-  unavailable. With focus in the Files tree, **+**/**-** keep their native folder
-  expand/collapse behavior and do not change RAW Gain.
+- **Display Gain** provides 1×, 2×, 4×, 8×, and 16× viewer-only digital gain for
+  ordinary Gray/RGB/RGBA and RAW presentations. One session-local gain is shared
+  by supported Single/Multi View tiles. With focus inside the image viewer, press
+  **+** to move one gain step higher and **-** to move one step lower. The
+  shortcuts stay at 1×/16× at the minimum/maximum. With focus in the Files tree,
+  **+**/**-** keep their native folder expand/collapse behavior and do not change
+  Display Gain.
+
+For ordinary images, Gray and RGB use zero-anchored gain (`gain × source`). The
+same gain is applied to R/G/B, so Display Gain does not introduce a color-balance
+adjustment. RGBA applies gain to RGB only; transparency/alpha remains exactly the
+document's canonical 1× preview alpha. Ordinary RGB Split Channels use the same
+zero-anchored gain while retaining their colored channel presentation.
+
+At **1×**, PixelScope reuses the canonical document preview directly. Gain above
+1× is generated from the already resident native source as a viewer-local derived
+preview. Returning to 1× restores the canonical preview. Hidden/replaced gained
+tiles release their derived preview and regenerate the current session gain if
+shown again.
+
+Display Gain does not change pixel readout, Statistics, Histogram, Line Profile,
+Split Channel native data, Difference, or source residency. Difference has its
+own independent presentation Gain and does not receive Display Gain a second time.
 
 ## Cursor, ROI, and line selection
 
@@ -105,14 +121,15 @@ The panel shows compact **Scope** and **Domain** fields. Equal effective bit dep
 use **Native** code values. Different effective bit depths use **Normalized
 [0–1]**: each source is divided by its own effective full-scale code value before
 Difference is calculated. This is source full-scale normalization; RAW black/white
-levels, display settings, previews, and demosaic do not change it.
+levels, Display Gain, previews, and demosaic do not change it.
 
 Absolute and Mask displays derive from the cached map, and reversed pairs reuse
 the same order-independent cache entry. The Threshold unit follows the domain:
 **code** for Native or **%FS** for Normalized. In normalized mode, `1.00 %FS` is
 `0.01` in the `[0,1]` domain. Mask comparison is strict `>`, so a pixel exactly at
-the threshold is not masked. Gain retains the existing Absolute Difference
-presentation behavior. Full image/Active ROI controls metrics.
+the threshold is not masked. Difference-panel Gain retains the existing Absolute
+Difference presentation behavior and is independent from toolbar Display Gain.
+Full image/Active ROI controls metrics.
 
 The persisted **Settings > Difference Defaults > Threshold** remains the Native
 code threshold under settings schema v5. Normalized Threshold is separate, starts
@@ -129,8 +146,8 @@ With six selected sources, Difference opens in Single View until disabled.
 Open **Edit > Settings...**. The left side selects **General**, **Files**, or
 **Performance** and the right side shows that category's options.
 
-RAW Gain is not an application setting and is distinct from Difference Gain. It
-is a viewer-only session control and returns to 1× on a new PixelScope session.
+Display Gain is not an application setting and is distinct from Difference Gain.
+It is a viewer-only session control and returns to 1× on a new PixelScope session.
 
 ### General
 
@@ -294,10 +311,10 @@ carry independent R/Gr/Gb/B Black Levels.
 
 Decoded RAW samples are the authoritative native values. Pixel readout,
 Statistics, Histogram, Line Profile, Split Channels, and Difference continue to
-use those native values even when RAW Gain changes.
+use those native values even when Display Gain changes.
 
-At **RAW Gain = 1×**, the viewer maps the full effective native code range to the
-preview: RAW10 uses 0–1023, RAW12 uses 0–4095, and RAW14 uses 0–16383. Black
+At **Display Gain = 1×**, the viewer maps the full effective native code range to
+the preview: RAW10 uses 0–1023, RAW12 uses 0–4095, and RAW14 uses 0–16383. Black
 Level is not subtracted from this 1× display and White Level is not treated as the
 display maximum.
 
@@ -313,11 +330,11 @@ Values below black and above full scale are preserved through the gain arithmeti
 and clipped only when the final 8-bit preview is produced. This is presentation
 only; it does not alter the stored source samples or analysis results.
 
-RAW Gain is session-local and starts at **1×** for a new application session. It
-is not stored in the RAW profile or Settings. White Level remains profile metadata
-for possible future explicit processing and is not used by the current native or
-gained display mapping. With focus inside the image-presentation area, the **+**
-and **-** shortcuts step through the same discrete gain values and remain
+Display Gain is session-local and starts at **1×** for a new application session.
+It is not stored in the RAW profile or Settings. White Level remains profile
+metadata for possible future explicit processing and is not used by the current
+native or gained display mapping. With focus inside the image-presentation area,
+the **+** and **-** shortcuts step through the same discrete gain values and remain
 synchronized with the toolbar selector. With focus in the Files tree, those keys
 retain Qt-native folder expand/collapse behavior instead of changing gain.
 

@@ -11,11 +11,7 @@ def install_display_gain_shortcuts(
     presentation_scope: QWidget,
     control: QComboBox,
 ) -> tuple[QShortcut, QShortcut]:
-    """Bind +/- commands to a discrete gain control inside the viewer surface.
-
-    The binding is intentionally presentation-generic: P3-B supplies the RAW Gain
-    combo, while P3-C can reuse the same command layer when the viewer surface is
-    generalized to ordinary Gray/RGB/RGBA Display Gain.
+    """Bind +/- commands to the discrete Display Gain control inside viewer UI.
 
     ``WidgetWithChildrenShortcut`` is deliberate. Display Gain owns +/- only while
     focus is inside the image-presentation subtree; sibling UI such as the Files
@@ -42,7 +38,7 @@ def install_display_gain_shortcuts(
 
     def control_destroyed(*_args: Any) -> None:
         nonlocal control_alive
-        # Do not touch the shortcut wrappers here: during parent teardown Qt may
+        # Do not touch shortcut wrappers here: during parent teardown Qt may
         # already have deleted them before the sibling toolbar control emits
         # destroyed. The Python guard is sufficient to prevent later control use.
         control_alive = False
@@ -50,7 +46,6 @@ def install_display_gain_shortcuts(
     control.destroyed.connect(control_destroyed)  # type: ignore[attr-defined]
 
     # Retain Python wrappers explicitly on the presentation owner in addition to
-    # Qt parentage. P3-C can reuse this same command slot when the toolbar surface
-    # is generalized from RAW Gain to Display Gain.
-    presentation_scope._display_gain_shortcuts = increase, decrease
+    # Qt parentage so the command lifetime follows the viewer presentation scope.
+    setattr(presentation_scope, "_display_gain_shortcuts", (increase, decrease))
     return increase, decrease

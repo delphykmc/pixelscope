@@ -13,8 +13,8 @@ from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.raw_display import render_raw_preview
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.ui.display_gain import display_gain_state, install_display_gain_control
 from pixelscope.ui.multi_compare_view import MultiCompareView
-from pixelscope.ui.raw_display import install_raw_gain_control, raw_display_state
 
 
 def _repository(path: Path) -> tuple[SettingsRepository, QSettings]:
@@ -55,7 +55,7 @@ def _raw_document(name: str, offset: int = 0) -> ImageDocument:
     )
 
 
-def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
+def test_display_gain_control_preserves_raw_semantics_and_is_session_only(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -70,9 +70,9 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
     repository, app_store = _repository(tmp_path / "app.ini")
     window = MainWindow(settings_repository=repository)
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    combo = install_raw_gain_control(window)
+    combo = install_display_gain_control(window)
     assert isinstance(combo, QComboBox)
-    assert combo.objectName() == "RawGainCombo"
+    assert combo.objectName() == "DisplayGainCombo"
     assert combo.currentData() == 1.0
 
     first = _raw_document("first")
@@ -89,8 +89,8 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
 
     combo.setCurrentIndex(combo.findData(4.0))
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.viewer._displayed_raw_gain == 4.0
-        and window.viewer._raw_preview_worker is None
+        lambda: window.viewer._displayed_gain == 4.0
+        and window.viewer._display_preview_worker is None
     )
     assert first.source is not None
     assert first_source is not None
@@ -104,11 +104,11 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
     combo.setCurrentIndex(combo.findData(8.0))
     combo.setCurrentIndex(combo.findData(2.0))
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.viewer._displayed_raw_gain == 2.0
-        and window.viewer._raw_preview_worker is None
+        lambda: window.viewer._displayed_gain == 2.0
+        and window.viewer._display_preview_worker is None
     )
     qtbot.wait(25)  # type: ignore[attr-defined]
-    assert window.viewer._displayed_raw_gain == 2.0
+    assert window.viewer._displayed_gain == 2.0
     assert first.generation == first_generation
 
     window.add_document(second, select=False)
@@ -121,27 +121,37 @@ def test_raw_gain_control_is_session_only_and_updates_single_and_multi_view(
     combo.setCurrentIndex(combo.findData(4.0))
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(
-            viewer._displayed_raw_gain == 4.0
+            viewer._displayed_gain == 4.0
             for viewer in window.multi_compare_view.occupied_viewers
         )
     )
 
-    non_raw = ImageDocument.from_array(
+    ordinary_gray = ImageDocument.from_array(
         np.arange(16, dtype=np.uint8).reshape(4, 4),
         "gray",
     )
-    window.add_document(non_raw, select=False)
-    window._select_document_ids([non_raw.document_id])
+    window.add_document(ordinary_gray, select=False)
+    window._select_document_ids([ordinary_gray.document_id])
     window.set_layout_mode("Single View")
-    qtbot.waitUntil(lambda: window.viewer.document is non_raw)  # type: ignore[attr-defined]
-    assert not combo.isEnabled()
+    qtbot.waitUntil(lambda: window.viewer.document is ordinary_gray)  # type: ignore[attr-defined]
+    assert combo.isEnabled()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.viewer._displayed_gain == 4.0
+        and window.viewer._display_preview_worker is None
+    )
+    combo.setCurrentIndex(combo.findData(1.0))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.viewer._displayed_preview is ordinary_gray.preview
+        and window.viewer._display_preview_worker is None
+    )
     assert not any("raw_gain" in key.casefold() for key in app_store.allKeys())
     assert not any("raw_display" in key.casefold() for key in app_store.allKeys())
+    assert not any("display_gain" in key.casefold() for key in app_store.allKeys())
     window.close()
-    raw_display_state().reset()
+    display_gain_state().reset()
 
 
-def test_raw_gain_state_disconnects_when_control_is_destroyed(
+def test_display_gain_state_disconnects_when_control_is_destroyed(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -156,8 +166,8 @@ def test_raw_gain_state_disconnects_when_control_is_destroyed(
     repository, _app_store = _repository(tmp_path / "app-teardown.ini")
     window = MainWindow(settings_repository=repository)
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    combo = install_raw_gain_control(window)
-    state = raw_display_state()
+    combo = install_display_gain_control(window)
+    state = display_gain_state()
 
     state.set_gain(2.0)
     assert combo.currentData() == 2.0
@@ -167,8 +177,8 @@ def test_raw_gain_state_disconnects_when_control_is_destroyed(
     combo.deleteLater()
     qtbot.waitUntil(lambda: bool(destroyed))  # type: ignore[attr-defined]
 
-    # The QApplication-owned state outlives toolbar controls. Emitting after the
-    # combo is destroyed must not call a Python closure holding its dead C++ object.
+    # QApplication-owned state outlives toolbar controls. Emitting after the combo
+    # is destroyed must not call a Python closure holding its dead C++ object.
     state.set_gain(4.0)
     assert state.gain == 4.0
     state.reset()
@@ -178,7 +188,7 @@ def test_raw_gain_state_disconnects_when_control_is_destroyed(
 def test_hidden_multi_viewers_release_gained_preview_and_regenerate_when_shown(
     qtbot: object,
 ) -> None:
-    state = raw_display_state()
+    state = display_gain_state()
     state.reset()
     view = MultiCompareView()
     qtbot.addWidget(view)  # type: ignore[attr-defined]
@@ -190,12 +200,13 @@ def test_hidden_multi_viewers_release_gained_preview_and_regenerate_when_shown(
     state.set_gain(4.0)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(
-            viewer._displayed_raw_gain == 4.0 and viewer._raw_preview_worker is None
+            viewer._displayed_gain == 4.0 and viewer._display_preview_worker is None
             for viewer in view.viewers
         )
     )
     assert all(
-        viewer.document is not None and viewer._displayed_preview is not viewer.document.preview
+        viewer.document is not None
+        and viewer._displayed_preview is not viewer.document.preview
         for viewer in view.viewers
     )
 
@@ -206,21 +217,22 @@ def test_hidden_multi_viewers_release_gained_preview_and_regenerate_when_shown(
     for viewer in view.viewers[2:]:
         assert viewer.document is not None
         assert viewer._displayed_preview is viewer.document.preview
-        assert viewer._displayed_raw_gain == 1.0
-        assert viewer._raw_preview_worker is None
+        assert viewer._displayed_gain == 1.0
+        assert viewer._display_preview_worker is None
 
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: all(viewer._displayed_raw_gain == 4.0 for viewer in view.viewers[:2])
+        lambda: all(viewer._displayed_gain == 4.0 for viewer in view.viewers[:2])
     )
     view.set_capacity(6)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(
-            viewer._displayed_raw_gain == 4.0 and viewer._raw_preview_worker is None
+            viewer._displayed_gain == 4.0 and viewer._display_preview_worker is None
             for viewer in view.viewers
         )
     )
     assert all(
-        viewer.document is not None and viewer._displayed_preview is not viewer.document.preview
+        viewer.document is not None
+        and viewer._displayed_preview is not viewer.document.preview
         for viewer in view.viewers
     )
 

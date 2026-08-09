@@ -94,18 +94,23 @@ Equal effective bit depths use the native code domain and preserve compact
 uint8/uint16 absolute maps where applicable. Mixed effective bit depths
 independently normalize each source by `(1 << bit_depth) - 1` and store the
 absolute Difference as float32 in `[0,1]`. This normalization deliberately
-ignores RAW Black/White levels, Display Gain/RAW Gain, display transforms,
-preview values, and demosaic. Cache metadata records domain/data range so
-reversed-pair reuse cannot change threshold or metric semantics.
+ignores RAW Black/White levels, Display Gain, display transforms, preview values,
+and demosaic. Cache metadata records domain/data range so reversed-pair reuse
+cannot change threshold or metric semantics.
 
 Threshold uses `code` in the native domain and `%FS` in the normalized domain;
 `1.00 %FS` means an internal threshold of `0.01`, and mask comparison remains
 strict `>`. Persisted Settings Threshold remains the native-domain code default
 under schema v5. Normalized threshold starts at `1.00 %FS` and is session-local.
 
-## Display-gain contract
+Difference owns its own independent presentation Gain. General Display Gain is
+not applied to `channel_layout="DIFFERENCE"`, Difference numerical sources,
+Difference preview generation, or Difference-cache identity.
 
-P3-B introduces one generic presentation primitive:
+## Display Gain contract
+
+P3-B introduces the generic presentation primitive and P3-C generalizes its viewer
+activation:
 
 ```text
 display = anchor + gain * (source - anchor)
@@ -115,22 +120,44 @@ The numerical core is not RAW-specific. It accepts a caller-supplied scalar
 anchor, naturally supports `anchor=0`, uses float32 affine processing, and may be
 applied to selected channel views. It never modifies native source data.
 
-P3-B product activation is intentionally narrower than the core capability:
+PixelScope exposes one application-session **Display Gain** control with:
 
-- only RAW viewer presentation exposes gain in P3-B;
-- the current control is named **RAW Gain**;
-- ordinary PNG/BMP/JPEG Gray/RGB/RGBA presentation remains unchanged;
-- the generic core is prepared for P3-C reuse rather than exposing an unfinished
-  ordinary-image feature in P3-B.
+```text
+1× / 2× / 4× / 8× / 16×
+```
 
-Display gain is always presentation-only. Pixel inspection, Statistics,
-Histogram, Line Profile, Difference, generation, source residency, and cache
-identity remain independent of it.
+The value is shared across supported Single/Multi View tiles and is not persisted
+to application Settings, workspace state, or RAW profiles. Settings schema remains
+v5. The control is not called Exposure because it is a viewer-only digital gain.
+
+Document policy is:
+
+- ordinary Gray uses `anchor=0`;
+- ordinary RGB uses `anchor=0` and the same gain on R/G/B;
+- ordinary RGB split-channel views use `anchor=0` on their native 2-D source plane
+  while retaining colored channel presentation;
+- RGBA applies gain to RGB only, and gain>1 alpha exactly equals the document's
+  canonical 1× preview alpha;
+- RAW keeps the P3-B Black-derived anchor rules;
+- Difference is excluded because it owns its own presentation Gain.
+
+Gain 1× is a strict fast path for every supported presentation: PixelScope reuses
+canonical `ImageDocument.preview`, schedules no full-frame gain worker, and
+retains no additional gained preview. Gain >1 derives only viewer-local preview
+from already resident source on the existing shared numerical pool.
+
+Stale results are rejected using request/document/source/canonical-preview/
+generation/gain/visibility identity. Hidden/replaced viewers release unnecessary
+gain>1 derived previews and regenerate the current session gain when shown again.
+
+Display Gain is always presentation-only. Pixel inspection, Statistics,
+Histogram, Line Profile, Split Channel source arrays, Difference, generation,
+source residency, and cache identity remain independent of it.
 
 Display Gain keyboard control is also presentation-scoped. `+` / `-` steps the
 current discrete gain only while focus is in the image-presentation subtree.
 Files and other sibling UI retain native key ownership; specifically, Files
-`+` / `-` continues to expand/collapse folders even when RAW Gain is available.
+`+` / `-` continues to expand/collapse folders.
 
 ## RAW contract
 
@@ -158,26 +185,28 @@ The profile separates:
 Decoded samples in `ImageDocument.source` are the native RAW authority. Pixel
 inspection, Statistics, Histogram, Line Profile numerical data, Split Channels,
 P3-A Difference, and source residency operate on those native samples regardless
-of viewer gain.
+of Display Gain.
 
 RAW display is explicitly separate from analysis:
 
-- at `RAW Gain = 1×`, display range is native code
+- at `Display Gain = 1×`, display range is native code
   `0..((1 << bit_depth) - 1)`;
 - `black_level` is not subtracted from 1× display and `white_level` is not used as
   display maximum;
-- gained RAW uses the generic display-gain formula with a Black-derived anchor;
+- gained RAW uses the generic display-gain formula with a Black-derived anchor,
+  equivalently `B + G * (X - B)`;
 - RAW Gray scalar Black is the scalar anchor;
 - schema-valid GRAY four-value Black remains compatible and uses legacy
   `min(black_level)` as the global display anchor;
 - Bayer tuple Black uses CFA-specific R/Gr/Gb/B anchors; scalar Bayer Black applies
   one anchor to all channels;
+- split Bayer planes use the corresponding named-channel Black anchor;
 - Bayer anchor processing does not create a full-size Black map;
 - gain/range mapping uses float32 fused affine processing where possible and
   clipping occurs at final display conversion;
-- `white_level` remains metadata only in the P3-B display contract;
-- RAW Gain is session-local, shared across visible RAW Single/Multi View tiles,
-  and is not a Settings/profile persistence field.
+- `white_level` remains metadata only;
+- Display Gain is session-local, shared across supported visible Single/Multi View
+  tiles, and is not a Settings/profile persistence field.
 
 Gain 1× reuses the canonical document preview. Gain >1 regenerates only derived
 viewer presentation from resident source on the shared numerical worker pool.
@@ -192,26 +221,15 @@ analysis are outside the current product contract.
 
 ## Future product scope
 
-P3-C will extend the P3-B generic gain core to ordinary Gray/RGB/RGBA viewer
-presentation:
+P3-D follows P3-C with reusable RAW profile management and deterministic profile
+suggestion. P3-E integrates and hardens the completed Difference/Display Gain/RAW
+semantics.
 
-- ordinary Gray/RGB use `anchor=0`;
-- RGBA applies gain to RGB and preserves alpha;
-- user-facing naming is **Display Gain** or **Gain**, not Exposure;
-- 1× remains identity/no-work where possible;
-- clipping is deterministic and presentation-only;
-- source and Statistics/Histogram/Line Profile/Difference semantics remain
-  unchanged;
-- reuse the P3-B presentation-scoped `+` / `-` command policy without overriding
-  Files-tree expand/collapse;
-- regression scope includes 1× identity, clipping, Gray/RGB/RGBA behavior, alpha
-  preservation, analysis independence, command/control synchronization, and
-  Files-tree key-routing preservation.
-
-P3-C may also improve RAW clipping/Bayer observability. Later planned work includes
-reusable RAW profile management and deterministic profile suggestion, alpha
-overlay, persistent sessions and ROI management, live GPU IQA/image evaluation,
-heatmaps, and a validated standalone Windows distribution.
+Additional RAW clipping/highlight/shadow or Bayer observability remains an
+optional P3-C/P3-E candidate only when it has a clear engineering-inspection
+benefit. Later planned work includes alpha overlay, persistent sessions and ROI
+management, live GPU IQA/image evaluation, heatmaps, and a validated standalone
+Windows distribution.
 
 Demosaic remains deferred unless a future owner-approved processed-preview scope
 defines the associated white balance, color, tone, metadata, and analysis

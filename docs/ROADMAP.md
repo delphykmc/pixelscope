@@ -88,16 +88,10 @@ P3-A also delivers explicit Gray channel support, bounded float32 mixed-bit
 Difference/metrics, cache domain metadata, compact Scope/Domain UI, and short
 validation reasons with detailed tooltips.
 
-### P3-B — RAW Native & Display Semantics — Implementation Complete
+### P3-B — RAW Native & Display Semantics — Complete
 
-P3-B is implemented on `feature/p3-b-raw-native-display-semantics`. Owner/local
-Windows quality validation passed on
-`424144215b1df97c71a84ddca79a17bfccb1feef`, including the generic Display Gain
-core, RAW Gain runtime behavior, and `+` / `-` stepping. Final independent
-re-review found one merge blocker on that validated head: window-wide gain
-shortcuts intercepted the Files tree's native `+` / `-` expand/collapse keys. The
-review follow-up scopes gain shortcuts to the image-presentation subtree and adds
-real key-routing coverage; latest-head revalidation and merge remain pending.
+P3-B merged as PR #24 at
+`1817490a08c61da9087efe9c3c6afd8bd85838f0`.
 
 Delivered contract:
 
@@ -113,60 +107,71 @@ Delivered contract:
   supply the anchor policy: scalar Black for RAW Gray, channel-specific R/Gr/Gb/B
   Black for Bayer where available, and the legacy `min(tuple)` anchor for
   schema-compatible GRAY tuple profiles.
-- The core naturally supports `anchor=0` and operation on channel views so later
+- The core naturally supports `anchor=0` and operation on channel views so
   ordinary Gray/RGB/RGBA presentation can reuse it without a second gain engine.
-- P3-B **activates the gain UI/runtime only for RAW**. Ordinary Gray/RGB/RGBA
-  images remain unchanged in this slice.
 - Gain/range mapping uses float32 fused affine processing where possible. It does
   not create a full-size Bayer Black map or promote full-frame gain math to
   float64.
-- `white_level` remains metadata only for P3-B display; effective full scale is
-  the RAW display-range authority.
+- `white_level` remains metadata only for RAW display; effective full scale is the
+  RAW display-range authority.
 - Pixel inspection, Statistics, Histogram, Line Profile source data, Split
   Channels, source residency, and P3-A Difference remain native-domain operations.
-- The compact session-local `RAW Gain` control provides 1×/2×/4×/8×/16×. The same
-  gain is shared across visible RAW tiles in Single/Multi View; ordinary images
-  are unaffected.
+- P3-B established session-local 1×/2×/4×/8×/16× gain, a canonical 1× fast path,
+  gain>1 viewer-local async presentation, stale-result rejection, and hidden-view
+  derived-preview release.
 - The `+` / `-` gain commands are scoped to the image-presentation subtree with
   `WidgetWithChildrenShortcut`. Files keeps Qt-native `+` / `-` folder
-  expand/collapse whether RAW Gain is enabled or disabled.
-- The viewer keeps a 1× fast path using the canonical document preview. Gain >1
-  uses resident native source and the shared numerical worker pool; stale async
-  results are rejected without source reload/decode, generation changes,
-  residency-policy changes, or Difference-cache invalidation.
-- Hidden viewers release gain>1 derived presentation buffers and regenerate the
-  current gain when shown again.
+  expand/collapse.
 
-P3-B intentionally adds no ordinary-image gain UI, demosaic, white balance, CCM,
-tone mapping, processed RAW document, processed analysis mode, persistence,
-Settings migration, or resource-policy redesign.
+P3-B intentionally adds no demosaic, white balance, CCM, tone mapping, processed
+RAW document/analysis, persistence, Settings migration, or resource-policy
+redesign.
 
-### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension
+### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension — Implemented; owner validation pending
 
-P3-C reuses the P3-B generic display-gain core rather than creating a second
-ordinary-image gain implementation. It also reuses the P3-B presentation-scoped
-keyboard-command policy rather than adding a window-global shortcut owner.
+P3-C implementation is on `feature/p3-c-display-gain`. It reuses the P3-B generic
+display-gain core and presentation-scoped command policy rather than creating a
+second ordinary-image gain engine or a window-global shortcut owner.
 
-Committed Display Gain scope:
+Implemented Display Gain scope:
 
-- extend viewer-only gain to ordinary Gray and RGB using `anchor=0`;
-- support RGBA presentation with the same RGB gain while preserving alpha;
-- use the user-facing term **Display Gain** or **Gain**; do not label this feature
-  **Exposure**;
-- preserve native Gray/RGB/RGBA source arrays and keep Statistics, Histogram,
-  Line Profile, Difference, residency, and cache semantics independent of gain;
-- retain a 1× identity/fast path and deterministic final clipping;
-- retain viewer-scoped `+` / `-` stepping and preserve Files-tree native
-  expand/collapse behavior;
-- test 1× identity, clipping, Gray, RGB, RGBA alpha preservation, analysis
-  independence, command/control synchronization, and Files-tree key routing.
+- one application-session **Display Gain** state/control provides
+  `1× / 2× / 4× / 8× / 16×` across supported viewer presentations;
+- ordinary Gray and RGB use `anchor=0`;
+- ordinary RGB split-channel views gain their native source plane with `anchor=0`
+  while retaining colored presentation;
+- RGBA applies gain to RGB only and preserves canonical 1× alpha exactly, without
+  running gain arithmetic over a four-channel float32 working buffer;
+- RAW keeps the P3-B 1× effective-full-scale and gain>1
+  `B + G * (X - B)` semantics, including existing Gray/Bayer Black-anchor policy;
+- Difference is excluded from general Display Gain and retains independent
+  Difference-panel Gain/cache semantics;
+- the user-facing term is **Display Gain** or **Gain**, not **Exposure**;
+- 1× reuses canonical `ImageDocument.preview`, schedules no gain worker, and
+  retains no extra derived preview;
+- gain>1 uses resident source and the shared numerical worker pool with explicit
+  stale-result acceptance checks;
+- hidden/replaced viewers release unnecessary gain>1 derived buffers and
+  regenerate current session gain when shown again;
+- native Gray/RGB/RGBA/RAW source arrays, Statistics, Histogram, Line Profile,
+  Difference, residency, and cache semantics remain independent of Display Gain;
+- `+` / `-` stepping remains viewer-scoped and Files-tree native expand/collapse
+  remains intact;
+- Settings schema remains v5 and Display Gain is not persisted.
+
+Automated test code covers the ordinary core, RGBA alpha/RGB-only working path,
+RAW regression, mixed RAW+RGB Multi View, Difference exclusion, 1× identity,
+stale/hidden-view lifecycle, analysis/residency independence, shortcut sync/clamp,
+and Files-tree routing. Owner/local Windows validation is pending.
 
 Additional RAW visualization/inspection candidates remain:
 
-- make RAW Gain and clipping state clearer for engineering inspection;
 - optional highlight/shadow clipping visualization where materially useful;
-- improve Bayer-channel/native-mosaic visualization and inspection affordances;
+- improved Bayer-channel/native-mosaic visualization and inspection affordances;
 - keep viewer affordances explicitly display-only.
+
+These candidates are not merge-critical for P3-C and were not added merely to
+expand scope.
 
 Demosaic remains deferred. A future demosaic feature must first define the
 processed-preview boundary and whether white balance, color correction,
@@ -238,8 +243,8 @@ that do not currently justify reopening the runtime foundation:
 - CPU/I/O aggressiveness controls;
 - broader resource-policy Settings exposure;
 - process-level memory/profiler telemetry;
-- coalescing/debounce/cancellable chunking for rapid large-RAW gain stepping if
-  profiling demonstrates material latency or transient memory pressure;
+- coalescing/debounce/cancellable chunking for rapid large-image Display Gain
+  stepping if profiling demonstrates material latency or transient memory pressure;
 - native/SIMD gain optimization beyond the current float32 fused affine path.
 
 These should be scheduled only when later profiling or user-visible latency gives

@@ -16,9 +16,11 @@ derived representation and may not redefine source or analysis domains. RGBA
 analysis ignores alpha. Difference and squared-error paths promote operands before
 subtraction/multiplication.
 
-## Display-gain architecture
+## Display Gain architecture
 
-P3-B separates **generic display gain** from **RAW metadata policy**.
+P3-B separates **generic display gain** from **RAW metadata policy**. P3-C reuses
+that same numerical core and generalizes the session/UI/worker presentation
+lifecycle to ordinary Gray/RGB/RGBA and supported split-channel views.
 
 The generic numerical model lives in `core.display_transform`:
 
@@ -38,8 +40,8 @@ The generic gain implementation has these ownership rules:
 - one float32 working buffer is used for full-frame conversion rather than
   serial full-frame subtract/multiply/add/normalize temporaries;
 - full-frame gain math does not promote to float64;
-- affine application accepts array views, so a later RGBA caller can target
-  `[..., :3]` and leave alpha untouched;
+- affine application accepts array views, so RGBA can target `[..., :3]` and
+  leave alpha untouched;
 - clipping occurs only at the final display-conversion boundary;
 - source arrays are never modified.
 
@@ -48,15 +50,23 @@ full scale and Black-derived anchor semantics, then delegates numerical gain/ran
 conversion to `core.display_transform`. `core.bayer` uses the same affine helpers
 on CFA parity-plane views. It does not construct a full-size Black Level map.
 
-P3-B activates display gain only for RAW. Its user-visible control remains
-**RAW Gain** and ordinary Gray/RGB/RGBA documents are unchanged. P3-C is planned
-to reuse the same generic core for ordinary viewer presentation with `anchor=0`;
-RGBA applies gain to RGB while preserving alpha. The product term for that future
-surface is **Display Gain** or **Gain**, not Exposure.
+P3-C adds `render_ordinary_display_preview()` as the ordinary-image presentation
+adapter over the same generic core:
 
-Display gain is presentation-only in every phase. `ImageDocument.source`, pixel
-inspection, Statistics, Histogram, Line Profile, Difference, source residency,
-and Difference-cache identity do not depend on it.
+- ordinary Gray/RGB use `anchor=0` and their canonical display range;
+- ordinary RGB split-channel documents apply `anchor=0` to the native 2-D source
+  plane while retaining the existing colored channel presentation;
+- RGBA applies gain only to `source[..., :3]`, then copies alpha exactly from the
+  canonical 1× preview into the final uint8 RGBA result;
+- Difference is explicitly excluded because it owns independent Difference-panel
+  Gain semantics.
+
+The RGBA path therefore avoids a four-channel float32 gain working buffer. The
+product term is **Display Gain** or **Gain**, not Exposure.
+
+Display Gain is presentation-only. `ImageDocument.source`, pixel inspection,
+Statistics, Histogram, Line Profile, Split Channel source data, Difference,
+source residency, and Difference-cache identity do not depend on it.
 
 ## Current application identity and resource boundary
 
@@ -107,11 +117,10 @@ Schema version 5 owns:
 - `settings/performance/source_residency_mib`
 - `settings/performance/preload_enabled`
 
-P3-B adds no key or schema migration. `RawDisplayState` is QApplication-session
-state and resets to 1× on a new application session. The generic display-gain core
-owns no persistence. P3-C must not imply a Settings schema change merely because
-ordinary-image presentation starts reusing that core; persistence would require a
-separate explicit decision.
+P3-B/P3-C add no key or schema migration. `DisplayGainState` is QApplication-
+session state and resets to 1× on a new application session. The generic display-
+gain core owns no persistence. Display Gain is not stored in application Settings,
+workspace persistence, or RAW profiles.
 
 Schema v4 migrates directly to v5 and adds enabled preload without changing v4
 values. Schema v3 adds source-residency preference; valid legacy Difference-cache
@@ -152,24 +161,27 @@ parameters. `ComparisonAnalysisPanel` also tracks current numerical-request
 identity so rebinding an identical analysis request does not cancel/restart it.
 Line Profile caches by generation/line coordinates.
 
-### Display-gain runtime
+### Display Gain runtime
 
 The canonical `ImageDocument.preview` remains the 1× preview produced by load/read
-paths. In P3-B, `ImageViewer` consumes shared session RAW gain state:
+paths. P3-C generalizes the P3-B viewer-local RAW lifecycle into one generic
+`ImageViewer` Display Gain lifecycle:
 
 - gain 1× directly reuses `ImageDocument.preview`; no full-frame gain worker is
-  scheduled;
+  scheduled and no additional gained preview is retained;
 - gain >1 derives a viewer-local preview from resident native source in the shared
   numerical pool;
-- task/document/source/generation/gain identity is captured and checked before a
-  result can replace presentation;
+- RAW dispatches to `render_raw_preview`; ordinary supported documents dispatch to
+  `render_ordinary_display_preview`;
+- task/request, document/source/canonical-preview identity, generation, requested
+  gain, and visibility are checked before a result can replace presentation;
 - gain changes never request source reload/decode or advance source generation;
 - hidden viewers cancel obsolete logical work and restore the canonical 1×
   preview, releasing their gain>1 derived buffer;
-- when shown again they regenerate the current gain if needed;
+- when shown again they regenerate the current session gain if needed;
 - toolbar gain-control subscriptions use QObject receiver lifetime, so a deleted
   control cannot remain reachable as a Python closure from QApplication-global
-  `RawDisplayState`.
+  `DisplayGainState`.
 
 The generic `ui.display_gain_shortcuts` command layer is scoped to
 `MainWindow.central_stack` with `WidgetWithChildrenShortcut`. Therefore `+` / `-`
@@ -177,11 +189,10 @@ steps Display Gain only while focus is inside the image-presentation subtree;
 sibling widgets such as the Files tree keep native Qt key routing. Shortcut
 callbacks treat a destroyed toolbar control as inactive and do not touch shortcut
 wrappers during parent teardown, avoiding Qt sibling-destruction-order hazards.
-P3-C must reuse this command owner/focus/lifetime policy rather than creating a
-window-global duplicate.
 
-P3-C ordinary Display Gain must reuse this ownership model rather than introducing
-an analysis-owned or document-mutating gain path.
+Generic session/control ownership lives in `ui.display_gain`; RAW metadata policy
+remains in the RAW/Bayer layers. No permanent RAW-only UI compatibility wrapper is
+retained.
 
 ## Current decoded-source residency boundary
 
@@ -198,7 +209,7 @@ Source eviction clears reloadable source/canonical preview/source-local analysis
 state and returns the document to pending; reload uses the existing tokenized
 worker path. Successful reload refreshes accounting from the new `source.nbytes`.
 
-Preview arrays, Qt textures, display-gain derived buffers, Difference maps,
+Preview arrays, Qt textures, Display Gain derived buffers, Difference maps,
 channel-split documents, transient worker arrays, Python/Qt overhead, and process
 RSS are outside decoded-source accounting. Difference maps remain under their own
 independent byte budget.
@@ -267,8 +278,9 @@ compatibility and native-versus-normalized domain selection.
 - Source residency and Difference-cache ownership remain independent.
 
 Difference Threshold/Gain are separate Difference-panel presentation settings.
-P3-A Difference never reads Display Gain/RAW Gain, `RawProfile.black_level`,
-`RawProfile.white_level`, `DisplayTransform`, or preview pixels.
+P3-A Difference never reads Display Gain, `RawProfile.black_level`,
+`RawProfile.white_level`, `DisplayTransform`, or preview pixels. Difference
+derived documents are excluded from generic Display Gain, preventing double gain.
 
 ## Current RAW boundary
 
@@ -282,6 +294,7 @@ RAW presentation policy is layered on the generic gain core:
 
 - `raw_full_scale(bit_depth)` defines `0..((1 << bit_depth) - 1)` display range;
 - 1× never subtracts Black or uses White as display high;
+- gain >1 remains `B + G * (X - B)`;
 - RAW Gray scalar Black is the gain anchor;
 - schema-compatible GRAY tuple Black uses the legacy deterministic `min(tuple)`
   global anchor;
@@ -290,12 +303,12 @@ RAW presentation policy is layered on the generic gain core:
 - Bayer parity-plane processing creates no full-size Black map;
 - gain/range mapping uses float32 fused affine processing where possible;
 - clipping occurs only during final uint8 conversion;
-- `white_level` remains metadata only under P3-B.
+- `white_level` remains metadata only.
 
 The base document preview is 1× effective-full-scale presentation. Higher RAW gain
 is viewer-local and on-demand. Demosaic, white balance, CCM, tone mapping,
 processed-RAW analysis, optical-Black estimation, and profile suggestion remain
-outside P3-B.
+outside P3-C.
 
 The persistent RAW JSON confirmation and exact-size preferences remain General
 Settings concerns. The same exact-size policy governs foreground loading,
@@ -303,34 +316,43 @@ JSON-sidecar auto-approval, preload, and promotion identity.
 
 ## P3-C extension boundary
 
-P3-C may extend the P3-B generic gain core to ordinary images with these fixed
-architecture constraints:
+P3-C implements the P3-B generic gain-core extension with these fixed architecture
+constraints:
 
+- one QApplication-session `DisplayGainState` serves supported ordinary and RAW
+  presentations using `1× / 2× / 4× / 8× / 16×`;
 - Gray/RGB use `anchor=0`;
-- RGBA applies gain to RGB while preserving alpha;
+- RGBA applies gain to RGB only and copies canonical 1× alpha exactly;
+- ordinary RGB split-channel views use `anchor=0`; RAW Bayer split channels retain
+  their existing named-channel Black anchor;
+- RAW semantics from P3-B are unchanged;
+- Difference is not a generic Display Gain target;
 - user-facing terminology is **Display Gain** or **Gain**, never Exposure;
-- 1× is identity and should use a no-work/reuse fast path;
+- 1× is a no-work canonical-preview reuse fast path;
 - clipping is deterministic and presentation-only;
 - source/generation/residency and Statistics/Histogram/Line Profile/Difference
   inputs remain unchanged;
-- asynchronous work, if required for large ordinary images, uses explicit request
-  identity and stale-result rejection;
+- asynchronous gain>1 work uses explicit request identity and stale-result
+  rejection, and hidden viewer-local gained previews are released;
 - `+` / `-` command ownership remains `central_stack` /
-  `WidgetWithChildrenShortcut`; Files-tree native expand/collapse must stay intact;
-- tests cover Gray/RGB/RGBA, alpha preservation, clipping, 1× identity, analysis
-  independence, command/control synchronization, and Files-tree key routing.
+  `WidgetWithChildrenShortcut`; Files-tree native expand/collapse stays intact;
+- tests cover Gray/RGB/RGBA, alpha preservation, clipping, 1× identity, RAW
+  regression, mixed RAW+RGB behavior, analysis/Difference independence,
+  lifecycle, command/control synchronization, and Files-tree key routing.
 
 P3-C does not gain authority to create a processed-image analysis domain merely
-because viewer display is transformed.
+because viewer display is transformed. Additional RAW clipping/highlight/shadow or
+Bayer observability remains optional/deferred; demosaic is not part of P3-C.
 
 ## P2/P3 boundary status
 
 P2 runtime boundaries for settings, source residency, bounded preload,
 deterministic diagnostics, and running-preload foreground reuse were completed by
-PR #20. P3-A preserves them for Difference. P3-B preserves them while adding a
-generic display-transform primitive and RAW-only activation: neither the generic
-core nor `RawDisplayState` becomes a Settings, source-residency, preload,
-Difference-cache, or processed-source owner.
+PR #20. P3-A preserves them for Difference. P3-B is complete as PR #24 at
+`1817490a08c61da9087efe9c3c6afd8bd85838f0`. P3-C preserves the same boundaries
+while generalizing viewer Display Gain: neither the generic core nor
+`DisplayGainState` becomes a Settings, source-residency, preload, Difference-cache,
+or processed-source owner.
 
 ## Extension and packaging boundaries
 
