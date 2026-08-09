@@ -270,8 +270,8 @@ class RawOpenDialog(QDialog):
         signal_levels_layout.addWidget(self.black_level_stack)
         signal_levels_layout.addLayout(white_level_form)
 
-        self.load_button = QPushButton("Load JSON…")
-        self.save_button = QPushButton("Save JSON…")
+        self.load_button = QPushButton("Load Profile…")
+        self.save_button = QPushButton("Save Profile…")
         self.ok_button = QPushButton("OK")
         self.cancel_button = QPushButton("Cancel")
         self.ok_button.setDefault(True)
