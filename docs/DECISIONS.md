@@ -17,8 +17,14 @@
 
 ## Current product decisions
 
+- **Registered**, **Selected**, **Presented**, and **Resident** are distinct states.
+  Registration means Files-catalog membership; selection means the current user
+  comparison set; presentation means current viewer occupancy; resident is the P2
+  decoded-native-source memory state.
+- Viewer capacity does not limit workspace registration. Multi View remains bounded
+  by its existing one-to-six-tile presentation contract.
 - Ordered selection is the comparison model; Difference may select any two current
-  images.
+  applicable images.
 - Multi View has one fixed layout policy. `_fixed_geometry()` is the sole geometry
   authority; P1-F removed arrangement compatibility state.
 - Primary-image analysis reference priority is primary, active, then first
@@ -28,8 +34,11 @@
   normalized domain metadata.
 - RAW storage format, sample container, effective bit depth, endian, alignment,
   Black Level, and White Level remain separate concepts.
-- **Open Images...** is the one top-level file-open command for PNG/BMP/JPEG/RAW;
-  RAW-specific profile resolution is conditional logic inside the common input
+- **Open Images...** is selection-oriented and is the one top-level file-open
+  command for PNG/BMP/JPEG/RAW.
+- **Open Folders...** is registration-oriented and may register arbitrary practical
+  folder counts without changing the active selection/presentation.
+- RAW-specific profile resolution is conditional logic inside the common input
   pipeline rather than a second user-facing open mode.
 - Remote evaluation uses a versioned REST job API boundary.
 
@@ -78,11 +87,14 @@ P2-F as PR #13–#20. The merged P2 baseline establishes these durable boundarie
   residency.
 - Source eviction and Difference-cache ownership are independent. Evicting source
   does not invalidate a valid generation-keyed Difference map.
+- Registration alone does not imply decoded-source residency.
 
 ### Navigation, preload, and promotion
 
 - PageUp/PageDown owns previous/next Folder Position; Up/Down remains Files-tree
   navigation and Left/Right remains previous/next selected image.
+- Folder Position is derived only from the currently selected one-to-six documents
+  from distinct folders. Other registered folders do not participate.
 - One pure folder-navigation planner is authoritative for actual movement and
   preload prediction.
 - Preload policy is `+1` only, exactly one Folder Position deep, enabled by
@@ -230,67 +242,92 @@ P3-C merged as PR #25 at
 - No new worker pool, resource setting, persistence, or schema migration was
   introduced.
 
-## Accepted P3-D unified opening decisions
+## Accepted P3-D unified input decisions
 
 P3-D's authoritative product goal is **Unified Image Opening & RAW Profile
-Resolution**. The earlier reusable Profile Library/suggestion concept is deferred.
+Resolution** with explicit separation of registration, selection, presentation,
+and residency. The earlier reusable Profile Library/suggestion concept is deferred.
 
-### One image-opening surface
+### Input intent
 
-- The File menu exposes **Open Images...** and **Open Folder...** only.
-- `Ctrl+O` remains Open Images; `Ctrl+Shift+O` remains Open Folder.
-- Empty Workspace exposes the same two actions and no RAW-only signal/button.
-- Open Images accepts exactly `.png`, `.bmp`, `.jpg`, `.jpeg`, and `.raw` and uses
-  `Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)`.
-- A wildcard RAW filter is prohibited because unsupported extensions must not be
-  interpreted as RAW.
+- **Open Images...** is selection-oriented. It supports multi-file input, registers
+  every supported direct file, selects those files, and lets existing viewer
+  capacity bound simultaneous presentation.
+- **Open Folders...** is registration-oriented. It supports multiple directories,
+  deterministic resolved-path deduplication, and arbitrary practical folder count.
+  It registers supported contents without changing selection or presentation.
+- Direct image-file D&D uses Open Images intent.
+- Folder D&D uses Open Folders intent for one, two, six, fifteen, or any other
+  practical count. Exactly two folders have no special comparison behavior.
+- Mixed D&D preserves both intents: direct files become the selection; folder
+  contents remain registration-only.
+- Workspace registration has no six-item limit. The existing six-tile limit is a
+  presentation/analysis concern only.
 
-### One input-resolution contract
+### Registration ownership
 
-- `io.path_discovery` owns the supported-extension contract.
-- `ImageInput` remains the authoritative path plus optional sidecar identity.
-- Open Images, Open Folder, drag/drop, folder discovery/registration, Folder
-  Position workflows, preload, reload, and sidecar reload must converge on the
-  same registration/profile-resolution semantics rather than duplicate UI-specific
-  RAW handling.
-- `.json` is sidecar metadata only and never an image-tree entry.
-- Ordinary image inputs never instantiate `RawOpenDialog`.
+- `io.path_discovery` owns supported-extension discovery.
+- `ImageInput` remains path plus optional exact-sidecar identity.
+- `_register_inputs()` is registration-only. Selection/presentation is owned by
+  explicit callers such as Open Images/direct-file D&D or Folder Position.
+- Folder registration must not invoke the selection/render lifecycle and therefore
+  must preserve current layout, active/focus state, ROI, Line Profile, Difference,
+  Display Gain, zoom/pan preservation state, source residency, and Difference
+  cache.
+- A valid state with registered documents and zero selection is supported. The
+  central workspace prompts the user to select from Files.
+- Folder Position derives only from one-to-six currently selected documents from
+  distinct folders. Other registered folders do not participate.
+- Unsupported files and standalone `.json` sidecars are ignored; empty folders do
+  not fail other folder registrations.
 
-### RAW profile-resolution order
+### Multi-folder UI
 
-1. If an exact same-basename sidecar exists, parse and validate that profile.
-2. Preserve the current confirmation-suppression preference and exact/minimum
-   source-size policy; suppression is allowed only for a valid compatible sidecar.
-3. If no sidecar exists, open the editable RAW Profile dialog.
-4. If the sidecar is invalid, warn and open editable fallback instead of silently
-   applying it.
-5. If profile entry is cancelled, do not register the RAW document.
-6. When multiple RAW files are selected, resolve each independently.
+- `Open Folders...` uses a project-local Qt-only non-native QFileDialog with
+  extended directory selection.
+- Existing directories are resolved, case-insensitively deduplicated, and sorted
+  deterministically.
+- No Windows COM dependency and no six-folder UI limit is introduced.
 
-Existing same-path reload, RawProfile identity, preload identity, packed/unpacked
-validation, Bayer pattern, Black/White metadata, and legacy JSON storage-field
-migration remain unchanged.
+### RAW profile-resolution order and lazy folder boundary
+
+Direct RAW image input preserves this sequence:
+
+1. Exact same-basename sidecar, if present, is parsed/validated.
+2. Existing confirmation suppression and exact/minimum-size policy remain in force.
+3. No sidecar opens editable RAW Profile entry.
+4. Invalid sidecar warns and opens editable fallback.
+5. Cancel prevents erroneous direct-open RAW registration.
+6. Multiple direct RAW inputs resolve independently.
+
+Folder registration deliberately does not prompt for unresolved RAW. It registers
+the pending RAW path and any deterministic sidecar path. When that pending RAW
+actually requires foreground load, `_ensure_loaded()` invokes the same profile
+resolver before creating the RAW load worker. Unresolved RAW is excluded from
+speculative preload until a profile has been resolved. No file-size-only or fuzzy
+profile inference is introduced.
+
+Existing same-path reload, RawProfile identity, packed/unpacked validation, Bayer
+pattern, Black/White metadata, legacy JSON migration, exact-size semantics, and
+P2 worker/residency identity remain unchanged.
 
 ### Profile UI and persistence boundary
 
-- User-facing buttons are **Load Profile...** and **Save Profile...**; JSON is a
-  storage implementation detail and remains the compatible file format.
+- User-facing buttons are **Load Profile...** and **Save Profile...**; JSON remains
+  the compatible storage format.
 - Settings schema remains v5.
 - RawProfile gains no artificial version field solely for this slice.
 - No global profile database/library, Settings-owned profile collection,
   favorites, rename/duplicate/delete manager, search UI, size-only/fuzzy profile
   selection, sensor inference, Bayer-pattern inference, or Black/White estimation
   is introduced.
-- Same-basename sidecars remain because they are deterministic file-local evidence.
-  A broader profile-management/suggestion feature requires future workflow
-  evidence before it can become roadmap scope.
 
 ### Scope preservation
 
-P3-D does not redesign Difference, Display Gain, residency/preload, worker pools,
+P3-D does not redesign Difference, Display Gain, residency/preload worker limits,
 session persistence, Recent Files/Folders, demosaic, white balance, CCM, tone
 mapping, or packaging. Native source remains authoritative and all P3-A/B/C
-analysis/display boundaries are unchanged by image-opening UX.
+analysis/display boundaries are unchanged by input UX.
 
 ## Current resource policy
 
@@ -302,7 +339,7 @@ analysis/display boundaries are unchanged by image-opening UX.
   pool max remains four.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Unified input resolution introduces no cache, persistence, or resource-policy
+- Unified input registration introduces no cache, persistence, or resource-policy
   owner.
 
 ## Validation and merge state
@@ -310,12 +347,13 @@ analysis/display boundaries are unchanged by image-opening UX.
 P3-A/B/C are merged. P3-C is complete as PR #25 at
 `7f6bef73e6712f6a14a4d401820a915196e25da2`.
 
-P3-D test code is added for unified menu/filter/Empty Workspace behavior,
-ordinary-image RAW-dialog bypass, valid/no/invalid sidecars, cancel safety,
-multi-RAW identity, exact/minimum-size policy, mixed folder/drop discovery, and
-profile terminology. Existing regression suites remain authoritative for folder
-navigation/preload/reload, residency, Difference, Display Gain,
-Statistics/Histogram/Line Profile, and Split Channels.
+P3-D test code covers unified menu/filter/Empty Workspace behavior, >6 direct
+image registration, multi-folder registration/deduplication, registration-only
+folder D&D, selection-oriented image D&D, mixed D&D, registered-but-unselected
+state, lazy RAW resolution, selected-folder-only Folder Position, and preservation
+of selection/view/layout/ROI/Line Profile/Difference/Display Gain/residency/cache
+state during folder-only registration. Existing regression suites remain
+authoritative for RAW preload/reload/profile identity, residency, Difference,
+Display Gain, Statistics/Histogram/Line Profile, and Split Channels.
 
 The Chat implementation agent has not run the repository validation commands.
-Owner/local Windows validation is required before P3-D merge.
