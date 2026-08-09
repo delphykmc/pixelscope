@@ -25,7 +25,7 @@ encode compatibility or display rules that are about to change.
 |---|---|---|---|
 | 0 | P3-0 roadmap transition | Close/archive P2 and establish P3 | Complete — PR #21 |
 | 1 | P3-A Difference domain extension | Gray + mixed-bit Difference semantics | Complete — PR #22 |
-| 2 | P3-B RAW native/display semantics | Native RAW authority + generic gain core + RAW activation | Implementation complete; latest-head validation/merge pending |
+| 2 | P3-B RAW native/display semantics | Native RAW authority + generic gain core + RAW activation | Implementation complete; final review follow-up revalidation/merge pending |
 | 3 | P3-C visualization/display gain | Ordinary Gray/RGB/RGBA gain + RAW observability | Next after P3-B merge |
 | 4 | P3-D RAW profile management | Reusable profiles and profile suggestion workflow | After P3-C |
 | 5 | P3-E integration hardening | Cross-analysis regressions, docs, Windows characterization | After P3-D |
@@ -83,10 +83,13 @@ separation remains an invariant for later P3 slices.
 ## P3-B — RAW Native & Display Semantics
 
 Status: Implementation complete on `feature/p3-b-raw-native-display-semantics`.
-Owner/local Windows quality validation passed after independent-review and
-Qt-lifetime fixes at `1a8a904895566f27e17d175b43a94997e43401e4`.
-The subsequent owner-approved generic display-gain core refactor changes core
-code/tests/docs; latest-head owner/local revalidation and merge are pending.
+Owner/local Windows quality validation passed on
+`424144215b1df97c71a84ddca79a17bfccb1feef`, including the generic gain core,
+RAW Gain runtime behavior, and `+` / `-` stepping. Final independent re-review
+found one merge blocker: window-wide gain shortcuts intercepted the Files tree's
+native `+` / `-` expand/collapse keys. The follow-up scopes the command to the
+viewer-presentation subtree and adds real key-routing coverage. Latest-head
+owner/local revalidation and merge are pending.
 
 ### Native-source authority
 
@@ -173,6 +176,11 @@ scale/offset processing, and clipping is deferred to the final display conversio
 - `RawDisplayState` outlives toolbar controls at QApplication scope; gain-control
   signal connections use QObject receiver lifetime so deleted controls do not
   leave Python closures targeting dead C++ widgets.
+- Display Gain `+` / `-` commands are presentation-scoped, not window-global. The
+  shortcut owner is `central_stack` with `WidgetWithChildrenShortcut`, so the
+  command is active only while focus is within the image-presentation subtree.
+- Files and other sibling UI retain native key behavior. Files `+` / `-` must
+  continue to expand/collapse folders whether RAW Gain is enabled or disabled.
 
 ### P3-B regression coverage
 
@@ -194,7 +202,10 @@ Coverage includes:
 - non-RAW presentation regression;
 - Single/Multi View gain behavior, default 1×, session-only state, stale-gain
   rejection, and gain-control teardown lifetime;
-- 6→2→6 hidden derived-preview release/regeneration.
+- 6→2→6 hidden derived-preview release/regeneration;
+- real `+` / `-` key routing in the viewer presentation surface;
+- Files-tree `+` / `-` expand/collapse preservation with RAW Gain both enabled
+  and disabled.
 
 ### P3-B exclusions retained
 
@@ -215,10 +226,17 @@ P3-B does **not** add:
 - installer/signing work;
 - broad MainWindow/toolbar redesign.
 
+Rapid large-RAW gain stepping may temporarily accumulate superseded running
+full-frame work because numerical cancellation is advisory. Stale result rejection
+keeps correctness intact. Coalescing, debounce, or cancellable/chunked rendering
+remains profiling-driven optimization rather than a P3-B merge requirement.
+
 ## P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension
 
 P3-C must reuse the P3-B generic anchor-based display-gain core rather than
-introducing an ordinary-image-specific gain algorithm.
+introducing an ordinary-image-specific gain algorithm. It must also reuse P3-B's
+presentation-scoped keyboard-command policy rather than adding a second shortcut
+owner.
 
 ### Committed ordinary-image Display Gain scope
 
@@ -232,6 +250,8 @@ introducing an ordinary-image-specific gain algorithm.
 - Preserve the 1× identity/fast path and deterministic final clipping.
 - Keep expensive full-frame work off the UI thread and retain stale-result
   rejection if asynchronous rendering is required for ordinary images.
+- Reuse the existing presentation-scoped `+` / `-` command layer. Files-tree
+  native expand/collapse must remain unaffected.
 
 Required P3-C tests include:
 
@@ -240,7 +260,9 @@ Required P3-C tests include:
 - RGBA RGB gain with unchanged alpha;
 - source/generation unchanged across gain changes;
 - Statistics/Histogram/Line Profile/Difference independence from Display Gain;
-- Single/Multi View consistency and stale-result/lifecycle behavior as applicable.
+- Single/Multi View consistency and stale-result/lifecycle behavior as applicable;
+- command/control synchronization;
+- Files-tree `+` / `-` routing preservation while Display Gain is available.
 
 ### Additional RAW visualization scope
 
@@ -300,7 +322,9 @@ P3 builds on, and must preserve unless explicitly redesigned:
 - expensive I/O/numerics off the UI thread;
 - source dtype/channel meaning explicit and overflow-safe arithmetic;
 - native source remains recoverable and authoritative even when viewer-only
-  presentation transforms are active.
+  presentation transforms are active;
+- presentation shortcuts must not override native sibling-widget navigation unless
+  explicitly decided and regression-covered.
 
 A P3 slice may extend display metadata or explicit derived representations, but it
 must not collapse source residency, Difference cache, previews, or future
@@ -340,11 +364,12 @@ git diff --check
 ```
 
 Execution agents must not claim these passed unless their output was actually
-observed. Owner/local Windows validation passed at
-`1a8a904895566f27e17d175b43a94997e43401e4`. The later generic display-gain core
-refactor changes production code/tests/docs, so validation must be run again on
-the final P3-B head before merge. The Chat implementation agent did not execute
-those commands.
+observed. Owner/local Windows validation passed on
+`424144215b1df97c71a84ddca79a17bfccb1feef`. The final independent re-review
+identified the shortcut-focus blocker after that validated head. Because the
+follow-up changes production UI composition, tests, and durable docs, validation
+must be run again on the final P3-B head before merge. The Chat implementation
+agent did not execute those commands.
 
 ## P3 exit criteria
 
@@ -357,6 +382,7 @@ P3 is complete when:
   and ordinary viewer presentation without duplicated semantics;
 - RAW Black-anchored gain and ordinary anchor-zero gain remain regression-covered;
 - RGBA Display Gain preserves alpha;
+- Display Gain keyboard commands preserve sibling-widget native navigation;
 - RAW visualization improvements remain explicitly display-only;
 - reusable profile management/suggestion is deterministic and safe;
 - existing P2 runtime/resource/diagnostic contracts remain stable;
