@@ -180,6 +180,64 @@ def test_ordinary_gain_changes_preview_but_not_source_residency_or_generation(
     display_gain_state().reset()
 
 
+def test_main_window_split_channels_apply_display_gain_to_transient_rgb_views(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    ui_settings = QSettings(str(tmp_path / "ui-split.ini"), QSettings.Format.IniFormat)
+    ui_settings.clear()
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        main_window_module,
+        "QSettings",
+        lambda: ui_settings,
+    )
+    window = MainWindow(settings_repository=_repository(tmp_path / "app-split.ini"))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    combo = install_display_gain_control(window)
+    rgb = _ordinary_document("RGB", "split-rgb", 20)
+    assert rgb.source is not None
+    original = rgb.source.copy()
+
+    window.add_document(rgb, select=True)
+    window.show()
+    qtbot.waitUntil(lambda: window.viewer.document is rgb)  # type: ignore[attr-defined]
+
+    window.split_channels_action.trigger()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.central_stack.currentWidget() is window.multi_compare_view
+        and len(window.multi_compare_view.occupied_viewers) == 3
+        and combo.isEnabled()
+    )
+    viewers = window.multi_compare_view.occupied_viewers
+    assert [viewer.document.channel_layout for viewer in viewers if viewer.document is not None] == [
+        "CHANNEL_R",
+        "CHANNEL_G",
+        "CHANNEL_B",
+    ]
+
+    combo.setCurrentIndex(combo.findData(4.0))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            viewer._displayed_gain == 4.0 and viewer._display_preview_worker is None
+            for viewer in viewers
+        )
+    )
+    for channel_index, viewer in enumerate(viewers):
+        document = viewer.document
+        assert document is not None
+        assert document.source is not None
+        assert np.all(document.source == 20)
+        assert isinstance(viewer._displayed_preview, np.ndarray)
+        assert np.all(viewer._displayed_preview[..., channel_index] == 80)
+        other_indices = [index for index in range(3) if index != channel_index]
+        assert not np.any(viewer._displayed_preview[..., other_indices])
+
+    assert np.array_equal(rgb.source, original)
+    window.close()
+    display_gain_state().reset()
+
+
 def test_mixed_raw_and_rgb_multi_view_share_document_specific_gain_semantics(
     qtbot: object,
 ) -> None:
