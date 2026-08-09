@@ -85,7 +85,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     repository, application_settings, performance_settings = load_startup_settings()
     window = MainWindow(application_settings, performance_settings, repository)
     gain_control = install_raw_gain_control(window)
-    install_display_gain_shortcuts(window, gain_control)
+    install_display_gain_shortcuts(window.central_stack, gain_control)
     window.setWindowIcon(app.windowIcon())
     window.show()
     return app.exec()
