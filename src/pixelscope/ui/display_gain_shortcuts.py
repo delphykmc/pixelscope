@@ -26,7 +26,7 @@ def install_display_gain_shortcuts(
         shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
 
     def step(delta: int) -> None:
-        if not control_alive or not control.isEnabled():
+        if not control_alive or not control.isEnabled() or control.count() <= 0:
             return
         current = control.currentIndex()
         target = min(max(current + delta, 0), control.count() - 1)
