@@ -52,5 +52,5 @@ def install_display_gain_shortcuts(
     # Retain Python wrappers explicitly on the presentation owner in addition to
     # Qt parentage. P3-C can reuse this same command slot when the toolbar surface
     # is generalized from RAW Gain to Display Gain.
-    setattr(presentation_scope, "_display_gain_shortcuts", (increase, decrease))
+    presentation_scope._display_gain_shortcuts = increase, decrease
     return increase, decrease
