@@ -210,7 +210,12 @@ def test_main_window_split_channels_apply_display_gain_to_transient_rgb_views(
         and combo.isEnabled()
     )
     viewers = window.multi_compare_view.occupied_viewers
-    assert [viewer.document.channel_layout for viewer in viewers if viewer.document is not None] == [
+    layouts = [
+        viewer.document.channel_layout
+        for viewer in viewers
+        if viewer.document is not None
+    ]
+    assert layouts == [
         "CHANNEL_R",
         "CHANNEL_G",
         "CHANNEL_B",
