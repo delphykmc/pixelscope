@@ -214,7 +214,7 @@ def test_statistics_pixels_preserve_bayer_sample_count(qtbot: object) -> None:
         channel_layout="BAYER",
         bit_depth=10,
         raw_profile=profile,
-        display_transform=DisplayTransform(black_level=0, white_level=1023),
+        display_transform=DisplayTransform(display_low=0.0, display_high=1023.0),
     )
     panel = ComparisonAnalysisPanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
