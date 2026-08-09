@@ -9,7 +9,6 @@ from pixelscope.ui.design_tokens import TOKENS, empty_state_style
 class EmptyWorkspace(QWidget):
     open_images_requested = Signal()
     open_folder_requested = Signal()
-    open_raw_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -22,11 +21,9 @@ class EmptyWorkspace(QWidget):
 
         self.open_images_button = QPushButton("Open Images...")
         self.open_folder_button = QPushButton("Open Folder...")
-        self.open_raw_button = QPushButton("Open RAW...")
         for button in (
             self.open_images_button,
             self.open_folder_button,
-            self.open_raw_button,
         ):
             button.setMinimumHeight(TOKENS.control_height)
 
@@ -36,19 +33,15 @@ class EmptyWorkspace(QWidget):
         self.open_folder_button.clicked.connect(  # type: ignore[attr-defined]
             self.open_folder_requested
         )
-        self.open_raw_button.clicked.connect(  # type: ignore[attr-defined]
-            self.open_raw_requested
-        )
 
         buttons = QHBoxLayout()
         buttons.setSpacing(TOKENS.spacing_sm)
         buttons.addWidget(self.open_images_button)
         buttons.addWidget(self.open_folder_button)
-        buttons.addWidget(self.open_raw_button)
 
         self.formats_hint = QLabel("PNG · JPEG · BMP · RAW")
         self.shortcuts_hint = QLabel("Ctrl+O images · Ctrl+Shift+O folder")
-        self.gestures_hint = QLabel("On an image: Ctrl+drag ROI · Alt+drag line profile")
+        self.gestures_hint = QLabel("On an image: Ctrl+drag ROI · Shift+drag line profile")
         for hint in (
             self.formats_hint,
             self.shortcuts_hint,
