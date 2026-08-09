@@ -3,8 +3,8 @@
 Status: Active
 Owner: repository owner + P3 orchestration agents
 Last updated: 2026-08-09
-Current merged P3 baseline: P3-A / PR #22 merge commit
-`769588bf869847da844cfc0b77c008023d8b048b`
+Current merged P3 baseline: roadmap replanning / PR #23 merge commit
+`4c7d1bbbb4476134f76a204578098d35a03feca2`
 
 ## Goal
 
@@ -25,8 +25,8 @@ encode compatibility or RAW-display rules that are about to change.
 |---|---|---|---|
 | 0 | P3-0 roadmap transition | Close/archive P2 and establish P3 | Complete — PR #21 |
 | 1 | P3-A Difference domain extension | Gray + mixed-bit Difference semantics | Complete — PR #22 |
-| 2 | P3-B RAW native/display semantics | Native RAW authority + black-anchored display gain | Active next slice — start from latest `main` |
-| 3 | P3-C RAW visualization/inspection | Improve RAW observability without processed-RAW scope creep | After P3-B |
+| 2 | P3-B RAW native/display semantics | Native RAW authority + black-anchored display gain | Implementation complete on feature branch; owner validation/merge pending |
+| 3 | P3-C RAW visualization/inspection | Improve RAW observability without processed-RAW scope creep | Next after P3-B merge |
 | 4 | P3-D RAW profile management | Reusable profiles and profile suggestion workflow | After P3-C |
 | 5 | P3-E integration hardening | Cross-analysis regressions, docs, Windows characterization | After P3-D |
 
@@ -40,9 +40,10 @@ The previous roadmap placed Workflow & Session Productivity before RAW work. The
 order remains changed because image semantics should be stable before persistent
 sessions save or restore them.
 
-P3-A closed the immediate Difference gap. The remaining P3 work should now focus
-on RAW viewing and profile usability while preserving native sample authority.
-Demosaic is not automatically required merely because Bayer RAW is supported.
+P3-A closed the immediate Difference gap. P3-B now defines RAW native/display
+ownership. Remaining P3 work should focus on RAW visualization and profile
+usability while preserving native sample authority. Demosaic is not automatically
+required merely because Bayer RAW is supported.
 
 Therefore:
 
@@ -81,27 +82,28 @@ separation remains an invariant for later P3 slices.
 
 ## P3-B — RAW Native & Display Semantics
 
-### Objective
+Status: Implementation complete on `feature/p3-b-raw-native-display-semantics`;
+owner/local Windows validation and merge pending.
 
-Define the minimum RAW-viewing semantics PixelScope needs as a sensor/ISP
-engineering viewer without turning native RAW loading into an implicit processing
-pipeline.
-
-### Native-source authority
+### Implemented native-source authority
 
 - Decoded RAW samples remain authoritative and unchanged in
   `ImageDocument.source`.
-- Existing `black_level` and `white_level` profile metadata remain supported.
-- Black/white metadata do not silently alter pixel inspection, Statistics,
-  Histogram, Line Profile source data, Split Channels, or P3-A Difference.
-- P3-A Difference remains governed by effective bit depth/full-scale and its own
+- Existing `black_level` and `white_level` profile metadata remain supported with
+  their current JSON/schema compatibility.
+- Black/white metadata and RAW display gain do not alter pixel inspection,
+  Statistics, Histogram, Line Profile source data, Split Channels, source
+  residency accounting, or P3-A Difference.
+- P3-A Difference remains governed by effective bit depth/full scale and its own
   native/normalized domain contract.
+- Display-only gain changes do not bump `ImageDocument.generation` or redefine
+  cache identity.
 
-### Viewer display semantics
+### Implemented viewer display semantics
 
-At 1× display gain, RAW display must represent the native code domain rather than
-implicitly subtracting black level. Effective bit depth/full scale remains the
-native display-range authority.
+At 1× display gain, RAW display maps the native code domain
+`0..((1 << bit_depth) - 1)` to the uint8 preview range. Black is not implicitly
+subtracted and white is not promoted to display full scale.
 
 When display gain is greater than 1×, gain is anchored at black level:
 
@@ -109,61 +111,76 @@ When display gain is greater than 1×, gain is anchored at black level:
 display = black + gain * (native - black)
 ```
 
-This keeps the sensor black baseline stationary while magnifying positive and
-negative residuals around it. For Bayer RAW, the existing R/Gr/Gb/B black-level
-metadata may be used as channel-specific anchors where the preview path can do so
-without changing native source data.
+The transform uses float32 promoted arithmetic so values below black remain
+negative/residual values rather than unsigned underflow. Clipping is deferred to
+the final uint8 display conversion. Bayer R/Gr/Gb/B black tuples are applied by
+CFA parity for RGGB/GRBG/GBRG/BGGR without constructing a processed source.
 
 P3-B does not apply `white_level` to either 1× native display or gained display.
-White level remains stored RAW-profile metadata for future explicit processing
-such as tone-map or other processed-RAW paths.
+White level remains stored RAW-profile metadata for future explicit processing.
 
-Clipping needed for the final 8-bit preview is a display concern only. Do not
-write clipped/gained values back into the native source or expose them as if they
-were native analysis samples.
+### Implemented UI/runtime boundary
 
-### Scope boundary
+- Product startup installs one compact toolbar `RAW Gain` control with
+  1×/2×/4×/8×/16× choices.
+- The gain state is application-session-only and is not stored in `RawProfile`,
+  workspace QSettings, or application Settings; schema remains v5.
+- Single and Multi View viewers consume the same session gain. Ordinary non-RAW
+  images are not transformed by RAW gain.
+- Gain changes reuse resident native source; they do not request RAW reloads.
+- Gain >1 preview regeneration uses the existing shared numerical `QThreadPool`
+  rather than doing the full-frame transform synchronously on the UI thread.
+- Viewer request/task/document/source/generation/gain identity rejects stale async
+  results before presentation replacement.
+- The derived gained preview is viewer presentation only. `ImageDocument.preview`
+  remains the replaceable 1× base preview and `ImageDocument.source` remains the
+  analysis authority.
 
-P3-B may refactor `DisplayTransform` or RAW-preview plumbing so the above contract
-is explicit and testable. Keep algorithms outside Qt widgets and preserve the
-existing background-load/threading boundaries.
+### P3-B regression coverage added
+
+Coverage was added for:
+
+- RAW10/12/14 effective-full-scale display mapping;
+- black and white not becoming 1× display endpoints;
+- preview equality when only `white_level` differs;
+- known-value `B + G * (X - B)` arithmetic and below-black underflow prevention;
+- final-only clipping;
+- RGGB/GRBG/GBRG/BGGR CFA-specific black anchors and unchanged native mosaics;
+- native pixel/Statistics/Histogram/Line Profile/Split Channels values;
+- same-bit and mixed-bit P3-A Difference independence;
+- source generation/residency accounting independence;
+- non-RAW display regression;
+- RAW load preservation and current profile metadata;
+- Single/Multi View gain behavior, default 1×, session-only state, and stale gain
+  request rejection;
+- existing Bayer and RAW chart characterization call sites under the explicit
+  display API.
+
+The Chat implementation agent intentionally did **not** execute pytest, ruff,
+mypy, docs checker, pip check, or packaging commands. Owner/local Windows
+validation remains pending.
+
+### P3-B exclusions retained
 
 P3-B does **not** add:
 
 - demosaic;
 - white balance;
 - CCM/color-space conversion;
-- gamma/tone mapping;
+- gamma/tone mapping as a new product feature;
 - optical-black estimation or automatic pedestal detection;
-- a processed-RAW analysis mode;
+- a processed-RAW document or analysis mode;
 - a new Difference domain;
-- settings/schema expansion unless a persistence need is demonstrated and
-  separately approved.
-
-Black/white metadata are retained so future explicit processing can use them
-without forcing that processing into P3-B.
-
-### P3-B acceptance targets
-
-Deterministic coverage should establish at least:
-
-- RAW load preserves native sample values regardless of black/white metadata;
-- 1× viewer display uses native RAW code semantics and effective full-scale range;
-- black-anchored gain follows `B + G * (X - B)` with overflow-safe arithmetic;
-- values below black remain meaningful through the gain transform until final
-  display clipping;
-- Bayer per-channel black anchors behave deterministically where supported;
-- changing display gain does not change native pixel inspection/Statistics/
-  Histogram/Difference semantics;
-- changing `white_level` alone does not change P3-B native/gained preview output;
-- white level remains available as metadata without silently becoming a source
-  or display normalization rule;
-- existing RAW10/12/14 and unpacked uint8/uint16 loading contracts regress cleanly;
-- P2 source residency/preload/diagnostics ownership is unchanged.
+- RAW profile management/suggestion;
+- session persistence;
+- Settings schema expansion;
+- preload/residency policy redesign;
+- installer/signing work;
+- broad MainWindow/toolbar redesign.
 
 ## P3-C — RAW Visualization & Inspection Improvements
 
-P3-C is intentionally re-scoped away from committed demosaic integration.
+P3-C remains intentionally re-scoped away from committed demosaic integration.
 
 Its purpose is to improve RAW observability after P3-B establishes display-domain
 semantics. Candidate work includes:
@@ -265,8 +282,8 @@ git diff --check
 ```
 
 Execution agents must not claim these passed unless their output was actually
-observed. Owner/local validation remains authoritative when the implementation
-agent is not operating in the owner's configured Windows virtual environment.
+observed. For P3-B these commands remain owner/local Windows validation work; the
+Chat implementation agent did not run them.
 
 ## P3 exit criteria
 
