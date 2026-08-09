@@ -2010,9 +2010,11 @@ class MainWindow(QMainWindow):
 
         if self._view_capacity == 1:
             if self._channel_split_active:
-                split_ids = [document.document_id for document in split_documents]
+                split_order_ids = [document.document_id for document in split_documents]
                 active_id = self._split_active_document_id
-                split_index = split_ids.index(active_id) if active_id in split_ids else 0
+                split_index = (
+                    split_order_ids.index(active_id) if active_id in split_order_ids else 0
+                )
                 document = split_documents[split_index]
                 self._split_active_document_id = document.document_id
                 self.viewer.set_document(document, fit=not preserve_view)
@@ -2197,8 +2199,9 @@ class MainWindow(QMainWindow):
         page = self.current_comparison_documents()
         if len(page) != 1:
             return []
-        channel_documents, split_active = self._split_display_documents(page[0])
-        return channel_documents if split_active else []
+        document = page[0]
+        channel_documents, split_active = self._split_display_documents(document)
+        return channel_documents if split_active or document.source is None else []
 
     def _set_split_channels(self, enabled: bool) -> None:
         self._split_channels = enabled
