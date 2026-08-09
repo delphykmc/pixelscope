@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
+import pytest
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.io.path_discovery import ImageInput, SUPPORTED_IMAGE_FILTER
@@ -43,7 +43,10 @@ def _profile(name: str = "sensor") -> RawProfile:
     )
 
 
-def _disable_selection_render(window: MainWindow, monkeypatch: pytest.MonkeyPatch) -> None:
+def _disable_selection_render(
+    window: MainWindow,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(window, "_select_document_ids", lambda *_args, **_kwargs: None)
 
 
@@ -65,18 +68,18 @@ def _set_open_images_result(
     monkeypatch.setattr(QFileDialog, "getOpenFileNames", fake_get_open_file_names)
 
 
-def test_file_menu_has_only_unified_open_actions(qtbot: object) -> None:
+def test_file_menu_has_unified_image_and_native_single_folder_actions(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     assert "Open Images..." in window.action_map
-    assert "Open Folders..." in window.action_map
-    assert "Open Folder..." not in window.action_map
+    assert "Open Folder..." in window.action_map
+    assert "Open Folders..." not in window.action_map
     assert "Open RAW with Profile..." not in window.action_map
     assert not hasattr(window, "open_raw")
     assert not hasattr(window, "open_folder")
     assert window.action_map["Open Images..."].shortcut().toString() == "Ctrl+O"
-    assert window.action_map["Open Folders..."].shortcut().toString() == "Ctrl+Shift+O"
+    assert window.action_map["Open Folder..."].shortcut().toString() == "Ctrl+Shift+O"
     window.close()
 
 
@@ -216,7 +219,11 @@ def test_invalid_sidecar_warns_then_uses_editable_fallback(
     _set_open_images_result(monkeypatch, [raw_path])
     warnings: list[tuple[str, str]] = []
 
-    def fake_warning(_parent: object, title: str, text: str) -> QMessageBox.StandardButton:
+    def fake_warning(
+        _parent: object,
+        title: str,
+        text: str,
+    ) -> QMessageBox.StandardButton:
         warnings.append((title, text))
         return QMessageBox.StandardButton.Ok
 
@@ -275,9 +282,7 @@ def test_multi_raw_open_uses_each_same_basename_sidecar(
 
     class UnexpectedRawDialog:
         def __init__(self, _parent: object) -> None:
-            raise AssertionError(
-                "compatible sidecars should be sufficient when confirmation is disabled"
-            )
+            raise AssertionError("compatible sidecars should resolve without a dialog")
 
     monkeypatch.setattr("pixelscope.app.main_window.RawOpenDialog", UnexpectedRawDialog)
     window = MainWindow()
