@@ -95,12 +95,14 @@ def test_open_images_uses_exact_supported_filter(
     window.close()
 
 
+@pytest.mark.parametrize("suffix", [".png", ".bmp", ".jpg", ".jpeg"])
 def test_unified_open_ordinary_image_bypasses_raw_profile_dialog(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    suffix: str,
 ) -> None:
-    image_path = tmp_path / "ordinary.png"
+    image_path = tmp_path / f"ordinary{suffix}"
     image_path.write_bytes(b"ordinary")
     _set_open_images_result(monkeypatch, [image_path])
 
@@ -271,7 +273,9 @@ def test_multi_raw_open_uses_each_same_basename_sidecar(
 
     class UnexpectedRawDialog:
         def __init__(self, _parent: object) -> None:
-            raise AssertionError("compatible sidecars should be sufficient when confirmation is disabled")
+            raise AssertionError(
+                "compatible sidecars should be sufficient when confirmation is disabled"
+            )
 
     monkeypatch.setattr("pixelscope.app.main_window.RawOpenDialog", UnexpectedRawDialog)
     window = MainWindow()
