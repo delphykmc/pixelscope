@@ -17,9 +17,9 @@ Run from the repository root with the pinned CPython 3.10 environment:
 git diff --check
 ```
 
-Use narrower tests during development. Before completion, run the full
-applicable suite. If a command cannot run, record the exact command, failure,
-reason, and unverified risk.
+Use narrower tests during development. Before completion, run the full applicable
+suite. If a command cannot run, record the exact command, failure, reason, and
+unverified risk.
 
 For P2-F performance characterization, run the observational performance slice
 with output enabled before the full repository contract:
@@ -47,19 +47,40 @@ ownership assertions rather than an elapsed-time threshold.
 | Dependency/packaging | Python 3.10 evidence, `pip check`, packaging-constraint review, and explicit authorization before packaging tools run |
 | Documentation/harness | `scripts/check_docs.py`, consistency with current code/PR scope, provenance disclosure when agent-assisted, and diff inspection |
 
-For application identity changes, run the generator in check mode and verify the
-built wheel contains the canonical triplet:
+## P3-D unified input validation contract
 
-```powershell
-.\.venv\Scripts\python.exe scripts\generate_icon_assets.py --check
-Remove-Item -Recurse -Force .tmp-wheel -ErrorAction SilentlyContinue
-.\.venv\Scripts\python.exe -m pip wheel . --no-deps -w .tmp-wheel
-.\.venv\Scripts\python.exe scripts\check_wheel_icon_assets.py .tmp-wheel
-```
+P3-D treats registration, selection, presentation, and decoded-source residency as
+separate observable states. Tests must not use the six-tile presentation limit as
+a registration limit.
 
-Source-run title-bar, Alt+Tab, running-taskbar, scaling, and taskbar-background
-checks belong to P2-A1. Executable-file, pinned-shortcut, installer-shortcut, and
-final packaged-shell identity belong to P7.
+Deterministic focused coverage must establish:
+
+- Open Images multi-file input registers every supported direct file and selects
+  those direct files; more than six direct files remain registered/selected while
+  presentation stays bounded by the existing viewer capacity.
+- Open Folders supports multiple directories, deterministic resolved-path
+  deduplication, and registration counts above six; folder registration does not
+  auto-select a first image or create an implicit comparison group.
+- Folder D&D is registration-only for one, two, six, and greater-than-six folder
+  counts; direct image D&D is register + select; mixed D&D selects only explicit
+  direct files while registering folder contents.
+- `documents > 0` with zero selected documents is stable and presents the
+  registered-but-unselected workspace message without decode/render failure.
+- PageUp/PageDown Folder Position derives only from currently selected one-to-six
+  distinct folders; unrelated registered folders do not participate.
+- Folder-only registration preserves selection, layout/presentation, active/focus
+  state, ROI, Line Profile, Difference presentation/cache, Display Gain,
+  source-residency ownership, and unrelated worker/decode state where applicable.
+- Folder RAW registration does not open a profile-dialog sequence or guess
+  metadata. Deterministic same-basename sidecar identity is retained, profile
+  resolution occurs when foreground loading actually requires the RAW, and
+  unresolved RAW is not speculatively preloaded.
+- Unsupported files and standalone JSON are ignored; folders with no supported
+  images do not make other selected folders fail registration.
+
+Owner/manual Windows checks must include the same intent split through File-menu
+and drag/drop paths, including a large registered catalog while an existing
+comparison remains active.
 
 ## Golden paths
 
@@ -69,8 +90,12 @@ Preserve deterministic fixtures and smoke paths for:
 - MIPI RAW10/12/14 decoding and packed/unpacked equivalence.
 - RAW exact-size policy through `MainWindow` → worker → reader, including
   oversized relaxed/exact behavior and matching JSON-sidecar auto-approval.
+- Unified P3-D input ownership: selection-oriented direct images,
+  registration-oriented folders, >6 catalog registration, mixed D&D, lazy folder
+  RAW profile resolution, registered-but-unselected workspace, and selected-only
+  Folder Position.
 - Ordered selection, folder navigation, and fixed one-to-six-image layouts.
-- Folder Position planning for one-to-six distinct registered folders, atomic
+- Folder Position planning for one-to-six selected distinct folders, atomic
   endpoint no-op, natural ordering, and predicted PageDown/actual target equality.
 - Keyboard separation: Files Up/Down rows, Left/Right selected-image activity,
   and PageUp/PageDown Folder Position membership.
@@ -157,9 +182,9 @@ Preserve deterministic fixtures and smoke paths for:
   content are excluded, and copying starts/cancels no work or runtime mutation.
 - Canonical application-icon loading from package resources independent of CWD.
 
-Add a focused fixture when a bug depends on pixel values, bit depth, Bayer
-layout, geometry, memory pressure, or event order. Keep fixtures small unless
-resolution or memory behavior is the subject of the test.
+Add a focused fixture when a bug depends on pixel values, bit depth, Bayer layout,
+geometry, memory pressure, or event order. Keep fixtures small unless resolution or
+memory behavior is the subject of the test.
 
 ## P3-A deterministic Difference contract
 
@@ -257,23 +282,3 @@ The repository has no GitHub Actions workflow. P2-F does not introduce a Windows
 CI gate without first observing PySide6/pytest-qt/offscreen reliability and
 acceptable suite runtime/resource use on the target runner. Windows CI
 introduction is therefore deferred; packaging/installer CI remains P7.
-
-## Completion evidence
-
-Every agent-assisted change reports:
-
-1. Changed files and purpose.
-2. Observable behavior added, changed, or intentionally preserved.
-3. Explicit in-scope and out-of-scope items.
-4. Commands run and exact pass/fail results.
-5. Manual checks and environment.
-6. Known limitations, deferred work, and unverified areas.
-7. Product, architecture, decision, roadmap, current-state, or execution-plan
-   updates.
-8. Removal or retention rationale for temporary scripts and compatibility paths.
-9. Actual agent provenance: observed author/committer, co-author fallback if
-   used, account used for GitHub comments/reviews, and confirmation that existing
-   human commits were not rewritten.
-
-Do not claim a check passed unless its output was observed. Generated code
-volume and commit count are not quality signals.
