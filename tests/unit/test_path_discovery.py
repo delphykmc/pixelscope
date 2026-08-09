@@ -11,7 +11,7 @@ from pixelscope.io.path_discovery import (
 
 def test_supported_image_contract_matches_unified_picker() -> None:
     expected_suffixes = frozenset({".png", ".bmp", ".jpg", ".jpeg", ".raw"})
-    assert SUPPORTED_IMAGE_SUFFIXES == expected_suffixes
+    assert expected_suffixes == SUPPORTED_IMAGE_SUFFIXES
     assert SUPPORTED_IMAGE_FILTER == "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)"
     assert "*.*" not in SUPPORTED_IMAGE_FILTER
 
