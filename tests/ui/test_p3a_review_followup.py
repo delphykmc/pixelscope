@@ -46,7 +46,7 @@ def _bayer(value: int, name: str, bit_depth: int) -> ImageDocument:
         black_level=0,
         white_level=full_scale,
     )
-    transform = DisplayTransform(black_level=0, white_level=full_scale)
+    transform = DisplayTransform(display_low=0.0, display_high=float(full_scale))
     return ImageDocument.from_array(
         source,
         name,
@@ -54,7 +54,12 @@ def _bayer(value: int, name: str, bit_depth: int) -> ImageDocument:
         bit_depth=bit_depth,
         raw_profile=profile,
         display_transform=transform,
-        prepared_preview=render_bayer_preview(source, transform),
+        prepared_preview=render_bayer_preview(
+            source,
+            profile.bayer_pattern or "RGGB",
+            profile.black_level,
+            profile.bit_depth,
+        ),
     )
 
 
@@ -134,9 +139,7 @@ def test_mixed_bit_bayer_same_cfa_supports_plane_roi_in_normalized_domain(
 
     panel.calculate_difference()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: (
-            panel.last_result is not None and panel.difference_cache.entry_count == 1
-        ),
+        lambda: panel.last_result is not None and panel.difference_cache.entry_count == 1,
         timeout=3000,
     )
 
