@@ -8,7 +8,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from pixelscope.app.main_window import MainWindow
-from pixelscope.io.path_discovery import SUPPORTED_IMAGE_FILTER
+from pixelscope.io.path_discovery import ImageInput, SUPPORTED_IMAGE_FILTER
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 
@@ -290,6 +290,57 @@ def test_multi_raw_open_uses_each_same_basename_sidecar(
     window.close()
 
 
+@pytest.mark.parametrize("entry_point", ["folder", "drop"])
+def test_mixed_folder_and_drop_use_same_supported_input_resolver(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry_point: str,
+) -> None:
+    folder = tmp_path / "mixed"
+    folder.mkdir()
+    (folder / "ordinary.png").write_bytes(b"ordinary")
+    raw_path = folder / "sensor.raw"
+    raw_path.write_bytes(bytes(32))
+    profile = _profile()
+    profile.save_json(raw_path.with_suffix(".json"))
+    (folder / "notes.txt").write_text("unsupported", encoding="utf-8")
+    (folder / "orphan.json").write_text("{}", encoding="utf-8")
+
+    class UnexpectedRawDialog:
+        def __init__(self, _parent: object) -> None:
+            raise AssertionError("compatible same-basename sidecar unexpectedly opened a dialog")
+
+    monkeypatch.setattr("pixelscope.app.main_window.RawOpenDialog", UnexpectedRawDialog)
+    if entry_point == "folder":
+        monkeypatch.setattr(
+            QFileDialog,
+            "getExistingDirectory",
+            lambda *_args, **_kwargs: str(folder),
+        )
+
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window._dont_show_raw_json_profiles = True
+    _disable_selection_render(window, monkeypatch)
+
+    if entry_point == "folder":
+        window.open_folder()
+    else:
+        window._handle_dropped_paths([folder])
+
+    documents_by_name = {
+        document.source_path.name: document
+        for document in window.documents.values()
+        if document.source_path is not None
+    }
+    assert set(documents_by_name) == {"ordinary.png", "sensor.raw"}
+    raw_document = documents_by_name["sensor.raw"]
+    assert window._raw_profiles[raw_document.document_id] == profile
+    assert window._raw_profile_paths[raw_document.document_id] == raw_path.with_suffix(".json")
+    window.close()
+
+
 def test_sidecar_suppression_still_respects_exact_size_policy(
     qtbot: object,
     tmp_path: Path,
@@ -324,26 +375,15 @@ def test_sidecar_suppression_still_respects_exact_size_policy(
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     window._dont_show_raw_json_profiles = True
 
-    assert window._confirm_raw_profile(
-        __import__("pixelscope.io.path_discovery", fromlist=["ImageInput"]).ImageInput(
-            raw_path,
-            sidecar,
-        ),
-        None,
-    ) == profile
+    image_input = ImageInput(raw_path, sidecar)
+    assert window._confirm_raw_profile(image_input, None) == profile
     assert RejectingDialog.constructed == 0
 
     window.application_settings = replace(
         window.application_settings,
         require_exact_raw_file_size=True,
     )
-    assert window._confirm_raw_profile(
-        __import__("pixelscope.io.path_discovery", fromlist=["ImageInput"]).ImageInput(
-            raw_path,
-            sidecar,
-        ),
-        None,
-    ) is None
+    assert window._confirm_raw_profile(image_input, None) is None
     assert RejectingDialog.constructed == 1
     window.close()
 
