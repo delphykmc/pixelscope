@@ -4,13 +4,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QFileDialog
 
 from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
+from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds
+from pixelscope.io.path_discovery import ImageInput
+from pixelscope.ui.display_gain import install_display_gain_control
 
 
 @pytest.fixture(autouse=True)
@@ -26,51 +29,459 @@ def isolated_settings(tmp_path: Path) -> None:
     settings.sync()
 
 
-def _ready_documents(window: MainWindow, tmp_path: Path, count: int) -> list[ImageDocument]:
-    documents: list[ImageDocument] = []
-    for index in range(count):
-        document = ImageDocument.from_array(
-            np.full((8, 8), index, dtype=np.uint8),
-            f"image-{index + 1:02d}.png",
-            source_path=tmp_path / f"folder-{index + 1:02d}" / f"image-{index + 1:02d}.png",
+def _ready_documents(tmp_path: Path, count: int) -> list[ImageDocument]:
+    return [
+        ImageDocument.from_array(
+            np.full((4, 4), index, dtype=np.uint8),
+            f"image{index + 1:02d}.png",
+            source_path=tmp_path / f"folder-{index:02d}" / f"image{index + 1:02d}.png",
         )
+        for index in range(count)
+    ]
+
+
+def _select_ready_documents(window: MainWindow, documents: list[ImageDocument]) -> None:
+    for document in documents:
         window.add_document(document, select=False)
-        documents.append(document)
-    return documents
+    window._select_document_ids([document.document_id for document in documents])
 
 
-def _silence_analysis_runtime(window: MainWindow, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(window, "_refresh_preload_plan", lambda: None)
-    monkeypatch.setattr(
-        window.comparison_analysis_panel,
-        "set_documents",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        window.line_profile_panel,
-        "set_documents",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        window.difference_panel,
-        "set_documents",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        window.difference_panel,
-        "cached_display_for_current",
-        lambda: None,
-    )
+def _visible_source_ids(window: MainWindow) -> list[str]:
+    return [
+        viewer.document.document_id
+        for viewer in window.multi_compare_view.visible_viewers
+        if viewer.document is not None
+    ]
 
 
-@pytest.mark.parametrize("image_count", [6, 8])
-def test_open_images_keeps_all_selected_files_and_uses_comparison_page_navigation(
+def test_selected_at_most_six_shows_stable_single_page_information(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 5)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    _select_ready_documents(window, documents)
+
+    assert window.current_comparison_documents() == documents
+    assert window._page_start == 0
+    assert not window.comparison_page_group.isHidden()
+    assert window.comparison_page_label.text() == "Page 01 / 01 · 1–5 of 5"
+    assert window.previous_comparison_page_button.isHidden()
+    assert window.next_comparison_page_button.isHidden()
+    label_width = window.comparison_page_label.width()
+    state_before = window._comparison_page_controls_state
+    window._update_comparison_page_controls()
+    assert window._comparison_page_controls_state == state_before
+    assert window.comparison_page_label.width() == label_width
+    assert window.multi_compare_view.capacity == 6
+    assert window.multi_compare_view._arranged_count == 5
+    window.close()
+
+
+def test_fifteen_selected_documents_page_without_changing_selection(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+    selected_ids = tuple(document.document_id for document in window.selected_documents)
+
+    assert window.current_comparison_documents() == documents[:6]
+    assert window.comparison_page_label.text() == "Page 01 / 03 · 1–6 of 15"
+    assert not window.previous_comparison_page_button.isEnabled()
+    assert window.next_comparison_page_button.isEnabled()
+    assert _visible_source_ids(window) == [document.document_id for document in documents[:6]]
+    assert [viewer._slot for viewer in window.multi_compare_view.occupied_viewers] == list(
+        range(1, COMPARISON_PAGE_SIZE + 1)
+    )
+
+    window.next_comparison_page()
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    assert window.current_comparison_documents() == documents[6:12]
+    assert window.comparison_page_label.text() == "Page 02 / 03 · 7–12 of 15"
+    assert _visible_source_ids(window) == [document.document_id for document in documents[6:12]]
+    assert [viewer._slot for viewer in window.multi_compare_view.occupied_viewers] == list(
+        range(1, COMPARISON_PAGE_SIZE + 1)
+    )
+
+    window.next_comparison_page()
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    assert window.current_comparison_documents() == documents[12:15]
+    assert window.comparison_page_label.text() == "Page 03 / 03 · 13–15 of 15"
+    assert window.multi_compare_view.capacity == COMPARISON_PAGE_SIZE
+    assert window.multi_compare_view._arranged_count == COMPARISON_PAGE_SIZE
+    assert _visible_source_ids(window) == [document.document_id for document in documents[12:15]]
+    assert [viewer.document for viewer in window.multi_compare_view.visible_viewers[3:]] == [
+        None,
+        None,
+        None,
+    ]
+    assert [viewer._slot for viewer in window.multi_compare_view.occupied_viewers] == [1, 2, 3]
+    last_start = window._page_start
+    window.next_comparison_page()
+    assert window._page_start == last_start
+    assert "last Comparison Page" in window.statusBar().currentMessage()
+
+    window.previous_comparison_page()
+    assert window.current_comparison_documents() == documents[6:12]
+    window.previous_comparison_page()
+    assert window.current_comparison_documents() == documents[:6]
+    first_start = window._page_start
+    window.previous_comparison_page()
+    assert window._page_start == first_start
+    assert "first Comparison Page" in window.statusBar().currentMessage()
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    window.close()
+
+
+def test_primary_promotion_is_bounded_to_current_comparison_page(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+    selected_ids = tuple(document.document_id for document in window.selected_documents)
+    window.next_comparison_page()
+
+    window._set_focus_document(documents[8])
+
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    assert window.current_comparison_documents() == documents[6:12]
+    visible_ids = set(_visible_source_ids(window))
+    assert visible_ids == {document.document_id for document in documents[6:12]}
+    focused_viewer = next(
+        viewer
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is documents[8]
+    )
+    assert focused_viewer._slot == 3
+
+    window.next_comparison_page()
+    assert window.current_comparison_documents() == documents[12:15]
+    assert set(_visible_source_ids(window)) == {
+        document.document_id for document in documents[12:15]
+    }
+    window.close()
+
+
+def test_number_keys_are_current_page_local_slots_in_single_view(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+    window.set_layout_mode("Single View")
+    window.next_comparison_page()
+
+    window.show_selected_image(3)
+
+    assert window._page_start == 6
+    assert window._current_index == 9
+    assert window.viewer.document is documents[9]
+    assert window.viewer._slot == 4
+    assert window.viewer.header.text().startswith("[4]")
+    navigation_labels = [
+        window.viewer.header.navigation_layout.itemAt(index).widget().text()
+        for index in range(window.viewer.header.navigation_layout.count())
+    ]
+    assert navigation_labels == ["1", "2", "3", "4", "5", "6"]
+    window.close()
+
+
+def test_single_view_fine_navigation_crosses_page_boundary_with_local_slot_reset(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+    window.set_layout_mode("Single View")
+    window.next_comparison_page()
+    window.show_selected_image(5)
+    assert window.viewer.document is documents[11]
+    assert window.viewer._slot == 6
+
+    window.next_image()
+
+    assert window._current_index == 12
+    assert window._page_start == 12
+    assert window.current_comparison_documents() == documents[12:15]
+    assert window.viewer.document is documents[12]
+    assert window.viewer._slot == 1
+    assert window.viewer.header.text().startswith("[1]")
+    window.close()
+
+
+def test_page_transition_updates_statistics_histogram_line_and_difference_working_set(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    image_count: int,
 ) -> None:
-    paths = [tmp_path / f"direct-{index:02d}.png" for index in range(image_count)]
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+
+    difference_calls: list[list[str]] = []
+    line_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        window.difference_panel,
+        "set_documents",
+        lambda current, *_args, **_kwargs: difference_calls.append(
+            [document.document_id for document in current]
+        ),
+    )
+    monkeypatch.setattr(window.difference_panel, "cached_display_for_current", lambda: None)
+    monkeypatch.setattr(window.difference_panel, "selected_documents", lambda: None)
+    monkeypatch.setattr(window.difference_panel, "has_cached_map", lambda: False)
+    monkeypatch.setattr(
+        window.line_profile_panel,
+        "set_documents",
+        lambda current, *_args, **_kwargs: line_calls.append(
+            [document.document_id for document in current]
+        ),
+    )
+
+    window.next_comparison_page()
+
+    expected = [document.document_id for document in documents[6:12]]
+    assert [
+        document.document_id for document in window.comparison_analysis_panel._documents
+    ] == expected
+    assert difference_calls[-1] == expected
+    assert line_calls[-1] == expected
+    window.close()
+
+
+def test_large_selection_residency_protects_current_page_not_all_selected(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+
+    manager = ResidencyManager(COMPARISON_PAGE_SIZE * int(documents[0].source.nbytes))
+    for document in documents:
+        assert document.source is not None
+        manager.record(document.document_id, int(document.source.nbytes))
+    window.residency_manager = manager
+
+    protected = window._residency_protected_document_ids()
+    assert {document.document_id for document in documents[:6]}.issubset(protected)
+    assert not {document.document_id for document in documents[6:]}.intersection(protected)
+
+    window._evict_resident_documents()
+    assert all(document.source is not None for document in documents[:6])
+    assert all(document.source is None for document in documents[6:])
+
+    requested: list[str] = []
+    monkeypatch.setattr(
+        window,
+        "_ensure_loaded",
+        lambda document: requested.append(document.document_id),
+    )
+    window.next_comparison_page()
+
+    assert requested == [document.document_id for document in documents[6:12]]
+    page_ids = {document.document_id for document in documents[6:12]}
+    assert page_ids.issubset(window._residency_protected_document_ids())
+    window.close()
+
+
+def test_comparison_page_shortcuts_are_application_scoped_and_folder_position_stays_separate(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+
+    assert [shortcut.key().toString() for shortcut in window._comparison_page_shortcuts] == [
+        "Ctrl+Left",
+        "Ctrl+Right",
+    ]
+    assert all(
+        shortcut.context() == Qt.ShortcutContext.ApplicationShortcut
+        for shortcut in window._comparison_page_shortcuts
+    )
+    assert all(shortcut.parent() is window for shortcut in window._comparison_page_shortcuts)
+
+    selected_before = tuple(document.document_id for document in window.selected_documents)
+    window.next_folder_position()
+    assert tuple(document.document_id for document in window.selected_documents) == selected_before
+    assert window._page_start == 0
+    assert "requires 1–6 selected images" in window.statusBar().currentMessage()
+    window.close()
+
+
+def test_presentation_controls_live_above_view_and_gain_combo_does_not_take_arrow_focus(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 2)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+
+    gain_control = install_display_gain_control(window)
+
+    assert window.layout_selector.parentWidget() is window.presentation_controls
+    assert window.comparison_page_group.parentWidget() is window.presentation_controls
+    assert gain_control.parentWidget().parentWidget() is window.presentation_controls
+    assert gain_control.focusPolicy() == Qt.FocusPolicy.NoFocus
+    window.close()
+
+
+def test_multi_view_fine_navigation_changes_active_without_changing_primary(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 5)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+    window._set_focus_document(documents[2])
+    primary_id = window._focus_document_id
+
+    window.next_image()
+    window.next_image()
+
+    assert window._focus_document_id == primary_id
+    assert window._active_document_id != primary_id
+    window.close()
+
+
+def test_comparison_page_navigation_preserves_primary_local_slot(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    documents = _ready_documents(tmp_path, 15)
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _select_ready_documents(window, documents)
+    window._set_focus_document(documents[2])
+
+    window.next_comparison_page()
+
+    assert window._focus_document_id == documents[8].document_id
+    focused = next(
+        viewer
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is not None
+        and viewer.document.document_id == window._focus_document_id
+    )
+    assert focused._slot == 3
+    window.close()
+
+
+def test_split_channel_multi_view_exposes_explicit_primary_control(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    document = ImageDocument.from_array(
+        np.arange(4 * 4 * 3, dtype=np.uint8).reshape(4, 4, 3),
+        "rgb.png",
+        source_path=tmp_path / "rgb.png",
+    )
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.add_document(document)
+
+    window._set_split_channels(True)
+    channels = [
+        viewer.document
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.document is not None
+    ]
+    assert len(channels) == 3
+    assert all(
+        viewer.header.focus.isVisible()
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
+
+    window._set_focus_document(channels[1])
+
+    assert window._split_focus_document_id == channels[1].document_id
+    assert any(
+        viewer.document is channels[1] and viewer.header.focus.isChecked()
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
+    window.close()
+
+
+def test_off_page_raw_is_lazy_and_cancel_is_suppressed_until_new_foreground_intent(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ordinary = _ready_documents(tmp_path, 6)
+    raw_path = tmp_path / "raw" / "frame.raw"
+    raw_path.parent.mkdir(parents=True)
+    raw_path.write_bytes(bytes(32))
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    for document in ordinary:
+        window.add_document(document, select=False)
+    raw_id = window._register_input(ImageInput(raw_path), resolve_raw_profile=False)
+    assert raw_id is not None
+
+    prompt_count = 0
+
+    def cancel_profile(*_args: object, **_kwargs: object) -> None:
+        nonlocal prompt_count
+        prompt_count += 1
+        return None
+
+    started: list[str] = []
+    monkeypatch.setattr(window, "_confirm_raw_profile", cancel_profile)
+    monkeypatch.setattr(
+        window,
+        "_start_load",
+        lambda target_id, *_args, **_kwargs: started.append(target_id),
+    )
+    selected_ids = [document.document_id for document in ordinary] + [raw_id]
+
+    window._select_document_ids(selected_ids)
+    assert prompt_count == 0
+    assert window.documents[raw_id].source is None
+    assert window.documents[raw_id].loading_state == "pending"
+
+    window.next_comparison_page()
+    assert prompt_count == 1
+    assert started == []
+    assert window.documents[raw_id].loading_state == "pending"
+    assert raw_id in window._raw_profile_prompt_suppressed
+
+    window._render_selection(preserve_view=True)
+    assert prompt_count == 1
+    assert started == []
+
+    window.previous_comparison_page()
+    window.next_comparison_page()
+    assert prompt_count == 2
+    assert started == []
+    window.close()
+
+
+def test_open_images_keeps_all_fifteen_files_selected_with_first_page_presented(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = [tmp_path / f"direct-{index:02d}.png" for index in range(15)]
     for path in paths:
         path.write_bytes(b"fixture")
     monkeypatch.setattr(
@@ -86,264 +497,14 @@ def test_open_images_keeps_all_selected_files_and_uses_comparison_page_navigatio
 
     window.open_images()
 
-    assert len(window.documents) == image_count
+    assert len(window.documents) == 15
     assert [document.source_path for document in window.selected_documents] == [
         path.resolve() for path in paths
     ]
     assert [document.source_path for document in window.current_comparison_documents()] == [
-        path.resolve() for path in paths[:COMPARISON_PAGE_SIZE]
+        path.resolve() for path in paths[:6]
     ]
-
-    if image_count <= COMPARISON_PAGE_SIZE:
-        assert not window.comparison_page_group.isVisible()
-    else:
-        selected_before = tuple(document.document_id for document in window.selected_documents)
-        window.next_image()
-        assert window._page_start == 0
-        window.next_comparison_page()
-        assert window._page_start == COMPARISON_PAGE_SIZE
-        assert tuple(document.document_id for document in window.selected_documents) == selected_before
-        assert [document.source_path for document in window.current_comparison_documents()] == [
-            path.resolve() for path in paths[COMPARISON_PAGE_SIZE:]
-        ]
-
-    window.close()
-
-
-def test_fifteen_image_comparison_pages_are_derived_and_keep_local_slots(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window = MainWindow()
-    qtbot.addWidget(window)  # type: ignore[attr-defined]
-    _silence_analysis_runtime(window, monkeypatch)
-    documents = _ready_documents(window, tmp_path, 15)
-    selected_ids = [document.document_id for document in documents]
-
-    window._select_document_ids(selected_ids)
-
-    assert [document.document_id for document in window.current_comparison_documents()] == selected_ids[:6]
-    assert window.comparison_page_label.text() == "1–6 of 15"
-    assert [viewer._slot for viewer in window.multi_compare_view.occupied_viewers] == [1, 2, 3, 4, 5, 6]
-
-    window.next_comparison_page()
-    assert [document.document_id for document in window.current_comparison_documents()] == selected_ids[6:12]
-    assert window.comparison_page_label.text() == "7–12 of 15"
-    assert [viewer._slot for viewer in window.multi_compare_view.occupied_viewers] == [1, 2, 3, 4, 5, 6]
-    assert [
-        viewer.document.document_id
-        for viewer in window.multi_compare_view.occupied_viewers
-        if viewer.document is not None
-    ] == selected_ids[6:12]
-
-    window.next_comparison_page()
-    assert [document.document_id for document in window.current_comparison_documents()] == selected_ids[12:15]
-    assert window.comparison_page_label.text() == "13–15 of 15"
-    assert window.multi_compare_view.capacity == 6
-    assert [viewer.document is not None for viewer in window.multi_compare_view.visible_viewers] == [
-        True,
-        True,
-        True,
-        False,
-        False,
-        False,
-    ]
-
-    window.next_comparison_page()
-    assert window._page_start == 12
-    window.previous_comparison_page()
-    assert window._page_start == 6
-    assert tuple(document.document_id for document in window.selected_documents) == tuple(selected_ids)
-    window.close()
-
-
-def test_single_view_number_keys_and_fine_navigation_are_page_local(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window = MainWindow()
-    qtbot.addWidget(window)  # type: ignore[attr-defined]
-    _silence_analysis_runtime(window, monkeypatch)
-    documents = _ready_documents(window, tmp_path, 15)
-    selected_ids = [document.document_id for document in documents]
-    window._select_document_ids(selected_ids)
-    window.next_comparison_page()
-    window.set_layout_mode("Single View")
-
-    window.show_selected_image(3)
-    assert window.current_document is documents[9]
-    assert window.viewer.document is documents[9]
-    assert window.viewer._slot == 4
-    assert window._page_start == 6
-
-    window.show_selected_image(5)
-    assert window.current_document is documents[11]
-    assert window.viewer._slot == 6
-    window.next_image()
-    assert window.current_document is documents[12]
-    assert window._page_start == 12
-    assert window.viewer._slot == 1
-
-    window.previous_image()
-    assert window.current_document is documents[11]
-    assert window._page_start == 6
-    assert window.viewer._slot == 6
-    window.close()
-
-
-def test_comparison_page_navigation_preserves_active_local_slot_and_clamps_final_page(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window = MainWindow()
-    qtbot.addWidget(window)  # type: ignore[attr-defined]
-    _silence_analysis_runtime(window, monkeypatch)
-    documents = _ready_documents(window, tmp_path, 15)
-    window._select_document_ids([document.document_id for document in documents])
-    window._current_index = 4
-    window._set_active_document(documents[4])
-
-    window.next_comparison_page()
-    assert window.current_document is documents[10]
-    assert window._current_page_local_index() == 4
-
-    window.next_comparison_page()
-    assert window.current_document is documents[14]
-    assert window._current_page_local_index() == 2
-    window.close()
-
-
-def test_analysis_and_difference_inputs_follow_current_comparison_page(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window = MainWindow()
-    qtbot.addWidget(window)  # type: ignore[attr-defined]
-    documents = _ready_documents(window, tmp_path, 12)
-    selected_ids = [document.document_id for document in documents]
-    statistics_calls: list[tuple[str, ...]] = []
-    difference_calls: list[tuple[str, ...]] = []
-    line_calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(window, "_refresh_preload_plan", lambda: None)
-    monkeypatch.setattr(
-        window.comparison_analysis_panel,
-        "set_documents",
-        lambda docs, *_args, **_kwargs: statistics_calls.append(
-            tuple(document.document_id for document in docs)
-        ),
-    )
-    monkeypatch.setattr(
-        window.difference_panel,
-        "set_documents",
-        lambda docs, *_args, **_kwargs: difference_calls.append(
-            tuple(document.document_id for document in docs)
-        ),
-    )
-    monkeypatch.setattr(window.difference_panel, "cached_display_for_current", lambda: None)
-    monkeypatch.setattr(
-        window.line_profile_panel,
-        "set_documents",
-        lambda docs, *_args, **_kwargs: line_calls.append(
-            tuple(document.document_id for document in docs)
-        ),
-    )
-
-    window._select_document_ids(selected_ids)
-    assert statistics_calls[-1] == tuple(selected_ids[:6])
-    assert difference_calls[-1] == tuple(selected_ids[:6])
-    assert line_calls[-1] == tuple(selected_ids[:6])
-
-    window.next_comparison_page()
-    assert statistics_calls[-1] == tuple(selected_ids[6:12])
-    assert difference_calls[-1] == tuple(selected_ids[6:12])
-    assert line_calls[-1] == tuple(selected_ids[6:12])
-    window.close()
-
-
-def test_residency_protection_is_current_page_not_entire_large_selection(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window = MainWindow()
-    qtbot.addWidget(window)  # type: ignore[attr-defined]
-    _silence_analysis_runtime(window, monkeypatch)
-    documents = _ready_documents(window, tmp_path, 12)
-    selected_ids = [document.document_id for document in documents]
-    window._select_document_ids(selected_ids)
-
-    protected_page_1 = window._residency_protected_document_ids()
-    assert set(selected_ids[:6]).issubset(protected_page_1)
-    assert set(selected_ids[6:12]).isdisjoint(protected_page_1)
-
-    window.next_comparison_page()
-    protected_page_2 = window._residency_protected_document_ids()
-    assert set(selected_ids[6:12]).issubset(protected_page_2)
-    assert set(selected_ids[:6]).isdisjoint(protected_page_2)
-    assert tuple(document.document_id for document in window.selected_documents) == tuple(selected_ids)
-    window.close()
-
-
-def test_selected_over_six_disables_folder_position_without_changing_selection(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window = MainWindow()
-    qtbot.addWidget(window)  # type: ignore[attr-defined]
-    _silence_analysis_runtime(window, monkeypatch)
-    documents = _ready_documents(window, tmp_path, 7)
-    selected_ids = [document.document_id for document in documents]
-    window._select_document_ids(selected_ids)
-
-    window.next_folder_position()
-
-    assert tuple(document.document_id for document in window.selected_documents) == tuple(selected_ids)
-    assert "requires 1–6 selected images" in window.statusBar().currentMessage()
-    window.close()
-
-
-def test_lazy_raw_cancel_prompts_once_per_foreground_attempt(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    folder = tmp_path / "raw"
-    folder.mkdir()
-    raw_path = folder / "frame.raw"
-    raw_path.write_bytes(bytes(32))
-    window = MainWindow()
-    qtbot.addWidget(window)  # type: ignore[attr-defined]
-    monkeypatch.setattr(window, "_refresh_preload_plan", lambda: None)
-    window.register_folders([folder])
-    document = next(iter(window.documents.values()))
-    prompts: list[str] = []
-    monkeypatch.setattr(
-        window,
-        "_confirm_raw_profile",
-        lambda _image_input, document_id: prompts.append(document_id or "") or None,
-    )
-    monkeypatch.setattr(
-        window,
-        "_start_load",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("cancelled RAW must not start a worker")
-        ),
-    )
-
-    window._select_document_ids([document.document_id])
-    assert prompts == [document.document_id]
-    assert document.loading_state == "pending"
-    window._render_selection(preserve_view=True)
-    assert prompts == [document.document_id]
-
-    window.show_selected_image(0)
-    assert prompts == [document.document_id, document.document_id]
-    assert document.loading_state == "pending"
+    assert window._view_capacity == COMPARISON_PAGE_SIZE
     window.close()
 
 
@@ -370,14 +531,16 @@ def test_open_folders_cancel_is_a_complete_noop(
     roi_before = window._shared_roi
     line_before = window._shared_line
     monkeypatch.setattr(
-        "pixelscope.app.main_window.choose_directories",
-        lambda *_args, **_kwargs: (),
+        QFileDialog,
+        "getExistingDirectory",
+        lambda *_args, **_kwargs: "",
     )
 
     window.open_folders()
 
     assert len(window.documents) == 1
-    assert tuple(document.document_id for document in window.selected_documents) == selected_before
+    selected_after = tuple(document.document_id for document in window.selected_documents)
+    assert selected_after == selected_before
     assert window.central_stack.currentWidget() is central_before
     assert window._layout_mode == layout_before
     assert window._active_document_id == active_before
