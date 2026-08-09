@@ -9,7 +9,7 @@ import pyqtgraph as pg
 import pytest
 from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtGui import QKeySequence, QPalette
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog, QMessageBox
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog
 
 import pixelscope.ui.comparison_analysis_panel as comparison_module
 from pixelscope.app.application import create_application
@@ -632,7 +632,7 @@ def test_reloaded_same_document_preview_is_uploaded_after_pending_clear(qtbot: o
     assert np.array_equal(viewer.image_item.image, preview)
 
 
-def test_multi_view_focus_keeps_logical_badges_and_arrow_keys_cycle_reference(
+def test_multi_view_primary_survives_arrow_key_active_navigation(
     qtbot: object, tmp_path: Path
 ) -> None:
     window = MainWindow()
@@ -650,21 +650,25 @@ def test_multi_view_focus_keeps_logical_badges_and_arrow_keys_cycle_reference(
     window._select_document_ids([document.document_id for document in documents])
     window.set_layout_mode("Multi View")
     window._set_focus_document(documents[2])
+    assert window._focus_document_id == documents[2].document_id
     assert window.multi_compare_view.viewers[0].document is documents[2]
     assert window.multi_compare_view.viewers[0].header.badge.text() == "3"
-    assert all(
-        viewer.header.focus.isHidden() for viewer in window.multi_compare_view.occupied_viewers
-    )
+
     window.show()
     window.activateWindow()
     qtbot.wait(20)  # type: ignore[attr-defined]
     window.multi_compare_view.zoom_100_percent()
     zoom = window.multi_compare_view.viewers[0].zoom_percent
     window.multi_compare_view.viewers[0].setFocus()
-    qtbot.keyClick(window.multi_compare_view.viewers[0], Qt.Key.Key_Right)  # type: ignore[attr-defined]
-    assert window._focus_document_id == documents[3].document_id
-    assert window.multi_compare_view.viewers[0].document is documents[3]
-    assert window.multi_compare_view.viewers[0].header.badge.text() == "4"
+    qtbot.keyClick(
+        window.multi_compare_view.viewers[0],
+        Qt.Key.Key_Right,
+    )  # type: ignore[attr-defined]
+
+    assert window._focus_document_id == documents[2].document_id
+    assert window._active_document_id == documents[3].document_id
+    assert window.multi_compare_view.viewers[0].document is documents[2]
+    assert window.multi_compare_view.viewers[0].header.badge.text() == "3"
     assert window.multi_compare_view.viewers[0].zoom_percent == pytest.approx(zoom, rel=0.01)
 
     window.set_layout_mode("Single View")
@@ -1312,7 +1316,9 @@ def test_single_view_number_shortcuts_and_six_histogram_grid(qtbot: object) -> N
     window.close()
 
 
-def test_auto_grid_paging_with_seven_selected_images(qtbot: object) -> None:
+def test_auto_grid_fine_navigation_crosses_seven_image_page_boundary(
+    qtbot: object,
+) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     documents = [
@@ -1326,13 +1332,22 @@ def test_auto_grid_paging_with_seven_selected_images(qtbot: object) -> None:
     assert window._layout_mode == "Multi View"
     assert window._view_capacity == 6
 
+    for document in documents[1:6]:
+        window.next_image()
+        assert window._page_start == 0
+        assert window._active_document_id == document.document_id
+
     window.next_image()
+    assert window._page_start == 6
     assert window.multi_compare_view.viewers[0].document is documents[6]
     assert all(viewer.document is None for viewer in window.multi_compare_view.viewers[1:6])
+
     window.next_image()
-    assert window.multi_compare_view.viewers[0].document is documents[0]
+    assert window._page_start == 0
+    assert window._active_document_id == documents[0].document_id
     window.previous_image()
-    assert window.multi_compare_view.viewers[0].document is documents[6]
+    assert window._page_start == 6
+    assert window._active_document_id == documents[6].document_id
     window.close()
 
 

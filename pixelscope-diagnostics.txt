@@ -1,0 +1,32 @@
+PixelScope Runtime Diagnostics
+
+Source Residency
+Used bytes: 39398400
+Budget bytes: 268435456
+Resident sources: 10
+Over-budget bytes: 0
+
+Difference Map Cache
+Used bytes: 0
+Budget bytes: 134217728
+Entries: 0
+
+Workers
+Foreground loads: active 0 / max 2
+Preload: active 0 / max 1
+
+Preload
+Enabled: yes
+Planned targets: 0
+Active workers: 0
+Retained successes: 9
+Stale drops: 0
+Cancellation requests: 0
+Failures: 0
+
+Stale Results
+Foreground stale drops: 0
+Preload stale drops: 0
+
+Recent Failures
+None
