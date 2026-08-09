@@ -265,8 +265,9 @@ This document records the implementation baseline that new work must use.
 
 ## Not implemented
 
-- P2-F independent re-review of the final follow-up head remains required before
-  merge; this branch must not describe P2-F as merged.
+- P2-F remains active only until PR #20 merges; independent merge-readiness review
+  found no remaining production/test blocker, and all owner/local automated and
+  Windows closure evidence is complete.
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
   distribution work.
@@ -290,25 +291,28 @@ This document records the implementation baseline that new work must use.
   characterization gap by exercising production Bayer preview loading, Auto
   4096-bin selection, and CFA-specific analysis instead of generic grayscale
   preview/histogram semantics.
-- Owner/local automated validation was reported PASS against production hardening
-  head `e558f1ab94a0a30d5cc2a5a9d2d4af82a4bead3a`: focused analysis-request tests,
-  performance smoke, the P2 focused suite, full pytest, ruff check/format, mypy,
-  pip check, docs checker, and `git diff --check` all passed.
-- Owner/local Windows characterization against `e558f1ab...` is complete for the
-  agreed phase-level matrix: FHD/UHD navigation, Bayer/RAW, PageDown navigation,
-  residency/preload behavior, Difference under source-memory pressure, Settings
-  restart semantics, **Help > Copy Diagnostics**, and the analysis-function
-  regression set were intentionally exercised without observed failure.
+- Owner/local automated validation was reported PASS against latest reviewed head
+  `e7537b42b875497331d39eea7954b55a0866fb90`: the focused request-lifecycle suite
+  including the pending-QTimer identity regression, performance smoke, the P2
+  focused suite, full pytest, ruff check/format, mypy, pip check, docs checker,
+  and `git diff --check` all passed.
+- Owner/local Windows characterization is complete for the agreed phase-level
+  matrix: FHD/UHD navigation, Bayer/RAW, PageDown navigation, residency/preload
+  behavior, Difference under source-memory pressure, Settings restart semantics,
+  **Help > Copy Diagnostics**, and the analysis-function regression set were
+  intentionally exercised without observed failure.
 - The affected Single View path also passed explicitly: repeated number-key
   switching retained Statistics values, changed only the viewer image quickly,
   and no longer showed repeated **Preparing analysis...** messages.
 - Review follow-up commit `6ff46e0e38931b04de546ae3f967b9aa327b2fcf`
-  adds the missing deterministic pending-QTimer identity regression only; it does
-  not change production `src/` behavior. Owner/local execution of this newly added
-  test remains the final automated evidence to record for that follow-up.
-- The GitHub connector implementation environment does not provide the repository
-  Python/Qt runtime, so it does not independently claim the new follow-up test as
-  passing.
+  supplies deterministic coverage for the previously missing pending-QTimer
+  state without changing production `src/` behavior.
+- Independent merge-readiness review of `e7537b42...` found no remaining
+  production/test blocker and requested only this final durable-doc evidence
+  alignment. No further production review cycle is required for this docs-only
+  correction unless the branch changes beyond documentation.
+- The GitHub connector implementation environment does not run the repository
+  Python/Qt suite; the PASS statements above are recorded owner/local evidence.
 - There is no GitHub Actions workflow today. Introducing an unobserved Windows Qt
   gate during P2 closure is deferred; owner/local Windows validation remains the
   authoritative P2-F closure evidence.
@@ -324,6 +328,7 @@ This document records the implementation baseline that new work must use.
 - P2-D: complete; merged as PR #18.
 - P2-E: complete; merged as PR #19 at
   `7ee7aec2980baeef9d511f3db5c71f89fa319a64`.
-- P2-F: active — Performance Characterization & Phase Hardening.
+- P2-F: active — Performance Characterization & Phase Hardening; pre-merge
+  validation, Windows characterization, and independent review are complete.
 - P2 plan archive and detailed P3 execution planning follow P2-F merge in the
   next orchestration step.
