@@ -205,8 +205,12 @@ def test_selected_oversized_source_survives_real_worker_completion_without_reloa
     assert cv2.imwrite(str(path), np.arange(8, dtype=np.uint8).reshape(2, 4))
     window = _window(qtbot, source_budget=4)
 
-    document_ids = window._register_inputs((ImageInput(path),), select_all=True)
+    document_ids = window._register_inputs(
+        (ImageInput(path),),
+        resolve_raw_profiles=True,
+    )
     assert len(document_ids) == 1
+    window._select_document_ids(document_ids)
     document_id = document_ids[0]
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: not window._workers and window.documents[document_id].loading_state == "ready",
