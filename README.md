@@ -26,17 +26,26 @@ py -3.10 -m venv .venv
 
 Use **File > Open Images...** for selection-oriented direct file input and
 **File > Open Folders...** for registration-oriented folder input. Direct image
-files are registered and selected; folder contents are registered in Files without
-changing the current selection or presentation. Registration is not limited by the
-six-tile viewer capacity. Files are grouped by parent folder, and Page Up/Page Down
-moves only the currently selected multi-folder comparison set atomically in natural
-filename order.
+files are registered and become the ordered logical selection; folder contents are
+registered in Files without changing that selection or the current presentation.
+Registration and logical selection are not limited by viewer capacity.
+
+For more than six selected images, PixelScope derives a maximum-six **Current
+Comparison Page** from selection order. Multi View presents that page; Single View
+presents one page-local active image while Statistics, Histogram, Line Profile,
+and other default comparison analysis remain scoped to the same page. Viewer slots
+are local 1–6. `Ctrl+Left` / `Ctrl+Right` moves one Comparison Page, while
+Left/Right remains fine Previous/Next Selected Image navigation. PageUp/PageDown
+remains Folder Position and is available only for one-to-six selected images from
+distinct folders.
 
 Auto, Single View, and Multi View provide synchronized cursor, zoom, offset,
-ROI, and line coordinates. Multi View uses fixed layouts for one to six source
-images, with focus promotion in the three- and five-image layouts. Difference
-is derived from any two selected sources and is promoted consistently without
-changing the logical source IDs.
+ROI, and line coordinates. For six-or-fewer selections, the existing fixed layouts
+remain in use, with focus promotion in the three- and five-image layouts. Large
+selections keep six-slot Grid 3x2 geometry across Comparison Pages, including
+cleared empty slots on a short final page. Difference is derived from applicable
+current-page sources and retains explicit pair authority without changing logical
+source IDs.
 
 Histogram supports Auto/256/1024/4096 bins, Count/Normalized/Log count modes,
 and native code-value ranges. Line Profile supports absolute values,
@@ -53,8 +62,12 @@ ratio.
 
 Direct RAW file input resolves a profile before loading unless a valid same-name
 JSON sidecar is accepted through the stored preference. RAW discovered through
-folder registration remains pending and resolves its profile when foreground
-selection/loading actually requires it, avoiding registration-time dialog storms.
+folder registration remains pending. A selected-but-off-page unresolved RAW does
+not prompt or decode merely because it is selected; foreground Current Comparison
+Page entry resolves its profile when source is required. Cancel leaves that RAW
+pending with no worker and suppresses immediate passive re-prompt within the same
+foreground attempt. Unresolved RAW is excluded from speculative preload.
+
 The profile separates storage format, sample container, effective bit depth, byte
 order, bit alignment, dimensions, stride, offset, and channel layout.
 
@@ -70,6 +83,15 @@ black/white-level processing, and profile suggestion are not implemented.
 
 Example profile:
 [`examples/raw_profiles/example_unpacked_raw16.json`](examples/raw_profiles/example_unpacked_raw16.json).
+
+## Runtime memory policy
+
+Decoded-source residency keeps P2 exact native `source.nbytes` accounting and
+protected soft-budget LRU semantics. For large logical selections, selection alone
+does not protect every visited source: the Current Comparison Page plus correctness
+dependencies are protected, while off-page selected sources may be evicted and
+normally reloaded when revisited. Preload remains exactly the next Folder Position;
+PixelScope does not add a Comparison Page preload system.
 
 ## Development
 
