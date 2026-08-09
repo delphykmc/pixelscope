@@ -154,5 +154,10 @@ def test_mixed_bit_bayer_same_cfa_supports_plane_roi_in_normalized_domain(
 
     assert panel.metric_scope.text() == "Scope Active ROI · Bayer R"
     assert panel.difference_cache.entry_count == 1
+    assert panel.cached_result_for_current() is cached
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None,
+        timeout=3000,
+    )
     assert panel.last_result is not None
     assert panel.last_result.maximum_absolute == pytest.approx(1.0)
