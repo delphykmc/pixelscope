@@ -301,6 +301,52 @@
 - Gain retains its existing product behavior. Native preview semantics are not
   redesigned; normalized maps render against the canonical `[0,1]` data domain.
 
+## Accepted P3-B RAW native/display decisions
+
+- P3-B starts from the PR #23 merged baseline
+  `4c7d1bbbb4476134f76a204578098d35a03feca2` and preserves the complete P3-A
+  Difference contract.
+- Decoded `ImageDocument.source` is the authoritative RAW analysis domain. Viewer
+  gain may not mutate or replace it, and display-only changes do not advance
+  source generation.
+- `RawProfile.black_level` and `RawProfile.white_level` remain schema/JSON fields.
+  P3-B uses black as a display-gain anchor and keeps white as metadata only.
+- RAW 1× display range is exactly native code
+  `0..((1 << bit_depth) - 1)`. Black is not mapped to zero; white is not mapped to
+  display full scale.
+- RAW gain is `black + gain * (native - black)`. Arithmetic is promoted to
+  float32 before subtraction so unsigned below-black samples cannot underflow.
+  Intermediate below-zero/above-full-scale values are allowed; clipping occurs
+  only during final uint8 display conversion.
+- Bayer tuple black levels retain R/Gr/Gb/B ordering and are applied by CFA parity
+  for RGGB/GRBG/GBRG/BGGR. The mosaic source is never converted into a new
+  processed-source authority for this purpose.
+- `DisplayTransform` describes generic presentation range/gain semantics with
+  explicit `display_low`, `display_high`, and `gain_anchor`; RAW profile white
+  level is not a synonym for display high.
+- The product surface is one compact application-session `RAW Gain` selector with
+  1×/2×/4×/8×/16×. It is not written to `RawProfile`, workspace QSettings, or
+  `ApplicationSettings`, so settings schema remains v5.
+- All `ImageViewer` instances consume the same session gain. Non-RAW documents do
+  not run through RAW gain. Multi View therefore compares visible RAW tiles under
+  one consistent presentation gain.
+- The base RAW `ImageDocument.preview` is the 1× effective-full-scale preview.
+  Higher-gain presentations are derived from resident native source on the shared
+  numerical worker pool and applied to the viewer image item only.
+- Async gained-preview acceptance requires current task/request, document,
+  source, generation, gain, and visibility identity. Cancellation is advisory;
+  stale results may never overwrite a newer gain presentation.
+- RAW gain does not reload source, change residency accounting/protection, touch
+  preload policy, change Difference cache identity, or invalidate native
+  Statistics/Histogram/Line Profile/Split Channel/Difference data.
+- P3-B adds no demosaic, white balance, CCM, tone-map feature, optical-black
+  estimation, processed RAW document/analysis, new Difference mode, profile
+  management/suggestion, persistence, Settings schema bump, resource-policy
+  redesign, packaging, or broad MainWindow/toolbar redesign.
+- P3-C remains **RAW Visualization & Inspection Improvements**. Demosaic is not a
+  committed P3-C requirement and requires a separately approved coherent
+  processed-preview boundary.
+
 ## Current resource policy
 
 - The canonical SVG/PNG/ICO icon triplet, reproducible generator,
@@ -318,5 +364,6 @@
 There are no pending P2-F product-design decisions. P2-F merged as PR #20 at
 `9c66629f6392971b8c52ac9dff27b16166cf9829`; its validation and Windows
 characterization are historical closure evidence rather than pending merge work.
-P3 continues to preserve the established P2 runtime policies unless a later slice
-explicitly changes them.
+P3-B product semantics are implemented; owner/local Windows validation remains
+pending before merge. P3 continues to preserve the established P2 runtime
+policies unless a later slice explicitly changes them.
