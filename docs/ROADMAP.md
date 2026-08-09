@@ -1,235 +1,147 @@
-# Roadmap
+# PixelScope roadmap
 
-## Delivered baseline
+## Program direction
 
-### P0/P1 product foundation
+PixelScope is proceeding in staged, reviewable slices. Runtime/resource foundations
+are complete; the current program is P3 — Image Semantics & RAW Processing.
 
-- PNG/BMP/JPEG and profile-described RAW loading with native source preservation.
-- Ordered selection, registered one-to-six-folder navigation, synchronized
-  cursor/range/ROI/line state, and fixed one-to-six-image layouts.
-- Statistics, Histogram, Line Profile, Difference, Split Channels, structured
-  status, and persisted workspace/Plots state.
-- RAW10/12/14 plus unpacked uint8/uint16 decoding with deterministic fixtures.
-- P1-D/P1-E/P1-F workspace-polish program completed as PR #10–#12.
-- Historical P1 plan:
-  `docs/exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`.
+The ordering is intentionally:
 
-### P2 — Runtime Foundation, Settings & Performance
+1. stabilize image and RAW semantics;
+2. then build persistent workflow/session features on top of those semantics;
+3. then add remote IQA, identity/access, and release engineering.
 
-P2 is complete.
+## P0 — Initial comparison foundation — Complete
 
-Completed sequence:
+- selection-driven Single/Multi View;
+- Difference visualization;
+- analysis panels;
+- cache and layout foundations.
 
-`P2-0 → P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E → P2-F`
+## P1 — Workspace/UI polish — Complete
 
-- P2-0 merged as PR #13.
-- P2-A1 identity/resources merged as PR #14.
-- P2-A2 typed settings/runtime integration merged as PR #15.
-- P2-B byte-budgeted decoded-source residency merged as PR #16.
-- P2-C bounded next-position preload merged as PR #17.
-- P2-D deterministic runtime diagnostics merged as PR #18.
-- P2-E RUNNING preload foreground reuse merged as PR #19.
-- P2-F performance characterization/hardening merged as PR #20 at
-  `9c66629f6392971b8c52ac9dff27b16166cf9829`.
+- primary-image semantics;
+- folder-pair navigation;
+- Plots workspace behavior;
+- fixed layout cleanup and compatibility removal.
 
-P2 closes with settings schema v5, independent source/Difference memory budgets,
-protected soft-budget source residency, `+1` one-position max-one preload,
-RUNNING preload authority promotion, deterministic sanitized diagnostics, and
-hardware-independent correctness/resource/lifecycle merge gates.
+## P2 — Runtime Foundation, Settings & Performance — Complete
 
-Historical P2 plan:
-`docs/exec-plans/completed/p2-runtime-foundation-settings-performance.md`.
+Completed through PR #20.
 
-## Revised forward sequence
+- typed Settings and application identity;
+- decoded-source residency budget;
+- bounded next-position preload;
+- runtime diagnostics;
+- running-preload foreground promotion;
+- integration/performance hardening.
 
-The previous roadmap placed Workflow & Session Productivity before RAW work. The
-order is revised so image-analysis semantics stabilize before persistent sessions
-and workflow state are built around them.
-
-`P3 Image Semantics & RAW Processing`
-→ `P4 Workflow & Session Productivity`
-→ `P5 Remote IQA Platform`
-→ `P6 Identity, Access & Remote Operations`
-→ `P7 Release Engineering & Distribution`
-
-## P3 — Image Semantics & RAW Processing
-
-P3-0 is complete as PR #21 at
-`5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`; implementation slices start from
-the latest merged P3 prerequisite. P3 roadmap replanning merged as PR #23 at
-`4c7d1bbbb4476134f76a204578098d35a03feca2`.
+## P3 — Image Semantics & RAW Processing — Active
 
 ### P3-0 — Program transition — Complete
 
-- Merged as PR #21 at `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`.
-- Archived P2 completion state, established the revised P3/P4 order, and created
-  the active P3 execution plan.
-- Documentation only.
+Merged as PR #21.
 
 ### P3-A — Difference Gray / Mixed Bit-Depth Support — Complete
 
-P3-A merged as PR #22 at
-`769588bf869847da844cfc0b77c008023d8b048b`.
+Merged as PR #22.
 
-The completed contract is:
+- Gray ↔ Gray Difference;
+- RGB/RGBA ↔ RGB/RGBA and same-CFA Bayer compatibility;
+- native equal-bit domain;
+- independent full-scale normalized mixed-bit domain;
+- explicit domain metadata and `%FS` threshold semantics;
+- bounded float32 normalized computation.
 
-- Gray ↔ Gray;
-- RGB/RGBA ↔ RGB/RGBA;
-- Bayer ↔ Bayer only with the same CFA pattern;
-- reject cross-family, size-mismatch, and CFA-mismatch cases;
-- no implicit RGB→Gray/luma conversion;
-- same effective bit depth uses native code-domain Difference;
-- different effective bit depths normalize each source by its own effective
-  full-scale code value to `[0,1]` and use `%FS` threshold semantics;
-- RAW Black/White metadata and display transforms do not define P3-A Difference
-  normalization.
+### P3-B — RAW Native & Display Semantics — Implementation complete; final review follow-up pending validation/merge
 
-P3-A also delivers explicit Gray channel support, bounded float32 mixed-bit
-Difference/metrics, cache domain metadata, compact Scope/Domain UI, and short
-validation reasons with detailed tooltips.
+P3-B establishes native RAW authority and the reusable Display Gain core without
+changing analysis domains.
 
-### P3-B — RAW Native & Display Semantics — Implementation Complete
-
-P3-B is implemented on `feature/p3-b-raw-native-display-semantics`. Owner/local
-Windows quality validation passed after independent-review and Qt-lifetime fixes
-at `1a8a904895566f27e17d175b43a94997e43401e4`. A later owner-approved generic
-Display Gain core refactor changes production core/tests/docs, so latest-head
-revalidation and merge remain pending.
-
-Delivered contract:
-
-- Native decoded RAW remains the authoritative source and is not modified by
-  Black/White metadata or viewer controls.
-- Existing `black_level` and `white_level` RAW-profile metadata remain schema- and
-  JSON-compatible; Settings stays at schema v5.
-- At 1× display gain, RAW maps native code `0..((1 << bit_depth) - 1)` to the
-  preview range. Black is not subtracted and White is not promoted to full scale.
-- P3-B introduces a **generic anchor-based display-gain core**:
-  `display = anchor + gain * (source - anchor)`.
-- The generic core is presentation-only and is not RAW-metadata-aware. RAW adapters
-  supply the anchor policy: scalar Black for RAW Gray, channel-specific R/Gr/Gb/B
-  Black for Bayer where available, and the legacy `min(tuple)` anchor for
-  schema-compatible GRAY tuple profiles.
-- The core naturally supports `anchor=0` and operation on channel views so later
-  ordinary Gray/RGB/RGBA presentation can reuse it without a second gain engine.
-- P3-B **activates the gain UI/runtime only for RAW**. Ordinary Gray/RGB/RGBA
-  images remain unchanged in this slice.
-- Gain/range mapping uses float32 fused affine processing where possible. It does
-  not create a full-size Bayer Black map or promote full-frame gain math to
-  float64.
-- `white_level` remains metadata only for P3-B display; effective full scale is
-  the RAW display-range authority.
-- Pixel inspection, Statistics, Histogram, Line Profile source data, Split
-  Channels, source residency, and P3-A Difference remain native-domain operations.
-- The compact session-local `RAW Gain` control provides 1×/2×/4×/8×/16×. The same
-  gain is shared across visible RAW tiles in Single/Multi View; ordinary images
-  are unaffected.
-- The viewer keeps a 1× fast path using the canonical document preview. Gain >1
-  uses resident native source and the shared numerical worker pool; stale async
-  results are rejected without source reload/decode, generation changes,
-  residency-policy changes, or Difference-cache invalidation.
-- Hidden viewers release gain>1 derived presentation buffers and regenerate the
-  current gain when shown again.
-
-P3-B intentionally adds no ordinary-image gain UI, demosaic, white balance, CCM,
-tone mapping, processed RAW document, processed analysis mode, persistence,
-Settings migration, or resource-policy redesign.
+- decoded RAW source remains authoritative;
+- Black/White remain profile metadata;
+- 1× RAW display uses effective native full scale;
+- RAW gain uses Black-anchored presentation;
+- generic core is `display = anchor + gain * (source - anchor)`;
+- gain/range work uses fused float32 affine processing where possible;
+- 1× canonical-preview fast path is retained;
+- hidden gain>1 viewer previews are released and regenerated on show;
+- ordinary Gray/RGB/RGBA gain remains deferred to P3-C;
+- `+` / `-` gain commands are scoped to the image-presentation subtree;
+- Files-tree `+` / `-` native expand/collapse is preserved;
+- latest pre-follow-up owner/local validation passed on
+  `424144215b1df97c71a84ddca79a17bfccb1feef`; the final shortcut-focus review
+  fix requires one more latest-head validation before merge.
 
 ### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension
 
-P3-C reuses the P3-B generic display-gain core rather than creating a second
-ordinary-image gain implementation.
+After P3-B merges:
 
-Committed Display Gain scope:
+- reuse the generic Display Gain core for ordinary Gray/RGB/RGBA;
+- use `anchor=0` for ordinary Gray/RGB;
+- preserve RGBA alpha;
+- use **Display Gain** / **Gain**, not Exposure;
+- reuse the P3-B presentation-scoped `+` / `-` command policy;
+- preserve Files-tree native expand/collapse and other sibling-widget key routing;
+- preserve source/Statistics/Histogram/Line Profile/Difference domains;
+- cover 1× identity, clipping, Gray/RGB/RGBA behavior, alpha preservation,
+  analysis independence, command synchronization, and key-routing preservation;
+- improve RAW clipping/Bayer observability where useful.
 
-- extend viewer-only gain to ordinary Gray and RGB using `anchor=0`;
-- support RGBA presentation with the same RGB gain while preserving alpha;
-- use the user-facing term **Display Gain** or **Gain**; do not label this feature
-  **Exposure**;
-- preserve native Gray/RGB/RGBA source arrays and keep Statistics, Histogram,
-  Line Profile, Difference, residency, and cache semantics independent of gain;
-- retain a 1× identity/fast path and deterministic final clipping;
-- test 1× identity, clipping, Gray, RGB, RGBA alpha preservation, and analysis
-  independence.
-
-Additional RAW visualization/inspection candidates remain:
-
-- make RAW Gain and clipping state clearer for engineering inspection;
-- optional highlight/shadow clipping visualization where materially useful;
-- improve Bayer-channel/native-mosaic visualization and inspection affordances;
-- keep viewer affordances explicitly display-only.
-
-Demosaic remains deferred. A future demosaic feature must first define the
-processed-preview boundary and whether white balance, color correction,
-tone/gamma, and related metadata belong in the same feature. Until that product
-need is explicit, P3 should not grow into a partial RAW-conversion pipeline.
+Demosaic is deferred unless separately approved together with a coherent
+processed-preview contract covering Black/White normalization, white balance,
+CCM, tone/gamma, and analysis interactions.
 
 ### P3-D — RAW Profile Management
 
-- Reusable profile storage/selection.
-- Stable profile identity/versioning.
-- Safe profile edit/reuse workflow.
-- Deterministic profile suggestion with no silent ambiguous application.
-- Preserve existing JSON migration and exact-size policy.
+- reusable profile storage/selection;
+- deterministic profile suggestion;
+- safe profile identity/versioning and edit workflow.
 
 ### P3-E — Integration & Hardening
 
-- Cross-check native/normalized Difference with RAW native/display ownership.
-- Characterize representative Gray/RGB/RGBA/Bayer/RAW and bit-depth combinations.
-- Preserve P2 residency/preload/diagnostics contracts.
-- Complete automated/Windows validation and durable P3 documentation.
-
-P3 excludes persistent sessions, remote/authentication work, release engineering,
-broad MainWindow/shortcut rewrites, speculative preload-policy expansion, native
-optimization without profiling evidence, and demosaic/white-balance/color/tone
-processing unless separately approved by the owner.
+- cross-analysis regression coverage;
+- representative Gray/RGB/RGBA/Bayer/RAW characterization;
+- preserve P2 runtime/resource boundaries;
+- Windows validation and durable P3 closure documentation.
 
 ## P4 — Workflow & Session Productivity
 
-This is the former P3 scope, intentionally moved after image/RAW semantics.
-
-- Persistent comparison sessions.
-- Recent Files/Folders.
-- Saved ROI manager.
-- Arbitrary-angle line sampling.
-- Alpha overlay.
-- Additional productivity and export workflows.
+- persistent comparison sessions;
+- Recent Files/Folders;
+- saved ROI workflow;
+- arbitrary-angle line sampling;
+- alpha overlay and broader local productivity/export features.
 
 ## P5 — Remote IQA Platform
 
-- Remote submission and result workflow.
-- Server/job API.
-- GPU worker.
-- Artifact, heatmap, and result comparison.
+- remote submission/results;
+- versioned job API;
+- GPU worker/evaluation;
+- artifacts, heatmaps, and result comparison.
 
 ## P6 — Identity, Access & Remote Operations
 
-- Login and SSO.
-- Token/credential lifecycle.
-- Permission and access policy.
-- Operational administration.
+- login/SSO;
+- token/credential lifecycle;
+- permissions and operational administration.
 
 ## P7 — Release Engineering & Distribution
 
-- Exactly PyInstaller 5.7 `onedir`.
-- Portable ZIP.
-- Inno Setup.
-- Clean-PC smoke testing.
-- Signing.
-- Update strategy.
-- Repeatable release process.
+- PyInstaller 5.7 `onedir` packaging;
+- portable ZIP;
+- Inno Setup installer;
+- clean-PC smoke validation;
+- signing, updater, and release process.
 
-## Deferred optimization outside the phase sequence
+## Deferred optimization candidates
 
-P2 characterization left several evidence-driven optimization candidates that do
-not currently justify reopening the runtime foundation:
+Performance changes remain evidence-driven rather than roadmap commitments.
+Candidates include:
 
-- preload concurrency one versus two;
-- directional/bidirectional or deeper preload;
-- CPU/I/O aggressiveness controls;
-- broader resource-policy Settings exposure;
-- process-level memory/profiler telemetry;
-- native/SIMD gain optimization beyond the current float32 fused affine path.
-
-These should be scheduled only when later profiling or user-visible latency gives
-a concrete reason to change the established runtime policy.
+- preload concurrency/direction/depth changes;
+- broader CPU/I/O aggressiveness controls;
+- process-level memory profiling;
+- coalescing/debounce/cancellable chunking for rapid large-image Display Gain
+  changes if profiling demonstrates material latency or transient memory pressure;
+- SIMD/native kernels only after profiling shows Python/NumPy paths are limiting.
