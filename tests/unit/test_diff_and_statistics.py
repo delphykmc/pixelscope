@@ -10,7 +10,9 @@ from pixelscope.core.diff_engine import (
     absolute_difference_metrics,
     analyze_difference,
     compact_absolute_difference,
+    difference_compatibility,
     difference_metrics,
+    normalized_absolute_difference,
     signed_difference,
     validate_difference_documents,
 )
@@ -118,43 +120,50 @@ def test_native_histogram_statistics_match_direct_statistics(
     assert derived.percentiles == pytest.approx(direct.percentiles)
 
 
-def test_difference_compatibility_reasons_are_explicit() -> None:
+def _bayer_document(name: str, pattern: str, bit_depth: int = 10) -> ImageDocument:
+    return ImageDocument.from_array(
+        np.zeros((4, 5), dtype=np.uint16),
+        name,
+        channel_layout="BAYER",
+        bit_depth=bit_depth,
+        raw_profile=type("Profile", (), {"bayer_pattern": pattern})(),
+    )
+
+
+def test_difference_compatibility_families_and_domains_are_structured() -> None:
+    gray8 = ImageDocument.from_array(np.zeros((4, 5), dtype=np.uint8), "gray8.png")
+    gray10 = ImageDocument.from_array(np.zeros((4, 5), dtype=np.uint16), "gray10.raw", bit_depth=10)
     rgb = ImageDocument.from_array(np.zeros((4, 5, 3), dtype=np.uint8), "rgb.png")
-    rgb16 = ImageDocument.from_array(
-        np.zeros((4, 5, 3), dtype=np.uint16),
-        "rgb16.png",
-        bit_depth=10,
+    rgba = ImageDocument.from_array(np.zeros((4, 5, 4), dtype=np.uint8), "rgba.png")
+    rgb10 = ImageDocument.from_array(
+        np.zeros((4, 5, 3), dtype=np.uint16), "rgb10.png", bit_depth=10
     )
-    bayer_rggb = ImageDocument.from_array(
-        np.zeros((4, 5), dtype=np.uint16),
-        "rggb.raw",
-        channel_layout="BAYER",
-        bit_depth=10,
-        raw_profile=type("Profile", (), {"bayer_pattern": "RGGB"})(),
+    bayer_rggb = _bayer_document("rggb.raw", "RGGB")
+    bayer_bggr = _bayer_document("bggr.raw", "BGGR")
+    mismatched = ImageDocument.from_array(np.zeros((3, 5, 3), dtype=np.uint8), "small.png")
+
+    gray_native = difference_compatibility(gray8, gray8)
+    gray_normalized = difference_compatibility(gray8, gray10)
+    rgb_rgba = difference_compatibility(rgb, rgba)
+    bayer = difference_compatibility(bayer_rggb, bayer_rggb)
+
+    assert (gray_native.compatible, gray_native.family, gray_native.domain) == (
+        True,
+        "GRAY",
+        "native",
     )
-    bayer_bggr = ImageDocument.from_array(
-        np.zeros((4, 5), dtype=np.uint16),
-        "bggr.raw",
-        channel_layout="BAYER",
-        bit_depth=10,
-        raw_profile=type("Profile", (), {"bayer_pattern": "BGGR"})(),
-    )
-    mismatched = ImageDocument.from_array(
-        np.zeros((3, 5, 3), dtype=np.uint8),
-        "small.png",
-    )
-    assert validate_difference_documents(rgb, rgb) is None
-    assert validate_difference_documents(rgb, bayer_rggb) == (
-        "RGB and Bayer images cannot be compared directly."
-    )
-    assert validate_difference_documents(rgb, mismatched) == "Image dimensions do not match."
-    assert validate_difference_documents(bayer_rggb, bayer_bggr) == (
-        "Bayer patterns are different: RGGB vs BGGR."
-    )
-    assert validate_difference_documents(rgb, rgb16) == (
-        "Native-domain difference requires matching bit depths."
-    )
-    assert validate_difference_documents(rgb, rgb16, normalized_domain=True) is None
+    assert gray_native.data_range == 255.0
+    assert (gray_normalized.compatible, gray_normalized.domain) == (True, "normalized")
+    assert gray_normalized.data_range == 1.0
+    assert (rgb_rgba.compatible, rgb_rgba.family, rgb_rgba.domain) == (True, "RGB", "native")
+    assert (bayer.compatible, bayer.family) == (True, "BAYER")
+    assert difference_compatibility(gray8, rgb).reason_code == "layout-mismatch"
+    assert difference_compatibility(gray8, bayer_rggb).reason_code == "layout-mismatch"
+    assert difference_compatibility(rgb, bayer_rggb).reason_code == "layout-mismatch"
+    assert difference_compatibility(rgb, mismatched).reason_code == "size-mismatch"
+    assert difference_compatibility(bayer_rggb, bayer_bggr).reason_code == "cfa-mismatch"
+    assert difference_compatibility(rgb, rgb10).domain == "normalized"
+    assert validate_difference_documents(rgb, rgb10) is None
 
 
 def test_difference_analysis_metrics_and_normalized_domain() -> None:
@@ -178,8 +187,22 @@ def test_difference_analysis_metrics_and_normalized_domain() -> None:
         bit_depth_a=8,
         bit_depth_b=16,
     )
+    assert normalized.numerical.dtype == np.dtype(np.float32)
     assert normalized.numerical[0, 0] == pytest.approx(0.0)
     assert normalized.metrics.psnr == inf
+
+
+def test_normalized_absolute_difference_uses_each_effective_full_scale() -> None:
+    full8 = np.array([[255, 128]], dtype=np.uint8)
+    full16 = np.array([[65535, 32768]], dtype=np.uint16)
+    result = normalized_absolute_difference(full8, full16, 8, 16, chunk_elements=1)
+    assert result.dtype == np.dtype(np.float32)
+    assert result[0, 0] == pytest.approx(0.0)
+    assert result[0, 1] == pytest.approx(abs(128 / 255 - 32768 / 65535), abs=1e-7)
+
+    full10 = np.array([[1023]], dtype=np.uint16)
+    full12 = np.array([[4095]], dtype=np.uint16)
+    assert normalized_absolute_difference(full10, full12, 10, 12)[0, 0] == pytest.approx(0.0)
 
 
 def test_difference_metrics_use_roi_and_all_selected_rgb_samples() -> None:

@@ -88,11 +88,34 @@ document is available and is rendered as exact zero.
 ## Difference
 
 Choose Image 1 and Image 2 in **Analysis > Difference**, then calculate.
-Reversed pairs share one native-map cache.
+PixelScope compares only compatible image families: Gray with Gray, RGB/RGBA with
+RGB/RGBA, or Bayer with Bayer when the CFA pattern matches. RGBA alpha is ignored.
+Gray exposes only **Gray**; RGB/RGBA exposes **All / R / G / B**; Bayer exposes
+**Mosaic / R / Gr / Gb / B**. Cross-family, size-mismatch, and CFA-mismatch pairs
+are rejected; PixelScope does not silently convert RGB to grayscale.
 
-Absolute and Mask displays derive from the cached map. Gain and Threshold change
-presentation; Full image/Active ROI controls metrics. With six selected sources,
-Difference opens in Single View until disabled.
+The panel shows compact **Scope** and **Domain** fields. Equal effective bit depths
+use **Native** code values. Different effective bit depths use **Normalized
+[0–1]**: each source is divided by its own effective full-scale code value before
+Difference is calculated. This is source full-scale normalization; RAW black/white
+levels, display settings, previews, and demosaic do not change it.
+
+Absolute and Mask displays derive from the cached map, and reversed pairs reuse
+the same order-independent cache entry. The Threshold unit follows the domain:
+**code** for Native or **%FS** for Normalized. In normalized mode, `1.00 %FS` is
+`0.01` in the `[0,1]` domain. Mask comparison is strict `>`, so a pixel exactly at
+the threshold is not masked. Gain retains the existing Absolute Difference
+presentation behavior. Full image/Active ROI controls metrics.
+
+The persisted **Settings > Difference Defaults > Threshold** remains the Native
+code threshold under settings schema v5. Normalized Threshold is separate, starts
+at **1.00 %FS**, and is remembered only for the current application session.
+Switching between native and normalized pairs keeps the most recent threshold for
+each domain during that session. Validation uses short visible labels such as
+**Layout mismatch**, **Size mismatch**, or **CFA mismatch**; hover the status or
+Calculate control for the detailed reason.
+
+With six selected sources, Difference opens in Single View until disabled.
 
 ## Settings
 
@@ -114,11 +137,12 @@ When on, the file size must exactly match the profile requirement. The same
 policy is used when deciding whether a JSON sidecar may bypass the RAW profile
 confirmation dialog.
 
-Under **Difference Defaults**, **Threshold** sets the initial Difference mask
-threshold and **Gain** sets the initial Absolute Difference amplification.
-Persisted values initialize the Difference panel on startup. Saving either value
-from Settings updates the current Difference panel immediately and does not
-require restart.
+Under **Difference Defaults**, **Threshold** sets the initial native code-domain
+Difference mask threshold and **Gain** sets the initial Absolute Difference
+amplification. Persisted values initialize the Difference panel on startup. Saving
+either value from Settings updates the current panel immediately and does not
+require restart. The mixed-bit normalized `%FS` threshold is intentionally
+session-local and is not a separate persisted setting in schema v5.
 
 ### Files
 

@@ -24,7 +24,8 @@ MAX_SOURCE_RESIDENCY_MIB: Final = 2560
 SOURCE_RESIDENCY_STEP_MIB: Final = 128
 DEFAULT_DIFFERENCE_THRESHOLD: Final = 10
 MIN_DIFFERENCE_THRESHOLD: Final = 0
-MAX_DIFFERENCE_THRESHOLD: Final = 2_147_483_647
+MAX_DIFFERENCE_THRESHOLD: Final = 65_535
+LEGACY_MAX_DIFFERENCE_THRESHOLD: Final = 2_147_483_647
 DEFAULT_DIFFERENCE_GAIN: Final = 1
 MIN_DIFFERENCE_GAIN: Final = 1
 MAX_DIFFERENCE_GAIN: Final = 1000
@@ -236,11 +237,8 @@ class SettingsRepository:
             self._adapter.value(PRELOAD_ENABLED_KEY)
         )
         preload_enabled = parsed_preload_enabled if preload_valid else True
-        threshold, threshold_valid = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
-            DEFAULT_DIFFERENCE_THRESHOLD,
-            MIN_DIFFERENCE_THRESHOLD,
-            MAX_DIFFERENCE_THRESHOLD,
+        threshold, threshold_valid = self._parse_difference_threshold(
+            self._adapter.value(DIFFERENCE_THRESHOLD_KEY)
         )
         gain, gain_valid = self._parse_int_range(
             self._adapter.value(DIFFERENCE_GAIN_KEY),
@@ -295,11 +293,8 @@ class SettingsRepository:
             MIN_SOURCE_RESIDENCY_MIB,
             MAX_SOURCE_RESIDENCY_MIB,
         )
-        threshold, _ = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
-            DEFAULT_DIFFERENCE_THRESHOLD,
-            MIN_DIFFERENCE_THRESHOLD,
-            MAX_DIFFERENCE_THRESHOLD,
+        threshold, _ = self._parse_difference_threshold(
+            self._adapter.value(DIFFERENCE_THRESHOLD_KEY)
         )
         gain, _ = self._parse_int_range(
             self._adapter.value(DIFFERENCE_GAIN_KEY),
@@ -331,11 +326,8 @@ class SettingsRepository:
         cache_mib = self._parse_legacy_difference_cache(
             self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
-        threshold, _ = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
-            DEFAULT_DIFFERENCE_THRESHOLD,
-            MIN_DIFFERENCE_THRESHOLD,
-            MAX_DIFFERENCE_THRESHOLD,
+        threshold, _ = self._parse_difference_threshold(
+            self._adapter.value(DIFFERENCE_THRESHOLD_KEY)
         )
         gain, _ = self._parse_int_range(
             self._adapter.value(DIFFERENCE_GAIN_KEY),
@@ -394,11 +386,8 @@ class SettingsRepository:
         cache_mib = self._parse_legacy_difference_cache(
             self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
-        threshold, _ = self._parse_int_range(
-            self._adapter.value(DIFFERENCE_THRESHOLD_KEY),
-            DEFAULT_DIFFERENCE_THRESHOLD,
-            MIN_DIFFERENCE_THRESHOLD,
-            MAX_DIFFERENCE_THRESHOLD,
+        threshold, _ = self._parse_difference_threshold(
+            self._adapter.value(DIFFERENCE_THRESHOLD_KEY)
         )
         gain, _ = self._parse_int_range(
             self._adapter.value(DIFFERENCE_GAIN_KEY),
@@ -487,6 +476,20 @@ class SettingsRepository:
             return default, False
         if not minimum <= parsed <= maximum:
             return default, False
+        return parsed, True
+
+    @classmethod
+    def _parse_difference_threshold(cls, value: object) -> tuple[int, bool]:
+        parsed, valid = cls._parse_int_range(
+            value,
+            DEFAULT_DIFFERENCE_THRESHOLD,
+            MIN_DIFFERENCE_THRESHOLD,
+            LEGACY_MAX_DIFFERENCE_THRESHOLD,
+        )
+        if not valid:
+            return DEFAULT_DIFFERENCE_THRESHOLD, False
+        if parsed > MAX_DIFFERENCE_THRESHOLD:
+            return MAX_DIFFERENCE_THRESHOLD, False
         return parsed, True
 
     @classmethod

@@ -32,15 +32,17 @@ results.
   Difference-from-reference mode. Reference priority starts with the primary
   image, then the active image, then the first displayed image.
 - RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
-- Order-independent native absolute Difference cache with Absolute/Mask display,
-  ROI metrics, LRU eviction, diagnostics, and a startup-configurable byte budget.
+- Order-independent Difference cache with native compact maps for equal
+  effective bit depth and normalized float32 maps for mixed effective bit depth,
+  plus Absolute/Mask display, ROI metrics, LRU eviction, diagnostics, and a
+  startup-configurable byte budget.
 - Resizable, collapsible, floating, and maximizable Plots dock.
 - Persisted main geometry, dock state, splitters, last directory, layout,
   analysis state, and selected Plots tab.
 - `Edit > Settings...` uses **General / Files / Performance** category pages with
   a flat VS Code-inspired hierarchy.
 - General owns the persistent RAW JSON confirmation preference, exact RAW
-  file-size validation, and Difference Threshold/Gain defaults. RAW confirmation
+  file-size validation, native Difference Threshold/Gain defaults. RAW confirmation
   is not duplicated in the File menu.
 - Exact RAW validation is propagated to the load worker/reader and to JSON
   sidecar auto-approval. Difference Threshold/Gain initialize at startup and
@@ -82,6 +84,29 @@ results.
 
 A seventh derived Difference result is shown in Single View when all six source
 positions are occupied.
+
+## Difference contract
+
+Difference compatibility is family-based: Gray compares only with Gray,
+RGB/RGBA compares only with RGB/RGBA with alpha ignored, and Bayer compares only
+with Bayer of the same CFA pattern. Cross-family, dimension-mismatch, CFA-mismatch,
+and unsupported layouts are rejected; PixelScope performs no implicit RGB→Gray
+conversion. Gray exposes only `Gray`; RGB/RGBA exposes All/R/G/B; Bayer exposes
+Mosaic/R/Gr/Gb/B.
+
+Equal effective bit depths use the native code domain and preserve compact
+uint8/uint16 absolute-map representation where applicable. Mixed effective bit
+depths independently normalize each source by `(1 << bit_depth) - 1` and store
+the absolute Difference as float32 in `[0,1]`. This normalization deliberately
+ignores RAW black/white levels, display transforms, preview values, and demosaic.
+The cache records the domain and data range so reversed-pair reuse cannot change
+threshold or metric semantics.
+
+The one Threshold control uses `code` in the native domain and `%FS` in the
+normalized domain; `1.00 %FS` means an internal threshold of `0.01`, and mask
+comparison remains strict `>`. The persisted Settings Threshold remains the
+native-domain code default under schema v5. The normalized threshold starts at
+`1.00 %FS` and is kept only for the current application session.
 
 ## RAW contract
 

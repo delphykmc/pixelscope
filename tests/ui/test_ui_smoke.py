@@ -200,7 +200,8 @@ def test_difference_action_compatibility_states(qtbot: object) -> None:
     window.add_document(bayer, select=False)
     window._select_document_ids([rgb_a.document_id, bayer.document_id])
     assert not window.difference_panel.calculate.isEnabled()
-    assert "RGB and Bayer" in window.difference_panel.status.text()
+    assert window.difference_panel.status.text() == "Layout mismatch"
+    assert "families do not match" in window.difference_panel.status.toolTip()
 
     different_size = ImageDocument.from_array(
         np.ones((7, 8, 3), dtype=np.uint8),
@@ -208,7 +209,8 @@ def test_difference_action_compatibility_states(qtbot: object) -> None:
     )
     window.add_document(different_size, select=False)
     window._select_document_ids([rgb_a.document_id, different_size.document_id])
-    assert "dimensions" in window.difference_panel.status.text()
+    assert window.difference_panel.status.text() == "Size mismatch"
+    assert "dimensions do not match" in window.difference_panel.status.toolTip()
     window.close()
 
 
@@ -1160,7 +1162,7 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     assert window._difference_document is not None
     assert np.all(window._difference_document.source == 20)
     assert window.analysis_tabs.currentWidget() is window.difference_panel
-    assert "all R, G, and B samples combined" in window.difference_panel.metric_scope.text()
+    assert window.difference_panel.metric_scope.text() == "Scope Full image · RGB combined"
     assert not hasattr(window.difference_panel, "plot")
     assert window._layout_mode == "Single View"
     window._navigate_single_view("difference")

@@ -7,15 +7,18 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
+from pixelscope.core.diff_engine import DifferenceDomain
+
 DocumentGeneration = tuple[str, int]
 DifferenceCacheKey = tuple[DocumentGeneration, DocumentGeneration]
 
 
 @dataclass(frozen=True)
 class CachedDifferenceMap:
-    """One compact, channel-complete native-domain absolute map."""
+    """One channel-complete absolute map with explicit Difference-domain metadata."""
 
     absolute: NDArray[np.generic]
+    domain: DifferenceDomain
     data_range: float
     channel_layout: str
     bayer_pattern: str | None

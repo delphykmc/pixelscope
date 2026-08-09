@@ -54,7 +54,8 @@ Therefore:
 
 ## P3-0 — Program transition
 
-Status: Active in the roadmap-transition documentation PR.
+Status: Complete — merged as PR #21 at
+`5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`.
 
 - Record P2-F / PR #20 as merged.
 - Archive the completed P2 execution plan.
@@ -66,6 +67,9 @@ Status: Active in the roadmap-transition documentation PR.
 This slice is documentation only.
 
 ## P3-A — Difference Gray / Mixed Bit-Depth Support
+
+Status: Implemented in `feature/p3-a-difference-domain`; full validation, owner
+Windows checks, independent review, and merge remain acceptance gates.
 
 ### Objective
 
@@ -131,7 +135,9 @@ silently redefine P3-A Difference semantics.
 - Use a normalized float32 Difference representation for mixed-bit comparisons.
 - Avoid full-size float64 temporaries; use bounded/chunked computation for
   normalization and metrics where large images would otherwise multiply memory.
-- Keep normalized metrics bounded-memory.
+- Keep normalized metrics bounded-memory. The implemented P95/P99 path uses a
+  deterministic 65,536-level histogram over `[0,1]` with maximum quantile error
+  `1/65535` full scale; MAE/MSE/RMSE remain chunk-accumulated.
 - Store explicit Difference-domain metadata (`native` / `normalized`) with cached
   results so threshold, metrics, restored views, and reversed-pair reuse cannot
   confuse domains.

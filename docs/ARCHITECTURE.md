@@ -310,10 +310,27 @@ preload counters/policy, and both LRU owners.
 
 ## Current Difference lifecycle
 
-`DifferenceMapCache` owns order-independent native absolute maps with a
-startup-selected byte budget, LRU promotion/eviction, oversized-map rejection,
-and `used_bytes`, `budget_bytes`, and `entry_count` diagnostics. Metric and
-preview entries are invalidated when a map leaves the cache.
+P3-A gives pure-core `difference_compatibility()` authority over Difference
+family compatibility and domain selection. Its structured result carries
+compatibility, Gray/RGB/Bayer family, native/normalized domain, short reason code,
+detailed reason, both effective bit depths, and data range. Qt code consumes this
+result rather than parsing free-form validation text.
+
+Equal-bit pairs use the existing `compact_absolute_difference()` native fast path
+and effective full-scale data range. Mixed-bit pairs independently scale native
+source values by their own effective full scales and build one canonical float32
+absolute map in `[0,1]`; the computation is chunked and does not build full-size
+float64 normalized arrays. Floating metrics accumulate mean/squared error in
+bounded chunks and derive P95/P99 from a deterministic 65,536-level histogram.
+The normalized quantile error contract is at most `1/65535` full scale.
+
+`DifferenceMapCache` owns order-independent absolute maps with a startup-selected
+byte budget, LRU promotion/eviction, oversized-map rejection, and `used_bytes`,
+`budget_bytes`, and `entry_count` diagnostics. Every `CachedDifferenceMap` stores
+`domain`, `data_range`, family/layout, and Bayer pattern when applicable. The
+existing generation-pair key remains sufficient because family/domain are
+deterministic from the two document generations. Metric and preview entries are
+invalidated when a map leaves the cache. Source residency remains independent.
 
 P2-A2 persists the Difference Map Cache preference in MiB with a 128 MiB default
 and 64–1280 MiB validation range. Startup converts MiB to bytes in frozen
@@ -338,10 +355,13 @@ third startup-only Performance setting and participates in the same restart
 indication/revert/reset contract without changing the two memory budgets. P2-E
 and P2-F add no Performance setting.
 
-Difference Threshold and Gain are persisted analysis display defaults. They are
-applied to `DifferencePanel` when `MainWindow` starts and immediately after a
-Settings save; changing them does not require restart. Difference-map memory and
-decoded-source residency remain separate policies.
+Difference Gain and the native-domain code Threshold are persisted analysis
+display defaults. They are applied to `DifferencePanel` when `MainWindow` starts
+and immediately after a Settings save; changing them does not require restart.
+P3-A does not extend schema v5: normalized threshold is a separate session-local
+panel value, starts at `1.00 %FS`, and converts to `[0,1]` only when rendering a
+normalized mask. Difference-map memory and decoded-source residency remain
+separate policies.
 
 ## Current source-memory boundary
 
@@ -411,11 +431,11 @@ validation as authoritative closure evidence; packaging/installer CI remains P7.
 ## P2 boundary status
 
 The P2 runtime boundaries for settings, source residency, bounded preload,
-deterministic diagnostics, and running-preload foreground reuse are implemented
-incrementally without a broad `MainWindow` rewrite. P2-F is active as the final
-characterization/hardening and documentation closure slice. Its analysis-request
-idempotency fix is a local lifecycle guard and does not alter settings, resource,
-preload, Difference, or diagnostics ownership.
+deterministic diagnostics, and running-preload foreground reuse were completed by
+PR #20 without a broad `MainWindow` rewrite. P3-A preserves those ownership
+boundaries: `DifferencePanel` owns Difference family/domain/cache/threshold
+semantics while `MainWindow` continues to integrate the derived result into the
+existing viewer lifecycle.
 
 ## P2 request and cancellation target
 

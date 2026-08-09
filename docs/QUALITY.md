@@ -82,6 +82,16 @@ Preserve deterministic fixtures and smoke paths for:
   channel-layout, or Bayer-pattern changes remain valid recomputation triggers.
 - Difference calculation, cache reuse/eviction, metrics, display-only updates,
   and startup cache-budget injection.
+- P3-A Difference family/domain semantics: Gray-only channel exposure; RGB/RGBA
+  alpha exclusion; same-CFA Bayer; cross-family/size/CFA rejection; native compact
+  uint8/uint16 regression; mixed-bit independent full-scale normalization to
+  float32 `[0,1]`; `%FS` strict-mask threshold; domain-aware reversed-pair cache
+  restore; short validation status plus detailed tooltip; and Settings schema-v5
+  native Threshold/Gain live-apply regression.
+- P3-A normalized memory behavior: no full-size float64 normalized map, no
+  full-size squared-error map, and no full-size float64 percentile copy. P95/P99
+  use a fixed 65,536-level normalized histogram and must remain within `1/65535`
+  full scale of the corresponding quantile.
 - Decoded-source exact-byte accounting, deterministic LRU/protection, soft
   over-budget and oversized-source behavior, eviction invalidation, Files badge
   state, existing-path reload, and stale-result rejection.
@@ -150,6 +160,27 @@ Preserve deterministic fixtures and smoke paths for:
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer
 layout, geometry, memory pressure, or event order. Keep fixtures small unless
 resolution or memory behavior is the subject of the test.
+
+## P3-A deterministic Difference contract
+
+P3-A acceptance is value/resource based rather than timing based. Focused core,
+cache, UI, and integration tests must establish the exact Gray/RGB/Bayer family
+rules, effective-bit-depth domain selection, native representation regression,
+known normalized full-scale/fractional values, float32 normalized output, bounded
+metric allocation form, domain metadata under reversed-pair reuse, and `%FS`
+threshold conversion. Representative large-image tests assert values/dtype and
+allocation policy without an elapsed-time threshold.
+
+The normalized P95/P99 contract is intentionally deterministic and approximate:
+a 65,536-level histogram covers `[0,1]`, so quantile error is bounded by one
+histogram step (`1/65535` FS). MAE/MSE/RMSE are accumulated from bounded chunks
+and are not histogram-quantized. Native integer percentile semantics remain exact
+through the existing integer histogram path.
+
+Owner/local Windows checks cover Gray Difference, mixed-bit normalized Difference,
+`%FS` masks, compact validation/tooltips, same-bit native regression, cached and
+reversed-pair reuse, and six-source Difference Single View. Packaging tools are
+not part of P3-A.
 
 ## P2-F deterministic characterization contract
 

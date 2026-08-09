@@ -5,7 +5,11 @@ from math import inf, sqrt
 import numpy as np
 import pytest
 
-from pixelscope.core.diff_engine import absolute_difference_metrics
+from pixelscope.core.diff_engine import (
+    NORMALIZED_QUANTILE_MAX_ERROR_FS,
+    absolute_difference_metrics,
+    normalized_absolute_difference,
+)
 
 
 def test_chunked_uint16_metrics_match_direct_exact_statistics() -> None:
@@ -85,3 +89,51 @@ def test_chunked_metrics_do_not_use_full_square_temporary(monkeypatch: object) -
 
     assert metrics.maximum_absolute == 4095.0
     assert metrics.rmse > 0.0
+
+
+def test_normalized_metrics_use_bounded_histogram_without_percentile_copy(
+    monkeypatch: object,
+) -> None:
+    source = np.linspace(0.0, 1.0, 4096, dtype=np.float32).reshape(64, 64)
+    noncontiguous = source[:, ::2]
+    assert not noncontiguous.flags.c_contiguous
+
+    def fail_percentile(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("normalized metrics must not call np.percentile")
+
+    def fail_square(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("normalized metrics must not allocate a squared map")
+
+    monkeypatch.setattr(np, "percentile", fail_percentile)  # type: ignore[attr-defined]
+    monkeypatch.setattr(np, "square", fail_square)  # type: ignore[attr-defined]
+    metrics = absolute_difference_metrics(
+        noncontiguous,
+        1.0,
+        chunk_elements=31,
+    )
+    direct = noncontiguous.astype(np.float64).reshape(-1)
+
+    assert metrics.mae == pytest.approx(float(np.mean(direct)))
+    assert metrics.mse == pytest.approx(float(np.mean(direct * direct)))
+    assert metrics.p95 == pytest.approx(
+        float(np.quantile(direct, 0.95)), abs=NORMALIZED_QUANTILE_MAX_ERROR_FS
+    )
+    assert metrics.p99 == pytest.approx(
+        float(np.quantile(direct, 0.99)), abs=NORMALIZED_QUANTILE_MAX_ERROR_FS
+    )
+
+
+def test_large_noncontiguous_normalized_map_is_float32_and_correct() -> None:
+    source8 = np.arange(1080 * 512, dtype=np.uint32).reshape(1080, 512) % 256
+    source12 = (source8 * 4095 // 255).astype(np.uint16)
+    a = source8.astype(np.uint8)[:, ::2]
+    b = source12[:, ::2]
+    assert not a.flags.c_contiguous
+    assert not b.flags.c_contiguous
+
+    result = normalized_absolute_difference(a, b, 8, 12, chunk_elements=4096)
+
+    expected = np.abs(a.astype(np.float32) / 255.0 - b.astype(np.float32) / 4095.0)
+    assert result.dtype == np.dtype(np.float32)
+    assert result.shape == a.shape
+    assert np.allclose(result, expected, atol=1e-7)
