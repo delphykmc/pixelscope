@@ -45,7 +45,10 @@ def test_generic_display_gain_supports_anchor_zero_for_gray_and_rgb() -> None:
         gain_anchor=0.0,
     )
 
-    assert np.array_equal(to_display_uint8(gray, transform), np.array([[20, 40, 240]], dtype=np.uint8))
+    assert np.array_equal(
+        to_display_uint8(gray, transform),
+        np.array([[20, 40, 240]], dtype=np.uint8),
+    )
     assert np.array_equal(
         to_display_uint8(rgb, transform),
         np.array([[[20, 40, 60], [120, 180, 240]]], dtype=np.uint8),
@@ -58,5 +61,8 @@ def test_generic_gain_can_target_rgb_view_without_changing_alpha() -> None:
 
     apply_display_gain_inplace(rgba[..., :3], gain=2.0, anchor=0.0)
 
-    assert np.array_equal(rgba[..., :3], np.array([[[20.0, 40.0, 60.0]]], dtype=np.float32))
+    assert np.array_equal(
+        rgba[..., :3],
+        np.array([[[20.0, 40.0, 60.0]]], dtype=np.float32),
+    )
     assert np.array_equal(rgba[..., 3], alpha)
