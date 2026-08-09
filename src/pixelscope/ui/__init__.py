@@ -1,1 +1,1 @@
-"""PixelScope Qt user-interface components."""
+"""Qt widgets for PixelScope."""
