@@ -428,8 +428,7 @@ P2-F evaluates the completed P2 runtime including running-preload promotion.
   policy unchanged. Process RSS, live diagnostics, benchmark UI, telemetry, CPU
   aggressiveness, bidirectional/deeper preload, and resource-policy expansion are
   excluded.
-- Complete durable P2 documentation without declaring P2-F merged before merge,
-  independent review, and owner/local validation.
+- Complete durable P2 documentation without declaring P2-F merged before merge.
 
 ## Merge gates
 
@@ -447,10 +446,11 @@ P2-F evaluates the completed P2 runtime including running-preload promotion.
   duplicate-decode elimination, foreground success/failure parity,
   rapid-navigation stale safety, pair/group and RAW coverage, fixed worker policy,
   and promotion diagnostics remain authoritative.
-- **P2-F:** deterministic representative performance smoke, final
-  settings/resource/preload/diagnostics/analysis-lifecycle audit, completed agreed
-  Windows characterization, coherent P2 closure docs, final follow-up automated
-  validation, and no unresolved independent reviewer blocker.
+- **P2-F:** pre-merge evidence is complete: deterministic representative
+  performance smoke, final settings/resource/preload/diagnostics/analysis-lifecycle
+  audit, full owner/local automated validation, agreed Windows characterization,
+  coherent P2 closure docs, and independent merge-readiness review with no
+  remaining production/test blocker. PR #20 merge is the remaining transition.
 
 ## Validation
 
@@ -498,15 +498,17 @@ Optional syntax sweep when useful:
 ```
 
 Owner/local execution is the validation source when the connector environment
-cannot run Python/Qt tests. Full automated validation passed on production
-hardening head `e558f1ab94a0a30d5cc2a5a9d2d4af82a4bead3a`, including focused
-request-lifecycle tests, performance smoke, the P2 focused suite, full pytest,
-ruff check/format, mypy, pip check, docs checker, and `git diff --check`.
-Review follow-up commit `6ff46e0e38931b04de546ae3f967b9aa327b2fcf`
-adds only the missing pending-QTimer deterministic regression; that newly added
-test must be executed and recorded before final merge. A failure may be called
-baseline only after the same environment reproduces it against latest
-`origin/main`.
+cannot run Python/Qt tests. Full automated validation passed on latest reviewed
+head `e7537b42b875497331d39eea7954b55a0866fb90`, including the focused
+request-lifecycle suite with the pending-QTimer identity regression, performance
+smoke, the P2 focused suite, full pytest, ruff check/format, mypy, pip check, docs
+checker, and `git diff --check`. The connector environment does not independently
+rerun those Python/Qt commands; these are recorded owner/local results.
+
+Independent merge-readiness review of `e7537b42...` found no remaining
+production/test blocker. It requested only this final docs-only evidence alignment
+and explicitly stated that no additional full runtime sweep or production review
+cycle is required unless the branch changes beyond documentation.
 
 ## Manual Windows matrix
 
@@ -571,7 +573,7 @@ Resolved:
   owner/local Windows validation remains authoritative for P2 closure.
 
 Pending product-design decisions: none. Independent review and owner/local
-validation remain closure evidence rather than authorization for speculative
+validation are complete closure evidence rather than authorization for speculative
 optimization.
 
 ## Progress log
@@ -630,6 +632,10 @@ optimization.
   Windows characterization matrix was intentionally exercised without observed
   failure. Independent review then requested one missing deterministic pending-
   timer regression; `6ff46e0e...` adds that test without production changes.
+- 2026-08-09: owner/local validation passed on final reviewed head `e7537b42...`,
+  including the pending-QTimer regression and full standard contract. Independent
+  merge-readiness review found no remaining production/test blocker and requested
+  only final durable-doc evidence alignment before PR #20 merge.
 - Deferred: the brief Windows startup white-frame flash is startup-polish work
   after the major phases; it is not a P2 merge blocker.
 
@@ -651,5 +657,6 @@ optimization.
   to users only through on-demand support copy.
 - P2-F uses deterministic performance/resource/lifecycle merge gates; wall-clock
   timing remains observational only.
-- P2-F passes the full repository contract and agreed Windows characterization,
-  and independent review has no unresolved merge blocker before P2 closure.
+- P2-F pre-merge evidence is complete: full repository contract, agreed Windows
+  characterization, and independent review with no unresolved production/test
+  blocker. P2 closes when PR #20 merges and the plan is archived.
