@@ -81,7 +81,7 @@ The completed contract is:
 - same effective bit depth uses native code-domain Difference;
 - different effective bit depths normalize each source by its own effective
   full-scale code value to `[0,1]` and use `%FS` threshold semantics;
-- RAW black/white metadata and display transforms do not define P3-A Difference
+- RAW Black/White metadata and display transforms do not define P3-A Difference
   normalization.
 
 P3-A also delivers explicit Gray channel support, bounded float32 mixed-bit
@@ -91,63 +91,78 @@ validation reasons with detailed tooltips.
 ### P3-B — RAW Native & Display Semantics — Implementation Complete
 
 P3-B is implemented on `feature/p3-b-raw-native-display-semantics`. Owner/local
-Windows quality validation passed on pre-review HEAD
-`e7c1cc2ea0b08f43d3d513f6712035aa828eec5b`; independent-review follow-up is
-implemented and requires current-HEAD revalidation before merge.
+Windows quality validation passed after independent-review and Qt-lifetime fixes
+at `1a8a904895566f27e17d175b43a94997e43401e4`. A later owner-approved generic
+Display Gain core refactor changes production core/tests/docs, so latest-head
+revalidation and merge remain pending.
 
 Delivered contract:
 
 - Native decoded RAW remains the authoritative source and is not modified by
-  black/white metadata or viewer controls.
+  Black/White metadata or viewer controls.
 - Existing `black_level` and `white_level` RAW-profile metadata remain schema- and
   JSON-compatible; Settings stays at schema v5.
-- Schema-valid GRAY profiles with four-value `black_level` remain compatible:
-  global/GRAY gain uses the pre-P3-B deterministic `min(black_level)` anchor,
-  while Bayer mosaics retain CFA-specific four-anchor behavior.
 - At 1× display gain, RAW maps native code `0..((1 << bit_depth) - 1)` to the
-  preview range. Black is not subtracted and white is not promoted to full scale.
-- Display gain is anchored at black level:
-  `display = black + gain * (native - black)`.
-- Gain arithmetic is promoted to float32 and clipping occurs only during final
-  display conversion.
-- Bayer R/Gr/Gb/B black tuples are applied as CFA-parity-specific anchors for all
-  four supported Bayer patterns.
+  preview range. Black is not subtracted and White is not promoted to full scale.
+- P3-B introduces a **generic anchor-based display-gain core**:
+  `display = anchor + gain * (source - anchor)`.
+- The generic core is presentation-only and is not RAW-metadata-aware. RAW adapters
+  supply the anchor policy: scalar Black for RAW Gray, channel-specific R/Gr/Gb/B
+  Black for Bayer where available, and the legacy `min(tuple)` anchor for
+  schema-compatible GRAY tuple profiles.
+- The core naturally supports `anchor=0` and operation on channel views so later
+  ordinary Gray/RGB/RGBA presentation can reuse it without a second gain engine.
+- P3-B **activates the gain UI/runtime only for RAW**. Ordinary Gray/RGB/RGBA
+  images remain unchanged in this slice.
+- Gain/range mapping uses float32 fused affine processing where possible. It does
+  not create a full-size Bayer Black map or promote full-frame gain math to
+  float64.
 - `white_level` remains metadata only for P3-B display; effective full scale is
-  the native and gained display-range authority.
+  the RAW display-range authority.
 - Pixel inspection, Statistics, Histogram, Line Profile source data, Split
   Channels, source residency, and P3-A Difference remain native-domain operations.
-- A compact session-local `RAW Gain` control provides 1×/2×/4×/8×/16×. The same
+- The compact session-local `RAW Gain` control provides 1×/2×/4×/8×/16×. The same
   gain is shared across visible RAW tiles in Single/Multi View; ordinary images
   are unaffected.
-- Gain changes use resident native source and the shared numerical worker pool;
-  stale async results are rejected without source reload, generation changes,
+- The viewer keeps a 1× fast path using the canonical document preview. Gain >1
+  uses resident native source and the shared numerical worker pool; stale async
+  results are rejected without source reload/decode, generation changes,
   residency-policy changes, or Difference-cache invalidation.
-- Hidden RAW viewers drop viewer-local gain>1 buffers back to the canonical 1×
-  preview and regenerate the current session gain when shown again.
+- Hidden viewers release gain>1 derived presentation buffers and regenerate the
+  current gain when shown again.
 
-P3-B intentionally adds no demosaic, white balance, CCM, tone mapping, processed
-RAW document, processed analysis mode, persistence, Settings migration, or
-resource-policy redesign.
+P3-B intentionally adds no ordinary-image gain UI, demosaic, white balance, CCM,
+tone mapping, processed RAW document, processed analysis mode, persistence,
+Settings migration, or resource-policy redesign.
 
-### P3-C — RAW Visualization & Inspection Improvements
+### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension
 
-Improve RAW observability without introducing a partial RAW converter.
+P3-C reuses the P3-B generic display-gain core rather than creating a second
+ordinary-image gain implementation.
 
-Candidate scope:
+Committed Display Gain scope:
 
-- make RAW display gain/exposure inspection clearer and easier to use;
-- optional clipping/highlight or shadow visualization where it materially helps
-  sensor/ISP inspection;
+- extend viewer-only gain to ordinary Gray and RGB using `anchor=0`;
+- support RGBA presentation with the same RGB gain while preserving alpha;
+- use the user-facing term **Display Gain** or **Gain**; do not label this feature
+  **Exposure**;
+- preserve native Gray/RGB/RGBA source arrays and keep Statistics, Histogram,
+  Line Profile, Difference, residency, and cache semantics independent of gain;
+- retain a 1× identity/fast path and deterministic final clipping;
+- test 1× identity, clipping, Gray, RGB, RGBA alpha preservation, and analysis
+  independence.
+
+Additional RAW visualization/inspection candidates remain:
+
+- make RAW Gain and clipping state clearer for engineering inspection;
+- optional highlight/shadow clipping visualization where materially useful;
 - improve Bayer-channel/native-mosaic visualization and inspection affordances;
-- preserve native source authority and explicit display-only semantics;
-- avoid changing Statistics/Histogram/Line Profile/Difference domains merely
-  because the viewer presentation changes.
+- keep viewer affordances explicitly display-only.
 
-Demosaic is no longer a committed P3-C deliverable. A future demosaic feature
-must first define the intended processed-preview boundary and whether white
-balance, color correction, tone/gamma, and related metadata are in scope. Until
-that product need is explicit, P3 should not grow into a partial RAW-conversion
-pipeline.
+Demosaic remains deferred. A future demosaic feature must first define the
+processed-preview boundary and whether white balance, color correction,
+tone/gamma, and related metadata belong in the same feature. Until that product
+need is explicit, P3 should not grow into a partial RAW-conversion pipeline.
 
 ### P3-D — RAW Profile Management
 
@@ -160,7 +175,7 @@ pipeline.
 ### P3-E — Integration & Hardening
 
 - Cross-check native/normalized Difference with RAW native/display ownership.
-- Characterize representative Gray/RGB/Bayer/RAW and bit-depth combinations.
+- Characterize representative Gray/RGB/RGBA/Bayer/RAW and bit-depth combinations.
 - Preserve P2 residency/preload/diagnostics contracts.
 - Complete automated/Windows validation and durable P3 documentation.
 
@@ -213,7 +228,8 @@ not currently justify reopening the runtime foundation:
 - directional/bidirectional or deeper preload;
 - CPU/I/O aggressiveness controls;
 - broader resource-policy Settings exposure;
-- process-level memory/profiler telemetry.
+- process-level memory/profiler telemetry;
+- native/SIMD gain optimization beyond the current float32 fused affine path.
 
 These should be scheduled only when later profiling or user-visible latency gives
-a concrete reason to change the established P2 policy.
+a concrete reason to change the established runtime policy.
