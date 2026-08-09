@@ -58,6 +58,24 @@ Display gain is presentation-only in every phase. `ImageDocument.source`, pixel
 inspection, Statistics, Histogram, Line Profile, Difference, source residency,
 and Difference-cache identity do not depend on it.
 
+### Display Gain command ownership
+
+Keyboard policy is deliberately outside RAW metadata/presentation code.
+`ui.display_gain_shortcuts` owns discrete `+` / `-` stepping and is installed at
+application composition time after the toolbar gain control exists.
+
+The shortcut owner is the central image-presentation subtree (`central_stack`) and
+uses `Qt.WidgetWithChildrenShortcut`. Therefore:
+
+- `+` / `-` steps gain only while focus is in the viewer/presentation subtree;
+- Files and other sibling UI never lose their native key routing to Display Gain;
+- `DocumentListWidget` retains Qt-native `+` / `-` folder expand/collapse even
+  when RAW Gain is enabled;
+- the shortcut layer only steps the supplied discrete control and does not know
+  RAW metadata, source arrays, or analysis state;
+- P3-C must reuse this command owner/focus policy when RAW Gain is generalized to
+  ordinary-image Display Gain rather than adding a competing global shortcut.
+
 ## Current application identity and resource boundary
 
 Canonical application assets live under
@@ -137,6 +155,10 @@ mutating Files order. `MultiCompareView._fixed_geometry()` is the sole one-to-si
 geometry authority. Split Channels applies target geometry/visibility before
 replacement content to preserve atomic Bayer/RGB-to-GRAY transitions.
 
+Files navigation remains locally owned by `DocumentListWidget`/Qt. In particular,
+its native `+` / `-` folder expansion contract is not overridden by presentation
+shortcuts.
+
 ## Current thread, request, and document lifecycle
 
 A dedicated image-load pool runs at most two workers. A separate preload pool runs
@@ -169,10 +191,18 @@ paths. In P3-B, `ImageViewer` consumes shared session RAW gain state:
 - when shown again they regenerate the current gain if needed;
 - toolbar gain-control subscriptions use QObject receiver lifetime, so a deleted
   control cannot remain reachable as a Python closure from QApplication-global
-  `RawDisplayState`.
+  `RawDisplayState`;
+- `+` / `-` command routing is scoped to the presentation subtree before dispatch,
+  rather than consuming a window-wide key and deciding to no-op afterward.
 
-P3-C ordinary Display Gain must reuse this ownership model rather than introducing
-an analysis-owned or document-mutating gain path.
+P3-C ordinary Display Gain must reuse both this ownership model and the same
+presentation-scoped command boundary rather than introducing an analysis-owned,
+document-mutating, or window-global gain path.
+
+Rapid gain changes can still leave superseded full-frame NumPy work running until
+completion because cancellation is advisory. Stale acceptance remains correct.
+Any coalescing/debounce/chunked-cancellation redesign is profiling-driven rather
+than part of the current P3-B ownership boundary.
 
 ## Current decoded-source residency boundary
 
@@ -306,8 +336,9 @@ architecture constraints:
   inputs remain unchanged;
 - asynchronous work, if required for large ordinary images, uses explicit request
   identity and stale-result rejection;
-- tests cover Gray/RGB/RGBA, alpha preservation, clipping, 1× identity, and
-  analysis independence.
+- the existing presentation-scoped `+` / `-` command owner/focus policy is reused;
+- tests cover Gray/RGB/RGBA, alpha preservation, clipping, 1× identity, analysis
+  independence, command/control synchronization, and Files-tree key preservation.
 
 P3-C does not gain authority to create a processed-image analysis domain merely
 because viewer display is transformed.
