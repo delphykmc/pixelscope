@@ -26,7 +26,12 @@ from PySide6.QtGui import (
     QShortcut,
     QShowEvent,
 )
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsSceneResizeEvent, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QGraphicsItem,
+    QGraphicsSceneResizeEvent,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
