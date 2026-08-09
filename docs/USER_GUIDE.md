@@ -2,16 +2,21 @@
 
 ## Register, select, and view images
 
-PixelScope distinguishes four states:
+PixelScope distinguishes five states:
 
 - **Registered**: the image is known to the Files workspace.
-- **Selected**: the image is in the current comparison/analysis selection.
-- **Presented**: the image currently occupies a viewer tile.
-- **Resident**: the decoded native source is currently retained in memory.
+- **Selected**: the image is in the ordered logical comparison set.
+- **Current Comparison Page**: the current working subset of Selected, maximum six.
+- **Presented**: the current viewer representation of that page.
+- **Resident**: the decoded native source is currently retained in memory when
+  required.
 
-The six-tile viewer limit applies to simultaneous presentation, not to Files
-registration. You may register many folders/images while only a subset is selected
-and at most the existing viewer-supported number is visible at once.
+The six-image limit belongs to the **Current Comparison Page**, not Files
+registration or logical Selected membership. You may register many folders/images
+and select more than six; PixelScope works on them in six-image Comparison Pages.
+
+`Analysis Working Set = Current Comparison Page`.
+Viewer slot numbers are always local `1..6` inside that page.
 
 ### Open Images...
 
@@ -22,9 +27,9 @@ at now. The dialog supports multiple files and exactly these formats:
 .png  .bmp  .jpg  .jpeg  .raw
 ```
 
-All supported selected files are registered and become the current selection.
-If more than six files are supplied, they are still registered/selected; Multi
-View presents only the existing layout capacity rather than discarding files.
+All supported selected files are registered and become the current ordered
+Selected set. If 15 files are supplied, all 15 remain Selected. The initial
+Comparison Page is images 1–6, followed by 7–12 and 13–15.
 
 PNG/BMP/JPEG open directly. RAW uses the same command but resolves RAW profile
 metadata internally. There is no separate top-level RAW-open command.
@@ -39,7 +44,8 @@ is not limited to six.
 Opening folders is **registration-only**:
 
 - supported images are added to Files;
-- the current selection does not change;
+- the current Selected set does not change;
+- the Current Comparison Page does not change;
 - the current viewer/layout does not change;
 - no first image is automatically selected;
 - two folders do not implicitly create a comparison group;
@@ -57,38 +63,81 @@ or folders here** with Open Images/Open Folders buttons.
 
 Drag/drop follows the same intent rules:
 
-- direct image files → register and select them for viewing;
+- direct image files → register and make them the Selected set;
 - folders → register their supported contents only;
-- mixed image files + folders → direct files become the selection while folder
-  contents are registered only.
+- mixed image files + folders → direct files become Selected while folder contents
+  are registered only.
 
 Dropping one, two, six, or more folders behaves the same way. There is no special
 two-folder auto-comparison behavior. Unsupported files and standalone `.json`
 files are ignored rather than interpreted as RAW.
 
+## Current Comparison Page navigation
+
+When six or fewer images are Selected, there is one Comparison Page and the
+large-selection controls stay hidden. Existing Auto/Single/Multi behavior is
+unchanged.
+
+When more than six images are Selected, the toolbar shows the current range, for
+example:
+
+```text
+[‹] 7–12 of 15 [›]
+```
+
+- **Ctrl+Left**: Previous Comparison Page.
+- **Ctrl+Right**: Next Comparison Page.
+- Page navigation does not wrap at the first/last page.
+- Changing page does not change Selected membership/order.
+- The active local slot is preserved when possible; a short final page clamps to
+  its last available slot.
+
+In Multi View, large selections keep a six-slot grid for continuity. A final
+three-image page occupies slots 1–3 and leaves slots 4–6 empty rather than changing
+geometry.
+
+In Single View, one image is presented but its page context is still the full
+Current Comparison Page. Number keys **1–6** always mean local page slots.
+For example, image10 on the 7–12 page is slot **4**, not slot 10.
+
+## Fine image navigation
+
+**Left/Right** remains Previous/Next Selected Image across the complete ordered
+Selected set.
+
+If Single View is showing image12, pressing Right moves to image13 and automatically
+changes the Current Comparison Page from 7–12 to 13–15. image13 is then local slot
+1. The reverse occurs when moving Left across the boundary.
+
+Up/Down remains Files-tree row navigation.
+
 ## Folder Position navigation
 
-PageDown/PageUp moves only the folders represented by the current selection. If 20
-folders are registered but the current comparison contains A005, D005, F005, and
-K005, PageDown targets A006, D006, F006, and K006 only.
+PageDown/PageUp remains exclusively Folder Position navigation; it is not reused
+for Comparison Page paging.
 
-Folder Position requires one to six selected files from distinct folders. All
-members move atomically in natural filename order. If any participating folder is
-at an endpoint, selection is unchanged and the status bar reports the boundary.
+Folder Position requires one to six Selected files from distinct folders. If 20
+folders are registered but the comparison contains A005, D005, F005, and K005,
+PageDown targets A006, D006, F006, and K006 only. All members move atomically in
+natural filename order. If any participating folder is at an endpoint, selection
+is unchanged and the status bar reports the boundary.
 
-Up/Down remains Files-tree row navigation. Left/Right moves through the selected
-image set.
+When **more than six images are Selected**, Folder Position is unavailable and
+PageUp/PageDown does not partially move only the current page. Reduce Selected to
+one-to-six images to use Folder Position again.
 
 ## View and navigate
 
-- **Auto** chooses the current layout from selection size.
-- **Single View** presents one active selected image.
-- **Multi View** uses fixed layouts with at most six simultaneous source tiles.
-- Keys 1–6 and header navigation address the existing quick-navigation slots.
+- **Auto** chooses the current layout from the applicable comparison size.
+- **Single View** presents one active image from the Current Comparison Page.
+- **Multi View** presents the Current Comparison Page with at most six source tiles.
+- Keys 1–6 and Single View header navigation address page-local slots.
 - Two-, four-, and six-image layouts keep equal tile sizes. Three- and five-image
-  layouts enlarge the primary tile.
-- Selecting a primary flag changes presentation order without changing Files
-  selection membership.
+  layouts enlarge the primary tile for `Selected <= 6`.
+- For `Selected > 6`, Multi View keeps six-slot geometry even on a partial final
+  page.
+- Selecting a primary flag changes presentation order within the Current Comparison
+  Page without changing Selected ordering or page membership.
 - **Fit** fits visible tiles; **100%** uses native pixel scale.
 - **Split Channels** presents RGB or Bayer component views.
 
@@ -123,6 +172,9 @@ Moving over an image synchronizes the crosshair and status readout.
 - Shift+Esc clears the shared line.
 - Alt+drag does not create a Line Profile.
 
+ROI normalization, Statistics, Histogram, and Line Profile all use the Current
+Comparison Page as the default analysis working set.
+
 ## Statistics and Histogram
 
 Statistics supports Full image and Active ROI scopes. The Images summary reports
@@ -133,11 +185,15 @@ Histogram supports Auto/256/1024/4096 bins, Count/Normalized/Log count, Separate
 Overlay display, and native code-value x ranges. Identical source/generation/ROI/
 bin requests do not restart unchanged numerical work.
 
+When you change Comparison Page, Statistics and Histogram move to that same page;
+they do not remain bound to the first six Selected images.
+
 ## Line Profile
 
 Line Profile supports Overlay, Separate by image, and Separate by channel. In
 Difference-from-reference mode, reference priority is primary, then active, then
 first displayed, while an explicitly selected available reference remains stable.
+Its normal source set follows the Current Comparison Page.
 
 ## Difference
 
@@ -159,10 +215,14 @@ Threshold units are `code` in Native and `%FS` in Normalized. Mask comparison is
 strict `>`. Difference cache is order-independent and separate from decoded-source
 residency. Folder-only registration does not invalidate a valid Difference cache
 entry or clear the current Difference presentation because it does not alter the
-selection/presentation lifecycle.
+Selected/current-page lifecycle.
 
-With six selected source images, the derived Difference result is presented in
-Single View until disabled.
+Difference's available/default inputs follow the Current Comparison Page, while an
+explicit Image 1/Image 2 pair remains owned by the Difference feature.
+
+When all six source slots of a Comparison Page are occupied, the derived Difference
+result is presented in Single View until disabled, preserving the existing
+six-source Difference workspace contract.
 
 ## RAW profile resolution
 
@@ -184,9 +244,17 @@ remains the compatible storage format.
 
 Folder registration is intentionally lazy. RAW paths and deterministic
 same-basename sidecar paths can be registered in Files without immediately opening
-RAW Profile dialogs or decoding every source. When you later select a pending RAW
-that needs foreground loading, PixelScope resolves/validates its profile before
-starting decode.
+RAW Profile dialogs or decoding every source.
+
+A RAW may also be logically Selected while it is outside the Current Comparison
+Page. In that state it does not prompt, decode, or require residency merely because
+it is Selected. Profile resolution occurs when the RAW enters the foreground
+Current Comparison Page and native source is required.
+
+Within one foreground presentation attempt, an unresolved RAW dialog appears at
+most once. Cancel keeps the RAW registered/pending, starts no worker, and passive
+rerenders do not immediately reopen it. A later explicit foreground action may
+retry.
 
 An unresolved RAW is not speculatively preloaded until a profile has been
 resolved. PixelScope never guesses profile parameters merely to make folder
@@ -244,18 +312,19 @@ limits.
 ### Performance
 
 **Decoded Source Memory** budgets native decoded `ImageDocument.source` arrays.
-The default is 256 MiB. Required/visible/selected/active sources are protected and
-the budget is soft.
+The default is 256 MiB. Current Comparison Page sources and other correctness
+requirements are protected; a large Selected set does **not** automatically protect
+every visited off-page source. Off-page Selected source may be evicted under the P2
+soft budget and normally reload when its page is revisited.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
 itself discard a valid generation-keyed Difference map.
 
-**Preload Next Folder Position** remains exactly one selected Folder Position
-ahead, direction +1, on a separate max-one worker. Preload is based on the current
-selected comparison folders, not all registered folders. A physically RUNNING
-matching preload may transfer to foreground authority without duplicate decode.
-Unresolved RAW without a profile is skipped rather than prompting from speculative
-preload.
+**Preload Next Folder Position** remains exactly one valid one-to-six Selected
+Folder Position ahead, direction +1, on a separate max-one worker. It does not
+preload the next Comparison Page. A physically RUNNING matching Folder Position
+preload may transfer to foreground authority without duplicate decode. Unresolved
+RAW without a profile is skipped rather than prompting from speculative preload.
 
 Performance budget/preload changes are startup settings and display the restart-
 required indication when they differ from current runtime values.
