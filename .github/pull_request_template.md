@@ -1,30 +1,47 @@
-## Summary
+## Observable outcome
 
-Describe the product/runtime behavior changed by this PR and the authoritative
-ownership boundary it affects.
+- What user-visible or repository-visible behavior changed?
+- What behavior was intentionally preserved?
 
-## Scope and exclusions
+## Scope
 
-List what is intentionally implemented and what remains out of scope. Do not hide
-scope expansion behind compatibility helpers.
+- In scope:
+- Explicitly out of scope:
 
-## Validation
+## Implementation
 
-Record only validation that was actually observed. If an implementation agent was
-explicitly instructed not to run the local Windows `.venv` suite, state that owner
-validation is pending rather than claiming PASS.
+- Main architectural or behavioral changes:
+- Migration / compatibility behavior:
 
-Standard repository validation is defined in `docs/QUALITY.md`.
+## Agent provenance
 
-## Manual checks
+- Agent-generated commits:
+- GitHub comments/reviews posted as:
+- ChatGPT-assisted activity disclosed: Yes / No / N/A
+- Existing human commits rewritten: No
 
-List visual/timing/platform-specific checks the owner should perform on Windows.
+## Validation evidence
 
-## Documentation
+Only mark checks that were actually run and observed.
 
-List durable documentation updated for the new behavior/decision.
+- [ ] Focused tests:
+- [ ] Full `pytest -q`:
+- [ ] `ruff check .`:
+- [ ] `ruff format --check .`:
+- [ ] `mypy src`:
+- [ ] `pip check`:
+- [ ] `scripts/check_docs.py` when docs changed:
+- [ ] `git diff --check`:
+- [ ] Manual Windows validation when required:
 
-## Provenance
+## Risks and deferred work
 
-For ChatGPT-assisted work, include requested co-author/provenance information in
-commits and PR discussion.
+- Known limitations / unverified areas:
+- Deferred to a later phase:
+
+## Durable documentation
+
+- [ ] Product behavior updated if needed
+- [ ] Architecture/decision docs updated if needed
+- [ ] Current state / execution plan updated if needed
+- [ ] No stale future-tense description remains for implemented behavior
