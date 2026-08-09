@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLabel, QWidget
 
 RAW_GAIN_OPTIONS = (1.0, 2.0, 4.0, 8.0, 16.0)
@@ -49,6 +49,30 @@ def raw_display_state() -> RawDisplayState:
     return state
 
 
+class _RawGainComboBox(QComboBox):
+    """RAW gain selector whose state subscription follows Qt object lifetime."""
+
+    def __init__(self, state: RawDisplayState, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._state = state
+        self.currentIndexChanged.connect(self._set_state_from_index)  # type: ignore[attr-defined]
+        state.gain_changed.connect(self._sync_gain)
+
+    @Slot(int)
+    def _set_state_from_index(self, _index: int) -> None:
+        value = self.currentData()
+        if value is not None:
+            self._state.set_gain(float(value))
+
+    @Slot(float)
+    def _sync_gain(self, gain: float) -> None:
+        index = self.findData(float(gain))
+        if index >= 0 and index != self.currentIndex():
+            self.blockSignals(True)
+            self.setCurrentIndex(index)
+            self.blockSignals(False)
+
+
 def _is_raw_document(document: object) -> bool:
     if document is None:
         return False
@@ -72,7 +96,7 @@ def install_raw_gain_control(window: Any) -> QComboBox:
 
     label = QLabel("RAW Gain", host)
     label.setObjectName("RawGainLabel")
-    combo = QComboBox(host)
+    combo = _RawGainComboBox(state, host)
     combo.setObjectName("RawGainCombo")
     combo.setFixedWidth(70)
     for gain in RAW_GAIN_OPTIONS:
@@ -85,18 +109,6 @@ def install_raw_gain_control(window: Any) -> QComboBox:
     label.setToolTip(combo.toolTip())
     layout.addWidget(label)
     layout.addWidget(combo)
-
-    def set_state_from_combo(_index: int) -> None:
-        value = combo.currentData()
-        if value is not None:
-            state.set_gain(float(value))
-
-    def sync_combo(gain: float) -> None:
-        index = combo.findData(float(gain))
-        if index >= 0 and index != combo.currentIndex():
-            combo.blockSignals(True)
-            combo.setCurrentIndex(index)
-            combo.blockSignals(False)
 
     def update_enabled(*_args: object) -> None:
         current = window.central_stack.currentWidget()
@@ -111,8 +123,6 @@ def install_raw_gain_control(window: Any) -> QComboBox:
         label.setEnabled(enabled)
         combo.setEnabled(enabled)
 
-    combo.currentIndexChanged.connect(set_state_from_combo)  # type: ignore[attr-defined]
-    state.gain_changed.connect(sync_combo)
     window.central_stack.currentChanged.connect(update_enabled)
     window.document_list.itemSelectionChanged.connect(update_enabled)
     for viewer in [window.viewer, *window.multi_compare_view.viewers]:
