@@ -37,9 +37,11 @@ bar reports the boundary.
   state while another supported image loads.
 - **RAW Gain** provides 1×, 2×, 4×, 8×, and 16× display-only gain for RAW images.
   One session-local gain is shared by visible RAW tiles in Single and Multi View;
-  ordinary PNG/BMP/JPEG images are unaffected. Press **+** to move one gain step
-  higher and **-** to move one step lower. The shortcuts stay at 1×/16× at the
-  minimum/maximum and do nothing when the RAW Gain control is unavailable.
+  ordinary PNG/BMP/JPEG images are unaffected. While focus is in the image
+  presentation area, press **+** to move one gain step higher and **-** to move
+  one step lower. The shortcuts stay at 1×/16× at the minimum/maximum and do not
+  change gain when RAW Gain is unavailable. When the **Files** tree has focus,
+  **+** and **-** keep their native folder expand/collapse behavior instead.
 
 ## Cursor, ROI, and line selection
 
@@ -314,8 +316,9 @@ only; it does not alter the stored source samples or analysis results.
 RAW Gain is session-local and starts at **1×** for a new application session. It
 is not stored in the RAW profile or Settings. White Level remains profile metadata
 for possible future explicit processing and is not used by the current native or
-gained display mapping. The **+** and **-** window shortcuts step through the same
-discrete gain values and therefore remain synchronized with the toolbar selector.
+gained display mapping. The viewer-scoped **+** and **-** shortcuts step through
+the same discrete gain values and therefore remain synchronized with the toolbar
+selector; when focus is in Files, those keys remain folder expand/collapse.
 
 Grayscale and Bayer mosaics are supported. Bayer remains native mosaic/channel
 inspection; no demosaic, white balance, CCM, or tone-mapped RAW preview is
