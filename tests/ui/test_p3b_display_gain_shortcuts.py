@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence
 
 from pixelscope.app import main_window as main_window_module
@@ -55,7 +55,7 @@ def _raw_document() -> ImageDocument:
     )
 
 
-def test_display_gain_shortcuts_step_clamp_and_ignore_disabled_control(
+def test_display_gain_shortcuts_step_clamp_and_preserve_files_tree_keys(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -71,10 +71,12 @@ def test_display_gain_shortcuts_step_clamp_and_ignore_disabled_control(
     window = MainWindow(settings_repository=_repository(tmp_path / "app.ini"))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     combo = install_raw_gain_control(window)
-    increase, decrease = install_display_gain_shortcuts(window, combo)
+    increase, decrease = install_display_gain_shortcuts(window.central_stack, combo)
 
     assert increase.key() == QKeySequence("+")
     assert decrease.key() == QKeySequence("-")
+    assert increase.context() == Qt.ShortcutContext.WidgetWithChildrenShortcut
+    assert decrease.context() == Qt.ShortcutContext.WidgetWithChildrenShortcut
 
     raw = _raw_document()
     window.add_document(raw, select=True)
@@ -83,8 +85,9 @@ def test_display_gain_shortcuts_step_clamp_and_ignore_disabled_control(
         lambda: window.viewer.document is raw and combo.isEnabled()
     )
 
-    increase.activated.emit()
-    assert combo.currentData() == 2.0
+    window.viewer.setFocus()
+    qtbot.keyClick(window.viewer, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: combo.currentData() == 2.0)  # type: ignore[attr-defined]
     assert raw_display_state().gain == 2.0
 
     for _ in range(10):
@@ -109,6 +112,21 @@ def test_display_gain_shortcuts_step_clamp_and_ignore_disabled_control(
         and window.viewer._raw_preview_worker is None
     )
 
+    group = window.document_list.topLevelItem(0)
+    assert group is not None
+    assert group.isExpanded()
+    window.document_list.setCurrentItem(group)
+    window.document_list.setFocus()
+
+    qtbot.keyClick(window.document_list, Qt.Key.Key_Minus)  # type: ignore[attr-defined]
+    assert not group.isExpanded()
+    assert combo.currentData() == 4.0
+    assert raw_display_state().gain == 4.0
+
+    qtbot.keyClick(window.document_list, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
+    assert group.isExpanded()
+    assert combo.currentData() == 4.0
+
     non_raw = ImageDocument.from_array(
         np.arange(16, dtype=np.uint8).reshape(4, 4),
         "gray",
@@ -120,8 +138,12 @@ def test_display_gain_shortcuts_step_clamp_and_ignore_disabled_control(
         lambda: window.viewer.document is non_raw and not combo.isEnabled()
     )
 
-    increase.activated.emit()
-    decrease.activated.emit()
+    window.document_list.setCurrentItem(group)
+    window.document_list.setFocus()
+    qtbot.keyClick(window.document_list, Qt.Key.Key_Minus)  # type: ignore[attr-defined]
+    assert not group.isExpanded()
+    qtbot.keyClick(window.document_list, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
+    assert group.isExpanded()
     assert combo.currentData() == 4.0
     assert raw_display_state().gain == 4.0
 
