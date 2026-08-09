@@ -890,8 +890,7 @@ class MainWindow(QMainWindow):
                         image_input,
                         resolve_raw_profile=resolve_raw_profiles,
                     )
-                )
-                is not None
+                ) is not None
             )
         )
         self._update_empty_workspace_state()
