@@ -16,8 +16,8 @@ from pixelscope.app.settings import (
 )
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.ui.design_tokens import apply_engineering_palette
+from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
-from pixelscope.ui.raw_display import install_raw_gain_control
 
 LOGGER = logging.getLogger(__name__)
 WINDOWS_APP_USER_MODEL_ID = "PixelScope.PixelScope"
@@ -84,7 +84,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     app = create_application(arguments)
     repository, application_settings, performance_settings = load_startup_settings()
     window = MainWindow(application_settings, performance_settings, repository)
-    gain_control = install_raw_gain_control(window)
+    gain_control = install_display_gain_control(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     window.setWindowIcon(app.windowIcon())
     window.show()

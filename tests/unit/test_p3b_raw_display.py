@@ -58,7 +58,9 @@ def test_gain_one_does_not_redefine_black_or_white_as_display_endpoints() -> Non
         black_level=profile.black_level,
         gain=1.0,
     )
-    expected = np.rint(source.astype(np.float32) * np.float32(255.0 / 4095.0)).astype(np.uint8)
+    expected = np.rint(
+        source.astype(np.float32) * np.float32(255.0 / 4095.0)
+    ).astype(np.uint8)
     assert np.array_equal(preview, expected)
     assert int(preview[0, 1]) > 0
     assert int(preview[0, 2]) < 255
@@ -89,7 +91,9 @@ def test_black_anchored_gain_matches_known_values_and_does_not_underflow() -> No
     preview = to_display_uint8(source, transform)
 
     gained = np.array([[48, 60, 64, 68, 88]], dtype=np.float32)
-    expected = np.rint(np.clip(gained / np.float32(4095.0), 0.0, 1.0) * 255.0).astype(np.uint8)
+    expected = np.rint(np.clip(gained / np.float32(4095.0), 0.0, 1.0) * 255.0).astype(
+        np.uint8
+    )
     assert np.array_equal(preview, expected)
     assert np.array_equal(source, original)
 
@@ -113,7 +117,9 @@ def test_gain_clips_only_at_final_display_conversion() -> None:
 
 
 @pytest.mark.parametrize("pattern", ["RGGB", "GRBG", "GBRG", "BGGR"])
-def test_bayer_tuple_black_anchor_follows_cfa_parity_without_source_mutation(pattern: str) -> None:
+def test_bayer_tuple_black_anchor_follows_cfa_parity_without_source_mutation(
+    pattern: str,
+) -> None:
     anchors = (64, 72, 80, 96)
     source = np.zeros((4, 4), dtype=np.uint16)
     positions = bayer_channel_positions(pattern)
@@ -180,7 +186,12 @@ def test_display_gain_leaves_native_analysis_and_difference_inputs_unchanged() -
     histogram_before = histogram(source_a, 4096, (0.0, 4096.0))
     line_before = selected_line_profile(source_a, LineSelection(0, 0, 4, 0))
     native_difference_before = compact_absolute_difference(source_a, source_b)
-    normalized_difference_before = normalized_absolute_difference(source_a, source_b, 12, 10)
+    normalized_difference_before = normalized_absolute_difference(
+        source_a,
+        source_b,
+        12,
+        10,
+    )
 
     assert document.source is not None
     _ = render_raw_preview(
@@ -195,7 +206,12 @@ def test_display_gain_leaves_native_analysis_and_difference_inputs_unchanged() -
     histogram_after = histogram(source_a, 4096, (0.0, 4096.0))
     line_after = selected_line_profile(source_a, LineSelection(0, 0, 4, 0))
     native_difference_after = compact_absolute_difference(source_a, source_b)
-    normalized_difference_after = normalized_absolute_difference(source_a, source_b, 12, 10)
+    normalized_difference_after = normalized_absolute_difference(
+        source_a,
+        source_b,
+        12,
+        10,
+    )
 
     assert document.generation == original_generation
     assert document.source.nbytes == original_nbytes

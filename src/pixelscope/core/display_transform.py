@@ -17,9 +17,8 @@ class DisplayTransform:
 
     ``display = anchor + gain * (source - anchor)``
 
-    RAW chooses its anchor from Black Level metadata in P3-B. Ordinary Gray/RGB
-    can reuse the same core with anchor zero in P3-C. None of these parameters
-    redefine the source or analysis domain.
+    RAW chooses its anchor from Black Level metadata. Ordinary Gray/RGB use a
+    zero anchor. None of these parameters redefine the source or analysis domain.
     """
 
     display_low: float | None = None
@@ -85,12 +84,7 @@ def apply_display_affine_inplace(
     scale: np.float32,
     offset: np.float32,
 ) -> None:
-    """Apply one float32 display affine to an array or array view in place.
-
-    Accepting arbitrary views lets callers target only selected channels. A future
-    RGBA viewer can therefore apply gain to ``[..., :3]`` while leaving alpha
-    untouched without requiring a second generic gain implementation.
-    """
+    """Apply one float32 display affine to an array or array view in place."""
 
     np.multiply(values, scale, out=values)
     if offset != np.float32(0.0):
@@ -121,25 +115,35 @@ def _default_range(array: NDArray[np.generic]) -> tuple[float, float]:
     return (low, high) if high > low else (low, low + 1.0)
 
 
-def to_display_uint8(
+def resolve_display_range(
     source: NDArray[np.generic], transform: DisplayTransform | None = None
-) -> NDArray[np.uint8]:
-    """Return a C-contiguous uint8 preview without modifying *source*.
+) -> tuple[float, float]:
+    """Resolve the canonical display range without changing source data."""
 
-    Source values are promoted once to float32. Anchor-based gain and display
-    normalization are fused into one scale/offset affine, avoiding the previous
-    subtract/multiply/add plus subtract/multiply full-frame sequence. Clipping is
-    deferred until the final display conversion.
-    """
-
-    if source.size == 0:
-        raise ValueError("cannot display an empty image")
     parameters = transform or DisplayTransform()
     default_low, default_high = _default_range(source)
     low = default_low if parameters.display_low is None else parameters.display_low
     high = default_high if parameters.display_high is None else parameters.display_high
     if high <= low:
         high = low + 1.0
+    return float(low), float(high)
+
+
+def to_display_uint8(
+    source: NDArray[np.generic], transform: DisplayTransform | None = None
+) -> NDArray[np.uint8]:
+    """Return a C-contiguous uint8 preview without modifying *source*.
+
+    Source values are promoted once to float32. Anchor-based gain and display
+    normalization are fused into one scale/offset affine, avoiding serial
+    full-frame subtract/multiply/add/normalize temporaries. Clipping is deferred
+    until final display conversion.
+    """
+
+    if source.size == 0:
+        raise ValueError("cannot display an empty image")
+    parameters = transform or DisplayTransform()
+    low, high = resolve_display_range(source, parameters)
 
     working = source.astype(np.float32, copy=True)
     scale, offset = display_normalization_affine(
@@ -155,6 +159,66 @@ def to_display_uint8(
     np.multiply(working, np.float32(255.0), out=working)
     np.rint(working, out=working)
     return np.ascontiguousarray(working.astype(np.uint8))
+
+
+def render_ordinary_display_preview(
+    source: NDArray[np.generic],
+    *,
+    channel_layout: str,
+    transform: DisplayTransform,
+    canonical_preview: NDArray[np.uint8],
+    gain: float,
+) -> NDArray[np.uint8]:
+    """Render viewer-only Display Gain for non-RAW Gray/RGB/RGBA presentations.
+
+    Ordinary sources use a zero anchor. RGBA processes only the RGB source view
+    and copies alpha from the canonical 1× preview, avoiding a four-channel
+    float32 gain working buffer. Transient RGB split-channel documents keep their
+    existing colored-tile presentation while their native 2-D source stays
+    authoritative for analysis.
+    """
+
+    if gain <= 0:
+        raise ValueError("display gain must be greater than zero")
+    if gain == 1.0:
+        return canonical_preview
+
+    layout = channel_layout.upper()
+    if layout == "DIFFERENCE":
+        raise ValueError("Difference presentation owns its own display gain")
+
+    low, high = resolve_display_range(source, transform)
+    gained_transform = DisplayTransform(
+        display_low=low,
+        display_high=high,
+        gain=gain,
+        gain_anchor=0.0,
+        gamma=transform.gamma,
+    )
+
+    if layout == "RGBA":
+        if source.ndim != 3 or source.shape[2] != 4:
+            raise ValueError("RGBA Display Gain requires a four-channel source")
+        if canonical_preview.ndim != 3 or canonical_preview.shape[2] != 4:
+            raise ValueError("RGBA Display Gain requires a four-channel canonical preview")
+        rgb_preview = to_display_uint8(source[..., :3], gained_transform)
+        result = np.empty(canonical_preview.shape, dtype=np.uint8)
+        result[..., :3] = rgb_preview
+        result[..., 3] = canonical_preview[..., 3]
+        return np.ascontiguousarray(result)
+
+    if layout in {"CHANNEL_R", "CHANNEL_G", "CHANNEL_B"}:
+        if source.ndim != 2:
+            raise ValueError("split-channel Display Gain requires a 2-D source")
+        channel_preview = to_display_uint8(source, gained_transform)
+        result = np.zeros((*source.shape, 3), dtype=np.uint8)
+        channel_index = {"CHANNEL_R": 0, "CHANNEL_G": 1, "CHANNEL_B": 2}[layout]
+        result[..., channel_index] = channel_preview
+        return result
+
+    if layout not in {"GRAY", "RGB"}:
+        raise ValueError(f"unsupported ordinary Display Gain layout: {channel_layout}")
+    return to_display_uint8(source, gained_transform)
 
 
 def render_signed_difference(diff: NDArray[Any]) -> NDArray[np.uint8]:

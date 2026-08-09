@@ -138,8 +138,9 @@ P3-A merged as PR #22 at
 
 ## Accepted P3-B RAW/display decisions
 
-P3-B is implemented on `feature/p3-b-raw-native-display-semantics` and introduces
-RAW viewer gain without redefining native analysis.
+P3-B merged as PR #24 at
+`1817490a08c61da9087efe9c3c6afd8bd85838f0` and introduced RAW viewer gain without
+redefining native analysis.
 
 ### Native RAW authority
 
@@ -150,7 +151,7 @@ RAW viewer gain without redefining native analysis.
 - Gain changes do not reload/decode source, bump generation, alter source
   residency, or change Difference-cache identity.
 - `white_level` remains persisted profile metadata and is not the 1× or gained
-  display maximum in P3-B.
+  display maximum.
 
 ### Generic display-gain core
 
@@ -167,13 +168,9 @@ display = anchor + gain * (source - anchor)
 - Gain and display-range normalization are fused into float32 scale/offset where
   possible to reduce full-frame memory-bandwidth passes.
 - Full-frame display-gain arithmetic does not promote to float64.
-- Generic affine application can target an array/channel view; this is the
-  architectural hook for future RGBA RGB-only gain with alpha preservation.
+- Generic affine application can target an array/channel view.
 - Clipping is deferred to final display conversion.
 - Source arrays are not modified.
-
-This generalization prepares P3-C reuse but does **not** broaden the P3-B product
-surface. P3-B activates gain only for RAW.
 
 ### RAW anchor policy
 
@@ -193,31 +190,23 @@ surface. P3-B activates gain only for RAW.
 
 ### P3-B UI/runtime and lifetime policy
 
-- The product surface is one session-local `RAW Gain` selector with
-  1×/2×/4×/8×/16×.
-- It is not persisted to `RawProfile`, workspace QSettings, or
-  `ApplicationSettings`; schema remains v5.
-- All RAW viewers consume one QApplication-session gain. Ordinary Gray/RGB/RGBA
-  documents are not transformed by this control in P3-B.
-- Gain 1× uses the canonical `ImageDocument.preview` fast path and schedules no
-  gained-preview worker.
-- Gain >1 derives a viewer-local preview from resident source on the shared
-  numerical worker pool.
-- Result acceptance checks task/request/document/source/generation/gain/visibility
-  identity.
-- Hidden viewers release gain>1 derived buffers back to canonical 1× presentation
-  and regenerate current gain when shown.
-- QApplication-global `RawDisplayState` may outlive toolbar controls. State/control
-  connections therefore use QObject receiver lifetime rather than Python closures
-  that can retain dead Qt wrappers.
+P3-B established the runtime/lifetime boundary that P3-C retains:
+
+- session-local gain choices are 1×/2×/4×/8×/16×;
+- gain is not persisted to `RawProfile`, workspace QSettings, or
+  `ApplicationSettings`; schema remains v5;
+- gain 1× uses canonical `ImageDocument.preview` and schedules no gained-preview
+  worker;
+- gain >1 derives a viewer-local preview from resident source on the shared
+  numerical worker pool;
+- result acceptance checks task/request/document/source/generation/gain/visibility
+  identity;
+- hidden viewers release gain>1 derived buffers back to canonical 1× presentation
+  and regenerate current gain when shown;
 - `+` / `-` Display Gain command ownership is the image-presentation subtree
   (`MainWindow.central_stack`) with `WidgetWithChildrenShortcut`, not the whole
-  window. Files-tree focus therefore retains Qt-native expand/collapse behavior.
-- A destroyed gain control marks the shortcut binding inactive; teardown callbacks
-  do not touch sibling `QShortcut` wrappers because Qt may already have deleted
-  them as part of parent destruction.
-- P3-C must reuse this command owner/focus/lifetime boundary rather than adding a
-  window-global duplicate.
+  window. Files-tree focus therefore retains Qt-native expand/collapse behavior;
+- teardown callbacks must respect QObject lifetime and Qt sibling-destruction order.
 
 ### P3-B scope exclusions
 
@@ -226,33 +215,81 @@ CCM, tone-map feature, optical-Black estimation, processed RAW document/analysis
 new Difference mode, profile management/suggestion, persistence, Settings schema
 bump, resource-policy redesign, packaging, or broad MainWindow/toolbar redesign.
 
-## Accepted P3-C Display Gain extension decision
+## Accepted P3-C Display Gain generalization decision
 
-P3-C remains **RAW Visualization & Inspection Improvements** and now also owns the
-ordinary-image activation of the P3-B generic display-gain core.
+P3-C implements ordinary-image activation of the P3-B generic display-gain core
+while retaining RAW semantics and the P3-B command/lifecycle boundaries.
 
-- Ordinary Gray and RGB viewer presentation uses the same core with `anchor=0`.
-- RGBA uses the same RGB gain while preserving alpha exactly.
-- User-facing terminology is **Display Gain** or **Gain**. Do not name the feature
-  **Exposure**; it is an explicit digital display transform rather than a camera
-  exposure model.
-- Gain changes remain presentation-only. Gray/RGB/RGBA source arrays, generation,
-  Statistics, Histogram, Line Profile, Difference, residency, and cache semantics
-  remain unchanged.
-- P3-C must retain a 1× identity/no-work fast path and deterministic final
-  clipping.
-- Required regression scope includes 1× identity, clipping, Gray, RGB, RGBA alpha
-  preservation, Single/Multi consistency, and analysis independence.
+### One session state and product surface
+
+- The user-facing term is **Display Gain** or **Gain**, never **Exposure**.
+- One QApplication-session `DisplayGainState` serves all supported viewer
+  presentations using 1×/2×/4×/8×/16×.
+- No RAW/RGB duplicate controls are introduced.
+- Generic session/control ownership lives in `ui.display_gain`; the RAW-only
+  compatibility UI wrapper is removed.
+- Display Gain is not persisted to Settings, workspace state, or RAW profiles;
+  schema remains v5.
+
+### Ordinary Gray/RGB/RGBA policy
+
+- Ordinary Gray and RGB use the same core with `anchor=0`.
+- All RGB channels receive the same gain; P3-C adds no color-balance transform.
+- Ordinary RGB split-channel visual documents gain their native 2-D source plane
+  with `anchor=0` while retaining colored presentation.
+- RGBA applies gain only to RGB. Gain>1 alpha must equal canonical 1× preview
+  alpha exactly.
+- RGBA gain arithmetic targets the RGB source view rather than constructing a
+  four-channel float32 gain working buffer.
+- Difference is excluded from general Display Gain because Difference owns its
+  own independent presentation Gain.
+
+### RAW regression policy
+
+P3-C does not alter P3-B RAW semantics:
+
+- RAW 1× still maps effective full scale without subtracting Black or promoting
+  White Level to display maximum;
+- gain >1 remains `B + G * (X - B)`;
+- Gray scalar/legacy tuple and Bayer R/Gr/Gb/B Black-anchor rules are unchanged;
+- split Bayer channels retain their named-channel Black anchor;
+- White Level remains metadata rather than display authority.
+
+### Generic viewer runtime policy
+
+- Gain 1× is a no-work path for every supported presentation: canonical
+  `ImageDocument.preview` is reused, no full-frame gain worker is scheduled, and
+  no extra gained preview is retained.
+- Gain >1 uses resident source and the existing shared numerical pool; it does not
+  decode/reload source.
+- Result acceptance includes task/request serial, document/source/canonical-preview
+  identity, generation, requested gain, and visibility.
+- Hidden/replaced viewers release unnecessary gain>1 derived buffers and
+  regenerate the current session gain when shown again.
+- Display Gain never mutates source/generation, source residency, or Difference
+  cache identity.
+- No new worker pool, resource setting, scheduler redesign, or debounce policy is
+  added without profiling evidence.
+
+### Analysis and shortcut independence
+
+- Pixel inspection, Statistics, Histogram, Line Profile numerical source, Split
+  Channel source arrays, Difference, source generation, residency accounting, and
+  Difference-cache identity remain independent of Display Gain.
 - P3-C reuses the P3-B `central_stack` / `WidgetWithChildrenShortcut` command
-  boundary. Files-tree `+` / `-` routing must remain native and regression-covered.
-- Large-image gain work remains off the UI thread where full-frame numerical work
-  is required; stale result identity remains mandatory.
-- Additional clipping/highlight/shadow and Bayer observability may be added where
-  useful for engineering inspection, but viewer presentation does not create a
-  processed-image analysis domain.
-- Demosaic is deferred unless a separately approved coherent processed-preview
-  boundary also defines White/Black normalization, white balance, CCM, tone/gamma,
-  and analysis interactions.
+  boundary. Files-tree `+` / `-` routing remains native and regression-covered for
+  both ordinary and RAW content.
+
+### P3-C scope exclusions
+
+P3-C adds no demosaic, white balance, CCM/color conversion, tone mapping, new
+gamma feature, processed RAW/document analysis, exposure simulation, automatic
+Black estimation, profile management/suggestion, gain persistence, Settings
+schema bump, new Difference mode, preload/residency redesign, worker-pool
+expansion, broad MainWindow rewrite, packaging, signing, or installer work.
+
+Additional clipping/highlight/shadow and Bayer observability remains optional and
+must not expand the merge-critical Display Gain slice without a clear product need.
 
 ## Current resource policy
 
@@ -262,18 +299,14 @@ ordinary-image activation of the P3-B generic display-gain core.
   256 MiB.
 - Normal load pool max remains two; preload pool max remains one; shared numerical
   pool max remains four.
-- Display-gain derived previews are viewer-local presentation buffers and are not
+- Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
 - The generic gain core does not become a cache, persistence, or resource-policy
   owner.
 
 ## Validation and merge state
 
-Owner/local Windows quality validation passed on
-`424144215b1df97c71a84ddca79a17bfccb1feef` after the generic-core and initial
-shortcut changes. The subsequent independent re-review identified the Files-tree
-`+` / `-` routing blocker. The presentation-scoped shortcut fix, teardown-lifetime
-follow-up, tests, and durable documentation were added after that validated head.
-Final latest-head owner/local validation is therefore required before merge.
-The Chat implementation agent must not claim that latest-head gate passed until
-owner/local output is observed.
+P3-B is complete as PR #24. P3-C implementation is present on
+`feature/p3-c-display-gain`. Core/UI/RAW-regression test code is added or updated,
+but the Chat implementation agent has not run repository validation. Owner/local
+Windows validation of the latest P3-C head is required before merge.
