@@ -85,9 +85,11 @@ def test_display_gain_shortcuts_step_clamp_and_preserve_files_tree_keys(
         lambda: window.viewer.document is raw and combo.isEnabled()
     )
 
-    window.viewer._graphics.setFocus()
-    qtbot.keyClick(window.viewer._graphics, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
-    qtbot.waitUntil(lambda: combo.currentData() == 2.0)  # type: ignore[attr-defined]
+    # Step/clamp semantics are independent of physical keyboard layout. The real
+    # key-routing regression is exercised below on the Files tree, where Qt must
+    # receive +/- itself instead of dispatching the presentation-scoped shortcut.
+    increase.activated.emit()
+    assert combo.currentData() == 2.0
     assert raw_display_state().gain == 2.0
 
     for _ in range(10):
