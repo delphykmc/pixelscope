@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLabel, QWidget
 
 DISPLAY_GAIN_OPTIONS = (1.0, 2.0, 4.0, 8.0, 16.0)
@@ -89,12 +89,12 @@ def is_display_gain_capable(document: object) -> bool:
 
 
 def install_display_gain_control(window: Any) -> QComboBox:
-    """Install the compact session-local Display Gain control into the main toolbar."""
+    """Install the session-local Display Gain control beside the image-view controls."""
 
     state = display_gain_state()
     state.reset()
 
-    host = QWidget(window.main_toolbar)
+    host = QWidget(window.presentation_controls)
     host.setObjectName("DisplayGainControl")
     layout = QHBoxLayout(host)
     layout.setContentsMargins(4, 0, 4, 0)
@@ -105,6 +105,7 @@ def install_display_gain_control(window: Any) -> QComboBox:
     combo = _DisplayGainComboBox(state, host)
     combo.setObjectName("DisplayGainCombo")
     combo.setFixedWidth(70)
+    combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     for gain in DISPLAY_GAIN_OPTIONS:
         combo.addItem(f"{gain:g}×", gain)
     combo.setCurrentIndex(0)
@@ -134,7 +135,6 @@ def install_display_gain_control(window: Any) -> QComboBox:
     for viewer in [window.viewer, *window.multi_compare_view.viewers]:
         viewer.document_changed.connect(update_enabled)
 
-    window.main_toolbar.addSeparator()
-    window.main_toolbar.addWidget(host)
+    window.presentation_controls_layout.addWidget(host)
     update_enabled()
     return combo
