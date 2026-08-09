@@ -78,6 +78,7 @@ from pixelscope.ui.design_tokens import (
 from pixelscope.ui.difference_panel import DifferencePanel
 from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
+from pixelscope.ui.folder_selection_dialog import choose_directories
 from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.multi_compare_view import MultiCompareView, MultiCompareViewState
@@ -103,6 +104,15 @@ class SixImageDiffRestoreState:
     current_index: int
     display_order: tuple[str, ...]
     view_state: MultiCompareViewState
+
+
+@dataclass(frozen=True)
+class FolderRegistrationResult:
+    """Summary of one registration-oriented folder input operation."""
+
+    folder_count: int
+    image_count: int
+    empty_folder_count: int
 
 
 class MainWindow(QMainWindow):
@@ -228,7 +238,7 @@ class MainWindow(QMainWindow):
         self.difference_panel.result_ready.connect(self._difference_panel_ready)
         self.difference_panel.preview_updated.connect(self._difference_preview_updated)
         self.empty_workspace.open_images_requested.connect(self.open_images)
-        self.empty_workspace.open_folder_requested.connect(self.open_folder)
+        self.empty_workspace.open_folders_requested.connect(self.open_folders)
         self._create_actions()
         self._create_toolbar()
         self._create_selection_shortcuts()
@@ -320,7 +330,7 @@ class MainWindow(QMainWindow):
         for menu in menus.values():
             menu.setStyleSheet(menu_style())
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
-        add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
+        add_action("File", "Open Folders...", self.open_folders, "Ctrl+Shift+O")
         menus["File"].addSeparator()
         add_action("File", "Export Statistics CSV...", self.export_statistics)
         menus["File"].addSeparator()
@@ -787,6 +797,7 @@ class MainWindow(QMainWindow):
         if select:
             self._select_document_ids([document.document_id])
         else:
+            self._update_empty_workspace_state()
             self._evict_resident_documents()
 
     def open_images(self) -> None:
@@ -796,101 +807,115 @@ class MainWindow(QMainWindow):
             self._open_dialog_directory(),
             SUPPORTED_IMAGE_FILTER,
         )
-        if paths:
-            supplied_paths = [Path(path) for path in paths]
-            self._remember_directory(supplied_paths[0].parent)
-            session = self._folder_navigation_selection()
-            if session is not None:
-                self._register_paths_during_navigation(supplied_paths, session)
-                return
-            inputs = discover_image_inputs(supplied_paths)
-            self._register_inputs(inputs, select_all=True)
+        if not paths:
+            return
+        supplied_paths = [Path(path) for path in paths]
+        self._remember_directory(supplied_paths[0].parent)
+        document_ids = self._register_inputs(
+            discover_image_inputs(supplied_paths),
+            resolve_raw_profiles=True,
+        )
+        if document_ids:
+            self._select_document_ids(document_ids)
+            self.statusBar().showMessage(f"Opened {len(document_ids)} image(s)", 4000)
+        else:
+            self.statusBar().showMessage("No supported images opened", 4000)
 
-    def open_folder(self) -> None:
-        path = QFileDialog.getExistingDirectory(
+    def open_folders(self) -> None:
+        folders = choose_directories(
             self,
-            "Open image folder",
+            "Open image folders",
             self._open_dialog_directory(),
         )
-        if path:
-            folder = Path(path)
-            self._remember_directory(folder)
-            session = self._folder_navigation_selection()
-            if session is not None:
-                self._register_paths_during_navigation([folder], session)
-                return
-            inputs = discover_image_inputs((folder,))
-            self._register_inputs(inputs, select_all=False)
+        if not folders:
+            return
+        self._remember_directory(folders[0])
+        result = self.register_folders(folders)
+        self.statusBar().showMessage(self._folder_registration_message(result), 5000)
 
-    def register_folder_group(self, folders: Sequence[Path]) -> None:
-        if not 1 <= len(folders) <= 6:
-            raise ValueError("folder group must contain one to six folders")
-        registered_by_folder = [
-            [
-                document_id
-                for image_input in discover_image_inputs((folder,))
-                if (document_id := self._register_input(image_input)) is not None
-            ]
-            for folder in folders
-        ]
-        if all(registered_by_folder):
-            if len(folders) > 1:
-                capacity = 2 if len(folders) == 2 else 4 if len(folders) <= 4 else 6
-                self.set_view_capacity(capacity)
-            self._select_document_ids([document_ids[0] for document_ids in registered_by_folder])
-            self.statusBar().showMessage(
-                "Folder navigation ready · "
-                f"{min(len(document_ids) for document_ids in registered_by_folder)} "
-                "aligned position(s)",
-                5000,
+    def register_folders(self, folders: Sequence[Path]) -> FolderRegistrationResult:
+        """Register supported folder contents without changing selection or presentation."""
+
+        unique: dict[str, Path] = {}
+        for folder in folders:
+            resolved = folder.resolve()
+            if resolved.is_dir():
+                unique.setdefault(str(resolved).casefold(), resolved)
+        ordered_folders = [unique[key] for key in sorted(unique)]
+
+        registered_ids: set[str] = set()
+        empty_folder_count = 0
+        for folder in ordered_folders:
+            inputs = discover_image_inputs((folder,))
+            if not inputs:
+                empty_folder_count += 1
+                continue
+            registered_ids.update(
+                self._register_inputs(inputs, resolve_raw_profiles=False)
             )
-        else:
-            self.statusBar().showMessage("No supported aligned images found", 5000)
+        self._update_empty_workspace_state()
+        return FolderRegistrationResult(
+            folder_count=len(ordered_folders),
+            image_count=len(registered_ids),
+            empty_folder_count=empty_folder_count,
+        )
+
+    @staticmethod
+    def _folder_registration_message(result: FolderRegistrationResult) -> str:
+        if result.folder_count == 0:
+            return "No folders registered"
+        if result.image_count == 0:
+            return f"No supported images found in {result.folder_count} folder(s)"
+        message = (
+            f"Registered {result.image_count} image(s) from {result.folder_count} folder(s)"
+        )
+        if result.empty_folder_count:
+            message += f" · {result.empty_folder_count} contained no supported images"
+        return message
 
     def _register_inputs(
         self,
         inputs: tuple[ImageInput, ...],
-        select_all: bool,
-        append_selection: bool = False,
+        *,
+        resolve_raw_profiles: bool,
     ) -> list[str]:
+        """Register inputs only; callers own any selection or presentation change."""
+
         document_ids = list(
             dict.fromkeys(
                 document_id
                 for image_input in inputs
-                if (document_id := self._register_input(image_input)) is not None
+                if (
+                    document_id := self._register_input(
+                        image_input,
+                        resolve_raw_profile=resolve_raw_profiles,
+                    )
+                )
+                is not None
             )
         )
-        if document_ids:
-            if append_selection and self.selected_documents:
-                existing_ids = [document.document_id for document in self.selected_documents]
-                combined_ids = list(dict.fromkeys([*existing_ids, *document_ids]))
-                if self._view_capacity > 1 and len(combined_ids) > self._view_capacity:
-                    self._view_capacity = 4 if len(combined_ids) <= 4 else 6
-                self._select_document_ids(
-                    combined_ids,
-                    preserve_view=True,
-                    preserve_overlays=True,
-                )
-            else:
-                self._select_document_ids(document_ids if select_all else document_ids[:1])
-            self.statusBar().showMessage(f"Registered {len(document_ids)} image(s)", 4000)
-        else:
-            self.statusBar().showMessage("No supported images found", 4000)
+        self._update_empty_workspace_state()
         return document_ids
 
-    def _register_input(self, image_input: ImageInput) -> str | None:
+    def _register_input(
+        self,
+        image_input: ImageInput,
+        *,
+        resolve_raw_profile: bool = True,
+    ) -> str | None:
         key = self._path_key(image_input.path)
         existing = self._document_id_by_path.get(key)
+        is_raw = image_input.path.suffix.casefold() == ".raw"
         raw_profile: RawProfile | None = None
-        if image_input.path.suffix.casefold() == ".raw":
+        if is_raw and resolve_raw_profile:
             raw_profile = self._confirm_raw_profile(image_input, existing)
             if raw_profile is None:
                 return None
         if existing is not None:
+            if image_input.raw_profile_path is not None:
+                self._raw_profile_paths[existing] = image_input.raw_profile_path
             if raw_profile is not None:
                 self._raw_profiles[existing] = raw_profile
-                if image_input.raw_profile_path is not None:
-                    self._raw_profile_paths[existing] = image_input.raw_profile_path
                 self._mark_raw_for_reload(existing, raw_profile)
             return existing
         document = ImageDocument.pending_document(image_input.path)
@@ -1019,29 +1044,29 @@ class MainWindow(QMainWindow):
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
             return
+        profile = self._raw_profiles.get(document.document_id)
+        if document.source_path.suffix.casefold() == ".raw" and profile is None:
+            profile = self._confirm_raw_profile(
+                ImageInput(
+                    document.source_path,
+                    self._raw_profile_paths.get(document.document_id),
+                ),
+                document.document_id,
+            )
+            if profile is None:
+                self.statusBar().showMessage(
+                    f"RAW profile required to load {document.display_name}",
+                    4000,
+                )
+                return
+            self._raw_profiles[document.document_id] = profile
+            document.channel_layout = profile.channel_layout
+            document.bit_depth = profile.bit_depth
+            document.raw_profile = profile
         if self._preload_workers:
             self._invalidate_preload_plan()
         document.loading_state = "loading"
         self._update_document_item(document)
-        profile = self._raw_profiles.get(document.document_id)
-        profile_path = self._raw_profile_paths.get(document.document_id)
-        if profile is None and profile_path is not None:
-            try:
-                profile = RawProfile.load_json(profile_path)
-            except Exception as exc:  # noqa: BLE001 - profile error becomes a document error
-                self._load_failed(
-                    document.document_id,
-                    document.source_path,
-                    TaskError(
-                        task_id="profile",
-                        document_id=document.document_id,
-                        generation=0,
-                        message=str(exc),
-                        exception_type=type(exc).__name__,
-                        traceback_text="",
-                    ),
-                )
-                return
         self._start_load(document.document_id, document.source_path, profile)
 
     def _start_load(self, target_id: str, path: Path, raw_profile: RawProfile | None) -> None:
@@ -1632,6 +1657,7 @@ class MainWindow(QMainWindow):
             self.comparison_analysis_panel.clear()
             self.line_profile_panel.clear()
             self._reset_pixel_status()
+            self._update_empty_workspace_state()
             self.central_stack.setCurrentWidget(self.empty_workspace)
             self._active_document_id = None
             self.structured_status.set_active_document()
@@ -2801,107 +2827,25 @@ class MainWindow(QMainWindow):
         if not isinstance(paths, list) or not all(isinstance(path, Path) for path in paths):
             return
         folders = [path for path in paths if path.is_dir()]
-        if len(paths) == 2 and len(folders) == 2:
-            self.register_folder_group(folders)
-            return
-        session = self._folder_navigation_selection()
-        if session is not None:
-            self._register_paths_during_navigation(paths, session)
-            return
-        inputs = discover_image_inputs(paths)
-        self._register_inputs(
-            inputs,
-            select_all=len(paths) > 1 and not folders,
-            append_selection=self._view_capacity > 1 and bool(self.selected_documents),
+        files = [path for path in paths if path.is_file()]
+        folder_result = self.register_folders(folders) if folders else None
+        document_ids = self._register_inputs(
+            discover_image_inputs(files),
+            resolve_raw_profiles=True,
         )
+        if document_ids:
+            self._select_document_ids(document_ids)
 
-    def _register_paths_during_navigation(
-        self,
-        paths: list[Path],
-        session: list[tuple[str, str]],
-    ) -> None:
-        active_by_folder = dict(session)
-        grouped: dict[str, tuple[list[ImageInput], ImageInput, bool]] = {}
-        for path in paths:
-            resolved = path.resolve()
-            is_folder = resolved.is_dir()
-            inputs = list(discover_image_inputs((resolved,)))
-            if not inputs:
-                continue
-            folder_key = self._folder_key(inputs[0].path)
-            existing = grouped.get(folder_key)
-            if existing is None:
-                grouped[folder_key] = (inputs, inputs[0], is_folder)
-            else:
-                merged = list(
-                    {self._path_key(item.path): item for item in [*existing[0], *inputs]}.values()
-                )
-                merged.sort(key=lambda item: natural_sort_key(item.path))
-                grouped[folder_key] = (
-                    merged,
-                    existing[1],
-                    existing[2] or is_folder,
-                )
+        messages: list[str] = []
+        if document_ids:
+            messages.append(f"Opened {len(document_ids)} image(s)")
+        if folder_result is not None:
+            messages.append(self._folder_registration_message(folder_result))
+        if messages:
+            self.statusBar().showMessage(" · ".join(messages), 5000)
 
-        selected_ids = [document_id for _folder_key, document_id in session]
-        for folder_key, (supplied_inputs, primary_input, explicit_folder) in grouped.items():
-            inputs_to_register = supplied_inputs
-            if folder_key not in active_by_folder and not explicit_folder:
-                siblings = list(discover_image_inputs((primary_input.path.parent,)))
-                supplied_keys = {
-                    self._path_key(image_input.path) for image_input in supplied_inputs
-                }
-                has_more_images = any(
-                    self._path_key(image_input.path) not in supplied_keys
-                    for image_input in siblings
-                )
-                if has_more_images:
-                    answer = QMessageBox.question(
-                        self,
-                        "Include folder images?",
-                        f"{primary_input.path.parent.name} contains other images. "
-                        "Register all images from this folder?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.Yes,
-                    )
-                    if answer == QMessageBox.StandardButton.Yes:
-                        inputs_to_register = siblings
-
-            registered_ids: dict[str, str] = {}
-            for image_input in inputs_to_register:
-                registered_id = self._register_input(image_input)
-                if registered_id is not None:
-                    registered_ids[self._path_key(image_input.path)] = registered_id
-            primary_id = registered_ids.get(self._path_key(primary_input.path))
-            if primary_id is None:
-                continue
-            if folder_key in active_by_folder:
-                current_id = active_by_folder[folder_key]
-                if primary_id != current_id:
-                    answer = QMessageBox.question(
-                        self,
-                        "Replace folder position?",
-                        f"A file from {primary_input.path.parent.name} is already visible. "
-                        f"Replace it with {primary_input.path.name}?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.No,
-                    )
-                    if answer == QMessageBox.StandardButton.Yes:
-                        selected_ids[selected_ids.index(current_id)] = primary_id
-            elif len(selected_ids) < 6:
-                selected_ids.append(primary_id)
-
-        if len(selected_ids) > self._view_capacity and self._view_capacity > 1:
-            self._view_capacity = 4 if len(selected_ids) <= 4 else 6
-        self._select_document_ids(
-            selected_ids,
-            preserve_view=True,
-            preserve_overlays=True,
-        )
-        self.statusBar().showMessage(
-            "Files registered; folder positions updated where requested",
-            4000,
-        )
+    def _update_empty_workspace_state(self) -> None:
+        self.empty_workspace.set_registered_documents(bool(self.documents))
 
     def _update_document_item(self, document: ImageDocument) -> None:
         self.document_list.update_document_item(
