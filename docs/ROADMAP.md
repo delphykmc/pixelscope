@@ -56,7 +56,8 @@ and workflow state are built around them.
 
 P3-0 is complete as PR #21 at
 `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`; implementation slices start from
-the latest merged P3 prerequisite.
+the latest merged P3 prerequisite. P3 roadmap replanning merged as PR #23 at
+`4c7d1bbbb4476134f76a204578098d35a03feca2`.
 
 ### P3-0 — Program transition — Complete
 
@@ -87,29 +88,39 @@ P3-A also delivers explicit Gray channel support, bounded float32 mixed-bit
 Difference/metrics, cache domain metadata, compact Scope/Domain UI, and short
 validation reasons with detailed tooltips.
 
-### P3-B — RAW Native & Display Semantics
+### P3-B — RAW Native & Display Semantics — Implementation Complete
 
-Keep PixelScope centered on engineering inspection rather than silently turning
-RAW loading into a RAW-conversion pipeline.
+P3-B is implemented on `feature/p3-b-raw-native-display-semantics`; owner/local
+Windows validation and merge remain pending.
+
+Delivered contract:
 
 - Native decoded RAW remains the authoritative source and is not modified by
   black/white metadata or viewer controls.
-- Keep existing `black_level` and `white_level` RAW-profile metadata.
-- At 1× display gain, the viewer shows the native RAW code domain using effective
-  bit depth/full-scale for display mapping rather than subtracting black level.
-- When display gain is applied, anchor the transform at black level:
+- Existing `black_level` and `white_level` RAW-profile metadata remain schema- and
+  JSON-compatible; Settings stays at schema v5.
+- At 1× display gain, RAW maps native code `0..((1 << bit_depth) - 1)` to the
+  preview range. Black is not subtracted and white is not promoted to full scale.
+- Display gain is anchored at black level:
   `display = black + gain * (native - black)`.
-- Bayer profiles may use their existing R/Gr/Gb/B black levels as channel-specific
-  display anchors.
-- P3-B does not apply `white_level` to native or gained display mapping; effective
-  full scale remains the display-range authority. White is retained as metadata
-  for future explicit tone-map or processed-RAW features.
+- Gain arithmetic is promoted to float32 and clipping occurs only during final
+  display conversion.
+- Bayer R/Gr/Gb/B black tuples are applied as CFA-parity-specific anchors for all
+  four supported Bayer patterns.
+- `white_level` remains metadata only for P3-B display; effective full scale is
+  the native and gained display-range authority.
 - Pixel inspection, Statistics, Histogram, Line Profile source data, Split
-  Channels, and P3-A Difference remain native-domain operations.
-- Gain is display-only; it must not mutate `ImageDocument.source` or silently
-  create a new analysis domain.
-- Preserve black/white metadata for future explicit processing without adding
-  those processing stages in P3-B.
+  Channels, source residency, and P3-A Difference remain native-domain operations.
+- A compact session-local `RAW Gain` control provides 1×/2×/4×/8×/16×. The same
+  gain is shared across visible RAW tiles in Single/Multi View; ordinary images
+  are unaffected.
+- Gain changes use resident native source and the shared numerical worker pool;
+  stale async results are rejected without source reload, generation changes,
+  residency-policy changes, or Difference-cache invalidation.
+
+P3-B intentionally adds no demosaic, white balance, CCM, tone mapping, processed
+RAW document, processed analysis mode, persistence, Settings migration, or
+resource-policy redesign.
 
 ### P3-C — RAW Visualization & Inspection Improvements
 
