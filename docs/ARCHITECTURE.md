@@ -15,6 +15,12 @@ Source arrays retain decoded dtype and channel meaning. Display conversion
 creates uint8 previews without modifying native source data. RGBA analysis
 ignores alpha. Difference and squared-error paths promote operands first.
 
+P3-B makes the RAW presentation boundary explicit: `core.raw_display` derives
+preview values from native RAW and profile metadata, while `ImageDocument.source`
+remains the analysis authority. `DisplayTransform` describes display low/high,
+gain, gain anchor, and gamma as presentation parameters rather than treating RAW
+black/white metadata as implicit source normalization.
+
 ## Current application identity and resource boundary
 
 Canonical application assets live under
@@ -54,6 +60,9 @@ separate even though both ultimately use Qt persistence.
 - Application bootstrap loads `ApplicationSettings`, converts the performance
   preferences to an immutable byte-based `PerformanceSettings` startup snapshot,
   and passes both settings objects plus the repository to `MainWindow`.
+- Application composition also installs one compact `RAW Gain` control. Its
+  `RawDisplayState` is application-session state only; it is not part of
+  `ApplicationSettings`, workspace QSettings, or `RawProfile` persistence.
 - `MainWindow` injects `PerformanceSettings.difference_cache_bytes` into
   `DifferencePanel`, which passes the fixed budget to `DifferenceMapCache`.
   Neither the panel nor the cache reads persistence.
@@ -84,6 +93,9 @@ Schema version 5 owns:
 - `settings/performance/difference_cache_mib`
 - `settings/performance/source_residency_mib`
 - `settings/performance/preload_enabled`
+
+P3-B deliberately does not add a key or schema migration. RAW display gain resets
+to 1× for a new application session.
 
 Schema v4 migrates directly to v5 and adds enabled preload without changing any
 v4 preference. Schema v3 migration still adds the source-residency preference. A
@@ -151,6 +163,15 @@ identical running worker is not cancelled/recreated, and an identical completed
 result is not rerendered. A changed numerical identity still cancels obsolete
 work when present and follows the normal cache/recompute path. Line Profile
 continues to cache by generation and line coordinates.
+
+P3-B RAW gain reuses the same shared numerical pool for full-frame display-only
+preview regeneration. The viewer captures task/document/source/generation/gain
+identity and applies a result only when that complete identity is still current.
+Hidden viewers cancel obsolete logical requests and regenerate the current gain
+when shown. Cancellation remains advisory, so stale-result rejection is the
+correctness mechanism. The result replaces only the `ImageItem` presentation;
+it does not replace `ImageDocument.source`, bump source generation, or mutate
+analysis caches.
 
 Decoded sources use a reloadable byte-budgeted working set. Pure-core
 `ResidencyManager` owns exact native-source byte accounting, LRU order,
@@ -363,6 +384,10 @@ panel value, starts at `1.00 %FS`, and converts to `[0,1]` only when rendering a
 normalized mask. Difference-map memory and decoded-source residency remain
 separate policies.
 
+RAW Gain is a separate P3-B viewer-presentation control and is not a Difference
+setting. P3-A Difference never reads it, `RawProfile.black_level`,
+`RawProfile.white_level`, or RAW preview pixels.
+
 ## Current source-memory boundary
 
 `ImageDocument.from_array()` retains both native source and preview. Decoded
@@ -374,13 +399,34 @@ object overhead, and process RSS are outside that accounting. The Files green
 residency state means the registered document's native source is currently
 resident; it does not describe Difference-map cache state.
 
+P3-B gained RAW previews are viewer-local derived presentation buffers and are not
+added to decoded-source residency accounting or Difference cache ownership.
+
 ## Current RAW boundary
 
 `RawProfile` separates storage format, sample container, effective bit depth,
-endian, alignment, dimensions, stride, offset, and grayscale/Bayer layout.
-MIPI RAW10/12/14 have fixed packing rules. Decoding returns native grayscale or
-Bayer mosaic arrays. Demosaic, black/white-level processing, and profile
-suggestion remain outside the current implementation.
+endian, alignment, dimensions, stride, offset, grayscale/Bayer layout,
+`black_level`, and `white_level`. MIPI RAW10/12/14 have fixed packing rules.
+Decoding returns native grayscale or Bayer mosaic arrays in
+`ImageDocument.source`.
+
+RAW display has a separate pure-core path:
+
+- `raw_full_scale(bit_depth)` defines `0..((1 << bit_depth) - 1)` display range;
+- `render_raw_preview()` derives 1× or gained preview from native source;
+- 1× never subtracts black or uses white as display high;
+- gained display uses `black + gain * (native - black)` in float32;
+- `render_bayer_preview()` applies R/Gr/Gb/B tuple anchors by CFA parity without
+  building a processed-source authority;
+- clipping occurs only during final uint8 preview conversion;
+- `white_level` remains metadata only under P3-B.
+
+The base `ImageDocument.preview` produced by RAW load/read workers is the 1×
+effective-full-scale preview. Higher gain is derived on demand for visible
+viewers from resident source and applied to the Qt image item only. Analysis code
+continues to read native source. Demosaic, white balance, CCM, tone mapping,
+processed-RAW analysis, optical-black estimation, and profile suggestion remain
+outside the current implementation.
 
 The persistent RAW JSON confirmation preference is exposed through the General
 Settings page rather than the File menu. The RAW open dialog may still set the
@@ -433,20 +479,20 @@ validation as authoritative closure evidence; packaging/installer CI remains P7.
 The P2 runtime boundaries for settings, source residency, bounded preload,
 deterministic diagnostics, and running-preload foreground reuse were completed by
 PR #20 without a broad `MainWindow` rewrite. P3-A preserves those ownership
-boundaries: `DifferencePanel` owns Difference family/domain/cache/threshold
-semantics while `MainWindow` continues to integrate the derived result into the
-existing viewer lifecycle.
+boundaries for Difference, and P3-B preserves them for RAW display: the new
+presentation state does not become a Settings, source-residency, preload,
+Difference-cache, or processed-source owner.
 
 ## P2 request and cancellation target
 
 Normal load, speculative preload, promoted foreground authority, and numerical
-analysis work require explicit request identity or generation/input validation
-before results are applied. Cancellation means obsolete work should be requested
-to stop when possible; it does not guarantee a running decoder or numerical
-kernel halts immediately. For that reason, an unchanged numerical analysis
-request must not be cancelled and recreated merely because presentation state is
-rebound. Stale-result rejection remains mandatory after genuinely obsolete work
-is cancelled.
+analysis/display work require explicit request identity or generation/input
+validation before results are applied. Cancellation means obsolete work should be
+requested to stop when possible; it does not guarantee a running decoder or
+numerical kernel halts immediately. For that reason, an unchanged numerical
+analysis request must not be cancelled and recreated merely because presentation
+state is rebound. Stale-result rejection remains mandatory after genuinely
+obsolete work is cancelled.
 
 ## Extension and packaging boundaries
 
