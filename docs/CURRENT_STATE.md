@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-09
-Current merged baseline / P3-A PR #22 merge commit:
-`769588bf869847da844cfc0b77c008023d8b048b`
+Current merged baseline / P3 roadmap replanning PR #23 merge commit:
+`4c7d1bbbb4476134f76a204578098d35a03feca2`
 
 This document records the implementation baseline that new work must use.
 
@@ -22,6 +22,8 @@ This document records the implementation baseline that new work must use.
   `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`.
 - P3-A Difference Gray/mixed-bit support merged as PR #22 at
   `769588bf869847da844cfc0b77c008023d8b048b`.
+- P3 roadmap replanning merged as PR #23 at
+  `4c7d1bbbb4476134f76a204578098d35a03feca2`.
 
 P2 — Runtime Foundation, Settings & Performance is complete. Its historical plan
 is retained at
@@ -29,8 +31,10 @@ is retained at
 
 The active plan is
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md) for
-**P3 — Image Semantics & RAW Processing**. P3-B RAW native/display semantics is
-the next implementation slice.
+**P3 — Image Semantics & RAW Processing**. P3-B RAW Native & Display Semantics is
+implemented on `feature/p3-b-raw-native-display-semantics`; owner/local Windows
+validation and merge remain pending. P3-C remains the next planned slice after
+P3-B merge.
 
 ## Current product baseline
 
@@ -100,20 +104,31 @@ Current RAW support includes:
 - `black_level` and `white_level` RAW-profile metadata;
 - deterministic Bayer/RAW fixtures and UHD characterization.
 
-The next P3-B contract is intentionally narrower than a RAW-conversion pipeline:
+P3-B establishes the following display contract without changing native analysis:
 
-- native decoded RAW stays authoritative and unchanged;
-- at 1× display gain, RAW is viewed in its native code domain using effective
-  full scale as the display-range authority;
-- display gain is anchored at black level using
-  `black + gain * (native - black)`;
-- black/white metadata do not silently change native analysis or P3-A Difference;
-- P3-B does not apply `white_level` to native or gained display mapping; it remains
-  stored metadata for possible future explicit processing.
+- decoded `ImageDocument.source` remains authoritative for pixel inspection,
+  Statistics, Histogram, Line Profile numerical data, Split Channels, Difference,
+  and source-residency accounting;
+- RAW 1× display maps native code `0..((1 << bit_depth) - 1)` directly to the
+  preview range. `black_level` is not remapped to zero and `white_level` is not
+  remapped to the display maximum;
+- display gain uses `black + gain * (native - black)`, promotes arithmetic to
+  float32, and clips only during final uint8 display conversion;
+- Bayer tuple black levels are applied as R/Gr/Gb/B CFA-parity-specific anchors
+  for RGGB/GRBG/GBRG/BGGR mosaics;
+- `white_level` remains persisted RAW metadata only in P3-B and is not a native
+  display-range or gained-display-range authority;
+- the compact toolbar `RAW Gain` control provides 1×/2×/4×/8×/16× values, is
+  session-local, is disabled for ordinary non-RAW Single View, and shares one
+  gain state across visible RAW tiles in Multi View;
+- gain changes regenerate only derived viewer presentation from the resident
+  native source through the shared numerical worker pool. They do not reload the
+  source, alter source residency, bump source generation, or invalidate Difference;
+- stale async RAW-display results are rejected against request/document/source/
+  generation/gain identity before they can overwrite a newer presentation.
 
 Not yet implemented:
 
-- the revised black-anchored RAW display-gain contract;
 - RAW visualization/inspection improvements planned for P3-C;
 - reusable profile-management workflow;
 - profile suggestion.
@@ -135,6 +150,9 @@ Settings schema version 5 owns:
 - Difference Map Cache MiB;
 - Decoded Source Memory MiB;
 - preload enablement.
+
+P3-B does not add a setting or schema migration. RAW display gain is deliberately
+session-local and returns to 1× on a new application session.
 
 `ApplicationSettings` is the frozen typed persisted model. `SettingsRepository`
 owns defaults, migration, validation, save/reset, corrupt-state recovery, and
@@ -200,9 +218,10 @@ cost are demonstrated reliably. Packaging/installer CI remains P7.
 The active P3 sequence is:
 
 1. **P3-A — Difference Gray / Mixed Bit-Depth Support — Complete**
-2. **P3-B — RAW Native & Display Semantics**
+2. **P3-B — RAW Native & Display Semantics — Implementation complete; validation/merge pending**
    - native RAW authority;
-   - black-anchored display gain;
+   - effective-full-scale native display;
+   - black-anchored display gain with CFA-aware Bayer anchors;
    - retain black/white metadata without redefining native analysis.
 3. **P3-C — RAW Visualization & Inspection Improvements**
    - improve gain/exposure/clipping/Bayer observability where useful;
