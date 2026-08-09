@@ -1,123 +1,22 @@
-# PixelScope application identity
+# PixelScope branding and application identity
 
-The current PixelScope name and visual identity remain provisional until release,
-but the repository has one canonical icon source and one reproducible generation
-path for its runtime and Windows derivatives. Replace the complete triplet if the
-product name or release identity changes.
+PixelScope's application identity is independent from P3 input/catalog behavior.
 
-## Canonical asset layout
+## Canonical application identity
 
-All application-icon assets live under `src/pixelscope/assets/icons/` so runtime
-and release tooling consume the same identity rather than maintaining duplicate
-copies.
+- Product name: **PixelScope**.
+- Source-run Windows AppUserModelID: `PixelScope.PixelScope`.
+- Canonical package icon assets remain the SVG/PNG/ICO triplet under
+  `src/pixelscope/assets/icons/`.
+- Source-run title-bar, Alt+Tab, running-taskbar, scaling, and resource-loading
+  behavior remain governed by the P2 identity implementation and tests.
 
-| File | Role |
-|---|---|
-| `pixelscope.svg` | Editable canonical vector source; 512 × 512 view box |
-| `pixelscope.png` | Transparent 256 × 256 Qt runtime application/window icon |
-| `pixelscope.ico` | Future Windows executable, shortcut, and installer shell icon |
+## Scope boundary
 
-The SVG is the source of truth. PNG and ICO must be reproducible from the SVG by
-the checked-in generator rather than maintained as independent artwork.
+P3-D Unified Image Opening & RAW Profile Resolution changes Files registration,
+selection intent, viewer presentation ownership, and lazy RAW profile resolution.
+It does **not** change application branding, executable icon binding, shortcuts,
+installer identity, digital signing, updater behavior, or distribution packaging.
 
-## Visual contract
-
-- The icon is a standalone transparent mark without a full-canvas background,
-  rounded-square plate, or enclosing application tile.
-- A large white photograph frame with a simplified sun-and-mountain scene makes
-  the image-inspection domain immediately recognizable.
-- A dominant magnifying scope overlaps the photograph and communicates precise
-  inspection rather than generic image viewing.
-- A coarse pixel mosaic inside the lens communicates pixel-level analysis and
-  remains recognizable after taskbar downscaling.
-- Dark navy outlines, white/silver structural elements, and medium blue-gray
-  fills provide clear contrast on both light and dark Windows taskbars.
-- A compact amber region in the pixel mosaic and an amber handle collar preserve
-  a restrained visual link to the earlier orange CAT application icon.
-- The mark occupies most of the 512 × 512 canvas while retaining transparent
-  outer margins for Windows and Qt rendering.
-- No text, font dependency, rendered raster element, full-canvas background, or
-  third-party logo is embedded in the SVG.
-
-## Size contract
-
-The mark must remain identifiable at 16, 20, 24, 32, 40, 48, 64, 128, and
-256 px. `pixelscope.ico` contains one transparent frame for each size. Each ICO
-size is rendered directly from the SVG rather than produced by scaling a
-previously rasterized icon. The runtime PNG is the 256 px render used by Qt.
-
-## Reproducible generation
-
-`scripts/generate_icon_assets.py` is the canonical derivative generator. The
-previous Qt `QSvgRenderer` path was removed after Windows visual validation showed
-that its rasterized derivatives did not reproduce the approved icon quality.
-Generation now matches the validated asset path used by the repository owner:
-
-- `resvg_py==0.3.3` renders the SVG directly at the requested output size.
-- `Pillow==12.3.0` decodes the render, writes the 256 px indexed PNG without
-  dithering, and assembles the multi-size ICO.
-- The SVG is rejected if it contains an embedded `<image>` raster element.
-
-The two generator-only dependencies are pinned in `requirements/dev.txt`; they
-are not runtime application dependencies.
-
-From the repository root:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\generate_icon_assets.py
-.\.venv\Scripts\python.exe scripts\generate_icon_assets.py --check
-```
-
-The first command rewrites `pixelscope.png` and `pixelscope.ico` from the SVG.
-The `--check` command does not modify checked-in assets: it creates both
-derivatives in an isolated temporary directory, compares their bytes exactly with
-the checked-in PNG and ICO, fails on any difference, and removes the temporary
-directory when the check finishes.
-
-`tests/unit/test_icon_assets.py` exercises the same reproduction contract and
-also verifies that its temporary generation directory is empty after the check.
-Any SVG change therefore requires regenerating and intentionally committing the
-matching PNG/ICO derivatives.
-
-## Runtime and packaging use
-
-- `pixelscope.app.resources.load_application_icon()` reads PNG bytes through
-  `importlib.resources`; lookup does not depend on the working directory or a
-  source-tree absolute path.
-- `create_application()` assigns the icon to `QApplication`, allowing windows to
-  inherit the canonical runtime icon.
-- On Windows, `_set_windows_app_user_model_id()` assigns the stable
-  `PixelScope.PixelScope` process identity before `QApplication` creation. This
-  prevents source-run windows from remaining grouped under the Python shell icon.
-- `main()` also assigns the application icon directly to the main window before
-  it is shown.
-- `pyproject.toml` declares SVG, PNG, and ICO files as package data.
-- Future PyInstaller and Inno Setup definitions must bind the canonical ICO
-  rather than creating a second copy.
-
-Verify wheel contents after any package-data or asset change:
-
-```powershell
-Remove-Item -Recurse -Force .tmp-wheel -ErrorAction SilentlyContinue
-.\.venv\Scripts\python.exe -m pip wheel . --no-deps -w .tmp-wheel
-.\.venv\Scripts\python.exe scripts\check_wheel_icon_assets.py .tmp-wheel
-```
-
-Executable-file icons, pinned shortcuts, installer shortcuts, signing, and
-release-name finalization remain P7 work. The source-run Windows AppUserModelID
-is part of P2-A1 because manual validation demonstrated that it is required for
-the running taskbar icon.
-
-## P2-A1 manual validation
-
-For the source-run identity/resource slice, verify on Windows:
-
-1. Launch from the repository root and from an unrelated working directory.
-2. Main-window title bar and Alt+Tab icon.
-3. Running taskbar icon and separation from the Python process identity.
-4. Confirm the mark is large, high-contrast, and recognizable at taskbar size.
-5. Verify 100%, 150%, and 200% display scaling.
-6. Verify light and dark taskbar backgrounds.
-
-Pinned shortcut, executable-file, installer-shortcut, and final packaged-shell
-identity checks are intentionally deferred to P7.
+Those release-shell concerns remain P7 and must continue to respect the fixed
+packaging constraints in `docs/PACKAGING_CONSTRAINTS.md`.
