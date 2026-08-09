@@ -47,5 +47,5 @@ def install_display_gain_shortcuts(
 
     # Retain Python wrappers explicitly on the presentation owner in addition to
     # Qt parentage so the command lifetime follows the viewer presentation scope.
-    setattr(presentation_scope, "_display_gain_shortcuts", (increase, decrease))
+    presentation_scope._display_gain_shortcuts = increase, decrease
     return increase, decrease
