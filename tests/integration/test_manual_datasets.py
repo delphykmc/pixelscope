@@ -13,11 +13,7 @@ def test_fhd_chart_folders_are_complete_and_naturally_aligned() -> None:
     discovered = [discover_image_inputs((folder,)) for folder in folders]
 
     assert [len(items) for items in discovered] == [10, 10, 10]
-    assert all(
-        item.path.suffix.casefold() == ".jpg"
-        for items in discovered
-        for item in items
-    )
+    assert all(item.path.suffix.casefold() == ".jpg" for items in discovered for item in items)
     baseline_names = [item.path.name for item in discovered[0]]
     assert [item.path.name for item in discovered[1]] == baseline_names
     assert [item.path.name for item in discovered[2]] == baseline_names
