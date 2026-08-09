@@ -1,1 +1,1 @@
-"""Image and RAW input I/O helpers."""
+"""Image and RAW input layer."""
