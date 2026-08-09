@@ -102,7 +102,8 @@ def test_open_folders_cancel_is_a_complete_noop(
     window.open_folders()
 
     assert len(window.documents) == 1
-    assert tuple(document.document_id for document in window.selected_documents) == selected_before
+    selected_after = tuple(document.document_id for document in window.selected_documents)
+    assert selected_after == selected_before
     assert window.central_stack.currentWidget() is central_before
     assert window._layout_mode == layout_before
     assert window._active_document_id == active_before
