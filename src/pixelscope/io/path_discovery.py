@@ -64,11 +64,3 @@ def discover_image_inputs(paths: Iterable[Path], recursive: bool = False) -> tup
                 seen.add(identity)
                 discovered.append(image_input)
     return tuple(sorted(discovered, key=lambda item: natural_sort_key(item.path)))
-
-
-def pair_folders(folder_a: Path, folder_b: Path) -> tuple[tuple[ImageInput, ImageInput], ...]:
-    """Pair immediate child images by natural sort position."""
-
-    inputs_a = discover_image_inputs((folder_a,))
-    inputs_b = discover_image_inputs((folder_b,))
-    return tuple(zip(inputs_a, inputs_b, strict=False))
