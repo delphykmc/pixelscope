@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from pixelscope.core.display_transform import DisplayTransform, to_display_uint8
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, extract_roi
 from pixelscope.core.statistics import (
     HistogramResult,
@@ -116,10 +115,52 @@ def analyze_bayer_roi(
 
 def render_bayer_preview(
     source: NDArray[np.generic],
-    transform: DisplayTransform,
+    pattern: str,
+    black_level: int | tuple[int, int, int, int],
+    bit_depth: int,
+    gain: float = 1.0,
 ) -> NDArray[np.uint8]:
-    """Render a Bayer mosaic with a restrained green tint."""
+    """Render a native Bayer mosaic with black-anchored display gain.
 
-    gray = to_display_uint8(source, transform)
-    red_blue = np.rint(gray.astype(np.float32) * 0.38).astype(np.uint8)
+    The source is promoted to one float32 scratch buffer. CFA-specific anchors
+    are applied by parity without materializing a full-size anchor array. Values
+    are clipped only when the effective-bit-depth full scale is converted to the
+    final uint8 preview.
+    """
+
+    if source.ndim != 2:
+        raise ValueError("Bayer source must be a 2-D mosaic")
+    if source.size == 0:
+        raise ValueError("cannot display an empty Bayer image")
+    if not 1 <= bit_depth <= 16:
+        raise ValueError("bit_depth must be between 1 and 16")
+    if gain <= 0:
+        raise ValueError("display gain must be greater than zero")
+
+    if isinstance(black_level, tuple):
+        if len(black_level) != 4:
+            raise ValueError("Bayer black_level must contain R/Gr/Gb/B values")
+        anchors = dict(zip(BAYER_CHANNEL_NAMES, black_level))
+    else:
+        anchors = {name: black_level for name in BAYER_CHANNEL_NAMES}
+
+    working = source.astype(np.float32, copy=True)
+    if gain != 1.0:
+        positions = bayer_channel_positions(pattern)
+        gain_value = np.float32(gain)
+        for name in BAYER_CHANNEL_NAMES:
+            row_parity, column_parity = positions[name]
+            plane = working[row_parity::2, column_parity::2]
+            anchor = np.float32(anchors[name])
+            np.subtract(plane, anchor, out=plane)
+            np.multiply(plane, gain_value, out=plane)
+            np.add(plane, anchor, out=plane)
+
+    full_scale = np.float32((1 << bit_depth) - 1)
+    np.multiply(working, np.float32(1.0) / full_scale, out=working)
+    np.clip(working, 0.0, 1.0, out=working)
+    np.multiply(working, np.float32(255.0), out=working)
+    np.rint(working, out=working)
+    gray = working.astype(np.uint8)
+    red_blue = np.rint(gray.astype(np.float32) * np.float32(0.38)).astype(np.uint8)
     return np.ascontiguousarray(np.stack((red_blue, gray, red_blue), axis=-1))

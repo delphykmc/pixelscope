@@ -9,21 +9,31 @@ from numpy.typing import NDArray
 
 @dataclass(frozen=True)
 class DisplayTransform:
-    """Non-destructive source-to-display conversion parameters."""
+    """Non-destructive source-to-display conversion parameters.
 
-    black_level: float | None = None
-    white_level: float | None = None
+    ``display_low``/``display_high`` describe the code range mapped to the
+    preview endpoints. ``gain`` is presentation-only and is applied around
+    ``gain_anchor`` before the final range mapping. None of these values redefine
+    the source or analysis domain.
+    """
+
+    display_low: float | None = None
+    display_high: float | None = None
+    gain: float = 1.0
+    gain_anchor: float = 0.0
     gamma: float = 1.0
 
     def __post_init__(self) -> None:
+        if self.gain <= 0:
+            raise ValueError("gain must be greater than zero")
         if self.gamma <= 0:
             raise ValueError("gamma must be greater than zero")
         if (
-            self.black_level is not None
-            and self.white_level is not None
-            and self.white_level <= self.black_level
+            self.display_low is not None
+            and self.display_high is not None
+            and self.display_high <= self.display_low
         ):
-            raise ValueError("white_level must be greater than black_level")
+            raise ValueError("display_high must be greater than display_low")
 
 
 def _default_range(array: NDArray[np.generic]) -> tuple[float, float]:
@@ -42,24 +52,37 @@ def _default_range(array: NDArray[np.generic]) -> tuple[float, float]:
 def to_display_uint8(
     source: NDArray[np.generic], transform: DisplayTransform | None = None
 ) -> NDArray[np.uint8]:
-    """Return a C-contiguous uint8 preview without modifying *source*."""
+    """Return a C-contiguous uint8 preview without modifying *source*.
+
+    Gain arithmetic is promoted to float32 so unsigned values below the anchor
+    retain their sign. Clipping is deferred until the final display-range
+    conversion.
+    """
 
     if source.size == 0:
         raise ValueError("cannot display an empty image")
     parameters = transform or DisplayTransform()
     default_low, default_high = _default_range(source)
-    low = default_low if parameters.black_level is None else parameters.black_level
-    high = default_high if parameters.white_level is None else parameters.white_level
+    low = default_low if parameters.display_low is None else parameters.display_low
+    high = default_high if parameters.display_high is None else parameters.display_high
     if high <= low:
         high = low + 1.0
-    normalized = np.clip(
-        (source.astype(np.float32) - np.float32(low)) / np.float32(high - low),
-        0.0,
-        1.0,
-    )
+
+    working = source.astype(np.float32, copy=True)
+    if parameters.gain != 1.0:
+        anchor = np.float32(parameters.gain_anchor)
+        np.subtract(working, anchor, out=working)
+        np.multiply(working, np.float32(parameters.gain), out=working)
+        np.add(working, anchor, out=working)
+
+    np.subtract(working, np.float32(low), out=working)
+    np.multiply(working, np.float32(1.0 / (high - low)), out=working)
+    np.clip(working, 0.0, 1.0, out=working)
     if parameters.gamma != 1.0:
-        normalized = np.power(normalized, np.float32(1.0 / parameters.gamma))
-    return np.ascontiguousarray(np.rint(normalized * 255.0).astype(np.uint8))
+        np.power(working, np.float32(1.0 / parameters.gamma), out=working)
+    np.multiply(working, np.float32(255.0), out=working)
+    np.rint(working, out=working)
+    return np.ascontiguousarray(working.astype(np.uint8))
 
 
 def render_signed_difference(diff: NDArray[Any]) -> NDArray[np.uint8]:

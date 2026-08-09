@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pixelscope.core.bayer import render_bayer_preview
 from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.raw_display import raw_full_scale, render_raw_preview
 from pixelscope.io.image_reader import read_image
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.raw_reader import read_raw
@@ -32,8 +32,16 @@ class ImageLoadWorker(TaskWorker):
                 require_exact_size=require_exact_raw_size,
             )
             transform = DisplayTransform(
-                black_level=raw_profile.display_black_level,
-                white_level=raw_profile.white_level,
+                display_low=0.0,
+                display_high=float(raw_full_scale(raw_profile.bit_depth)),
+            )
+            preview = render_raw_preview(
+                source,
+                channel_layout=raw_profile.channel_layout,
+                bit_depth=raw_profile.bit_depth,
+                black_level=raw_profile.black_level,
+                bayer_pattern=raw_profile.bayer_pattern,
+                gain=1.0,
             )
             return ImageDocument.from_array(
                 source,
@@ -43,11 +51,7 @@ class ImageLoadWorker(TaskWorker):
                 bit_depth=raw_profile.bit_depth,
                 raw_profile=raw_profile,
                 display_transform=transform,
-                prepared_preview=(
-                    render_bayer_preview(source, transform)
-                    if raw_profile.channel_layout == "BAYER"
-                    else None
-                ),
+                prepared_preview=preview,
             )
 
         super().__init__(load)

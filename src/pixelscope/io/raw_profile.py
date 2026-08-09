@@ -197,11 +197,3 @@ class RawProfile(BaseModel):
         if self.storage_format == "unpacked":
             return "unpacked_u8" if self.container_dtype == "uint8" else "unpacked_u16"
         return self.storage_format
-
-    @property
-    def display_black_level(self) -> int:
-        """Return a scalar black level suitable for the current global preview."""
-
-        if isinstance(self.black_level, tuple):
-            return min(self.black_level)
-        return self.black_level
