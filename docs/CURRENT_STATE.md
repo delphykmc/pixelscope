@@ -32,9 +32,11 @@ is retained at
 The active plan is
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md) for
 **P3 — Image Semantics & RAW Processing**. P3-B RAW Native & Display Semantics is
-implemented on `feature/p3-b-raw-native-display-semantics`; owner/local Windows
-validation and merge remain pending. P3-C remains the next planned slice after
-P3-B merge.
+implemented on `feature/p3-b-raw-native-display-semantics`. Owner/local Windows
+quality validation passed on pre-review HEAD
+`e7c1cc2ea0b08f43d3d513f6712035aa828eec5b`; independent-review follow-up fixes
+are now applied and require current-HEAD revalidation before merge. P3-C remains
+the next planned slice after P3-B merge.
 
 ## Current product baseline
 
@@ -116,6 +118,9 @@ P3-B establishes the following display contract without changing native analysis
   float32, and clips only during final uint8 display conversion;
 - Bayer tuple black levels are applied as R/Gr/Gb/B CFA-parity-specific anchors
   for RGGB/GRBG/GBRG/BGGR mosaics;
+- a schema-valid four-value `black_level` on GRAY remains compatible with earlier
+  profiles: global/GRAY display gain deterministically uses `min(black_level)`,
+  matching the pre-P3-B global-preview rule without changing stored metadata;
 - `white_level` remains persisted RAW metadata only in P3-B and is not a native
   display-range or gained-display-range authority;
 - the compact toolbar `RAW Gain` control provides 1×/2×/4×/8×/16× values, is
@@ -125,7 +130,10 @@ P3-B establishes the following display contract without changing native analysis
   native source through the shared numerical worker pool. They do not reload the
   source, alter source residency, bump source generation, or invalidate Difference;
 - stale async RAW-display results are rejected against request/document/source/
-  generation/gain identity before they can overwrite a newer presentation.
+  generation/gain identity before they can overwrite a newer presentation;
+- when a RAW viewer becomes hidden, any gain>1 viewer-local derived preview is
+  released back to the canonical 1× `ImageDocument.preview`; showing the viewer
+  again regenerates the current session gain on demand.
 
 Not yet implemented:
 
@@ -218,7 +226,7 @@ cost are demonstrated reliably. Packaging/installer CI remains P7.
 The active P3 sequence is:
 
 1. **P3-A — Difference Gray / Mixed Bit-Depth Support — Complete**
-2. **P3-B — RAW Native & Display Semantics — Implementation complete; validation/merge pending**
+2. **P3-B — RAW Native & Display Semantics — Implementation/review follow-up complete; current-head revalidation/merge pending**
    - native RAW authority;
    - effective-full-scale native display;
    - black-anchored display gain with CFA-aware Bayer anchors;
