@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-09
-Post-P2 baseline / P2-F PR #20 merge commit:
-`9c66629f6392971b8c52ac9dff27b16166cf9829`
+P3-A branch base / P3-0 PR #21 merge commit:
+`5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`
 
 This document records the implementation baseline that new work must use.
 
@@ -18,6 +18,8 @@ This document records the implementation baseline that new work must use.
 - P2-E merged as PR #19.
 - P2-F merged as PR #20 at
   `9c66629f6392971b8c52ac9dff27b16166cf9829`.
+- P3-0 roadmap transition merged as PR #21 at
+  `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`.
 
 P2 — Runtime Foundation, Settings & Performance is complete. Its historical plan
 is retained at
@@ -51,35 +53,36 @@ The active plan is now
   layout/Bayer semantics, ROI, and histogram specification are unchanged.
 - Line Profile supports absolute, normalized, and Difference-from-reference
   modes with primary→active→first-displayed reference priority.
-- Difference supports its existing RGB/RGBA and Bayer compatibility path,
-  byte-budgeted cache, threshold/gain display controls, mask, metrics, and
-  reversed-pair reuse.
+- Difference supports Gray ↔ Gray, RGB/RGBA ↔ RGB/RGBA, and same-CFA
+  Bayer ↔ Bayer, with explicit native/normalized domains, byte-budgeted cache,
+  threshold/gain display controls, mask, metrics, and reversed-pair reuse.
 - Split Channels keeps atomic RGB/Bayer-to-GRAY replacement behavior.
 
-### Current Difference limitation
+### P3-A Difference semantics
 
-The standard Difference workflow has a known semantic gap that is now assigned to
-P3-A rather than reopening P2:
+The P3-A implementation branch establishes the production Difference contract:
 
-- GRAY ↔ GRAY is not accepted through the intended compatibility path;
-- different effective bit depths are not supported through a normalized
-  comparison domain;
-- current long validation/status text is not optimized for the compact panel
-  surface.
+- Gray ↔ Gray, RGB/RGBA ↔ RGB/RGBA, and same-CFA Bayer ↔ Bayer are supported;
+- cross-family, size-mismatch, CFA-mismatch, and unsupported layouts are rejected;
+- Gray uses the complete 2-D source, RGB/RGBA compares RGB only, and Bayer keeps
+  Mosaic/R/Gr/Gb/B semantics;
+- equal effective bit depths retain compact native code-domain Difference with
+  full scale `(1 << bit_depth) - 1`;
+- mixed effective bit depths independently normalize each native source by its
+  own effective full scale, produce canonical float32 absolute maps in `[0,1]`,
+  and use `%FS` threshold semantics;
+- RAW black/white levels, `DisplayTransform`, preview values, demosaic output, and
+  implicit RGB→Gray conversion do not participate in P3-A normalization;
+- normalized map generation and metrics use bounded chunks. P95/P99 use a fixed
+  65,536-level histogram over `[0,1]`, giving deterministic quantile error no
+  greater than `1/65535` full scale;
+- `CachedDifferenceMap` stores `domain`, `data_range`, family/layout, and Bayer
+  pattern metadata while retaining the existing order-independent generation key;
+- compact Scope/Domain fields are primary UI status. Validation failures use short
+  labels such as `Layout mismatch` while detailed reasons remain in tooltips.
 
-Planned P3-A behavior is:
-
-- Gray ↔ Gray, RGB/RGBA ↔ RGB/RGBA, and same-CFA Bayer ↔ Bayer only;
-- reject cross-family, size-mismatch, and CFA-mismatch comparisons;
-- preserve native code-domain Difference for equal effective bit depth;
-- for mixed bit depth, normalize each source by its own full-scale code value to
-  `[0,1]` and use `%FS` threshold semantics;
-- do not use RAW black/white levels, display transforms, or implicit RGB→Gray
-  conversion for Difference normalization;
-- preserve the native fast path while adding bounded-memory normalized handling
-  and explicit cache-domain metadata.
-
-These are target semantics, not current implemented behavior.
+Settings schema remains v5. Persisted `difference_threshold` is the native code
+threshold default; normalized threshold starts at `1.00 %FS` and is session-local.
 
 ### RAW
 
@@ -134,7 +137,9 @@ known, a conservative combined limit of 50% of installed RAM.
   while required; unprotected sources may be evicted and reload through the
   existing tokenized worker path.
 - Source eviction and Difference-cache ownership are independent.
-- Difference cache remains a persistence-free byte-budgeted LRU.
+- Difference cache remains a persistence-free byte-budgeted LRU; each entry
+  records its native/normalized data-domain metadata independently of source
+  residency.
 
 ### Preload and foreground reuse
 

@@ -107,7 +107,7 @@ def render_absolute_difference_range(
     return np.ascontiguousarray(np.rint(scaled * 255.0).astype(np.uint8))
 
 
-def render_threshold_mask(diff: NDArray[Any], threshold: int) -> NDArray[np.uint8]:
+def render_threshold_mask(diff: NDArray[Any], threshold: float) -> NDArray[np.uint8]:
     """Render red where any selected channel exceeds *threshold*, black elsewhere."""
 
     if threshold < 0:

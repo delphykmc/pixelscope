@@ -12,6 +12,34 @@ from pixelscope.core.image_document import ImageDocument
 
 MAX_METRIC_HISTOGRAM_BINS = 65_536
 DEFAULT_METRIC_CHUNK_ELEMENTS = 1_048_576
+NORMALIZED_QUANTILE_LEVELS = 65_536
+NORMALIZED_QUANTILE_MAX_ERROR_FS = 1.0 / (NORMALIZED_QUANTILE_LEVELS - 1)
+
+DifferenceFamily = Literal["GRAY", "RGB", "BAYER"]
+DifferenceDomain = Literal["native", "normalized"]
+DifferenceReasonCode = Literal[
+    "ok",
+    "select-two",
+    "source-unavailable",
+    "size-mismatch",
+    "layout-mismatch",
+    "cfa-mismatch",
+    "unsupported-layout",
+]
+
+
+@dataclass(frozen=True)
+class DifferenceCompatibility:
+    """Pure-core Difference family/domain decision for one document pair."""
+
+    compatible: bool
+    family: DifferenceFamily | None
+    domain: DifferenceDomain | None
+    reason_code: DifferenceReasonCode
+    detail: str
+    effective_bit_depth_a: int
+    effective_bit_depth_b: int
+    data_range: float | None
 
 
 @dataclass(frozen=True)
@@ -32,18 +60,114 @@ class DifferenceMetrics:
 @dataclass(frozen=True)
 class DifferenceAnalysisResult:
     numerical: NDArray[np.generic]
-    signed: NDArray[np.float64]
+    signed: NDArray[np.generic]
     metrics: DifferenceMetrics
     histogram_counts: NDArray[np.int64]
     histogram_edges: NDArray[np.float64]
 
 
-def _layout_family(document: ImageDocument) -> str:
+def _layout_family(document: ImageDocument) -> DifferenceFamily | None:
+    if document.channel_layout == "GRAY":
+        return "GRAY"
     if document.channel_layout == "BAYER":
         return "BAYER"
     if document.channel_layout in ("RGB", "RGBA"):
         return "RGB"
-    return document.channel_layout
+    return None
+
+
+def _incompatible(
+    a: ImageDocument,
+    b: ImageDocument,
+    reason_code: DifferenceReasonCode,
+    detail: str,
+    family: DifferenceFamily | None = None,
+) -> DifferenceCompatibility:
+    return DifferenceCompatibility(
+        compatible=False,
+        family=family,
+        domain=None,
+        reason_code=reason_code,
+        detail=detail,
+        effective_bit_depth_a=a.bit_depth,
+        effective_bit_depth_b=b.bit_depth,
+        data_range=None,
+    )
+
+
+def difference_compatibility(a: ImageDocument, b: ImageDocument) -> DifferenceCompatibility:
+    """Return structured family/domain compatibility for the production Difference path."""
+
+    family_a = _layout_family(a)
+    family_b = _layout_family(b)
+    if a.source is None or b.source is None:
+        return _incompatible(
+            a,
+            b,
+            "source-unavailable",
+            "Both images must be loaded before comparison.",
+        )
+    if a.shape[:2] != b.shape[:2]:
+        return _incompatible(
+            a,
+            b,
+            "size-mismatch",
+            f"Image dimensions do not match: {a.shape[:2]} vs {b.shape[:2]}.",
+        )
+    if family_a is None or family_b is None:
+        return _incompatible(
+            a,
+            b,
+            "unsupported-layout",
+            "Difference supports Gray, RGB/RGBA, or Bayer images; "
+            f"received {a.channel_layout} and {b.channel_layout}.",
+        )
+    if family_a != family_b:
+        return _incompatible(
+            a,
+            b,
+            "layout-mismatch",
+            f"Difference image families do not match: {family_a} vs {family_b}.",
+        )
+    if family_a == "BAYER":
+        pattern_a = getattr(a.raw_profile, "bayer_pattern", None)
+        pattern_b = getattr(b.raw_profile, "bayer_pattern", None)
+        if pattern_a is None or pattern_b is None:
+            return _incompatible(
+                a,
+                b,
+                "unsupported-layout",
+                "Bayer Difference requires a CFA pattern for both images.",
+                family_a,
+            )
+        if pattern_a != pattern_b:
+            return _incompatible(
+                a,
+                b,
+                "cfa-mismatch",
+                f"Bayer CFA patterns do not match: {pattern_a} vs {pattern_b}.",
+                family_a,
+            )
+    if a.bit_depth <= 0 or b.bit_depth <= 0:
+        return _incompatible(
+            a,
+            b,
+            "unsupported-layout",
+            "Difference requires positive effective bit depths.",
+            family_a,
+        )
+    domain: DifferenceDomain = "native" if a.bit_depth == b.bit_depth else "normalized"
+    data_range = float((1 << a.bit_depth) - 1) if domain == "native" else 1.0
+    return DifferenceCompatibility(
+        compatible=True,
+        family=family_a,
+        domain=domain,
+        reason_code="ok",
+        detail="Compatible Difference pair.",
+        effective_bit_depth_a=a.bit_depth,
+        effective_bit_depth_b=b.bit_depth,
+        data_range=data_range,
+    )
 
 
 def validate_difference_documents(
@@ -51,40 +175,93 @@ def validate_difference_documents(
     b: ImageDocument,
     normalized_domain: bool = False,
 ) -> str | None:
-    """Return a user-facing incompatibility reason, or None for a valid pair."""
+    """Backward-compatible string adapter over the structured compatibility result."""
 
-    if a.source is None or b.source is None:
-        return "Both images must be loaded before comparison."
-    if a.shape[:2] != b.shape[:2]:
-        return "Image dimensions do not match."
-    family_a, family_b = _layout_family(a), _layout_family(b)
-    if family_a not in {"RGB", "BAYER"} or family_b not in {"RGB", "BAYER"}:
-        return (
-            "Difference supports RGB/RGBA or Bayer images; "
-            f"received {a.channel_layout} and {b.channel_layout}."
-        )
-    if {family_a, family_b} == {"RGB", "BAYER"}:
-        return "RGB and Bayer images cannot be compared directly."
-    if family_a != family_b:
-        return f"Incompatible channel layouts: {a.channel_layout} vs {b.channel_layout}."
-    if family_a == "BAYER":
-        pattern_a = getattr(a.raw_profile, "bayer_pattern", None)
-        pattern_b = getattr(b.raw_profile, "bayer_pattern", None)
-        if pattern_a != pattern_b:
-            return f"Bayer patterns are different: {pattern_a} vs {pattern_b}."
-    if a.bit_depth != b.bit_depth and not normalized_domain:
-        return "Native-domain difference requires matching bit depths."
-    return None
+    del normalized_domain
+    result = difference_compatibility(a, b)
+    return None if result.compatible else result.detail
 
 
-def _normalized_source(
-    source: NDArray[np.generic],
-    bit_depth: int,
-) -> NDArray[np.float64]:
+def _full_scale(bit_depth: int) -> float:
     maximum = float((1 << bit_depth) - 1)
     if maximum <= 0:
         raise ValueError("bit depth must be positive")
-    return source.astype(np.float64) / maximum
+    return maximum
+
+
+def _normalized_difference(
+    a: NDArray[np.generic],
+    b: NDArray[np.generic],
+    bit_depth_a: int,
+    bit_depth_b: int,
+    *,
+    absolute: bool,
+    chunk_elements: int = DEFAULT_METRIC_CHUNK_ELEMENTS,
+) -> NDArray[np.float32]:
+    """Calculate normalized A-B with bounded float32 working chunks."""
+
+    _validate_pair(a, b)
+    if chunk_elements <= 0:
+        raise ValueError("normalization chunk size must be positive")
+    scale_a = np.float32(1.0 / _full_scale(bit_depth_a))
+    scale_b = np.float32(1.0 / _full_scale(bit_depth_b))
+    output = np.empty(a.shape, dtype=np.float32)
+    iterator = np.nditer(
+        [a, b, output],
+        flags=["external_loop", "buffered"],
+        op_flags=[["readonly"], ["readonly"], ["writeonly"]],
+        order="C",
+        buffersize=chunk_elements,
+    )
+    for a_chunk, b_chunk, output_chunk in iterator:
+        normalized_a = np.array(a_chunk, dtype=np.float32, copy=True)
+        normalized_b = np.array(b_chunk, dtype=np.float32, copy=True)
+        np.multiply(normalized_a, scale_a, out=normalized_a)
+        np.multiply(normalized_b, scale_b, out=normalized_b)
+        np.subtract(normalized_a, normalized_b, out=output_chunk, casting="unsafe")
+        if absolute:
+            np.abs(output_chunk, out=output_chunk)
+    return output
+
+
+def normalized_absolute_difference(
+    a: NDArray[np.generic],
+    b: NDArray[np.generic],
+    bit_depth_a: int,
+    bit_depth_b: int,
+    *,
+    chunk_elements: int = DEFAULT_METRIC_CHUNK_ELEMENTS,
+) -> NDArray[np.float32]:
+    """Return abs(A/full_scale_A - B/full_scale_B) as canonical float32."""
+
+    return _normalized_difference(
+        a,
+        b,
+        bit_depth_a,
+        bit_depth_b,
+        absolute=True,
+        chunk_elements=chunk_elements,
+    )
+
+
+def normalized_signed_difference(
+    a: NDArray[np.generic],
+    b: NDArray[np.generic],
+    bit_depth_a: int,
+    bit_depth_b: int,
+    *,
+    chunk_elements: int = DEFAULT_METRIC_CHUNK_ELEMENTS,
+) -> NDArray[np.float32]:
+    """Return A/full_scale_A - B/full_scale_B as bounded-compute float32."""
+
+    return _normalized_difference(
+        a,
+        b,
+        bit_depth_a,
+        bit_depth_b,
+        absolute=False,
+        chunk_elements=chunk_elements,
+    )
 
 
 def analyze_difference(
@@ -92,7 +269,7 @@ def analyze_difference(
     b: NDArray[np.generic],
     *,
     mode: Literal["absolute", "signed", "threshold"] = "absolute",
-    domain: Literal["native", "normalized"] = "native",
+    domain: DifferenceDomain = "native",
     bit_depth_a: int | None = None,
     bit_depth_b: int | None = None,
     threshold: float = 0.0,
@@ -106,9 +283,12 @@ def analyze_difference(
     if domain == "normalized":
         if bit_depth_a is None or bit_depth_b is None:
             raise ValueError("normalized comparison requires both bit depths")
-        working_a = _normalized_source(a, bit_depth_a)
-        working_b = _normalized_source(b, bit_depth_b)
-        signed = working_a - working_b
+        signed: NDArray[np.generic] = normalized_signed_difference(
+            a,
+            b,
+            bit_depth_a,
+            bit_depth_b,
+        )
         peak = 1.0
     elif domain == "native":
         signed = signed_difference(a, b).astype(np.float64)
@@ -132,7 +312,12 @@ def analyze_difference(
         numerical = (absolute > threshold).astype(np.uint8)
     else:
         raise ValueError(f"unsupported difference mode: {mode}")
-    metrics = difference_metrics(signed, peak)
+    metrics = absolute_difference_metrics(absolute, peak)
+    metrics = replace(
+        metrics,
+        minimum_signed=float(np.asarray(np.min(signed)).item()),
+        maximum_signed=float(np.asarray(np.max(signed)).item()),
+    )
     histogram_counts, histogram_edges = np.histogram(numerical, bins=bins)
     return DifferenceAnalysisResult(
         numerical=numerical,
@@ -261,30 +446,41 @@ def _floating_absolute_metrics(
     data_range: float,
     chunk_elements: int,
 ) -> DifferenceMetrics:
+    counts = np.zeros(NORMALIZED_QUANTILE_LEVELS, dtype=np.int64)
     sample_count = 0
     absolute_sum = 0.0
     square_sum = 0.0
     nonzero_count = 0
     minimum = inf
     maximum = 0.0
+    scale = (NORMALIZED_QUANTILE_LEVELS - 1) / data_range
+    tolerance = max(1.0e-7, data_range * 1.0e-6)
     for chunk in _iter_metric_chunks(selected, chunk_elements):
         values = chunk.astype(np.float64, copy=False)
-        if np.any(values < 0):
+        if np.any(values < -tolerance):
             raise ValueError("absolute difference values must be non-negative")
+        chunk_minimum = float(np.min(values))
+        chunk_maximum = float(np.max(values))
+        if chunk_maximum > data_range + tolerance:
+            raise ValueError("absolute difference exceeds the declared data range")
+        clipped = np.clip(values, 0.0, data_range)
+        indexes = np.rint(clipped * scale).astype(np.intp, copy=False)
+        chunk_counts = np.bincount(indexes, minlength=NORMALIZED_QUANTILE_LEVELS)
+        counts += chunk_counts.astype(np.int64, copy=False)
         sample_count += int(values.size)
         absolute_sum += float(np.sum(values, dtype=np.float64))
         square_sum += float(np.dot(values, values))
         nonzero_count += int(np.count_nonzero(values))
-        minimum = min(minimum, float(np.min(values)))
-        maximum = max(maximum, float(np.max(values)))
+        minimum = min(minimum, chunk_minimum)
+        maximum = max(maximum, chunk_maximum)
     if sample_count <= 0:
         raise ValueError("absolute difference must contain at least one sample")
     mae = absolute_sum / sample_count
     mse = square_sum / sample_count
     rmse = sqrt(mse)
     psnr = inf if mse == 0 else 20.0 * log10(data_range) - 10.0 * log10(mse)
-    percentile_values = np.asarray(selected, dtype=np.float64)
-    p95, p99 = np.percentile(percentile_values, (95.0, 99.0))
+    p95 = _histogram_percentile(counts, 95.0) / scale
+    p99 = _histogram_percentile(counts, 99.0) / scale
     return DifferenceMetrics(
         mae=float(mae),
         mse=float(mse),
@@ -397,9 +593,10 @@ def absolute_difference_metrics(
 ) -> DifferenceMetrics:
     """Summarize an absolute map without full float64 or squared-map temporaries.
 
-    Native uint8/uint16 maps use a chunked exact histogram with at most 65,536
-    bins. This keeps 4K RGB metric work bounded while preserving exact mean,
-    squared error, percentiles, maximum, and non-zero ratio.
+    Native integer maps use an exact histogram with at most 65,536 bins. Floating
+    maps use a fixed 65,536-level histogram over the declared data range for P95/P99,
+    so normalized-domain quantiles have deterministic error no greater than
+    1/65535 full scale while mean/squared error remain chunk-accumulated.
     """
 
     if data_range <= 0:

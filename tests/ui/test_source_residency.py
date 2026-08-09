@@ -263,10 +263,11 @@ def test_source_eviction_invalidates_local_state_but_keeps_difference_map(
         else (second_generation, first_generation)
     )
     difference = CachedDifferenceMap(
-        np.ones((1, 1), dtype=np.uint8),
-        255.0,
-        "GRAY",
-        None,
+        absolute=np.ones((1, 1), dtype=np.uint8),
+        domain="native",
+        data_range=255.0,
+        channel_layout="GRAY",
+        bayer_pattern=None,
     )
     assert window.difference_panel.difference_cache.put(difference_key, difference).stored
 

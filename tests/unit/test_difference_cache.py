@@ -26,10 +26,11 @@ def _key(a: str, a_generation: int, b: str, b_generation: int) -> DifferenceCach
 
 def _cached(size: int, value: int = 0) -> CachedDifferenceMap:
     return CachedDifferenceMap(
-        np.full(size, value, dtype=np.uint8),
-        255.0,
-        "RGB",
-        None,
+        absolute=np.full(size, value, dtype=np.uint8),
+        domain="native",
+        data_range=255.0,
+        channel_layout="RGB",
+        bayer_pattern=None,
     )
 
 
@@ -59,6 +60,25 @@ def test_combined_budgets_use_half_of_known_physical_memory_as_envelope() -> Non
     assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 768 * MIB)
     assert not memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, 767 * MIB)
     assert memory_budgets_fit_physical_memory(256 * MIB, 128 * MIB, None)
+
+
+def test_cached_difference_map_records_domain_metadata() -> None:
+    native = _cached(4, 1)
+    normalized = CachedDifferenceMap(
+        absolute=np.zeros((2, 2), dtype=np.float32),
+        domain="normalized",
+        data_range=1.0,
+        channel_layout="GRAY",
+        bayer_pattern=None,
+    )
+
+    assert native.domain == "native"
+    assert native.data_range == 255.0
+    assert native.channel_layout == "RGB"
+    assert normalized.domain == "normalized"
+    assert normalized.data_range == 1.0
+    assert normalized.channel_layout == "GRAY"
+    assert normalized.nbytes == 16
 
 
 def test_difference_cache_uses_byte_budget_and_true_lru_order() -> None:

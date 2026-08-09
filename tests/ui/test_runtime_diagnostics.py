@@ -48,6 +48,7 @@ def test_runtime_snapshot_aggregates_existing_owners_without_mutation(
     difference_key = (("a", 0), ("b", 0))
     cached = CachedDifferenceMap(
         absolute=np.ones((2, 3), dtype=np.uint8),
+        domain="native",
         data_range=255.0,
         channel_layout="GRAY",
         bayer_pattern=None,
@@ -240,6 +241,7 @@ def test_help_copy_diagnostics_is_exact_sanitized_observation(
     difference_key = (("copy-a", 0), ("copy-b", 0))
     cached = CachedDifferenceMap(
         absolute=np.ones((2, 2), dtype=np.uint8),
+        domain="native",
         data_range=255.0,
         channel_layout="GRAY",
         bayer_pattern=None,

@@ -21,7 +21,9 @@
 - Multi View has one fixed layout policy. `_fixed_geometry()` is the sole
   geometry authority; P1-F removed arrangement compatibility state.
 - Primary-image reference priority is primary, active, then first displayed.
-- Difference caches one native absolute map and derives views/metrics from it.
+- Difference caches one absolute map per order-independent document-generation
+  pair and derives views/metrics from it. The map explicitly records whether its
+  deterministic domain is native or normalized.
 - RAW storage format, sample container, effective bit depth, endian, and
   alignment remain separate concepts.
 - Remote evaluation uses a versioned REST job API boundary.
@@ -79,9 +81,10 @@
   exact byte equality. `MainWindow` passes the policy to RAW workers and uses the
   same rule for JSON-sidecar auto-approval.
 - **Difference Threshold** and **Difference Gain** are persistent General
-  analysis defaults. They initialize the Difference panel at startup and apply
-  to the live panel immediately after Settings saves; they do not require
-  restart.
+  analysis defaults. The persisted Threshold is specifically the native-domain
+  code threshold. They initialize the Difference panel at startup and apply to
+  the live panel immediately after Settings saves; they do not require restart.
+  P3-A normalized `%FS` threshold is session-local and does not change schema v5.
 - **Default Open Folder** and **Default Export Folder** are optional Files
   preferences. Blank means use the remembered last-used folder; a configured
   existing path only seeds the corresponding dialog and applies immediately.
@@ -268,6 +271,36 @@
   deeper preload, CPU/I/O aggressiveness, and broader resource-policy Settings
   exposure. P2-F does not implement them speculatively.
 
+## Accepted P3-A Difference decisions
+
+- P3-0 is complete as PR #21 at
+  `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`; P3-A starts from that merge.
+- Supported Difference families are exactly Gray ↔ Gray, RGB/RGBA ↔ RGB/RGBA,
+  and same-CFA Bayer ↔ Bayer. RGB/RGBA ignores alpha. No implicit RGB→Gray/luma
+  conversion is permitted. Cross-family, dimension-mismatch, CFA-mismatch, and
+  unsupported layouts are rejected.
+- Family compatibility is decided before effective bit depth. Equal effective
+  depth retains the native code domain and compact integer fast path; mixed depth
+  independently normalizes each source by its own `(1 << bit_depth) - 1` full
+  scale and produces canonical float32 absolute Difference in `[0,1]`.
+- RAW black level, RAW white level, `DisplayTransform`, preview uint8, demosaic,
+  and rescaling one source into the other's integer bit depth are not P3-A
+  Difference inputs. Future RAW processing must not silently change this contract.
+- Pure-core structured compatibility/domain data is authoritative. UI code may
+  present short reason labels and detailed tooltips but may not infer a domain by
+  parsing long strings.
+- Mixed-bit normalization and metrics use bounded chunks. P95/P99 use 65,536
+  fixed histogram levels over normalized full scale, with deterministic quantile
+  error at most `1/65535` FS; wall-clock thresholds are not merge gates.
+- `CachedDifferenceMap` explicitly records domain, data range, family/layout, and
+  Bayer pattern. Order-independent generation-pair cache identity, byte-budget LRU,
+  oversized-map behavior, and source-residency independence remain unchanged.
+- One Threshold control changes units by domain: native `code`, normalized `%FS`.
+  The strict mask comparison remains `>`. Schema v5 persists only the native code
+  threshold; normalized threshold starts at `1.00 %FS` and remains session-local.
+- Gain retains its existing product behavior. Native preview semantics are not
+  redesigned; normalized maps render against the canonical `[0,1]` data domain.
+
 ## Current resource policy
 
 - The canonical SVG/PNG/ICO icon triplet, reproducible generator,
@@ -282,7 +315,8 @@
 
 ## Pending owner decisions
 
-There are no pending P2-F product-design decisions. Independent review, the full
-standard validation commands, and the agreed Windows characterization matrix are
-closure evidence still required before merge; they do not authorize speculative
-runtime-policy expansion.
+There are no pending P2-F product-design decisions. P2-F merged as PR #20 at
+`9c66629f6392971b8c52ac9dff27b16166cf9829`; its validation and Windows
+characterization are historical closure evidence rather than pending merge work.
+P3 continues to preserve the established P2 runtime policies unless a later slice
+explicitly changes them.

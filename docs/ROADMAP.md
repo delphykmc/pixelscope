@@ -54,14 +54,15 @@ and workflow state are built around them.
 
 ## P3 — Image Semantics & RAW Processing
 
-P3 starts from completed P2 at
-`9c66629f6392971b8c52ac9dff27b16166cf9829`.
+P3-0 is complete as PR #21 at
+`5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`; implementation slices start from
+the latest merged P3 prerequisite.
 
-### P3-0 — Program transition
+### P3-0 — Program transition — Complete
 
-- Archive P2 completion state.
-- Establish the revised P3/P4 order.
-- Create the active P3 execution plan.
+- Merged as PR #21 at `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`.
+- Archived P2 completion state, established the revised P3/P4 order, and created
+  the active P3 execution plan.
 - Documentation only.
 
 ### P3-A — Difference Gray / Mixed Bit-Depth Support
@@ -69,7 +70,7 @@ P3 starts from completed P2 at
 Correct and extend the existing Difference capability before RAW processing
 semantics expand.
 
-Planned compatibility:
+P3-A implementation contract:
 
 - Gray ↔ Gray;
 - RGB/RGBA ↔ RGB/RGBA;
@@ -77,7 +78,7 @@ Planned compatibility:
 - reject cross-family, size-mismatch, and CFA-mismatch cases;
 - no implicit RGB→Gray/luma conversion.
 
-Planned domain policy:
+Domain policy implemented in the P3-A branch:
 
 - same effective bit depth: preserve native code-domain Difference;
 - different effective bit depths: normalize each source by its own full-scale
@@ -85,9 +86,10 @@ Planned domain policy:
 - normalized threshold is expressed as `%FS`;
 - RAW black/white levels and display transforms do not define this normalization.
 
-Implementation targets include explicit Gray channel support, bounded float32
+The P3-A branch implements explicit Gray channel support, bounded float32
 mixed-bit Difference/metrics, cache domain metadata, compact Scope/Domain UI, and
-short validation reasons with detailed tooltips.
+short validation reasons with detailed tooltips. Acceptance remains subject to
+the full repository contract, owner Windows checks, independent review, and merge.
 
 ### P3-B — RAW Processing Semantics
 

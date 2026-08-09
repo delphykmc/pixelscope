@@ -7,11 +7,13 @@ from numpy.typing import NDArray
 from PySide6.QtCore import Qt, QThreadPool, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QStyle,
     QTableWidget,
@@ -22,10 +24,13 @@ from PySide6.QtWidgets import (
 
 from pixelscope.core.bayer import bayer_channel_positions, split_bayer_channels
 from pixelscope.core.diff_engine import (
+    DifferenceCompatibility,
+    DifferenceDomain,
     DifferenceMetrics,
     absolute_difference_metrics,
     compact_absolute_difference,
-    validate_difference_documents,
+    difference_compatibility,
+    normalized_absolute_difference,
 )
 from pixelscope.core.difference_cache import (
     CachedDifferenceMap,
@@ -44,7 +49,7 @@ from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
 class DifferencePanel(QWidget):
-    """Asynchronous native difference analysis with derived channel previews."""
+    """Asynchronous Difference analysis with explicit family/domain semantics."""
 
     result_ready = Signal(object, object, object)
     preview_updated = Signal(object, object, object)
@@ -54,6 +59,7 @@ class DifferencePanel(QWidget):
         difference_cache_budget_bytes: int = DEFAULT_DIFFERENCE_CACHE_BYTES,
     ) -> None:
         super().__init__()
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self._documents: list[ImageDocument] = []
         self._active_roi: RoiBounds | None = None
         self._worker: TaskWorker | None = None
@@ -62,6 +68,9 @@ class DifferencePanel(QWidget):
         self._metric_cache: dict[tuple[object, ...], DifferenceMetrics] = {}
         self._preview_key: tuple[object, ...] | None = None
         self._preview_value: NDArray[np.uint8] | None = None
+        self._native_threshold = 10
+        self._normalized_threshold_percent = 1.0
+        self._threshold_domain: DifferenceDomain = "native"
         self.last_result: DifferenceMetrics | None = None
 
         self.a_selector = QComboBox()
@@ -72,16 +81,27 @@ class DifferencePanel(QWidget):
         self.mode = QComboBox()
         self.mode.addItems(("Absolute", "Mask"))
         self.gain = self._integer_control(1, 1000, 1)
-        self.threshold = self._integer_control(0, 2_147_483_647, 10)
+        self.threshold = self._threshold_control()
 
         self.calculate = QPushButton("Calculate")
         self.calculate.setObjectName("primaryAction")
         self.calculate.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
         self.calculate.setMinimumHeight(30)
         self.calculate.setStyleSheet(primary_button_style())
-        self.status = QLabel("Select a compatible image pair")
-        self.metric_scope = QLabel("Metrics scope: —")
+        self.status = QLabel("Select two images")
+        self.metric_scope = QLabel("Scope —")
+        self.domain_status = QLabel("Domain —")
         self.metric_scope.setWordWrap(True)
+        self.domain_status.setWordWrap(True)
+        self.threshold.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
+        for compact_label in (self.metric_scope, self.domain_status):
+            compact_label.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Preferred,
+            )
 
         sources = QGridLayout()
         sources.setHorizontalSpacing(TOKENS.spacing_sm)
@@ -142,6 +162,7 @@ class DifferencePanel(QWidget):
         layout.addWidget(separator)
         layout.addLayout(metric_region)
         layout.addWidget(self.metric_scope)
+        layout.addWidget(self.domain_status)
         layout.addWidget(self.metrics, 1)
 
         self._display_timer = QTimer(self)
@@ -156,9 +177,10 @@ class DifferencePanel(QWidget):
         self.channel.currentIndexChanged.connect(self._channel_changed)  # type: ignore[attr-defined]
         self.region.currentIndexChanged.connect(self._metric_region_changed)  # type: ignore[attr-defined]
         self.mode.currentIndexChanged.connect(self._display_options_changed)  # type: ignore[attr-defined]
-        for spin_box in (self.gain, self.threshold):
-            spin_box.valueChanged.connect(self._schedule_display_update)  # type: ignore[attr-defined]
+        self.gain.valueChanged.connect(self._schedule_display_update)  # type: ignore[attr-defined]
+        self.threshold.valueChanged.connect(self._threshold_changed)  # type: ignore[attr-defined]
         self.calculate.clicked.connect(self.calculate_difference)  # type: ignore[attr-defined]
+        self._configure_threshold_control("native")
         self._update_control_states()
         self._clear_metrics()
 
@@ -176,10 +198,21 @@ class DifferencePanel(QWidget):
         control.setKeyboardTracking(True)
         return control
 
-    def set_display_defaults(self, threshold: int, gain: int) -> None:
-        """Apply persisted Difference display defaults to the live controls."""
+    @staticmethod
+    def _threshold_control() -> QDoubleSpinBox:
+        control = QDoubleSpinBox()
+        control.setKeyboardTracking(True)
+        return control
 
-        self.threshold.setValue(threshold)
+    def set_display_defaults(self, threshold: int, gain: int) -> None:
+        """Apply persisted native-domain Threshold and Gain defaults live."""
+
+        self._native_threshold = threshold
+        if self._threshold_domain == "native":
+            self.threshold.blockSignals(True)
+            self.threshold.setValue(float(threshold))
+            self.threshold.blockSignals(False)
+            self._schedule_display_update()
         self.gain.setValue(gain)
 
     def set_documents(
@@ -262,6 +295,10 @@ class DifferencePanel(QWidget):
         b = by_id.get(str(self.b_selector.currentData()))
         return (a, b) if a is not None and b is not None and a is not b else None
 
+    def _compatibility(self) -> DifferenceCompatibility | None:
+        pair = self.selected_documents()
+        return difference_compatibility(*pair) if pair is not None else None
+
     def _pair_changed(self, _value: object = None) -> None:
         self._cancel_worker()
         self.last_result = None
@@ -289,6 +326,10 @@ class DifferencePanel(QWidget):
         self._update_control_states()
         self._schedule_display_update()
 
+    def _threshold_changed(self, _value: object = None) -> None:
+        self._remember_threshold_state()
+        self._schedule_display_update()
+
     def _schedule_display_update(self, _value: object = None) -> None:
         if self.has_cached_map():
             self.status.setText("Updating display…")
@@ -308,62 +349,141 @@ class DifferencePanel(QWidget):
             self.metrics.setItem(row, 1, item)
 
     def _update_channels(self) -> None:
+        compatibility = self._compatibility()
+        family = (
+            compatibility.family if compatibility is not None and compatibility.compatible else None
+        )
         pair = self.selected_documents()
+        if family is None and pair is not None:
+            layout = pair[0].channel_layout
+            family = "BAYER" if layout == "BAYER" else "GRAY" if layout == "GRAY" else "RGB"
         current = self.channel.currentText()
         self.channel.blockSignals(True)
         self.channel.clear()
-        if pair is not None and pair[0].channel_layout == "BAYER":
+        if family == "BAYER":
             self.channel.addItems(("Mosaic", "R", "Gr", "Gb", "B"))
+        elif family == "GRAY":
+            self.channel.addItem("Gray")
         else:
             self.channel.addItems(("All", "R", "G", "B"))
         if self.channel.findText(current) >= 0:
             self.channel.setCurrentText(current)
         self.channel.blockSignals(False)
+        self._update_threshold_domain(compatibility)
         self._update_metric_scope()
+
+    @staticmethod
+    def _short_reason(compatibility: DifferenceCompatibility | None) -> str:
+        if compatibility is None:
+            return "Select two images"
+        return {
+            "source-unavailable": "Select two images",
+            "size-mismatch": "Size mismatch",
+            "layout-mismatch": "Layout mismatch",
+            "cfa-mismatch": "CFA mismatch",
+            "unsupported-layout": "Layout mismatch",
+            "select-two": "Select two images",
+            "ok": "Ready",
+        }[compatibility.reason_code]
 
     def _validate(self) -> str | None:
         pair = self.selected_documents()
-        reason = (
-            "Select two different loaded images."
-            if pair is None
-            else validate_difference_documents(pair[0], pair[1], normalized_domain=False)
-        )
-        if reason is None and pair is not None and self.region.currentText() == "Active ROI":
+        compatibility = self._compatibility()
+        reason: str | None = None
+        detail = ""
+        if pair is None or compatibility is None:
+            reason = "Select two images"
+            detail = "Select two different loaded images."
+        elif not compatibility.compatible:
+            reason = self._short_reason(compatibility)
+            detail = compatibility.detail
+        elif self.region.currentText() == "Active ROI":
             if self._active_roi is None:
-                reason = "Active ROI is not available."
+                reason = "ROI unavailable"
+                detail = "Active ROI is not available."
             elif self._metric_bounds(pair[0], self._active_roi) is None:
-                reason = f"Active ROI contains no {self.channel.currentText()} samples."
+                reason = "ROI unavailable"
+                detail = f"Active ROI contains no {self.channel.currentText()} samples."
         self.calculate.setEnabled(reason is None)
-        self.calculate.setToolTip(reason or "Calculate or reuse the full absolute map")
+        tooltip = detail or "Calculate or reuse the full absolute Difference map."
+        self.calculate.setToolTip(tooltip)
+        self.status.setToolTip(tooltip)
         self.status.setText(
             reason or ("Cached map available" if self.has_cached_map() else "Ready")
         )
+        self._update_threshold_domain(compatibility)
         self._update_metric_scope()
         return reason
 
     def _update_metric_scope(self) -> None:
-        pair = self.selected_documents()
-        if pair is None:
-            self.metric_scope.setText("Metrics scope: —")
+        compatibility = self._compatibility()
+        if compatibility is None or not compatibility.compatible or compatibility.family is None:
+            self.metric_scope.setText("Scope —")
+            self.domain_status.setText("Domain —")
             return
         channel = self.channel.currentText()
-        if pair[0].channel_layout == "BAYER":
-            samples = (
-                "all raw mosaic samples" if channel == "Mosaic" else f"the {channel} CFA plane"
-            )
+        if compatibility.family == "GRAY":
+            samples = "Gray"
+        elif compatibility.family == "BAYER":
+            samples = "Bayer mosaic" if channel == "Mosaic" else f"Bayer {channel}"
         else:
-            samples = (
-                "all R, G, and B samples combined" if channel == "All" else f"the {channel} channel"
-            )
+            samples = "RGB combined" if channel == "All" else f"RGB {channel}"
         region = "Active ROI" if self.region.currentText() == "Active ROI" else "Full image"
-        self.metric_scope.setText(f"Metrics scope: {region}, {samples}.")
+        self.metric_scope.setText(f"Scope {region} · {samples}")
+        if compatibility.domain == "native":
+            self.domain_status.setText(f"Domain Native · {compatibility.effective_bit_depth_a}-bit")
+        else:
+            self.domain_status.setText("Domain Normalized [0–1]")
+
+    def _remember_threshold_state(self) -> None:
+        if self._threshold_domain == "native":
+            self._native_threshold = int(round(self.threshold.value()))
+        else:
+            self._normalized_threshold_percent = float(self.threshold.value())
+
+    def _configure_threshold_control(self, domain: DifferenceDomain) -> None:
+        self.threshold.blockSignals(True)
+        if domain == "native":
+            self.threshold.setDecimals(0)
+            self.threshold.setRange(0.0, 65_535.0)
+            self.threshold.setSingleStep(1.0)
+            self.threshold.setSuffix(" code")
+            self.threshold.setValue(float(self._native_threshold))
+        else:
+            self.threshold.setDecimals(2)
+            self.threshold.setRange(0.0, 100.0)
+            self.threshold.setSingleStep(0.01)
+            self.threshold.setSuffix(" %FS")
+            self.threshold.setValue(self._normalized_threshold_percent)
+        self.threshold.blockSignals(False)
+        self._threshold_domain = domain
+
+    def _update_threshold_domain(
+        self,
+        compatibility: DifferenceCompatibility | None,
+    ) -> None:
+        if compatibility is None or not compatibility.compatible or compatibility.domain is None:
+            return
+        if compatibility.domain == self._threshold_domain:
+            return
+        self._remember_threshold_state()
+        self._configure_threshold_control(compatibility.domain)
+        self._preview_key = None
+        self._preview_value = None
+
+    def _threshold_value(self, domain: DifferenceDomain) -> float:
+        if domain == "normalized":
+            return float(self.threshold.value()) / 100.0
+        return float(round(self.threshold.value()))
 
     @staticmethod
     def _full_sources(
-        a: ImageDocument, b: ImageDocument
+        a: ImageDocument,
+        b: ImageDocument,
+        family: str,
     ) -> tuple[NDArray[np.generic], NDArray[np.generic]]:
         assert a.source is not None and b.source is not None
-        if a.channel_layout == "BAYER":
+        if family in {"GRAY", "BAYER"}:
             return a.source, b.source
         return a.source[..., :3], b.source[..., :3]
 
@@ -393,6 +513,7 @@ class DifferencePanel(QWidget):
         metric_key = self._metric_key()
         if difference_map is None or metric_key is None:
             return
+        self._configure_threshold_for_cached_map(difference_map)
         metrics = self._metric_cache.get(metric_key)
         if metrics is not None:
             already_presented = self.last_result is metrics
@@ -404,6 +525,11 @@ class DifferencePanel(QWidget):
                 self.status.setText("Cached metrics restored")
             return
         self.calculate_difference(publish_result=False)
+
+    def _configure_threshold_for_cached_map(self, difference_map: CachedDifferenceMap) -> None:
+        if difference_map.domain != self._threshold_domain:
+            self._remember_threshold_state()
+            self._configure_threshold_control(difference_map.domain)
 
     def has_cached_map(self) -> bool:
         key = self._cache_key()
@@ -419,6 +545,7 @@ class DifferencePanel(QWidget):
         difference_map = self.cached_result_for_current()
         if difference_map is None:
             return None
+        self._configure_threshold_for_cached_map(difference_map)
         selected = self._selected_absolute(difference_map, self.channel.currentText())
         return self._title(), selected, self._cached_preview(difference_map, selected)
 
@@ -427,16 +554,18 @@ class DifferencePanel(QWidget):
         difference_map: CachedDifferenceMap,
         selected: NDArray[np.generic],
     ) -> NDArray[np.uint8]:
+        threshold = self._threshold_value(difference_map.domain)
         key = (
             self._cache_key(),
+            difference_map.domain,
             self.channel.currentText(),
             self.mode.currentText(),
             self.gain.value(),
-            self.threshold.value(),
+            threshold,
         )
         if key != self._preview_key or self._preview_value is None:
             self._preview_key = key
-            self._preview_value = self._preview(selected)
+            self._preview_value = self._preview(difference_map, selected)
         return self._preview_value
 
     @staticmethod
@@ -444,6 +573,8 @@ class DifferencePanel(QWidget):
         difference_map: CachedDifferenceMap, channel: str
     ) -> NDArray[np.generic]:
         absolute = difference_map.absolute
+        if difference_map.channel_layout == "GRAY":
+            return absolute
         if difference_map.channel_layout == "BAYER":
             if channel == "Mosaic":
                 return absolute
@@ -459,7 +590,8 @@ class DifferencePanel(QWidget):
         if bounds is None or self.region.currentText() == "Full image":
             return None
         channel = self.channel.currentText()
-        if document.channel_layout != "BAYER" or channel == "Mosaic":
+        compatibility = self._compatibility()
+        if compatibility is None or compatibility.family != "BAYER" or channel == "Mosaic":
             return (bounds.x, bounds.y, bounds.width, bounds.height)
         profile = document.raw_profile
         source = document.source
@@ -484,14 +616,21 @@ class DifferencePanel(QWidget):
         if self._worker is not None and self._worker_key == request_key:
             return
         a, b = sorted(pair, key=lambda document: (document.document_id, document.generation))
-        source_a, source_b = self._full_sources(a, b)
+        compatibility = difference_compatibility(a, b)
+        assert compatibility.compatible
+        family = compatibility.family
+        domain = compatibility.domain
+        data_range = compatibility.data_range
+        assert family is not None
+        assert domain is not None
+        assert data_range is not None
+        source_a, source_b = self._full_sources(a, b, family)
         cached = self._map_cache.get(key)
         channel = self.channel.currentText()
-        data_range = float((1 << a.bit_depth) - 1)
         metric_bounds = self._metric_bounds(
             a, self._active_roi if self.region.currentText() == "Active ROI" else None
         )
-        if a.channel_layout == "BAYER":
+        if family == "BAYER":
             assert a.raw_profile is not None
             pattern = str(a.raw_profile.bayer_pattern)
         else:
@@ -501,14 +640,28 @@ class DifferencePanel(QWidget):
             difference_map = cached
             reused = difference_map is not None
             if difference_map is None:
+                if domain == "native":
+                    absolute = compact_absolute_difference(source_a, source_b)
+                else:
+                    absolute = normalized_absolute_difference(
+                        source_a,
+                        source_b,
+                        a.bit_depth,
+                        b.bit_depth,
+                    )
                 difference_map = CachedDifferenceMap(
-                    compact_absolute_difference(source_a, source_b),
-                    data_range,
-                    a.channel_layout,
-                    pattern,
+                    absolute=absolute,
+                    domain=domain,
+                    data_range=data_range,
+                    channel_layout=family,
+                    bayer_pattern=pattern,
                 )
             selected = self._selected_absolute(difference_map, channel)
-            metrics = absolute_difference_metrics(selected, data_range, metric_bounds)
+            metrics = absolute_difference_metrics(
+                selected,
+                difference_map.data_range,
+                metric_bounds,
+            )
             return difference_map, metrics, reused
 
         self._cancel_worker()
@@ -546,6 +699,7 @@ class DifferencePanel(QWidget):
             self._metric_cache[metric_key] = metrics
         if key != self._cache_key() or metric_key != self._metric_key():
             return
+        self._configure_threshold_for_cached_map(difference_map)
         self.last_result = metrics
         self._render_metrics(metrics)
         if reused:
@@ -602,9 +756,16 @@ class DifferencePanel(QWidget):
             f"{pair[0].display_name} vs {pair[1].display_name}"
         )
 
-    def _preview(self, absolute: NDArray[np.generic]) -> NDArray[np.uint8]:
+    def _preview(
+        self,
+        difference_map: CachedDifferenceMap,
+        absolute: NDArray[np.generic],
+    ) -> NDArray[np.uint8]:
         if self.mode.currentText() == "Mask":
-            return render_threshold_mask(absolute, self.threshold.value())
+            return render_threshold_mask(
+                absolute,
+                self._threshold_value(difference_map.domain),
+            )
         return render_absolute_difference(absolute, float(self.gain.value()))
 
     def _update_control_states(self) -> None:
@@ -625,7 +786,9 @@ class DifferencePanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
-        self.status.setText(f"Error: {error.message}")
+        self.status.setText("Calculation failed")
+        self.status.setToolTip(error.message)
+        self.calculate.setToolTip(error.message)
 
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
