@@ -63,12 +63,8 @@ def to_display_uint8(
         raise ValueError("cannot display an empty image")
     parameters = transform or DisplayTransform()
     default_low, default_high = _default_range(source)
-    low = (
-        default_low if parameters.display_low is None else parameters.display_low
-    )
-    high = (
-        default_high if parameters.display_high is None else parameters.display_high
-    )
+    low = default_low if parameters.display_low is None else parameters.display_low
+    high = default_high if parameters.display_high is None else parameters.display_high
     if high <= low:
         high = low + 1.0
 
@@ -107,9 +103,7 @@ def render_signed_difference(diff: NDArray[Any]) -> NDArray[np.uint8]:
     return np.ascontiguousarray(np.clip(rgb, 0, 255).astype(np.uint8))
 
 
-def render_absolute_difference(
-    diff: NDArray[Any], gain: float = 1.0
-) -> NDArray[np.uint8]:
+def render_absolute_difference(diff: NDArray[Any], gain: float = 1.0) -> NDArray[np.uint8]:
     """Render absolute numerical difference with an independent display gain."""
 
     if gain <= 0:
@@ -129,8 +123,7 @@ def render_absolute_difference_range(
     if gain <= 0:
         raise ValueError("display gain must be greater than zero")
     scaled = np.clip(
-        (diff.astype(np.float32) - np.float32(low))
-        * np.float32(gain / (high - low)),
+        (diff.astype(np.float32) - np.float32(low)) * np.float32(gain / (high - low)),
         0.0,
         1.0,
     )
