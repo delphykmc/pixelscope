@@ -57,18 +57,26 @@ Sequential dependency:
   sanitized source/cache/worker/preload/stale/failure snapshots plus the single
   on-demand **Help > Copy Diagnostics** support surface. No live diagnostics UI
   or text-file export.
-- **P2-E — Running Preload Promotion / Foreground Reuse:** active on
-  `feature/p2-e-preload-promotion`. When the exact next document is already being
-  decoded by a RUNNING preload, navigation promotes that same request from
-  speculative ownership to foreground authority instead of cancelling it and
-  starting the same decode again. This is an authority transition, not thread
-  migration. Preload remains `+1` only, exactly one Folder Position deep, and
-  fixed concurrency one.
-- **P2-F — Performance Characterization & Phase Hardening:** final P2 slice.
-  Integrate the completed runtime, finish settings migration/default coverage,
-  characterize FHD/UHD and image-format/resource-pressure matrices, add
-  deterministic smoke checks, evaluate Windows CI feasibility, and close P2
-  durable documentation. No new large feature.
+- **P2-E — Running Preload Promotion / Foreground Reuse:** complete; merged as
+  PR #19 at `7ee7aec2980baeef9d511f3db5c71f89fa319a64`. An exact matching RUNNING
+  preload that becomes foreground-required transfers logical authority to the
+  foreground while reusing the same worker/decode. Preload remains `+1` only,
+  exactly one Folder Position deep, fixed concurrency one, normal pool max two,
+  and preload pool max one.
+- **P2-F — Performance Characterization & Phase Hardening:** active on
+  `feature/p2-f-performance-hardening`; final P2 slice. It audits the completed
+  P2 contracts, characterizes representative FHD RGB uint8, FHD grayscale
+  uint16, UHD Bayer uint16/RAW and existing 4K fixtures, removes hardware/load-
+  dependent elapsed-time merge gates, reviews source/Difference resource policy,
+  preload/promotion lifecycle, diagnostics, and Windows feasibility, and closes
+  durable P2 documentation without adding a new large feature.
+
+P2-F preserves settings schema v5 and the established preload/resource policy.
+Wall-clock measurements are observational evidence only; deterministic
+correctness, resource, request-identity, worker-ownership, and stale-result
+invariants are the merge gates. Any later concurrency, bidirectional/deeper
+prediction, CPU/I/O aggressiveness, or resource-policy expansion requires a
+separate evidence-driven optimization slice.
 
 P2 excludes persistent sessions, Recent Files/Folders, saved ROI management,
 arbitrary-angle sampling, alpha overlay, RAW processing expansion, remote IQA,

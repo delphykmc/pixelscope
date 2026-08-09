@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-09
-P2-D / PR #18 merge commit and P2-E branch base:
-`a7b4ddf62af95e86b9d9e38a4328cf9572226114`
+P2-E / PR #19 merge commit and P2-F branch base:
+`7ee7aec2980baeef9d511f3db5c71f89fa319a64`
 
 This document records the implementation baseline that new work must use.
 
@@ -23,8 +23,10 @@ This document records the implementation baseline that new work must use.
   `812982dacdecca155f7b53ab42ef2bd9fba68a77`.
 - P2-D merged as PR #18 at
   `a7b4ddf62af95e86b9d9e38a4328cf9572226114`.
-- P2-E is active on `feature/p2-e-preload-promotion`.
-- P2-F remains the final Performance Characterization & Phase Hardening slice.
+- P2-E merged as PR #19 at
+  `7ee7aec2980baeef9d511f3db5c71f89fa319a64`.
+- P2-F is active on `feature/p2-f-performance-hardening` as the final
+  Performance Characterization & Phase Hardening slice.
 
 ## Implemented baseline
 
@@ -49,6 +51,14 @@ This document records the implementation baseline that new work must use.
 
 - Full-image and Active ROI Statistics.
 - Histogram Auto/256/1024/4096 bins and Count/Normalized/Log count modes.
+- Statistics/Histogram numerical requests are identity-aware. Rebinding the same
+  loaded document set with the same source identity, generation, Bayer/layout
+  semantics, ROI, and histogram specification does not restart the 140 ms
+  preparation timer, cancel/recreate the same numerical worker, or rerender an
+  already-completed identical result. Changed numerical input still invalidates
+  the old request and recomputes normally.
+- Histogram display-only controls continue to rerender cached numerical results
+  without changing the numerical request identity.
 - Line Profile absolute, normalized, and Difference-from-reference modes.
 - Reference priority: primary image, active image, then first displayed image.
 - Floating Plots geometry and selected tab persistence; title double-click
@@ -157,7 +167,7 @@ This document records the implementation baseline that new work must use.
   and never scans or auto-registers filesystem siblings.
 - The preload baseline remains `plan(+1)` only, exactly one Folder Position deep,
   with fixed preload concurrency one. No previous, bidirectional, next-next, or
-  configurable worker/resource policy is introduced by P2-E.
+  configurable worker/resource policy is introduced by P2-E or P2-F.
 - A request becomes promotion-eligible only after the preload worker's existing
   `started` signal establishes that it is physically RUNNING. Queued/not-started,
   cancelled, stale, mismatched, resident, or superseded requests remain on the
@@ -209,26 +219,103 @@ This document records the implementation baseline that new work must use.
   There is no diagnostics modal, refresh loop, live monitor, timer, or diagnostics
   file export.
 
+### P2-F characterization state
+
+- P2-F keeps settings schema v5, source/Difference ownership, preload direction,
+  depth/concurrency, and worker-pool policy unchanged. A late Windows manual
+  observation did justify one focused production hardening in the Statistics /
+  Histogram request lifecycle: identical numerical requests are now idempotent
+  instead of restarting preparation/cancellation/render work during Single View
+  number-key navigation.
+- Existing settings tests already cover fresh/default state, current round-trip,
+  v4-to-v5 and v3-to-current migration, old Difference-cache clamping,
+  malformed/invalid state, legacy RAW migration, future-schema non-destructive
+  behavior, reset/workspace separation, startup-only restart indication,
+  enabled-by-default preload, and the combined source/Difference RAM guard at and
+  above the exact limit.
+- Existing source-residency and Difference-cache tests already cover exact native
+  `source.nbytes`, protection, ordinary LRU, soft over-budget and oversized
+  required sources, normal reload without a reload/evict loop, independent
+  Difference ownership, and low-budget Difference-pair protection.
+- Existing preload/promotion tests distinguish completed resident reuse, exact
+  RUNNING promotion with one decoder, ordinary foreground fallback, promoted
+  success/failure exactly once, pair/group completion, RAW profile/exact-size
+  identity, promotion diagnostics, logical worker classification, and rapid
+  navigation stale-result rejection.
+- Existing diagnostics tests preserve exact source/Difference/worker/preload
+  values, bounded sanitized failures, **Copy Diagnostics** as the only surface,
+  and observation-only reads with no LRU touch, load/preload/cancellation/render,
+  or filesystem work.
+- `tests/performance/test_performance_smoke.py` supplies a representative
+  synthetic/temp-file matrix for FHD RGB uint8, FHD grayscale uint16, and UHD
+  Bayer uint16 profile-described RAW. The UHD case runs the production
+  `read_raw_document()` Bayer preview path and `automatic_histogram_spec()` Auto
+  policy, then verifies `analyze_bayer_roi()` RGGB R/Gr/Gb/B separation,
+  per-plane sample counts, 4096-bin placement, preview channel structure/content,
+  exact native bytes, and zero-difference invariants. Timing output remains
+  observational only.
+- `tests/ui/test_p2f_analysis_request_dedup.py` covers the complete identical-
+  request lifecycle: pending preparation preserves the active QTimer identity,
+  completed requests are no-ops, identical running workers are preserved without
+  cancellation, and changed numerical request identity cancels/restarts normally.
+- Existing `tests/integration/test_4k_samples.py` remains the real 3840x2160 RGB
+  plus RGGB10-u16 RAW fixture path; no new large binary fixture is added by P2-F.
+- Process RSS remains outside P2 source-memory accounting and no benchmark/live
+  diagnostics UI is introduced.
+
 ## Not implemented
 
-- P2-F Performance Characterization & Phase Hardening.
+- P2-F remains active only until PR #20 merges; independent merge-readiness review
+  found no remaining production/test blocker, and all owner/local automated and
+  Windows closure evidence is complete.
 - Broader export-format/naming preferences; only Statistics CSV currently exists.
 - P3–P7 workflow, RAW processing expansion, remote/authentication, and
   distribution work.
 - Windows startup white-frame polish. There is no intentional splash/pre-render
   path; investigation is deferred until the major phases are complete.
+- Evidence-driven post-P2 optimization candidates remain separate work: preload
+  concurrency one versus two, directional/bidirectional prediction, deeper
+  preload, CPU/I/O aggressiveness, and broader resource-policy Settings exposure.
 
 ## Validation evidence
 
-- P2-D is merged as PR #18 at
-  `a7b4ddf62af95e86b9d9e38a4328cf9572226114`.
-- P2-E adds deterministic controller/runtime regressions for running promotion,
-  duplicate-decode elimination, promoted failure, rapid navigation stale
-  rejection, pair/group mixed promotion/normal loading, RAW identity, diagnostics
-  classification, and promotion counting.
-- Connector-only implementation work does not provide a local Python/Qt execution
-  environment. P2-E validation results must not be recorded as passing until the
-  standard commands are actually run and observed.
+- P2-E is merged as PR #19 at
+  `7ee7aec2980baeef9d511f3db5c71f89fa319a64`.
+- P2-F coverage audit found no broad architecture blocker requiring a rewrite.
+- P2-F commit `35480a4e74963de9721c448b8541069748392723`
+  replaces the performance-smoke wall-clock merge gate with deterministic
+  representative FHD/UHD correctness/resource invariants while retaining timing
+  output as observational evidence.
+- Published P2-F Bayer review follow-up commit
+  `80949af7703bcf3567f91046b3a6fedd7f0a5363` closes the UHD Bayer
+  characterization gap by exercising production Bayer preview loading, Auto
+  4096-bin selection, and CFA-specific analysis instead of generic grayscale
+  preview/histogram semantics.
+- Owner/local automated validation was reported PASS against latest reviewed head
+  `e7537b42b875497331d39eea7954b55a0866fb90`: the focused request-lifecycle suite
+  including the pending-QTimer identity regression, performance smoke, the P2
+  focused suite, full pytest, ruff check/format, mypy, pip check, docs checker,
+  and `git diff --check` all passed.
+- Owner/local Windows characterization is complete for the agreed phase-level
+  matrix: FHD/UHD navigation, Bayer/RAW, PageDown navigation, residency/preload
+  behavior, Difference under source-memory pressure, Settings restart semantics,
+  **Help > Copy Diagnostics**, and the analysis-function regression set were
+  intentionally exercised without observed failure.
+- The affected Single View path also passed explicitly: repeated number-key
+  switching retained Statistics values, changed only the viewer image quickly,
+  and no longer showed repeated **Preparing analysis...** messages.
+- Review follow-up commit `6ff46e0e38931b04de546ae3f967b9aa327b2fcf`
+  supplies deterministic coverage for the previously missing pending-QTimer
+  state without changing production `src/` behavior.
+- Independent merge-readiness review of `e7537b42...` found no remaining
+  production/test blocker and requested only this final durable-doc evidence
+  alignment. No further production review cycle is required for this docs-only
+  correction unless the branch changes beyond documentation.
+- The GitHub connector implementation environment does not run the repository
+  Python/Qt suite; the PASS statements above are recorded owner/local evidence.
+- There is no GitHub Actions workflow today. Introducing an unobserved Windows Qt
+  gate during P2 closure is deferred; owner/local Windows validation remains the
+  authoritative P2-F closure evidence.
 
 ## Active plan
 
@@ -239,5 +326,9 @@ This document records the implementation baseline that new work must use.
 - P2-B: complete; merged as PR #16.
 - P2-C: complete; merged as PR #17.
 - P2-D: complete; merged as PR #18.
-- P2-E: active — Running Preload Promotion / Foreground Reuse.
-- Next slice after P2-E merge: P2-F — Performance Characterization & Phase Hardening.
+- P2-E: complete; merged as PR #19 at
+  `7ee7aec2980baeef9d511f3db5c71f89fa319a64`.
+- P2-F: active — Performance Characterization & Phase Hardening; pre-merge
+  validation, Windows characterization, and independent review are complete.
+- P2 plan archive and detailed P3 execution planning follow P2-F merge in the
+  next orchestration step.

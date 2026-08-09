@@ -166,6 +166,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._bounds: RoiBounds | None = None
         self._worker: TaskWorker | None = None
         self._request_signature: tuple[object, ...] = ()
+        self._completed_signature: tuple[object, ...] = ()
         self._histogram_specs: list[tuple[int, tuple[float, float] | None]] = []
         self.last_results: tuple[RoiAnalysisResult, ...] = ()
         self._pool = QThreadPool.globalInstance()
@@ -370,13 +371,44 @@ class ComparisonAnalysisPanel(QWidget):
         layout.addWidget(self.statistics_group, 1)
         layout.addWidget(self.activity)
 
+    @staticmethod
+    def _analysis_request_signature(
+        documents: list[ImageDocument],
+        bounds: RoiBounds | None,
+        histogram_specs: list[tuple[int, tuple[float, float] | None]],
+    ) -> tuple[object, ...]:
+        return (
+            tuple(
+                (
+                    document.document_id,
+                    document.generation,
+                    id(document.source),
+                    document.channel_layout,
+                    getattr(document.raw_profile, "bayer_pattern", None),
+                )
+                for document in documents
+            ),
+            bounds,
+            tuple(histogram_specs),
+        )
+
     def set_documents(
         self,
         documents: list[ImageDocument],
         bounds: RoiBounds | None,
         region_name: str | None = None,
     ) -> None:
-        self._documents = [document for document in documents if document.source is not None]
+        ready_documents = [document for document in documents if document.source is not None]
+        if not ready_documents:
+            self.clear()
+            return
+        requested_bins = self._selected_histogram_bins()
+        histogram_specs = [
+            automatic_histogram_spec(document, requested_bins) for document in ready_documents
+        ]
+        signature = self._analysis_request_signature(ready_documents, bounds, histogram_specs)
+
+        self._documents = ready_documents
         self._bounds = bounds
         self.region_scope.blockSignals(True)
         self.region_scope.setCurrentText(
@@ -386,8 +418,19 @@ class ComparisonAnalysisPanel(QWidget):
         if bounds is not None:
             self.set_roi_available(True)
         self._update_region_label()
+
+        same_request = signature == self._request_signature
+        same_request_active = self._refresh_timer.isActive() or (
+            self._worker is not None and not self._worker.is_cancelled
+        )
+        if same_request and (same_request_active or signature == self._completed_signature):
+            return
+
         if self._worker is not None:
             self._worker.cancel()
+        self._request_signature = signature
+        self._completed_signature = ()
+        self._histogram_specs = histogram_specs
         self._set_activity("Preparing analysis...", busy=True)
         self._refresh_timer.start()
 
@@ -399,6 +442,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._documents = []
         self._bounds = None
         self._request_signature = ()
+        self._completed_signature = ()
         self._histogram_specs = []
         self.last_results = ()
         self.image_summary.setRowCount(0)
@@ -418,15 +462,19 @@ class ComparisonAnalysisPanel(QWidget):
         histogram_specs = [
             automatic_histogram_spec(document, requested_bins) for document in documents
         ]
+        signature = self._analysis_request_signature(documents, bounds, histogram_specs)
         self._histogram_specs = histogram_specs
-        signature: tuple[object, ...] = (
-            tuple((document.document_id, document.generation) for document in documents),
-            bounds,
-            tuple(histogram_specs),
-        )
-        self._request_signature = signature
-        if self._worker is not None:
-            self._worker.cancel()
+
+        if signature == self._request_signature:
+            if self._worker is not None and not self._worker.is_cancelled:
+                return
+            if signature == self._completed_signature:
+                return
+        else:
+            if self._worker is not None:
+                self._worker.cancel()
+            self._request_signature = signature
+            self._completed_signature = ()
 
         sources = [
             (
@@ -467,6 +515,7 @@ class ComparisonAnalysisPanel(QWidget):
         )
         if len(typed_cached) == len(cached_results):
             self.last_results = typed_cached
+            self._completed_signature = signature
             self._render(typed_cached, histogram_specs)
             return
 
@@ -536,6 +585,7 @@ class ComparisonAnalysisPanel(QWidget):
         for document, key, item in zip(self._documents, cache_keys, typed_result, strict=True):
             document.statistics_cache[key] = item
         self.last_results = typed_result
+        self._completed_signature = signature
         self._render(typed_result, histogram_specs)
 
     def _on_error(

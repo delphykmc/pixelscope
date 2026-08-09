@@ -14,11 +14,23 @@ Run from the repository root with the pinned CPython 3.10 environment:
 .\.venv\Scripts\python.exe -m ruff format --check .
 .\.venv\Scripts\python.exe -m mypy src
 .\.venv\Scripts\python.exe -m pip check
+git diff --check
 ```
 
 Use narrower tests during development. Before completion, run the full
 applicable suite. If a command cannot run, record the exact command, failure,
 reason, and unverified risk.
+
+For P2-F performance characterization, run the observational performance slice
+with output enabled before the full repository contract:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q -s tests\performance
+```
+
+Timing output from this command is characterization evidence only. PASS/FAIL must
+come from deterministic correctness, resource, request/lifecycle, and bounded-
+ownership assertions rather than an elapsed-time threshold.
 
 ## Change-to-check matrix
 
@@ -29,6 +41,7 @@ reason, and unverified risk.
 | Worker/cache/asynchronous lifecycle | Tests for request identity, queued/running distinction, authority transition, stale-result rejection, cancellation/invalidation, generation changes, and bounded resources |
 | File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, bit-depth, profile identity, and exact-size policy cases as applicable |
 | Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, schema migration/future-version behavior, reset scope, and restart behavior |
+| Performance/resource characterization | Representative FHD/UHD and dtype/channel/RAW cases; exact native bytes, cache/residency state, worker ownership, decode count, stale rejection, and output correctness as merge gates; wall-clock timings observational only |
 | Application identity/package resources | Focused SVG/PNG/ICO structure and decode tests, application-icon UI test, reproducible-generation check, wheel-content verification, unrelated-CWD launch, and Windows title-bar/Alt+Tab/running-taskbar/DPI visual checks |
 | Public workflow/terminology | Product/user documentation update and UI assertions |
 | Dependency/packaging | Python 3.10 evidence, `pip check`, packaging-constraint review, and explicit authorization before packaging tools run |
@@ -62,6 +75,11 @@ Preserve deterministic fixtures and smoke paths for:
 - Keyboard separation: Files Up/Down rows, Left/Right selected-image activity,
   and PageUp/PageDown Folder Position membership.
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
+- Repeated Single View number-key navigation across an unchanged selected set must
+  not restart an identical Statistics/Histogram request, flash **Preparing
+  analysis...**, cancel/recreate the same in-flight numerical worker, or rerender
+  a completed identical result. ROI, histogram-bin, generation/source-identity,
+  channel-layout, or Bayer-pattern changes remain valid recomputation triggers.
 - Difference calculation, cache reuse/eviction, metrics, display-only updates,
   and startup cache-budget injection.
 - Decoded-source exact-byte accounting, deterministic LRU/protection, soft
@@ -133,17 +151,81 @@ Add a focused fixture when a bug depends on pixel values, bit depth, Bayer
 layout, geometry, memory pressure, or event order. Keep fixtures small unless
 resolution or memory behavior is the subject of the test.
 
-## P2-F characterization responsibility
+## P2-F deterministic characterization contract
 
-P2-E proves authority correctness and duplicate-decode removal deterministically;
-it does not use subjective speedup or wall-clock timing as a merge gate. P2-F is
-responsible for final P2 characterization and hardening across FHD/UHD,
-uint8/uint16, RGB/grayscale/Bayer/RAW, low budgets, oversized sources, rapid
-navigation, cancellation, diagnostics, and representative Windows behavior.
+The final P2 automated matrix is representative rather than Cartesian:
 
-Any later change to preload direction, depth, concurrency, worker count, or CPU/
-I/O aggressiveness requires evidence from that characterization. P2-E itself does
-not create those settings or policies.
+| Scenario | Primary contract |
+|---|---|
+| FHD RGB uint8 | native byte count, RGB histogram counts, preview/difference/mask shape and dtype, zero self-difference |
+| FHD grayscale uint16 | native byte count, Gray histogram count, preview, promoted signed dtype, compact absolute dtype, zero self-difference |
+| UHD Bayer uint16 profile-described RAW | production RAW/Bayer preview path, Auto 4096-bin RGGB CFA analysis, exact plane counts/content, native bytes, difference metrics, threshold mask |
+| Single View repeated Statistics request | identical completed/in-flight request is a no-op; changed ROI/request identity cancels/replaces obsolete work |
+| Existing real 4K RGB + RGGB10-u16 RAW fixture | reader/RAW integration and expected image/difference metrics without adding a new large binary fixture |
+
+`tests/performance/test_performance_smoke.py` may print `perf_counter()` timings
+for raw-document load/Bayer analysis/difference/metrics/threshold-mask work. No
+timing number is a merge gate. The removed historical `threshold_mask < 0.5`
+assertion must not be replaced with another arbitrary hardware/load threshold.
+
+P2-wide audit evidence remains distributed through the focused suites rather than
+duplicated into one mega-test:
+
+- Settings repository/schema tests cover defaults, current round-trip, v4-to-v5,
+  v3/current and older migration, old-valid Difference-cache clamp,
+  malformed/invalid state, legacy RAW, future-schema read-only behavior, reset
+  scope/workspace preservation, restart semantics, enabled preload, and the
+  combined RAM guard at/above its exact boundary.
+- Residency/Difference tests cover exact native `source.nbytes`, protected and
+  ordinary LRU, low/soft/oversized budgets, reload/no-loop behavior, separate
+  Difference budget/accounting, and Difference independence under source pressure.
+- Preload/promotion tests cover immediate resident/completed reuse, RUNNING exact
+  promotion with one decode, ordinary foreground fallback, exactly-once success
+  and failure, pair/group completion, RAW identity/exact-size, logical diagnostics
+  classification, no new speculation while a promoted worker owns the max-one
+  preload pool, and rapid-navigation stale rejection.
+- Diagnostics tests cover exact source/Difference/worker/preload values, promotion
+  count, bounded sanitized failures, Copy Diagnostics only, and observation-only
+  reads/copies with no LRU, load, preload, cancellation, render, or filesystem
+  side effect.
+- `tests/ui/test_p2f_analysis_request_dedup.py` covers completed identical-request
+  no-op, in-flight worker preservation without cancellation, and changed-request
+  cancellation/restart.
+
+Process RSS accounting, live monitoring, telemetry, benchmark UI, preload policy
+expansion, new settings/schema, and native optimization are outside P2-F.
+
+## P2-F Windows characterization matrix
+
+Owner/local Windows validation is the authoritative manual closure evidence for
+P2-F. Check at minimum:
+
+1. FHD RGB normal navigation.
+2. UHD/uint16 navigation.
+3. Bayer/RAW navigation.
+4. Pair/group PageDown.
+5. Already-resident transition.
+6. Completed-preload transition.
+7. RUNNING-preload promotion.
+8. Rapid repeated PageDown.
+9. Low source-memory budget.
+10. Oversized required source.
+11. Difference cache under source pressure.
+12. Settings restart semantics.
+13. **Help > Copy Diagnostics**.
+14. Statistics / Histogram / Line Profile / Difference / Split Channels regression,
+    including repeated number-key switching in Single View without Statistics
+    preparation churn for an unchanged selected set.
+
+The manual gate is absence of visible stall/regression, incorrect reload,
+duplicated-load symptoms, unnecessary identical analysis restart/cancellation,
+error/state corruption, or workflow breakage. Any collected timing numbers are
+hardware-specific observational evidence only.
+
+The repository has no GitHub Actions workflow. P2-F does not introduce a Windows
+CI gate without first observing PySide6/pytest-qt/offscreen reliability and
+acceptable suite runtime/resource use on the target runner. Windows CI
+introduction is therefore deferred; packaging/installer CI remains P7.
 
 ## Completion evidence
 
