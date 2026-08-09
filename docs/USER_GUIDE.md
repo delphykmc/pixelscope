@@ -35,6 +35,9 @@ bar reports the boundary.
 - **Fit** fits visible tiles; **100%** uses native pixel scale.
 - **Split Channels** shows RGB or Bayer channel views and retains its checked
   state while another supported image loads.
+- **RAW Gain** provides 1×, 2×, 4×, 8×, and 16× display-only gain for RAW images.
+  One session-local gain is shared by visible RAW tiles in Single and Multi View;
+  ordinary PNG/BMP/JPEG images are unaffected.
 
 ## Cursor, ROI, and line selection
 
@@ -121,6 +124,9 @@ With six selected sources, Difference opens in Single View until disabled.
 
 Open **Edit > Settings...**. The left side selects **General**, **Files**, or
 **Performance** and the right side shows that category's options.
+
+RAW Gain is not an application setting and is distinct from Difference Gain. It
+is a viewer-only session control and returns to 1× on a new PixelScope session.
 
 ### General
 
@@ -279,9 +285,38 @@ Reloading the same path is allowed.
 Unpacked profiles specify `uint8` or `uint16`, effective bit depth, byte order,
 and LSB/MSB alignment where applicable. Packed choices are MIPI RAW10, RAW12,
 and RAW14; non-applicable container, byte-order, and alignment rows are hidden.
+The profile also retains Black Level and White Level metadata; Bayer profiles may
+carry independent R/Gr/Gb/B Black Levels.
 
-Grayscale and Bayer mosaics are supported. Bayer is displayed/analyzed as
-native R/Gr/Gb/B planes; no demosaic preview is provided.
+Decoded RAW samples are the authoritative native values. Pixel readout,
+Statistics, Histogram, Line Profile, Split Channels, and Difference continue to
+use those native values even when RAW Gain changes.
+
+At **RAW Gain = 1×**, the viewer maps the full effective native code range to the
+preview: RAW10 uses 0–1023, RAW12 uses 0–4095, and RAW14 uses 0–16383. Black
+Level is not subtracted from this 1× display and White Level is not treated as the
+display maximum.
+
+For gain above 1×, PixelScope keeps Black Level stationary and magnifies the
+residual around it:
+
+```text
+gained = black + gain * (native - black)
+```
+
+For Bayer RAW, each R/Gr/Gb/B Black Level is used at the matching CFA position.
+Values below black and above full scale are preserved through the gain arithmetic
+and clipped only when the final 8-bit preview is produced. This is presentation
+only; it does not alter the stored source samples or analysis results.
+
+RAW Gain is session-local and starts at **1×** for a new application session. It
+is not stored in the RAW profile or Settings. White Level remains profile metadata
+for possible future explicit processing and is not used by the current native or
+gained display mapping.
+
+Grayscale and Bayer mosaics are supported. Bayer remains native mosaic/channel
+inspection; no demosaic, white balance, CCM, or tone-mapped RAW preview is
+provided by the current RAW display contract.
 
 Production constraints are CPython 3.10 x64, PySide6 6.4.2, and a future
 PyInstaller 5.7 `onedir` build.
