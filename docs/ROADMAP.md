@@ -90,8 +90,10 @@ validation reasons with detailed tooltips.
 
 ### P3-B — RAW Native & Display Semantics — Implementation Complete
 
-P3-B is implemented on `feature/p3-b-raw-native-display-semantics`; owner/local
-Windows validation and merge remain pending.
+P3-B is implemented on `feature/p3-b-raw-native-display-semantics`. Owner/local
+Windows quality validation passed on pre-review HEAD
+`e7c1cc2ea0b08f43d3d513f6712035aa828eec5b`; independent-review follow-up is
+implemented and requires current-HEAD revalidation before merge.
 
 Delivered contract:
 
@@ -99,6 +101,9 @@ Delivered contract:
   black/white metadata or viewer controls.
 - Existing `black_level` and `white_level` RAW-profile metadata remain schema- and
   JSON-compatible; Settings stays at schema v5.
+- Schema-valid GRAY profiles with four-value `black_level` remain compatible:
+  global/GRAY gain uses the pre-P3-B deterministic `min(black_level)` anchor,
+  while Bayer mosaics retain CFA-specific four-anchor behavior.
 - At 1× display gain, RAW maps native code `0..((1 << bit_depth) - 1)` to the
   preview range. Black is not subtracted and white is not promoted to full scale.
 - Display gain is anchored at black level:
@@ -117,6 +122,8 @@ Delivered contract:
 - Gain changes use resident native source and the shared numerical worker pool;
   stale async results are rejected without source reload, generation changes,
   residency-policy changes, or Difference-cache invalidation.
+- Hidden RAW viewers drop viewer-local gain>1 buffers back to the canonical 1×
+  preview and regenerate the current session gain when shown again.
 
 P3-B intentionally adds no demosaic, white balance, CCM, tone mapping, processed
 RAW document, processed analysis mode, persistence, Settings migration, or
