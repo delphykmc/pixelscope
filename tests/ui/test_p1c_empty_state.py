@@ -9,12 +9,14 @@ def test_empty_workspace_uses_final_guidance_and_actions(qtbot: object) -> None:
 
     assert workspace.title.text() == "Drop images or folders here"
     assert workspace.open_images_button.text() == "Open Images..."
-    assert workspace.open_folders_button.text() == "Open Folders..."
+    assert workspace.open_folders_button.text() == "Open Folder..."
     assert not hasattr(workspace, "open_raw_button")
     assert not hasattr(workspace, "open_raw_requested")
     assert workspace.formats_hint.text() == "PNG · JPEG · BMP · RAW"
-    assert workspace.shortcuts_hint.text() == "Ctrl+O images · Ctrl+Shift+O folders"
-    assert workspace.gestures_hint.text() == "On an image: Ctrl+drag ROI · Shift+drag line profile"
+    assert workspace.shortcuts_hint.text() == "Ctrl+O images · Ctrl+Shift+O folder"
+    assert workspace.gestures_hint.text() == (
+        "On an image: Ctrl+drag ROI · Shift+drag line profile"
+    )
 
     with qtbot.waitSignal(workspace.open_images_requested):  # type: ignore[attr-defined]
         workspace.open_images_button.click()
@@ -22,7 +24,9 @@ def test_empty_workspace_uses_final_guidance_and_actions(qtbot: object) -> None:
         workspace.open_folders_button.click()
 
 
-def test_registered_but_unselected_workspace_prompts_for_files_selection(qtbot: object) -> None:
+def test_registered_but_unselected_workspace_prompts_for_files_selection(
+    qtbot: object,
+) -> None:
     workspace = EmptyWorkspace()
     qtbot.addWidget(workspace)  # type: ignore[attr-defined]
 
