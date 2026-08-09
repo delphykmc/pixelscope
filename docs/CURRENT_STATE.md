@@ -103,12 +103,13 @@ Current RAW support includes:
 The next P3-B contract is intentionally narrower than a RAW-conversion pipeline:
 
 - native decoded RAW stays authoritative and unchanged;
-- at 1× display gain, RAW is viewed in its native code domain;
+- at 1× display gain, RAW is viewed in its native code domain using effective
+  full scale as the display-range authority;
 - display gain is anchored at black level using
   `black + gain * (native - black)`;
 - black/white metadata do not silently change native analysis or P3-A Difference;
-- white level remains available as saturation/display metadata and for possible
-  future explicit processing.
+- P3-B does not apply `white_level` to native or gained display mapping; it remains
+  stored metadata for possible future explicit processing.
 
 Not yet implemented:
 
