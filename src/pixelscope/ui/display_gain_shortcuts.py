@@ -42,7 +42,7 @@ def install_display_gain_shortcuts(
         increase.setEnabled(False)
         decrease.setEnabled(False)
 
-    control.destroyed.connect(control_destroyed)
+    control.destroyed.connect(control_destroyed)  # type: ignore[attr-defined]
 
     # Keep the Python wrappers explicitly owned by the MainWindow as well as by
     # Qt parentage. Future Display Gain controls can reuse this same command slot.
