@@ -210,20 +210,14 @@ surface. P3-B activates gain only for RAW.
 - QApplication-global `RawDisplayState` may outlive toolbar controls. State/control
   connections therefore use QObject receiver lifetime rather than Python closures
   that can retain dead Qt wrappers.
-
-### P3-B Display Gain keyboard-command policy
-
-- `+` / `-` is a presentation command, not a window-global navigation override.
-- The shortcut owner is the main image-presentation subtree (`central_stack`) and
-  uses `Qt.WidgetWithChildrenShortcut`.
-- The gain command therefore runs only while focus is within the viewer/presentation
-  subtree. Sibling UI retains its native key behavior.
-- In particular, the Files tree continues to use Qt-native `+` / `-` folder
-  expand/collapse even when RAW Gain is enabled.
-- A disabled RAW Gain control does not change session gain; outside the
-  presentation subtree its shortcuts do not participate in key routing at all.
-- P3-C must reuse this command ownership/focus rule when RAW Gain is generalized
-  to Display Gain; it must not add a second competing shortcut layer.
+- `+` / `-` Display Gain command ownership is the image-presentation subtree
+  (`MainWindow.central_stack`) with `WidgetWithChildrenShortcut`, not the whole
+  window. Files-tree focus therefore retains Qt-native expand/collapse behavior.
+- A destroyed gain control marks the shortcut binding inactive; teardown callbacks
+  do not touch sibling `QShortcut` wrappers because Qt may already have deleted
+  them as part of parent destruction.
+- P3-C must reuse this command owner/focus/lifetime boundary rather than adding a
+  window-global duplicate.
 
 ### P3-B scope exclusions
 
@@ -247,11 +241,10 @@ ordinary-image activation of the P3-B generic display-gain core.
   remain unchanged.
 - P3-C must retain a 1× identity/no-work fast path and deterministic final
   clipping.
-- P3-C reuses the P3-B presentation-scoped `+` / `-` command layer and focus
-  policy; Files-tree native expand/collapse remains protected.
 - Required regression scope includes 1× identity, clipping, Gray, RGB, RGBA alpha
-  preservation, Single/Multi consistency, analysis independence, command/control
-  synchronization, and Files-tree key-routing preservation.
+  preservation, Single/Multi consistency, and analysis independence.
+- P3-C reuses the P3-B `central_stack` / `WidgetWithChildrenShortcut` command
+  boundary. Files-tree `+` / `-` routing must remain native and regression-covered.
 - Large-image gain work remains off the UI thread where full-frame numerical work
   is required; stale result identity remains mandatory.
 - Additional clipping/highlight/shadow and Bayer observability may be added where
@@ -273,21 +266,14 @@ ordinary-image activation of the P3-B generic display-gain core.
   added to decoded-source residency or Difference cache ownership.
 - The generic gain core does not become a cache, persistence, or resource-policy
   owner.
-- Rapid large-RAW gain stepping may temporarily leave superseded full-frame work
-  running because cancellation is advisory. This is not a correctness blocker;
-  coalescing/debounce/cancellable chunking requires profiling evidence before any
-  scheduler redesign.
 
 ## Validation and merge state
 
 Owner/local Windows quality validation passed on
-`424144215b1df97c71a84ddca79a17bfccb1feef` after the generic display-gain core,
-shortcut implementation, PySide6 typing-stub fix, and manual runtime checks.
-
-The final independent re-review found one merge blocker in that validated head:
-window-level `+` / `-` shortcuts intercepted the Files tree's native Qt
-expand/collapse keys. The follow-up scopes the command to the viewer-presentation
-subtree and adds real key-routing coverage. Because that changes production UI
-composition and tests after the validated head, latest-head owner/local validation
-is required again before merge. The Chat implementation agent must not claim that
-new gate passed until owner/local output is observed.
+`424144215b1df97c71a84ddca79a17bfccb1feef` after the generic-core and initial
+shortcut changes. The subsequent independent re-review identified the Files-tree
+`+` / `-` routing blocker. The presentation-scoped shortcut fix, teardown-lifetime
+follow-up, tests, and durable documentation were added after that validated head.
+Final latest-head owner/local validation is therefore required before merge.
+The Chat implementation agent must not claim that latest-head gate passed until
+owner/local output is observed.
