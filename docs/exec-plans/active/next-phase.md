@@ -26,7 +26,7 @@ encode compatibility or display rules that are about to change.
 | 0 | P3-0 roadmap transition | Close/archive P2 and establish P3 | Complete — PR #21 |
 | 1 | P3-A Difference domain extension | Gray + mixed-bit Difference semantics | Complete — PR #22 |
 | 2 | P3-B RAW native/display semantics | Native RAW authority + generic gain core + RAW activation | Complete — PR #24 |
-| 3 | P3-C visualization/display gain | Ordinary Gray/RGB/RGBA gain + RAW observability | Implemented; owner/local validation pending |
+| 3 | P3-C visualization/display gain | Ordinary Gray/RGB/RGBA gain + RAW observability | Implemented; owner/local validation complete; independent review/merge pending |
 | 4 | P3-D RAW profile management | Reusable profiles and profile suggestion workflow | After P3-C merge |
 | 5 | P3-E integration hardening | Cross-analysis regressions, docs, Windows characterization | After P3-D |
 
@@ -207,7 +207,7 @@ remains profiling-driven optimization rather than a P3 merge requirement.
 ## P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension
 
 Status: Implemented on `feature/p3-c-display-gain`; owner/local Windows validation
-is pending before merge.
+is complete; independent review/merge is pending.
 
 P3-C reuses the P3-B generic anchor-based display-gain core rather than
 introducing an ordinary-image-specific gain algorithm. It also reuses P3-B's
@@ -268,6 +268,12 @@ Required P3-C tests include:
 - Single/Multi View consistency and stale-result/lifecycle behavior;
 - command/control synchronization;
 - Files-tree `+` / `-` routing preservation while Display Gain is available.
+
+The owner completed the full `docs/QUALITY.md` validation contract on P3-C head
+`8f84fb13c6c61d66eb9f7e2295f1ed5154ad3b23`, and all required manual application
+checks also passed, including ordinary RGB and MainWindow Split Channels → Display
+Gain behavior. The subsequent follow-up is documentation-only and does not alter
+the validated production implementation.
 
 ### Additional RAW visualization scope
 
@@ -371,8 +377,12 @@ git diff --check
 
 Execution agents must not claim these passed unless their output was actually
 observed. P3-B completed owner/local validation before PR #24 merged. P3-C owner/
-local validation remains pending. The Chat implementation agent did not execute
-these repository validation commands.
+local validation completed successfully on head
+`8f84fb13c6c61d66eb9f7e2295f1ed5154ad3b23`, including the full repository
+contract above and required manual application checks. The Chat implementation
+agent did not execute these repository validation commands. The current follow-up
+changes only durable status/evidence documentation before independent review and
+merge.
 
 ## P3 exit criteria
 
