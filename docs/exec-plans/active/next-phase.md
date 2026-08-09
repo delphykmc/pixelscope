@@ -23,7 +23,7 @@ ownership, or become an implicit RAW inference/processing pipeline.
 | 1 | P3-A Difference domain extension | Gray + mixed-bit Difference semantics | Complete — PR #22 |
 | 2 | P3-B RAW native/display semantics | Native RAW authority + generic gain core | Complete — PR #24 |
 | 3 | P3-C Display Gain extension | Ordinary Gray/RGB/RGBA gain + RAW regression | Complete — PR #25 |
-| 4 | P3-D Unified Image Opening & RAW Profile Resolution | Input ownership + deterministic RAW resolution | Active |
+| 4 | P3-D Unified Image Opening & RAW Profile Resolution | Input ownership + Current Comparison Page + deterministic RAW resolution | Active |
 | 5 | P3-E integration hardening | Cross-analysis regressions, docs, Windows characterization | After P3-D |
 
 ## Completed P3 foundation
@@ -64,27 +64,33 @@ Merged at `7f6bef73e6712f6a14a4d401820a915196e25da2`.
 
 ## P3-D — Unified Image Opening & RAW Profile Resolution
 
-Status: Active on `feature/p3-d-unified-open`.
+Status: Active on `feature/p3-d-unified-open` / PR #26.
 
-### Owner decision
+### Authoritative hierarchy
 
-The earlier speculative P3-D Profile Library/profile-suggestion scope is replaced
-by a production input-policy requirement. The authoritative conceptual model is:
+P3-D uses this product/runtime model:
 
 ```text
 Registered
     ↓ user selection
-Selected
-    ↓ viewer capacity / layout
-Presented
-    ↓ source lifecycle
+Selected                         # ordered logical set, may exceed 6
+    ↓ Selected ordering + page offset
+Current Comparison Page          # derived working set, max 6
+    ↓ viewer representation
+Presented                        # Multi=page, Single=one page-local slot
+    ↓ native-source lifecycle
 Resident when required
 ```
 
-Registration count is a Files/catalog concern. Selection is the user comparison
-set. Presentation is bounded by current viewer layout. Resident is the independent
-P2 decoded-native-source memory state. The existing six-tile viewer capacity must
-never be reused as a folder/image registration limit.
+And:
+
+```text
+Analysis Working Set = Current Comparison Page
+Viewer Slot = 1..6 within Current Comparison Page
+```
+
+Current Comparison Page is derived state, not a duplicated document collection.
+Registration count and Selected count are not limited by viewer capacity.
 
 ### 1. Open Images... — selection-oriented
 
@@ -105,14 +111,12 @@ Requirements:
 
 - keep `QFileDialog.getOpenFileNames()` multi-file behavior;
 - register every supported direct file;
-- make those direct files the current selection;
-- present according to existing viewer capacity;
-- more than six supplied files remain registered/selected rather than being
-  dropped/rejected at registration;
+- make those direct files the current ordered Selected set;
+- Selected may exceed six without truncation;
+- initial Current Comparison Page is the first six Selected images;
 - ordinary and RAW share this entry;
 - RAW uses deterministic profile resolution before direct-open registration;
-- no separate **Open RAW with Profile...** action, RAW-only Empty Workspace button,
-  RAW-only signal, or `MainWindow.open_raw()` path;
+- no separate **Open RAW with Profile...** action or `MainWindow.open_raw()` path;
 - no `*.*` RAW wildcard.
 
 ### 2. Open Folders... — registration-oriented
@@ -126,115 +130,152 @@ Open Folders...   Ctrl+Shift+O
 Requirements:
 
 - support multiple existing directories in one operation;
-- use a maintainable Qt/PySide implementation without introducing a Windows COM
-  dependency solely for this feature;
-- resolve selected directories, deduplicate equivalent paths, and return them in
-  deterministic order;
+- use a maintainable Qt/PySide implementation without a Windows COM dependency;
+- resolve/deduplicate directories deterministically;
 - permit arbitrary practical folder count; do not cap at six;
 - discover/register all supported immediate contents;
-- do **not** change current selection;
-- do **not** change current presentation/layout;
+- do not change Selected, Current Comparison Page, presentation, or layout;
 - do not auto-select a first image when selection is empty;
 - do not create an implicit comparison group for two folders;
 - skip folders with no supported images while continuing other folders;
-- report compact registration status such as
-  `Registered N image(s) from M folder(s)` plus skipped-empty count where useful.
+- report compact registration status.
 
-Registration-only folder input must preserve current comparison state including
-layout, active/focus document, ROI, Line Profile selection, Difference
-presentation/cache, Display Gain, zoom/pan preservation state, source residency,
-and existing worker/cache ownership where applicable.
+Registration-only folder input must preserve layout, active/primary document, ROI,
+Line Profile selection, Difference presentation/cache, Display Gain, zoom/pan
+preservation state, source residency, and existing worker/cache ownership where
+applicable.
 
 ### 3. Drag/drop intent
 
-Folder and image D&D must match the corresponding menu intent:
-
 ```text
-direct image files  -> register + select/present
+direct image files  -> register + select
 folders             -> register only
 ```
 
-Requirements:
-
 - one/two/three/six/fifteen/etc. folders use one registration policy;
-- remove the exactly-two-folder auto-comparison special case;
-- multiple direct image files are all registered and selected;
-- direct image registration is not capped at six;
-- mixed file + folder drop registers everything supported but selects only the
-  explicitly dropped direct files;
-- folder registration must not overwrite or append implicit first-folder images
-  to explicit direct-file selection.
+- exactly two folders have no special comparison behavior;
+- multiple direct image files are all registered and Selected;
+- mixed file + folder drop selects only explicitly dropped files;
+- folder contents never overwrite/append implicit first-folder images to explicit
+  direct-file selection.
 
-### 4. Registration/selection/presentation ownership
+### 4. Current Comparison Page authority
 
-`io.path_discovery` owns the extension/filter contract. `.json` remains metadata
-only and never appears as a standalone image document.
+`MainWindow.current_comparison_documents()` or a semantic equivalent is the single
+bounded working-set authority. Do not let subsystems independently use
+`selected_documents[:6]` or unrelated `_page_start` slices.
 
-`ImageInput` remains the discovery identity. P3-D should keep responsibilities
-semantically equivalent to:
+The same Current Comparison Page must drive:
+
+- Multi View;
+- Single View page context;
+- Statistics;
+- Histogram;
+- Line Profile;
+- selection-derived Difference inputs;
+- ROI/Line normalization;
+- foreground page-load completion;
+- current-page residency protection;
+- local slot mapping.
+
+Feature-owned explicit Difference pair/reference authority remains unchanged.
+
+### 5. Large-selection navigation
+
+For `Selected <= 6`:
 
 ```text
-register inputs/folders
-select documents
-present selection
+Current Comparison Page = Selected
 ```
 
-`_register_inputs()` must not own selection or layout changes. Callers with
-selection intent explicitly invoke selection afterward. Folder registration never
-invokes the presentation lifecycle.
+Existing Auto/Single/Multi, primary, number-key, Left/Right, Folder Position,
+ROI/Statistics/Histogram/Line Profile/Difference, residency, and preload behavior
+must remain production-equivalent.
 
-A valid state with `documents > 0` and zero selected documents is required. The
-central workspace uses the existing EmptyWorkspace component in two modes:
+For `Selected > 6`:
 
-- truly empty → **Drop images or folders here** + Open Images/Open Folders;
-- registered but unselected → **Select an image from Files to view**.
+- Current Comparison Page size is six except a short final page;
+- Multi View uses the current page as its comparison workspace;
+- large-selection Multi View keeps six-slot `Grid 3x2` geometry on every page;
+- unused final-page slots are cleared;
+- Single View presents one active page-local slot but keeps full current-page
+  analysis/load context;
+- viewer slots are always local `1..6`;
+- number keys `1..6` address current-page local slots;
+- Left/Right remains Previous/Next Selected Image across the complete ordered set;
+- crossing a boundary updates Current Comparison Page automatically;
+- Ctrl+Left/Ctrl+Right moves Previous/Next Comparison Page;
+- Comparison Page navigation does not wrap;
+- toolbar/page affordance exposes total Selected count and current range, e.g.
+  `7–12 of 15`;
+- page movement preserves the active local slot where possible and clamps on a
+  short final page;
+- primary/focus changes are page-local and may not change Selected ordering/page
+  membership.
 
-### 5. Folder Position
+PageUp/PageDown are never Comparison Page shortcuts.
 
-PageUp/PageDown derives only from currently selected comparison documents. It
-continues to support one-to-six selected files from distinct folders and preserves
-existing P1/P2 atomic endpoint/preload/promotion semantics. Other registered
-folders do not join the active Folder Position merely because they exist in Files.
+### 6. Folder Position
 
-### 6. RAW profile resolution
+For `Selected <= 6`, PageUp/PageDown retains existing Folder Position semantics and
+P2 preload/promotion behavior.
+
+For `Selected > 6`, Folder Position is unavailable. PageUp/PageDown is a no-op with
+compact status; do not partially apply Folder Position to only Current Comparison
+Page.
+
+Other registered folders never participate automatically.
+
+### 7. RAW profile resolution and foreground retry boundary
 
 Direct RAW input preserves this sequence:
 
-1. exact same-basename sidecar, if present, is parsed/validated;
-2. current confirmation suppression and exact/minimum-size policy remain in force;
+1. exact same-basename sidecar is parsed/validated if present;
+2. current confirmation suppression and exact/minimum-size policy remain;
 3. no sidecar opens editable RAW Profile entry;
 4. invalid sidecar warns and opens editable fallback;
 5. cancel prevents erroneous direct-open RAW registration;
 6. multiple direct RAW files resolve independently;
 7. existing-path reload retains document/profile identity.
 
-Folder registration must not generate a dialog storm. P3-D uses a small lazy
-boundary rather than broad P2 redesign:
+Folder registration remains lazy:
 
 ```text
 folder registration
     ↓
-register pending RAW path + deterministic sidecar path
+register pending RAW + deterministic sidecar path
     ↓
 no profile dialog / no decode
     ↓
-foreground selection/load requires source
+RAW enters foreground Current Comparison Page
     ↓
 existing RAW profile resolver
     ↓
-decode only after profile acceptance
+decode only after acceptance
 ```
 
-Unresolved RAW without a resolved profile is excluded from speculative preload.
-This avoids dialogs from speculative/background work and does not guess profiles
-from file size or weak evidence.
+Selected-but-off-page unresolved RAW must not prompt, decode, or require residency.
+Unresolved RAW is excluded from speculative preload.
 
-Existing RawProfile migration, packed/unpacked validation, effective bit depth,
-stride/offset/endian/alignment, Bayer pattern, Black/White metadata, exact-size
-policy, same-path reload, preload identity after profile resolution, and source
-residency semantics remain authoritative.
+One foreground presentation attempt may prompt a given unresolved RAW at most once.
+Cancel leaves it registered/pending, starts no worker, and passive rerenders must
+not immediately re-prompt. A later explicit foreground intent may retry.
 
-### 7. Profile UI and exclusions
+### 8. Source residency and preload
+
+Preserve P2 exact native `source.nbytes` accounting and protected soft-budget LRU.
+P3-D's large-selection refinement is:
+
+- Selected membership alone is **not** a residency-protection owner;
+- Current Comparison Page is protected;
+- foreground loads, promoted preload, Difference dependencies, and other
+  correctness-required owners remain protected;
+- Selected-but-off-page sources may be evicted and normally reloaded when revisited.
+
+Do not add Comparison Page preload. P2 preload remains exactly +1 Folder Position,
+one group ahead, max-one preload worker.
+
+### 9. Profile UI and exclusions
 
 User-facing profile buttons are **Load Profile...** / **Save Profile...**. JSON
 remains the storage format.
@@ -253,90 +294,91 @@ P3-D adds no:
 - new Difference mode or Display Gain redesign;
 - session persistence or Recent Files/Folders;
 - Settings schema bump;
-- source-residency/preload worker-policy redesign;
-- broad MainWindow rewrite;
+- Comparison Page preload system;
+- broad MainWindow/Difference/P2 worker architecture rewrite;
 - packaging/signing work.
 
-### 8. P3-D test matrix
+### 10. P3-D test matrix
 
 Focused automated coverage must establish:
 
-#### Open Images
+#### Selected <=6 regression
 
-- multi-file selection;
-- all supported direct files registered;
-- direct files become active selection;
-- ordinary + RAW mixed direct selection;
-- six and greater-than-six supplied images do not cause registration loss;
-- viewer presentation remains bounded by existing capacity.
+- Current Comparison Page equals Selected;
+- existing Auto/Single/Multi and number-key semantics remain unchanged;
+- existing Folder Position behavior remains unchanged.
 
-#### Open Folders
+#### Selected >6
 
-- multi-directory selection;
-- 1, 2, 6, and >6 folder registration;
-- deterministic duplicate-folder deduplication;
-- current selection unchanged;
-- current viewer/layout unchanged;
-- no first-image auto-selection;
-- no implicit comparison group;
-- empty/no-supported-image folder skip/reporting.
+Use at least a 15-image canonical case:
 
-#### Folder D&D
+- all 15 registered and logically Selected;
+- page 1 = images 1–6;
+- page 2 = images 7–12;
+- final page = images 13–15;
+- Previous reverses correctly and endpoints do not wrap;
+- page movement does not change Selected membership/order;
+- local slots remain 1–6;
+- final-page stale tiles are cleared while six-slot geometry is retained.
 
-- one, two, 3–6, and >6 folders are registration-only;
-- no exactly-two-folder special case;
-- current selection/presentation preserved.
+#### Number keys / Single View / fine navigation
 
-#### Image D&D
+- number keys map to current-page local slots;
+- image10 on page 7–12 is slot 4, not 10;
+- Left/Right moves one Selected image;
+- image12 → image13 crosses to page 13–15 and local slot 1;
+- reverse crossing restores the previous page/slot;
+- coarse page navigation preserves/clamps active local slot.
 
-- one and multiple files register + select;
-- six and >6 direct files are all registered;
-- presentation remains bounded by existing viewer contract.
+#### Analysis
 
-#### Mixed D&D
+After a page transition, Statistics/Histogram, Line Profile, Difference available
+inputs, ROI normalization, and load-batch completion use the current page, not the
+first six Selected images.
 
-- direct files and folder contents are all registered;
-- only explicit direct files become the selection;
-- folder contents are not implicitly selected.
+#### Residency
 
-#### Registered but unselected
+- current page is protected;
+- Selected-but-off-page is not generically protected;
+- Selected identity survives eviction/revisit;
+- P2 budget/accounting semantics remain effective.
 
-- registered documents + zero selection is stable;
-- central workspace prompts selection from Files;
-- no load/render crash;
-- selection-dependent actions remain unavailable.
+#### Navigation separation
 
-#### RAW folder registration
+- Ctrl+Left/Ctrl+Right is Comparison Page navigation;
+- PageUp/PageDown remains Folder Position only;
+- Selected>6 Folder Position is no-op;
+- Selected<=6 Folder Position remains unchanged.
 
-- no registration-time profile dialog for pending folder RAW;
-- deterministic sidecar path is retained;
-- profile resolves at actual foreground load;
-- unresolved RAW does not start speculative preload;
-- no automatic profile inference.
+#### RAW
 
-#### Folder Position and runtime preservation
+- off-page Selected unresolved RAW does not prompt/decode;
+- entering foreground page resolves it;
+- Cancel prompts once per foreground attempt;
+- passive rerender does not immediately re-prompt;
+- no worker starts after Cancel;
+- a later explicit foreground action may retry.
 
-- many registered folders do not participate automatically;
-- only selected folders advance;
-- PageUp/PageDown regression remains correct;
-- folder-only registration does not reset ROI/Line Profile/Difference/Display Gain,
-  change layout/active/focus, trigger unrelated decode, invalidate Difference
-  cache, or alter source-residency ownership.
+#### Input regression
 
-Existing regression suites remain authoritative for RAW decode/profile exact-size,
-preload/promotion/reload identity, source residency, Difference, Display Gain,
-Statistics/Histogram/Line Profile, and Split Channels.
+- Open Images multi-file, ordinary+RAW, six and >6;
+- Open Folders 1/2/6/>6, dedup, registration-only, no first auto-select;
+- folder/image/mixed D&D intents;
+- registered-but-unselected state;
+- folder-only runtime preservation.
 
 ## P3-E — Integration & Hardening
 
-Close P3 over the completed Difference/display/RAW/input semantics:
+Close P3 over completed Difference/display/RAW/input semantics:
 
 - cross-check native/normalized Difference and Display Gain independence;
 - characterize representative Gray/RGB/RGBA/Bayer/RAW and bit-depth combinations;
-- validate Registered/Selected/Presented/Resident behavior under large catalogs;
+- validate `Registered → Selected → Current Comparison Page → Presented → Resident`
+  under large catalogs and page navigation;
+- verify Selected<=6 production-equivalent behavior;
+- exercise Folder Position, preload, eviction/reload, Difference cache, and Display
+  Gain together;
 - preserve P2 residency/preload/diagnostics contracts;
-- verify unified input/profile resolution through navigation, preload, reload, and
-  existing-path identity;
 - complete Windows characterization and durable P3 documentation;
 - do not add unrelated workflow/session or processed-RAW features during closure.
 
@@ -347,7 +389,7 @@ P3 must preserve unless explicitly redesigned:
 - Settings schema v5 migration/future-schema safety;
 - exact native decoded-source residency accounting and protected soft-budget LRU;
 - independent Difference Map Cache ownership;
-- +1 one-position max-one preload with foreground priority;
+- +1 one-position max-one Folder Position preload with foreground priority;
 - exact RUNNING preload promotion without duplicate decode;
 - advisory cancellation plus token/generation/request stale-result authority;
 - observation-only sanitized **Help > Copy Diagnostics**;
@@ -357,7 +399,8 @@ P3 must preserve unless explicitly redesigned:
 - native source remains recoverable/authoritative when presentation transforms are
   active;
 - input UX does not create a second RAW profile/decode authority;
-- registration does not imply selection, presentation, decode, or residency.
+- registration does not imply selection, page membership, presentation, decode, or
+  residency.
 
 ## Validation policy
 
@@ -381,20 +424,21 @@ validation is pending.
 
 Owner manual P3-D checks should include:
 
-1. Open Images with PNG/JPEG/BMP and multi-file selection.
-2. Open Images with more than six files: all registered, presentation bounded.
-3. RAW + valid sidecar and RAW without sidecar.
-4. Invalid RAW sidecar warning/edit flow and cancel behavior.
-5. Open Folders with 1, 2, 6, and >6 folders.
-6. Folder registration while an existing comparison/ROI/Line/Difference is active.
-7. No automatic first-image selection after folder registration.
-8. Registered-but-unselected center prompt.
-9. Folder D&D for 1, 2, 6, and >6 folders with unchanged selection.
-10. Direct image D&D and mixed file + folder D&D.
-11. Folder RAW registration without dialog storm, then selection-time resolution.
-12. PageUp/PageDown using only currently selected folders among a larger catalog.
-13. RAW/ordinary Display Gain and Statistics/Difference/Histogram/Line Profile/
-    Split Channels regressions.
+1. Open 15 images and verify 1–6 / 7–12 / 13–15 page ranges.
+2. Verify local slot badges 1–6 on every page and empty final slots.
+3. Verify Ctrl+Left/Ctrl+Right non-wrapping page navigation.
+4. Verify Left/Right image12↔image13 boundary crossing in Single View.
+5. Verify number key semantics on page 2.
+6. Verify Statistics/Histogram/Line Profile move with Current Comparison Page.
+7. Verify Selected>6 PageUp/PageDown does not perform Folder Position.
+8. Reduce to A01/B01/C01 and verify PageDown → A02/B02/C02 as before.
+9. Verify off-page folder RAW does not prompt; entering its page prompts once.
+10. Cancel RAW profile and verify no immediate re-prompt/no worker; explicit retry
+    may prompt again.
+11. Exercise large-selection page visits under a small source-memory setting and
+    verify off-page reload/eviction behavior.
+12. Recheck Open Folders multi-selection and folder/image/mixed D&D intent.
+13. Recheck Difference, Display Gain, ROI, Split Channels, and Plots regressions.
 
 ## P3 exit criteria
 
@@ -405,18 +449,20 @@ P3 is complete when:
   analysis processing;
 - generic anchor-based Display Gain remains deterministic across RAW/ordinary
   presentation;
-- RAW Black-anchored and ordinary zero-anchored gain remain regression-covered;
 - unified input has one supported-extension contract;
-- registration/selection/presentation/residency ownership is explicit and no
-  six-item registration cap leaks from viewer geometry;
+- `Registered → Selected → Current Comparison Page → Presented → Resident` is
+  explicit and regression-covered;
+- Analysis Working Set equals Current Comparison Page;
+- viewer slots are local 1–6 within the page;
+- large Selected sets do not defeat P2 residency budget semantics;
 - folder registration preserves active work and RAW folder registration avoids
   background/dialog side effects;
 - RAW profile resolution remains deterministic across direct input, foreground
-  load, preload-after-resolution, reload, and existing-path identity;
+  page load, preload-after-resolution, reload, and existing-path identity;
 - no speculative profile inference is introduced without evidence;
 - P2 runtime/resource/diagnostic contracts remain stable;
 - full automated and agreed Windows validation pass;
-- durable docs use Registered/Selected/Presented/Resident terminology consistently.
+- durable docs use the five-layer hierarchy consistently.
 
 Demosaic is not required for P3 completion under the current owner decision.
 
