@@ -3,17 +3,60 @@
 ## Current boundaries and data flow
 
 `io` discovers and decodes files into source arrays. `core.ImageDocument` owns
-native source arrays, metadata, preview data, generation state, caches, and
-evaluation results. `core` performs display conversion, Bayer handling,
-statistics/histogram, line-profile, and overflow-safe Difference math without
-Qt. `workers` runs expensive I/O and numerics in bounded `QThreadPool` workers.
-`ui` renders previews and emits lightweight image-coordinate state. `app` owns
+native source arrays, metadata, canonical preview data, generation state, caches,
+and evaluation results. `core` performs display conversion, Bayer handling,
+statistics/histogram, line-profile, and overflow-safe Difference math without Qt.
+`workers` runs expensive I/O and numerics in bounded `QThreadPool` workers. `ui`
+renders previews and emits lightweight image-coordinate state. `app` owns
 documents, ordered selection, application settings composition, workspace state,
 load identity, source residency, and window lifecycle.
 
-Source arrays retain decoded dtype and channel meaning. Display conversion
-creates uint8 previews without modifying native source data. RGBA analysis
-ignores alpha. Difference and squared-error paths promote operands first.
+Source arrays retain decoded dtype and channel meaning. Viewer presentation is a
+derived representation and may not redefine source or analysis domains. RGBA
+analysis ignores alpha. Difference and squared-error paths promote operands before
+subtraction/multiplication.
+
+## Display-gain architecture
+
+P3-B separates **generic display gain** from **RAW metadata policy**.
+
+The generic numerical model lives in `core.display_transform`:
+
+```text
+display = anchor + gain * (source - anchor)
+```
+
+`DisplayTransform` describes display low/high, gain, gain anchor, and gamma as
+presentation parameters. The generic layer does not know `RawProfile`, Bayer
+patterns, Black Level, White Level, or application UI state.
+
+The generic gain implementation has these ownership rules:
+
+- `anchor` is a scalar supplied by the caller; zero is a normal supported value;
+- gain and display-range normalization are algebraically fused into float32
+  scale/offset when possible;
+- one float32 working buffer is used for full-frame conversion rather than
+  serial full-frame subtract/multiply/add/normalize temporaries;
+- full-frame gain math does not promote to float64;
+- affine application accepts array views, so a later RGBA caller can target
+  `[..., :3]` and leave alpha untouched;
+- clipping occurs only at the final display-conversion boundary;
+- source arrays are never modified.
+
+`core.raw_display` is a RAW adapter over that generic core. It selects effective
+full scale and Black-derived anchor semantics, then delegates numerical gain/range
+conversion to `core.display_transform`. `core.bayer` uses the same affine helpers
+on CFA parity-plane views. It does not construct a full-size Black Level map.
+
+P3-B activates display gain only for RAW. Its user-visible control remains
+**RAW Gain** and ordinary Gray/RGB/RGBA documents are unchanged. P3-C is planned
+to reuse the same generic core for ordinary viewer presentation with `anchor=0`;
+RGBA applies gain to RGB while preserving alpha. The product term for that future
+surface is **Display Gain** or **Gain**, not Exposure.
+
+Display gain is presentation-only in every phase. `ImageDocument.source`, pixel
+inspection, Statistics, Histogram, Line Profile, Difference, source residency,
+and Difference-cache identity do not depend on it.
 
 ## Current application identity and resource boundary
 
@@ -23,54 +66,33 @@ source of truth; `scripts/generate_icon_assets.py` derives the runtime PNG and
 multi-frame Windows ICO.
 
 `pixelscope.app.resources` reads package bytes through `importlib.resources`.
-On Windows, application bootstrap assigns the stable AppUserModelID
-`PixelScope.PixelScope` before `QApplication` creation. Bootstrap then assigns
-the decoded runtime icon to `QApplication`, and `main()` explicitly assigns the
-same icon to `MainWindow` before showing it. Resource lookup is independent of
-the current working directory and source-tree absolute paths. Setuptools package
-data includes the complete icon triplet.
+On Windows, bootstrap assigns stable AppUserModelID `PixelScope.PixelScope` before
+`QApplication` creation, then applies the package icon to the application and
+main window. Resource lookup is independent of current working directory and
+source-tree absolute paths.
 
-This boundary supplies source-run application, window, Alt+Tab, and running
-Taskbar identity. PyInstaller executable icon binding, Windows shortcut and
-installer identity, pinned-shell behavior, signing, and final release naming
-remain P7.
+This boundary supplies source-run application/window/Taskbar identity. PyInstaller
+executable icon binding, shortcuts, installer identity, signing, updater, and
+final release naming remain P7.
 
 ## Current application settings boundary
 
 Application preferences and workspace/session persistence are intentionally
-separate even though both ultimately use Qt persistence.
+separate even though both use Qt persistence adapters.
 
-- Frozen `ApplicationSettings` is the typed persisted domain model. P2-A2 owns
-  RAW JSON confirmation, exact RAW file-size validation, default Open/Export
-  folders, Difference Threshold/Gain defaults, and the Difference Map Cache MiB
-  preference. P2-B adds Decoded Source Memory MiB and P2-C adds preload enablement.
-- `SettingsRepository` owns defaults, versioned schema behavior, migration,
-  validation, invalid-state recovery, save, and reset.
+- Frozen `ApplicationSettings` is the typed persisted model.
+- `SettingsRepository` owns defaults, versioned migration, validation, invalid-
+  state recovery, save, reset, and future-schema compatibility.
 - `QSettingsAdapter` is the only application-settings component that knows raw
-  application-preference keys. QSettings is an adapter, not the domain model.
-- `Edit > Settings...` uses a category/page template with **General**, **Files**,
-  and **Performance** pages. The left navigation is intentionally simple at the
-  current settings count; a VS Code-style settings search is not required yet.
-- Application bootstrap loads `ApplicationSettings`, converts the performance
-  preferences to an immutable byte-based `PerformanceSettings` startup snapshot,
-  and passes both settings objects plus the repository to `MainWindow`.
-- `MainWindow` injects `PerformanceSettings.difference_cache_bytes` into
-  `DifferencePanel`, which passes the fixed budget to `DifferenceMapCache`.
-  Neither the panel nor the cache reads persistence.
-- `MainWindow` also applies persisted Difference Threshold/Gain values to the
-  live `DifferencePanel` at startup and after Settings saves. Those display
-  defaults do not require restart.
-- `MainWindow` passes `require_exact_raw_file_size` into every RAW
-  `ImageLoadWorker`; JSON-sidecar auto-approval uses the same exact-versus-
-  minimum-size policy before skipping the profile dialog.
-- Default Open/Export folders are live preferences. A blank value preserves the
-  existing last-used-folder behavior; a configured existing folder only changes
-  the starting location of the corresponding file dialog.
-- `MainWindow` constructs `ResidencyManager` from
-  `PerformanceSettings.source_residency_bytes`. The manager never reads
-  persistence and the Difference cache remains a separate owner.
-- Runtime edits to startup-only performance values are persisted for the next
-  launch; existing runtime caches, managers, and preload controller are not mutated.
+  preference keys.
+- `Edit > Settings...` uses General, Files, and Performance pages.
+- Bootstrap converts persisted performance preferences to an immutable
+  byte-based `PerformanceSettings` runtime snapshot.
+- `MainWindow` injects Difference-cache and decoded-source budgets into their
+  independent runtime owners.
+- Default Open/Export folders are live preferences; blank retains remembered
+  last-used-folder behavior.
+- Exact RAW-size policy is passed into foreground and preload RAW loading paths.
 
 Schema version 5 owns:
 
@@ -85,372 +107,234 @@ Schema version 5 owns:
 - `settings/performance/source_residency_mib`
 - `settings/performance/preload_enabled`
 
-Schema v4 migrates directly to v5 and adds enabled preload without changing any
-v4 preference. Schema v3 migration still adds the source-residency preference. A
-legacy Difference-cache value valid in v3's 64–8192 MiB range is clamped to the
-new 1280 MiB maximum rather than replaced by the 128 MiB default. Malformed and
-genuinely invalid values normalize to validated defaults. Schema v2/v1 migration
-and legacy `raw/dont_show_json_profiles` input remain supported. A future schema
-version is not guessed or rewritten; the current process uses safe defaults and
-exposes application settings as read-only compatibility state.
+P3-B adds no key or schema migration. `RawDisplayState` is QApplication-session
+state and resets to 1× on a new application session. The generic display-gain core
+owns no persistence. P3-C must not imply a Settings schema change merely because
+ordinary-image presentation starts reusing that core; persistence would require a
+separate explicit decision.
 
-`Reset Settings` resets only schema-owned application preferences. It is
-separate from `Reset Workspace Layout` and does not remove window geometry,
-dock/splitter state, the remembered last-used directory, or unrelated QSettings
-keys.
+Schema v4 migrates directly to v5 and adds enabled preload without changing v4
+values. Schema v3 adds source-residency preference; valid legacy Difference-cache
+values are clamped to the current maximum rather than replaced. v2/v1 and legacy
+RAW confirmation keys remain supported. A future schema version is never guessed
+or destructively rewritten.
+
+`Reset Settings` resets only schema-owned application preferences. Workspace
+layout reset remains separate.
 
 ## Current workspace structure
 
 The central splitter contains Files/Analysis and the active workspace. Ordered
-selection is the comparison set; Difference Image 1/Image 2 controls own the
-comparison pair.
+selection is the comparison set; Difference Image 1/Image 2 controls own the pair.
 
-Workspace QSettings remain owned by `MainWindow` and related UI components.
-They persist main geometry, dock state, splitter state, layout mode, Plots
-visibility, selected bottom tab, floating Plots geometry, and last-directory
-state. These keys are not part of `ApplicationSettings`.
+Workspace QSettings own main geometry, dock state, splitter state, layout mode,
+Plots visibility, selected bottom tab, floating Plots geometry, and last-directory
+state. They are not duplicated into `ApplicationSettings`.
 
-Docking, splitter sizes, current layout, Plots visibility, and exact floating
-geometry are deliberately not duplicated as application preferences. The saved
-workspace is already the authoritative representation of those values; adding
-second default-setting owners would make restore/reset precedence ambiguous.
-
-The custom Plots title bar shares a maximize/restore state machine between its
-button and title double-click.
-
-Multi View uses one fixed layout policy. `_focus_document_id` retains explicit
+Multi View has one fixed layout policy. `_focus_document_id` retains explicit
 primary identity and `_multi_display_order` owns display promotion without
-mutating Files order or logical IDs. `MultiCompareView._fixed_geometry()` is the
-sole one-to-six geometry authority; no runtime arrangement registry, action,
-field, or persisted arrangement remains. When the document count and geometry
-are unchanged, a preserve-view rebind does not remove and re-add viewer widgets;
-this prevents resize-driven range changes during primary promotion.
-
-Split Channels applies target geometry and visibility before replacement content
-is bound, preserving atomic Bayer/RGB-to-GRAY transitions.
+mutating Files order. `MultiCompareView._fixed_geometry()` is the sole one-to-six
+geometry authority. Split Channels applies target geometry/visibility before
+replacement content to preserve atomic Bayer/RGB-to-GRAY transitions.
 
 ## Current thread, request, and document lifecycle
 
-A dedicated image-load pool runs at most two workers. A separate preload pool
-runs at most one worker, so speculative decode cannot occupy or queue behind a
-normal-load slot. The shared numerical pool runs at most four. Registered paths
-begin as lightweight pending documents.
+A dedicated image-load pool runs at most two workers. A separate preload pool runs
+at most one worker. The shared numerical pool runs at most four workers.
+Registered file paths begin as lightweight pending documents.
 
-Normal image-load stale-result validation primarily depends on the target
-document ID, `MainWindow._load_tokens`, the load-worker registry, and rejection
-of results from obsolete authority. `ImageLoadWorker` remains a physical work
-unit; `MainWindow` owns foreground authority and token acceptance.
+Foreground image-load correctness depends on document ID, load token, worker
+registry, generation/input identity, and stale-result rejection. Cancellation is
+advisory; result acceptance is the correctness boundary.
 
 Statistics/Histogram cache keys include document generation and operation
-parameters. P2-F also gives `ComparisonAnalysisPanel` an explicit current
-numerical-request identity over the loaded document/source identity, generation,
-channel-layout/Bayer semantics, ROI, and histogram specification. Rebinding the
-same selected analysis set during presentation-only Single View navigation is
-therefore idempotent: an identical scheduled request is not rescheduled, an
-identical running worker is not cancelled/recreated, and an identical completed
-result is not rerendered. A changed numerical identity still cancels obsolete
-work when present and follows the normal cache/recompute path. Line Profile
-continues to cache by generation and line coordinates.
+parameters. `ComparisonAnalysisPanel` also tracks current numerical-request
+identity so rebinding an identical analysis request does not cancel/restart it.
+Line Profile caches by generation/line coordinates.
 
-Decoded sources use a reloadable byte-budgeted working set. Pure-core
-`ResidencyManager` owns exact native-source byte accounting, LRU order,
-protected eviction planning, and minimal diagnostics without importing Qt or
-mutating documents. `MainWindow` owns document lookup and mutation. Its
-protected registered-ID set includes visible, selected, active/analysis,
-current Difference-pair, active normal-load targets, and any promoted preload
-that currently has foreground authority.
+### Display-gain runtime
 
-The budget is soft: protected sources may keep `used_bytes` above
-`budget_bytes`, including one source larger than the entire budget. Only
-unprotected resident sources are planned for oldest-first eviction. A released
-document sets source and preview to `None`, clears Statistics/Histogram and
-source-dependent channel-view state, becomes pending, updates its Files badge,
-and reloads through the existing load-token/worker path when required again.
-Successful loads refresh accounting from the new `source.nbytes`; stale or
-failed loads do not add resident bytes.
+The canonical `ImageDocument.preview` remains the 1× preview produced by load/read
+paths. In P3-B, `ImageViewer` consumes shared session RAW gain state:
+
+- gain 1× directly reuses `ImageDocument.preview`; no full-frame gain worker is
+  scheduled;
+- gain >1 derives a viewer-local preview from resident native source in the shared
+  numerical pool;
+- task/document/source/generation/gain identity is captured and checked before a
+  result can replace presentation;
+- gain changes never request source reload/decode or advance source generation;
+- hidden viewers cancel obsolete logical work and restore the canonical 1×
+  preview, releasing their gain>1 derived buffer;
+- when shown again they regenerate the current gain if needed;
+- toolbar gain-control subscriptions use QObject receiver lifetime, so a deleted
+  control cannot remain reachable as a Python closure from QApplication-global
+  `RawDisplayState`.
+
+The generic `ui.display_gain_shortcuts` command layer is scoped to
+`MainWindow.central_stack` with `WidgetWithChildrenShortcut`. Therefore `+` / `-`
+steps Display Gain only while focus is inside the image-presentation subtree;
+sibling widgets such as the Files tree keep native Qt key routing. Shortcut
+callbacks treat a destroyed toolbar control as inactive and do not touch shortcut
+wrappers during parent teardown, avoiding Qt sibling-destruction-order hazards.
+P3-C must reuse this command owner/focus/lifetime policy rather than creating a
+window-global duplicate.
+
+P3-C ordinary Display Gain must reuse this ownership model rather than introducing
+an analysis-owned or document-mutating gain path.
+
+## Current decoded-source residency boundary
+
+Pure-core `ResidencyManager` owns exact native `ImageDocument.source.nbytes`
+accounting, LRU order, protected eviction planning, and bounded diagnostics.
+`MainWindow` owns document lookup/mutation and Files-state updates.
+
+Protected registered sources include visible, selected, active/analysis,
+Difference-pair, foreground-load, and promoted-preload authorities as required.
+The budget is soft: protected sources may exceed it, including one required source
+larger than the configured budget. Only unprotected resident sources are evicted.
+
+Source eviction clears reloadable source/canonical preview/source-local analysis
+state and returns the document to pending; reload uses the existing tokenized
+worker path. Successful reload refreshes accounting from the new `source.nbytes`.
+
+Preview arrays, Qt textures, display-gain derived buffers, Difference maps,
+channel-split documents, transient worker arrays, Python/Qt overhead, and process
+RSS are outside decoded-source accounting. Difference maps remain under their own
+independent byte budget.
+
+## Current folder navigation, preload, and promotion boundary
 
 Pure-core `FolderNavigationPlan` is the single index authority for PageUp,
-PageDown, and next-position prediction. It accepts only one-to-six selected
-registered documents from distinct folders and returns no plan when any folder
-is at the requested endpoint. `MainWindow` alone applies the plan atomically.
+PageDown, and next-position prediction. One-to-six selected registered documents
+from distinct folders move atomically; any endpoint/invalid member makes the move
+a no-op.
 
-Pure-core `PreloadController` owns the current one-position target IDs, request
-generation, completion/active state, explicit running state, promotion state,
-and cheap bounded counters. `MainWindow` owns document/profile lookup, worker
-creation, cancellation requests, promotion eligibility, stale validation,
-result application, residency mutation, and Files-state updates. Only
-`plan(+1)` is preloaded after foreground loading becomes idle.
+Pure-core `PreloadController` owns one-position `plan(+1)` target identity,
+request generation, running/completion/promotion state, and bounded counters.
+`MainWindow` owns lookup, worker creation, cancellation requests, promotion
+eligibility, stale validation, result application, residency mutation, and Files
+state.
 
-Preload request identity captures plan generation, document generation, source
-path, RAW profile, exact-size policy, and the authoritative normal-load token.
-The existing `TaskWorker.started` signal marks an accepted preload request as
-physically RUNNING. Queued/not-started work is not promotion-eligible.
+Preload policy remains:
 
-### Running preload promotion
+- direction `+1` only;
+- depth exactly one Folder Position;
+- preload concurrency one;
+- normal-load pool max two;
+- preload pool max one;
+- speculative start only after foreground loading is idle.
 
-P2-E adds one narrow authority transition:
+An exact matching **RUNNING** preload can transfer logical authority to a new
+foreground request without migrating the physical worker. Eligibility includes
+exact document/generation/path/RAW-profile/exact-size/token identity, non-resident
+state, running/not-cancelled request state, and absence of duplicate normal work.
 
-```text
-speculative running preload
-        ↓ exact foreground request identity matches
-foreground authority promotion
-        ↓ same physical ImageLoadWorker stays in preload QThreadPool
-normal foreground success/failure semantics
-```
-
-Promotion is not thread migration and does not create a generic scheduler. The
-physical worker remains in the dedicated max-one preload pool. Only its logical
-runtime authority changes from speculative to foreground-required.
-
-Before selection/navigation invalidates the old preload plan, `MainWindow`
-checks future foreground-required document IDs for a matching RUNNING preload.
-Eligibility requires all of the following to remain exact:
-
-- target document ID and registered-document existence,
-- document generation,
-- source-path identity,
-- RAW profile identity,
-- exact RAW-size policy,
-- the captured normal-load token,
-- non-resident source state,
-- worker present and physically RUNNING,
-- no prior cancellation,
-- no stale/superseded request,
-- no normal foreground worker already decoding the same target.
-
-On acceptance, `PreloadController` records the request as promoted and removes it
-from speculative active/cancellation ownership. `MainWindow` advances the
-normal-load token to create current foreground authority, marks the document
-Loading, protects it as foreground-required residency input, and continues the
-selection/navigation transition. Subsequent old-plan invalidation skips the
-promoted worker. `_ensure_loaded()` therefore does not start a duplicate normal
-worker for that document.
-
-A promoted worker remains physically present in `_preload_workers` until it
-finishes. Consequently no new speculative preload starts while that promoted
-foreground decode is still using the max-one preload pool. Other foreground
-members of a pair/group remain free to use the ordinary max-two normal pool; P2-E
-does not attempt to promote a whole group.
-
-Promoted success is validated again against current document/request/token/RAW
-identity and then delegated exactly once to the existing normal
-`_load_succeeded()` path. This preserves document identity/generation, exact
-`source.nbytes` residency accounting, MRU touch, Files residency state,
-selected-batch render gating, ordinary eviction, and Ready/status behavior. The
-same result is never first applied as speculative success and then applied again
-as foreground success.
-
-Promoted failure is likewise delegated exactly once to `_load_failed()` when the
-foreground authority is still current. It therefore uses the normal document
-error/status path and P2-D `foreground-load/decode` Recent Failure category; it
-is not also recorded as a speculative preload failure.
-
-If foreground navigation moves away before completion, `_cancel_obsolete_loads()`
-handles the promoted worker as foreground authority: cancellation is requested,
-the foreground token is invalidated, and Loading may return to pending. As with
-all other asynchronous loading, cancellation remains advisory. A decoder that
-finishes late cannot apply its result because token/generation/request identity
-is the correctness authority.
-
-Completed speculative preload behavior is unchanged: a valid result enters
-ordinary source residency with no speculative protection and may be evicted
-immediately. Already-resident next targets remain the immediate-reuse fast path.
-Unmatched/stale/cancelled/not-started preload requests fall back to the existing
-normal-load correctness path.
-
-The preload policy itself remains unchanged by promotion and P2-F: direction
-`+1` only, depth exactly one Folder Position, preload concurrency fixed one,
-normal pool max two, and preload pool max one. Previous/bidirectional/deeper
-preload, worker-count settings, CPU aggressiveness, and broader resource tuning
-remain post-P2 evidence-driven optimization candidates.
+Promoted success/failure delegates exactly once to the normal foreground paths.
+Promotion preserves original document identity, exact source accounting, MRU/Files
+state, render gating, error semantics, and stale-result rules. It does not promote
+an entire group or change pool limits.
 
 ## Current runtime diagnostics lifecycle
 
-P2-D established deterministic, inexpensive, sanitized runtime observability for
-automated validation, P2-F characterization, and support troubleshooting. The
-only end-user surface is an on-demand `Help > Copy Diagnostics` action.
+`RuntimeDiagnosticsSnapshot` and nested source/Difference/preload/worker/failure
+values are frozen, deterministic, bounded, sanitized, and observation-only.
+`MainWindow.runtime_diagnostics_snapshot()` is the sole runtime aggregator.
 
-`RuntimeDiagnosticsSnapshot` and its nested source, Difference-cache, worker-pool,
-and failure values are frozen, Qt-free domain models. The snapshot reuses the
-existing `PreloadDiagnostics` value instead of introducing duplicate preload
-state. P2-E adds only one cumulative counter, `promotion_count`.
+Diagnostics may read counters and ownership state but may not touch LRUs, trigger
+load/preload/Difference/rendering, mutate selection, or scan files. Recent failure
+history is bounded to ten accepted failures and sanitized for paths, credentials,
+bearer values, URL detail, multiline traceback context, and excess length.
 
-`MainWindow.runtime_diagnostics_snapshot()` is the sole runtime aggregator. It
-reads `ResidencyManager` byte/count properties, `DifferenceMapCache` byte/entry
-properties, the foreground/preload worker registries and pool maxima, existing
-preload diagnostics, the foreground stale-drop counter, and a ten-entry recent
-failure deque. It does not call cache `get()`, residency `touch()`, preload plan
-refresh, worker start/cancel, selection/render, or filesystem discovery.
-
-A promoted physical preload worker is classified by logical authority: it is
-counted once as foreground activity and excluded from speculative preload active
-counts. `PreloadDiagnostics.active_worker_count` likewise represents only
-speculative active requests. **Copy Diagnostics** includes
-`Promoted to foreground: N`. The physical pool limits remain normal max two and
-preload max one; promotion does not change either limit.
-
-Foreground load token/document rejections increment the foreground stale counter.
-Accepted current foreground-load and speculative-preload failures enter the
-recent deque with a subsystem/category, exception type, and short message. A
-promoted failure uses the foreground path only. A speculative preload failure
-from an obsolete cancelled or replanned generation is rejected by
-`PreloadController.record_failure()` before it can enter recent failure history.
-Sanitization removes Windows/POSIX absolute paths, URL detail, complete
-credential-like assignment values including unquoted multi-word values, bearer
-values, multiline traceback context, and excess length; raw traceback and image
-content are never stored in diagnostics.
-
-`format_runtime_diagnostics()` is pure and emits a fixed section/field order with
-no timestamp. `MainWindow.copy_diagnostics()` takes one current snapshot, formats
-it once, copies that exact sanitized text to `QApplication.clipboard()`, and shows
-`Diagnostics copied to clipboard` in the status bar. There is no diagnostics
-modal, live monitor, timer, refresh control, or diagnostics text-file export.
-Copying remains observation-only with respect to workers, navigation, render,
-preload counters/policy, and both LRU owners.
+The only end-user surface is **Help > Copy Diagnostics**. It formats one snapshot,
+copies that exact text to the clipboard, and shows a short status confirmation.
+There is no live monitor, timer, refresh loop, modal diagnostics viewer, or file
+export.
 
 ## Current Difference lifecycle
 
-P3-A gives pure-core `difference_compatibility()` authority over Difference
-family compatibility and domain selection. Its structured result carries
-compatibility, Gray/RGB/Bayer family, native/normalized domain, short reason code,
-detailed reason, both effective bit depths, and data range. Qt code consumes this
-result rather than parsing free-form validation text.
+P3-A gives pure-core `difference_compatibility()` authority over family
+compatibility and native-versus-normalized domain selection.
 
-Equal-bit pairs use the existing `compact_absolute_difference()` native fast path
-and effective full-scale data range. Mixed-bit pairs independently scale native
-source values by their own effective full scales and build one canonical float32
-absolute map in `[0,1]`; the computation is chunked and does not build full-size
-float64 normalized arrays. Floating metrics accumulate mean/squared error in
-bounded chunks and derive P95/P99 from a deterministic 65,536-level histogram.
-The normalized quantile error contract is at most `1/65535` full scale.
+- Equal effective bit depth uses compact native absolute Difference and effective
+  full-scale data range.
+- Mixed effective depth independently scales each native source by its own full
+  scale and builds one canonical float32 absolute map in `[0,1]`.
+- Normalized computation/metrics are chunked; P95/P99 use a deterministic 65,536-
+  level histogram with error contract at most `1/65535` full scale.
+- `CachedDifferenceMap` stores domain/data-range/family/layout/Bayer metadata while
+  retaining order-independent generation-pair identity.
+- Source residency and Difference-cache ownership remain independent.
 
-`DifferenceMapCache` owns order-independent absolute maps with a startup-selected
-byte budget, LRU promotion/eviction, oversized-map rejection, and `used_bytes`,
-`budget_bytes`, and `entry_count` diagnostics. Every `CachedDifferenceMap` stores
-`domain`, `data_range`, family/layout, and Bayer pattern when applicable. The
-existing generation-pair key remains sufficient because family/domain are
-deterministic from the two document generations. Metric and preview entries are
-invalidated when a map leaves the cache. Source residency remains independent.
-
-P2-A2 persists the Difference Map Cache preference in MiB with a 128 MiB default
-and 64–1280 MiB validation range. Startup converts MiB to bytes in frozen
-`PerformanceSettings` and injects that value through `MainWindow` →
-`DifferencePanel` → `DifferenceMapCache`. Saving a different value during the
-session does not mutate the existing cache; the Settings dialog reports
-restart-required state against the startup snapshot.
-
-P2-B persists Decoded Source Memory independently with a 256 MiB default,
-128–2560 MiB validation range, and 128 MiB UI increment. Saving either
-startup-only budget never mutates its current runtime owner; the Settings dialog
-compares both editable values with the startup snapshot for restart indication.
-The dialog detects installed physical RAM without a production dependency. It
-accepts the two configured budgets when their sum is at most 50% of detected RAM
-and otherwise rejects Save without mutating either field. If detection fails,
-only product bounds apply. This guard is deliberately conservative; it does not
-model previews, Qt textures, workers, Python overhead, or protected soft-budget
-overage and therefore is not an out-of-memory guarantee.
-
-P2-C persists **Preload Next Folder Position**, enabled by default. It is the
-third startup-only Performance setting and participates in the same restart
-indication/revert/reset contract without changing the two memory budgets. P2-E
-and P2-F add no Performance setting.
-
-Difference Gain and the native-domain code Threshold are persisted analysis
-display defaults. They are applied to `DifferencePanel` when `MainWindow` starts
-and immediately after a Settings save; changing them does not require restart.
-P3-A does not extend schema v5: normalized threshold is a separate session-local
-panel value, starts at `1.00 %FS`, and converts to `[0,1]` only when rendering a
-normalized mask. Difference-map memory and decoded-source residency remain
-separate policies.
-
-## Current source-memory boundary
-
-`ImageDocument.from_array()` retains both native source and preview. Decoded
-Source Memory accounts only registered native `ImageDocument.source.nbytes`.
-Registered programmatic sources without a reload path are counted and protected
-rather than discarded. Preview arrays, Qt textures, Difference and
-derived caches, channel-split documents, transient worker arrays, Python/Qt
-object overhead, and process RSS are outside that accounting. The Files green
-residency state means the registered document's native source is currently
-resident; it does not describe Difference-map cache state.
+Difference Threshold/Gain are separate Difference-panel presentation settings.
+P3-A Difference never reads Display Gain/RAW Gain, `RawProfile.black_level`,
+`RawProfile.white_level`, `DisplayTransform`, or preview pixels.
 
 ## Current RAW boundary
 
 `RawProfile` separates storage format, sample container, effective bit depth,
-endian, alignment, dimensions, stride, offset, and grayscale/Bayer layout.
-MIPI RAW10/12/14 have fixed packing rules. Decoding returns native grayscale or
-Bayer mosaic arrays. Demosaic, black/white-level processing, and profile
-suggestion remain outside the current implementation.
+endian, alignment, dimensions, stride, offset, grayscale/Bayer layout,
+`black_level`, and `white_level`. MIPI RAW10/12/14 retain fixed packing rules.
+Decoding returns native grayscale or Bayer mosaic arrays in
+`ImageDocument.source`.
 
-The persistent RAW JSON confirmation preference is exposed through the General
-Settings page rather than the File menu. The RAW open dialog may still set the
-same typed preference when the user chooses its "don't show again" option; that
-single-field update preserves every other current preference.
+RAW presentation policy is layered on the generic gain core:
 
-`Require Exact RAW File Size` is also a General preference. When disabled,
-trailing bytes are allowed and undersized RAW files are rejected. When enabled,
-the source byte count must exactly equal the profile requirement. The same rule
-controls worker decoding, JSON-sidecar auto-approval, and preload/promotion
-identity matching.
+- `raw_full_scale(bit_depth)` defines `0..((1 << bit_depth) - 1)` display range;
+- 1× never subtracts Black or uses White as display high;
+- RAW Gray scalar Black is the gain anchor;
+- schema-compatible GRAY tuple Black uses the legacy deterministic `min(tuple)`
+  global anchor;
+- Bayer tuple Black uses R/Gr/Gb/B CFA parity-specific anchors;
+- split Bayer planes use their named channel anchor;
+- Bayer parity-plane processing creates no full-size Black map;
+- gain/range mapping uses float32 fused affine processing where possible;
+- clipping occurs only during final uint8 conversion;
+- `white_level` remains metadata only under P3-B.
 
-## P2-F characterization boundary
+The base document preview is 1× effective-full-scale presentation. Higher RAW gain
+is viewer-local and on-demand. Demosaic, white balance, CCM, tone mapping,
+processed-RAW analysis, optical-Black estimation, and profile suggestion remain
+outside P3-B.
 
-P2-F does not add a new production ownership layer. It exercises the existing
-`io`, `core`, `workers`, `ui`, and `app` boundaries and records evidence against
-their existing contracts. A focused `ComparisonAnalysisPanel` lifecycle hardening
-is permitted because Windows characterization demonstrated duplicate identical
-analysis preparation/cancellation during presentation-only navigation; this does
-not introduce a new scheduler or ownership boundary.
+The persistent RAW JSON confirmation and exact-size preferences remain General
+Settings concerns. The same exact-size policy governs foreground loading,
+JSON-sidecar auto-approval, preload, and promotion identity.
 
-The representative performance matrix uses FHD RGB uint8, FHD grayscale uint16,
-and UHD Bayer uint16 profile-described RAW synthetic/temp data; the existing real
-4K RGB and RGGB10-u16 integration fixtures remain complementary coverage. The
-matrix observes raw-document load/Bayer analysis/difference/metric/threshold
-timings when useful, but elapsed time is never an automated PASS/FAIL condition.
-Deterministic shape, dtype, values/counts, native byte accounting, Difference
-results, worker ownership, decode count, request identity, and stale-result
-rejection are the merge gates.
+## P3-C extension boundary
 
-Source residency and `DifferenceMapCache` remain independent byte-budget owners.
-P2-F does not add process-RSS accounting and does not reinterpret preview arrays,
-Qt textures, derived caches, worker temporaries, or Python/Qt overhead as source
-residency. Completed speculative preload remains ordinary unprotected residency;
-a promoted running preload uses foreground-required protection through the
-existing authority path.
+P3-C may extend the P3-B generic gain core to ordinary images with these fixed
+architecture constraints:
 
-Diagnostics remain observation-only and sanitized. Characterization may read the
-snapshot API but may not introduce a live monitor, timer, export surface, LRU
-touch, load/preload/cancellation, render, Difference calculation, or filesystem
-scan as a side effect of observation.
+- Gray/RGB use `anchor=0`;
+- RGBA applies gain to RGB while preserving alpha;
+- user-facing terminology is **Display Gain** or **Gain**, never Exposure;
+- 1× is identity and should use a no-work/reuse fast path;
+- clipping is deterministic and presentation-only;
+- source/generation/residency and Statistics/Histogram/Line Profile/Difference
+  inputs remain unchanged;
+- asynchronous work, if required for large ordinary images, uses explicit request
+  identity and stale-result rejection;
+- `+` / `-` command ownership remains `central_stack` /
+  `WidgetWithChildrenShortcut`; Files-tree native expand/collapse must stay intact;
+- tests cover Gray/RGB/RGBA, alpha preservation, clipping, 1× identity, analysis
+  independence, command/control synchronization, and Files-tree key routing.
 
-There is currently no GitHub Actions workflow. A Windows Qt gate is deferred
-until PySide6/pytest-qt/offscreen reliability and suite runtime/resource use can
-be observed on the target runner. P2-F therefore keeps owner/local Windows
-validation as authoritative closure evidence; packaging/installer CI remains P7.
+P3-C does not gain authority to create a processed-image analysis domain merely
+because viewer display is transformed.
 
-## P2 boundary status
+## P2/P3 boundary status
 
-The P2 runtime boundaries for settings, source residency, bounded preload,
+P2 runtime boundaries for settings, source residency, bounded preload,
 deterministic diagnostics, and running-preload foreground reuse were completed by
-PR #20 without a broad `MainWindow` rewrite. P3-A preserves those ownership
-boundaries: `DifferencePanel` owns Difference family/domain/cache/threshold
-semantics while `MainWindow` continues to integrate the derived result into the
-existing viewer lifecycle.
-
-## P2 request and cancellation target
-
-Normal load, speculative preload, promoted foreground authority, and numerical
-analysis work require explicit request identity or generation/input validation
-before results are applied. Cancellation means obsolete work should be requested
-to stop when possible; it does not guarantee a running decoder or numerical
-kernel halts immediately. For that reason, an unchanged numerical analysis
-request must not be cancelled and recreated merely because presentation state is
-rebound. Stale-result rejection remains mandatory after genuinely obsolete work
-is cancelled.
+PR #20. P3-A preserves them for Difference. P3-B preserves them while adding a
+generic display-transform primitive and RAW-only activation: neither the generic
+core nor `RawDisplayState` becomes a Settings, source-residency, preload,
+Difference-cache, or processed-source owner.
 
 ## Extension and packaging boundaries
 
-Remote REST DTO/client boundaries remain independent of widgets. All syntax and
-APIs target CPython 3.10. Packaged resources must work with exactly PyInstaller
-5.7 `onedir` and must not depend on the source tree or current working directory.
+Remote REST DTO/client boundaries remain independent of widgets. All syntax/APIs
+target CPython 3.10. Packaged resources must work with exactly PyInstaller 5.7
+`onedir` and must not depend on the source tree or current working directory.
 Packaging/signing is P7; credentials and access policy are P6.

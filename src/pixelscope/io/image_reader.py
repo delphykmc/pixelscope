@@ -5,9 +5,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from pixelscope.core.bayer import render_bayer_preview
 from pixelscope.core.display_transform import DisplayTransform
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.raw_display import raw_full_scale, render_raw_preview
 
 
 class ImageReadError(ValueError):
@@ -54,8 +54,16 @@ def read_raw_document(path: str | Path, profile_path: str | Path) -> ImageDocume
     profile = RawProfile.load_json(profile_path)
     source = read_raw(source_path, profile)
     transform = DisplayTransform(
-        black_level=profile.display_black_level,
-        white_level=profile.white_level,
+        display_low=0.0,
+        display_high=float(raw_full_scale(profile.bit_depth)),
+    )
+    preview = render_raw_preview(
+        source,
+        channel_layout=profile.channel_layout,
+        bit_depth=profile.bit_depth,
+        black_level=profile.black_level,
+        bayer_pattern=profile.bayer_pattern,
+        gain=1.0,
     )
     return ImageDocument.from_array(
         source,
@@ -65,7 +73,5 @@ def read_raw_document(path: str | Path, profile_path: str | Path) -> ImageDocume
         bit_depth=profile.bit_depth,
         raw_profile=profile,
         display_transform=transform,
-        prepared_preview=(
-            render_bayer_preview(source, transform) if profile.channel_layout == "BAYER" else None
-        ),
+        prepared_preview=preview,
     )

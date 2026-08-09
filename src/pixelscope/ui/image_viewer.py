@@ -3,6 +3,7 @@ from __future__ import annotations
 from math import ceil, cos, floor, radians, sin
 from typing import Any
 
+import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import (
     QEvent,
@@ -11,17 +12,36 @@ from PySide6.QtCore import (
     QRectF,
     QSignalBlocker,
     Qt,
+    QThreadPool,
     QTimer,
     Signal,
 )
-from PySide6.QtGui import QColor, QKeyEvent, QKeySequence, QPainter, QPen, QShortcut
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsSceneResizeEvent, QVBoxLayout, QWidget
+from PySide6.QtGui import (
+    QColor,
+    QHideEvent,
+    QKeyEvent,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QShortcut,
+    QShowEvent,
+)
+from PySide6.QtWidgets import (
+    QGraphicsItem,
+    QGraphicsSceneResizeEvent,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection, clamp_line
+from pixelscope.core.raw_display import render_raw_preview
 from pixelscope.core.roi import RoiBounds, clamp_roi
+from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import tile_style
+from pixelscope.ui.raw_display import raw_display_state
 from pixelscope.ui.tile_header import TileHeader
+from pixelscope.workers.task_worker import TaskWorker
 
 
 class LoadingSpinnerItem(QGraphicsItem):
@@ -145,6 +165,7 @@ class ImageViewer(QWidget):
     focus_requested = Signal(object)
     navigation_requested = Signal(str)
     zoom_changed = Signal(float)
+    document_changed = Signal(object)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -152,6 +173,12 @@ class ImageViewer(QWidget):
         self._document: ImageDocument | None = None
         self._pending_document: ImageDocument | None = None
         self._displayed_preview: object | None = None
+        self._displayed_raw_gain: float | None = None
+        self._raw_preview_worker: TaskWorker | None = None
+        self._raw_preview_request_serial = 0
+        self._raw_preview_request_identity: tuple[int, int, int, float] | None = None
+        self._raw_display_state = raw_display_state()
+        self._raw_display_state.gain_changed.connect(self._raw_display_gain_changed)
         self._slot = 1
         self._role = ""
         self._cursor_enabled = True
@@ -225,6 +252,10 @@ class ImageViewer(QWidget):
     def document(self) -> ImageDocument | None:
         return self._document
 
+    @property
+    def presented_document(self) -> ImageDocument | None:
+        return self._pending_document or self._document
+
     def set_header(self, text: str) -> None:
         self.header.set_document(
             self._pending_document or self._document,
@@ -277,9 +308,11 @@ class ImageViewer(QWidget):
     def set_document(self, document: ImageDocument | None, fit: bool = True) -> None:
         previous = self._document
         if document is None:
+            self._cancel_raw_preview()
             self._document = None
             self._pending_document = None
             self._displayed_preview = None
+            self._displayed_raw_gain = None
             self.image_item.clear()
             self._loading_item.hide()
             self._loading_timer.stop()
@@ -288,14 +321,17 @@ class ImageViewer(QWidget):
             self._roi.hide()
             self._line_item.hide()
             self.header.set_document(None, self._slot, self._role)
+            self.document_changed.emit(None)
             return
         if document.preview is None:
+            self._cancel_raw_preview()
             self._pending_document = document
             clear_previous = document.channel_layout.startswith("CHANNEL_")
             if clear_previous or previous is None or previous.preview is None:
                 self._document = None
                 self.image_item.clear()
                 self._displayed_preview = None
+                self._displayed_raw_gain = None
             self._position_loading_item()
             self._loading_item.setVisible(document.loading_state != "error")
             if document.loading_state != "error":
@@ -303,8 +339,18 @@ class ImageViewer(QWidget):
             else:
                 self._loading_timer.stop()
             self.header.set_document(document, self._slot, self._role, self.header.text())
+            self.document_changed.emit(document)
             return
-        preview_changed = self._displayed_preview is not document.preview
+
+        raw_profile = document.raw_profile if isinstance(document.raw_profile, RawProfile) else None
+        desired_gain = self._raw_display_state.gain if raw_profile is not None else None
+        reuse_raw_preview = (
+            previous is document
+            and desired_gain is not None
+            and self._displayed_raw_gain == desired_gain
+            and self._displayed_preview is not None
+        )
+        preview_changed = not reuse_raw_preview and self._displayed_preview is not document.preview
         self._document = document
         self._pending_document = None
         self._loading_item.hide()
@@ -312,6 +358,7 @@ class ImageViewer(QWidget):
         if preview_changed:
             self.image_item.setImage(document.preview, autoLevels=False, levels=(0, 255))
             self._displayed_preview = document.preview
+            self._displayed_raw_gain = 1.0 if raw_profile is not None else None
         self.header.set_document(
             document,
             self._slot,
@@ -320,6 +367,141 @@ class ImageViewer(QWidget):
         )
         if preview_changed and (fit or previous is None or previous.preview is None):
             self.fit_image()
+        self.document_changed.emit(document)
+        self._ensure_raw_display_preview()
+
+    def _raw_display_gain_changed(self, _gain: float) -> None:
+        self._ensure_raw_display_preview()
+
+    def _ensure_raw_display_preview(self) -> None:
+        document = self._document
+        if document is None or document.source is None or document.preview is None:
+            self._cancel_raw_preview()
+            return
+        profile = document.raw_profile
+        if not isinstance(profile, RawProfile):
+            self._cancel_raw_preview()
+            self._displayed_raw_gain = None
+            return
+
+        gain = self._raw_display_state.gain
+        if gain == 1.0:
+            self._cancel_raw_preview()
+            if self._displayed_preview is not document.preview:
+                self.image_item.setImage(document.preview, autoLevels=False, levels=(0, 255))
+                self._displayed_preview = document.preview
+            self._displayed_raw_gain = 1.0
+            return
+        if self._displayed_raw_gain == gain:
+            return
+        if not self.isVisible():
+            self._cancel_raw_preview()
+            return
+
+        source = document.source
+        identity = (id(document), id(source), document.generation, gain)
+        if self._raw_preview_request_identity == identity and self._raw_preview_worker is not None:
+            return
+
+        self._cancel_raw_preview()
+        request_serial = self._raw_preview_request_serial
+        worker = TaskWorker(
+            render_raw_preview,
+            source,
+            document_id=document.document_id,
+            generation=document.generation,
+            channel_layout=document.channel_layout,
+            bit_depth=document.bit_depth,
+            black_level=profile.black_level,
+            bayer_pattern=profile.bayer_pattern,
+            gain=gain,
+        )
+        worker.signals.succeeded.connect(
+            lambda task_id, document_id, generation, result: self._raw_preview_succeeded(
+                task_id,
+                document_id,
+                generation,
+                result,
+                request_serial=request_serial,
+                expected_document=document,
+                expected_source=source,
+                expected_gain=gain,
+            )
+        )
+        worker.signals.finished.connect(self._raw_preview_finished)
+        self._raw_preview_worker = worker
+        self._raw_preview_request_identity = identity
+        QThreadPool.globalInstance().start(worker)
+
+    def _raw_preview_succeeded(
+        self,
+        task_id: str,
+        document_id: object,
+        generation: int,
+        result: object,
+        *,
+        request_serial: int,
+        expected_document: ImageDocument,
+        expected_source: Any,
+        expected_gain: float,
+    ) -> None:
+        worker = self._raw_preview_worker
+        document = self._document
+        if (
+            worker is None
+            or worker.task_id != task_id
+            or request_serial != self._raw_preview_request_serial
+            or document is not expected_document
+            or document_id != expected_document.document_id
+            or generation != expected_document.generation
+            or document.source is not expected_source
+            or self._raw_display_state.gain != expected_gain
+            or not self.isVisible()
+        ):
+            return
+        if not isinstance(result, np.ndarray) or result.dtype != np.uint8:
+            return
+        if expected_document.preview is None or result.shape != expected_document.preview.shape:
+            return
+        self.image_item.setImage(result, autoLevels=False, levels=(0, 255))
+        self._displayed_preview = result
+        self._displayed_raw_gain = expected_gain
+
+    def _raw_preview_finished(self, task_id: str) -> None:
+        worker = self._raw_preview_worker
+        if worker is not None and worker.task_id == task_id:
+            self._raw_preview_worker = None
+            self._raw_preview_request_identity = None
+
+    def _cancel_raw_preview(self) -> None:
+        self._raw_preview_request_serial += 1
+        worker = self._raw_preview_worker
+        if worker is not None:
+            worker.cancel()
+        self._raw_preview_worker = None
+        self._raw_preview_request_identity = None
+
+    def _release_derived_raw_preview(self) -> None:
+        document = self._document
+        if (
+            document is None
+            or document.preview is None
+            or not isinstance(document.raw_profile, RawProfile)
+            or self._displayed_preview is document.preview
+        ):
+            return
+        self.image_item.setImage(document.preview, autoLevels=False, levels=(0, 255))
+        self._displayed_preview = document.preview
+        self._displayed_raw_gain = 1.0
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        self._ensure_raw_display_preview()
+
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
+        self._cancel_raw_preview()
+        self._release_derived_raw_preview()
+        super().hideEvent(event)
 
     def _position_loading_item(self, *_args: object) -> None:
         x_range, y_range = self.view_box.viewRange()

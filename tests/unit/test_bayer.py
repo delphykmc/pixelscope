@@ -146,8 +146,8 @@ def test_vertical_bayer_line_retains_every_other_source_position() -> None:
 
 def test_bayer_preview_and_channel_views_are_visually_distinct() -> None:
     source = _rggb_source()
-    transform = DisplayTransform(black_level=0, white_level=1023)
-    preview = render_bayer_preview(source, transform)
+    transform = DisplayTransform(display_low=0.0, display_high=1023.0)
+    preview = render_bayer_preview(source, "RGGB", (0, 0, 0, 0), 10)
     assert preview.shape == (4, 4, 3)
     assert np.all(preview[..., 1] >= preview[..., 0])
     document = ImageDocument.from_array(

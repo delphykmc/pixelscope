@@ -222,8 +222,8 @@ def test_bayer_reference_images_match_the_decoded_raw_preview() -> None:
     raw14_profile = RawProfile.load_json(DATASET / raw14_entry["profile"])
     raw14 = read_raw(DATASET / raw14_entry["raw"], raw14_profile)
     transform = DisplayTransform(
-        black_level=raw14_profile.display_black_level,
-        white_level=raw14_profile.white_level,
+        display_low=0.0,
+        display_high=float((1 << raw14_profile.bit_depth) - 1),
     )
 
     source_rgb = read_image(DATASET / references["source_rgb"])
@@ -239,5 +239,10 @@ def test_bayer_reference_images_match_the_decoded_raw_preview() -> None:
     )
     np.testing.assert_array_equal(
         pixelscope_preview.source,
-        render_bayer_preview(raw14, transform),
+        render_bayer_preview(
+            raw14,
+            raw14_profile.bayer_pattern or "RGGB",
+            raw14_profile.black_level,
+            raw14_profile.bit_depth,
+        ),
     )

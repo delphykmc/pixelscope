@@ -56,7 +56,8 @@ and workflow state are built around them.
 
 P3-0 is complete as PR #21 at
 `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`; implementation slices start from
-the latest merged P3 prerequisite.
+the latest merged P3 prerequisite. P3 roadmap replanning merged as PR #23 at
+`4c7d1bbbb4476134f76a204578098d35a03feca2`.
 
 ### P3-0 — Program transition — Complete
 
@@ -80,56 +81,97 @@ The completed contract is:
 - same effective bit depth uses native code-domain Difference;
 - different effective bit depths normalize each source by its own effective
   full-scale code value to `[0,1]` and use `%FS` threshold semantics;
-- RAW black/white metadata and display transforms do not define P3-A Difference
+- RAW Black/White metadata and display transforms do not define P3-A Difference
   normalization.
 
 P3-A also delivers explicit Gray channel support, bounded float32 mixed-bit
 Difference/metrics, cache domain metadata, compact Scope/Domain UI, and short
 validation reasons with detailed tooltips.
 
-### P3-B — RAW Native & Display Semantics
+### P3-B — RAW Native & Display Semantics — Implementation Complete
 
-Keep PixelScope centered on engineering inspection rather than silently turning
-RAW loading into a RAW-conversion pipeline.
+P3-B is implemented on `feature/p3-b-raw-native-display-semantics`. Owner/local
+Windows quality validation passed on
+`424144215b1df97c71a84ddca79a17bfccb1feef`, including the generic Display Gain
+core, RAW Gain runtime behavior, and `+` / `-` stepping. Final independent
+re-review found one merge blocker on that validated head: window-wide gain
+shortcuts intercepted the Files tree's native `+` / `-` expand/collapse keys. The
+review follow-up scopes gain shortcuts to the image-presentation subtree and adds
+real key-routing coverage; latest-head revalidation and merge remain pending.
+
+Delivered contract:
 
 - Native decoded RAW remains the authoritative source and is not modified by
-  black/white metadata or viewer controls.
-- Keep existing `black_level` and `white_level` RAW-profile metadata.
-- At 1× display gain, the viewer shows the native RAW code domain using effective
-  bit depth/full-scale for display mapping rather than subtracting black level.
-- When display gain is applied, anchor the transform at black level:
-  `display = black + gain * (native - black)`.
-- Bayer profiles may use their existing R/Gr/Gb/B black levels as channel-specific
-  display anchors.
-- P3-B does not apply `white_level` to native or gained display mapping; effective
-  full scale remains the display-range authority. White is retained as metadata
-  for future explicit tone-map or processed-RAW features.
+  Black/White metadata or viewer controls.
+- Existing `black_level` and `white_level` RAW-profile metadata remain schema- and
+  JSON-compatible; Settings stays at schema v5.
+- At 1× display gain, RAW maps native code `0..((1 << bit_depth) - 1)` to the
+  preview range. Black is not subtracted and White is not promoted to full scale.
+- P3-B introduces a **generic anchor-based display-gain core**:
+  `display = anchor + gain * (source - anchor)`.
+- The generic core is presentation-only and is not RAW-metadata-aware. RAW adapters
+  supply the anchor policy: scalar Black for RAW Gray, channel-specific R/Gr/Gb/B
+  Black for Bayer where available, and the legacy `min(tuple)` anchor for
+  schema-compatible GRAY tuple profiles.
+- The core naturally supports `anchor=0` and operation on channel views so later
+  ordinary Gray/RGB/RGBA presentation can reuse it without a second gain engine.
+- P3-B **activates the gain UI/runtime only for RAW**. Ordinary Gray/RGB/RGBA
+  images remain unchanged in this slice.
+- Gain/range mapping uses float32 fused affine processing where possible. It does
+  not create a full-size Bayer Black map or promote full-frame gain math to
+  float64.
+- `white_level` remains metadata only for P3-B display; effective full scale is
+  the RAW display-range authority.
 - Pixel inspection, Statistics, Histogram, Line Profile source data, Split
-  Channels, and P3-A Difference remain native-domain operations.
-- Gain is display-only; it must not mutate `ImageDocument.source` or silently
-  create a new analysis domain.
-- Preserve black/white metadata for future explicit processing without adding
-  those processing stages in P3-B.
+  Channels, source residency, and P3-A Difference remain native-domain operations.
+- The compact session-local `RAW Gain` control provides 1×/2×/4×/8×/16×. The same
+  gain is shared across visible RAW tiles in Single/Multi View; ordinary images
+  are unaffected.
+- The `+` / `-` gain commands are scoped to the image-presentation subtree with
+  `WidgetWithChildrenShortcut`. Files keeps Qt-native `+` / `-` folder
+  expand/collapse whether RAW Gain is enabled or disabled.
+- The viewer keeps a 1× fast path using the canonical document preview. Gain >1
+  uses resident native source and the shared numerical worker pool; stale async
+  results are rejected without source reload/decode, generation changes,
+  residency-policy changes, or Difference-cache invalidation.
+- Hidden viewers release gain>1 derived presentation buffers and regenerate the
+  current gain when shown again.
 
-### P3-C — RAW Visualization & Inspection Improvements
+P3-B intentionally adds no ordinary-image gain UI, demosaic, white balance, CCM,
+tone mapping, processed RAW document, processed analysis mode, persistence,
+Settings migration, or resource-policy redesign.
 
-Improve RAW observability without introducing a partial RAW converter.
+### P3-C — RAW Visualization & Inspection Improvements + Display Gain Extension
 
-Candidate scope:
+P3-C reuses the P3-B generic display-gain core rather than creating a second
+ordinary-image gain implementation. It also reuses the P3-B presentation-scoped
+keyboard-command policy rather than adding a window-global shortcut owner.
 
-- make RAW display gain/exposure inspection clearer and easier to use;
-- optional clipping/highlight or shadow visualization where it materially helps
-  sensor/ISP inspection;
+Committed Display Gain scope:
+
+- extend viewer-only gain to ordinary Gray and RGB using `anchor=0`;
+- support RGBA presentation with the same RGB gain while preserving alpha;
+- use the user-facing term **Display Gain** or **Gain**; do not label this feature
+  **Exposure**;
+- preserve native Gray/RGB/RGBA source arrays and keep Statistics, Histogram,
+  Line Profile, Difference, residency, and cache semantics independent of gain;
+- retain a 1× identity/fast path and deterministic final clipping;
+- retain viewer-scoped `+` / `-` stepping and preserve Files-tree native
+  expand/collapse behavior;
+- test 1× identity, clipping, Gray, RGB, RGBA alpha preservation, analysis
+  independence, command/control synchronization, and Files-tree key routing.
+
+Additional RAW visualization/inspection candidates remain:
+
+- make RAW Gain and clipping state clearer for engineering inspection;
+- optional highlight/shadow clipping visualization where materially useful;
 - improve Bayer-channel/native-mosaic visualization and inspection affordances;
-- preserve native source authority and explicit display-only semantics;
-- avoid changing Statistics/Histogram/Line Profile/Difference domains merely
-  because the viewer presentation changes.
+- keep viewer affordances explicitly display-only.
 
-Demosaic is no longer a committed P3-C deliverable. A future demosaic feature
-must first define the intended processed-preview boundary and whether white
-balance, color correction, tone/gamma, and related metadata are in scope. Until
-that product need is explicit, P3 should not grow into a partial RAW-conversion
-pipeline.
+Demosaic remains deferred. A future demosaic feature must first define the
+processed-preview boundary and whether white balance, color correction,
+tone/gamma, and related metadata belong in the same feature. Until that product
+need is explicit, P3 should not grow into a partial RAW-conversion pipeline.
 
 ### P3-D — RAW Profile Management
 
@@ -142,7 +184,7 @@ pipeline.
 ### P3-E — Integration & Hardening
 
 - Cross-check native/normalized Difference with RAW native/display ownership.
-- Characterize representative Gray/RGB/Bayer/RAW and bit-depth combinations.
+- Characterize representative Gray/RGB/RGBA/Bayer/RAW and bit-depth combinations.
 - Preserve P2 residency/preload/diagnostics contracts.
 - Complete automated/Windows validation and durable P3 documentation.
 
@@ -188,14 +230,17 @@ This is the former P3 scope, intentionally moved after image/RAW semantics.
 
 ## Deferred optimization outside the phase sequence
 
-P2 characterization left several evidence-driven optimization candidates that do
-not currently justify reopening the runtime foundation:
+P2/P3 characterization leaves several evidence-driven optimization candidates
+that do not currently justify reopening the runtime foundation:
 
 - preload concurrency one versus two;
 - directional/bidirectional or deeper preload;
 - CPU/I/O aggressiveness controls;
 - broader resource-policy Settings exposure;
-- process-level memory/profiler telemetry.
+- process-level memory/profiler telemetry;
+- coalescing/debounce/cancellable chunking for rapid large-RAW gain stepping if
+  profiling demonstrates material latency or transient memory pressure;
+- native/SIMD gain optimization beyond the current float32 fused affine path.
 
 These should be scheduled only when later profiling or user-visible latency gives
-a concrete reason to change the established P2 policy.
+a concrete reason to change the established runtime policy.

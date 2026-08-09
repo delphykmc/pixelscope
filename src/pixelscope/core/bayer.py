@@ -3,7 +3,10 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from pixelscope.core.display_transform import DisplayTransform, to_display_uint8
+from pixelscope.core.display_transform import (
+    apply_display_affine_inplace,
+    display_normalization_affine,
+)
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds, extract_roi
 from pixelscope.core.statistics import (
     HistogramResult,
@@ -116,10 +119,61 @@ def analyze_bayer_roi(
 
 def render_bayer_preview(
     source: NDArray[np.generic],
-    transform: DisplayTransform,
+    pattern: str,
+    black_level: int | tuple[int, int, int, int],
+    bit_depth: int,
+    gain: float = 1.0,
 ) -> NDArray[np.uint8]:
-    """Render a Bayer mosaic with a restrained green tint."""
+    """Render a native Bayer mosaic through the generic display-gain affine.
 
-    gray = to_display_uint8(source, transform)
-    red_blue = np.rint(gray.astype(np.float32) * 0.38).astype(np.uint8)
-    return np.ascontiguousarray(np.stack((red_blue, gray, red_blue), axis=-1))
+    The source is promoted to one float32 scratch buffer. CFA-specific anchors
+    reuse the generic anchor/gain/range affine on parity-plane views, so no
+    full-size Black Level map is materialized. Gain and normalization are fused
+    before clipping and final uint8 conversion.
+    """
+
+    if source.ndim != 2:
+        raise ValueError("Bayer source must be a 2-D mosaic")
+    if source.size == 0:
+        raise ValueError("cannot display an empty Bayer image")
+    if not 1 <= bit_depth <= 16:
+        raise ValueError("bit_depth must be between 1 and 16")
+    if gain <= 0:
+        raise ValueError("display gain must be greater than zero")
+
+    if isinstance(black_level, tuple):
+        if len(black_level) != 4:
+            raise ValueError("Bayer black_level must contain R/Gr/Gb/B values")
+        anchors = dict(zip(BAYER_CHANNEL_NAMES, black_level, strict=True))
+    else:
+        anchors = {name: black_level for name in BAYER_CHANNEL_NAMES}
+
+    working = source.astype(np.float32, copy=True)
+    full_scale = float((1 << bit_depth) - 1)
+    if gain == 1.0:
+        scale, offset = display_normalization_affine(0.0, full_scale)
+        apply_display_affine_inplace(working, scale, offset)
+    else:
+        positions = bayer_channel_positions(pattern)
+        for name in BAYER_CHANNEL_NAMES:
+            row_parity, column_parity = positions[name]
+            plane = working[row_parity::2, column_parity::2]
+            scale, offset = display_normalization_affine(
+                0.0,
+                full_scale,
+                gain,
+                float(anchors[name]),
+            )
+            apply_display_affine_inplace(plane, scale, offset)
+
+    np.clip(working, 0.0, 1.0, out=working)
+    np.multiply(working, np.float32(255.0), out=working)
+    np.rint(working, out=working)
+
+    preview = np.empty((*working.shape, 3), dtype=np.uint8)
+    preview[..., 1] = working
+    np.multiply(working, np.float32(0.38), out=working)
+    np.rint(working, out=working)
+    preview[..., 0] = working
+    preview[..., 2] = working
+    return np.ascontiguousarray(preview)
