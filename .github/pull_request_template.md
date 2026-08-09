@@ -1,47 +1,30 @@
-## Observable outcome
+## Summary
 
-- What user-visible or repository-visible behavior changed?
-- What behavior was intentionally preserved?
+Describe the product/runtime behavior changed by this PR and the authoritative
+ownership boundary it affects.
 
-## Scope
+## Scope and exclusions
 
-- In scope:
-- Explicitly out of scope:
+List what is intentionally implemented and what remains out of scope. Do not hide
+scope expansion behind compatibility helpers.
 
-## Implementation
+## Validation
 
-- Main architectural or behavioral changes:
-- Migration / compatibility behavior:
+Record only validation that was actually observed. If an implementation agent was
+explicitly instructed not to run the local Windows `.venv` suite, state that owner
+validation is pending rather than claiming PASS.
 
-## Agent provenance
+Standard repository validation is defined in `docs/QUALITY.md`.
 
-- Agent-generated commits:
-- GitHub comments/reviews posted as:
-- ChatGPT-assisted activity disclosed: Yes / No / N/A
-- Existing human commits rewritten: No
+## Manual checks
 
-## Validation evidence
+List visual/timing/platform-specific checks the owner should perform on Windows.
 
-Only mark checks that were actually run and observed.
+## Documentation
 
-- [ ] Focused tests:
-- [ ] Full `pytest -q`:
-- [ ] `ruff check .`:
-- [ ] `ruff format --check .`:
-- [ ] `mypy src`:
-- [ ] `pip check`:
-- [ ] `scripts/check_docs.py` when docs changed:
-- [ ] `git diff --check`:
-- [ ] Manual Windows validation when required:
+List durable documentation updated for the new behavior/decision.
 
-## Risks and deferred work
+## Provenance
 
-- Known limitations / unverified areas:
-- Deferred to a later phase:
-
-## Durable documentation
-
-- [ ] Product behavior updated if needed
-- [ ] Architecture/decision docs updated if needed
-- [ ] Current state / execution plan updated if needed
-- [ ] No stale future-tense description remains for implemented behavior
+For ChatGPT-assisted work, include requested co-author/provenance information in
+commits and PR discussion.
