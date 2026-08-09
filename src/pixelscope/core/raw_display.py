@@ -18,13 +18,19 @@ def raw_full_scale(bit_depth: int) -> int:
 
 
 def raw_black_anchor(black_level: RawBlackLevel, channel_name: str | None = None) -> int:
-    """Return the scalar display-gain anchor for a RAW grayscale/CFA plane."""
+    """Return the scalar display-gain anchor for a RAW grayscale/CFA plane.
+
+    A four-value tuple without a CFA channel preserves the pre-P3-B global/GRAY
+    preview contract by using the minimum level. Bayer mosaics continue to apply
+    all four anchors by CFA parity, while split CFA planes select their named
+    channel explicitly.
+    """
 
     if isinstance(black_level, tuple):
         if len(black_level) != 4:
             raise ValueError("Bayer black_level must contain R/Gr/Gb/B values")
         if channel_name is None:
-            raise ValueError("a Bayer channel name is required for tuple black_level")
+            return int(min(black_level))
         try:
             index = BAYER_CHANNEL_NAMES.index(channel_name)
         except ValueError as exc:
@@ -95,8 +101,6 @@ def render_raw_preview(
         candidate = channel_layout.removeprefix("CHANNEL_")
         if candidate in BAYER_CHANNEL_NAMES:
             channel_name = candidate
-    if isinstance(black_level, tuple) and channel_name is None:
-        raise ValueError("tuple black_level requires a Bayer mosaic or CFA channel")
 
     transform = raw_display_transform(
         bit_depth,
