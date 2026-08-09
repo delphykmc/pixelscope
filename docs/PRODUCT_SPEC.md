@@ -8,78 +8,85 @@ results.
 
 ## Implemented workflow
 
-- Folder-grouped Files tree with drag-and-drop, context actions, natural order,
-  and loading/resident/error indicators.
+### Image registration
+
+PixelScope exposes one file-opening command, **Open Images...**, and one folder
+command, **Open Folder...**. The exact file contract is:
+
+```text
+.png  .bmp  .jpg  .jpeg  .raw
+```
+
+The file picker displays `Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)`.
+There is no separate top-level RAW-open command and unsupported extensions are not
+silently interpreted as RAW.
+
+Folder discovery and drag/drop use the same supported input family. `.json`
+sidecars are metadata for same-basename RAW inputs and never appear as independent
+image entries. Files are grouped by parent folder with natural order and
+loading/resident/error indicators.
+
+Ordinary PNG/BMP/JPEG inputs register directly for ordinary decoding. A RAW input
+must resolve a validated profile first:
+
+- same-basename sidecar present: parse/validate it and preserve the current
+  confirmation and exact/minimum-size policy;
+- no sidecar: open the editable RAW Profile dialog;
+- invalid sidecar: warn and open editable fallback instead of applying invalid
+  metadata;
+- cancelled profile dialog: do not register that RAW document;
+- multi-file RAW open: resolve each selected RAW independently.
+
+The product does not automatically reuse the previous RAW profile, apply one
+profile to all selected RAW files, or pick a profile from byte size alone.
+
+### Workspace and analysis
+
 - Ordered multi-selection and atomic Page Up/Page Down Folder Position navigation
   for one to six distinct registered folders.
 - Up/Down retains Files-tree row navigation. Left/Right changes only the active
   image within the selected set; PageUp/PageDown changes selection membership by
   one registered Folder Position.
 - Files-tree `+` / `-` retains Qt-native folder expand/collapse. Display Gain
-  `+` / `-` is scoped to the image-presentation subtree and does not override
-  Files navigation.
+  `+` / `-` is scoped to the image-presentation subtree.
 - Auto, Single, and Multi View with synchronized cursor, zoom, offset, ROI, and
   line coordinates.
-- Fixed two/three/four/five/six-image layouts with primary-image ordering for
-  every Multi View containing at least two images.
-- The first displayed image is the implicit primary. Selecting another primary
-  moves it to the first tile without changing Files selection order or logical
-  image IDs.
-- Two-, four-, and six-image layouts retain equal tile sizes; three- and
-  five-image layouts enlarge the first, primary tile.
+- Fixed two/three/four/five/six-image layouts with primary-image ordering.
 - Structured status for active file, format/resolution, coordinate, pixel value,
   zoom, and background work.
 - Statistics with explicit image/channel fields and full-image/ROI scope.
 - Histogram Auto/256/1024/4096 bins with Count, Normalized, and Log count.
-- Horizontal/vertical Line Profile with explicit reference selection in
-  Difference-from-reference mode. Reference priority starts with the primary
-  image, then the active image, then the first displayed image.
+- Line Profile with primary→active→first-displayed reference priority in
+  Difference-from-reference mode.
 - RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
 - Order-independent Difference cache with native compact maps for equal effective
   bit depth and normalized float32 maps for mixed effective bit depth, plus
   Absolute/Mask display, ROI metrics, LRU eviction, diagnostics, and a
   startup-configurable byte budget.
-- Resizable, collapsible, floating, and maximizable Plots dock.
-- Persisted main geometry, dock state, splitters, last directory, layout,
-  analysis state, and selected Plots tab.
-- `Edit > Settings...` uses **General / Files / Performance** category pages with
-  a flat VS Code-inspired hierarchy.
-- General owns persistent RAW JSON confirmation, exact RAW file-size validation,
-  and native Difference Threshold/Gain defaults. RAW confirmation is not
-  duplicated in the File menu.
-- Exact RAW validation is propagated to load worker/reader and JSON-sidecar
-  auto-approval. Difference Threshold/Gain initialize at startup and apply to the
-  live Difference panel after Settings saves without restart.
-- Files provides optional Default Open Folder and Default Export Folder values.
-  Blank preserves remembered last-used-folder behavior; configured existing
-  folders only seed dialog starting locations and apply without restart.
-- Performance owns two independent startup budgets. **Decoded Source Memory**
-  defaults to 256 MiB and accepts 128–2560 MiB; **Difference Map Cache** defaults
-  to 128 MiB and accepts 64–1280 MiB. When physical RAM is known, their combined
-  value must be no more than 50% of RAM. Unknown RAM uses product bounds only.
-  This is a conservative configuration guard rather than OOM protection.
-- **Preload Next Folder Position** is enabled by default and is startup-only.
-  After foreground loading becomes idle, PixelScope decodes exactly the next
-  Folder Position produced by the PageDown planner on a separate single-worker
-  pool. It never scans unregistered siblings, preloads previous/next-next
-  positions, or delays normal loading.
-- Decoded Source Memory accounts native registered `ImageDocument.source` arrays
-  only. Files residency does not represent Difference cache or total process
-  memory.
-- Source residency is a protected LRU soft budget. Visible, selected,
-  active/analysis, current Difference-pair, and active foreground-authority
-  sources remain resident while required. Unprotected oldest sources reload
-  normally when needed again; one oversized required source remains allowed.
-- Source eviction clears source-local analysis/channel state but does not evict a
-  valid Difference map solely because native source bytes were released.
-- Valid preload results become ordinary decoded-source residents with no special
-  protection. Stale/cancelled or identity-mismatched speculative results are
-  dropped and failures remain retryable through normal loading.
-- `Reset Settings` restores application preferences without resetting workspace
-  layout, geometry, dock/splitter state, or remembered last-directory state.
+- Resizable/floating Plots dock with persisted workspace state.
 
 A seventh derived Difference result is shown in Single View when all six source
 positions are occupied.
+
+## Settings and runtime policy
+
+`Edit > Settings...` uses **General / Files / Performance** category pages.
+Settings schema remains version 5.
+
+General owns persistent RAW JSON confirmation, exact RAW file-size validation,
+and native Difference Threshold/Gain defaults. Files owns optional default Open
+and Export folders. Performance owns startup Decoded Source Memory, Difference Map
+Cache, and preload settings.
+
+Decoded Source Memory accounts native registered `ImageDocument.source` arrays
+only and uses protected soft-budget LRU semantics. Source eviction and Difference
+cache ownership remain independent. **Preload Next Folder Position** remains
+exactly `+1`, one Folder Position deep, on a dedicated max-one worker; an exact
+matching physically RUNNING preload may transfer logical authority to foreground
+without duplicate decode.
+
+P3-D adds no Settings key, Settings-owned profile library, or new RAW profile
+version field.
 
 ## Difference contract
 
@@ -99,17 +106,16 @@ and demosaic. Cache metadata records domain/data range so reversed-pair reuse
 cannot change threshold or metric semantics.
 
 Threshold uses `code` in the native domain and `%FS` in the normalized domain;
-`1.00 %FS` means an internal threshold of `0.01`, and mask comparison remains
-strict `>`. Persisted Settings Threshold remains the native-domain code default
-under schema v5. Normalized threshold starts at `1.00 %FS` and is session-local.
+mask comparison remains strict `>`. Persisted Settings Threshold remains the
+native-domain code default under schema v5. Normalized threshold is session-local.
 
 Difference owns its own independent presentation Gain. General Display Gain is
-not applied to `channel_layout="DIFFERENCE"`, Difference numerical sources,
-Difference preview generation, or Difference-cache identity.
+not applied to Difference numerical sources, Difference preview generation, or
+Difference-cache identity.
 
 ## Display Gain contract
 
-P3-B introduces the generic presentation primitive and P3-C generalizes its viewer
+P3-B introduced the generic presentation primitive and P3-C generalized its viewer
 activation:
 
 ```text
@@ -127,65 +133,65 @@ PixelScope exposes one application-session **Display Gain** control with:
 ```
 
 The value is shared across supported Single/Multi View tiles and is not persisted
-to application Settings, workspace state, or RAW profiles. Settings schema remains
-v5. The control is not called Exposure because it is a viewer-only digital gain.
+to application Settings, workspace state, or RAW profiles.
 
 Document policy is:
 
-- ordinary Gray uses `anchor=0`;
-- ordinary RGB uses `anchor=0` and the same gain on R/G/B;
-- ordinary RGB split-channel views use `anchor=0` on their native 2-D source plane
-  while retaining colored channel presentation;
-- RGBA applies gain to RGB only, and gain>1 alpha exactly equals the document's
-  canonical 1× preview alpha;
+- ordinary Gray/RGB use `anchor=0`;
+- ordinary RGB split-channel views use `anchor=0` on their native source plane;
+- RGBA applies gain to RGB only and preserves canonical 1× alpha exactly;
 - RAW keeps the P3-B Black-derived anchor rules;
 - Difference is excluded because it owns its own presentation Gain.
 
-Gain 1× is a strict fast path for every supported presentation: PixelScope reuses
-canonical `ImageDocument.preview`, schedules no full-frame gain worker, and
-retains no additional gained preview. Gain >1 derives only viewer-local preview
-from already resident source on the existing shared numerical pool.
+Gain 1× is a strict fast path: PixelScope reuses canonical
+`ImageDocument.preview`, schedules no full-frame gain worker, and retains no
+additional gained preview. Gain >1 derives only viewer-local preview from already
+resident source on the existing shared numerical pool.
 
-Stale results are rejected using request/document/source/canonical-preview/
-generation/gain/visibility identity. Hidden/replaced viewers release unnecessary
-gain>1 derived previews and regenerate the current session gain when shown again.
+Display Gain is presentation-only. Pixel inspection, Statistics, Histogram, Line
+Profile, Split Channel source arrays, Difference, generation, source residency,
+and cache identity remain independent of it. `+` / `-` gain shortcuts are scoped
+to the image-presentation subtree so Files retains native key behavior.
 
-Display Gain is always presentation-only. Pixel inspection, Statistics,
-Histogram, Line Profile, Split Channel source arrays, Difference, generation,
-source residency, and cache identity remain independent of it.
+## RAW profile and decode contract
 
-Display Gain keyboard control is also presentation-scoped. `+` / `-` steps the
-current discrete gain only while focus is in the image-presentation subtree.
-Files and other sibling UI retain native key ownership; specifically, Files
-`+` / `-` continues to expand/collapse folders.
+RAW profile resolution is conditional logic inside the unified image-opening
+workflow; it is not a separate top-level file-opening mode.
 
-## RAW contract
+A same-name JSON sidecar may pre-fill/resolve the profile. The General Settings
+preference may skip repeated confirmation only when that sidecar is valid and the
+configured exact/minimum file-size policy matches. When **Require Exact RAW File
+Size** is disabled, RAW files may contain trailing bytes but may not be
+undersized. When enabled, byte count must exactly match the profile requirement.
 
-RAW opens through a validated profile workflow. A same-name JSON sidecar can
-pre-fill the profile; the General Settings preference may skip repeated
-confirmation for those JSON profiles when configured file-size policy also
-matches. The RAW dialog's explicit don't-show-again choice updates only that one
-typed preference and preserves other schema-v5 settings. The same RAW path may be
-reloaded with corrected settings.
-
-When **Require Exact RAW File Size** is disabled, RAW files may contain trailing
-bytes but may not be undersized. When enabled, file byte count must exactly match
-the profile requirement.
-
-The profile separates:
+The RAW Profile dialog exposes **Load Profile...** and **Save Profile...**. JSON
+remains the storage format and existing migration behavior is preserved. The
+profile separates:
 
 - storage format: unpacked, MIPI RAW10, RAW12, or RAW14;
 - sample container for unpacked data: `uint8` or `uint16`;
 - effective bit depth;
 - byte order and LSB/MSB alignment where applicable;
 - width, height, offset, stride, and grayscale/Bayer layout;
+- Bayer pattern;
 - `black_level` and `white_level` metadata, including R/Gr/Gb/B Black tuples for
   Bayer profiles.
 
+The same RAW path may be resolved again with corrected profile settings while
+retaining document identity/reload semantics.
+
+The current product deliberately has no global RAW profile database, Settings-
+owned profile collection, favorites, rename/duplicate/delete manager, profile
+search UI, file-size-only or fuzzy suggestion, sensor-model inference, Bayer
+pattern inference, or automatic Black/White estimation. Exact same-basename
+sidecars remain supported because they are deterministic file-local evidence.
+
 Decoded samples in `ImageDocument.source` are the native RAW authority. Pixel
 inspection, Statistics, Histogram, Line Profile numerical data, Split Channels,
-P3-A Difference, and source residency operate on those native samples regardless
-of Display Gain.
+Difference, preload/reload identity, and source residency operate on those native
+samples regardless of Display Gain.
+
+## RAW display contract
 
 RAW display is explicitly separate from analysis:
 
@@ -193,8 +199,7 @@ RAW display is explicitly separate from analysis:
   `0..((1 << bit_depth) - 1)`;
 - `black_level` is not subtracted from 1× display and `white_level` is not used as
   display maximum;
-- gained RAW uses the generic display-gain formula with a Black-derived anchor,
-  equivalently `B + G * (X - B)`;
+- gained RAW uses a Black-derived anchor, equivalently `B + G * (X - B)`;
 - RAW Gray scalar Black is the scalar anchor;
 - schema-valid GRAY four-value Black remains compatible and uses legacy
   `min(black_level)` as the global display anchor;
@@ -204,33 +209,33 @@ RAW display is explicitly separate from analysis:
 - Bayer anchor processing does not create a full-size Black map;
 - gain/range mapping uses float32 fused affine processing where possible and
   clipping occurs at final display conversion;
-- `white_level` remains metadata only;
-- Display Gain is session-local, shared across supported visible Single/Multi View
-  tiles, and is not a Settings/profile persistence field.
+- `white_level` remains metadata only.
 
-Gain 1× reuses the canonical document preview. Gain >1 regenerates only derived
-viewer presentation from resident source on the shared numerical worker pool.
-Gain changes do not reload/decode native RAW, change source residency ownership,
-bump source generation, or change Difference cache identity. Hidden viewers
-release gain>1 derived buffers and regenerate current gain when shown again.
+Gain changes regenerate only derived viewer presentation from resident source.
+They do not reload/decode native RAW, change source residency ownership, bump
+source generation, or change Difference cache identity.
 
 Packed formats own their byte layout and fixed bit depth, so container,
 endianness, and alignment controls do not apply. Bayer is analyzed as native
 mosaic planes. Demosaic, white balance, CCM, tone mapping, and processed-RAW
 analysis are outside the current product contract.
 
-## Future product scope
+## Current P3 status and future scope
 
-P3-D follows P3-C with reusable RAW profile management and deterministic profile
-suggestion. P3-E integrates and hardens the completed Difference/Display Gain/RAW
-semantics.
+- P3-A Difference domain extension: complete, PR #22.
+- P3-B RAW native/display semantics: complete, PR #24.
+- P3-C Display Gain generalization: complete, PR #25, merge commit
+  `7f6bef73e6712f6a14a4d401820a915196e25da2`.
+- P3-D Unified Image Opening & RAW Profile Resolution: current slice.
+- P3-E integrates and hardens the completed Difference/Display Gain/RAW/input
+  semantics.
 
-Additional RAW clipping/highlight/shadow or Bayer observability remains an
-optional P3-C/P3-E candidate only when it has a clear engineering-inspection
-benefit. Later planned work includes alpha overlay, persistent sessions and ROI
-management, live GPU IQA/image evaluation, heatmaps, and a validated standalone
-Windows distribution.
+The earlier P3-D reusable Profile Library/suggestion plan is deferred. It should
+return only if actual workflow evidence justifies persistent profile management or
+a deterministic suggestion model.
 
+Additional RAW clipping/highlight/shadow or Bayer observability remains optional.
 Demosaic remains deferred unless a future owner-approved processed-preview scope
-defines the associated white balance, color, tone, metadata, and analysis
-boundaries coherently.
+defines white balance, color, tone, metadata, and analysis boundaries coherently.
+Later planned work includes persistent sessions and ROI management, remote IQA /
+image evaluation, heatmaps, and validated standalone Windows distribution.
