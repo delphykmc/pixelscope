@@ -11,8 +11,8 @@ from PySide6.QtCore import (
     QPointF,
     QRectF,
     QSignalBlocker,
-    QThreadPool,
     Qt,
+    QThreadPool,
     QTimer,
     Signal,
 )
