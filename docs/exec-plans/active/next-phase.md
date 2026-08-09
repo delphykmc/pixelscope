@@ -101,7 +101,7 @@ pipeline.
 
 At 1× display gain, RAW display must represent the native code domain rather than
 implicitly subtracting black level. Effective bit depth/full scale remains the
-normal native display range authority.
+native display-range authority.
 
 When display gain is greater than 1×, gain is anchored at black level:
 
@@ -114,8 +114,9 @@ negative residuals around it. For Bayer RAW, the existing R/Gr/Gb/B black-level
 metadata may be used as channel-specific anchors where the preview path can do so
 without changing native source data.
 
-White level remains metadata for saturation/display reference and future explicit
-processing. It must not redefine the stored native sample values.
+P3-B does not apply `white_level` to either 1× native display or gained display.
+White level remains stored RAW-profile metadata for future explicit processing
+such as tone-map or other processed-RAW paths.
 
 Clipping needed for the final 8-bit preview is a display concern only. Do not
 write clipped/gained values back into the native source or expose them as if they
@@ -147,15 +148,16 @@ without forcing that processing into P3-B.
 Deterministic coverage should establish at least:
 
 - RAW load preserves native sample values regardless of black/white metadata;
-- 1× viewer display uses native RAW code semantics;
+- 1× viewer display uses native RAW code semantics and effective full-scale range;
 - black-anchored gain follows `B + G * (X - B)` with overflow-safe arithmetic;
 - values below black remain meaningful through the gain transform until final
   display clipping;
 - Bayer per-channel black anchors behave deterministically where supported;
 - changing display gain does not change native pixel inspection/Statistics/
   Histogram/Difference semantics;
+- changing `white_level` alone does not change P3-B native/gained preview output;
 - white level remains available as metadata without silently becoming a source
-  normalization rule;
+  or display normalization rule;
 - existing RAW10/12/14 and unpacked uint8/uint16 loading contracts regress cleanly;
 - P2 source residency/preload/diagnostics ownership is unchanged.
 
