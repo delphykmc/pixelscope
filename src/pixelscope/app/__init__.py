@@ -1,1 +1,1 @@
-"""PixelScope application-shell components."""
+"""Application lifecycle and main-window composition."""
