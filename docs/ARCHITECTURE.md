@@ -16,6 +16,45 @@ derived representation and may not redefine source or analysis domains. RGBA
 analysis ignores alpha. Difference and squared-error paths promote operands before
 subtraction/multiplication.
 
+## Unified image input resolution
+
+P3-D makes `Open Images...` the only top-level file-open command. The supported
+input contract is defined once in `io.path_discovery`:
+
+```text
+.png  .bmp  .jpg  .jpeg  .raw
+```
+
+`SUPPORTED_IMAGE_SUFFIXES` and `SUPPORTED_IMAGE_FILTER` keep filesystem discovery
+and the file picker aligned. Unsupported extensions are rejected by discovery;
+they are never interpreted as RAW. `ImageInput` remains the registration contract
+used by Open Images, Open Folder, drag/drop, folder registration/navigation, and
+subsequent preload/reload ownership.
+
+`image_input_for_path()` attaches only an exact same-basename `.json` sidecar to a
+`.raw` input. The JSON itself never becomes an image entry. `MainWindow._register_input()`
+is the RAW profile-resolution boundary before document registration:
+
+- ordinary PNG/BMP/JPEG registers without constructing a RAW profile dialog;
+- RAW with a valid sidecar loads that profile and applies the existing
+  confirmation/exact-size policy;
+- RAW without a sidecar opens the editable `RawOpenDialog`;
+- an invalid sidecar warns and falls back to editable defaults rather than being
+  silently applied;
+- cancelling RAW profile resolution returns before a document is registered;
+- an existing RAW path retains its document identity and can be marked for reload
+  with a corrected profile.
+
+This is conditional RAW metadata resolution inside one input pipeline, not a
+second decode entry point. The ordinary reader still receives no `RawProfile`,
+while RAW workers receive the resolved profile. Preload/promotion/reload continue
+to use exact RAW profile identity and exact-size policy; no UI action duplicates
+that logic.
+
+P3-D deliberately adds no profile-library persistence owner. `RawProfile` JSON
+migration remains the durable profile compatibility boundary, Settings remains
+schema v5, and file size alone is not evidence for automatic profile selection.
+
 ## Display Gain architecture
 
 P3-B separates **generic display gain** from **RAW metadata policy**. P3-C reuses
@@ -117,10 +156,11 @@ Schema version 5 owns:
 - `settings/performance/source_residency_mib`
 - `settings/performance/preload_enabled`
 
-P3-B/P3-C add no key or schema migration. `DisplayGainState` is QApplication-
+P3-B/P3-C/P3-D add no key or schema migration. `DisplayGainState` is QApplication-
 session state and resets to 1× on a new application session. The generic display-
 gain core owns no persistence. Display Gain is not stored in application Settings,
-workspace persistence, or RAW profiles.
+workspace persistence, or RAW profiles. P3-D also introduces no Settings-owned RAW
+profile library or RAW-profile schema version field.
 
 Schema v4 migrates directly to v5 and adds enabled preload without changing v4
 values. Schema v3 adds source-residency preference; valid legacy Difference-cache
@@ -290,6 +330,13 @@ endian, alignment, dimensions, stride, offset, grayscale/Bayer layout,
 Decoding returns native grayscale or Bayer mosaic arrays in
 `ImageDocument.source`.
 
+RAW profile resolution is part of the unified image-input path rather than a
+separate user command. Same-basename sidecars are deterministic evidence; no
+sidecar opens the profile dialog, and an invalid sidecar opens editable fallback
+after warning. Profile resolution is per RAW input, including multi-file open.
+There is no last-profile reuse, size-only auto-match, fuzzy suggestion, or profile
+library in this boundary.
+
 RAW presentation policy is layered on the generic gain core:
 
 - `raw_full_scale(bit_depth)` defines `0..((1 << bit_depth) - 1)` display range;
@@ -308,7 +355,7 @@ RAW presentation policy is layered on the generic gain core:
 The base document preview is 1× effective-full-scale presentation. Higher RAW gain
 is viewer-local and on-demand. Demosaic, white balance, CCM, tone mapping,
 processed-RAW analysis, optical-Black estimation, and profile suggestion remain
-outside P3-C.
+outside the current implementation.
 
 The persistent RAW JSON confirmation and exact-size preferences remain General
 Settings concerns. The same exact-size policy governs foreground loading,
@@ -316,8 +363,9 @@ JSON-sidecar auto-approval, preload, and promotion identity.
 
 ## P3-C extension boundary
 
-P3-C implements the P3-B generic gain-core extension with these fixed architecture
-constraints:
+P3-C completed in PR #25 at
+`7f6bef73e6712f6a14a4d401820a915196e25da2`. It implements the P3-B generic
+gain-core extension with these fixed architecture constraints:
 
 - one QApplication-session `DisplayGainState` serves supported ordinary and RAW
   presentations using `1× / 2× / 4× / 8× / 16×`;
@@ -349,10 +397,10 @@ Bayer observability remains optional/deferred; demosaic is not part of P3-C.
 P2 runtime boundaries for settings, source residency, bounded preload,
 deterministic diagnostics, and running-preload foreground reuse were completed by
 PR #20. P3-A preserves them for Difference. P3-B is complete as PR #24 at
-`1817490a08c61da9087efe9c3c6afd8bd85838f0`. P3-C preserves the same boundaries
-while generalizing viewer Display Gain: neither the generic core nor
-`DisplayGainState` becomes a Settings, source-residency, preload, Difference-cache,
-or processed-source owner.
+`1817490a08c61da9087efe9c3c6afd8bd85838f0`; P3-C is complete as PR #25 at
+`7f6bef73e6712f6a14a4d401820a915196e25da2`. P3-D changes input/profile resolution
+only: it does not make Settings, source residency, preload, Difference cache, or
+processed-source ownership part of image opening.
 
 ## Extension and packaging boundaries
 
