@@ -1,6 +1,11 @@
 # UI implementation status
 
-Status: P3-D is merged as PR #26 at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`. P3-E presentation polish is implemented on `feature/p3-e-integration-hardening`; owner/local Windows validation, independent review, and merge are pending.
+Status: P3-E is merged as PR #27 at
+`835634a58609601605fd0fc18a3028b64225f535`, completing P3. The owner reported a
+full local Windows pytest PASS for the validated P3-E code/test head
+`1af4f6703656028ca7d0e2bdaf369cce029e4bb1`; the subsequent
+`b29963cbf91bf5c022a53d9562e36510e80112a2` commit was docs-only. P4-A Review
+Selection & Curation is the next planned UI workflow and is not implemented yet.
 
 ## Current shell
 
@@ -165,22 +170,46 @@ only; there is no Comparison Page preload system.
 The new deterministic 50-image regression checks page-bounded foreground load
 requests/protection rather than decoding or retaining all 50 sources.
 
-## Deferred P4-A UI
+## P4-A Review Selection & Curation — next planned UI workflow
 
-Review Selection & Curation is explicitly deferred. P3-E adds no Review Select
-mode, Pick/Unpick tile affordance, pick count, Clear Picks, Keep Picked, or temporary
-Review Pick Set. A future Pick Set must not become residency/analysis/Difference or
-source-loading authority.
+P4-A remains unimplemented. Its planned workflow is:
+
+```text
+Registered
+    ↓
+Selected
+    ↓
+Current Comparison Page
+    ↓
+temporary Review Pick Set
+    ↓ Apply
+new Selected subset
+```
+
+Planned constraints include explicit Review Select mode, cross-page temporary picks,
+zero-pick **Keep Picked** disabled, original Selected ordering preservation on Apply,
+non-picked images remaining Registered, and distinct Active / Primary / Picked
+states. Picked membership must not own decode, residency/protection, analysis,
+Difference, or source loading. Split/Difference derived documents are not pick
+identities. Only **Keep Picked** mutates Selected, and the initial Pick Set is not
+persisted.
+
+Arbitrary-angle Line Profile is not scheduled in P4. A future design would require
+an explicit discrete sampling/pixel-path and coordinate-display contract suitable
+for an observation tool; interpolation is not assumed.
 
 ## Validation state
 
-P3-D owner/local Windows validation and independent review are complete and PR #26
-is merged.
+P3-E / PR #27 is merged at
+`835634a58609601605fd0fc18a3028b64225f535`.
 
-P3-E focused tests cover the production-composed presentation row, icon-backed page
-controls, endpoint visibility/enabled state, layout-index stability, page labels,
-accessibility/control height, 50-image bounded ownership, final short page, and
-Display Gain changes without numerical analysis-request churn.
+Independent review's initial production-composition integration-test blocker was
+resolved by follow-up coverage for actual page-button clicks, final Display Gain
+shortcut/focus ownership, and Qt teardown/recreation. The owner reported the full
+local Windows pytest suite PASS on code/test head
+`1af4f6703656028ca7d0e2bdaf369cce029e4bb1`.
 
-Tests were not run by this Chat implementation agent. Owner/local Windows validation
-is pending. Independent review and merge are pending.
+The subsequent `b29963cbf91bf5c022a53d9562e36510e80112a2` commit changed only
+`docs/AGENT_HARNESS_NOTES.md` and did not alter runtime or tests before merge.
+No unobserved Ruff, Ruff-format, mypy, pip-check, docs-check, or `git diff --check`
+PASS is inferred here.

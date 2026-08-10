@@ -358,23 +358,31 @@ endianness, and alignment controls do not apply. Bayer is analyzed as native
 mosaic planes. Demosaic, white balance, CCM, tone mapping, and processed-RAW
 analysis are outside the current product contract.
 
-## Current P3 status and future scope
+## Program status and future scope
 
-- P3-A Difference domain extension: complete, PR #22.
-- P3-B RAW native/display semantics: complete, PR #24.
-- P3-C Display Gain generalization: complete, PR #25, merge commit
-  `7f6bef73e6712f6a14a4d401820a915196e25da2`.
-- P3-D Unified Image Opening, Current Comparison Page & RAW Profile Resolution:
-  current slice.
-- P3-E integrates and hardens the completed Difference/Display Gain/RAW/input/page
-  semantics.
+P3 — Image Semantics & RAW Processing is Complete through P3-E. PR #27 merged at
+`835634a58609601605fd0fc18a3028b64225f535` after integration/presentation
+hardening of the delivered Difference, RAW/display, Display Gain, unified input,
+and Current Comparison Page contracts.
 
-The earlier P3-D reusable Profile Library/suggestion plan is deferred. It should
+The next active program is **P4 — Workflow & Session Productivity**. Its first
+implementation slice is Review Selection & Curation; later planned work covers
+persistent comparison sessions, typed recent-entry/session entry UX, Saved ROI
+productivity, focused viewer overlay/export productivity, and integration hardening.
+P4 runtime behavior is not implemented by the P4-0 documentation transition.
+
+The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or
 a deterministic suggestion model.
 
 Additional RAW clipping/highlight/shadow or Bayer observability remains optional.
 Demosaic remains deferred unless a future owner-approved processed-preview scope
 defines white balance, color, tone, metadata, and analysis boundaries coherently.
-Later planned work includes persistent sessions and ROI management, remote IQA /
-image evaluation, heatmaps, and validated standalone Windows distribution.
+
+Arbitrary-angle Line Profile is also deferred from P4. Line Profile is an
+observation/sampling tool, so a future arbitrary-angle design would require an
+explicit discrete pixel-sampling/path and coordinate-display contract rather than
+implicitly adopting interpolation.
+
+Later planned work includes remote IQA / image evaluation, heatmaps, and validated
+standalone Windows distribution.

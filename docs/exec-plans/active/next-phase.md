@@ -1,313 +1,271 @@
-# Execution plan: P3 — Image Semantics & RAW Processing
+# Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P3-E implementation; owner/local validation, independent review, and merge pending
-Owner: repository owner + P3 orchestration agents
-Last updated: 2026-08-10
-Current merged P3 baseline: P3-D / PR #26 merge commit
-`b16ecc558ac24225e9ddfddfca4e48e37fde61ca`
+Status: Active — P4-0 program setup / P4-A design next
+Owner: repository owner + P4 orchestration agents
+Last updated: 2026-08-11
+Inherited merged baseline: P3-E / PR #27 merge commit
+`835634a58609601605fd0fc18a3028b64225f535`
 
 ## Goal
 
-Close P3 by validating the combined Difference, RAW/display, Display Gain, unified
-input, Current Comparison Page, and runtime-resource contracts without introducing a
-new analysis domain or P4 workflow state.
+Build review/curation, reusable comparison sessions, workflow entry, saved analysis
+annotations, and focused viewer/export productivity on top of the stabilized P2/P3
+image semantics and bounded Current Comparison Page architecture.
 
-Native decoded samples remain authoritative. Presentation transforms do not redefine
-analysis. Registration, selection, Current Comparison Page membership, presentation,
-and residency remain separate ownership layers.
+P4 must improve workflow without creating a second source, analysis, cache,
+selection, or residency authority.
 
-## Program sequence
+## Inherited P2/P3 baseline
 
-`P3-0 → P3-A → P3-B → P3-C → P3-D → P3-E`
-
-| Order | Slice | Status |
-|---|---|---|
-| 0 | P3-0 roadmap transition | Complete — PR #21 |
-| 1 | P3-A Difference Gray / mixed-bit semantics | Complete — PR #22 |
-| 2 | P3-B RAW native/display semantics | Complete — PR #24 |
-| 3 | P3-C Display Gain extension | Complete — PR #25 |
-| 4 | P3-D Unified Image Opening & RAW Profile Resolution | Complete — PR #26 |
-| 5 | P3-E Integration, Presentation UI Polish & Phase Hardening | Active |
-
-## Completed semantic foundation
-
-### P3-A
-
-- same-effective-depth Difference remains native code-domain;
-- mixed effective depth uses independently normalized float32 `[0,1]` Difference;
-- Gray, RGB/RGBA, and same-CFA Bayer are supported under explicit compatibility
-  rules;
-- RAW Black/White/display presentation does not enter Difference normalization.
-
-### P3-B / P3-C
-
-- native RAW source remains authoritative;
-- RAW 1× uses effective native full scale;
-- gain >1 uses `anchor + gain * (source - anchor)` with RAW Black-derived anchors;
-- Bayer channel-specific Black Level is supported without a full-frame Black map;
-- no full-frame float64 gain path;
-- 1× reuses canonical preview and schedules no gain worker;
-- ordinary Gray/RGB/RGBA and split-channel presentation share one session Display
-  Gain control while Difference remains excluded;
-- source, generation, Statistics, Histogram, Line Profile, Difference, and source
-  residency are not redefined by Display Gain.
-
-### P3-D
-
-Merged as PR #26 at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
-
-Authoritative hierarchy:
+The following ownership hierarchy is authoritative:
 
 ```text
 Registered
-    ↓ user selection
+    ↓
 Selected
-    ↓ Selected ordering + page offset
-Current Comparison Page          # max 6
-    ↓ viewer representation
+    ↓
+Current Comparison Page
+    ↓
 Presented
-    ↓ native-source lifecycle
+    ↓
 Resident when required
 ```
 
 ```text
 Analysis Working Set = Current Comparison Page
-Viewer Slot = 1..6 within Current Comparison Page
 ```
 
-Key contracts:
+Inherited invariants:
 
-- Open Images is selection-oriented; folder input is registration-oriented.
-- Selected can exceed six; pages are derived in six-image chunks.
-- Current Comparison Page is the shared analysis/load/protection authority.
-- Selected alone is not a generic residency-protection owner.
-- Ctrl+Left/Ctrl+Right is non-wrapping Comparison Page navigation.
-- PageUp/PageDown remains Folder Position only and is unavailable for Selected >6.
-- P2 preload remains +1 Folder Position, one group ahead, max one speculative worker.
-- folder-registered unresolved RAW is lazy until foreground page entry; Cancel leaves
-  it pending and suppresses passive immediate re-prompt.
-- no Comparison Page preload or RAW profile inference/library was introduced.
+- Selected alone is not decoded-source residency authority.
+- Current Comparison Page plus correctness dependencies remains the bounded generic
+  source-protection authority.
+- Comparison Page navigation creates no speculative preload.
+- P2 preload remains Folder Position `+1`, exactly one position ahead, max-one
+  speculative worker, with existing RUNNING promotion semantics.
+- Display Gain is presentation-only and never redefines native analysis/request
+  identity.
+- Difference remains native code-domain for equal effective depth and independently
+  normalized `[0,1]` for mixed effective depth.
+- RAW Black/White metadata and display transforms do not enter Difference domain
+  selection/normalization.
+- temporary workflow state must not become source/cache/residency authority.
+- Current Comparison Page is derived from Selected ordering/page offset and must not
+  be serialized as an independently owned collection.
 
-## P3-E implementation scope
+## Program sequence
 
-Branch: `feature/p3-e-integration-hardening`
-Base: `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`
-Recommended PR title:
-`[ChatGPT-assisted] Complete P3 integration and presentation hardening`
+`P4-0 → P4-A → P4-B → P4-C → P4-D → P4-E → P4-F`
 
-### 1. Presentation Control Row polish
+| Order | Slice | Status |
+|---|---|---|
+| 0 | P4-0 P3 Closure & P4 Program Setup | Active |
+| 1 | P4-A Review Selection & Curation | Design next |
+| 2 | P4-B Persistent Comparison Sessions | Planned |
+| 3 | P4-C Recent Entries & Session Entry UX | Planned |
+| 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
+| 5 | P4-E Viewer Overlay & Export Productivity | Planned |
+| 6 | P4-F Integration & Workflow Hardening | Planned |
 
-Keep presentation-specific ownership above the image workspace:
+Arbitrary-angle Line Profile is intentionally **not** a P4 slice. PixelScope's line
+profile is an observation/sampling tool, so a future arbitrary-angle implementation
+would require a deliberate discrete pixel-sampling/path and coordinate-display
+contract rather than casually introducing interpolation. The expected utility does
+not currently justify that semantic/UI cost.
 
-```text
-Layout [Auto / Single View / Multi View]
-Page   [Previous] [index] [Next] [range / Selected total]
-Display Gain [1× / 2× / 4× / 8× / 16×]
-```
+## P4-0 — P3 Closure & P4 Program Setup
 
-Implementation requirements:
+Docs-only orchestration slice:
 
-- preserve Layout/Page/Display Gain command ownership;
-- use shared `design_tokens.py` colors, spacing, borders, control height, and disabled
-  palette conventions;
-- replace character Previous/Next buttons in the production-composed row with compact
-  icon-backed `QToolButton` controls;
-- reuse PixelScope's programmatic high-DPI icon infrastructure with only the two
-  minimal page-chevron icon kinds;
-- keep buttons in stable layout positions and disable rather than hide unavailable
-  directions;
-- preserve Ctrl+Left/Ctrl+Right shortcut state and command ownership;
-- provide tooltip, visible/semantic text, accessible name, and `NoFocus` mouse
-  command behavior;
-- keep Page index/range fixed-width and readable;
-- keep Display Gain viewer-only on the right;
-- keep the row distinct from the Main toolbar.
+- record P3-E / PR #27 as merged and P3 as Complete;
+- archive the completed P3 execution plan;
+- replace the active plan with this P4 program;
+- reconcile stale phase/status documentation only;
+- do not implement P4 runtime/UI state or change Settings/persistence schemas.
 
-No pixel-perfect screenshot test is required. Tests assert widget type, hierarchy,
-enabled/visible state, layout index stability, labels, accessibility, and control
-height.
+## P4-A — Review Selection & Curation
 
-### 2. Cross-feature integration invariants
+### Goal
 
-Verify the existing implementation/tests continue to establish:
+Allow a user to browse a large Selected set page by page, make temporary review
+picks, then explicitly reduce Selected to the picked native images without changing
+Files registration.
 
-- Display Gain cannot affect same-bit native or mixed-bit normalized Difference;
-- Difference cache identity does not include Display Gain;
-- RAW Black/White/display transforms do not enter P3-A normalization;
-- Difference derived documents are excluded from generic Display Gain;
-- pixel inspection, Statistics, Histogram, Line Profile, Split source authority,
-  Difference, source generation, and residency use native source;
-- Bayer channel-specific Black Level remains bounded without a full-size Black map;
-- 1× remains no-work canonical preview; gain>1 remains float32/derived presentation;
-- Split Channels remains transient presentation state, not Registered/Selected;
-- explicit Difference pair ownership remains feature-specific and page-valid;
-- identical numerical analysis requests retain P2-F dedup semantics.
-
-A P3-E focused regression additionally verifies that changing Display Gain alone does
-not reissue Statistics, Difference-input, or Line Profile document requests when the
-native Current Comparison Page is unchanged.
-
-### 3. Large-selection hardening
-
-Canonical counts:
-
-```text
-1, 2, 6, 7, 15, 50
-```
-
-The 50-image case is deterministic ownership testing, not a wall-clock benchmark or
-50-source residency stress test.
-
-Verify:
-
-- Registered/Selected identity and global ordering survive paging;
-- six-image chunks define Current Comparison Page;
-- final short page clears stale slots while keeping six-slot large-selection geometry;
-- viewer slots remain page-local 1..6;
-- page movement does not mutate Selected;
-- foreground `_ensure_loaded` requests are page-bounded;
-- Current Comparison Page is protected while off-page Selected is not generically
-  protected;
-- page revisit can follow normal eviction/reload ownership;
-- no selected-wide eager decode or selected-wide preload plan is introduced.
-
-### 4. Navigation / preload / residency preservation
-
-- Ctrl+Left/Ctrl+Right: Comparison Page only, non-wrapping, endpoint shortcut state
-  matches buttons/actions.
-- Left/Right: fine Selected-image navigation.
-- PageUp/PageDown: Folder Position only.
-- Selected <=6: preserve P2 +1 Folder Position preload and RUNNING promotion.
-- Selected >6: Folder Position unavailable and no Comparison Page preload plan.
-- preserve exact `source.nbytes`, protected soft-budget LRU, oversized protected
-  source policy, independent Difference cache, and stale token/generation authority.
-
-### 5. RAW / Split / Difference lifecycle preservation
-
-- off-page unresolved folder RAW: no prompt/decode/residency requirement;
-- foreground entry: profile resolution then decode after acceptance;
-- Cancel: no worker and no immediate passive re-prompt; later explicit foreground
-  retry remains possible;
-- direct RAW sidecar/no-sidecar/invalid/cancel/multi-RAW behavior remains unchanged;
-- Split RGB/RGBA and Bayer channel sets remain presentation-only and Files continues
-  to represent the native source;
-- Difference fresh/cache-hit presentation remains pair/page validated and Difference
-  cache residency remains independent.
-
-## Explicit P4 handoff — not implemented in P3-E
-
-### P4-A — Review Selection & Curation
+Authoritative flow:
 
 ```text
 Registered
-↓
+    ↓
 Selected
-↓
+    ↓
 Current Comparison Page
-↓
+    ↓
 temporary Review Pick Set
-↓ Apply
+    ↓ Apply
 new Selected subset
 ```
 
-Future UX may include Review Select mode, tile Pick/Unpick, persistent cross-page
-picks, picked border/check affordance, pick count, Clear Picks, and Keep Picked.
-Non-picked images remain Registered and Files reflects the final Selected subset after
-Apply. Zero-pick Apply is disabled. The Pick Set must not own residency, analysis,
-Difference, or source loading.
+### Required contract
 
-P3-E must not create any of this runtime state.
+- **Review Select** is an explicit mode, never an implicit side effect of normal
+  selection/navigation.
+- Pick Set is temporary workflow state.
+- Picks remain marked while navigating across Comparison Pages.
+- `Keep Picked` is disabled when the Pick Set is empty.
+- Applying `Keep Picked` preserves original Selected ordering among picked images.
+- Non-picked images remain Registered in Files.
+- Picked membership alone must not trigger decode, preload, residency protection,
+  foreground loading, Difference calculation, or analysis requests.
+- **Active**, **Primary**, and **Picked** are distinct states and affordances.
+- Split/Difference derived presentation documents are not independent pick
+  identities; picks refer to native registered/selected source documents.
+- Only `Keep Picked` mutates Selected. Pick/Unpick/Clear Picks must not do so.
+- Initial P4-A Pick Set is not persisted across application/session restore.
+- Applying the subset must leave the resulting selection/page/active state
+  deterministic and compatible with the inherited Current Comparison Page model.
 
-## Explicit exclusions
+### Validation direction
 
-- Review Selection / Pick / Keep Picked;
-- persistent sessions, Recent Files/Folders, Saved ROI, arbitrary-angle line,
-  alpha overlay;
-- Profile Library/CRUD, fuzzy/size-only suggestion, sensor/Bayer/Black/White
-  inference;
-- demosaic, white balance, CCM, tone mapping;
-- new Difference mode or gain persistence;
-- Settings schema bump;
-- Comparison Page preload or preload concurrency expansion;
-- residency-policy redesign or broad MainWindow rewrite;
-- packaging, signing, installer, updater.
+Tests should cover zero/one/many picks, cross-page persistence, original-order
+preservation, non-picked registration retention, no pick-owned decode/residency,
+Active/Primary/Picked separation, derived-presentation identity rejection, and
+apply behavior on large selections.
 
-## Validation policy
+## P4-B — Persistent Comparison Sessions
 
-The Chat implementation agent writes source/tests/docs and performs static review only.
-It does not create/search for a virtual environment, install dependencies, or claim a
-local Windows PASS.
+Define the session schema only after separating durable user intent from runtime
+implementation state.
 
-Owner full Windows validation:
+Candidate durable state may include registered input references, ordered Selected,
+current comparison/page position derivation inputs, layout/presentation choices,
+applicable ROI/analysis/view state, and explicit feature state that has stable
+product meaning.
+
+Do **not** serialize runtime/derived/temporary ownership such as:
+
+- decoded `ImageDocument.source` arrays;
+- source residency/LRU/protection state;
+- Difference or other caches;
+- active workers, preload state, tokens, request serials, generations used only for
+  stale-result authority;
+- gained/derived preview buffers;
+- temporary Review Pick Set;
+- transient Split/Difference presentation documents;
+- Current Comparison Page as an independent duplicate collection.
+
+Session load must reconstruct runtime state through the normal registration,
+selection, page, profile-resolution, load, and residency paths rather than reviving
+internal worker/cache objects.
+
+Versioning, missing-path behavior, portability/path semantics, atomic save/load,
+corrupt/future-schema handling, and privacy implications must be explicit before
+implementation.
+
+## P4-C — Recent Entries & Session Entry UX
+
+Design one coherent workflow-entry surface that distinguishes at least:
+
+- recent image entry;
+- recent folder entry;
+- recent session entry.
+
+Requirements:
+
+- entry type must be explicit rather than inferred ambiguously from one flat list;
+- history is bounded and deterministic;
+- missing/moved path behavior is defined and non-destructive;
+- privacy/path-retention implications are documented;
+- opening a recent image/folder must reuse the P3 input intent contract rather than
+  bypassing registration/selection semantics;
+- opening a recent session must use the P4-B session loader, not ad-hoc state
+  restoration;
+- history must not own source residency or preload.
+
+## P4-D — Saved ROI & Analysis Workspace Productivity
+
+Separate the **current active ROI** used by existing analysis from **saved ROI
+definitions** used as reusable workflow annotations.
+
+Before implementation define:
+
+- image-space coordinate representation and bounds/clipping behavior;
+- naming/ordering/selection rules;
+- whether a saved ROI is global to a session or associated with a specific source;
+- behavior across different image dimensions;
+- apply/activate/delete semantics;
+- session persistence boundary once P4-B exists.
+
+Saved definitions must not become an alternative analysis working-set authority.
+The active ROI applied to the current native analysis workflow remains the
+numerical input.
+
+## P4-E — Viewer Overlay & Export Productivity
+
+### Alpha Overlay
+
+Any Alpha Overlay must remain presentation-only. It may assist visual comparison
+but must not mutate native source, Difference, Statistics, Histogram, Line Profile,
+source generation, cache identity, residency accounting, or preload ownership.
+
+Define source pairing, alignment/size compatibility, alpha control, active/primary
+interaction, and teardown state before implementation.
+
+### Export
+
+Export work is intentionally limited to concrete review/analysis pain points. Do
+not create a broad generic export framework in advance. For every exported artifact,
+define whether it represents native data, normalized Difference data, a viewer
+presentation, an ROI/plot result, or session metadata, and preserve the corresponding
+numerical/domain semantics.
+
+## P4-F — Integration & Workflow Hardening
+
+Close P4 with cross-feature integration rather than adding another broad feature.
+At minimum audit:
+
+- P4-A curation with large Selected sets and page navigation;
+- P4-B session round-trip with RAW profile resolution, missing paths, and P2
+  residency/preload reconstruction;
+- P4-C recent-entry intent against image/folder/session distinctions;
+- P4-D saved ROI activation against Statistics/Histogram/Difference/Line Profile;
+- P4-E presentation overlays/export against native-analysis and Difference domains;
+- P2/P3 request identity, stale-result, source residency, Difference-cache, and
+  preload invariants;
+- Qt lifetime/focus/teardown at new production composition boundaries;
+- durable docs, Windows owner characterization, and regression coverage.
+
+No wall-clock performance threshold should become a merge gate without a separate,
+evidence-backed performance requirement.
+
+## Explicit exclusions for P4-0
+
+P4-0 implements none of the runtime/UI slices above. It does not add:
+
+- Review Select / Pick / Unpick / Keep Picked;
+- session serializer/loader;
+- Recent Files/Folders/Sessions;
+- Saved ROI runtime/UI;
+- arbitrary-angle Line Profile;
+- Alpha Overlay;
+- export behavior;
+- Settings schema/persistence changes;
+- source residency/preload changes;
+- Difference/Display Gain/RAW profile workflow changes;
+- runtime source/test changes.
+
+## P4-0 validation policy
+
+P4-0 is docs-only. The Chat implementation agent does not bootstrap/search for a
+local Windows virtual environment or install dependencies.
+
+Applicable owner/local checks:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
-.\.venv\Scripts\python.exe -m ruff format --check .
-.\.venv\Scripts\python.exe -m mypy src
-.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_docs_contract.py
 git diff --check
 ```
 
-Focused P3-E tests should include the new integration-hardening module plus existing
-P3-A/P3-B/P3-C/P3-D, residency/preload, and P2-F request-dedup suites.
-
-### Windows manual characterization
-
-Presentation:
-
-1. Layout selector visual/alignment.
-2. Previous/Next page icons.
-3. first/middle/last page button states.
-4. page count/range readability.
-5. Display Gain alignment.
-6. dark-theme contrast.
-7. narrow/wide resize.
-8. Windows 100% scaling.
-9. if available, 125%/150% scaling clipping.
-
-Input/paging:
-
-10. Open 15 images.
-11. Open 50 images.
-12. navigate first/middle/final pages.
-13. Single View cross-page Left/Right.
-14. number keys on page 2+.
-15. folder registration with current selection preserved.
-
-Analysis:
-
-16. Statistics.
-17. Histogram.
-18. ROI.
-19. Line Profile.
-20. Difference same-bit.
-21. Difference mixed-bit.
-22. Split Channels.
-23. Display Gain.
-
-Runtime:
-
-24. small source budget page revisit.
-25. Folder Position + preload on Selected <=6.
-26. PageUp/PageDown unavailable on Selected >6.
-27. Help > Copy Diagnostics.
-
-RAW:
-
-28. valid sidecar.
-29. missing sidecar.
-30. invalid sidecar.
-31. lazy folder RAW foreground resolution.
-32. Cancel/retry behavior.
-
-## Current validation state
-
-P3-D owner/local Windows validation and independent review are complete; PR #26 is
-merged at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
-
-P3-E source/tests/docs are being implemented on the feature branch. Tests were not
-run by this Chat implementation agent. Owner/local Windows validation is pending.
-Independent review and merge are pending. P3-E must not be marked Complete or moved
-to the completed exec-plan archive until merge.
+Full pytest, Ruff, Ruff format, mypy, and `pip check` are not re-required solely for
+this docs-only transition. If a source/test/config file enters the diff, that
+exception no longer applies.

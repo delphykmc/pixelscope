@@ -49,7 +49,7 @@ Historical P2 plan:
 Image-analysis and RAW/input semantics are stabilized before persistent sessions
 or remote/release layers are built around them.
 
-## P3 — Image Semantics & RAW Processing
+## P3 — Image Semantics & RAW Processing — Complete
 
 P3-0 merged as PR #21 at
 `5738cee2d012b72790ecc340bf9eb4ed0ccae6d7`. P3 roadmap replanning merged as
@@ -155,46 +155,62 @@ P3-D did not add Profile Library/database, inference, demosaic, white balance, C
 tone mapping, a new Difference mode, settings schema changes, or residency/preload
 redesign.
 
-### P3-E — Integration, Presentation UI Polish & Phase Hardening — In progress
+### P3-E — Integration, Presentation UI Polish & Phase Hardening — Complete
 
-Branch: `feature/p3-e-integration-hardening`.
-Base: P3-D merged `main` at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
+Merged as PR #27 at
+`835634a58609601605fd0fc18a3028b64225f535`, completing P3.
 
-P3-E adds no new image-analysis semantics. It hardens the P3 production contract:
+P3-E added no new image-analysis semantics. It hardened the merged P3 production
+contract:
 
-- preserve native source authority across Difference, RAW presentation, Display
+- preserved native source authority across Difference, RAW presentation, Display
   Gain, Statistics, Histogram, Line Profile, Split Channels, and residency;
-- verify same-bit native and mixed-bit normalized Difference are independent of
+- preserved same-bit native and mixed-bit normalized Difference independence from
   Display Gain and RAW Black/White/display presentation;
-- verify 1× canonical-preview fast paths and gain>1 float32/Black-anchored paths
+- preserved 1× canonical-preview fast paths and gain>1 float32/Black-anchored paths
   without source/generation/residency mutation;
-- verify `Registered → Selected → Current Comparison Page → Presented → Resident`
-  ownership for 1/2/6/7/15/50-image cases without Selected-wide eager decode,
-  protection, or derived-preview retention;
-- preserve <=6 Folder Position/preload behavior and keep Comparison Page navigation
-  independent from speculative preload;
-- preserve lazy RAW profile resolution, Split Channels transient presentation,
+- hardened `Registered → Selected → Current Comparison Page → Presented → Resident`
+  ownership for large selections without Selected-wide eager decode/protection;
+- preserved <=6 Folder Position/preload behavior and kept Comparison Page
+  navigation independent from speculative preload;
+- preserved lazy RAW profile resolution, Split Channels transient presentation,
   Difference pair/cache ownership, and P2 analysis-request dedup contracts;
-- polish the image Presentation Control Row as an engineering command bar while
-  retaining command ownership: Layout on the left, Comparison Page navigation and
-  range in the center, Display Gain on the right;
-- use compact icon-backed `QToolButton` page controls with stable positions,
-  disabled endpoint states, tooltips/accessibility, and unchanged Ctrl+Arrow
-  shortcut ownership;
-- reuse existing design tokens and programmatic high-DPI icon infrastructure;
-- complete automated regression additions, Windows manual characterization, and
-  durable P3 documentation before merge.
+- finalized the Presentation Control Row with stable icon-backed page `QToolButton`s,
+  accessibility, fixed page/range labels, shared design tokens, and unchanged
+  keyboard ownership;
+- added production-composition regression coverage for actual page-button clicks,
+  Display Gain focus/shortcut ownership, and Qt teardown/recreation.
 
-P3-E status is **implemented/in progress only after its branch changes land**;
-owner/local Windows validation, independent review, and merge remain required before
-P3 can be archived as Complete.
+Independent review's initial production-composition integration-test blocker was
+resolved by follow-up work. The repository owner reported a **full local Windows
+pytest PASS** on code/test head
+`1af4f6703656028ca7d0e2bdaf369cce029e4bb1`; the later
+`b29963cbf91bf5c022a53d9562e36510e80112a2` commit changed only
+`docs/AGENT_HARNESS_NOTES.md` before the final merge.
 
-P3 excludes persistent sessions, remote/authentication work, release engineering,
-speculative preload-policy expansion, native optimization without profiling
-evidence, and demosaic/white-balance/color/tone processing unless separately
-approved.
+No unobserved Ruff, Ruff-format, mypy, pip-check, docs-check, or `git diff --check`
+PASS is inferred from that closure evidence.
 
-## P4 — Workflow & Session Productivity
+Historical P3 plan:
+[`docs/exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
+
+The initial P3 Profile Library/demosaic direction was intentionally replaced or
+deferred, not delivered. P3 does not include demosaic, white balance, CCM, tone
+mapping, Profile Library/database, profile CRUD/favorites/search, fuzzy/size-only
+profile suggestion, sensor/Bayer inference, or automatic Black/White estimation.
+
+## P4 — Workflow & Session Productivity — Active
+
+Active plan:
+[`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
+
+Recommended sequence:
+
+`P4-0 → P4-A → P4-B → P4-C → P4-D → P4-E → P4-F`
+
+### P4-0 — P3 Closure & P4 Program Setup
+
+Docs-only transition. P4 runtime/UI behavior is not implemented in this slice.
 
 ### P4-A — Review Selection & Curation
 
@@ -202,49 +218,59 @@ Planned workflow:
 
 ```text
 Registered
-↓
+    ↓
 Selected
-↓
+    ↓
 Current Comparison Page
-↓
+    ↓
 temporary Review Pick Set
-↓ Apply
+    ↓ Apply
 new Selected subset
 ```
 
-Concept:
+Review Select is explicit. Pick Set is temporary and cross-page, zero-pick
+**Keep Picked** is disabled, applying preserves original Selected ordering, and
+non-picked images remain Registered. Active, Primary, and Picked remain distinct.
+Picked membership does not own decode, residency/protection, analysis, Difference,
+or source loading. Only **Keep Picked** mutates Selected; the initial Pick Set is
+not persisted.
 
-```text
-large Selected set
-→ browse Current Comparison Pages
-→ temporary Pick/Unpick native Selected images
-→ Keep Picked
-→ replace Selected with picked subset
-```
+### P4-B — Persistent Comparison Sessions
 
-Expected later UX:
+Persist durable user intent only. Decoded source, caches, residency/LRU state,
+workers, preload state, request/generation tokens, derived gained previews, and
+temporary workflow state are runtime state and must not be serialized. Current
+Comparison Page remains derived rather than an independent serialized collection.
 
-- explicit Review Select mode;
-- tile-level Pick/Unpick with persistent cross-page marks;
-- picked-tile border plus check affordance and picked count;
-- Clear Picks and Keep Picked actions;
-- non-picked images remain Registered;
-- Files reflects the final Selected subset after Apply;
-- first resulting Selected image becomes active;
-- zero-pick Apply is disabled;
-- Review Pick Set is temporary workflow state only and does not own residency,
-  analysis, Difference, or source loading.
+### P4-C — Recent Entries & Session Entry UX
 
-P3-E must not pre-create or implement this runtime state.
+Distinguish image, folder, and session history types. Define bounded history,
+missing-path behavior, and privacy/path-retention semantics before implementation.
 
-### Later P4 productivity
+### P4-D — Saved ROI & Analysis Workspace Productivity
 
-- Persistent comparison sessions.
-- Recent Files/Folders.
-- Saved ROI manager.
-- Arbitrary-angle line sampling.
-- Alpha overlay.
-- Additional productivity/export workflows.
+Separate saved ROI definitions from the current active ROI that feeds analysis.
+Define coordinate/dimension, naming, activation/deletion, and session ownership
+before implementation.
+
+### P4-E — Viewer Overlay & Export Productivity
+
+Alpha Overlay must remain presentation-only. Export should address concrete
+workflow pain points and define whether each artifact represents native data,
+normalized Difference, presentation, analysis output, or session metadata.
+
+### P4-F — Integration & Workflow Hardening
+
+Harden P4-A through P4-E together against the inherited P2/P3 Current Comparison
+Page, source residency, preload, Difference, Display Gain, RAW profile resolution,
+request identity, and Qt lifetime contracts.
+
+### Deferred from P4
+
+Arbitrary-angle Line Profile is intentionally omitted. Line Profile is an
+observation/sampling tool, so a future arbitrary-angle design should first define a
+discrete sampling/pixel-path and coordinate-display contract. Interpolation is not
+assumed, and the current utility does not justify that semantic/UI complexity.
 
 ## P5 — Remote IQA Platform
 
