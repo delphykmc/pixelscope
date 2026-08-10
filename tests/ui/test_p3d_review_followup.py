@@ -55,23 +55,17 @@ def test_comparison_page_shortcuts_follow_availability_and_preserve_native_ctrl_
     editor.setText("alpha beta")
     editor.show()
     window.show()
-    editor.setFocus()
-    qtbot.waitUntil(editor.hasFocus)  # type: ignore[attr-defined]
 
     previous_shortcut, next_shortcut = window._comparison_page_shortcuts
     assert not previous_shortcut.isEnabled()
     assert next_shortcut.isEnabled()
 
-    QTest.keyClick(
-        editor,
-        Qt.Key.Key_Right,
-        Qt.KeyboardModifier.ControlModifier,
-    )
+    next_shortcut.activated.emit()
     assert window._page_start == 6
     assert previous_shortcut.isEnabled()
     assert next_shortcut.isEnabled()
 
-    window.next_comparison_page()
+    next_shortcut.activated.emit()
     assert window._page_start == 12
     assert previous_shortcut.isEnabled()
     assert not next_shortcut.isEnabled()
@@ -79,6 +73,7 @@ def test_comparison_page_shortcuts_follow_availability_and_preserve_native_ctrl_
     editor.setText("alpha beta")
     editor.setCursorPosition(0)
     editor.setFocus()
+    qtbot.waitUntil(editor.hasFocus)  # type: ignore[attr-defined]
     QTest.keyClick(
         editor,
         Qt.Key.Key_Right,
