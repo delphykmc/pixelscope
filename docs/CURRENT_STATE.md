@@ -1,8 +1,8 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-10
-Current merged baseline / P3-D PR #26 merge commit:
-`b16ecc558ac24225e9ddfddfca4e48e37fde61ca`
+Snapshot date: 2026-08-11
+Current merged baseline / P3-E PR #27 merge commit:
+`835634a58609601605fd0fc18a3028b64225f535`
 
 ## Merge baseline
 
@@ -14,16 +14,20 @@ Current merged baseline / P3-D PR #26 merge commit:
 - P3 roadmap replanning merged as PR #23.
 - P3-B RAW Native & Display Semantics merged as PR #24.
 - P3-C Display Gain generalization merged as PR #25.
-- P3-D Unified Image Opening & RAW Profile Resolution merged as PR #26 at the
-  baseline SHA above.
+- P3-D Unified Image Opening & RAW Profile Resolution merged as PR #26.
+- P3-E Integration, Presentation UI Polish & Phase Hardening merged as PR #27 at
+  the baseline SHA above, completing P3.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P3-E is **Integration, Presentation UI Polish & Phase Hardening**. It adds no new
-analysis semantics and keeps P3-D's ownership hierarchy authoritative.
+P4 is **Workflow & Session Productivity**. P4-0 is the docs-only program setup and
+P4-A Review Selection & Curation is the next design slice.
+
+The completed P3 archive is
+[`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
 
 ## Workspace ownership model
 
-P3-D/P3-E distinguish five runtime layers:
+P3 distinguishes five runtime layers:
 
 ```text
 Registered
@@ -165,7 +169,7 @@ Presentation row contract:
 - the row remains distinct from the Main toolbar and directly above the image
   workspace.
 
-No Review Pick/Keep Picked workflow state is introduced in P3-E.
+No Review Pick/Keep Picked workflow state is introduced in the merged P3 baseline.
 
 ## RAW registration boundary
 
@@ -191,8 +195,8 @@ leaves it registered and pending, starts no worker, and passive rerenders do not
 immediately reopen the dialog. A later explicit foreground action may retry.
 
 No profile is inferred from file size or other weak evidence. The RAW dialog uses
-**Load Profile...** / **Save Profile...** terminology. P3-D/P3-E add no global
-Profile Library, profile CRUD manager, last-profile reuse, apply-to-all behavior,
+**Load Profile...** / **Save Profile...** terminology. P3 adds no global Profile
+Library, profile CRUD manager, last-profile reuse, apply-to-all behavior,
 size-only/fuzzy matching, sensor/Bayer inference, or Black/White estimation.
 
 ## Navigation and analysis baseline
@@ -257,27 +261,46 @@ dedicated worker, with running-preload promotion as established by P2. P3-E does
 not add Comparison Page preloading. Diagnostics remain deterministic, bounded,
 sanitized, and observation-only.
 
-## Active P3 sequence
+## P3 sequence — Complete
 
 1. P3-A — Difference Gray / Mixed Bit-Depth Support — Complete — PR #22
 2. P3-B — RAW Native & Display Semantics — Complete — PR #24
 3. P3-C — Display Gain Extension — Complete — PR #25
 4. P3-D — Unified Image Opening & RAW Profile Resolution — Complete — PR #26
-5. P3-E — Integration, Presentation UI Polish & Phase Hardening — implemented on
-   feature branch; owner/local validation, independent review, and merge pending
+5. P3-E — Integration, Presentation UI Polish & Phase Hardening — Complete — PR #27
 
-## Validation state
+## P3 closure evidence
 
-P3-D owner/local Windows validation PASS and independent review are complete, and
-PR #26 is merged at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
+P3-E independent review initially identified one production-composition integration-
+test blocker. Follow-up changes added actual replacement `QToolButton` click wiring,
+real Display Gain shortcut/focus ownership in the production composition, and Qt
+teardown/recreation regression coverage. Independent re-review reported the blocker
+resolved and found no remaining production/runtime/architecture blocker.
 
-P3-E adds focused deterministic coverage for presentation-row command semantics,
-15-image first/middle/final endpoint states, 50-image page-bounded foreground
-loading/protection, final short-page clearing, and presentation-only gain changes
-without numerical analysis-request churn. Existing P3-A–P3-D and P2 regression
-suites remain the authoritative cross-feature coverage for Difference domains, RAW
-Black/CFA behavior, Split Channels, preload, eviction/reload, lazy RAW resolution,
-Difference cache ownership, and request dedup.
+The repository owner reported the **full local Windows pytest suite PASS** on the
+code/test head `1af4f6703656028ca7d0e2bdaf369cce029e4bb1`. The subsequent PR
+head `b29963cbf91bf5c022a53d9562e36510e80112a2` changed only
+`docs/AGENT_HARNESS_NOTES.md` and did not alter runtime or tests. PR #27 then merged
+at `835634a58609601605fd0fc18a3028b64225f535`.
 
-**P3-E tests have not been run by the Chat implementation agent. Owner/local
-Windows validation is pending. Independent review and merge are pending.**
+No Ruff, Ruff-format, mypy, pip-check, docs-check, or `git diff --check` PASS is
+claimed here without separate observed evidence.
+
+## Active P4 sequence
+
+1. P4-0 — P3 Closure & P4 Program Setup — Active docs-only transition
+2. P4-A — Review Selection & Curation — design next
+3. P4-B — Persistent Comparison Sessions — planned
+4. P4-C — Recent Entries & Session Entry UX — planned
+5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
+6. P4-E — Viewer Overlay & Export Productivity — planned
+7. P4-F — Integration & Workflow Hardening — planned
+
+P4 inherits the P2/P3 ownership and numerical contracts above. Temporary workflow
+state must not become source/cache/residency authority.
+
+Arbitrary-angle Line Profile is intentionally omitted from P4. Because Line Profile
+is an observation/sampling tool, a future arbitrary-angle version should define a
+discrete sampling/pixel-path and coordinate-display contract explicitly rather than
+implicitly introducing interpolation. The current utility does not justify that
+semantic/UI complexity.
