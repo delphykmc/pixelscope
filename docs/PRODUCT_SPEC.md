@@ -85,7 +85,7 @@ order and loading/resident/error indicators.
 A stable state with registered documents and zero Selected documents is supported.
 The central workspace prompts **Select an image from Files to view**. A truly empty
 workspace instead prompts **Drop images or folders here** and exposes Open Images
-and Open Folders actions.
+and Open Folder actions.
 
 ### Current Comparison Page and navigation
 
@@ -188,7 +188,9 @@ all selected RAW files, or pick a profile from byte size alone.
 - Resizable/floating Plots dock retains persisted workspace state.
 
 A derived Difference result uses the existing six-source Diff-only presentation
-contract when all six Current Comparison Page source slots are occupied.
+contract when all six Current Comparison Page source slots are occupied. Fresh
+asynchronous results and cache hits use the same Diff-only Single View presentation
+and workspace-restore semantics.
 
 Folder-only registration is not a presentation lifecycle operation: it must not
 reset Selected, Current Comparison Page, layout, active/primary state, ROI, Line

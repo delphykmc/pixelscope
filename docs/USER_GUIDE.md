@@ -228,7 +228,9 @@ explicit Image 1/Image 2 pair remains owned by the Difference feature.
 
 When all six source slots of a Comparison Page are occupied, the derived Difference
 result is presented in Single View until disabled, preserving the existing
-six-source Difference workspace contract.
+six-source Difference workspace contract. Returning to a page with a cached
+Difference uses the same Diff-only Single View and restore behavior as a fresh
+asynchronous result.
 
 ## RAW profile resolution
 
