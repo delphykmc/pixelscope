@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_selection import ReviewSelectionState
-from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.design_tokens import TOKENS, tile_style
 from pixelscope.ui.image_viewer import ImageViewer
 
 
@@ -187,9 +187,13 @@ class ReviewSelectionController(QObject):
         self.window._select_document_ids = select_document_ids
         self.window._remove_document_ids = remove_document_ids
 
-        # MainWindow connected this signal during construction. Reconnect only that
-        # one slot behind the review invalidation hook so direct Files interaction
-        # follows: invalidate temporary review -> normal Selected mutation -> resync.
+        # MainWindow connected these signals during construction, so replacing only
+        # the instance attributes would leave the original bound callables stored in
+        # Qt. Reconnect the production paths through the review invalidation wrappers.
+        self.window.document_list.remove_requested.disconnect(
+            self._original_remove_document_ids
+        )
+        self.window.document_list.remove_requested.connect(remove_document_ids)
         self.window.document_list.itemSelectionChanged.disconnect(
             self._original_selection_changed
         )
@@ -274,9 +278,12 @@ class ReviewSelectionController(QObject):
 
     def _sync_tile(self, viewer: ImageViewer) -> None:
         document_id = self._pickable_document_id(viewer.presented_document)
+        picked = document_id in self.state.picked_ids if document_id is not None else False
+        viewer.setProperty("reviewPicked", picked)
+        viewer.setStyleSheet(tile_style(bool(getattr(viewer, "_active", False))))
         viewer.header.set_review_pick(
             visible=document_id is not None,
-            picked=document_id in self.state.picked_ids if document_id is not None else False,
+            picked=picked,
         )
 
 

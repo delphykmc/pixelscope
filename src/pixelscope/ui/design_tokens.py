@@ -99,10 +99,19 @@ def panel_heading_style() -> str:
 
 
 def tile_style(active: bool) -> str:
+    """Render Active and Review-Picked as independent tile-wide states."""
+
     border = TOKENS.accent if active else TOKENS.border
+    picked_border = (
+        f"border: 2px solid {TOKENS.warning}; border-left: 5px solid {TOKENS.accent};"
+        if active
+        else f"border: 2px solid {TOKENS.warning};"
+    )
     return (
         f"ImageViewer {{ background: {TOKENS.workspace_background}; "
         f"border: 2px solid {border}; }}"
+        f'ImageViewer[reviewPicked="true"] {{ background: {TOKENS.workspace_background}; '
+        f"{picked_border} }}"
     )
 
 

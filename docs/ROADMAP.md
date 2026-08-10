@@ -238,16 +238,18 @@ new Selected subset
 
 Review Select is explicit. `ReviewSelectionState` owns only baseline Selected IDs,
 a picked native-source-ID set, and active state. Native source tiles expose a
-separate Pick/Picked affordance while review mode is active; normal tile activation
-and Primary remain independent. Picks persist across Comparison Pages and may remain
+separate Pick/Picked check affordance plus a tile-wide Picked border while review
+mode is active; normal tile activation and Primary remain independent. When a tile
+is both Active and Picked, the Picked border remains tile-wide and the Active accent
+is retained separately. Picks persist across Comparison Pages and may remain
 off-page without becoming residency/protection owners.
 
 **Keep Picked** is disabled at zero picks and is the only review operation that
 changes Selected. It filters the original baseline Selected ordering by picked
 membership, so pick order cannot reorder the result. Non-picked images remain
 Registered. Clear Picks and Cancel discard only temporary state. A different
-Selected-membership mutation invalidates temporary review state before normal
-selection mutation continues.
+Selected-membership mutation, including Files context-menu removal, invalidates the
+temporary review state before normal mutation continues.
 
 Picked membership does not own or trigger decode, `_ensure_loaded()`, source
 residency/protection/LRU touch, preload, foreground promotion, Display Gain preview
@@ -256,10 +258,12 @@ identity. Split/Difference derived documents are not independent pick identities
 Review state is not persisted and Settings schema remains v5.
 
 Focused coverage includes state lifetime/idempotence/order, explicit UI affordance,
-Active/Primary/Picked separation, 1/2/6/7/15/50 Selected cases, cross-page picks,
-zero-pick safety, ordered Apply, derived-presentation identity rejection, external
-Selected mutation invalidation, and 50-image bounded load/protection/preload
-regression. Owner/full validation is still required.
+Active/Primary/Picked separation, tile-wide Picked persistence, 1/2/6/7/15/50
+Selected cases, cross-page picks, zero-pick safety, baseline-order Keep Picked,
+production Files-removal invalidation, viewer pan/ROI/Line drag non-pick behavior,
+post-apply Files selection/first-Active state, derived-presentation identity
+rejection, external Selected mutation invalidation, and 50-image bounded
+load/protection/preload regression. Owner/full validation is still required.
 
 ### P4-B — Persistent Comparison Sessions
 
