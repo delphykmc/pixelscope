@@ -4,13 +4,14 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QToolButton
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
+from PySide6.QtWidgets import QComboBox, QToolButton
 
 from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.display_gain import display_gain_state, install_display_gain_control
+from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 
 
@@ -38,6 +39,16 @@ def _select_documents(window: MainWindow, documents: list[ImageDocument]) -> Non
     for document in documents:
         window.add_document(document, select=False)
     window._select_document_ids([document.document_id for document in documents])
+
+
+def _compose_production_window() -> tuple[MainWindow, QComboBox]:
+    """Mirror the post-construction composition order used by application.main()."""
+
+    window = MainWindow()
+    gain = install_display_gain_control(window)
+    polish_presentation_controls(window)
+    install_display_gain_shortcuts(window.central_stack, gain)
+    return window, gain
 
 
 @pytest.mark.parametrize(
@@ -88,10 +99,8 @@ def test_presentation_row_uses_stable_accessible_page_toolbuttons(
     QSettings().clear()
     display_gain_state().reset()
     documents = _ready_documents(tmp_path, 15)
-    window = MainWindow()
+    window, gain = _compose_production_window()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    gain = install_display_gain_control(window)
-    polish_presentation_controls(window)
     _select_documents(window, documents)
     window.show()
 
@@ -161,6 +170,121 @@ def test_presentation_row_uses_stable_accessible_page_toolbuttons(
     assert window.comparison_page_label.text() == "3 / 3"
     assert window.comparison_page_range_label.text() == "13–15 of 15"
     window.close()
+    display_gain_state().reset()
+
+
+def test_production_composition_wires_page_gain_focus_and_lifetime(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    QSettings().clear()
+    display_gain_state().reset()
+    documents = _ready_documents(tmp_path, 15)
+    window, gain = _compose_production_window()
+    window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+    _select_documents(window, documents)
+    window.show()
+    qtbot.waitUntil(lambda: window.isVisible())  # type: ignore[attr-defined]
+
+    selected_ids = tuple(document.document_id for document in window.selected_documents)
+    previous = window.previous_comparison_page_button
+    next_button = window.next_comparison_page_button
+    assert isinstance(previous, QToolButton)
+    assert isinstance(next_button, QToolButton)
+    assert not previous.isEnabled()
+    assert next_button.isEnabled()
+
+    qtbot.mouseClick(next_button, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: window._page_start == 6)  # type: ignore[attr-defined]
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    assert window.comparison_page_label.text() == "2 / 3"
+    assert previous.isEnabled()
+    assert next_button.isEnabled()
+
+    qtbot.mouseClick(next_button, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: window._page_start == 12)  # type: ignore[attr-defined]
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    assert window.comparison_page_label.text() == "3 / 3"
+    assert previous.isEnabled()
+    assert not next_button.isEnabled()
+
+    qtbot.mouseClick(previous, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: window._page_start == 6)  # type: ignore[attr-defined]
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    assert window.comparison_page_label.text() == "2 / 3"
+
+    qtbot.mouseClick(previous, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: window._page_start == 0)  # type: ignore[attr-defined]
+    assert tuple(document.document_id for document in window.selected_documents) == selected_ids
+    assert not previous.isEnabled()
+    assert next_button.isEnabled()
+
+    window.set_layout_mode("Single View")
+    qtbot.waitUntil(lambda: window.viewer.document is documents[0])  # type: ignore[attr-defined]
+    presentation_target = window.viewer._graphics.viewport()
+    presentation_target.setFocus()
+    qtbot.waitUntil(lambda: presentation_target.hasFocus())  # type: ignore[attr-defined]
+
+    for _ in range(10):
+        qtbot.keyClick(presentation_target, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: gain.currentData() == 16.0)  # type: ignore[attr-defined]
+    assert display_gain_state().gain == 16.0
+    qtbot.keyClick(presentation_target, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
+    assert gain.currentData() == 16.0
+
+    for _ in range(2):
+        qtbot.keyClick(presentation_target, Qt.Key.Key_Minus)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: gain.currentData() == 4.0)  # type: ignore[attr-defined]
+
+    group = window.document_list.topLevelItem(0)
+    assert group is not None
+    assert group.isExpanded()
+    window.document_list.setCurrentItem(group)
+    window.document_list.setFocus()
+    qtbot.waitUntil(lambda: window.document_list.hasFocus())  # type: ignore[attr-defined]
+
+    qtbot.keyClick(window.document_list, Qt.Key.Key_Minus)  # type: ignore[attr-defined]
+    assert not group.isExpanded()
+    assert gain.currentData() == 4.0
+    assert display_gain_state().gain == 4.0
+
+    qtbot.keyClick(window.document_list, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
+    assert group.isExpanded()
+    assert gain.currentData() == 4.0
+    assert display_gain_state().gain == 4.0
+
+    presentation_target.setFocus()
+    qtbot.waitUntil(lambda: presentation_target.hasFocus())  # type: ignore[attr-defined]
+    for _ in range(10):
+        qtbot.keyClick(presentation_target, Qt.Key.Key_Minus)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: gain.currentData() == 1.0)  # type: ignore[attr-defined]
+    assert display_gain_state().gain == 1.0
+    qtbot.keyClick(presentation_target, Qt.Key.Key_Minus)  # type: ignore[attr-defined]
+    assert gain.currentData() == 1.0
+
+    destroyed: list[bool] = []
+    window.destroyed.connect(lambda *_args: destroyed.append(True))
+    window.close()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    QCoreApplication.processEvents()
+    qtbot.waitUntil(lambda: bool(destroyed))  # type: ignore[attr-defined]
+    assert destroyed == [True]
+
+    second_window, second_gain = _compose_production_window()
+    qtbot.addWidget(second_window)  # type: ignore[attr-defined]
+    second_document = _ready_documents(tmp_path / "second-window", 1)[0]
+    _select_documents(second_window, [second_document])
+    second_window.set_layout_mode("Single View")
+    second_window.show()
+    qtbot.waitUntil(lambda: second_window.viewer.document is second_document)  # type: ignore[attr-defined]
+    second_target = second_window.viewer._graphics.viewport()
+    second_target.setFocus()
+    qtbot.waitUntil(lambda: second_target.hasFocus())  # type: ignore[attr-defined]
+    qtbot.keyClick(second_target, Qt.Key.Key_Plus)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: second_gain.currentData() == 2.0)  # type: ignore[attr-defined]
+    assert display_gain_state().gain == 2.0
+
+    second_window.close()
     display_gain_state().reset()
 
 
