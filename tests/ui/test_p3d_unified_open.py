@@ -8,7 +8,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from pixelscope.app.main_window import MainWindow
-from pixelscope.io.path_discovery import ImageInput, SUPPORTED_IMAGE_FILTER
+from pixelscope.io.path_discovery import SUPPORTED_IMAGE_FILTER, ImageInput
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 

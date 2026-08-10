@@ -14,8 +14,8 @@ from PySide6.QtCore import (
     QItemSelectionModel,
     QSettings,
     QSize,
-    QThreadPool,
     Qt,
+    QThreadPool,
 )
 from PySide6.QtGui import (
     QAction,
@@ -70,8 +70,8 @@ from pixelscope.core.preload import PreloadController, PreloadMemberRequest
 from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.path_discovery import (
-    ImageInput,
     SUPPORTED_IMAGE_FILTER,
+    ImageInput,
     discover_image_inputs,
     natural_sort_key,
 )
