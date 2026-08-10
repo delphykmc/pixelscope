@@ -201,6 +201,9 @@ profile suggestion, sensor/Bayer inference, or automatic Black/White estimation.
 
 ## P4 — Workflow & Session Productivity — Active
 
+P4-0 merged as PR #28 at
+`e30c49d6759715228a820d673ad8939ea9a3afe8`.
+
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
 
@@ -208,13 +211,18 @@ Recommended sequence:
 
 `P4-0 → P4-A → P4-B → P4-C → P4-D → P4-E → P4-F`
 
-### P4-0 — P3 Closure & P4 Program Setup
+### P4-0 — P3 Closure & P4 Program Setup — Complete
 
-Docs-only transition. P4 runtime/UI behavior is not implemented in this slice.
+Merged as PR #28. This docs-only transition closed P3 status, archived the P3 plan,
+and established the P4 execution sequence without adding runtime/UI behavior.
 
-### P4-A — Review Selection & Curation
+### P4-A — Review Selection & Curation — implementation pending validation/merge
 
-Planned workflow:
+Implemented on `feature/p4-a-review-selection-curation`; owner/local Windows
+validation, independent review, and merge are pending. Do not treat this slice as
+Complete until those gates close.
+
+Implemented workflow:
 
 ```text
 Registered
@@ -224,16 +232,34 @@ Selected
 Current Comparison Page
     ↓
 temporary Review Pick Set
-    ↓ Apply
+    ↓ Keep Picked
 new Selected subset
 ```
 
-Review Select is explicit. Pick Set is temporary and cross-page, zero-pick
-**Keep Picked** is disabled, applying preserves original Selected ordering, and
-non-picked images remain Registered. Active, Primary, and Picked remain distinct.
-Picked membership does not own decode, residency/protection, analysis, Difference,
-or source loading. Only **Keep Picked** mutates Selected; the initial Pick Set is
-not persisted.
+Review Select is explicit. `ReviewSelectionState` owns only baseline Selected IDs,
+a picked native-source-ID set, and active state. Native source tiles expose a
+separate Pick/Picked affordance while review mode is active; normal tile activation
+and Primary remain independent. Picks persist across Comparison Pages and may remain
+off-page without becoming residency/protection owners.
+
+**Keep Picked** is disabled at zero picks and is the only review operation that
+changes Selected. It filters the original baseline Selected ordering by picked
+membership, so pick order cannot reorder the result. Non-picked images remain
+Registered. Clear Picks and Cancel discard only temporary state. A different
+Selected-membership mutation invalidates temporary review state before normal
+selection mutation continues.
+
+Picked membership does not own or trigger decode, `_ensure_loaded()`, source
+residency/protection/LRU touch, preload, foreground promotion, Display Gain preview
+generation, numerical analysis, Difference calculation, or Difference cache
+identity. Split/Difference derived documents are not independent pick identities.
+Review state is not persisted and Settings schema remains v5.
+
+Focused coverage includes state lifetime/idempotence/order, explicit UI affordance,
+Active/Primary/Picked separation, 1/2/6/7/15/50 Selected cases, cross-page picks,
+zero-pick safety, ordered Apply, derived-presentation identity rejection, external
+Selected mutation invalidation, and 50-image bounded load/protection/preload
+regression. Owner/full validation is still required.
 
 ### P4-B — Persistent Comparison Sessions
 

@@ -1,10 +1,10 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-0 program setup / P4-A design next
+Status: Active — P4-A implemented; owner validation / independent review / merge pending
 Owner: repository owner + P4 orchestration agents
 Last updated: 2026-08-11
-Inherited merged baseline: P3-E / PR #27 merge commit
-`835634a58609601605fd0fc18a3028b64225f535`
+Inherited merged baseline: P4-0 / PR #28 merge commit
+`e30c49d6759715228a820d673ad8939ea9a3afe8`
 
 ## Goal
 
@@ -49,7 +49,7 @@ Inherited invariants:
   normalized `[0,1]` for mixed effective depth.
 - RAW Black/White metadata and display transforms do not enter Difference domain
   selection/normalization.
-- temporary workflow state must not become source/cache/residency authority.
+- temporary workflow state must not become source/cache/residency/analysis authority.
 - Current Comparison Page is derived from Selected ordering/page offset and must not
   be serialized as an independently owned collection.
 
@@ -59,8 +59,8 @@ Inherited invariants:
 
 | Order | Slice | Status |
 |---|---|---|
-| 0 | P4-0 P3 Closure & P4 Program Setup | Active |
-| 1 | P4-A Review Selection & Curation | Design next |
+| 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
+| 1 | P4-A Review Selection & Curation | Implemented; validation/review/merge pending |
 | 2 | P4-B Persistent Comparison Sessions | Planned |
 | 3 | P4-C Recent Entries & Session Entry UX | Planned |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
@@ -73,15 +73,16 @@ would require a deliberate discrete pixel-sampling/path and coordinate-display
 contract rather than casually introducing interpolation. The expected utility does
 not currently justify that semantic/UI cost.
 
-## P4-0 — P3 Closure & P4 Program Setup
+## P4-0 — P3 Closure & P4 Program Setup — Complete
 
-Docs-only orchestration slice:
+PR #28 merged at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
+The docs-only orchestration slice:
 
-- record P3-E / PR #27 as merged and P3 as Complete;
-- archive the completed P3 execution plan;
-- replace the active plan with this P4 program;
-- reconcile stale phase/status documentation only;
-- do not implement P4 runtime/UI state or change Settings/persistence schemas.
+- recorded P3-E / PR #27 as merged and P3 as Complete;
+- archived the completed P3 execution plan;
+- established this P4 program plan;
+- reconciled phase/status documentation;
+- added no P4 runtime/UI state and changed no Settings/persistence schema.
 
 ## P4-A — Review Selection & Curation
 
@@ -101,35 +102,73 @@ Selected
 Current Comparison Page
     ↓
 temporary Review Pick Set
-    ↓ Apply
+    ↓ Keep Picked
 new Selected subset
 ```
 
-### Required contract
+### Implemented contract
+
+P4-A is implemented on `feature/p4-a-review-selection-curation`; owner/local Windows
+validation, independent review, and merge are pending.
 
 - **Review Select** is an explicit mode, never an implicit side effect of normal
-  selection/navigation.
-- Pick Set is temporary workflow state.
-- Picks remain marked while navigating across Comparison Pages.
+  tile activation or navigation.
+- `ReviewSelectionState` stores only baseline Selected IDs, picked native source
+  IDs, and active state. It stores no source/preview arrays, workers, caches,
+  residency state, RAW-profile copies, or Current Comparison Page copy.
+- native source tiles expose a separate **Pick / Picked** check affordance only while
+  review mode is active.
+- Picks remain marked while navigating across Comparison Pages. Off-page picks do
+  not need to remain resident or protected.
 - `Keep Picked` is disabled when the Pick Set is empty.
-- Applying `Keep Picked` preserves original Selected ordering among picked images.
+- Applying `Keep Picked` preserves original baseline Selected ordering among picked
+  images rather than pick order.
 - Non-picked images remain Registered in Files.
-- Picked membership alone must not trigger decode, preload, residency protection,
-  foreground loading, Difference calculation, or analysis requests.
+- Picked membership alone does not trigger decode, `_ensure_loaded()`, source LRU
+  touch/protection, preload, foreground promotion, gained-preview generation,
+  Difference calculation/cache changes, or analysis requests.
 - **Active**, **Primary**, and **Picked** are distinct states and affordances.
 - Split/Difference derived presentation documents are not independent pick
-  identities; picks refer to native registered/selected source documents.
-- Only `Keep Picked` mutates Selected. Pick/Unpick/Clear Picks must not do so.
+  identities; picks refer to native registered/selected source document IDs.
+- Only `Keep Picked` mutates Selected. Pick/Unpick/Clear Picks do not.
+- **Cancel** clears the temporary baseline/Pick Set without changing Selected,
+  Current Comparison Page, Active, or Primary.
+- a different Selected-membership mutation invalidates the temporary review state
+  before the existing normal selection mutation proceeds.
 - Initial P4-A Pick Set is not persisted across application/session restore.
-- Applying the subset must leave the resulting selection/page/active state
-  deterministic and compatible with the inherited Current Comparison Page model.
+- Settings schema remains v5 and no P4-B persistent-session behavior is introduced.
 
-### Validation direction
+### Implementation shape
 
-Tests should cover zero/one/many picks, cross-page persistence, original-order
-preservation, non-picked registration retention, no pick-owned decode/residency,
-Active/Primary/Picked separation, derived-presentation identity rejection, and
-apply behavior on large selections.
+- `core.review_selection.ReviewSelectionState` is the Qt-free ID-only state model.
+- `ui.review_selection.ReviewSelectionController` owns temporary workflow
+  orchestration and the contextual control group.
+- `TileHeader` exposes the explicit source-tile Pick/Picked affordance separately
+  from its existing Primary flag.
+- production application composition installs the Review controller without moving
+  Layout, Comparison Page, Display Gain, or unrelated Main-toolbar commands.
+- Keep Picked delegates the resulting ordered subset through the inherited Selected
+  mutation/render/source lifecycle rather than creating a curation-specific source
+  lifecycle.
+
+### Focused coverage
+
+New focused suites cover:
+
+- state enter/exit, Pick/Unpick, duplicate idempotence, Clear, zero-pick, temporary
+  lifetime, and baseline-order filtering;
+- inactive tile behavior, explicit active-mode Pick affordance, picked count,
+  Keep/Clear/Cancel state, and Active/Primary/Picked separation;
+- `1 / 2 / 6 / 7 / 15 / 50` Selected cases;
+- cross-page picks for 7 and 15 images;
+- ordered Keep Picked result and non-picked registration retention;
+- 50-image page-bounded loading/protection with no Pick-owned preload;
+- no Pick/Unpick `_ensure_loaded`, render, Statistics, Difference-input, or Line
+  Profile request churn and no source-generation/residency/Difference-cache change;
+- Split/Difference derived identity rejection;
+- programmatic and direct-Files Selected replacement invalidation.
+
+Owner/local Windows focused/full validation remains required before merge.
 
 ## P4-B — Persistent Comparison Sessions
 
@@ -237,35 +276,49 @@ At minimum audit:
 No wall-clock performance threshold should become a merge gate without a separate,
 evidence-backed performance requirement.
 
-## Explicit exclusions for P4-0
+## P4-A explicit exclusions
 
-P4-0 implements none of the runtime/UI slices above. It does not add:
+P4-A does not add:
 
-- Review Select / Pick / Unpick / Keep Picked;
-- session serializer/loader;
-- Recent Files/Folders/Sessions;
+- persistent comparison session serializer/loader or session file format;
+- Recent Images/Folders/Sessions;
+- Pick Set persistence or Settings schema changes;
 - Saved ROI runtime/UI;
-- arbitrary-angle Line Profile;
-- Alpha Overlay;
-- export behavior;
-- Settings schema/persistence changes;
-- source residency/preload changes;
-- Difference/Display Gain/RAW profile workflow changes;
-- runtime source/test changes.
+- arbitrary-angle Line Profile or interpolation/sampling redesign;
+- Alpha Overlay or export behavior;
+- source residency or preload policy/concurrency changes;
+- Difference or Display Gain numerical changes;
+- RAW Profile Library/CRUD/favorites/search, demosaic, white balance, CCM, or tone
+  mapping;
+- remote IQA/authentication or packaging/signing/installer behavior;
+- broad MainWindow redesign.
 
-## P4-0 validation policy
+## P4-A validation policy
 
-P4-0 is docs-only. The Chat implementation agent does not bootstrap/search for a
-local Windows virtual environment or install dependencies.
+P4-A changes runtime/UI/source integration, so the P4-0 docs-only validation
+exception does not apply. The Chat implementation agent does not bootstrap/search
+for a local Windows virtual environment or install dependencies.
 
-Applicable owner/local checks:
+Run focused tests first:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_review_selection.py tests\ui\test_p4a_review_selection.py
+```
+
+Then run the full owner/local contract:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
-.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_docs_contract.py
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy src
+.\.venv\Scripts\python.exe -m pip check
 git diff --check
 ```
 
-Full pytest, Ruff, Ruff format, mypy, and `pip check` are not re-required solely for
-this docs-only transition. If a source/test/config file enters the diff, that
-exception no longer applies.
+Implementation-agent evidence is limited to a scratch syntax compile of the changed
+Python drafts and the Qt-free state-model module test reporting `3 passed`. PySide6
+was unavailable in that scratch environment, so focused UI tests and the repository
+full validation above were **not run by the implementation agent; owner/local
+Windows validation is required**.

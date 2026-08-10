@@ -295,8 +295,8 @@ Resident when required
   API with deterministic resolved-path deduplication; folder registration does not
   change Selected, Current Comparison Page, or presentation.
 - Direct image-file D&D uses Open Images intent.
-- Folder D&D uses Open Folder registration intent for one, two, six, fifteen, or any other
-  practical count. Exactly two folders have no special comparison behavior.
+- Folder D&D uses Open Folder registration intent for one, two, six, fifteen, or
+  any other practical count. Exactly two folders have no special comparison behavior.
 - Mixed D&D preserves both intents: direct files become Selected; folder contents
   remain registration-only.
 - Workspace registration and logical selection have no six-item limit.
@@ -403,18 +403,18 @@ P2 worker/residency identity remain unchanged.
 - P2 preload remains exactly +1 Folder Position with one preload worker. P3-D adds
   no Comparison Page preload system.
 
-### Multi-folder UI
+### Multi-folder registration UI
 
-- `Open Folders...` uses a project-local Qt-only non-native QFileDialog with
-  extended directory selection.
-- Existing directories are resolved, case-insensitively deduplicated, and sorted
-  deterministically.
-- No Windows COM dependency and no six-folder UI limit is introduced.
+- **Open Folder...** uses the native single-directory picker.
+- Multiple folders are registered through folder D&D or the registration API, with
+  deterministic resolved-path deduplication where several paths are supplied.
+- There is no custom multi-directory picker, Windows COM dependency, or six-folder
+  UI limit.
 
 ### Profile UI and persistence boundary
 
 - User-facing buttons are **Load Profile...** and **Save Profile...**; JSON remains
-  the compatible storage format.
+  the compatible profile format.
 - Settings schema remains v5.
 - RawProfile gains no artificial version field solely for this slice.
 - No global profile database/library, Settings-owned profile collection,
@@ -431,6 +431,52 @@ so unlimited logical Selected membership does not defeat the existing P2 soft
 budget; it does not replace ResidencyManager or its accounting model. Native source
 remains authoritative and all P3-A/B/C analysis/display boundaries remain intact.
 
+## P4-A Review Selection & Curation decisions — implementation pending merge
+
+P4-0 is merged as PR #28 at
+`e30c49d6759715228a820d673ad8939ea9a3afe8`. P4-A is implemented on
+`feature/p4-a-review-selection-curation`; owner/local Windows validation,
+independent review, and merge remain pending.
+
+- Review Select is an explicit temporary workflow mode. Ordinary tile activation
+  and Primary interaction retain their inherited meaning.
+- `ReviewSelectionState` is the sole Pick Set model and contains only ordered
+  baseline Selected IDs, picked native source IDs, and active state.
+- `ImageDocument` does not gain a persistent/workflow Pick field. Pick state is not
+  stored in source, preview, residency, cache, worker, RAW profile, or derived
+  presentation objects.
+- Pick identity is the native Registered/Selected source document ID. Split Channel,
+  Difference, and gained preview representations are not independent pick
+  identities.
+- Active, Primary, and Picked are separate states and visual affordances.
+- Pick/Unpick/Clear are ID-set/UI operations only. They do not call decode or
+  `_ensure_loaded()`, touch source LRU/protection, create preload or promotion,
+  generate Display Gain previews, issue analysis requests, calculate Difference,
+  bump source generation, or invalidate Difference cache.
+- Off-page Picked sources may be evicted/unprotected; Pick membership is not a
+  source-residency owner.
+- `Analysis Working Set = Current Comparison Page` remains unchanged. Review Pick
+  Set is not Statistics/Histogram/Line Profile/ROI/Difference authority.
+- **Keep Picked** is the only review operation that mutates Selected. The result is
+  `baseline_selected_ids` filtered by picked membership, preserving baseline order
+  rather than pick order.
+- Zero picks disable Keep Picked; there is no review path that silently creates an
+  empty Selected set.
+- Non-picked images remain Registered and Keep Picked reuses the inherited Selected
+  mutation/page/render/source lifecycle rather than creating a curation-specific
+  lifecycle.
+- Cancel clears temporary review state without changing Selected, Current Comparison
+  Page, Active, or Primary.
+- A different Selected-membership mutation invalidates temporary review state before
+  the ordinary mutation proceeds. Registration-only folder input does not invalidate
+  review because it does not mutate Selected.
+- Review state is not persisted. Settings schema remains v5 and P4-A does not begin
+  P4-B session serialization.
+- Comparison Page navigation creates no speculative preload for Picked sources. P2
+  preload remains Folder Position +1, one position, max-one worker.
+- Difference, Display Gain, RAW Black/White/native-source semantics, source
+  generation identity, and source residency accounting remain unchanged.
+
 ## Current resource policy
 
 - Difference Map Cache remains byte-budgeted and persistence-free with default
@@ -438,29 +484,28 @@ remains authoritative and all P3-A/B/C analysis/display boundaries remain intact
 - Decoded-source residency remains a protected soft-budget manager with default
   256 MiB.
 - Current Comparison Page plus correctness dependencies are the generic P3-D
-  protection set; Selected-but-off-page is not protected solely by selection.
+  protection set; Selected/Picked-but-off-page is not protected solely by logical
+  membership.
 - Normal load pool max remains two; preload pool max remains one; shared numerical
   pool max remains four.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Comparison Page navigation introduces no speculative preload/cache/persistence
-  owner.
+- Comparison Page navigation and Review Pick membership introduce no speculative
+  preload/cache/persistence owner.
 
 ## Validation and merge state
 
-P3-A/B/C are merged. P3-C is complete as PR #25 at
-`7f6bef73e6712f6a14a4d401820a915196e25da2`.
+P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28 at
+`e30c49d6759715228a820d673ad8939ea9a3afe8`.
 
-P3-D focused tests cover unified menu/input behavior, >6 logical selection,
-1–6/7–12/final Current Comparison Pages, page-local slots, fine/coarse navigation,
-partial-final-page clearing, current-page Statistics/Histogram/Line
-Profile/Difference inputs, bounded current-page residency protection,
-Selected>6 Folder Position separation, lazy RAW cancel/retry behavior,
-multi-folder registration/deduplication, folder/image/mixed D&D,
-registered-but-unselected state, and registration-only runtime preservation.
-Existing regression suites remain authoritative for RAW preload/reload/profile
-identity, Difference, Display Gain, Statistics/Histogram/Line Profile, Split
-Channels, and Selected<=6 behavior.
+P4-A focused coverage on the feature branch addresses temporary-state semantics,
+1/2/6/7/15/50 Selected cases, cross-page Pick persistence, ordered Keep Picked,
+zero-pick safety, Active/Primary/Picked separation, derived-presentation identity,
+external Selected mutation invalidation, and bounded runtime ownership with no
+Pick-owned load/protection/preload/Difference/analysis behavior.
 
-Tests were not run by this Chat implementation agent. Owner/local Windows
-validation is pending.
+Only the Qt-free state-model focused test was executed in the implementation
+agent's scratch environment and reported `3 passed`; a syntax compile of changed
+Python drafts also succeeded there. PySide6 was unavailable, so focused UI tests
+and the full repository contract were **not run by this Chat implementation agent;
+owner/local Windows validation is pending**.

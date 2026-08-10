@@ -200,6 +200,75 @@ Profile, Difference authority, source loading, and residency remain bound to the
 native Current Comparison Page source. Pending/loading sources keep channel
 placeholders so an unsplit stale frame is never presented while Split is active.
 
+## P4-A temporary review-selection boundary
+
+P4-A adds curation state without inserting a new source/analysis ownership layer.
+The product flow is:
+
+```text
+Registered
+    ↓
+Selected
+    ↓
+Current Comparison Page
+    ↓
+temporary Review Pick Set
+    ↓ Keep Picked
+new Selected subset
+```
+
+`core.review_selection.ReviewSelectionState` is a Qt-free workflow model containing
+only:
+
+- `baseline_selected_ids`: ordered source-document IDs captured on Review Select
+  entry;
+- `picked_ids`: an unordered membership set of native source-document IDs;
+- `active`: mode state.
+
+It does not hold `ImageDocument` objects, native/preview arrays, resident/cache
+objects, workers, RAW profile copies, Current Comparison Page copies, or derived
+Split/Difference documents. `kept_selected_ids()` filters baseline order by picked
+membership so application order never depends on pick order.
+
+`ui.review_selection.ReviewSelectionController` owns the contextual Review Select /
+Picked count / Clear Picks / Keep Picked / Cancel orchestration. Production
+composition installs it beside the existing presentation controls; Layout,
+Comparison Page, Display Gain, and Main-toolbar ownership are unchanged.
+`TileHeader` owns only the explicit Pick/Picked affordance and emits ID-free UI
+intent; the controller resolves the currently presented tile back to a baseline
+native source ID that must still exist in `MainWindow.documents`. Active and
+Primary are not reused as Picked state.
+
+Pick/Unpick/Clear only mutate the temporary ID set and tile/control state. They do
+not call `_ensure_loaded()`, touch source LRU/protection, create preload/foreground
+promotion, generate gained previews, change source generation, issue numerical
+analysis, calculate Difference, or invalidate Difference cache. Off-page Picked
+sources may therefore be nonresident and unprotected. `Analysis Working Set`
+remains Current Comparison Page and explicit Difference-pair ownership remains
+feature-local.
+
+**Keep Picked** is the only review operation that mutates Selected. It delegates the
+ordered filtered result through the inherited `_select_document_ids()` lifecycle so
+Current Comparison Page derivation, stale-slot clearing, source loading/residency,
+and analysis rebinding remain ordinary selection behavior rather than a curation-
+specific lifecycle. Zero picks prevent this call.
+
+External selection-oriented mutation is the invalidation boundary. Programmatic
+`_select_document_ids()` / selected-document removal adapters reset review before a
+different baseline is applied. Direct Files selection reconnects the existing
+MainWindow selection handler through the controller in the order:
+
+```text
+invalidate temporary Review state
+    ↓
+existing MainWindow Selected mutation
+    ↓
+Review UI resync
+```
+
+Registration-only folder input does not invalidate active review because it does
+not mutate Selected. Review state is not persisted; Settings schema remains v5.
+
 ## RAW profile-resolution boundary
 
 RAW and ordinary images share the same user-facing image-open command but retain
@@ -222,9 +291,9 @@ records the RAW path and deterministic sidecar path but does not show a dialog o
 decode the source.
 
 A folder-registered unresolved RAW does not prompt/decode merely because it belongs
-to Selected. Off-page Selected RAW stays pending and unprotected. When it enters
-Current Comparison Page, `_ensure_loaded()` becomes the foreground profile/load
-boundary.
+to Selected or Review Pick Set. Off-page Selected/Picked RAW stays pending and
+unprotected. When it enters Current Comparison Page, `_ensure_loaded()` becomes the
+foreground profile/load boundary.
 
 `_raw_profile_prompt_suppressed` defines the cancel retry boundary: one foreground
 attempt prompts an unresolved RAW at most once. Cancel leaves the document pending
@@ -234,10 +303,10 @@ required current-page document(s) and may retry.
 
 Unresolved RAW is skipped by speculative preload because `_refresh_preload_plan()`
 requires an existing resolved RAW profile before constructing a RAW preload
-worker. P3-D does not add Comparison Page preloading; preload remains exclusively
+worker. P4-A adds no Comparison Page/Pick Set preloading; preload remains exclusively
 Folder Position +1.
 
-`RawProfile` JSON migration remains the durable compatibility boundary. P3-D adds
+`RawProfile` JSON migration remains the durable compatibility boundary. P4-A adds
 no profile-library persistence, profile schema version, last-profile reuse,
 size-only/fuzzy matching, sensor inference, or automatic Black/White estimation.
 
@@ -257,8 +326,9 @@ partially moved.
 
 A valid PageUp/PageDown plan for `Selected <= 6` atomically replaces Selected with
 the corresponding previous/next members while preserving the existing Folder
-Position view/overlay and preload/promotion contract. Endpoint or invalid-member
-plans remain no-ops.
+Position view/overlay and preload/promotion contract. If Review Select is active,
+that Selected replacement first invalidates the temporary review state. Endpoint or
+invalid-member plans remain no-ops.
 
 ## Display Gain architecture
 
@@ -282,7 +352,8 @@ independent presentation Gain.
 
 Display Gain is presentation-only. `ImageDocument.source`, pixel inspection,
 Statistics, Histogram, Line Profile, Split Channel data, Difference, source
-residency, and Difference cache identity are independent of it.
+residency, Difference cache identity, and Review Pick identity are independent of
+it.
 
 The canonical 1× preview is reused directly. Gain >1 derives viewer-local preview
 from already resident native source on the shared numerical pool. Request identity,
@@ -298,9 +369,10 @@ Schema version 5 owns RAW JSON confirmation, exact RAW size, default Open/Export
 directories, Difference Threshold/Gain, Difference Map Cache MiB, Decoded Source
 Memory MiB, and preload enablement.
 
-P3-B/P3-C/P3-D add no setting/schema migration. Display Gain is QApplication-
-session state. P3-D creates no Settings-owned RAW profile collection. `Reset
-Settings` remains separate from workspace-layout reset.
+P4-A adds no setting/schema migration. Display Gain is QApplication-session state
+and Review Pick Set is temporary application-session workflow state. Neither is
+persisted through `ApplicationSettings`; `Reset Settings` remains separate from
+workspace-layout reset.
 
 ## Thread and request lifecycle
 
@@ -314,13 +386,14 @@ registry, and stale-result rejection. Cancellation is advisory; result acceptanc
 is authoritative.
 
 Selection/page presentation triggers `_ensure_loaded()` only for Current Comparison
-Page requirements. Registration and off-page Selected membership alone do not
-decode unrelated images. `_selected_load_batch_complete()` uses the Current
+Page requirements. Registration and off-page Selected/Review Pick membership alone
+do not decode unrelated images. `_selected_load_batch_complete()` uses the Current
 Comparison Page rather than an independent first-six slice.
 
 Statistics/Histogram request identity includes generation and operation parameters
 so rebinding an unchanged request does not restart work. Line Profile caches by
-generation and line coordinates.
+generation and line coordinates. Pick/Unpick/Clear do not rebind those numerical
+requests.
 
 ## Source residency boundary
 
@@ -330,20 +403,21 @@ actual document mutation and Files-state updates.
 
 P2 established protected soft-budget LRU semantics. P3-D refines the generic
 selection owner for arbitrarily large logical selections: **Selected membership by
-itself is not protected**. `MainWindow._residency_protected_document_ids()` protects
-Current Comparison Page plus correctness dependencies, including foreground-load,
+itself is not protected**. P4-A adds the same non-authority rule for Review Pick
+membership. `MainWindow._residency_protected_document_ids()` protects Current
+Comparison Page plus correctness dependencies, including foreground-load,
 promoted-preload, Difference pair/result dependencies, and non-reloadable sources.
-Selected-but-off-page sources may be evicted and return to normal pending/reload
-state without losing Registered or Selected identity.
+Selected/Picked-but-off-page sources may be evicted and return to normal pending /
+reload state without losing Registered, Selected, or temporary Pick identity.
 
 The budget remains soft: protected sources may exceed it, including one required
 source larger than budget. Only unprotected resident sources are evicted.
 
-Registration does not add residency bytes. Eviction clears reloadable native source
-and source-local caches, returns the document to pending, and preserves its catalog
-identity. Preview arrays, Qt textures, Display Gain buffers, Difference maps,
-split-channel derivatives, worker temporaries, and process RSS are outside decoded-
-source accounting.
+Registration and Pick membership do not add residency bytes. Eviction clears
+reloadable native source and source-local caches, returns the document to pending,
+and preserves its catalog identity. Preview arrays, Qt textures, Display Gain
+buffers, Difference maps, split-channel derivatives, Review ID sets, worker
+temporaries, and process RSS are outside decoded-source accounting.
 
 ## Preload and promotion boundary
 
@@ -362,10 +436,10 @@ generation, source-path, RAW-profile, exact-size-policy, and token identity plus
 non-resident/running/not-cancelled state.
 
 Promoted success/failure delegates once to normal foreground paths. Folder
-registration alone does not create new speculative work; unresolved RAW without a
-profile is not preloaded. Comparison Page navigation starts no new speculative page
-preload system; sources needed for a newly foreground page use normal foreground
-requirements.
+registration or Review Pick membership alone does not create new speculative work;
+unresolved RAW without a profile is not preloaded. Comparison Page navigation
+starts no new speculative page preload system; sources needed for a newly foreground
+page use normal foreground requirements.
 
 ## Difference boundary
 
@@ -383,12 +457,14 @@ domain selection.
 - Difference cache ownership remains independent from source residency.
 
 Difference panel inputs default to the Current Comparison Page, while the panel's
-explicit Image 1/Image 2 pair remains feature-owned authority. Difference never
-consumes general Display Gain, RAW Black/White metadata, `DisplayTransform`, or
-preview pixels. Folder-only registration does not invalidate Difference cache or
-presentation because it does not change Selected/current-page lifecycle. For a
-six-source page, a cached Difference hit and an asynchronous fresh result share the
-same Diff-only Single View presentation and workspace-restore contract.
+explicit Image 1/Image 2 pair remains feature-owned authority. Review Pick Set is
+not a Difference input authority and Pick/Unpick does not calculate or invalidate
+Difference. Difference never consumes general Display Gain, RAW Black/White
+metadata, `DisplayTransform`, or preview pixels. Folder-only registration does not
+invalidate Difference cache or presentation because it does not change Selected /
+current-page lifecycle. For a six-source page, a cached Difference hit and an
+asynchronous fresh result share the same Diff-only Single View presentation and
+workspace-restore contract.
 
 ## RAW decode/display boundary
 

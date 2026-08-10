@@ -54,6 +54,8 @@ Opening folders is **registration-only**:
 Therefore adding folders while comparing A001/B001 leaves that comparison intact.
 ROI, Line Profile, Difference presentation, Display Gain, active/primary state,
 and current view state are not reset merely because another folder was registered.
+An active Review Select session is also unaffected by registration-only folder input
+because Selected membership did not change.
 
 If images are registered but nothing is selected, the center workspace shows
 **Select an image from Files to view**. A truly empty workspace shows **Drop images
@@ -102,6 +104,52 @@ In Single View, one image is presented but its page context is still the full
 Current Comparison Page. Number keys **1–6** always mean local page slots.
 For example, image10 on the 7–12 page is slot **4**, not slot 10.
 
+## Review Select and Keep Picked
+
+Use **Review Select** when a large Selected set contains images you want to inspect
+page by page and reduce to a smaller comparison subset.
+
+Review Select is an explicit temporary mode. Entering it snapshots the current
+ordered Selected set as the review baseline. While it is active, each native source
+tile shows a separate **Pick / Picked** control. Normal tile click/activation and the
+Primary flag keep their existing meanings; **Active**, **Primary**, and **Picked**
+are independent states.
+
+A typical 15-image review can be performed as follows:
+
+1. Enter **Review Select**.
+2. Pick desired source images on page 1.
+3. Move to pages 2 and 3 with the normal Comparison Page controls and continue
+   picking. Earlier picks remain remembered even while off-page.
+4. Use **Clear Picks** to clear only the temporary Pick Set if you want to start the
+   curation choices again.
+5. Use **Keep Picked** to replace Selected with the picked subset.
+
+The Picked counter shows the current temporary count. **Keep Picked** is disabled
+when nothing is picked, so a zero-pick review cannot silently replace Selected with
+an empty set.
+
+Keep Picked preserves the original Selected order, not the order in which picks were
+made. For example, if baseline Selected is `A B C D E F G` and you pick
+`G → B → E`, the new Selected set is `B E G`. All non-picked images remain
+Registered in Files and can be selected again later.
+
+Use **Cancel** to leave Review Select without applying. Cancel clears the temporary
+review baseline and picks but leaves Selected, Current Comparison Page, Active, and
+Primary unchanged. Pick state is not persisted across application restart.
+
+If another selection-oriented workflow changes Selected while Review Select is
+active—such as Open Images, direct image-file drag/drop, Files selection replacement,
+or Folder Position movement—the temporary Review state is cancelled first and the
+normal selection operation continues. Registration-only folder input does not cause
+this reset because it does not change Selected.
+
+Picks refer to the native registered source image. Split Channel items and derived
+Difference presentation are not independent pick identities. Picking an image also
+does not decode or preload off-page images, protect them in source residency, run
+Difference or analysis, or otherwise change the Current Comparison Page working-set
+authority.
+
 ## Fine image navigation
 
 **Left/Right** remains Previous/Next Selected Image across the complete ordered
@@ -127,6 +175,9 @@ is unchanged and the status bar reports the boundary.
 When **more than six images are Selected**, Folder Position is unavailable and
 PageUp/PageDown does not partially move only the current page. Reduce Selected to
 one-to-six images to use Folder Position again.
+
+If Folder Position changes Selected during Review Select, the temporary review
+baseline/picks are discarded before normal Folder Position selection replacement.
 
 ## View and navigate
 
@@ -167,7 +218,8 @@ With focus in Files, those keys keep Qt-native folder expand/collapse behavior.
 At 1× PixelScope reuses canonical preview. Gain above 1× is generated from already
 resident native source as viewer-local derived presentation. Display Gain does not
 change pixel readout, Statistics, Histogram, Line Profile, Split Channel native
-data, Difference, source generation, or source residency.
+data, Difference, source generation, or source residency. Review Pick identity also
+remains the native source document ID, not a gained preview representation.
 
 ## Cursor, ROI, and Line Profile selection
 
@@ -179,7 +231,8 @@ Moving over an image synchronizes the crosshair and status readout.
 - Alt+drag does not create a Line Profile.
 
 ROI normalization, Statistics, Histogram, and Line Profile all use the Current
-Comparison Page as the default analysis working set.
+Comparison Page as the default analysis working set. Review Pick Set does not extend
+or replace that analysis working set.
 
 ## Statistics and Histogram
 
@@ -192,14 +245,16 @@ Overlay display, and native code-value x ranges. Identical source/generation/ROI
 bin requests do not restart unchanged numerical work.
 
 When you change Comparison Page, Statistics and Histogram move to that same page;
-they do not remain bound to the first six Selected images.
+they do not remain bound to the first six Selected images. Pick/Unpick alone does
+not change their source set or reissue numerical analysis requests.
 
 ## Line Profile
 
 Line Profile supports Overlay, Separate by image, and Separate by channel. In
 Difference-from-reference mode, reference priority is primary, then active, then
 first displayed, while an explicitly selected available reference remains stable.
-Its normal source set follows the Current Comparison Page.
+Its normal source set follows the Current Comparison Page. Picked membership is not
+a Line Profile input authority.
 
 ## Difference
 
@@ -224,7 +279,9 @@ entry or clear the current Difference presentation because it does not alter the
 Selected/current-page lifecycle.
 
 Difference's available/default inputs follow the Current Comparison Page, while an
-explicit Image 1/Image 2 pair remains owned by the Difference feature.
+explicit Image 1/Image 2 pair remains owned by the Difference feature. Review Pick
+membership does not change either authority and Pick/Unpick does not calculate or
+invalidate Difference.
 
 When all six source slots of a Comparison Page are occupied, the derived Difference
 result is presented in Single View until disabled, preserving the existing
@@ -254,10 +311,10 @@ Folder registration is intentionally lazy. RAW paths and deterministic
 same-basename sidecar paths can be registered in Files without immediately opening
 RAW Profile dialogs or decoding every source.
 
-A RAW may also be logically Selected while it is outside the Current Comparison
-Page. In that state it does not prompt, decode, or require residency merely because
-it is Selected. Profile resolution occurs when the RAW enters the foreground
-Current Comparison Page and native source is required.
+A RAW may also be logically Selected or Picked while it is outside the Current
+Comparison Page. In that state it does not prompt, decode, or require residency
+merely because of Selected/Picked membership. Profile resolution occurs when the
+RAW enters the foreground Current Comparison Page and native source is required.
 
 Within one foreground presentation attempt, an unresolved RAW dialog appears at
 most once. Cancel keeps the RAW registered/pending, starts no worker, and passive
@@ -322,23 +379,26 @@ limits.
 **Decoded Source Memory** budgets native decoded `ImageDocument.source` arrays.
 The default is 256 MiB. Current Comparison Page sources and other correctness
 requirements are protected; a large Selected set does **not** automatically protect
-every visited off-page source. Off-page Selected source may be evicted under the P2
-soft budget and normally reload when its page is revisited.
+every visited off-page source. Review Pick membership also does not protect an
+off-page source. Off-page Selected/Picked source may be evicted under the P2 soft
+budget and normally reload when its page is revisited.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
 itself discard a valid generation-keyed Difference map.
 
 **Preload Next Folder Position** remains exactly one valid one-to-six Selected
 Folder Position ahead, direction +1, on a separate max-one worker. It does not
-preload the next Comparison Page. A physically RUNNING matching Folder Position
-preload may transfer to foreground authority without duplicate decode. Unresolved
-RAW without a profile is skipped rather than prompting from speculative preload.
+preload the next Comparison Page or Pick Set. A physically RUNNING matching Folder
+Position preload may transfer to foreground authority without duplicate decode.
+Unresolved RAW without a profile is skipped rather than prompting from speculative
+preload.
 
 Performance budget/preload changes are startup settings and display the restart-
 required indication when they differ from current runtime values.
 
 **Reset Settings** resets application preferences only. **View > Reset Workspace
-Layout** resets workspace layout separately.
+Layout** resets workspace layout separately. Review Select/Pick Set is temporary and
+adds no Settings/QSettings key.
 
 ## Runtime Diagnostics
 
