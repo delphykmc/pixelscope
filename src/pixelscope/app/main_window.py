@@ -751,6 +751,7 @@ class MainWindow(QMainWindow):
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
             shortcut.activated.connect(callback)  # type: ignore[attr-defined]
             self._comparison_page_shortcuts.append(shortcut)
+        self._update_comparison_page_controls()
 
     def _update_comparison_page_controls(self) -> None:
         start, end, total = self._comparison_page_range()
@@ -761,6 +762,13 @@ class MainWindow(QMainWindow):
         page_text = f"{current_page} / {page_count}" if total else ""
         range_text = f"{start + 1}–{end} of {total}" if total else ""
         state = (total > 0, has_previous, has_next, page_text, range_text)
+        if hasattr(self, "_comparison_page_shortcuts"):
+            for shortcut, enabled in zip(
+                self._comparison_page_shortcuts,
+                (has_previous, has_next),
+                strict=True,
+            ):
+                shortcut.setEnabled(enabled)
         if state == self._comparison_page_controls_state:
             return
         self._comparison_page_controls_state = state
@@ -1944,7 +1952,15 @@ class MainWindow(QMainWindow):
             self._shared_roi,
         )
         cached_display = self.difference_panel.cached_display_for_current()
+        cached_six_difference = (
+            cached_display is not None
+            and len(comparison_page) >= COMPARISON_PAGE_SIZE
+            and hasattr(self, "diff_action")
+            and self.diff_action.isChecked()
+        )
         if cached_display is not None:
+            if cached_six_difference:
+                self._capture_six_image_diff_restore_state()
             self._store_difference_document(*cached_display, switch_to_result=False)
         elif (
             len(analysis_candidates) >= 2
@@ -2148,6 +2164,9 @@ class MainWindow(QMainWindow):
         if cached_display is not None and self._view_capacity == 1 and active is not None:
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
+        if cached_six_difference and self._difference_document is not None:
+            self._navigate_single_view("difference")
+            self._set_active_document(self._difference_document)
         if self._channel_split_active and comparison_page:
             self._update_file_states([comparison_page[0]], comparison_page[0])
         else:
