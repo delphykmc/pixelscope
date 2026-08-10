@@ -422,11 +422,13 @@ git diff --check
 
 Do not claim PASS without observed output.
 
-Owner/local Windows validation passed on review baseline
-`a462953b01c713a4cc4054a78854a0ed0fde9c4e`. The independent-review follow-up adds
-shortcut-availability, cached six-source Difference parity, preload-separation tests,
-and documentation changes after that baseline; owner/local Windows revalidation is
-therefore pending for the current head.
+Owner/local Windows validation PASS is recorded for exact PR head
+`c5bcd19801d04b81b31422d25eb3061597dc3240` after all independent-review runtime fixes and the final shortcut-test
+correction. The owner reports pytest, Ruff check/format, mypy, pip check, docs check,
+`git diff --check`, and manual P3-D behavior validation all passed. The final
+independent re-review found no remaining runtime/code blocker and requested only
+this docs-only status reconciliation; no additional validation run is required for
+this documentation correction.
 
 Owner manual P3-D checks should include:
 

@@ -245,8 +245,8 @@ boundaries, native Open Folder registration, multi-folder D&D, folder/image/mixe
 D&D intent, Split transient working-set behavior, shortcut focus ownership,
 six-source Difference cache-hit parity, and registered-but-unselected state.
 
-Owner/local Windows validation passed on review baseline
-`a462953b01c713a4cc4054a78854a0ed0fde9c4e`. Independent-review follow-up code and
-documentation were added afterward, so the current review-follow-up head requires
-owner/local Windows revalidation before merge. The Chat implementation agent does
-not claim a PASS for the new head.
+Owner/local Windows validation PASS is recorded for exact PR head
+`c5bcd19801d04b81b31422d25eb3061597dc3240`. The repository owner reports the full validation contract passed,
+including pytest, Ruff check/format, mypy, pip check, docs check, `git diff --check`,
+and manual P3-D behavior validation. The final independent re-review found no
+remaining runtime/code blocker and requested only this durable-status reconciliation.

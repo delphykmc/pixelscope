@@ -1,6 +1,6 @@
 # UI implementation status
 
-Status: P3-D review follow-up active on PR #26; prior owner validation passed at `a462953b`, current follow-up head awaits owner revalidation.
+Status: P3-D final independent review complete on PR #26; owner/local Windows validation PASS at `c5bcd19801d04b81b31422d25eb3061597dc3240` and no runtime/code merge blocker remains.
 
 ## Current shell
 
@@ -140,7 +140,8 @@ protection, Folder Position separation, lazy RAW cancel/retry behavior,
 multi-folder registration/deduplication, D&D intent, registered-but-unselected
 state, and folder-only preservation of presentation/runtime state.
 
-Owner/local Windows validation passed on review baseline `a462953b`. The current
-independent-review follow-up adds runtime/test/doc changes after that baseline and
-therefore awaits owner/local Windows revalidation. No PASS is claimed for the new
-head by the Chat implementation agent.
+Owner/local Windows validation PASS is recorded for exact PR head `c5bcd19801d04b81b31422d25eb3061597dc3240`.
+The repository owner reports pytest, Ruff check/format, mypy, pip check, docs check,
+`git diff --check`, and manual behavior validation all passed. The final independent
+re-review found no remaining runtime/code blocker; this final documentation-only
+status correction does not require another validation run.
