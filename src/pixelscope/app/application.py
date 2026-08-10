@@ -5,7 +5,7 @@ import sys
 from collections.abc import Sequence
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QComboBox
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.resources import load_application_icon
@@ -77,6 +77,15 @@ def load_startup_settings() -> tuple[SettingsRepository, ApplicationSettings, Pe
     return repository, application_settings, application_settings.performance_settings()
 
 
+def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
+    """Install the production presentation control composition in one authoritative order."""
+
+    gain_control = install_display_gain_control(window)
+    polish_presentation_controls(window)
+    install_display_gain_shortcuts(window.central_stack, gain_control)
+    return gain_control
+
+
 def main(arguments: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -85,9 +94,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     app = create_application(arguments)
     repository, application_settings, performance_settings = load_startup_settings()
     window = MainWindow(application_settings, performance_settings, repository)
-    gain_control = install_display_gain_control(window)
-    polish_presentation_controls(window)
-    install_display_gain_shortcuts(window.central_stack, gain_control)
+    _compose_main_window_presentation(window)
     window.setWindowIcon(app.windowIcon())
     window.show()
     return app.exec()

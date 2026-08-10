@@ -7,11 +7,11 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QSettings, Qt
 from PySide6.QtWidgets import QComboBox, QToolButton
 
+from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.display_gain import display_gain_state, install_display_gain_control
-from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 
 
@@ -42,13 +42,10 @@ def _select_documents(window: MainWindow, documents: list[ImageDocument]) -> Non
 
 
 def _compose_production_window() -> tuple[MainWindow, QComboBox]:
-    """Mirror the post-construction composition order used by application.main()."""
+    """Create a MainWindow through the exact production presentation composer."""
 
     window = MainWindow()
-    gain = install_display_gain_control(window)
-    polish_presentation_controls(window)
-    install_display_gain_shortcuts(window.central_stack, gain)
-    return window, gain
+    return window, _compose_main_window_presentation(window)
 
 
 @pytest.mark.parametrize(
