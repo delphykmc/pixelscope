@@ -12,6 +12,8 @@ _ICON_KINDS = {
     "actual_size",
     "zoom_in",
     "zoom_out",
+    "previous_page",
+    "next_page",
     "split_channels",
     "sync",
     "difference",
@@ -81,6 +83,12 @@ def _draw_icon(kind: str, color_name: str, *, filled: bool = False) -> QPixmap:
         painter.drawLine(QPointF(4.0, 6.25), QPointF(8.5, 6.25))
         if kind == "zoom_in":
             painter.drawLine(QPointF(6.25, 4.0), QPointF(6.25, 8.5))
+    elif kind in {"previous_page", "next_page"}:
+        if kind == "previous_page":
+            points = (QPointF(10.5, 3.5), QPointF(6.0, 8.0), QPointF(10.5, 12.5))
+        else:
+            points = (QPointF(5.5, 3.5), QPointF(10.0, 8.0), QPointF(5.5, 12.5))
+        painter.drawPolyline(QPolygonF(points))
     elif kind == "split_channels":
         painter.drawRect(QRectF(2.0, 2.0, 12.0, 12.0))
         painter.drawLine(QPointF(8.0, 2.0), QPointF(8.0, 14.0))

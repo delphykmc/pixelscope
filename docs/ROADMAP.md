@@ -102,10 +102,12 @@ Delivered:
 - gain>1 uses resident source and shared numerical workers with stale rejection;
 - Display Gain remains presentation-only and is not persisted.
 
-### P3-D — Unified Image Opening & RAW Profile Resolution — In progress
+### P3-D — Unified Image Opening & RAW Profile Resolution — Complete
 
-P3-D replaces the earlier speculative Profile Library/suggestion slice with the
-actual input-workflow contract. Its authoritative runtime hierarchy is:
+Merged as PR #26 at
+`b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
+
+P3-D establishes the authoritative runtime hierarchy:
 
 ```text
 Registered
@@ -121,118 +123,71 @@ Resident when required
 
 `Analysis Working Set = Current Comparison Page`.
 Viewer slots are local `1..6` inside the Current Comparison Page; global Selected
-ordinal and viewer slot are separate concepts.
+ordinal and viewer slot are separate concepts. Registration and logical selection
+are not constrained by six. The six-image boundary belongs to the Current
+Comparison Page working set.
 
-Registration and logical selection are not constrained by six. The six-image
-boundary now belongs to the Current Comparison Page working set.
+Delivered input/page/runtime policy:
 
-#### P3-D input policy
+- **Open Images...** is selection-oriented and preserves arbitrary practical
+  multi-file selection; the first six become the initial Current Comparison Page.
+- **Open Folder...** and folder drag/drop are registration-oriented and do not
+  change Selected or presentation state.
+- direct image-file drag/drop registers and selects only the explicitly dropped
+  files; mixed drops keep folder registration separate from direct-file selection.
+- registered-but-unselected is a valid workspace state.
+- `Selected <= 6` keeps prior Auto/Single/Multi behavior; `Selected > 6` is derived
+  into ordered six-image pages without changing Selected membership/order.
+- Ctrl+Left/Ctrl+Right is non-wrapping Comparison Page navigation; Left/Right remains
+  fine Selected-image navigation; PageUp/PageDown remains Folder Position only.
+- Statistics, Histogram, Line Profile, selection-derived Difference context,
+  ROI/Line normalization, current-page foreground loading, residency protection,
+  and local slot mapping share one Current Comparison Page authority.
+- Selected alone is not a residency owner. Off-page Selected sources may be evicted
+  and normally reloaded on revisit.
+- Folder-registered unresolved RAW remains pending off-page; profile resolution is
+  lazy at foreground page entry, Cancel suppresses passive immediate re-prompt,
+  and later explicit foreground intent may retry.
+- P2 preload remains exactly +1 Folder Position with max-one speculative worker;
+  no Comparison Page preload was introduced.
 
-- **Open Images...** is selection-oriented. Multi-file input registers every
-  supported direct image and makes those files the ordered Selected set.
-- Selected may exceed six without loss. The initial Current Comparison Page is the
-  first six Selected images.
-- **Open Folders...** replaces singular Open Folder. It is registration-oriented,
-  supports multiple existing directories, deterministically deduplicates resolved
-  folder paths, and imposes no six-folder limit.
-- Folder registration adds supported contents to Files without changing Selected,
-  Current Comparison Page, presentation, layout, active/primary state, ROI, Line
-  Profile, Difference, Display Gain, zoom/pan preservation state, source residency,
-  or Difference cache.
-- Folder registration never auto-selects the first image and exactly two folders
-  never create an implicit comparison group.
-- Direct image-file D&D uses register + select intent.
-- Folder D&D uses registration-only intent for any folder count.
-- Mixed D&D selects only the explicitly dropped files while registering folder
-  contents without adding them to Selected.
-- A registered-but-unselected workspace is valid and prompts the user to select an
-  image from Files.
-- Unsupported files and standalone `.json` sidecars are ignored. Empty/no-image
-  folders do not fail other selected folders.
-- obsolete exactly-two-folder pairing helpers are removed from the supported input
-  model.
+P3-D did not add Profile Library/database, inference, demosaic, white balance, CCM,
+tone mapping, a new Difference mode, settings schema changes, or residency/preload
+redesign.
 
-#### P3-D Current Comparison Page policy
+### P3-E — Integration, Presentation UI Polish & Phase Hardening — In progress
 
-- `Selected <= 6` → `Current Comparison Page = Selected`; existing
-  Auto/Single/Multi behavior is preserved.
-- `Selected > 6` → pages are derived in six-image chunks without changing Selected
-  membership/order.
-- Multi View uses the Current Comparison Page as its workspace; large-selection
-  pages retain six-slot `Grid 3x2` geometry, including short final pages with empty
-  unused slots.
-- Single View presents one active page-local slot while its analysis/load context
-  remains the full Current Comparison Page.
-- number keys `1..6` always mean local page slots.
-- Left/Right remains fine Previous/Next Selected Image navigation and may cross a
-  page boundary automatically.
-- Ctrl+Left/Ctrl+Right provides separate non-wrapping Previous/Next Comparison Page
-  navigation with a compact range affordance such as `7–12 of 15`.
-- page navigation preserves active local slot when possible and clamps it on a
-  short final page.
-- primary/focus ordering is page-local and cannot alter Selected ordering/page
-  membership.
-- Statistics, Histogram, Line Profile, selection-derived Difference inputs,
-  ROI/Line normalization, current-page loading, residency protection, and local
-  slot mapping use one Current Comparison Page authority.
-- explicit Difference pair/reference ownership remains feature-specific.
-- PageUp/PageDown remains Folder Position only. `Selected > 6` makes Folder
-  Position unavailable rather than applying it to a partial page.
+Branch: `feature/p3-e-integration-hardening`.
+Base: P3-D merged `main` at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
 
-#### P3-D RAW resolution
+P3-E adds no new image-analysis semantics. It hardens the P3 production contract:
 
-- ordinary PNG/BMP/JPEG bypass RAW profile UI;
-- direct RAW with exact same-basename `.json` sidecar preserves validation,
-  confirmation suppression, and exact/minimum-size policy;
-- direct RAW without sidecar opens editable RAW Profile entry;
-- invalid sidecar warns and falls back to editable entry;
-- direct RAW cancel prevents erroneous registration;
-- direct multi-RAW resolves each file independently;
-- folder registration is lazy for RAW: path and deterministic sidecar identity may
-  be registered pending;
-- Selected-but-off-page unresolved RAW does not prompt, decode, or require
-  residency;
-- profile resolution occurs when RAW enters a foreground Current Comparison Page;
-- one foreground attempt prompts an unresolved RAW at most once; Cancel leaves it
-  pending with no worker and passive rerenders do not immediately retry;
-- later explicit foreground intent may retry;
-- unresolved RAW is not speculatively preloaded until a profile is resolved;
-- no profile is inferred from file size, sensor guess, or weak matching evidence;
-- existing RawProfile migration, packed/unpacked validation, Bayer pattern,
-  Black/White metadata, exact-size policy, same-path reload, and P2
-  preload/residency identity remain intact;
-- profile UI uses **Load Profile...** / **Save Profile...** terminology while JSON
-  remains the storage format.
+- preserve native source authority across Difference, RAW presentation, Display
+  Gain, Statistics, Histogram, Line Profile, Split Channels, and residency;
+- verify same-bit native and mixed-bit normalized Difference are independent of
+  Display Gain and RAW Black/White/display presentation;
+- verify 1× canonical-preview fast paths and gain>1 float32/Black-anchored paths
+  without source/generation/residency mutation;
+- verify `Registered → Selected → Current Comparison Page → Presented → Resident`
+  ownership for 1/2/6/7/15/50-image cases without Selected-wide eager decode,
+  protection, or derived-preview retention;
+- preserve <=6 Folder Position/preload behavior and keep Comparison Page navigation
+  independent from speculative preload;
+- preserve lazy RAW profile resolution, Split Channels transient presentation,
+  Difference pair/cache ownership, and P2 analysis-request dedup contracts;
+- polish the image Presentation Control Row as an engineering command bar while
+  retaining command ownership: Layout on the left, Comparison Page navigation and
+  range in the center, Display Gain on the right;
+- use compact icon-backed `QToolButton` page controls with stable positions,
+  disabled endpoint states, tooltips/accessibility, and unchanged Ctrl+Arrow
+  shortcut ownership;
+- reuse existing design tokens and programmatic high-DPI icon infrastructure;
+- complete automated regression additions, Windows manual characterization, and
+  durable P3 documentation before merge.
 
-#### P3-D runtime/resource refinement
-
-P2's exact `source.nbytes` accounting and protected soft-budget semantics remain
-authoritative. P3-D narrows generic large-selection protection so **Selected alone
-is not a residency owner**. Current Comparison Page plus correctness dependencies
-(foreground loads, promoted preload, Difference dependencies, non-reloadable
-sources) are protected. Selected-but-off-page sources may be evicted and normally
-reload when revisited.
-
-P2 preload remains exactly +1 Folder Position, max-one worker. P3-D does not add a
-Comparison Page preload system.
-
-P3-D explicitly does not add a global Profile Library/database, profile CRUD,
-favorites/search, last-profile reuse, apply-to-all, size-only/fuzzy suggestion,
-sensor/Bayer inference, automatic Black/White estimation, a new profile schema
-version, demosaic, white balance, CCM, tone mapping, a new Difference mode,
-Display Gain redesign, or broad worker/persistence redesign.
-
-### P3-E — Integration & Hardening
-
-- Cross-check native/normalized Difference with RAW native/display ownership and
-  unified input/profile resolution.
-- Characterize representative Gray/RGB/RGBA/Bayer/RAW and bit-depth combinations.
-- Verify `Registered → Selected → Current Comparison Page → Presented → Resident`
-  ownership under large catalogs, page navigation, Folder Position, preload,
-  eviction/reload, Difference cache, and Display Gain.
-- Verify Selected<=6 behavior remains production-equivalent.
-- Preserve P2 residency/preload/diagnostics contracts.
-- Complete automated/Windows validation and durable P3 documentation.
+P3-E status is **implemented/in progress only after its branch changes land**;
+owner/local Windows validation, independent review, and merge remain required before
+P3 can be archived as Complete.
 
 P3 excludes persistent sessions, remote/authentication work, release engineering,
 speculative preload-policy expansion, native optimization without profiling
@@ -240,6 +195,49 @@ evidence, and demosaic/white-balance/color/tone processing unless separately
 approved.
 
 ## P4 — Workflow & Session Productivity
+
+### P4-A — Review Selection & Curation
+
+Planned workflow:
+
+```text
+Registered
+↓
+Selected
+↓
+Current Comparison Page
+↓
+temporary Review Pick Set
+↓ Apply
+new Selected subset
+```
+
+Concept:
+
+```text
+large Selected set
+→ browse Current Comparison Pages
+→ temporary Pick/Unpick native Selected images
+→ Keep Picked
+→ replace Selected with picked subset
+```
+
+Expected later UX:
+
+- explicit Review Select mode;
+- tile-level Pick/Unpick with persistent cross-page marks;
+- picked-tile border plus check affordance and picked count;
+- Clear Picks and Keep Picked actions;
+- non-picked images remain Registered;
+- Files reflects the final Selected subset after Apply;
+- first resulting Selected image becomes active;
+- zero-pick Apply is disabled;
+- Review Pick Set is temporary workflow state only and does not own residency,
+  analysis, Difference, or source loading.
+
+P3-E must not pre-create or implement this runtime state.
+
+### Later P4 productivity
 
 - Persistent comparison sessions.
 - Recent Files/Folders.

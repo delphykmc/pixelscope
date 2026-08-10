@@ -1,414 +1,244 @@
 # Execution plan: P3 — Image Semantics & RAW Processing
 
-Status: Active
+Status: Active — P3-E implementation; owner/local validation, independent review, and merge pending
 Owner: repository owner + P3 orchestration agents
 Last updated: 2026-08-10
-Current merged P3 baseline: P3-C / PR #25 merge commit
-`7f6bef73e6712f6a14a4d401820a915196e25da2`
+Current merged P3 baseline: P3-D / PR #26 merge commit
+`b16ecc558ac24225e9ddfddfca4e48e37fde61ca`
 
 ## Goal
 
-Stabilize image-comparison, viewer-presentation, RAW-profile resolution, and input
-semantics while keeping native decoded samples authoritative. Presentation and
-input convenience must not silently redefine analysis domains, residency
-ownership, or become an implicit RAW inference/processing pipeline.
+Close P3 by validating the combined Difference, RAW/display, Display Gain, unified
+input, Current Comparison Page, and runtime-resource contracts without introducing a
+new analysis domain or P4 workflow state.
+
+Native decoded samples remain authoritative. Presentation transforms do not redefine
+analysis. Registration, selection, Current Comparison Page membership, presentation,
+and residency remain separate ownership layers.
 
 ## Program sequence
 
 `P3-0 → P3-A → P3-B → P3-C → P3-D → P3-E`
 
-| Order | Slice | Purpose | Status / prerequisite |
-|---|---|---|---|
-| 0 | P3-0 roadmap transition | Close/archive P2 and establish P3 | Complete — PR #21 |
-| 1 | P3-A Difference domain extension | Gray + mixed-bit Difference semantics | Complete — PR #22 |
-| 2 | P3-B RAW native/display semantics | Native RAW authority + generic gain core | Complete — PR #24 |
-| 3 | P3-C Display Gain extension | Ordinary Gray/RGB/RGBA gain + RAW regression | Complete — PR #25 |
-| 4 | P3-D Unified Image Opening & RAW Profile Resolution | Input ownership + Current Comparison Page + deterministic RAW resolution | Active |
-| 5 | P3-E integration hardening | Cross-analysis regressions, docs, Windows characterization | After P3-D |
+| Order | Slice | Status |
+|---|---|---|
+| 0 | P3-0 roadmap transition | Complete — PR #21 |
+| 1 | P3-A Difference Gray / mixed-bit semantics | Complete — PR #22 |
+| 2 | P3-B RAW native/display semantics | Complete — PR #24 |
+| 3 | P3-C Display Gain extension | Complete — PR #25 |
+| 4 | P3-D Unified Image Opening & RAW Profile Resolution | Complete — PR #26 |
+| 5 | P3-E Integration, Presentation UI Polish & Phase Hardening | Active |
 
-## Completed P3 foundation
+## Completed semantic foundation
 
-### P3-A — Complete — PR #22
+### P3-A
 
-- Gray ↔ Gray, RGB/RGBA ↔ RGB/RGBA, same-CFA Bayer ↔ Bayer.
-- Equal effective depth uses native Difference; mixed depth independently
-  normalizes to float32 `[0,1]`.
-- `%FS` normalized threshold semantics and bounded quantile/memory policy.
-- RAW Black/White, Display Gain, preview, and demosaic are outside Difference
-  domain selection.
+- same-effective-depth Difference remains native code-domain;
+- mixed effective depth uses independently normalized float32 `[0,1]` Difference;
+- Gray, RGB/RGBA, and same-CFA Bayer are supported under explicit compatibility
+  rules;
+- RAW Black/White/display presentation does not enter Difference normalization.
 
-### P3-B — Complete — PR #24
+### P3-B / P3-C
 
-- Native RAW source is authoritative.
-- RAW 1× maps effective native full scale without subtracting Black or using White
-  as display maximum.
-- Generic float32 presentation core is
-  `display = anchor + gain * (source - anchor)`.
-- RAW gain >1 uses Black-derived anchors, including CFA-specific Bayer Black.
-- No full-size Bayer Black map or full-frame float64 gain path.
-- 1× is canonical-preview fast path; native analysis/residency/Difference remain
-  independent of gain.
+- native RAW source remains authoritative;
+- RAW 1× uses effective native full scale;
+- gain >1 uses `anchor + gain * (source - anchor)` with RAW Black-derived anchors;
+- Bayer channel-specific Black Level is supported without a full-frame Black map;
+- no full-frame float64 gain path;
+- 1× reuses canonical preview and schedules no gain worker;
+- ordinary Gray/RGB/RGBA and split-channel presentation share one session Display
+  Gain control while Difference remains excluded;
+- source, generation, Statistics, Histogram, Line Profile, Difference, and source
+  residency are not redefined by Display Gain.
 
-### P3-C — Complete — PR #25
+### P3-D
 
-Merged at `7f6bef73e6712f6a14a4d401820a915196e25da2`.
+Merged as PR #26 at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
 
-- one QApplication-session Display Gain state at 1×/2×/4×/8×/16×;
-- ordinary Gray/RGB and RGB split channels use anchor 0;
-- RGBA gains RGB only and preserves canonical alpha;
-- RAW keeps P3-B semantics;
-- Difference is excluded;
-- 1× schedules no gained-preview worker;
-- gain>1 uses resident source/shared numerical workers with stale-result rejection;
-- gain is presentation-only and not persisted.
-
-## P3-D — Unified Image Opening & RAW Profile Resolution
-
-Status: Active on `feature/p3-d-unified-open` / PR #26.
-
-### Authoritative hierarchy
-
-P3-D uses this product/runtime model:
+Authoritative hierarchy:
 
 ```text
 Registered
     ↓ user selection
-Selected                         # ordered logical set, may exceed 6
+Selected
     ↓ Selected ordering + page offset
-Current Comparison Page          # derived working set, max 6
+Current Comparison Page          # max 6
     ↓ viewer representation
-Presented                        # Multi=page, Single=one page-local slot
+Presented
     ↓ native-source lifecycle
 Resident when required
 ```
-
-And:
 
 ```text
 Analysis Working Set = Current Comparison Page
 Viewer Slot = 1..6 within Current Comparison Page
 ```
 
-Current Comparison Page is derived state, not a duplicated document collection.
-Registration count and Selected count are not limited by viewer capacity.
+Key contracts:
 
-### 1. Open Images... — selection-oriented
+- Open Images is selection-oriented; folder input is registration-oriented.
+- Selected can exceed six; pages are derived in six-image chunks.
+- Current Comparison Page is the shared analysis/load/protection authority.
+- Selected alone is not a generic residency-protection owner.
+- Ctrl+Left/Ctrl+Right is non-wrapping Comparison Page navigation.
+- PageUp/PageDown remains Folder Position only and is unavailable for Selected >6.
+- P2 preload remains +1 Folder Position, one group ahead, max one speculative worker.
+- folder-registered unresolved RAW is lazy until foreground page entry; Cancel leaves
+  it pending and suppresses passive immediate re-prompt.
+- no Comparison Page preload or RAW profile inference/library was introduced.
 
-Final image-file command:
+## P3-E implementation scope
 
-```text
-Open Images...    Ctrl+O
-```
+Branch: `feature/p3-e-integration-hardening`
+Base: `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`
+Recommended PR title:
+`[ChatGPT-assisted] Complete P3 integration and presentation hardening`
 
-Supported exactly:
+### 1. Presentation Control Row polish
 
-```text
-.png  .bmp  .jpg  .jpeg  .raw
-Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)
-```
-
-Requirements:
-
-- keep `QFileDialog.getOpenFileNames()` multi-file behavior;
-- register every supported direct file;
-- make those direct files the current ordered Selected set;
-- Selected may exceed six without truncation;
-- initial Current Comparison Page is the first six Selected images;
-- ordinary and RAW share this entry;
-- RAW uses deterministic profile resolution before direct-open registration;
-- no separate **Open RAW with Profile...** action or `MainWindow.open_raw()` path;
-- no `*.*` RAW wildcard.
-
-### 2. Open Folder... — registration-oriented
-
-Final folder command:
+Keep presentation-specific ownership above the image workspace:
 
 ```text
-Open Folder...    Ctrl+Shift+O
+Layout [Auto / Single View / Multi View]
+Page   [Previous] [index] [Next] [range / Selected total]
+Display Gain [1× / 2× / 4× / 8× / 16×]
 ```
 
-Requirements:
+Implementation requirements:
 
-- use the native single-directory picker for File > Open Folder;
-- keep multiple-folder registration through folder D&D / the registration API;
-- use no custom multi-directory picker or Windows COM dependency;
-- resolve/deduplicate multiple supplied directories deterministically;
-- permit arbitrary practical registered folder count; do not cap at six;
-- discover/register all supported immediate contents;
-- do not change Selected, Current Comparison Page, presentation, or layout;
-- do not auto-select a first image when selection is empty;
-- do not create an implicit comparison group for two folders;
-- skip folders with no supported images while continuing other folders;
-- report compact registration status.
+- preserve Layout/Page/Display Gain command ownership;
+- use shared `design_tokens.py` colors, spacing, borders, control height, and disabled
+  palette conventions;
+- replace character Previous/Next buttons in the production-composed row with compact
+  icon-backed `QToolButton` controls;
+- reuse PixelScope's programmatic high-DPI icon infrastructure with only the two
+  minimal page-chevron icon kinds;
+- keep buttons in stable layout positions and disable rather than hide unavailable
+  directions;
+- preserve Ctrl+Left/Ctrl+Right shortcut state and command ownership;
+- provide tooltip, visible/semantic text, accessible name, and `NoFocus` mouse
+  command behavior;
+- keep Page index/range fixed-width and readable;
+- keep Display Gain viewer-only on the right;
+- keep the row distinct from the Main toolbar.
 
-Registration-only folder input must preserve layout, active/primary document, ROI,
-Line Profile selection, Difference presentation/cache, Display Gain, zoom/pan
-preservation state, source residency, and existing worker/cache ownership where
-applicable.
+No pixel-perfect screenshot test is required. Tests assert widget type, hierarchy,
+enabled/visible state, layout index stability, labels, accessibility, and control
+height.
 
-### 3. Drag/drop intent
+### 2. Cross-feature integration invariants
+
+Verify the existing implementation/tests continue to establish:
+
+- Display Gain cannot affect same-bit native or mixed-bit normalized Difference;
+- Difference cache identity does not include Display Gain;
+- RAW Black/White/display transforms do not enter P3-A normalization;
+- Difference derived documents are excluded from generic Display Gain;
+- pixel inspection, Statistics, Histogram, Line Profile, Split source authority,
+  Difference, source generation, and residency use native source;
+- Bayer channel-specific Black Level remains bounded without a full-size Black map;
+- 1× remains no-work canonical preview; gain>1 remains float32/derived presentation;
+- Split Channels remains transient presentation state, not Registered/Selected;
+- explicit Difference pair ownership remains feature-specific and page-valid;
+- identical numerical analysis requests retain P2-F dedup semantics.
+
+A P3-E focused regression additionally verifies that changing Display Gain alone does
+not reissue Statistics, Difference-input, or Line Profile document requests when the
+native Current Comparison Page is unchanged.
+
+### 3. Large-selection hardening
+
+Canonical counts:
 
 ```text
-direct image files  -> register + select
-folders             -> register only
+1, 2, 6, 7, 15, 50
 ```
 
-- one/two/three/six/fifteen/etc. folders use one registration policy;
-- exactly two folders have no special comparison behavior;
-- multiple direct image files are all registered and Selected;
-- mixed file + folder drop selects only explicitly dropped files;
-- folder contents never overwrite/append implicit first-folder images to explicit
-  direct-file selection.
+The 50-image case is deterministic ownership testing, not a wall-clock benchmark or
+50-source residency stress test.
 
-### 4. Current Comparison Page authority
+Verify:
 
-`MainWindow.current_comparison_documents()` or a semantic equivalent is the single
-bounded working-set authority. Do not let subsystems independently use
-`selected_documents[:6]` or unrelated `_page_start` slices.
+- Registered/Selected identity and global ordering survive paging;
+- six-image chunks define Current Comparison Page;
+- final short page clears stale slots while keeping six-slot large-selection geometry;
+- viewer slots remain page-local 1..6;
+- page movement does not mutate Selected;
+- foreground `_ensure_loaded` requests are page-bounded;
+- Current Comparison Page is protected while off-page Selected is not generically
+  protected;
+- page revisit can follow normal eviction/reload ownership;
+- no selected-wide eager decode or selected-wide preload plan is introduced.
 
-The same Current Comparison Page must drive:
+### 4. Navigation / preload / residency preservation
 
-- Multi View;
-- Single View page context;
-- Statistics;
-- Histogram;
-- Line Profile;
-- selection-derived Difference inputs;
-- ROI/Line normalization;
-- foreground page-load completion;
-- current-page residency protection;
-- local slot mapping.
+- Ctrl+Left/Ctrl+Right: Comparison Page only, non-wrapping, endpoint shortcut state
+  matches buttons/actions.
+- Left/Right: fine Selected-image navigation.
+- PageUp/PageDown: Folder Position only.
+- Selected <=6: preserve P2 +1 Folder Position preload and RUNNING promotion.
+- Selected >6: Folder Position unavailable and no Comparison Page preload plan.
+- preserve exact `source.nbytes`, protected soft-budget LRU, oversized protected
+  source policy, independent Difference cache, and stale token/generation authority.
 
-Feature-owned explicit Difference pair/reference authority remains unchanged.
+### 5. RAW / Split / Difference lifecycle preservation
 
-### 5. Large-selection navigation
+- off-page unresolved folder RAW: no prompt/decode/residency requirement;
+- foreground entry: profile resolution then decode after acceptance;
+- Cancel: no worker and no immediate passive re-prompt; later explicit foreground
+  retry remains possible;
+- direct RAW sidecar/no-sidecar/invalid/cancel/multi-RAW behavior remains unchanged;
+- Split RGB/RGBA and Bayer channel sets remain presentation-only and Files continues
+  to represent the native source;
+- Difference fresh/cache-hit presentation remains pair/page validated and Difference
+  cache residency remains independent.
 
-For `Selected <= 6`:
+## Explicit P4 handoff — not implemented in P3-E
+
+### P4-A — Review Selection & Curation
 
 ```text
-Current Comparison Page = Selected
+Registered
+↓
+Selected
+↓
+Current Comparison Page
+↓
+temporary Review Pick Set
+↓ Apply
+new Selected subset
 ```
 
-Existing Auto/Single/Multi, primary, number-key, Left/Right, Folder Position,
-ROI/Statistics/Histogram/Line Profile/Difference, residency, and preload behavior
-must remain production-equivalent.
+Future UX may include Review Select mode, tile Pick/Unpick, persistent cross-page
+picks, picked border/check affordance, pick count, Clear Picks, and Keep Picked.
+Non-picked images remain Registered and Files reflects the final Selected subset after
+Apply. Zero-pick Apply is disabled. The Pick Set must not own residency, analysis,
+Difference, or source loading.
 
-For `Selected > 6`:
+P3-E must not create any of this runtime state.
 
-- Current Comparison Page size is six except a short final page;
-- Multi View uses the current page as its comparison workspace;
-- large-selection Multi View keeps six-slot `Grid 3x2` geometry on every page;
-- unused final-page slots are cleared;
-- Single View presents one active page-local slot but keeps full current-page
-  analysis/load context;
-- viewer slots are always local `1..6`;
-- number keys `1..6` address current-page local slots;
-- Left/Right remains Previous/Next Selected Image across the complete ordered set;
-- crossing a boundary updates Current Comparison Page automatically;
-- Ctrl+Left/Ctrl+Right moves Previous/Next Comparison Page only while that
-  direction is available; the application-wide shortcut is disabled at an endpoint;
-- Comparison Page navigation does not wrap;
-- the presentation-control row above the image workspace always exposes Page
-  status, total Selected count, and current range; arrows remain visible and disable
-  at unavailable endpoints;
-- page movement preserves the active local slot where possible and clamps on a
-  short final page;
-- primary/focus changes are page-local and may not change Selected ordering/page
-  membership.
+## Explicit exclusions
 
-PageUp/PageDown are never Comparison Page shortcuts.
-
-### 6. Folder Position
-
-For `Selected <= 6`, PageUp/PageDown retains existing Folder Position semantics and
-P2 preload/promotion behavior.
-
-For `Selected > 6`, Folder Position is unavailable. PageUp/PageDown is a no-op with
-compact status; do not partially apply Folder Position to only Current Comparison
-Page.
-
-Other registered folders never participate automatically.
-
-### 7. RAW profile resolution and foreground retry boundary
-
-Direct RAW input preserves this sequence:
-
-1. exact same-basename sidecar is parsed/validated if present;
-2. current confirmation suppression and exact/minimum-size policy remain;
-3. no sidecar opens editable RAW Profile entry;
-4. invalid sidecar warns and opens editable fallback;
-5. cancel prevents erroneous direct-open RAW registration;
-6. multiple direct RAW files resolve independently;
-7. existing-path reload retains document/profile identity.
-
-Folder registration remains lazy:
-
-```text
-folder registration
-    ↓
-register pending RAW + deterministic sidecar path
-    ↓
-no profile dialog / no decode
-    ↓
-RAW enters foreground Current Comparison Page
-    ↓
-existing RAW profile resolver
-    ↓
-decode only after acceptance
-```
-
-Selected-but-off-page unresolved RAW must not prompt, decode, or require residency.
-Unresolved RAW is excluded from speculative preload.
-
-One foreground presentation attempt may prompt a given unresolved RAW at most once.
-Cancel leaves it registered/pending, starts no worker, and passive rerenders must
-not immediately re-prompt. A later explicit foreground intent may retry.
-
-### 8. Source residency and preload
-
-Preserve P2 exact native `source.nbytes` accounting and protected soft-budget LRU.
-P3-D's large-selection refinement is:
-
-- Selected membership alone is **not** a residency-protection owner;
-- Current Comparison Page is protected;
-- foreground loads, promoted preload, Difference dependencies, and other
-  correctness-required owners remain protected;
-- Selected-but-off-page sources may be evicted and normally reloaded when revisited.
-
-Do not add Comparison Page preload. P2 preload remains exactly +1 Folder Position,
-one group ahead, max-one preload worker.
-
-### 9. Profile UI and exclusions
-
-User-facing profile buttons are **Load Profile...** / **Save Profile...**. JSON
-remains the storage format.
-
-P3-D adds no:
-
-- global Profile Library/database;
-- Settings-owned profile collection;
-- profile CRUD/favorites/search;
-- last-profile reuse or apply-to-all UI;
-- size-only/fuzzy suggestion;
-- sensor/Bayer inference;
-- automatic Black/White estimation;
-- profile schema version field without migration need;
+- Review Selection / Pick / Keep Picked;
+- persistent sessions, Recent Files/Folders, Saved ROI, arbitrary-angle line,
+  alpha overlay;
+- Profile Library/CRUD, fuzzy/size-only suggestion, sensor/Bayer/Black/White
+  inference;
 - demosaic, white balance, CCM, tone mapping;
-- new Difference mode or Display Gain redesign;
-- session persistence or Recent Files/Folders;
+- new Difference mode or gain persistence;
 - Settings schema bump;
-- Comparison Page preload system;
-- broad MainWindow/Difference/P2 worker architecture rewrite;
-- packaging/signing work.
-
-### 10. P3-D test matrix
-
-Focused automated coverage must establish:
-
-#### Selected <=6 regression
-
-- Current Comparison Page equals Selected;
-- existing Auto/Single/Multi and number-key semantics remain unchanged;
-- existing Folder Position behavior remains unchanged.
-
-#### Selected >6
-
-Use at least a 15-image canonical case:
-
-- all 15 registered and logically Selected;
-- page 1 = images 1–6;
-- page 2 = images 7–12;
-- final page = images 13–15;
-- Previous reverses correctly and endpoints do not wrap;
-- page movement does not change Selected membership/order;
-- local slots remain 1–6;
-- final-page stale tiles are cleared while six-slot geometry is retained.
-
-#### Number keys / Single View / fine navigation
-
-- number keys map to current-page local slots;
-- image10 on page 7–12 is slot 4, not 10;
-- Left/Right moves one Selected image;
-- image12 → image13 crosses to page 13–15 and local slot 1;
-- reverse crossing restores the previous page/slot;
-- coarse page navigation preserves/clamps active local slot.
-
-#### Analysis
-
-After a page transition, Statistics/Histogram, Line Profile, Difference available
-inputs, ROI normalization, and load-batch completion use the current page, not the
-first six Selected images.
-
-#### Residency
-
-- current page is protected;
-- Selected-but-off-page is not generically protected;
-- Selected identity survives eviction/revisit;
-- P2 budget/accounting semantics remain effective.
-
-#### Navigation separation
-
-- Ctrl+Left/Ctrl+Right is Comparison Page navigation;
-- PageUp/PageDown remains Folder Position only;
-- Selected>6 Folder Position is no-op;
-- Selected<=6 Folder Position remains unchanged.
-
-#### RAW
-
-- off-page Selected unresolved RAW does not prompt/decode;
-- entering foreground page resolves it;
-- Cancel prompts once per foreground attempt;
-- passive rerender does not immediately re-prompt;
-- no worker starts after Cancel;
-- a later explicit foreground action may retry.
-
-#### Input regression
-
-- Open Images multi-file, ordinary+RAW, six and >6;
-- Open Folder plus multi-folder D&D 1/2/6/>6, dedup, registration-only, no first auto-select;
-- folder/image/mixed D&D intents;
-- registered-but-unselected state;
-- folder-only runtime preservation.
-
-## P3-E — Integration & Hardening
-
-Close P3 over completed Difference/display/RAW/input semantics:
-
-- cross-check native/normalized Difference and Display Gain independence;
-- characterize representative Gray/RGB/RGBA/Bayer/RAW and bit-depth combinations;
-- validate `Registered → Selected → Current Comparison Page → Presented → Resident`
-  under large catalogs and page navigation;
-- verify Selected<=6 production-equivalent behavior;
-- exercise Folder Position, preload, eviction/reload, Difference cache, and Display
-  Gain together;
-- preserve P2 residency/preload/diagnostics contracts;
-- complete Windows characterization and durable P3 documentation;
-- do not add unrelated workflow/session or processed-RAW features during closure.
-
-## Cross-phase invariants
-
-P3 must preserve unless explicitly redesigned:
-
-- Settings schema v5 migration/future-schema safety;
-- exact native decoded-source residency accounting and protected soft-budget LRU;
-- independent Difference Map Cache ownership;
-- +1 one-position max-one Folder Position preload with foreground priority;
-- exact RUNNING preload promotion without duplicate decode;
-- advisory cancellation plus token/generation/request stale-result authority;
-- observation-only sanitized **Help > Copy Diagnostics**;
-- idempotent identical Statistics/Histogram requests;
-- expensive I/O/numerics off the UI thread;
-- explicit native source dtype/channel semantics and overflow-safe arithmetic;
-- native source remains recoverable/authoritative when presentation transforms are
-  active;
-- input UX does not create a second RAW profile/decode authority;
-- registration does not imply selection, page membership, presentation, decode, or
-  residency.
+- Comparison Page preload or preload concurrency expansion;
+- residency-policy redesign or broad MainWindow rewrite;
+- packaging, signing, installer, updater.
 
 ## Validation policy
 
-For P3-D, the Chat implementation agent writes tests but does not bootstrap/run a
-local virtual environment. The repository owner runs the Windows `.venv` contract:
+The Chat implementation agent writes source/tests/docs and performs static review only.
+It does not create/search for a virtual environment, install dependencies, or claim a
+local Windows PASS.
+
+Owner full Windows validation:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -420,68 +250,64 @@ local virtual environment. The repository owner runs the Windows `.venv` contrac
 git diff --check
 ```
 
-Do not claim PASS without observed output.
+Focused P3-E tests should include the new integration-hardening module plus existing
+P3-A/P3-B/P3-C/P3-D, residency/preload, and P2-F request-dedup suites.
 
-Owner/local Windows validation PASS is recorded for exact PR head
-`c5bcd19801d04b81b31422d25eb3061597dc3240` after all independent-review runtime fixes and the final shortcut-test
-correction. The owner reports pytest, Ruff check/format, mypy, pip check, docs check,
-`git diff --check`, and manual P3-D behavior validation all passed. The final
-independent re-review found no remaining runtime/code blocker and requested only
-this docs-only status reconciliation; no additional validation run is required for
-this documentation correction.
+### Windows manual characterization
 
-Owner manual P3-D checks should include:
+Presentation:
 
-1. Open 15 images and verify 1–6 / 7–12 / 13–15 page ranges.
-2. Verify local slot badges 1–6 on every page and empty final slots.
-3. Verify Ctrl+Left/Ctrl+Right non-wrapping page navigation.
-4. Verify Left/Right image12↔image13 boundary crossing in Single View.
-5. Verify number key semantics on page 2.
-6. Verify Statistics/Histogram/Line Profile move with Current Comparison Page.
-7. Verify Selected>6 PageUp/PageDown does not perform Folder Position.
-8. Reduce to A01/B01/C01 and verify PageDown → A02/B02/C02 as before.
-9. Verify off-page folder RAW does not prompt; entering its page prompts once.
-10. Cancel RAW profile and verify no immediate re-prompt/no worker; explicit retry
-    may prompt again.
-11. Exercise large-selection page visits under a small source-memory setting and
-    verify off-page reload/eviction behavior.
-12. Recheck native Open Folder and multi-folder D&D and folder/image/mixed D&D intent.
-13. Recheck Difference, Display Gain, ROI, Split Channels, and Plots regressions.
+1. Layout selector visual/alignment.
+2. Previous/Next page icons.
+3. first/middle/last page button states.
+4. page count/range readability.
+5. Display Gain alignment.
+6. dark-theme contrast.
+7. narrow/wide resize.
+8. Windows 100% scaling.
+9. if available, 125%/150% scaling clipping.
 
-## P3 exit criteria
+Input/paging:
 
-P3 is complete when:
+10. Open 15 images.
+11. Open 50 images.
+12. navigate first/middle/final pages.
+13. Single View cross-page Left/Right.
+14. number keys on page 2+.
+15. folder registration with current selection preserved.
 
-- P3-A Difference domain semantics remain stable;
-- native samples remain authoritative and presentation cannot be confused with
-  analysis processing;
-- generic anchor-based Display Gain remains deterministic across RAW/ordinary
-  presentation;
-- unified input has one supported-extension contract;
-- `Registered → Selected → Current Comparison Page → Presented → Resident` is
-  explicit and regression-covered;
-- Analysis Working Set equals Current Comparison Page;
-- viewer slots are local 1–6 within the page;
-- large Selected sets do not defeat P2 residency budget semantics;
-- folder registration preserves active work and RAW folder registration avoids
-  background/dialog side effects;
-- RAW profile resolution remains deterministic across direct input, foreground
-  page load, preload-after-resolution, reload, and existing-path identity;
-- no speculative profile inference is introduced without evidence;
-- P2 runtime/resource/diagnostic contracts remain stable;
-- full automated and agreed Windows validation pass;
-- durable docs use the five-layer hierarchy consistently.
+Analysis:
 
-Demosaic is not required for P3 completion under the current owner decision.
+16. Statistics.
+17. Histogram.
+18. ROI.
+19. Line Profile.
+20. Difference same-bit.
+21. Difference mixed-bit.
+22. Split Channels.
+23. Display Gain.
 
-## Later roadmap after P3
+Runtime:
 
-- **P4 — Workflow & Session Productivity:** persistent comparison sessions,
-  Recent Files/Folders, saved ROI manager, arbitrary-angle line sampling, alpha
-  overlay, and productivity/export workflows.
-- **P5 — Remote IQA Platform:** remote submission/results, server/job API, GPU
-  worker, artifact/heatmap/result comparison.
-- **P6 — Identity, Access & Remote Operations:** login/SSO, token lifecycle,
-  permissions, and operational administration.
-- **P7 — Release Engineering & Distribution:** PyInstaller 5.7 `onedir`, portable
-  ZIP, Inno Setup, clean-PC smoke, signing, updater/release process.
+24. small source budget page revisit.
+25. Folder Position + preload on Selected <=6.
+26. PageUp/PageDown unavailable on Selected >6.
+27. Help > Copy Diagnostics.
+
+RAW:
+
+28. valid sidecar.
+29. missing sidecar.
+30. invalid sidecar.
+31. lazy folder RAW foreground resolution.
+32. Cancel/retry behavior.
+
+## Current validation state
+
+P3-D owner/local Windows validation and independent review are complete; PR #26 is
+merged at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
+
+P3-E source/tests/docs are being implemented on the feature branch. Tests were not
+run by this Chat implementation agent. Owner/local Windows validation is pending.
+Independent review and merge are pending. P3-E must not be marked Complete or moved
+to the completed exec-plan archive until merge.
