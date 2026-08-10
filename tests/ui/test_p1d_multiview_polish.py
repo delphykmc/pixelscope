@@ -51,18 +51,29 @@ def test_primary_flag_is_visible_and_defaults_to_first_multi_view_image(
     assert all(flag.toolTip() in {"Set as primary image", "Primary image"} for flag in flags)
 
 
-def test_primary_flags_are_hidden_for_transient_split_channels(qtbot: object) -> None:
+def test_primary_flags_apply_to_transient_split_channels(qtbot: object) -> None:
     view = MultiCompareView()
     qtbot.addWidget(view)  # type: ignore[attr-defined]
     view.show()
-    channels = split_document_channels(_documents(1)[0])
+    source = _documents(1)[0]
+    channels = split_document_channels(source)
     assert len(channels) == 3
+    assert [channel.document_id for channel in channels] == [
+        f"{source.document_id}:split:R",
+        f"{source.document_id}:split:G",
+        f"{source.document_id}:split:B",
+    ]
     view.set_capacity(4)
     view.set_layout_kind("Multi View", None)
     view.set_documents(channels, 0, len(channels), None, None)
 
-    assert view.focus_document_id is None
-    assert all(viewer.header.focus.isHidden() for viewer in view.occupied_viewers)
+    assert view.focus_document_id == channels[0].document_id
+    assert [viewer.header.focus.isChecked() for viewer in view.occupied_viewers] == [
+        True,
+        False,
+        False,
+    ]
+    assert all(not viewer.header.focus.isHidden() for viewer in view.occupied_viewers)
 
 
 @pytest.mark.parametrize("count", (2, 4, 6))

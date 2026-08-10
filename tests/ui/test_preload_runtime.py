@@ -35,7 +35,12 @@ def _write_images(folder: Path, count: int, *, shape: tuple[int, int] = (3, 4)) 
 
 
 def _register_folder(window: MainWindow, folder: Path) -> list[str]:
-    return window._register_inputs(discover_image_inputs((folder,)), select_all=False)
+    document_ids = window._register_inputs(
+        discover_image_inputs((folder,)),
+        resolve_raw_profiles=False,
+    )
+    window._select_document_ids([document_ids[0]])
+    return document_ids
 
 
 def test_foreground_finishes_before_exactly_one_next_position_preloads(

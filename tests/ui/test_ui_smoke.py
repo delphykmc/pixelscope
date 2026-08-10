@@ -9,7 +9,7 @@ import pyqtgraph as pg
 import pytest
 from PySide6.QtCore import QPointF, QSettings, Qt
 from PySide6.QtGui import QKeySequence, QPalette
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog, QMessageBox
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog
 
 import pixelscope.ui.comparison_analysis_panel as comparison_module
 from pixelscope.app.application import create_application
@@ -303,14 +303,14 @@ def test_difference_display_updates_roi_metrics_and_session_cache(qtbot: object)
     assert window._difference_document is not None
     assert window.central_stack.currentWidget() is window.multi_compare_view
     assert [viewer.document for viewer in window.multi_compare_view.occupied_viewers] == [
-        window._difference_document,
         first,
+        window._difference_document,
         second,
     ]
     assert [
         viewer.header.badge.text() for viewer in window.multi_compare_view.occupied_viewers
-    ] == ["Diff", "1", "2"]
-    assert window.multi_compare_view.viewers[0].document is window._difference_document
+    ] == ["1", "Diff", "2"]
+    assert window.multi_compare_view.viewers[0].document is first
     window._set_focus_document(first)
     assert window.multi_compare_view.viewers[0].document is first
     assert [
@@ -324,7 +324,7 @@ def test_difference_display_updates_roi_metrics_and_session_cache(qtbot: object)
         for index in range(window.viewer.header.navigation_layout.count())
     ]
     assert navigation_labels == ["1", "2", "Diff"]
-    window.show_selected_image(2)
+    window._navigate_single_view("difference")
     assert window.viewer.document is window._difference_document
     window.close()
 
@@ -578,9 +578,8 @@ def test_single_to_multi_after_three_folder_selection_displays_all_images(
         folder.mkdir()
         path = folder / "frame.png"
         assert cv2.imwrite(str(path), np.full((12, 16, 3), 30 + folder_index, dtype=np.uint8))
-        selected_ids.extend(
-            window._register_inputs(discover_image_inputs((folder,)), select_all=False)[:1]
-        )
+        window.register_folders([folder])
+        selected_ids.append(window._document_id_by_path[window._path_key(path)])
 
     window.set_layout_mode("Single View")
     window._select_document_ids(selected_ids[:3])
@@ -633,7 +632,7 @@ def test_reloaded_same_document_preview_is_uploaded_after_pending_clear(qtbot: o
     assert np.array_equal(viewer.image_item.image, preview)
 
 
-def test_multi_view_focus_keeps_logical_badges_and_arrow_keys_cycle_reference(
+def test_multi_view_primary_survives_arrow_key_active_navigation(
     qtbot: object, tmp_path: Path
 ) -> None:
     window = MainWindow()
@@ -651,21 +650,25 @@ def test_multi_view_focus_keeps_logical_badges_and_arrow_keys_cycle_reference(
     window._select_document_ids([document.document_id for document in documents])
     window.set_layout_mode("Multi View")
     window._set_focus_document(documents[2])
+    assert window._focus_document_id == documents[2].document_id
     assert window.multi_compare_view.viewers[0].document is documents[2]
     assert window.multi_compare_view.viewers[0].header.badge.text() == "3"
-    assert all(
-        viewer.header.focus.isHidden() for viewer in window.multi_compare_view.occupied_viewers
-    )
+
     window.show()
     window.activateWindow()
     qtbot.wait(20)  # type: ignore[attr-defined]
     window.multi_compare_view.zoom_100_percent()
     zoom = window.multi_compare_view.viewers[0].zoom_percent
     window.multi_compare_view.viewers[0].setFocus()
-    qtbot.keyClick(window.multi_compare_view.viewers[0], Qt.Key.Key_Right)  # type: ignore[attr-defined]
-    assert window._focus_document_id == documents[3].document_id
-    assert window.multi_compare_view.viewers[0].document is documents[3]
-    assert window.multi_compare_view.viewers[0].header.badge.text() == "4"
+    qtbot.keyClick(
+        window.multi_compare_view.viewers[0],
+        Qt.Key.Key_Right,
+    )  # type: ignore[attr-defined]
+
+    assert window._focus_document_id == documents[2].document_id
+    assert window._active_document_id == documents[3].document_id
+    assert window.multi_compare_view.viewers[0].document is documents[2]
+    assert window.multi_compare_view.viewers[0].header.badge.text() == "3"
     assert window.multi_compare_view.viewers[0].zoom_percent == pytest.approx(zoom, rel=0.01)
 
     window.set_layout_mode("Single View")
@@ -738,7 +741,7 @@ def test_three_selected_images_add_and_replace_one_latest_difference(qtbot: obje
         for index in range(window.viewer.header.navigation_layout.count())
     ]
     assert navigation_labels == ["1", "2", "3", "Diff"]
-    window.show_selected_image(3)
+    window._navigate_single_view("difference")
     assert window.viewer.document is first_difference
 
     window.difference_panel.a_selector.setCurrentIndex(1)
@@ -1189,7 +1192,7 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     window.close()
 
 
-def test_drop_appends_to_multiview_preserves_range_and_deduplicates(
+def test_direct_file_drop_replaces_selection_and_keeps_catalog_deduplicated(
     qtbot: object, tmp_path: Path
 ) -> None:
     paths = [tmp_path / f"drop{index}.png" for index in range(3)]
@@ -1198,65 +1201,30 @@ def test_drop_appends_to_multiview_preserves_range_and_deduplicates(
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     first_inputs = discover_image_inputs(paths[:2])
-    window._register_inputs(first_inputs, select_all=True)
+    first_ids = window._register_inputs(first_inputs, resolve_raw_profiles=True)
+    window._select_document_ids(first_ids)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(document.source is not None for document in window.selected_documents),
         timeout=3000,
     )
-    window.set_view_capacity(2)
-    window.multi_compare_view.viewers[0].view_box.setRange(
-        xRange=(5.0, 20.0), yRange=(4.0, 19.0), padding=0
-    )
-    original_range = window.multi_compare_view.viewers[0].view_box.viewRange()
 
     window._handle_dropped_paths([paths[2]])
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: len(window.selected_documents) == 3
-        and all(document.source is not None for document in window.selected_documents),
+        lambda: len(window.selected_documents) == 1
+        and window.selected_documents[0].source is not None,
         timeout=3000,
     )
-    assert window._layout_mode == "Multi View"
-    assert window._view_capacity == 4
-    assert [viewer.document for viewer in window.multi_compare_view.viewers[:3]] == (
-        window.selected_documents
-    )
-    assert np.allclose(
-        window.multi_compare_view.viewers[0].view_box.viewRange(),
-        original_range,
-    )
-    same_folder_selection = [document.document_id for document in window.selected_documents]
-    window.show()
-    window.activateWindow()
-    window.document_list.setFocus()
-    qtbot.keyClick(window.document_list, Qt.Key.Key_PageDown)  # type: ignore[attr-defined]
-    assert [document.document_id for document in window.selected_documents] == same_folder_selection
-    assert "different folder" in window.statusBar().currentMessage()
-    window.show()
-    qtbot.wait(10)  # type: ignore[attr-defined]
-    before_resize = window.multi_compare_view.viewers[0].view_box.viewRange()
-    before_center = [(axis_range[0] + axis_range[1]) / 2 for axis_range in before_resize]
-    window.resize(1650, 920)
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    after_resize = window.multi_compare_view.viewers[0].view_box.viewRange()
-    after_center = [(axis_range[0] + axis_range[1]) / 2 for axis_range in after_resize]
-    assert np.allclose(after_center, before_center)
-    for viewer in window.multi_compare_view.viewers[:3]:
-        viewer_range = viewer.view_box.viewRange()
-        viewer_center = [(axis_range[0] + axis_range[1]) / 2 for axis_range in viewer_range]
-        assert np.allclose(viewer_center, after_center)
-        assert np.allclose(
-            viewer.view_box.viewPixelSize(),
-            window.multi_compare_view.viewers[0].view_box.viewPixelSize(),
-            rtol=0.02,
-        )
+    assert len(window.documents) == 3
+    assert window.selected_documents[0].source_path == paths[2].resolve()
 
-    window._register_inputs(discover_image_inputs((tmp_path,)), select_all=False)
+    window.register_folders([tmp_path])
     assert len(window.documents) == 3
     assert window.document_list.document_count == 3
     assert window.document_list.topLevelItemCount() == 1
     assert window.document_list.topLevelItem(0).childCount() == 3
     assert window.document_list.topLevelItem(0).child(0).text(0) == "drop0.png"
     assert window.document_list.topLevelItem(0).child(0).text(1) == "PNG"
+    assert window.selected_documents[0].source_path == paths[2].resolve()
     window.close()
 
 
@@ -1348,7 +1316,9 @@ def test_single_view_number_shortcuts_and_six_histogram_grid(qtbot: object) -> N
     window.close()
 
 
-def test_auto_grid_paging_with_seven_selected_images(qtbot: object) -> None:
+def test_auto_grid_fine_navigation_crosses_seven_image_page_boundary(
+    qtbot: object,
+) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     documents = [
@@ -1362,13 +1332,22 @@ def test_auto_grid_paging_with_seven_selected_images(qtbot: object) -> None:
     assert window._layout_mode == "Multi View"
     assert window._view_capacity == 6
 
+    for document in documents[1:6]:
+        window.next_image()
+        assert window._page_start == 0
+        assert window._active_document_id == document.document_id
+
     window.next_image()
+    assert window._page_start == 6
     assert window.multi_compare_view.viewers[0].document is documents[6]
     assert all(viewer.document is None for viewer in window.multi_compare_view.viewers[1:6])
+
     window.next_image()
-    assert window.multi_compare_view.viewers[0].document is documents[0]
+    assert window._page_start == 0
+    assert window._active_document_id == documents[0].document_id
     window.previous_image()
-    assert window.multi_compare_view.viewers[0].document is documents[6]
+    assert window._page_start == 6
+    assert window._active_document_id == documents[6].document_id
     window.close()
 
 
@@ -1385,7 +1364,12 @@ def test_folder_positions_are_naturally_sorted_and_loaded_lazily(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    window.register_folder_group((folder_a, folder_b))
+    window.register_folders((folder_a, folder_b))
+    first_ids = [
+        window._document_id_by_path[window._path_key(folder / "image2.png")]
+        for folder in (folder_a, folder_b)
+    ]
+    window._select_document_ids(first_ids)
     assert window.document_list.topLevelItemCount() == 2
     assert sorted(
         window.document_list.topLevelItem(index).childCount()
@@ -1446,7 +1430,12 @@ def test_folder_position_navigation_recalculates_enabled_difference_and_keeps_fo
             )
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    window.register_folder_group(folders)
+    window.register_folders(folders)
+    first_ids = [
+        window._document_id_by_path[window._path_key(folder / "frame-0.png")]
+        for folder in folders
+    ]
+    window._select_document_ids(first_ids)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(document.source is not None for document in window.selected_documents),
         timeout=3000,
@@ -1459,9 +1448,9 @@ def test_folder_position_navigation_recalculates_enabled_difference_and_keeps_fo
     stale_difference = window._difference_document
     window._set_focus_document(window.selected_documents[1])
     window.next_folder_position()
-    assert window._view_capacity == 4
+    assert window._view_capacity == 2
     assert window._difference_document is stale_difference
-    assert len(window.multi_compare_view.occupied_viewers) == 3
+    assert len(window.multi_compare_view.occupied_viewers) == 2
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window._difference_source_ids
         == tuple(document.document_id for document in window.selected_documents)
@@ -1473,8 +1462,8 @@ def test_folder_position_navigation_recalculates_enabled_difference_and_keeps_fo
         "frame-1.png",
     ]
     assert window._difference_document is not None
-    assert window._focus_document_id == window._difference_document.document_id
-    assert window.multi_compare_view.viewers[0].document is window._difference_document
+    assert window._focus_document_id == window.selected_documents[1].document_id
+    assert window.multi_compare_view.viewers[0].document is window.selected_documents[1]
     assert window.difference_panel.status.text() == "Ready"
     window.close()
 
@@ -1495,8 +1484,10 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
                 dtype=np.uint8,
             )
             assert cv2.imwrite(str(folder / f"chart-{image_index:02d}.jpg"), image)
-        ids = window._register_inputs(discover_image_inputs((folder,)), select_all=False)
-        first_ids.append(ids[0])
+        window.register_folders([folder])
+        first_ids.append(
+            window._document_id_by_path[window._path_key(folder / "chart-00.jpg")]
+        )
 
     window._select_document_ids(first_ids)
     for _index in range(5):
@@ -1512,8 +1503,6 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
         timeout=5000,
     )
 
-    # Walk the remaining positions normally as well; decoded arrays behind the
-    # current working set must be released instead of accumulating indefinitely.
     for _index in range(2):
         window.next_folder_position()
         qtbot.waitUntil(  # type: ignore[attr-defined]
@@ -1538,8 +1527,8 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
     window.close()
 
 
-def test_new_files_update_active_multi_folder_navigation(
-    qtbot: object, tmp_path: Path, monkeypatch: object
+def test_direct_file_drop_replaces_active_folder_selection(
+    qtbot: object, tmp_path: Path
 ) -> None:
     folders = [tmp_path / name for name in ("a", "b", "c")]
     for folder_index, folder in enumerate(folders):
@@ -1556,46 +1545,25 @@ def test_new_files_update_active_multi_folder_navigation(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    window.register_folder_group(folders[:2])
-    monkeypatch.setattr(  # type: ignore[attr-defined]
-        QMessageBox,
-        "question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
-    )
+    window.register_folders(folders[:2])
+    initial_ids = [
+        window._document_id_by_path[window._path_key(folder / "image1.png")]
+        for folder in folders[:2]
+    ]
+    window._select_document_ids(initial_ids)
+
     window._handle_dropped_paths([folders[2] / "image2.png"])
     assert window.document_list.topLevelItemCount() == 3
     assert sorted(
         window.document_list.topLevelItem(index).childCount()
         for index in range(window.document_list.topLevelItemCount())
-    ) == [2, 2, 2]
-    assert [document.display_name for document in window.selected_documents] == [
-        "image1.png",
-        "image1.png",
-        "image2.png",
-    ]
+    ) == [1, 2, 2]
+    assert [document.display_name for document in window.selected_documents] == ["image2.png"]
+    assert window.selected_documents[0].source_path == (folders[2] / "image2.png").resolve()
 
-    selection_at_shortest_end = [document.document_id for document in window.selected_documents]
-    window.next_folder_position()
-    assert [
-        document.document_id for document in window.selected_documents
-    ] == selection_at_shortest_end
-    assert "No next folder position" in window.statusBar().currentMessage()
-
-    monkeypatch.setattr(  # type: ignore[attr-defined]
-        QMessageBox,
-        "question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.No,
-    )
     window._handle_dropped_paths([folders[0] / "image2.png"])
-    assert window.selected_documents[0].display_name == "image1.png"
-
-    monkeypatch.setattr(  # type: ignore[attr-defined]
-        QMessageBox,
-        "question",
-        lambda *args, **kwargs: QMessageBox.StandardButton.Yes,
-    )
-    window._handle_dropped_paths([folders[0] / "image2.png"])
-    assert window.selected_documents[0].display_name == "image2.png"
+    assert [document.display_name for document in window.selected_documents] == ["image2.png"]
+    assert window.selected_documents[0].source_path == (folders[0] / "image2.png").resolve()
     folder_key = window._folder_key(folders[0] / "image2.png")
     assert window._folder_indices[folder_key] == 1
     window.close()
@@ -1799,7 +1767,8 @@ def test_raw_sidecar_confirmation_and_same_path_reload(
         }
     )
     generation = first_document.generation
-    reloaded_ids = window._register_inputs((image_input,), select_all=True)
+    reloaded_ids = window._register_inputs((image_input,), resolve_raw_profiles=True)
+    window._select_document_ids(reloaded_ids)
     assert reloaded_ids == [document_id]
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.documents[document_id].source is not None

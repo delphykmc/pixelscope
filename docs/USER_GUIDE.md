@@ -1,346 +1,357 @@
 # PixelScope user guide
 
-## Register and select images
+## Register, select, and view images
 
-Use **Open Images**, **Open Folder**, **Open RAW with Profile**, or drag
-files/folders into the application. Files are grouped by parent folder.
-Ctrl/Shift selection forms the ordered comparison set; up to six source images
-can be visible.
+PixelScope distinguishes five states:
 
-When one to six files are selected from distinct participating folders, Page
-Down/Page Up moves every folder atomically in natural filename order. Navigation
-uses files already registered in PixelScope; it does not discover or register
-new siblings. The shortcuts work while the Files view or a visible image tile
-has focus. If any folder reaches an endpoint, no folder changes and the status
-bar reports the boundary.
+- **Registered**: the image is known to the Files workspace.
+- **Selected**: the image is in the ordered logical comparison set.
+- **Current Comparison Page**: the current working subset of Selected, maximum six.
+- **Presented**: the current viewer representation of that page.
+- **Resident**: the decoded native source is currently retained in memory when
+  required.
+
+The six-image limit belongs to the **Current Comparison Page**, not Files
+registration or logical Selected membership. You may register many folders/images
+and select more than six; PixelScope works on them in six-image Comparison Pages.
+
+`Analysis Working Set = Current Comparison Page`.
+Viewer slot numbers are always local `1..6` inside that page.
+
+### Open Images...
+
+Use **File > Open Images...** (`Ctrl+O`) when you are choosing image files to look
+at now. The dialog supports multiple files and exactly these formats:
+
+```text
+.png  .bmp  .jpg  .jpeg  .raw
+```
+
+All supported selected files are registered and become the current ordered
+Selected set. If 15 files are supplied, all 15 remain Selected. The initial
+Comparison Page is images 1–6, followed by 7–12 and 13–15.
+
+PNG/BMP/JPEG open directly. RAW uses the same command but resolves RAW profile
+metadata internally. There is no separate top-level RAW-open command.
+
+### Open Folder...
+
+Use **File > Open Folder...** (`Ctrl+Shift+O`) when you are adding a dataset folder
+to the Files workspace. The native folder picker selects one directory per
+invocation. To register several folders at once, drag/drop them into Files; the same
+registration API deduplicates supplied paths and has no six-folder limit.
+
+Opening folders is **registration-only**:
+
+- supported images are added to Files;
+- the current Selected set does not change;
+- the Current Comparison Page does not change;
+- the current viewer/layout does not change;
+- no first image is automatically selected;
+- two folders do not implicitly create a comparison group;
+- folders with no supported images are skipped while other folders continue.
+
+Therefore adding folders while comparing A001/B001 leaves that comparison intact.
+ROI, Line Profile, Difference presentation, Display Gain, active/primary state,
+and current view state are not reset merely because another folder was registered.
+
+If images are registered but nothing is selected, the center workspace shows
+**Select an image from Files to view**. A truly empty workspace shows **Drop images
+or folders here** with Open Images/Open Folder buttons.
+
+### Drag and drop
+
+Drag/drop follows the same intent rules:
+
+- direct image files → register and make them the Selected set;
+- folders → register their supported contents only;
+- mixed image files + folders → direct files become Selected while folder contents
+  are registered only.
+
+Dropping one, two, six, or more folders behaves the same way. There is no special
+two-folder auto-comparison behavior. Unsupported files and standalone `.json`
+files are ignored rather than interpreted as RAW.
+
+## Current Comparison Page navigation
+
+The presentation-control row above the image workspace always shows Comparison
+Page status, including when there is only one page. Previous/next arrows remain in
+place and are disabled when that direction is unavailable, so the controls do not
+shift as selection size changes. Existing Auto/Single/Multi behavior remains
+unchanged for six or fewer Selected images. For example, a three-page selection may
+show:
+
+```text
+Page [‹] 2 / 3 [›]  7–12 of 15
+```
+
+- **Ctrl+Left**: Previous Comparison Page when available.
+- **Ctrl+Right**: Next Comparison Page when available.
+- Page navigation does not wrap at the first/last page. At an unavailable endpoint
+  the application shortcut is disabled, so Ctrl+Arrow remains available to the
+  focused editor/control.
+- Changing page does not change Selected membership/order.
+- The active local slot is preserved when possible; a short final page clamps to
+  its last available slot.
+
+In Multi View, large selections keep a six-slot grid for continuity. A final
+three-image page occupies slots 1–3 and leaves slots 4–6 empty rather than changing
+geometry.
+
+In Single View, one image is presented but its page context is still the full
+Current Comparison Page. Number keys **1–6** always mean local page slots.
+For example, image10 on the 7–12 page is slot **4**, not slot 10.
+
+## Fine image navigation
+
+**Left/Right** remains Previous/Next Selected Image across the complete ordered
+Selected set.
+
+If Single View is showing image12, pressing Right moves to image13 and automatically
+changes the Current Comparison Page from 7–12 to 13–15. image13 is then local slot
+1. The reverse occurs when moving Left across the boundary.
+
+Up/Down remains Files-tree row navigation.
+
+## Folder Position navigation
+
+PageDown/PageUp remains exclusively Folder Position navigation; it is not reused
+for Comparison Page paging.
+
+Folder Position requires one to six Selected files from distinct folders. If 20
+folders are registered but the comparison contains A005, D005, F005, and K005,
+PageDown targets A006, D006, F006, and K006 only. All members move atomically in
+natural filename order. If any participating folder is at an endpoint, selection
+is unchanged and the status bar reports the boundary.
+
+When **more than six images are Selected**, Folder Position is unavailable and
+PageUp/PageDown does not partially move only the current page. Reduce Selected to
+one-to-six images to use Folder Position again.
 
 ## View and navigate
 
-- **Auto** chooses Single or Multi View from the selection.
-- **Single View** shows the active image. Use **Previous/Next Selected Image**
-  (Left/Right), keys 1–6, or header navigation without changing selection
-  membership, zoom, or offset.
-- Up/Down remains the Files tree's previous/next row navigation. PageUp/PageDown
-  performs Previous/Next Folder Position navigation.
-- **Multi View** uses fixed layouts for two through six images.
-- Every regular Multi View containing two through six images shows a primary
-  flag. The first displayed image is the implicit primary until another flag is
-  selected.
-- Selecting a primary flag moves that image to the first tile without changing
-  Files selection order or image IDs.
-- Two-, four-, and six-image layouts keep equal tile sizes. Three- and
-  five-image layouts enlarge the first, primary tile.
-- Split Channels component tiles do not show primary flags because their
-  R/G/B or Bayer order is fixed.
+- **Auto** chooses the current layout from the applicable comparison size.
+- **Single View** presents one active image from the Current Comparison Page.
+- **Multi View** presents the Current Comparison Page with at most six source tiles.
+- Keys 1–6 and Single View header navigation address page-local slots.
+- Two-, four-, and six-image layouts keep equal tile sizes. Three- and five-image
+  layouts enlarge the primary tile for `Selected <= 6`.
+- For `Selected > 6`, Multi View keeps six-slot geometry even on a partial final
+  page.
+- Selecting a primary flag changes presentation order within the Current Comparison
+  Page without changing Selected ordering or page membership.
 - **Fit** fits visible tiles; **100%** uses native pixel scale.
-- **Split Channels** shows RGB or Bayer channel views and retains its checked
-  state while another supported image loads.
-- **Display Gain** provides 1×, 2×, 4×, 8×, and 16× viewer-only digital gain for
-  ordinary Gray/RGB/RGBA and RAW presentations. One session-local gain is shared
-  by supported Single/Multi View tiles. With focus inside the image viewer, press
-  **+** to move one gain step higher and **-** to move one step lower. The
-  shortcuts stay at 1×/16× at the minimum/maximum. With focus in the Files tree,
-  **+**/**-** keep their native folder expand/collapse behavior and do not change
-  Display Gain.
+- **Split Channels** keeps one source Selected in Files but derives transient
+  R/G/B or R/Gr/Gb/B viewer-local subchannels. Multi View exposes explicit Primary;
+  Single View navigates the same local subchannels with number/header/Left/Right
+  controls. Native Statistics/Histogram/Line/Difference authority remains on the
+  original source page.
 
-For ordinary images, Gray and RGB use zero-anchored gain (`gain × source`). The
-same gain is applied to R/G/B, so Display Gain does not introduce a color-balance
-adjustment. RGBA applies gain to RGB only; transparency/alpha remains exactly the
-document's canonical 1× preview alpha. Ordinary RGB Split Channels use the same
-zero-anchored gain while retaining their colored channel presentation.
+Registration count is independent of all of these presentation choices.
 
-At **1×**, PixelScope reuses the canonical document preview directly. Gain above
-1× is generated from the already resident native source as a viewer-local derived
-preview. Returning to 1× restores the canonical preview. Hidden/replaced gained
-tiles release their derived preview and regenerate the current session gain if
-shown again.
+## Display Gain
 
-Display Gain does not change pixel readout, Statistics, Histogram, Line Profile,
-Split Channel native data, Difference, or source residency. Difference has its
-own independent presentation Gain and does not receive Display Gain a second time.
+**Display Gain** provides 1×, 2×, 4×, 8×, and 16× viewer-only digital gain for
+ordinary Gray/RGB/RGBA and RAW. One session-local value is shared by supported
+Single/Multi View tiles.
 
-## Cursor, ROI, and line selection
+With focus inside an image viewer, `+` moves one gain step higher and `-` lower.
+With focus in Files, those keys keep Qt-native folder expand/collapse behavior.
 
-Moving over an image synchronizes the crosshair. The status bar shows position
-and the value under the active pointer.
+- ordinary Gray/RGB uses zero-anchored gain (`gain × source`);
+- ordinary RGB split channels use the same zero anchor;
+- RGBA gains RGB only and preserves canonical 1× alpha;
+- RAW uses its Black-derived gain anchor above 1×;
+- Difference has its own independent presentation Gain.
 
-- Ctrl+drag creates one shared rectangular ROI; double-click or Esc clears it.
-- Shift+drag creates a horizontal or vertical line from the longer gesture axis.
+At 1× PixelScope reuses canonical preview. Gain above 1× is generated from already
+resident native source as viewer-local derived presentation. Display Gain does not
+change pixel readout, Statistics, Histogram, Line Profile, Split Channel native
+data, Difference, source generation, or source residency.
+
+## Cursor, ROI, and Line Profile selection
+
+Moving over an image synchronizes the crosshair and status readout.
+
+- Ctrl+drag creates one shared ROI; Esc clears ROI.
+- Shift+drag creates a horizontal or vertical Line Profile selection.
 - Shift+Esc clears the shared line.
+- Alt+drag does not create a Line Profile.
 
-Alt+drag does not create a Line Profile. The Edit menu names the clear operations
-**Clear ROI** and **Clear Line Profile**. Esc never changes the shared line, and
-Shift+Esc never changes the ROI.
+ROI normalization, Statistics, Histogram, and Line Profile all use the Current
+Comparison Page as the default analysis working set.
 
 ## Statistics and Histogram
 
-Statistics can target active, selected, or visible images and Full image or
-Active ROI. The panel follows the RAW dialog hierarchy with separate Region,
-Images, and Channel statistics groups. Region shows aligned Scope and Bounds
-rows, using full `x`, `y`, `width`, and `height` labels. Active ROI remains
-disabled until a shared ROI exists and returns to Full image when that ROI is
-cleared. The Images summary reports each image's bit depth and analyzed Pixels
-so channel statistics can be interpreted in the correct code range. Long image
-labels stay on one row and are middle-elided when the Analysis sidebar is
-narrow; the complete source metadata remains available in the tooltip. Thin row
-separators mark the start of each image group in Channel statistics.
+Statistics supports Full image and Active ROI scopes. The Images summary reports
+bit depth and analyzed pixel count. RGB/RGBA uses R/G/B for analysis; RGBA alpha
+is ignored. Bayer uses R/Gr/Gb/B native mosaic planes.
 
-Analysis activity appears below the statistics table only while work is pending
-or when a status/error message must be shown. The activity area collapses after
-a successful calculation so it does not leave permanent empty space.
+Histogram supports Auto/256/1024/4096 bins, Count/Normalized/Log count, Separate or
+Overlay display, and native code-value x ranges. Identical source/generation/ROI/
+bin requests do not restart unchanged numerical work.
 
-Histogram supports:
-
-- Bins: Auto, 256, 1024, 4096
-- Y mode: Count, Normalized, Log count
-- Separate or Overlay display
-- Native code-value x ranges
-
-RGB uses R/G/B; Bayer uses R/Gr/Gb/B.
+When you change Comparison Page, Statistics and Histogram move to that same page;
+they do not remain bound to the first six Selected images.
 
 ## Line Profile
 
-Line Profile supports Overlay, Separate by image, and Separate by channel
-views. Legends use compact image-ID/channel labels.
-
-When Y mode is **Difference from reference**, a Reference selector appears.
-The initial reference is the primary image, then the active image, then the
-first displayed image. The selected reference remains stable while that
-document is available and is rendered as exact zero.
+Line Profile supports Overlay, Separate by image, and Separate by channel. In
+Difference-from-reference mode, reference priority is primary, then active, then
+first displayed, while an explicitly selected available reference remains stable.
+Its normal source set follows the Current Comparison Page.
 
 ## Difference
 
-Choose Image 1 and Image 2 in **Analysis > Difference**, then calculate.
-PixelScope compares only compatible image families: Gray with Gray, RGB/RGBA with
-RGB/RGBA, or Bayer with Bayer when the CFA pattern matches. RGBA alpha is ignored.
-Gray exposes only **Gray**; RGB/RGBA exposes **All / R / G / B**; Bayer exposes
-**Mosaic / R / Gr / Gb / B**. Cross-family, size-mismatch, and CFA-mismatch pairs
-are rejected; PixelScope does not silently convert RGB to grayscale.
+Difference supports:
 
-The panel shows compact **Scope** and **Domain** fields. Equal effective bit depths
-use **Native** code values. Different effective bit depths use **Normalized
-[0–1]**: each source is divided by its own effective full-scale code value before
-Difference is calculated. This is source full-scale normalization; RAW black/white
-levels, Display Gain, previews, and demosaic do not change it.
+- Gray ↔ Gray;
+- RGB/RGBA ↔ RGB/RGBA, alpha ignored;
+- Bayer ↔ Bayer with the same CFA pattern.
 
-Absolute and Mask displays derive from the cached map, and reversed pairs reuse
-the same order-independent cache entry. The Threshold unit follows the domain:
-**code** for Native or **%FS** for Normalized. In normalized mode, `1.00 %FS` is
-`0.01` in the `[0,1]` domain. Mask comparison is strict `>`, so a pixel exactly at
-the threshold is not masked. Difference-panel Gain retains the existing Absolute
-Difference presentation behavior and is independent from toolbar Display Gain.
-Full image/Active ROI controls metrics.
+Cross-family, dimension-mismatch, CFA-mismatch, and unsupported layouts are
+rejected. PixelScope does not silently convert RGB to grayscale.
 
-The persisted **Settings > Difference Defaults > Threshold** remains the Native
-code threshold under settings schema v5. Normalized Threshold is separate, starts
-at **1.00 %FS**, and is remembered only for the current application session.
-Switching between native and normalized pairs keeps the most recent threshold for
-each domain during that session. Validation uses short visible labels such as
-**Layout mismatch**, **Size mismatch**, or **CFA mismatch**; hover the status or
-Calculate control for the detailed reason.
+Equal effective bit depths use the Native code domain. Mixed effective bit depths
+normalize each source independently by its own effective full-scale code and use
+float32 `[0,1]` Difference. RAW Black/White metadata, Display Gain, preview values,
+and demosaic do not participate in this normalization.
 
-With six selected sources, Difference opens in Single View until disabled.
+Threshold units are `code` in Native and `%FS` in Normalized. Mask comparison is
+strict `>`. Difference cache is order-independent and separate from decoded-source
+residency. Folder-only registration does not invalidate a valid Difference cache
+entry or clear the current Difference presentation because it does not alter the
+Selected/current-page lifecycle.
+
+Difference's available/default inputs follow the Current Comparison Page, while an
+explicit Image 1/Image 2 pair remains owned by the Difference feature.
+
+When all six source slots of a Comparison Page are occupied, the derived Difference
+result is presented in Single View until disabled, preserving the existing
+six-source Difference workspace contract. Returning to a page with a cached
+Difference uses the same Diff-only Single View and restore behavior as a fresh
+asynchronous result.
+
+## RAW profile resolution
+
+RAW uses the same **Open Images...** entry as ordinary images.
+
+### Direct RAW file open/drop
+
+- Exact same-basename sidecar (`frame.raw` + `frame.json`) is parsed and validated.
+- With no sidecar, the editable RAW Profile dialog opens.
+- An invalid sidecar shows a warning and then editable fallback.
+- Cancelling profile entry prevents that directly opened RAW from being registered.
+- Multiple RAW files are resolved independently; PixelScope does not silently
+  reuse the previous profile or select one from byte size alone.
+
+The dialog uses **Load Profile...** and **Save Profile...** terminology. JSON
+remains the compatible storage format.
+
+### RAW inside an opened/dropped folder
+
+Folder registration is intentionally lazy. RAW paths and deterministic
+same-basename sidecar paths can be registered in Files without immediately opening
+RAW Profile dialogs or decoding every source.
+
+A RAW may also be logically Selected while it is outside the Current Comparison
+Page. In that state it does not prompt, decode, or require residency merely because
+it is Selected. Profile resolution occurs when the RAW enters the foreground
+Current Comparison Page and native source is required.
+
+Within one foreground presentation attempt, an unresolved RAW dialog appears at
+most once. Cancel keeps the RAW registered/pending, starts no worker, and passive
+rerenders do not immediately reopen it. A later explicit foreground action may
+retry.
+
+An unresolved RAW is not speculatively preloaded until a profile has been
+resolved. PixelScope never guesses profile parameters merely to make folder
+registration silent.
+
+### RAW profile fields
+
+Profiles retain storage format, unpacked container, effective bit depth, byte
+order/alignment, width/height, offset/stride, Gray/Bayer layout, Bayer pattern,
+Black Level, and White Level. Packed MIPI RAW10/12/14 owns fixed packing rules.
+The same RAW path may be re-resolved with corrected profile settings while keeping
+its document identity/reload semantics.
+
+Current PixelScope intentionally has no global Profile Library, favorites/profile
+CRUD manager, fuzzy or size-only profile suggestion, sensor/Bayer inference, or
+automatic Black/White estimation.
+
+## RAW display
+
+Decoded RAW source remains the native analysis authority.
+
+At Display Gain 1×, RAW display maps effective native full scale
+`0..((1 << bit_depth) - 1)`. Black is not subtracted and White is not used as
+display maximum. Above 1×, gained display follows:
+
+```text
+B + G * (X - B)
+```
+
+Gray uses its scalar Black anchor. Bayer may use channel-specific R/Gr/Gb/B Black
+anchors; split Bayer views use their named channel anchor. Bayer processing uses
+CFA parity-plane views rather than a full-frame Black map. White Level remains
+metadata only.
 
 ## Settings
 
-Open **Edit > Settings...**. The left side selects **General**, **Files**, or
-**Performance** and the right side shows that category's options.
-
-Display Gain is not an application setting and is distinct from Difference Gain.
-It is a viewer-only session control and returns to 1× on a new PixelScope session.
+Open **Edit > Settings...**. Categories are **General**, **Files**, and
+**Performance**.
 
 ### General
 
-**Don't Show RAW JSON Profiles** controls repeated confirmation for valid RAW
-JSON sidecars. This persistent preference lives in Settings; it is not duplicated
-in the File menu. Choosing the equivalent don't-show-again option from the RAW
-confirmation dialog updates only this setting and preserves the other Settings
-values.
-
-**Require Exact RAW File Size** controls RAW byte-count validation. When off,
-PixelScope accepts files that contain at least the bytes required by the selected
-profile, so trailing bytes are allowed. Undersized files are always rejected.
-When on, the file size must exactly match the profile requirement. The same
-policy is used when deciding whether a JSON sidecar may bypass the RAW profile
-confirmation dialog.
-
-Under **Difference Defaults**, **Threshold** sets the initial native code-domain
-Difference mask threshold and **Gain** sets the initial Absolute Difference
-amplification. Persisted values initialize the Difference panel on startup. Saving
-either value from Settings updates the current panel immediately and does not
-require restart. The mixed-bit normalized `%FS` threshold is intentionally
-session-local and is not a separate persisted setting in schema v5.
+- **Don't Show RAW JSON Profiles** may suppress repeated confirmation only for a
+  valid compatible same-basename sidecar.
+- **Require Exact RAW File Size** switches between minimum-required-byte and exact-
+  byte validation.
+- **Difference Defaults** owns persisted native Threshold/Gain defaults.
 
 ### Files
 
-**Default Open Folder** controls the starting location for Open Images, Open
-Folder, and Open RAW dialogs. **Default Export Folder** controls the starting
-location for export dialogs.
-
-Both fields are optional. Leave a field blank to keep PixelScope's existing
-last-used-folder behavior. Setting a folder does not lock you to that folder; it
-only chooses where the dialog starts. If a configured folder is unavailable,
-PixelScope falls back to the remembered last-used folder. File-location changes
-apply immediately and do not require restart.
+**Default Open Folder** controls the initial directory for Open Images and Open
+Folder. **Default Export Folder** controls export dialogs. Blank values retain
+last-used-folder behavior. These are starting locations, not workspace registration
+limits.
 
 ### Performance
 
-**Decoded Source Memory** is the budget for native decoded source image arrays
-kept resident for fast navigation. The default is 256 MiB, the allowed range is
-128–2560 MiB, and the control moves in 128 MiB steps. The default targets about
-eight typical UHD working images with headroom; actual capacity varies with
-resolution, dtype, and channel count. The green residency indicator in Files
-means that source's native decoded array is currently resident; it does not mean
-total application memory or a Difference cache entry.
+**Decoded Source Memory** budgets native decoded `ImageDocument.source` arrays.
+The default is 256 MiB. Current Comparison Page sources and other correctness
+requirements are protected; a large Selected set does **not** automatically protect
+every visited off-page source. Off-page Selected source may be evicted under the P2
+soft budget and normally reload when its page is revisited.
 
-PixelScope releases the least-recently-used unprotected sources when their bytes
-exceed this budget. Visible, selected, active/analysis, current Difference-pair,
-and currently loading sources are protected. The budget is therefore soft: a
-required image, including one larger than the whole budget, remains available
-while protected. Selecting a released source reloads it through the normal image
-load path.
+**Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
+itself discard a valid generation-keyed Difference map.
 
-**Difference Map Cache** is the separate memory budget for calculated Difference
-maps. Its default is 128 MiB, allowed range is 64–1280 MiB, and the control moves
-in 64 MiB steps. Releasing a source for Decoded Source Memory does not by itself
-discard a valid Difference map.
+**Preload Next Folder Position** remains exactly one valid one-to-six Selected
+Folder Position ahead, direction +1, on a separate max-one worker. It does not
+preload the next Comparison Page. A physically RUNNING matching Folder Position
+preload may transfer to foreground authority without duplicate decode. Unresolved
+RAW without a profile is skipped rather than prompting from speculative preload.
 
-Both memory budgets are startup settings. Changing either saves the preference
-but does not resize the current runtime owner. When an editable value differs
-from its current startup value, the dialog shows **Changes take effect after
-restarting PixelScope.** Returning both values to their current runtime settings
-clears that indication.
+Performance budget/preload changes are startup settings and display the restart-
+required indication when they differ from current runtime values.
 
-When physical RAM is detected, the combined Source and Difference budgets may be
-at most 50% of it. If Save detects a higher total, PixelScope warns, preserves
-both entered values, and leaves Settings open so either value can be reduced. If
-RAM detection is unavailable, product bounds alone apply. The machine-aware
-limit is a conservative configuration guard, not a guarantee against OOM:
-previews, Qt textures, worker temporaries, Python/Qt overhead, and protected
-soft-budget overage are outside these two counters.
-
-**Preload Next Folder Position** decodes exactly one registered Folder Position
-ahead after normal image loading becomes idle. It is enabled by default. Preload
-uses a separate single-worker queue and never makes interactive loading wait.
-Already resident targets are reused, previous and next-next positions are not
-decoded, and no filesystem siblings are discovered automatically.
-
-If you navigate forward while the exact required image is still RUNNING in that
-preload worker, PixelScope reuses the same decode as foreground work instead of
-cancelling it just to start the same image again. This reuse does not add another
-worker, increase preload depth, or change direction: preload remains exactly one
-Folder Position ahead with one preload worker. For a multi-folder position, the
-one matching RUNNING preload member may be reused while the other required
-members load normally.
-
-Preloaded sources use the ordinary Decoded Source Memory budget and have no
-special protection after speculative completion, so low-budget pressure may
-release them before navigation. A promoted running preload becomes protected as
-foreground-required work. Cancellation is advisory; PixelScope validates plan,
-document generation, path/RAW profile, exact RAW-size policy, and normal-load
-authority before keeping a result. A speculative failure shows no modal error
-and the normal load still retries when you navigate to that position. Once a
-running preload has been promoted because you actually navigated to it, a failure
-uses the same foreground error/status behavior as a normal image load. Preload
-enablement is startup-only and participates in the same restart-required
-indication as both memory budgets.
-
-**Reset Settings** restores only application preferences to their defaults. It
-does not reset window layout, dock/splitter geometry, remembered last directory,
-or other workspace/session state. Use **View > Reset Workspace Layout** for
-layout state instead.
-
-Docking and layout defaults are intentionally not duplicated in Settings because
-PixelScope already restores the exact saved workspace.
+**Reset Settings** resets application preferences only. **View > Reset Workspace
+Layout** resets workspace layout separately.
 
 ## Runtime Diagnostics
 
-PixelScope provides deterministic, inexpensive, sanitized runtime observability
-for automated validation, final P2 characterization, and support troubleshooting.
-The only end-user surface is **Help > Copy Diagnostics**.
+**Help > Copy Diagnostics** copies one deterministic sanitized snapshot. It reports
+source residency, Difference cache usage, foreground/preload workers, preload
+counters including promotion, stale results, and bounded recent accepted failures.
 
-Choose **Help > Copy Diagnostics** when support or development asks for runtime
-context. PixelScope takes one current bounded snapshot, formats the canonical
-sanitized text, copies that exact text to the clipboard, and briefly shows
-**Diagnostics copied to clipboard** in the status bar. There is no diagnostics
-window, live monitor, Refresh control, timer, or diagnostics text-file export.
-
-The copied text reports Decoded Source residency, Difference Map Cache usage,
-foreground and preload worker counts, preload counters including
-**Promoted to foreground**, stale results, and up to ten recent accepted
-foreground/preload failures. A promoted physical preload worker is reported as
-foreground work rather than being double-counted as both foreground and preload.
-Obsolete cancelled or replanned speculative preload failures are not promoted
-into recent failure history.
-
-Diagnostics omit registered source paths and image content. Failure messages
-redact absolute Windows/POSIX paths, credential-like assignments including
-multi-word values, bearer tokens, URL detail, traceback context, and excess
-length. Copying diagnostics does not start image/preload work, calculate
-Difference, alter cache LRU order, scan files, cancel workers, refresh preload,
-or change selection/rendering. Unchanged runtime state produces identical,
-timestamp-free text.
-
-Automated tests and final P2 characterization can consume
-`MainWindow.runtime_diagnostics_snapshot()` directly; the support-copy action is
-not required to access the diagnostics API.
+Diagnostics does not scan files, mutate selection, touch LRUs, start/cancel loads,
+calculate Difference, or change presentation. Paths, credentials, traceback
+context, and excess failure detail are sanitized.
 
 ## Plots dock
 
-The title bar provides Float/Dock, Maximize/Restore, and Hide. The toolbar
-**Plots** action shows a hidden dock. The last selected Histogram/Line Profile
-tab is restored on restart through `analysis/bottom_tab`.
-
-A floating Plots window remembers its independent position and size across
-hide/show, re-docking, and restart. Double-click the floating title bar to
-maximize or restore it; the explicit Maximize/Restore button uses the same
-state transition.
-
-## RAW
-
-Opening RAW uses a validated profile. A same-name JSON sidecar pre-fills the
-dialog. The **Don't Show RAW JSON Profiles** preference can accept those
-profiles without repeated confirmation when the file-size policy also matches.
-Reloading the same path is allowed.
-
-Unpacked profiles specify `uint8` or `uint16`, effective bit depth, byte order,
-and LSB/MSB alignment where applicable. Packed choices are MIPI RAW10, RAW12,
-and RAW14; non-applicable container, byte-order, and alignment rows are hidden.
-The profile also retains Black Level and White Level metadata; Bayer profiles may
-carry independent R/Gr/Gb/B Black Levels.
-
-Decoded RAW samples are the authoritative native values. Pixel readout,
-Statistics, Histogram, Line Profile, Split Channels, and Difference continue to
-use those native values even when Display Gain changes.
-
-At **Display Gain = 1×**, the viewer maps the full effective native code range to
-the preview: RAW10 uses 0–1023, RAW12 uses 0–4095, and RAW14 uses 0–16383. Black
-Level is not subtracted from this 1× display and White Level is not treated as the
-display maximum.
-
-For gain above 1×, PixelScope keeps Black Level stationary and magnifies the
-residual around it:
-
-```text
-gained = black + gain * (native - black)
-```
-
-For Bayer RAW, each R/Gr/Gb/B Black Level is used at the matching CFA position.
-Values below black and above full scale are preserved through the gain arithmetic
-and clipped only when the final 8-bit preview is produced. This is presentation
-only; it does not alter the stored source samples or analysis results.
-
-Display Gain is session-local and starts at **1×** for a new application session.
-It is not stored in the RAW profile or Settings. White Level remains profile
-metadata for possible future explicit processing and is not used by the current
-native or gained display mapping. With focus inside the image-presentation area,
-the **+** and **-** shortcuts step through the same discrete gain values and remain
-synchronized with the toolbar selector. With focus in the Files tree, those keys
-retain Qt-native folder expand/collapse behavior instead of changing gain.
-
-Grayscale and Bayer mosaics are supported. Bayer remains native mosaic/channel
-inspection; no demosaic, white balance, CCM, or tone-mapped RAW preview is
-provided by the current RAW display contract.
-
-Production constraints are CPython 3.10 x64, PySide6 6.4.2, and a future
-PyInstaller 5.7 `onedir` build.
+The Plots title bar provides Float/Dock, Maximize/Restore, and Hide. Histogram /
+Line Profile selected tab and floating geometry are restored separately from
+application Settings.

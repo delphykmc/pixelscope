@@ -1,106 +1,147 @@
-# PixelScope UI/performance iteration status
+# UI implementation status
 
-Snapshot date: 2026-08-08
-Current merged runtime baseline: PR #16 merge commit
-P2-C branch base: `453b718535bdbdce2a9225c01f6144d7f2df40b0`
+Status: P3-D final independent review complete on PR #26; owner/local Windows validation PASS at `c5bcd19801d04b81b31422d25eb3061597dc3240` and no runtime/code merge blocker remains.
 
-## Completed iterations
+## Current shell
 
-| Phase/PR | State | Main result |
-|---|---|---|
-| P0-A / #1 | Complete | Fixed Multi View layouts and primary behavior foundation |
-| P0-B / #2 | Complete | Difference byte LRU and chunked metrics |
-| P0-C / #3 | Complete | Toolbar/primary icons and action states |
-| P0-D / #4 | Complete | Split loading, disabled menus, Difference ordering |
-| P1-A / #5 | Complete | Files, Statistics, responsive headers |
-| P1-B1 / #6 | Complete | Histogram modes and plot text |
-| P1-B2 / #8 | Complete | Line Profile reference and legends |
-| P1-C / #9 | Complete | RAW profile workflow and MIPI decoding |
-| P1-D / #10 | Complete | Primary ordering, atomic Split transitions, folder navigation |
-| P1-E / #11 | Complete | Plots persistence, gestures, Statistics workspace |
-| P1-F / #12 | Complete | Fixed-layout compatibility cleanup |
-| P2-A1 / #14 | Complete | Application identity and packaged resources |
-| P2-A2 / #15 | Complete | Typed Settings schema v3 and runtime integration |
-| P2-B | Complete / PR #16 merged | Byte-budgeted decoded-source residency and schema v4 |
-| P2-C | Active / PR #17 draft | One-to-six-folder navigation, bounded next-position preload, schema v5 |
+- Main toolbar owns image-view/analysis actions. **Layout / Page / Display Gain**
+  live in the dedicated presentation-control row above the image workspace. Page
+  status remains visible for one or many pages, with endpoint arrows disabled.
+- File menu owns **Open Images...** (`Ctrl+O`) and **Open Folder...**
+  (`Ctrl+Shift+O`).
+- There is no separate **Open RAW with Profile...** action.
+- Empty Workspace exposes Open Images/Open Folder only in the truly-empty state.
+- Files tree is the catalog/selection surface and keeps native Up/Down plus
+  expand/collapse key behavior.
+- Analysis panel contains Statistics and Difference. Plots contains Histogram and
+  Line Profile with persistent dock/floating state.
 
-## Current UI behavior
+## P3-D ownership UI contract
 
-### Files and workspace
+The UI distinguishes:
 
-- Files tree exposes File and Type with loading/resident/error indicators.
-- Ordered selection drives fixed one-to-six-image layouts.
-- Difference selectors are the comparison-pair authority.
-- Split Channels supports RGB/Bayer placeholders and fixed component order.
-- Every regular two-to-six-image Multi View exposes primary behavior. Promotion
-  preserves Files order, logical badges, viewer identity, and synchronized range.
-- Two/four/six views remain equal; three/five enlarge the first tile.
-- PageUp/PageDown atomically moves one-to-six distinct registered folders by one
-  Folder Position. Left/Right remains selected-image navigation and Up/Down
-  remains native Files-tree row navigation.
-- `_fixed_geometry()` is the sole Multi View geometry contract; no arrangement
-  menu, runtime field, or persisted setting remains.
+```text
+Registered
+    ↓
+Selected
+    ↓
+Current Comparison Page
+    ↓
+Presented
+    ↓
+Resident when required
+```
 
-### Analysis
+- Files registration is not capped by six.
+- Selected is an ordered logical comparison set and may exceed six.
+- Current Comparison Page is a derived maximum-six working subset.
+- `Analysis Working Set = Current Comparison Page`.
+- Viewer slots are local `1..6` inside the current page.
+- Open Images is selection-oriented: all directly selected supported files are
+  registered and Selected.
+- Open Folder is registration-oriented and uses the native single-folder picker
+  without changing Selected, Current Comparison Page, or viewer presentation.
+- Multiple folders remain registration-only through folder D&D / the registration
+  API, with deterministic resolved-path deduplication and no six-folder limit.
+- Folder D&D is registration-only for any folder count; the old exactly-two-folder
+  auto-comparison behavior is removed.
+- Direct image-file D&D registers and selects those files.
+- Mixed D&D selects only the explicit files while folder contents remain
+  registration-only.
+- A catalog with zero Selected documents is a valid state and displays **Select an
+  image from Files to view**.
+- A truly empty workspace displays **Drop images or folders here**.
 
-- Statistics supports Full image and Active ROI with stable copy/CSV behavior.
-- Histogram exposes explicit bins and Count/Normalized/Log count modes.
-- Line Profile exposes compact legends and explicit Difference reference.
-- Difference uses a 128 MiB native-map byte LRU with diagnostics.
-- Floating Plots geometry and selected tab persist; title double-click
-  maximizes/restores.
-- Esc clears ROI; Shift+Esc clears Line Profile; Ctrl+drag creates ROI;
-  Shift+drag creates Line Profile; Alt+drag creates neither.
+Folder registration does not invoke the selection/presentation lifecycle, so it
+does not reset the current layout, active/primary state, ROI, Line Profile,
+Difference presentation, Display Gain, or existing view state.
 
-### RAW
+## Current Comparison Page UI
 
-- Profile dialog separates storage/container/depth/endian/alignment.
-- Unpacked uint8/uint16 and MIPI RAW10/12/14 are implemented.
-- JSON load/save, migration, confirmation preference, and same-path reload are
-  implemented.
-- Bayer remains native mosaic analysis; demosaic is not implemented.
+The presentation-control row always exposes Previous/Next Comparison Page controls,
+page number, and current Selected range. For one page both arrows remain visible and
+disabled; for multiple pages only unavailable endpoint directions are disabled.
 
-## Completed P1 workspace-polish program
+- `Ctrl+Left` / `Ctrl+Right` moves one Comparison Page and does not wrap. The
+  application-wide shortcut is enabled only while that direction is available.
+- `Left` / `Right` remains fine Previous/Next Selected Image navigation.
+- `PageUp` / `PageDown` remains Folder Position only.
+- Number keys `1..6` retain page-local slot meaning.
+- Single View presents one active local slot while retaining full page context.
+- Large-selection Multi View retains six-slot Grid 3x2 geometry; a short final page
+  clears unused slots rather than reflowing geometry.
+- Primary/focus ordering is page-local and does not change Selected ordering or page
+  membership.
+- When `Selected <= 6`, the same Page controls remain visible with `1 / 1`, the
+  selected range, and disabled arrows; Auto/Single/Multi behavior is retained.
+- When `Selected > 6`, Folder Position is unavailable rather than operating on only
+  the current page.
 
-P1-D, P1-E, and P1-F are complete as PR #10, #11, and #12. The former Split
-transition cause analysis is retained in the completed execution-plan history
-rather than as active remediation guidance:
+## RAW input UI
 
-`docs/exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`
+RAW and ordinary images share **Open Images...**. Direct RAW keeps deterministic
+same-basename sidecar/profile resolution, editable fallback, warning on invalid
+sidecar, and cancel-before-registration behavior.
 
-Automated validation for P1-F was recorded by the repository owner. P1-F manual
-Windows evidence was not re-verified by P2-0.
+Folder RAW is registered lazily. An unresolved RAW outside the Current Comparison
+Page does not prompt or decode merely because it is Selected. Foreground page entry
+invokes RAW profile resolution when source is required. Within one foreground
+attempt, Cancel suppresses immediate passive re-prompt and starts no worker; a
+later explicit foreground action may retry. Unresolved RAW is not started by
+speculative preload.
 
-## Current performance/settings boundary
+The dialog uses **Load Profile...** / **Save Profile...** terminology. JSON remains
+the compatible profile format.
 
-Implemented now:
+## Presentation and interaction status
 
-- Difference byte-budget LRU and diagnostics.
-- Byte-budgeted native decoded-source LRU with a 256 MiB default.
-- Soft-budget protection for visible, selected, active/analysis, Difference-pair,
-  and active load-target sources.
-- Exact native `source.nbytes` accounting and minimal residency diagnostics.
-- Schema-v5 General / Files / Performance Settings with distinct Decoded Source
-  Memory and Difference Map Cache startup budgets plus enabled-by-default,
-  startup-only **Preload Next Folder Position**.
-- Canonical application icon/resource foundation and immutable
-  `PerformanceSettings` startup injection.
-- One pure Folder Position planner shared by PageUp/PageDown and next-position
-  prediction, plus a Qt-free `PreloadController` that owns exactly `plan(+1)`.
-- A dedicated max-one preload pool remains separate from the max-two normal-load
-  pool, so foreground loading never waits behind speculative decode. The shared
-  numeric pool remains bounded at four workers.
-- Preload cancellation is cooperative; stale results are rejected by plan,
-  document generation, path/profile/exact-size identity, and normal-load token.
-  Valid results enter ordinary source residency without separate protection or
-  budget, and cancellation de-duplication state ends with its worker request.
+- Auto / Single View / Multi View remain the layout selector.
+- Current Comparison Page is bounded to six; registration/Selected counts are not.
+- Shared cursor/zoom/pan, Ctrl+drag ROI, Shift+drag Line Profile, primary/focus
+  ordering, and selected-set navigation remain active.
+- Statistics, Histogram, Line Profile, selection-derived Difference inputs,
+  page-load requirements, ROI/Line normalization, and generic source protection
+  follow the same Current Comparison Page authority.
+- PageUp/PageDown Folder Position derives only from one-to-six currently Selected
+  documents, not from every registered folder.
+- Split Channels derives transient R/G/B or R/Gr/Gb/B presentation documents from
+  one Selected source. Multi View exposes explicit subchannel Primary; Single View
+  navigates the same local subchannels. Files selection and native analysis/residency
+  remain source-owned.
 
-Not implemented yet:
+## Display Gain status
 
-- Runtime diagnostics UI/snapshot and Copy Diagnostics.
+P3-C is complete as PR #25 at
+`7f6bef73e6712f6a14a4d401820a915196e25da2`.
 
-P2-B is merged release behavior as of PR #16. P2-C is the active PR #17 runtime
-slice; P2-D diagnostics remains next after P2-C merges. P2-C behavior must not be
-treated as merged release behavior until PR #17 is merged. The owner reports
-basic Windows behavior checked, while the complete P2-C manual matrix remains a
-merge gate.
+- One session-local Display Gain control owns 1×/2×/4×/8×/16×.
+- Ordinary Gray/RGB and split RGB use anchor 0.
+- RGBA gains RGB only and preserves alpha.
+- RAW retains P3-B native 1× and Black-anchored gain semantics.
+- Difference is excluded from general Display Gain.
+- 1× reuses canonical preview; gain>1 is viewer-local async presentation.
+- Native analysis, source generation/residency, and Difference cache identity are
+  not changed by gain.
+
+## Runtime/resource status
+
+P3-D preserves P2 exact native-source accounting and protected soft-budget LRU.
+Selected membership alone is not a generic protection owner for large selections.
+Current Comparison Page plus correctness dependencies are protected; off-page
+Selected sources may be evicted/reloaded. P2 preload remains +1 Folder Position
+only; there is no Comparison Page preload system.
+
+## Validation state
+
+P3-D focused tests cover menu/input behavior, large Selected registration, derived
+1–6 / 7–12 / final Comparison Pages, local slots, fine/coarse navigation,
+partial-final-page clearing, page-authoritative analysis inputs, bounded residency
+protection, Folder Position separation, lazy RAW cancel/retry behavior,
+multi-folder registration/deduplication, D&D intent, registered-but-unselected
+state, and folder-only preservation of presentation/runtime state.
+
+Owner/local Windows validation PASS is recorded for exact PR head `c5bcd19801d04b81b31422d25eb3061597dc3240`.
+The repository owner reports pytest, Ruff check/format, mypy, pip check, docs check,
+`git diff --check`, and manual behavior validation all passed. The final independent
+re-review found no remaining runtime/code blocker; this final documentation-only
+status correction does not require another validation run.

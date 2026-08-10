@@ -9,7 +9,14 @@ from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
-from PySide6.QtCore import QByteArray, QItemSelectionModel, QSettings, QSize, Qt, QThreadPool
+from PySide6.QtCore import (
+    QByteArray,
+    QItemSelectionModel,
+    QSettings,
+    QSize,
+    Qt,
+    QThreadPool,
+)
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
@@ -24,10 +31,12 @@ from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QSplitter,
     QStackedWidget,
     QTabWidget,
@@ -61,6 +70,7 @@ from pixelscope.core.preload import PreloadController, PreloadMemberRequest
 from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds, clamp_roi
 from pixelscope.io.path_discovery import (
+    SUPPORTED_IMAGE_FILTER,
     ImageInput,
     discover_image_inputs,
     natural_sort_key,
@@ -90,6 +100,8 @@ from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 LOGGER = logging.getLogger(__name__)
 
+COMPARISON_PAGE_SIZE = 6
+
 
 @dataclass(frozen=True)
 class SixImageDiffRestoreState:
@@ -102,6 +114,15 @@ class SixImageDiffRestoreState:
     current_index: int
     display_order: tuple[str, ...]
     view_state: MultiCompareViewState
+
+
+@dataclass(frozen=True)
+class FolderRegistrationResult:
+    """Summary of one registration-oriented folder input operation."""
+
+    folder_count: int
+    image_count: int
+    empty_folder_count: int
 
 
 class MainWindow(QMainWindow):
@@ -130,6 +151,7 @@ class MainWindow(QMainWindow):
         self._document_id_by_path: dict[str, str] = {}
         self._raw_profile_paths: dict[str, Path] = {}
         self._raw_profiles: dict[str, RawProfile] = {}
+        self._raw_profile_prompt_suppressed: set[str] = set()
         self._workers: dict[str, TaskWorker] = {}
         self._load_worker_targets: dict[str, str] = {}
         self._load_tokens: dict[str, int] = {}
@@ -155,6 +177,9 @@ class MainWindow(QMainWindow):
         self._view_capacity = 1
         self._layout_mode = "Auto"
         self._focus_document_id: str | None = None
+        self._primary_page_slot = 0
+        self._split_focus_document_id: str | None = None
+        self._split_active_document_id: str | None = None
         self._multi_display_order: list[str] = []
         self._shared_roi: RoiBounds | None = None
         self._shared_line: LineSelection | None = None
@@ -166,6 +191,7 @@ class MainWindow(QMainWindow):
         self._pending_position_focus: int | str | None = None
         self._channel_view_cache: dict[tuple[str, int], list[ImageDocument]] = {}
         self._six_image_diff_restore_state: SixImageDiffRestoreState | None = None
+        self._comparison_page_controls_state: tuple[object, ...] | None = None
 
         pool = QThreadPool.globalInstance()
         pool.setMaxThreadCount(min(4, max(1, pool.maxThreadCount())))
@@ -227,8 +253,7 @@ class MainWindow(QMainWindow):
         self.difference_panel.result_ready.connect(self._difference_panel_ready)
         self.difference_panel.preview_updated.connect(self._difference_preview_updated)
         self.empty_workspace.open_images_requested.connect(self.open_images)
-        self.empty_workspace.open_folder_requested.connect(self.open_folder)
-        self.empty_workspace.open_raw_requested.connect(self.open_raw)
+        self.empty_workspace.open_folders_requested.connect(self.open_folders)
         self._create_actions()
         self._create_toolbar()
         self._create_selection_shortcuts()
@@ -282,9 +307,28 @@ class MainWindow(QMainWindow):
         self.bottom_dock.setTitleBarWidget(self.plots_dock_title)
         self.bottom_dock.hide()
 
+        self.presentation_panel = QWidget()
+        self.presentation_panel.setObjectName("presentationPanel")
+        presentation_layout = QVBoxLayout(self.presentation_panel)
+        presentation_layout.setContentsMargins(0, 0, 0, 0)
+        presentation_layout.setSpacing(0)
+
+        self.presentation_controls = QWidget(self.presentation_panel)
+        self.presentation_controls.setObjectName("presentationControls")
+        self.presentation_controls_layout = QHBoxLayout(self.presentation_controls)
+        self.presentation_controls_layout.setContentsMargins(
+            TOKENS.spacing_sm,
+            TOKENS.spacing_xs,
+            TOKENS.spacing_sm,
+            TOKENS.spacing_xs,
+        )
+        self.presentation_controls_layout.setSpacing(TOKENS.spacing_md)
+        presentation_layout.addWidget(self.presentation_controls)
+        presentation_layout.addWidget(self.central_stack, 1)
+
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.main_splitter.addWidget(sidebar)
-        self.main_splitter.addWidget(self.central_stack)
+        self.main_splitter.addWidget(self.presentation_panel)
         self.main_splitter.setStretchFactor(0, 0)
         self.main_splitter.setStretchFactor(1, 1)
         self.main_splitter.setSizes([390, 1010])
@@ -320,8 +364,7 @@ class MainWindow(QMainWindow):
         for menu in menus.values():
             menu.setStyleSheet(menu_style())
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
-        add_action("File", "Open Folder...", self.open_folder, "Ctrl+Shift+O")
-        add_action("File", "Open RAW with Profile...", self.open_raw)
+        add_action("File", "Open Folder...", self.open_folders, "Ctrl+Shift+O")
         menus["File"].addSeparator()
         add_action("File", "Export Statistics CSV...", self.export_statistics)
         menus["File"].addSeparator()
@@ -345,6 +388,18 @@ class MainWindow(QMainWindow):
         next_image = add_action("Selection", "Next Selected Image", self.next_image)
         previous_image.setText("Previous Selected Image\tLeft")
         next_image.setText("Next Selected Image\tRight")
+        previous_page = add_action(
+            "Selection",
+            "Previous Comparison Page",
+            self.previous_comparison_page,
+        )
+        next_page = add_action(
+            "Selection",
+            "Next Comparison Page",
+            self.next_comparison_page,
+        )
+        previous_page.setText("Previous Comparison Page\tCtrl+Left")
+        next_page.setText("Next Comparison Page\tCtrl+Right")
         previous_position = add_action(
             "Selection",
             "Previous Folder Position",
@@ -436,24 +491,88 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         self.main_toolbar = toolbar
 
-        self.layout_selector = QComboBox()
+        self.layout_selector = QComboBox(self.presentation_controls)
         self.layout_selector.addItems(("Auto", "Single View", "Multi View"))
         self.layout_selector.setFixedHeight(TOKENS.control_height)
         self.layout_selector.currentTextChanged.connect(  # type: ignore[attr-defined]
             self.set_layout_mode
         )
-        layout_group = QWidget()
+        layout_group = QWidget(self.presentation_controls)
         layout_group_layout = QHBoxLayout(layout_group)
-        layout_group_layout.setContentsMargins(
-            TOKENS.spacing_sm,
-            0,
-            TOKENS.spacing_md,
-            0,
-        )
+        layout_group_layout.setContentsMargins(0, 0, 0, 0)
         layout_group_layout.setSpacing(TOKENS.spacing_sm)
         layout_group_layout.addWidget(QLabel("Layout"))
         layout_group_layout.addWidget(self.layout_selector)
-        toolbar.addWidget(layout_group)
+        self.presentation_controls_layout.addWidget(layout_group)
+
+        self.presentation_control_separator = QFrame(self.presentation_controls)
+        self.presentation_control_separator.setObjectName("presentationControlSeparator")
+        self.presentation_control_separator.setFrameShape(QFrame.Shape.VLine)
+        self.presentation_control_separator.setFrameShadow(QFrame.Shadow.Plain)
+        self.presentation_control_separator.setFixedHeight(TOKENS.control_height - 4)
+        self.presentation_control_separator.setStyleSheet(
+            f"QFrame {{ color: {TOKENS.border}; }}"
+        )
+        self.presentation_controls_layout.addWidget(self.presentation_control_separator)
+
+        self.comparison_page_group = QWidget(self.presentation_controls)
+        self.comparison_page_group.setObjectName("comparisonPageGroup")
+        page_layout = QHBoxLayout(self.comparison_page_group)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(TOKENS.spacing_sm)
+        page_caption = QLabel("Page", self.comparison_page_group)
+        page_caption.setObjectName("comparisonPageCaption")
+        self.previous_comparison_page_button = QPushButton("‹")
+        self.previous_comparison_page_button.setObjectName("previousComparisonPage")
+        self.previous_comparison_page_button.setToolTip(
+            "Previous Comparison Page (Ctrl+Left)"
+        )
+        self.previous_comparison_page_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.previous_comparison_page_button.clicked.connect(  # type: ignore[attr-defined]
+            self.previous_comparison_page
+        )
+        self.comparison_page_label = QLabel("", self.comparison_page_group)
+        self.comparison_page_label.setObjectName("comparisonPageStatus")
+        self.comparison_page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.comparison_page_label.setFixedWidth(
+            self.comparison_page_label.fontMetrics().horizontalAdvance("8888 / 8888")
+            + 2 * TOKENS.spacing_sm
+        )
+        self.comparison_page_range_label = QLabel("", self.comparison_page_group)
+        self.comparison_page_range_label.setObjectName("comparisonPageRange")
+        self.comparison_page_range_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.comparison_page_range_label.setFixedWidth(
+            self.comparison_page_range_label.fontMetrics().horizontalAdvance(
+                "99999–99999 of 99999"
+            )
+            + 2 * TOKENS.spacing_sm
+        )
+        self.next_comparison_page_button = QPushButton("›")
+        self.next_comparison_page_button.setObjectName("nextComparisonPage")
+        self.next_comparison_page_button.setToolTip(
+            "Next Comparison Page (Ctrl+Right)"
+        )
+        self.next_comparison_page_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.next_comparison_page_button.clicked.connect(  # type: ignore[attr-defined]
+            self.next_comparison_page
+        )
+        for button in (
+            self.previous_comparison_page_button,
+            self.next_comparison_page_button,
+        ):
+            button.setFixedHeight(TOKENS.control_height)
+            button.setFixedWidth(TOKENS.control_height)
+        page_layout.addWidget(page_caption)
+        page_layout.addWidget(self.previous_comparison_page_button)
+        page_layout.addWidget(self.comparison_page_label)
+        page_layout.addWidget(self.next_comparison_page_button)
+        page_layout.addWidget(self.comparison_page_range_label)
+        self.presentation_controls_layout.addWidget(self.comparison_page_group)
+        self.presentation_controls_layout.addStretch(1)
+        self._update_comparison_page_controls()
+
         toolbar.addAction(self.split_channels_action)
         toolbar.addSeparator()
 
@@ -599,11 +718,11 @@ class MainWindow(QMainWindow):
 
     def _create_selection_shortcuts(self) -> None:
         self._selection_shortcuts: list[QShortcut] = []
-        for index in range(6):
+        for index in range(COMPARISON_PAGE_SIZE):
             shortcut = QShortcut(QKeySequence(str(index + 1)), self)
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
             shortcut.activated.connect(  # type: ignore[attr-defined]
-                lambda selected_index=index: self.show_selected_image(selected_index)
+                lambda local_index=index: self.show_selected_image(local_index)
             )
             self._selection_shortcuts.append(shortcut)
         for key, callback in (
@@ -622,6 +741,56 @@ class MainWindow(QMainWindow):
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
             shortcut.activated.connect(callback)  # type: ignore[attr-defined]
             self._selection_shortcuts.append(shortcut)
+
+        self._comparison_page_shortcuts: list[QShortcut] = []
+        for sequence, callback in (
+            ("Ctrl+Left", self.previous_comparison_page),
+            ("Ctrl+Right", self.next_comparison_page),
+        ):
+            shortcut = QShortcut(QKeySequence(sequence), self)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            shortcut.activated.connect(callback)  # type: ignore[attr-defined]
+            self._comparison_page_shortcuts.append(shortcut)
+        self._update_comparison_page_controls()
+
+    def _update_comparison_page_controls(self) -> None:
+        start, end, total = self._comparison_page_range()
+        page_count = (total + COMPARISON_PAGE_SIZE - 1) // COMPARISON_PAGE_SIZE
+        current_page = start // COMPARISON_PAGE_SIZE + 1 if total else 0
+        has_previous = total > 0 and start > 0
+        has_next = total > 0 and end < total
+        page_text = f"{current_page} / {page_count}" if total else ""
+        range_text = f"{start + 1}–{end} of {total}" if total else ""
+        state = (total > 0, has_previous, has_next, page_text, range_text)
+        if hasattr(self, "_comparison_page_shortcuts"):
+            for shortcut, enabled in zip(
+                self._comparison_page_shortcuts,
+                (has_previous, has_next),
+                strict=True,
+            ):
+                shortcut.setEnabled(enabled)
+        if state == self._comparison_page_controls_state:
+            return
+        self._comparison_page_controls_state = state
+
+        if hasattr(self, "comparison_page_group"):
+            self.comparison_page_group.setVisible(total > 0)
+            self.comparison_page_label.setText(page_text)
+            self.comparison_page_range_label.setText(range_text)
+            for button in (
+                self.previous_comparison_page_button,
+                self.next_comparison_page_button,
+            ):
+                button.setVisible(True)
+            self.previous_comparison_page_button.setEnabled(has_previous)
+            self.next_comparison_page_button.setEnabled(has_next)
+
+        previous_action = self.action_map.get("Previous Comparison Page")
+        next_action = self.action_map.get("Next Comparison Page")
+        if previous_action is not None:
+            previous_action.setEnabled(has_previous)
+        if next_action is not None:
+            next_action.setEnabled(has_next)
 
     def _update_action_states(self) -> None:
         documents = self.selected_documents
@@ -740,11 +909,12 @@ class MainWindow(QMainWindow):
                 item = model.item(index) if index >= 0 and hasattr(model, "item") else None
                 if item is not None:
                     item.setEnabled(not six_image_diff)
+        self._update_comparison_page_controls()
 
     def _six_image_diff_locked(self) -> bool:
         return (
-            len(self.selected_documents) >= 6
-            and self._difference_document is not None
+            len(self.current_comparison_documents()) >= COMPARISON_PAGE_SIZE
+            and self._difference_result_matches_current_pair()
             and hasattr(self, "diff_action")
             and self.diff_action.isChecked()
         )
@@ -761,6 +931,84 @@ class MainWindow(QMainWindow):
             for document_id in ordered_ids
             if document_id in self.documents
         ]
+
+    def _normalized_comparison_page_start(
+        self,
+        documents: Sequence[ImageDocument] | None = None,
+    ) -> int:
+        selected = list(documents) if documents is not None else self.selected_documents
+        if not selected:
+            return 0
+        last_start = ((len(selected) - 1) // COMPARISON_PAGE_SIZE) * COMPARISON_PAGE_SIZE
+        aligned = (max(0, self._page_start) // COMPARISON_PAGE_SIZE) * COMPARISON_PAGE_SIZE
+        return min(aligned, last_start)
+
+    def current_comparison_documents(self) -> list[ImageDocument]:
+        """Return the selected working page; this is the analysis/presentation authority."""
+
+        documents = self.selected_documents
+        start = self._normalized_comparison_page_start(documents)
+        return documents[start : start + COMPARISON_PAGE_SIZE]
+
+    def _comparison_page_range(self) -> tuple[int, int, int]:
+        documents = self.selected_documents
+        if not documents:
+            return 0, 0, 0
+        start = self._normalized_comparison_page_start(documents)
+        return start, min(start + COMPARISON_PAGE_SIZE, len(documents)), len(documents)
+
+    def _sync_comparison_page_to_index(self, selected_index: int) -> None:
+        if not self.selected_documents:
+            self._page_start = 0
+            return
+        self._page_start = (
+            max(0, selected_index) // COMPARISON_PAGE_SIZE
+        ) * COMPARISON_PAGE_SIZE
+
+    def _current_page_local_index(self) -> int:
+        page = self.current_comparison_documents()
+        if not page:
+            return 0
+        start = self._normalized_comparison_page_start()
+        if start <= self._current_index < start + len(page):
+            return self._current_index - start
+        return 0
+
+    def _allow_raw_profile_retry(self, document_ids: Sequence[str]) -> None:
+        self._raw_profile_prompt_suppressed.difference_update(document_ids)
+
+    def _current_page_required_ids(self) -> set[str]:
+        required = {document.document_id for document in self.current_comparison_documents()}
+        required.update(self._visible_document_ids)
+        if self._difference_source_ids is not None:
+            required.update(self._difference_source_ids)
+        return {document_id for document_id in required if document_id in self.documents}
+
+    def _primary_document_for_page(
+        self,
+        page: Sequence[ImageDocument],
+    ) -> ImageDocument | None:
+        if not page:
+            return None
+        page_ids = [document.document_id for document in page]
+        if self._focus_document_id in page_ids:
+            self._primary_page_slot = page_ids.index(self._focus_document_id)
+            return page[self._primary_page_slot]
+        self._primary_page_slot = min(self._primary_page_slot, len(page) - 1)
+        return page[self._primary_page_slot]
+
+    def _difference_result_matches_current_pair(self) -> bool:
+        if self._difference_document is None or self._difference_source_ids is None:
+            return False
+        pair = self.difference_panel.selected_documents()
+        if pair is None:
+            return False
+        pair_ids = (pair[0].document_id, pair[1].document_id)
+        page_ids = {document.document_id for document in self.current_comparison_documents()}
+        return (
+            frozenset(pair_ids) == frozenset(self._difference_source_ids)
+            and set(pair_ids).issubset(page_ids)
+        )
 
     @property
     def current_document(self) -> ImageDocument | None:
@@ -788,6 +1036,7 @@ class MainWindow(QMainWindow):
         if select:
             self._select_document_ids([document.document_id])
         else:
+            self._update_empty_workspace_state()
             self._evict_resident_documents()
 
     def open_images(self) -> None:
@@ -795,120 +1044,117 @@ class MainWindow(QMainWindow):
             self,
             "Open images",
             self._open_dialog_directory(),
-            "Images (*.png *.bmp *.jpg *.jpeg *.raw);;All files (*)",
+            SUPPORTED_IMAGE_FILTER,
         )
-        if paths:
-            supplied_paths = [Path(path) for path in paths]
-            self._remember_directory(supplied_paths[0].parent)
-            session = self._folder_navigation_selection()
-            if session is not None:
-                self._register_paths_during_navigation(supplied_paths, session)
-                return
-            inputs = discover_image_inputs(supplied_paths)
-            self._register_inputs(inputs, select_all=True)
+        if not paths:
+            return
+        supplied_paths = [Path(path) for path in paths]
+        self._remember_directory(supplied_paths[0].parent)
+        document_ids = self._register_inputs(
+            discover_image_inputs(supplied_paths),
+            resolve_raw_profiles=True,
+        )
+        if document_ids:
+            self._select_document_ids(document_ids)
+            self.statusBar().showMessage(f"Opened {len(document_ids)} image(s)", 4000)
+        else:
+            self.statusBar().showMessage("No supported images opened", 4000)
 
-    def open_folder(self) -> None:
+    def open_folders(self) -> None:
         path = QFileDialog.getExistingDirectory(
             self,
             "Open image folder",
             self._open_dialog_directory(),
         )
-        if path:
-            folder = Path(path)
-            self._remember_directory(folder)
-            session = self._folder_navigation_selection()
-            if session is not None:
-                self._register_paths_during_navigation([folder], session)
-                return
-            inputs = discover_image_inputs((folder,))
-            self._register_inputs(inputs, select_all=False)
-
-    def register_folder_group(self, folders: Sequence[Path]) -> None:
-        if not 1 <= len(folders) <= 6:
-            raise ValueError("folder group must contain one to six folders")
-        registered_by_folder = [
-            [
-                document_id
-                for image_input in discover_image_inputs((folder,))
-                if (document_id := self._register_input(image_input)) is not None
-            ]
-            for folder in folders
-        ]
-        if all(registered_by_folder):
-            if len(folders) > 1:
-                capacity = 2 if len(folders) == 2 else 4 if len(folders) <= 4 else 6
-                self.set_view_capacity(capacity)
-            self._select_document_ids([document_ids[0] for document_ids in registered_by_folder])
-            self.statusBar().showMessage(
-                "Folder navigation ready · "
-                f"{min(len(document_ids) for document_ids in registered_by_folder)} "
-                "aligned position(s)",
-                5000,
-            )
-        else:
-            self.statusBar().showMessage("No supported aligned images found", 5000)
-
-    def open_raw(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Open RAW",
-            self._open_dialog_directory(),
-            "RAW files (*.*)",
-        )
         if not path:
             return
-        raw_path = Path(path).resolve()
-        self._remember_directory(raw_path.parent)
-        sidecar = raw_path.with_suffix(".json")
-        self._register_inputs(
-            (ImageInput(raw_path, sidecar if sidecar.is_file() else None),),
-            select_all=True,
+        folder = Path(path)
+        self._remember_directory(folder)
+        result = self.register_folders((folder,))
+        self.statusBar().showMessage(self._folder_registration_message(result), 5000)
+
+    def register_folders(self, folders: Sequence[Path]) -> FolderRegistrationResult:
+        """Register supported folder contents without changing selection or presentation."""
+
+        unique: dict[str, Path] = {}
+        for folder in folders:
+            resolved = folder.resolve()
+            if resolved.is_dir():
+                unique.setdefault(str(resolved).casefold(), resolved)
+        ordered_folders = [unique[key] for key in sorted(unique)]
+
+        registered_ids: set[str] = set()
+        empty_folder_count = 0
+        for folder in ordered_folders:
+            inputs = discover_image_inputs((folder,))
+            if not inputs:
+                empty_folder_count += 1
+                continue
+            registered_ids.update(
+                self._register_inputs(inputs, resolve_raw_profiles=False)
+            )
+        self._update_empty_workspace_state()
+        return FolderRegistrationResult(
+            folder_count=len(ordered_folders),
+            image_count=len(registered_ids),
+            empty_folder_count=empty_folder_count,
         )
+
+    @staticmethod
+    def _folder_registration_message(result: FolderRegistrationResult) -> str:
+        if result.folder_count == 0:
+            return "No folders registered"
+        if result.image_count == 0:
+            return f"No supported images found in {result.folder_count} folder(s)"
+        message = (
+            f"Registered {result.image_count} image(s) from {result.folder_count} folder(s)"
+        )
+        if result.empty_folder_count:
+            message += f" · {result.empty_folder_count} contained no supported images"
+        return message
 
     def _register_inputs(
         self,
         inputs: tuple[ImageInput, ...],
-        select_all: bool,
-        append_selection: bool = False,
+        *,
+        resolve_raw_profiles: bool,
     ) -> list[str]:
+        """Register inputs only; callers own any selection or presentation change."""
+
         document_ids = list(
             dict.fromkeys(
                 document_id
                 for image_input in inputs
-                if (document_id := self._register_input(image_input)) is not None
+                if (
+                    document_id := self._register_input(
+                        image_input,
+                        resolve_raw_profile=resolve_raw_profiles,
+                    )
+                ) is not None
             )
         )
-        if document_ids:
-            if append_selection and self.selected_documents:
-                existing_ids = [document.document_id for document in self.selected_documents]
-                combined_ids = list(dict.fromkeys([*existing_ids, *document_ids]))
-                if self._view_capacity > 1 and len(combined_ids) > self._view_capacity:
-                    self._view_capacity = 4 if len(combined_ids) <= 4 else 6
-                self._select_document_ids(
-                    combined_ids,
-                    preserve_view=True,
-                    preserve_overlays=True,
-                )
-            else:
-                self._select_document_ids(document_ids if select_all else document_ids[:1])
-            self.statusBar().showMessage(f"Registered {len(document_ids)} image(s)", 4000)
-        else:
-            self.statusBar().showMessage("No supported images found", 4000)
+        self._update_empty_workspace_state()
         return document_ids
 
-    def _register_input(self, image_input: ImageInput) -> str | None:
+    def _register_input(
+        self,
+        image_input: ImageInput,
+        *,
+        resolve_raw_profile: bool = True,
+    ) -> str | None:
         key = self._path_key(image_input.path)
         existing = self._document_id_by_path.get(key)
+        is_raw = image_input.path.suffix.casefold() == ".raw"
         raw_profile: RawProfile | None = None
-        if image_input.path.suffix.casefold() == ".raw":
+        if is_raw and resolve_raw_profile:
             raw_profile = self._confirm_raw_profile(image_input, existing)
             if raw_profile is None:
                 return None
         if existing is not None:
+            if image_input.raw_profile_path is not None:
+                self._raw_profile_paths[existing] = image_input.raw_profile_path
             if raw_profile is not None:
                 self._raw_profiles[existing] = raw_profile
-                if image_input.raw_profile_path is not None:
-                    self._raw_profile_paths[existing] = image_input.raw_profile_path
                 self._mark_raw_for_reload(existing, raw_profile)
             return existing
         document = ImageDocument.pending_document(image_input.path)
@@ -1037,29 +1283,34 @@ class MainWindow(QMainWindow):
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
             return
+        profile = self._raw_profiles.get(document.document_id)
+        is_raw = document.source_path.suffix.casefold() == ".raw"
+        if is_raw and profile is None:
+            if document.document_id in self._raw_profile_prompt_suppressed:
+                return
+            profile = self._confirm_raw_profile(
+                ImageInput(
+                    document.source_path,
+                    self._raw_profile_paths.get(document.document_id),
+                ),
+                document.document_id,
+            )
+            if profile is None:
+                self._raw_profile_prompt_suppressed.add(document.document_id)
+                self.statusBar().showMessage(
+                    f"RAW profile required to load {document.display_name}",
+                    4000,
+                )
+                return
+            self._raw_profile_prompt_suppressed.discard(document.document_id)
+            self._raw_profiles[document.document_id] = profile
+            document.channel_layout = profile.channel_layout
+            document.bit_depth = profile.bit_depth
+            document.raw_profile = profile
         if self._preload_workers:
             self._invalidate_preload_plan()
         document.loading_state = "loading"
         self._update_document_item(document)
-        profile = self._raw_profiles.get(document.document_id)
-        profile_path = self._raw_profile_paths.get(document.document_id)
-        if profile is None and profile_path is not None:
-            try:
-                profile = RawProfile.load_json(profile_path)
-            except Exception as exc:  # noqa: BLE001 - profile error becomes a document error
-                self._load_failed(
-                    document.document_id,
-                    document.source_path,
-                    TaskError(
-                        task_id="profile",
-                        document_id=document.document_id,
-                        generation=0,
-                        message=str(exc),
-                        exception_type=type(exc).__name__,
-                        traceback_text="",
-                    ),
-                )
-                return
         self._start_load(document.document_id, document.source_path, profile)
 
     def _start_load(self, target_id: str, path: Path, raw_profile: RawProfile | None) -> None:
@@ -1134,11 +1385,12 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Failed to load {path.name}: {error.message}", 5000)
 
     def _selected_load_batch_complete(self) -> bool:
-        """Avoid presenting partially replaced pages during asynchronous group loads."""
+        """Treat one Current Comparison Page as the foreground replacement batch."""
 
         return all(
-            document.loading_state not in ("pending", "loading")
-            for document in self.selected_documents[:6]
+            document.document_id in self._raw_profile_prompt_suppressed
+            or document.loading_state not in ("pending", "loading")
+            for document in self.current_comparison_documents()
         )
 
     def _worker_finished(self, task_id: str) -> None:
@@ -1529,18 +1781,20 @@ class MainWindow(QMainWindow):
         self.residency_manager.record(document.document_id, int(document.source.nbytes))
 
     def _residency_protected_document_ids(self) -> set[str]:
-        """Return registered sources required by the current UI/runtime state."""
+        """Protect only current-page and correctness-required native sources."""
 
         protected = set(self._visible_document_ids)
-        protected.update(document.document_id for document in self.selected_documents)
+        if self._active_document_id is not None:
+            protected.add(self._active_document_id)
+        protected.update(
+            document.document_id for document in self.current_comparison_documents()
+        )
         protected.update(self._load_worker_targets.values())
         protected.update(
             request.document_id
             for task_id, request in self._preload_worker_requests.items()
             if task_id in self._promoted_preload_tokens
         )
-        if self._active_document_id is not None:
-            protected.add(self._active_document_id)
         if self._difference_source_ids is not None:
             protected.update(self._difference_source_ids)
         if hasattr(self, "difference_panel"):
@@ -1548,7 +1802,6 @@ class MainWindow(QMainWindow):
             if pair is not None:
                 protected.update(document.document_id for document in pair)
 
-        protected.update(document.document_id for document in self.selected_documents[:6])
         protected.update(
             document.document_id
             for document in self.documents.values()
@@ -1594,8 +1847,6 @@ class MainWindow(QMainWindow):
             for item in self.document_list.document_items()
             if item.isSelected()
         ]
-        self._promote_running_preloads(selected_ids)
-        self._invalidate_preload_plan()
         selected_set = set(selected_ids)
         if (
             self._difference_source_ids is not None
@@ -1618,6 +1869,16 @@ class MainWindow(QMainWindow):
             self._remember_folder_index(document_id)
         self._current_index = 0
         self._page_start = 0
+        page_ids = [
+            document.document_id for document in self.current_comparison_documents()
+        ]
+        self._promote_running_preloads(page_ids)
+        self._invalidate_preload_plan()
+        self._allow_raw_profile_retry(page_ids)
+        required = set(page_ids)
+        if self._difference_source_ids is not None:
+            required.update(self._difference_source_ids)
+        self._cancel_obsolete_loads(required)
         self._shared_roi = None
         self.comparison_analysis_panel.set_roi_available(False)
         self._shared_line = None
@@ -1638,6 +1899,21 @@ class MainWindow(QMainWindow):
         ):
             self._difference_document = None
             self._difference_source_ids = None
+
+        if documents:
+            self._current_index = min(self._current_index, len(documents) - 1)
+            self._page_start = self._normalized_comparison_page_start(documents)
+            page = self.current_comparison_documents()
+            if not (
+                self._page_start
+                <= self._current_index
+                < self._page_start + len(page)
+            ):
+                self._current_index = self._page_start
+        else:
+            self._current_index = 0
+            self._page_start = 0
+
         self._update_action_states()
         self._update_layout_options(len(documents))
         self._channel_split_active = False
@@ -1650,15 +1926,18 @@ class MainWindow(QMainWindow):
             self.comparison_analysis_panel.clear()
             self.line_profile_panel.clear()
             self._reset_pixel_status()
+            self._update_empty_workspace_state()
             self.central_stack.setCurrentWidget(self.empty_workspace)
             self._active_document_id = None
             self.structured_status.set_active_document()
             self._evict_resident_documents()
             self._update_file_states([], None)
+            self._update_comparison_page_controls()
             self._refresh_preload_plan()
             return
 
-        analysis_candidates = documents[:6]
+        comparison_page = self.current_comparison_documents()
+        analysis_candidates = comparison_page
         for document in analysis_candidates:
             self._ensure_loaded(document)
         analysis_ready = [
@@ -1673,10 +1952,18 @@ class MainWindow(QMainWindow):
             self._shared_roi,
         )
         cached_display = self.difference_panel.cached_display_for_current()
+        cached_six_difference = (
+            cached_display is not None
+            and len(comparison_page) >= COMPARISON_PAGE_SIZE
+            and hasattr(self, "diff_action")
+            and self.diff_action.isChecked()
+        )
         if cached_display is not None:
+            if cached_six_difference:
+                self._capture_six_image_diff_restore_state()
             self._store_difference_document(*cached_display, switch_to_result=False)
         elif (
-            len(documents) >= 2
+            len(analysis_candidates) >= 2
             and len(analysis_ready) >= 2
             and hasattr(self, "diff_action")
             and self.diff_action.isChecked()
@@ -1684,11 +1971,21 @@ class MainWindow(QMainWindow):
             self.difference_panel.calculate_difference()
         self._update_action_states()
 
-        display_documents = documents
+        split_documents = self._current_split_documents()
+        self._channel_split_active = bool(split_documents)
+        if split_documents:
+            split_ids = {document.document_id for document in split_documents}
+            if self._split_focus_document_id not in split_ids:
+                self._split_focus_document_id = split_documents[0].document_id
+            if self._split_active_document_id not in split_ids:
+                self._split_active_document_id = self._split_focus_document_id
+
+        display_documents = list(split_documents or comparison_page)
         difference_document = self._difference_document
         show_difference = (
-            len(documents) >= 2
+            len(analysis_candidates) >= 2
             and difference_document is not None
+            and self._difference_result_matches_current_pair()
             and hasattr(self, "diff_action")
             and self.diff_action.isChecked()
         )
@@ -1696,42 +1993,79 @@ class MainWindow(QMainWindow):
             assert difference_document is not None
             if difference_document.document_id not in self._multi_display_order:
                 self._promote_multi_document(difference_document.document_id)
-            display_documents = [difference_document, *documents]
+            display_documents = [difference_document, *display_documents]
 
-        if self._layout_mode != "Single View":
+        large_selection = len(documents) > COMPARISON_PAGE_SIZE
+        difference_is_primary = (
+            show_difference
+            and difference_document is not None
+            and self._focus_document_id == difference_document.document_id
+        )
+        if self._channel_split_active and self._layout_mode != "Single View":
+            split_primary = self._split_focus_document_id
+            display_documents = sorted(
+                display_documents,
+                key=lambda item: 0 if item.document_id == split_primary else 1,
+            )
+        elif self._layout_mode != "Single View" and not difference_is_primary:
+            primary = self._primary_document_for_page(comparison_page)
+            if primary is not None:
+                self._focus_document_id = primary.document_id
+                self._promote_multi_document(primary.document_id)
+
+        if self._layout_mode != "Single View" and not self._channel_split_active:
             display_documents = self._ordered_multi_documents(display_documents)
 
-        effective_layout, capacity = self._effective_layout(len(display_documents))
-        self._view_capacity = capacity
-        if len(display_documents) in (3, 5) and self._focus_document_id not in {
-            document.document_id for document in display_documents
-        }:
-            self._focus_document_id = display_documents[0].document_id
-
-        self._current_index = min(self._current_index, len(documents) - 1)
-        if self._view_capacity == 1:
-            self._page_start = (self._current_index // 6) * 6
+        if self._layout_mode == "Single View":
+            effective_layout, capacity = "Single", 1
+        elif large_selection:
+            effective_layout, capacity = "Grid 3x2", COMPARISON_PAGE_SIZE
         else:
-            last_page = ((len(display_documents) - 1) // self._view_capacity) * self._view_capacity
-            self._page_start = min(self._page_start, last_page)
+            effective_layout, capacity = self._effective_layout(len(display_documents))
+        self._view_capacity = capacity
+
         if self._view_capacity == 1:
-            document = documents[self._current_index]
-            self._ensure_loaded(document)
-            self.viewer.set_document(document, fit=not preserve_view)
-            self.viewer.set_tile_context(self._current_index + 1, "")
-            self.viewer.set_header(
-                f"[{self._current_index + 1}/{len(documents)}] {document.display_name}"
-            )
-            self._set_single_navigation(document.document_id)
-            self.viewer.set_roi_bounds(self._shared_roi)
-            self.viewer.set_line_selection(self._shared_line)
-            self.central_stack.setCurrentWidget(self.viewer)
-            visible_state = [document]
-        elif self._view_capacity == 4 and self._split_channels and len(documents) == 1:
-            document = documents[0]
-            channel_documents, split_active = self._split_display_documents(document)
-            self._channel_split_active = split_active
+            if self._channel_split_active:
+                split_order_ids = [document.document_id for document in split_documents]
+                active_id = self._split_active_document_id
+                split_index = (
+                    split_order_ids.index(active_id) if active_id in split_order_ids else 0
+                )
+                document = split_documents[split_index]
+                self._split_active_document_id = document.document_id
+                self.viewer.set_document(document, fit=not preserve_view)
+                self.viewer.set_tile_context(split_index + 1, "")
+                self.viewer.set_header(
+                    f"[{split_index + 1}/{len(split_documents)}] {document.display_name}"
+                )
+                self._set_single_navigation(document.document_id)
+                self.viewer.set_roi_bounds(None)
+                self.viewer.set_line_selection(None)
+                self.central_stack.setCurrentWidget(self.viewer)
+                visible_state = [comparison_page[0]]
+            else:
+                document = documents[self._current_index]
+                local_slot = self._current_index - self._page_start + 1
+                self.viewer.set_document(document, fit=not preserve_view)
+                self.viewer.set_tile_context(local_slot, "")
+                if large_selection:
+                    self.viewer.set_header(f"[{local_slot}] {document.display_name}")
+                else:
+                    self.viewer.set_header(
+                        f"[{local_slot}/{len(documents)}] {document.display_name}"
+                    )
+                self._set_single_navigation(document.document_id)
+                self.viewer.set_roi_bounds(self._shared_roi)
+                self.viewer.set_line_selection(self._shared_line)
+                self.central_stack.setCurrentWidget(self.viewer)
+                visible_state = [document]
+        elif self._channel_split_active:
+            channel_documents = display_documents
             self.multi_compare_view.set_capacity(4)
+            self.multi_compare_view.set_layout_kind(
+                "Focus + 2" if len(channel_documents) == 3 else "Grid 2x2",
+                self._split_focus_document_id,
+            )
             self.multi_compare_view.set_documents(
                 channel_documents,
                 0,
@@ -1741,26 +2075,38 @@ class MainWindow(QMainWindow):
                 preserve_view,
             )
             self.central_stack.setCurrentWidget(self.multi_compare_view)
-            visible_state = [document]
+            for viewer in self.multi_compare_view.visible_viewers:
+                viewer.set_focus(
+                    viewer.document is not None
+                    and viewer.document.document_id == self._split_focus_document_id
+                )
+                viewer.set_focus_control_visible(
+                    viewer.document is not None and len(channel_documents) > 1
+                )
+            visible_state = [comparison_page[0]]
         else:
-            start = self._page_start
-            self._page_start = start
-            visible = display_documents[start : start + self._view_capacity]
-            for document in visible:
-                self._ensure_loaded(document)
+            visible = display_documents[: self._view_capacity]
             self.multi_compare_view.set_capacity(self._view_capacity)
             self.multi_compare_view.set_layout_kind(
                 effective_layout,
                 self._focus_document_id,
             )
+            local_slot_by_id = {
+                document.document_id: index + 1
+                for index, document in enumerate(comparison_page)
+            }
             self.multi_compare_view.set_documents(
                 visible,
-                start,
-                len(display_documents),
+                0,
+                len(comparison_page),
                 self._shared_roi,
                 self._shared_line,
                 preserve_view,
-                {document.document_id: index + 1 for index, document in enumerate(documents)},
+                local_slot_by_id,
+                fixed_geometry_count=(
+                    COMPARISON_PAGE_SIZE if large_selection else None
+                ),
+                local_slots=large_selection,
             )
             self.central_stack.setCurrentWidget(self.multi_compare_view)
             visible_state = [
@@ -1768,16 +2114,17 @@ class MainWindow(QMainWindow):
             ]
 
         self._visible_document_ids = {document.document_id for document in visible_state}
-        analysis_ids = {document.document_id for document in analysis_candidates}
-        self._cancel_obsolete_loads(self._visible_document_ids | analysis_ids)
-        for document in visible_state:
-            if document.source is not None:
-                self.residency_manager.touch(document.document_id)
+        required_ids = {document.document_id for document in analysis_candidates}
+        required_ids.update(self._visible_document_ids)
+        if self._difference_source_ids is not None:
+            required_ids.update(self._difference_source_ids)
+        self._cancel_obsolete_loads(required_ids)
+        for document in analysis_ready:
+            self.residency_manager.touch(document.document_id)
         self._evict_resident_documents()
 
-        visible_ready = [document for document in visible_state if document.source is not None]
-        self._normalize_shared_roi(visible_ready)
-        self._normalize_shared_line(visible_ready)
+        self._normalize_shared_roi(analysis_ready)
+        self._normalize_shared_line(analysis_ready)
         region_name = self.comparison_analysis_panel.region_scope.currentText()
         analysis_bounds = self._shared_roi if region_name == "Active ROI" else None
         self.comparison_analysis_panel.set_documents(
@@ -1785,16 +2132,26 @@ class MainWindow(QMainWindow):
             analysis_bounds,
             region_name,
         )
-        active = self.current_document
-        if self._view_capacity > 1 and self._focus_document_id is not None:
+        if self._channel_split_active:
             active = next(
                 (
                     document
-                    for document in visible_state
-                    if document.document_id == self._focus_document_id
+                    for document in split_documents
+                    if document.document_id == self._split_active_document_id
                 ),
-                active,
+                split_documents[0] if split_documents else self.current_document,
             )
+        else:
+            active = self.current_document
+            if self._view_capacity > 1 and self._focus_document_id is not None:
+                active = next(
+                    (
+                        document
+                        for document in visible_state
+                        if document.document_id == self._focus_document_id
+                    ),
+                    active,
+                )
         line_sources = self._line_source_documents()
         self.line_profile_panel.set_documents(
             line_sources,
@@ -1807,7 +2164,14 @@ class MainWindow(QMainWindow):
         if cached_display is not None and self._view_capacity == 1 and active is not None:
             self._set_single_navigation(active.document_id)
         self._set_active_document(active)
-        self._update_file_states(visible_state, active)
+        if cached_six_difference and self._difference_document is not None:
+            self._navigate_single_view("difference")
+            self._set_active_document(self._difference_document)
+        if self._channel_split_active and comparison_page:
+            self._update_file_states([comparison_page[0]], comparison_page[0])
+        else:
+            self._update_file_states(visible_state, active)
+        self._update_comparison_page_controls()
         self._refresh_preload_plan()
 
     def _split_display_documents(
@@ -1848,11 +2212,24 @@ class MainWindow(QMainWindow):
         ]
         return placeholders, False
 
+    def _current_split_documents(self) -> list[ImageDocument]:
+        if not self._split_channels:
+            return []
+        page = self.current_comparison_documents()
+        if len(page) != 1:
+            return []
+        document = page[0]
+        channel_documents, split_active = self._split_display_documents(document)
+        return channel_documents if split_active or document.source is None else []
+
     def _set_split_channels(self, enabled: bool) -> None:
         self._split_channels = enabled
+        self._split_focus_document_id = None
+        self._split_active_document_id = None
         if enabled:
-            self._layout_mode = "Multi View"
-            self._view_capacity = 4
+            if self._layout_mode == "Auto":
+                self._layout_mode = "Multi View"
+            self._view_capacity = 1 if self._layout_mode == "Single View" else 4
         self._reset_pixel_status()
         self._render_selection(preserve_view=False)
 
@@ -1891,27 +2268,40 @@ class MainWindow(QMainWindow):
         changed = mode != self._layout_mode
         self._layout_mode = mode
         self.settings.setValue("ui/layout", mode)
-        _effective, capacity = self._effective_layout(len(self.selected_documents))
-        self._view_capacity = capacity
+        documents = self.selected_documents
+        if documents:
+            self._current_index = min(self._current_index, len(documents) - 1)
+            if mode == "Single View" and previous_active_id is not None:
+                selected_index = next(
+                    (
+                        index
+                        for index, document in enumerate(documents)
+                        if document.document_id == previous_active_id
+                    ),
+                    None,
+                )
+                if selected_index is not None:
+                    self._current_index = selected_index
+            self._sync_comparison_page_to_index(self._current_index)
+        else:
+            self._current_index = 0
+            self._page_start = 0
+
+        current_page = self.current_comparison_documents()
+        if mode == "Single View":
+            self._view_capacity = 1
+        elif len(documents) > COMPARISON_PAGE_SIZE:
+            self._view_capacity = COMPARISON_PAGE_SIZE
+        else:
+            _effective, self._view_capacity = self._effective_layout(len(current_page))
+
         if hasattr(self, "layout_selector"):
             self.layout_selector.blockSignals(True)
             self.layout_selector.setCurrentText(mode)
             self.layout_selector.blockSignals(False)
-        self._page_start = (
-            self._current_index if capacity == 1 else (self._current_index // capacity) * capacity
+        self._allow_raw_profile_retry(
+            [document.document_id for document in current_page]
         )
-        if mode == "Single View" and previous_active_id is not None:
-            selected_index = next(
-                (
-                    index
-                    for index, document in enumerate(self.selected_documents)
-                    if document.document_id == previous_active_id
-                ),
-                None,
-            )
-            if selected_index is not None:
-                self._current_index = selected_index
-                self._page_start = 0
         if changed:
             self._reset_pixel_status()
         self._render_selection(preserve_view=not changed)
@@ -1919,18 +2309,23 @@ class MainWindow(QMainWindow):
             self._navigate_single_view("difference")
 
     def _layout_mode_is_presented(self, mode: str) -> bool:
-        document_count = len(self.selected_documents)
-        expects_multi = mode != "Single View" and (document_count > 1 or self._split_channels)
+        documents = self.selected_documents
+        document_count = len(documents)
+        page_count = len(self.current_comparison_documents())
+        expects_multi = mode != "Single View" and (page_count > 1 or self._split_channels)
         expected_widget = self.multi_compare_view if expects_multi else self.viewer
         if document_count == 0:
             expected_widget = self.empty_workspace
         if self.central_stack.currentWidget() is not expected_widget:
             return False
         if expects_multi:
-            display_count = document_count
-            if self.diff_action.isChecked() and self._difference_document is not None:
-                display_count += 1
-            expected_capacity = self._effective_layout(display_count)[1]
+            if document_count > COMPARISON_PAGE_SIZE:
+                expected_capacity = COMPARISON_PAGE_SIZE
+            else:
+                display_count = page_count
+                if self.diff_action.isChecked() and self._difference_document is not None:
+                    display_count += 1
+                expected_capacity = self._effective_layout(display_count)[1]
             return self.multi_compare_view.capacity == expected_capacity and bool(
                 self.multi_compare_view.occupied_viewers
             )
@@ -1959,13 +2354,33 @@ class MainWindow(QMainWindow):
 
     def _set_focus_document(self, document: object) -> None:
         document_id = document.document_id if isinstance(document, ImageDocument) else str(document)
-        allowed_ids = {item.document_id for item in self.selected_documents}
+        split_ids = {item.document_id for item in self._current_split_documents()}
+        if self._channel_split_active and document_id in split_ids:
+            self._split_focus_document_id = document_id
+            self._split_active_document_id = document_id
+            self._render_selection(preserve_view=True)
+            return
+
+        page = self.current_comparison_documents()
+        allowed_ids = {item.document_id for item in page}
         if self.diff_action.isChecked() and self._difference_document is not None:
             allowed_ids.add(self._difference_document.document_id)
         if document_id not in allowed_ids:
             return
         self._promote_multi_document(document_id)
         self._focus_document_id = document_id
+        selected_index = next(
+            (
+                index
+                for index, item in enumerate(self.selected_documents)
+                if item.document_id == document_id
+            ),
+            None,
+        )
+        if selected_index is not None:
+            self._current_index = selected_index
+            page_start = self._normalized_comparison_page_start()
+            self._primary_page_slot = selected_index - page_start
         self._render_selection(preserve_view=True)
 
     def _ordered_multi_documents(self, documents: list[ImageDocument]) -> list[ImageDocument]:
@@ -1999,7 +2414,11 @@ class MainWindow(QMainWindow):
         self, visible_documents: list[ImageDocument] | None = None
     ) -> list[ImageDocument]:
         del visible_documents
-        return [document for document in self.selected_documents[:6] if document.source is not None]
+        return [
+            document
+            for document in self.current_comparison_documents()
+            if document.source is not None
+        ]
 
     def _line_reference_priority_ids(
         self,
@@ -2047,6 +2466,25 @@ class MainWindow(QMainWindow):
         self._set_active_document(document)
         if not isinstance(document, ImageDocument):
             return
+        if self._channel_split_active:
+            split_ids = {item.document_id for item in self._current_split_documents()}
+            if document.document_id in split_ids:
+                self._split_active_document_id = document.document_id
+                page = self.current_comparison_documents()
+                if page:
+                    self._update_file_states([page[0]], page[0])
+                self._evict_resident_documents()
+                return
+        selected_index = next(
+            (
+                index
+                for index, selected in enumerate(self.selected_documents)
+                if selected.document_id == document.document_id
+            ),
+            None,
+        )
+        if selected_index is not None:
+            self._current_index = selected_index
         visible = [
             viewer.document
             for viewer in self.multi_compare_view.occupied_viewers
@@ -2057,6 +2495,20 @@ class MainWindow(QMainWindow):
         )
         self._update_file_states(visible, document)
         self._evict_resident_documents()
+
+    def _activate_multi_document(self, document_id: str) -> bool:
+        viewer = next(
+            (
+                item
+                for item in self.multi_compare_view.occupied_viewers
+                if item.document is not None and item.document.document_id == document_id
+            ),
+            None,
+        )
+        if viewer is None:
+            return False
+        viewer.activated.emit(viewer)
+        return True
 
     def _set_zoom_status(self, percent: float) -> None:
         self.structured_status.zoom.setText(f"Zoom {percent:.0f}%")
@@ -2076,32 +2528,29 @@ class MainWindow(QMainWindow):
                 resident=document.source is not None,
             )
 
-    def show_selected_image(self, selected_index: int) -> None:
-        documents = self.selected_documents
-        if (
-            self._view_capacity == 1
-            and selected_index == len(documents)
-            and len(documents) >= 2
-            and self._difference_document is not None
-            and self.diff_action.isChecked()
-        ):
-            self._navigate_single_view("difference")
+    def show_selected_image(self, local_index: int) -> None:
+        if self._view_capacity != 1 or local_index < 0:
             return
-        if (
-            self._view_capacity != 1
-            or selected_index < 0
-            or selected_index >= min(6, len(documents))
-        ):
+        split_documents = self._current_split_documents()
+        if split_documents:
+            if local_index >= len(split_documents):
+                return
+            self._show_single_split_document(split_documents[local_index])
             return
-        self._current_index = selected_index
-        self._page_start = 0
+        page = self.current_comparison_documents()
+        if local_index >= len(page):
+            return
+        self._current_index = self._page_start + local_index
+        self._allow_raw_profile_retry([page[local_index].document_id])
         self._reset_pixel_status()
         self._render_selection(preserve_view=True)
 
     def _set_single_navigation(self, current_key: str) -> None:
+        split_documents = self._current_split_documents()
+        navigation_documents = split_documents or self.current_comparison_documents()
         items = [
             (document.document_id, str(index + 1), document.display_name)
-            for index, document in enumerate(self.selected_documents[:6])
+            for index, document in enumerate(navigation_documents)
         ]
         if (
             self._difference_document is not None
@@ -2120,7 +2569,7 @@ class MainWindow(QMainWindow):
                 self.diff_action.blockSignals(False)
                 return
             self._store_difference_document(*cached, switch_to_result=False)
-            if len(self.selected_documents) >= 6:
+            if len(self.current_comparison_documents()) >= COMPARISON_PAGE_SIZE:
                 self._capture_six_image_diff_restore_state()
                 self._navigate_single_view("difference")
                 self._update_action_states()
@@ -2178,6 +2627,14 @@ class MainWindow(QMainWindow):
         self._update_action_states()
 
     def _navigate_single_view(self, key: str) -> None:
+        split_documents = self._current_split_documents()
+        split_document = next(
+            (document for document in split_documents if document.document_id == key),
+            None,
+        )
+        if split_document is not None:
+            self._show_single_split_document(split_document)
+            return
         if key == "difference":
             difference = self._difference_document
             if difference is None:
@@ -2203,48 +2660,94 @@ class MainWindow(QMainWindow):
             return
         self._show_single_document(documents[selected_index], selected_index)
 
-    def _show_single_document(self, document: ImageDocument, selected_index: int) -> None:
+    def _show_single_split_document(self, document: ImageDocument) -> None:
+        split_documents = self._current_split_documents()
+        split_index = next(
+            (
+                index
+                for index, candidate in enumerate(split_documents)
+                if candidate.document_id == document.document_id
+            ),
+            None,
+        )
+        if split_index is None:
+            return
+        page = self.current_comparison_documents()
+        if not page:
+            return
         self._layout_mode = "Single View"
         self._view_capacity = 1
-        self._current_index = selected_index
+        self._channel_split_active = True
+        self._split_active_document_id = document.document_id
         self.layout_selector.blockSignals(True)
         self.layout_selector.setCurrentText("Single View")
         self.layout_selector.blockSignals(False)
-        self._ensure_loaded(document)
+        self._reset_pixel_status()
         self.viewer.set_document(document, fit=False)
-        self.viewer.set_tile_context(selected_index + 1, "")
+        self.viewer.set_tile_context(split_index + 1, "")
         self.viewer.set_header(
-            f"[{selected_index + 1}/{len(self.selected_documents)}] {document.display_name}"
+            f"[{split_index + 1}/{len(split_documents)}] {document.display_name}"
         )
+        self._set_single_navigation(document.document_id)
+        self.viewer.set_roi_bounds(None)
+        self.viewer.set_line_selection(None)
+        self.central_stack.setCurrentWidget(self.viewer)
+        self._visible_document_ids = {page[0].document_id}
+        self._set_active_document(document)
+        self._update_file_states([page[0]], page[0])
+        self._update_comparison_page_controls()
+        self._refresh_preload_plan()
+
+    def _show_single_document(self, document: ImageDocument, selected_index: int) -> None:
+        previous_page_start = self._page_start
+        self._layout_mode = "Single View"
+        self._view_capacity = 1
+        self._current_index = selected_index
+        self._sync_comparison_page_to_index(selected_index)
+        self._allow_raw_profile_retry([document.document_id])
+        self.layout_selector.blockSignals(True)
+        self.layout_selector.setCurrentText("Single View")
+        self.layout_selector.blockSignals(False)
+        self._reset_pixel_status()
+        if self._page_start != previous_page_start:
+            self._render_selection(preserve_view=True)
+            return
+
+        self._ensure_loaded(document)
+        local_slot = selected_index - self._page_start + 1
+        self.viewer.set_document(document, fit=False)
+        self.viewer.set_tile_context(local_slot, "")
+        if len(self.selected_documents) > COMPARISON_PAGE_SIZE:
+            self.viewer.set_header(f"[{local_slot}] {document.display_name}")
+        else:
+            self.viewer.set_header(
+                f"[{local_slot}/{len(self.selected_documents)}] {document.display_name}"
+            )
         self._set_single_navigation(document.document_id)
         self.viewer.set_roi_bounds(self._shared_roi)
         self.viewer.set_line_selection(self._shared_line)
         self.central_stack.setCurrentWidget(self.viewer)
+        self._visible_document_ids = {document.document_id}
         self._set_active_document(document)
         self._update_file_states([document], document)
-        region_name = self.comparison_analysis_panel.region_scope.currentText()
-        analysis_bounds = self._shared_roi if region_name == "Active ROI" else None
-        self.comparison_analysis_panel.set_documents([document], analysis_bounds, region_name)
-        self.line_profile_panel.set_documents(
-            self._line_source_documents([document]),
-            self._shared_line,
-        )
-        self._reset_pixel_status()
+        self._update_comparison_page_controls()
+        self._refresh_preload_plan()
 
     def next_image(self) -> None:
         documents = self.selected_documents
         if not documents:
             return
+        if len(documents) > COMPARISON_PAGE_SIZE:
+            self._step_selected_image(1)
+            return
         if self._view_capacity == 1:
             if self._cycle_single_navigation(1):
                 return
             self._current_index = 0
-        elif self._cycle_visible_focus(1):
+        elif self._cycle_visible_active(1):
             return
         else:
-            next_start = self._page_start + self._view_capacity
-            self._page_start = next_start if next_start < len(documents) else 0
-            self._current_index = self._page_start
+            self._current_index = 0
         self._reset_pixel_status()
         self._render_selection(preserve_view=True)
 
@@ -2252,26 +2755,103 @@ class MainWindow(QMainWindow):
         documents = self.selected_documents
         if not documents:
             return
+        if len(documents) > COMPARISON_PAGE_SIZE:
+            self._step_selected_image(-1)
+            return
         if self._view_capacity == 1:
             if self._cycle_single_navigation(-1):
                 return
             self._current_index = 0
-        elif self._cycle_visible_focus(-1):
+        elif self._cycle_visible_active(-1):
             return
         else:
-            self._page_start = (
-                self._page_start - self._view_capacity
-                if self._page_start >= self._view_capacity
-                else ((len(documents) - 1) // self._view_capacity) * self._view_capacity
-            )
-            self._current_index = self._page_start
+            self._current_index = 0
         self._reset_pixel_status()
         self._render_selection(preserve_view=True)
 
-    def _cycle_single_navigation(self, step: int) -> bool:
+    def _selected_navigation_index(self) -> int:
         documents = self.selected_documents
+        for document_id in (self._active_document_id, self._focus_document_id):
+            if document_id is None:
+                continue
+            index = next(
+                (
+                    candidate
+                    for candidate, document in enumerate(documents)
+                    if document.document_id == document_id
+                ),
+                None,
+            )
+            if index is not None:
+                return index
+        return min(self._current_index, max(0, len(documents) - 1))
+
+    def _step_selected_image(self, step: int) -> None:
+        documents = self.selected_documents
+        if not documents:
+            return
+        current_index = self._selected_navigation_index()
+        target_index = (current_index + step) % len(documents)
+        previous_start = self._normalized_comparison_page_start(documents)
+        self._current_index = target_index
+        self._sync_comparison_page_to_index(target_index)
+        page = self.current_comparison_documents()
+        self._allow_raw_profile_retry([document.document_id for document in page])
+        target = documents[target_index]
+        if self._layout_mode == "Single View":
+            self._reset_pixel_status()
+            self._render_selection(preserve_view=True)
+            return
+        if self._page_start != previous_start:
+            self._reset_pixel_status()
+            self._render_selection(preserve_view=True)
+        self._activate_multi_document(target.document_id)
+
+    def previous_comparison_page(self) -> None:
+        self._move_comparison_page(-1)
+
+    def next_comparison_page(self) -> None:
+        self._move_comparison_page(1)
+
+    def _move_comparison_page(self, step: int) -> None:
+        documents = self.selected_documents
+        if len(documents) <= COMPARISON_PAGE_SIZE:
+            return
+        start = self._normalized_comparison_page_start(documents)
+        local_index = self._current_page_local_index()
+        new_start = start + step * COMPARISON_PAGE_SIZE
+        last_start = (
+            (len(documents) - 1) // COMPARISON_PAGE_SIZE
+        ) * COMPARISON_PAGE_SIZE
+        if new_start < 0:
+            self.statusBar().showMessage("Already at the first Comparison Page", 2500)
+            self._update_comparison_page_controls()
+            return
+        if new_start > last_start:
+            self.statusBar().showMessage("Already at the last Comparison Page", 2500)
+            self._update_comparison_page_controls()
+            return
+
+        self._page_start = new_start
+        page = documents[new_start : new_start + COMPARISON_PAGE_SIZE]
+        local_index = min(local_index, len(page) - 1)
+        self._current_index = new_start + local_index
+        target = page[local_index]
+        self._allow_raw_profile_retry([document.document_id for document in page])
+        self._reset_pixel_status()
+        self._render_selection(preserve_view=True)
+        if self._layout_mode != "Single View":
+            self._activate_multi_document(target.document_id)
+
+    def _cycle_single_navigation(self, step: int) -> bool:
+        split_documents = self._current_split_documents()
+        documents = split_documents or self.selected_documents
         keys = [document.document_id for document in documents]
-        if self.diff_action.isChecked() and self._difference_document is not None:
+        if (
+            not split_documents
+            and self.diff_action.isChecked()
+            and self._difference_document is not None
+        ):
             keys.append("difference")
         if len(keys) < 2:
             return False
@@ -2286,24 +2866,33 @@ class MainWindow(QMainWindow):
         self._navigate_single_view(keys[(current + step) % len(keys)])
         return True
 
-    def _cycle_visible_focus(self, step: int) -> bool:
-        documents = self.selected_documents
-        candidates = list(documents)
-        if (
-            self.diff_action.isChecked()
-            and self._difference_document is not None
-            and len(documents) >= 2
-        ):
-            candidates = [self._difference_document, *documents]
-        if len(candidates) > self._view_capacity or len(candidates) < 2:
+    def _cycle_visible_active(self, step: int) -> bool:
+        split_documents = self._current_split_documents()
+        documents = split_documents or self.current_comparison_documents()
+        if len(documents) < 2:
             return False
-        ids = [document.document_id for document in candidates]
-        current = ids.index(self._focus_document_id) if self._focus_document_id in ids else 0
-        self._focus_document_id = ids[(current + step) % len(ids)]
-        self._promote_multi_document(self._focus_document_id)
+        ids = [document.document_id for document in documents]
+        current_id = (
+            self._split_active_document_id
+            if split_documents and self._split_active_document_id in ids
+            else self._active_document_id
+            if self._active_document_id in ids
+            else documents[self._current_page_local_index()].document_id
+        )
+        current = ids.index(current_id)
+        target = documents[(current + step) % len(documents)]
+        if split_documents:
+            self._split_active_document_id = target.document_id
+            self._reset_pixel_status()
+            return self._activate_multi_document(target.document_id)
+        selected_index = next(
+            index
+            for index, document in enumerate(self.selected_documents)
+            if document.document_id == target.document_id
+        )
+        self._current_index = selected_index
         self._reset_pixel_status()
-        self._render_selection(preserve_view=True)
-        return True
+        return self._activate_multi_document(target.document_id)
 
     def next_folder_position(self) -> None:
         self._apply_folder_navigation(1)
@@ -2321,7 +2910,7 @@ class MainWindow(QMainWindow):
         selection = self._folder_navigation_selection()
         if selection is None:
             self.statusBar().showMessage(
-                "Folder navigation requires one to six selected files from different folders",
+                "Folder Position requires 1–6 selected images from different folders",
                 5000,
             )
             return
@@ -2368,17 +2957,24 @@ class MainWindow(QMainWindow):
     def _remove_document_ids(self, selected_ids: object) -> None:
         if not isinstance(selected_ids, list):
             return
-        self._cancel_obsolete_loads(
-            {
-                document.document_id
-                for document in self.selected_documents
-                if document.document_id not in set(selected_ids)
-            }
-        )
+        selected_set = set(selected_ids)
+        required = {
+            document.document_id
+            for document in self.current_comparison_documents()
+            if document.document_id not in selected_set
+        }
+        if self._difference_source_ids is not None:
+            required.update(
+                document_id
+                for document_id in self._difference_source_ids
+                if document_id not in selected_set
+            )
+        self._cancel_obsolete_loads(required)
         self._invalidate_preload_plan()
         self.document_list.blockSignals(True)
         try:
             for document_id in selected_ids:
+                self._raw_profile_prompt_suppressed.discard(document_id)
                 self.residency_manager.remove(document_id)
                 document = self.documents.pop(document_id, None)
                 if document is not None and document.source_path is not None:
@@ -2388,10 +2984,15 @@ class MainWindow(QMainWindow):
                 self._invalidate_channel_views(document_id)
         finally:
             self.document_list.blockSignals(False)
-        selected_set = set(selected_ids)
         self._selection_order = [
             document_id for document_id in self._selection_order if document_id not in selected_set
         ]
+        if self._selection_order:
+            self._current_index = min(self._current_index, len(self._selection_order) - 1)
+            self._sync_comparison_page_to_index(self._current_index)
+        else:
+            self._current_index = 0
+            self._page_start = 0
         self._render_selection()
 
     def _select_document_ids(
@@ -2400,8 +3001,6 @@ class MainWindow(QMainWindow):
         preserve_view: bool = False,
         preserve_overlays: bool = False,
     ) -> None:
-        self._promote_running_preloads(document_ids)
-        self._invalidate_preload_plan()
         selected = set(document_ids)
         self.document_list.blockSignals(True)
         self.document_list.clearSelection()
@@ -2421,12 +3020,32 @@ class MainWindow(QMainWindow):
         self._selection_order = [
             document_id for document_id in document_ids if document_id in self.documents
         ]
-        self._cancel_obsolete_loads(set(self._selection_order))
         for document_id in self._selection_order:
             self._remember_folder_index(document_id)
         if not preserve_view:
             self._current_index = 0
             self._page_start = 0
+            self._primary_page_slot = 0
+            if self._layout_mode != "Single View":
+                self._focus_document_id = None
+        elif self._selection_order:
+            self._current_index = min(self._current_index, len(self._selection_order) - 1)
+            self._sync_comparison_page_to_index(self._current_index)
+        else:
+            self._current_index = 0
+            self._page_start = 0
+
+        page_ids = [
+            document.document_id for document in self.current_comparison_documents()
+        ]
+        self._promote_running_preloads(page_ids)
+        self._invalidate_preload_plan()
+        self._allow_raw_profile_retry(page_ids)
+        required = set(page_ids)
+        if self._difference_source_ids is not None:
+            required.update(self._difference_source_ids)
+        self._cancel_obsolete_loads(required)
+
         if not preserve_overlays:
             self._shared_roi = None
             self.comparison_analysis_panel.set_roi_available(False)
@@ -2442,10 +3061,7 @@ class MainWindow(QMainWindow):
         self.comparison_analysis_panel.set_roi_available(True)
         ready = [
             document
-            for document in self.selected_documents[
-                self._page_start : self._page_start
-                + (6 if self._view_capacity == 1 else self._view_capacity)
-            ]
+            for document in self.current_comparison_documents()
             if document.source is not None
         ]
         if not ready:
@@ -2464,7 +3080,7 @@ class MainWindow(QMainWindow):
             return
         self.viewer.set_roi_bounds(self._shared_roi)
         self.multi_compare_view.set_shared_roi(self._shared_roi)
-        self.comparison_analysis_panel.set_documents(ready[:6], self._shared_roi)
+        self.comparison_analysis_panel.set_documents(ready, self._shared_roi)
         self.difference_panel.set_active_roi(self._shared_roi)
         roi = self._shared_roi
         self.statusBar().showMessage(f"ROI x={roi.x}, y={roi.y}, {roi.width} x {roi.height}", 3000)
@@ -2494,10 +3110,7 @@ class MainWindow(QMainWindow):
             return
         ready = [
             document
-            for document in self.selected_documents[
-                self._page_start : self._page_start
-                + (6 if self._view_capacity == 1 else self._view_capacity)
-            ]
+            for document in self.current_comparison_documents()
             if document.source is not None
         ]
         if not ready:
@@ -2517,7 +3130,7 @@ class MainWindow(QMainWindow):
         self.viewer.set_line_selection(self._shared_line)
         self.multi_compare_view.set_shared_line(self._shared_line)
         self.line_profile_panel.set_documents(
-            self._line_source_documents(ready),
+            self._line_source_documents(),
             self._shared_line,
         )
         self.bottom_tabs.setCurrentIndex(1)
@@ -2547,10 +3160,7 @@ class MainWindow(QMainWindow):
         self.multi_compare_view.clear_roi()
         ready = [
             document
-            for document in self.selected_documents[
-                self._page_start : self._page_start
-                + (6 if self._view_capacity == 1 else self._view_capacity)
-            ]
+            for document in self.current_comparison_documents()
             if document.source is not None
         ]
         self.comparison_analysis_panel.set_documents(ready, None)
@@ -2574,7 +3184,7 @@ class MainWindow(QMainWindow):
             or not isinstance(preview, np.ndarray)
         ):
             return
-        force_single = len(self.selected_documents) >= 6
+        force_single = len(self.current_comparison_documents()) >= COMPARISON_PAGE_SIZE
         if force_single:
             self._capture_six_image_diff_restore_state()
         stay_single = force_single or self._layout_mode == "Single View"
@@ -2596,7 +3206,8 @@ class MainWindow(QMainWindow):
             return
 
         self._layout_mode = "Multi View"
-        if self._difference_document is not None:
+        preserve_folder_primary = isinstance(self._pending_position_focus, int)
+        if self._difference_document is not None and not preserve_folder_primary:
             self._focus_document_id = self._difference_document.document_id
             self._promote_multi_document(self._difference_document.document_id)
         self._pending_position_focus = None
@@ -2819,107 +3430,25 @@ class MainWindow(QMainWindow):
         if not isinstance(paths, list) or not all(isinstance(path, Path) for path in paths):
             return
         folders = [path for path in paths if path.is_dir()]
-        if len(paths) == 2 and len(folders) == 2:
-            self.register_folder_group(folders)
-            return
-        session = self._folder_navigation_selection()
-        if session is not None:
-            self._register_paths_during_navigation(paths, session)
-            return
-        inputs = discover_image_inputs(paths)
-        self._register_inputs(
-            inputs,
-            select_all=len(paths) > 1 and not folders,
-            append_selection=self._view_capacity > 1 and bool(self.selected_documents),
+        files = [path for path in paths if path.is_file()]
+        folder_result = self.register_folders(folders) if folders else None
+        document_ids = self._register_inputs(
+            discover_image_inputs(files),
+            resolve_raw_profiles=True,
         )
+        if document_ids:
+            self._select_document_ids(document_ids)
 
-    def _register_paths_during_navigation(
-        self,
-        paths: list[Path],
-        session: list[tuple[str, str]],
-    ) -> None:
-        active_by_folder = dict(session)
-        grouped: dict[str, tuple[list[ImageInput], ImageInput, bool]] = {}
-        for path in paths:
-            resolved = path.resolve()
-            is_folder = resolved.is_dir()
-            inputs = list(discover_image_inputs((resolved,)))
-            if not inputs:
-                continue
-            folder_key = self._folder_key(inputs[0].path)
-            existing = grouped.get(folder_key)
-            if existing is None:
-                grouped[folder_key] = (inputs, inputs[0], is_folder)
-            else:
-                merged = list(
-                    {self._path_key(item.path): item for item in [*existing[0], *inputs]}.values()
-                )
-                merged.sort(key=lambda item: natural_sort_key(item.path))
-                grouped[folder_key] = (
-                    merged,
-                    existing[1],
-                    existing[2] or is_folder,
-                )
+        messages: list[str] = []
+        if document_ids:
+            messages.append(f"Opened {len(document_ids)} image(s)")
+        if folder_result is not None:
+            messages.append(self._folder_registration_message(folder_result))
+        if messages:
+            self.statusBar().showMessage(" · ".join(messages), 5000)
 
-        selected_ids = [document_id for _folder_key, document_id in session]
-        for folder_key, (supplied_inputs, primary_input, explicit_folder) in grouped.items():
-            inputs_to_register = supplied_inputs
-            if folder_key not in active_by_folder and not explicit_folder:
-                siblings = list(discover_image_inputs((primary_input.path.parent,)))
-                supplied_keys = {
-                    self._path_key(image_input.path) for image_input in supplied_inputs
-                }
-                has_more_images = any(
-                    self._path_key(image_input.path) not in supplied_keys
-                    for image_input in siblings
-                )
-                if has_more_images:
-                    answer = QMessageBox.question(
-                        self,
-                        "Include folder images?",
-                        f"{primary_input.path.parent.name} contains other images. "
-                        "Register all images from this folder?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.Yes,
-                    )
-                    if answer == QMessageBox.StandardButton.Yes:
-                        inputs_to_register = siblings
-
-            registered_ids: dict[str, str] = {}
-            for image_input in inputs_to_register:
-                registered_id = self._register_input(image_input)
-                if registered_id is not None:
-                    registered_ids[self._path_key(image_input.path)] = registered_id
-            primary_id = registered_ids.get(self._path_key(primary_input.path))
-            if primary_id is None:
-                continue
-            if folder_key in active_by_folder:
-                current_id = active_by_folder[folder_key]
-                if primary_id != current_id:
-                    answer = QMessageBox.question(
-                        self,
-                        "Replace folder position?",
-                        f"A file from {primary_input.path.parent.name} is already visible. "
-                        f"Replace it with {primary_input.path.name}?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.No,
-                    )
-                    if answer == QMessageBox.StandardButton.Yes:
-                        selected_ids[selected_ids.index(current_id)] = primary_id
-            elif len(selected_ids) < 6:
-                selected_ids.append(primary_id)
-
-        if len(selected_ids) > self._view_capacity and self._view_capacity > 1:
-            self._view_capacity = 4 if len(selected_ids) <= 4 else 6
-        self._select_document_ids(
-            selected_ids,
-            preserve_view=True,
-            preserve_overlays=True,
-        )
-        self.statusBar().showMessage(
-            "Files registered; folder positions updated where requested",
-            4000,
-        )
+    def _update_empty_workspace_state(self) -> None:
+        self.empty_workspace.set_registered_documents(bool(self.documents))
 
     def _update_document_item(self, document: ImageDocument) -> None:
         self.document_list.update_document_item(

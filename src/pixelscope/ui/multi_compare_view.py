@@ -95,6 +95,8 @@ class MultiCompareView(QWidget):
         line: LineSelection | None,
         preserve_view: bool = False,
         slot_by_id: dict[str, int] | None = None,
+        fixed_geometry_count: int | None = None,
+        local_slots: bool = False,
     ) -> None:
         previous_active_id = (
             self._active_viewer.document.document_id
@@ -113,16 +115,17 @@ class MultiCompareView(QWidget):
         anchor_range = self._current_shared_range() if not requires_refit else None
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
-        displayed_documents = documents[: self._document_count]
-        self._primary_controls_enabled = self._document_count > 1 and all(
-            not document.channel_layout.startswith("CHANNEL_") for document in displayed_documents
+        geometry_count = min(
+            fixed_geometry_count if fixed_geometry_count is not None else self._document_count,
+            self.capacity,
         )
+        displayed_documents = documents[: self._document_count]
+        # Every multi-image representation, including split-channel views,
+        # exposes the same explicit Primary interaction. MainWindow owns the
+        # semantic mapping for source comparisons versus derived channel views.
+        self._primary_controls_enabled = self._document_count > 1
         displayed_ids = {document.document_id for document in displayed_documents}
         if self._primary_controls_enabled and self.focus_document_id not in displayed_ids:
-            # The first displayed image is the implicit primary until the user
-            # explicitly selects another image. MainWindow already uses the first
-            # displayed image as its analysis/reference fallback, so no extra render
-            # or deferred state synchronization is needed here.
             self.focus_document_id = displayed_documents[0].document_id
         elif not self._primary_controls_enabled:
             self.focus_document_id = None
@@ -130,12 +133,9 @@ class MultiCompareView(QWidget):
         if updates_were_enabled:
             self.setUpdatesEnabled(False)
         try:
-            # Apply the final geometry and visibility before replacing tile content.
-            # This prevents Qt from painting a newly bound one-view document in the
-            # previous split grid during Bayer/RGB-to-GRAY transitions.
-            self._arrange_viewers(self._document_count)
+            self._arrange_viewers(geometry_count)
             self._layout.activate()
-            controls_realized = self.isVisible() or self._document_count in (3, 5)
+            controls_realized = self.isVisible() or geometry_count in (3, 5)
             for slot, viewer in enumerate(self.visible_viewers):
                 document = documents[slot] if slot < len(documents) else None
                 role = ""
@@ -157,7 +157,12 @@ class MultiCompareView(QWidget):
                 if document is None:
                     viewer.set_header("")
                 else:
-                    position = "Diff" if role == "Diff" else f"{logical_slot}/{total}"
+                    if role == "Diff":
+                        position = "Diff"
+                    elif local_slots:
+                        position = str(logical_slot)
+                    else:
+                        position = f"{logical_slot}/{total}"
                     viewer.set_header(f"[{position}] {document.display_name}")
                 viewer.set_roi_bounds(roi)
                 viewer.set_line_selection(line)

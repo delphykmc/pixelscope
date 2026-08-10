@@ -5,7 +5,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-SUPPORTED_IMAGE_SUFFIXES = frozenset({".png", ".bmp", ".jpg", ".jpeg"})
+ORDINARY_IMAGE_SUFFIXES = frozenset({".png", ".bmp", ".jpg", ".jpeg"})
+RAW_IMAGE_SUFFIX = ".raw"
+SUPPORTED_IMAGE_SUFFIXES = ORDINARY_IMAGE_SUFFIXES | {RAW_IMAGE_SUFFIX}
+SUPPORTED_IMAGE_FILTER = "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)"
 
 
 @dataclass(frozen=True)
@@ -27,9 +30,10 @@ def image_input_for_path(path: Path) -> ImageInput | None:
     candidate = path.resolve()
     if not candidate.is_file():
         return None
-    if candidate.suffix.casefold() in SUPPORTED_IMAGE_SUFFIXES:
+    suffix = candidate.suffix.casefold()
+    if suffix in ORDINARY_IMAGE_SUFFIXES:
         return ImageInput(candidate)
-    if candidate.suffix.casefold() == ".raw":
+    if suffix == RAW_IMAGE_SUFFIX:
         sidecar = candidate.with_suffix(".json")
         return ImageInput(candidate, sidecar if sidecar.is_file() else None)
     return None
@@ -60,11 +64,3 @@ def discover_image_inputs(paths: Iterable[Path], recursive: bool = False) -> tup
                 seen.add(identity)
                 discovered.append(image_input)
     return tuple(sorted(discovered, key=lambda item: natural_sort_key(item.path)))
-
-
-def pair_folders(folder_a: Path, folder_b: Path) -> tuple[tuple[ImageInput, ImageInput], ...]:
-    """Pair immediate child images by natural sort position."""
-
-    inputs_a = discover_image_inputs((folder_a,))
-    inputs_b = discover_image_inputs((folder_b,))
-    return tuple(zip(inputs_a, inputs_b, strict=False))

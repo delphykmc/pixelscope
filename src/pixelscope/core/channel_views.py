@@ -47,7 +47,7 @@ def _channel_document(
     channel: NDArray[np.generic],
     preview: NDArray[np.uint8],
 ) -> ImageDocument:
-    return ImageDocument.from_array(
+    document = ImageDocument.from_array(
         channel,
         display_name=f"{source_document.display_name} · {channel_name}",
         channel_layout=f"CHANNEL_{channel_name}",
@@ -56,3 +56,8 @@ def _channel_document(
         display_transform=source_document.display_transform,
         prepared_preview=preview,
     )
+    # Split views are transient, but their identity must be stable and traceable
+    # to the source document so MainWindow can preserve an explicit Primary
+    # channel across rerenders without guessing from display names or UUIDs.
+    document.document_id = f"{source_document.document_id}:split:{channel_name}"
+    return document
