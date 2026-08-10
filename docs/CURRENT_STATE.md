@@ -1,8 +1,8 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-10
-Current merged baseline / P3-C PR #25 merge commit:
-`7f6bef73e6712f6a14a4d401820a915196e25da2`
+Current merged baseline / P3-D PR #26 merge commit:
+`b16ecc558ac24225e9ddfddfca4e48e37fde61ca`
 
 ## Merge baseline
 
@@ -13,15 +13,17 @@ Current merged baseline / P3-C PR #25 merge commit:
 - P3-A Difference Gray/mixed-bit support merged as PR #22.
 - P3 roadmap replanning merged as PR #23.
 - P3-B RAW Native & Display Semantics merged as PR #24.
-- P3-C Display Gain generalization merged as PR #25 at the baseline SHA above.
+- P3-C Display Gain generalization merged as PR #25.
+- P3-D Unified Image Opening & RAW Profile Resolution merged as PR #26 at the
+  baseline SHA above.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P3-D is **Unified Image Opening & RAW Profile Resolution**. The earlier speculative
-Profile Library/suggestion scope is deferred.
+P3-E is **Integration, Presentation UI Polish & Phase Hardening**. It adds no new
+analysis semantics and keeps P3-D's ownership hierarchy authoritative.
 
 ## Workspace ownership model
 
-P3-D distinguishes five runtime layers:
+P3-D/P3-E distinguish five runtime layers:
 
 ```text
 Registered
@@ -124,8 +126,8 @@ behavior remains the baseline.
 For `Selected > 6`:
 
 - pages are derived in six-image chunks from Selected ordering;
-- the presentation-control row above the image workspace always shows Page status
-  and selected range; previous/next arrows remain present and disable at endpoints;
+- the presentation-control row above the image workspace shows Page status and
+  selected range; previous/next controls remain present and disable at endpoints;
 - `Ctrl+Left` / `Ctrl+Right` move one Comparison Page only while that direction is
   available; unavailable Ctrl+Arrow remains native to the focused control;
 - `Left` / `Right` retain fine navigation across the complete ordered Selected set;
@@ -140,6 +142,30 @@ For `Selected > 6`:
   full Current Comparison Page.
 
 PageUp/PageDown are not reused for Comparison Page navigation.
+
+## P3-E presentation-row integration
+
+The production application composes the P3-D presentation row with a focused UI
+polish layer; command/state ownership remains in `MainWindow` and Display Gain
+remains owned by its existing session state.
+
+Presentation row contract:
+
+- Layout remains on the left with Auto / Single View / Multi View.
+- Comparison Page uses compact programmatic high-DPI Previous/Next icons from the
+  existing PixelScope icon infrastructure.
+- Previous/Next are `QToolButton` controls with stable geometry, explicit disabled
+  endpoint states, tooltips, accessible names/text, and `NoFocus` mouse-command
+  behavior; Ctrl+Left/Ctrl+Right remain the keyboard command owners.
+- Page index and Selected range remain fixed-width semantic labels, preventing
+  endpoint or digit-count layout shift.
+- Display Gain stays on the right at 1×/2×/4×/8×/16× and is viewer-only.
+- existing `design_tokens.py` colors, spacing, control height, border, and disabled
+  text conventions define command-bar styling and Windows dark-UI contrast.
+- the row remains distinct from the Main toolbar and directly above the image
+  workspace.
+
+No Review Pick/Keep Picked workflow state is introduced in P3-E.
 
 ## RAW registration boundary
 
@@ -165,8 +191,8 @@ leaves it registered and pending, starts no worker, and passive rerenders do not
 immediately reopen the dialog. A later explicit foreground action may retry.
 
 No profile is inferred from file size or other weak evidence. The RAW dialog uses
-**Load Profile...** / **Save Profile...** terminology. P3-D adds no global Profile
-Library, profile CRUD manager, last-profile reuse, apply-to-all behavior,
+**Load Profile...** / **Save Profile...** terminology. P3-D/P3-E add no global
+Profile Library, profile CRUD manager, last-profile reuse, apply-to-all behavior,
 size-only/fuzzy matching, sensor/Bayer inference, or Black/White estimation.
 
 ## Navigation and analysis baseline
@@ -207,11 +233,16 @@ display = anchor + gain * (source - anchor)
 - RAW 1× uses native effective full scale;
 - RAW gain >1 uses `B + G * (X - B)` with existing Gray/Bayer Black rules;
 - 1× reuses canonical preview;
-- gain changes do not mutate source, analysis results, residency, or Difference.
+- gain changes do not mutate source, analysis results, request identity, residency,
+  or Difference.
+
+P3-E adds regression coverage that a pure Display Gain change does not reissue
+Statistics, Difference-input, or Line Profile document requests when the native
+numerical working set is unchanged.
 
 ## Runtime/settings baseline
 
-Settings schema remains version 5. P3-D adds no settings/schema migration and no
+Settings schema remains version 5. P3-E adds no settings/schema migration and no
 Settings-owned RAW profile collection.
 
 Source residency remains exact native `source.nbytes` under P2 protected soft-budget
@@ -222,7 +253,7 @@ foreground preload, and Difference dependencies. Selected-but-off-page resident
 sources may therefore be evicted and normally reloaded when revisited.
 
 Difference cache remains independent. Preload remains +1 Folder Position, max-one
-dedicated worker, with running-preload promotion as established by P2. P3-D does
+dedicated worker, with running-preload promotion as established by P2. P3-E does
 not add Comparison Page preloading. Diagnostics remain deterministic, bounded,
 sanitized, and observation-only.
 
@@ -231,22 +262,22 @@ sanitized, and observation-only.
 1. P3-A — Difference Gray / Mixed Bit-Depth Support — Complete — PR #22
 2. P3-B — RAW Native & Display Semantics — Complete — PR #24
 3. P3-C — Display Gain Extension — Complete — PR #25
-4. P3-D — Unified Image Opening & RAW Profile Resolution — In progress
-5. P3-E — Integration & Hardening
+4. P3-D — Unified Image Opening & RAW Profile Resolution — Complete — PR #26
+5. P3-E — Integration, Presentation UI Polish & Phase Hardening — implemented on
+   feature branch; owner/local validation, independent review, and merge pending
 
-## P3-D validation state
+## Validation state
 
-Focused tests now cover unified menu/filter behavior, Open Images multi-selection,
-large logical selections, derived Comparison Pages, local slots, fine/coarse
-navigation, partial final-page clearing, page-authoritative Statistics/Histogram/
-Line Profile/Difference inputs, bounded residency protection, Folder Position /
-Comparison Page preload separation, RAW off-page/lazy behavior and cancel retry
-boundaries, native Open Folder registration, multi-folder D&D, folder/image/mixed
-D&D intent, Split transient working-set behavior, shortcut focus ownership,
-six-source Difference cache-hit parity, and registered-but-unselected state.
+P3-D owner/local Windows validation PASS and independent review are complete, and
+PR #26 is merged at `b16ecc558ac24225e9ddfddfca4e48e37fde61ca`.
 
-Owner/local Windows validation PASS is recorded for exact PR head
-`c5bcd19801d04b81b31422d25eb3061597dc3240`. The repository owner reports the full validation contract passed,
-including pytest, Ruff check/format, mypy, pip check, docs check, `git diff --check`,
-and manual P3-D behavior validation. The final independent re-review found no
-remaining runtime/code blocker and requested only this durable-status reconciliation.
+P3-E adds focused deterministic coverage for presentation-row command semantics,
+15-image first/middle/final endpoint states, 50-image page-bounded foreground
+loading/protection, final short-page clearing, and presentation-only gain changes
+without numerical analysis-request churn. Existing P3-A–P3-D and P2 regression
+suites remain the authoritative cross-feature coverage for Difference domains, RAW
+Black/CFA behavior, Split Channels, preload, eviction/reload, lazy RAW resolution,
+Difference cache ownership, and request dedup.
+
+**P3-E tests have not been run by the Chat implementation agent. Owner/local
+Windows validation is pending. Independent review and merge are pending.**
