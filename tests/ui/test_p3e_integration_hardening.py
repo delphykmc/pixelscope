@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QItemSelectionModel, QSettings, Qt
-from PySide6.QtWidgets import QComboBox, QToolButton
+from PySide6.QtWidgets import QApplication, QComboBox, QToolButton
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
@@ -186,6 +186,8 @@ def test_production_composition_wires_page_gain_focus_and_lifetime(
         _select_documents(window, documents)
         window.show()
         qtbot.waitUntil(lambda: window.isVisible())  # type: ignore[attr-defined]
+        QApplication.setActiveWindow(window)
+        qtbot.waitUntil(lambda: QApplication.activeWindow() is window)  # type: ignore[attr-defined]
 
         selected_ids = tuple(document.document_id for document in window.selected_documents)
         previous = window.previous_comparison_page_button
@@ -293,6 +295,8 @@ def test_production_composition_wires_page_gain_focus_and_lifetime(
     second_window.set_layout_mode("Single View")
     second_window.show()
     qtbot.waitUntil(lambda: second_window.viewer.document is second_document)  # type: ignore[attr-defined]
+    QApplication.setActiveWindow(second_window)
+    qtbot.waitUntil(lambda: QApplication.activeWindow() is second_window)  # type: ignore[attr-defined]
     second_target = second_window.viewer._graphics.viewport()
     second_target.setFocus()
     qtbot.waitUntil(lambda: second_target.hasFocus())  # type: ignore[attr-defined]
