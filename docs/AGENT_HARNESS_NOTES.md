@@ -92,6 +92,39 @@ More autonomy is justified only when the repository can answer quickly:
 
 Longer prompts do not compensate for slow, flaky, or missing feedback.
 
+### Qt UI harness lessons from P3-E
+
+Production-like Qt interaction tests need to reproduce **event ownership and
+lifetime**, not only widget state. The P3-E production-composition regression
+exposed three reusable rules for future agents:
+
+- A visible child widget with focus does not by itself prove that a
+  `QShortcut` context is active. For real shortcut-event tests, make the
+  top-level window the Qt active window (for example with
+  `QApplication.setActiveWindow(window)`), assert that active-window state, then
+  send the actual key event to the intended focused widget. This is especially
+  important for `WidgetShortcut` / `WidgetWithChildrenShortcut` behavior on
+  Windows under `pytest-qt`.
+- Tree/list helpers can mutate application selection while a test is only trying
+  to move keyboard focus. `QTreeWidget.setCurrentItem()` may therefore change the
+  selected document set and indirectly disable presentation controls. When the
+  test intends to preserve selection, use an explicit no-selection-update path
+  such as `QItemSelectionModel.SelectionFlag.NoUpdate` and assert the selected
+  IDs before and after the focus-only operation.
+- A failed UI test can contaminate later tests if a top-level window survives.
+  PixelScope owns several `ApplicationShortcut`s, so an aborted test that leaves
+  a window alive can make unrelated Arrow/Number/PageUp/PageDown tests fail by
+  intercepting later key events. Tests that manually manage a window lifetime
+  should use `try/finally`, close/delete the window, process deferred-delete
+  events when required, and avoid touching deleted Qt wrappers afterward.
+
+When one new UI test fails and several later keyboard tests fail in apparently
+unrelated features, first rerun the later tests without the failing predecessor.
+If they pass, investigate leaked Qt objects/shortcuts and test cleanup before
+assuming multiple production regressions. Keep shortcut-logic unit coverage
+separate from at least one production-composition test that exercises the real
+mouse/key/focus boundary.
+
 ### 7. Treat entropy as recurring work
 
 The PR #1–#9 audit exposed a representative failure mode: implementation moved
