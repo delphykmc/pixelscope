@@ -34,12 +34,12 @@ Comparison Page is images 1–6, followed by 7–12 and 13–15.
 PNG/BMP/JPEG open directly. RAW uses the same command but resolves RAW profile
 metadata internally. There is no separate top-level RAW-open command.
 
-### Open Folders...
+### Open Folder...
 
-Use **File > Open Folders...** (`Ctrl+Shift+O`) when you are adding datasets to the
-Files workspace. The Qt dialog supports multiple existing directories in one
-operation. Duplicate resolved paths are removed deterministically and folder count
-is not limited to six.
+Use **File > Open Folder...** (`Ctrl+Shift+O`) when you are adding a dataset folder
+to the Files workspace. The native folder picker selects one directory per
+invocation. To register several folders at once, drag/drop them into Files; the same
+registration API deduplicates supplied paths and has no six-folder limit.
 
 Opening folders is **registration-only**:
 
@@ -57,7 +57,7 @@ and current view state are not reset merely because another folder was registere
 
 If images are registered but nothing is selected, the center workspace shows
 **Select an image from Files to view**. A truly empty workspace shows **Drop images
-or folders here** with Open Images/Open Folders buttons.
+or folders here** with Open Images/Open Folder buttons.
 
 ### Drag and drop
 
@@ -74,20 +74,22 @@ files are ignored rather than interpreted as RAW.
 
 ## Current Comparison Page navigation
 
-When six or fewer images are Selected, there is one Comparison Page and the
-large-selection controls stay hidden. Existing Auto/Single/Multi behavior is
-unchanged.
-
-When more than six images are Selected, the toolbar shows the current range, for
-example:
+The presentation-control row above the image workspace always shows Comparison
+Page status, including when there is only one page. Previous/next arrows remain in
+place and are disabled when that direction is unavailable, so the controls do not
+shift as selection size changes. Existing Auto/Single/Multi behavior remains
+unchanged for six or fewer Selected images. For example, a three-page selection may
+show:
 
 ```text
-[‹] 7–12 of 15 [›]
+Page [‹] 2 / 3 [›]  7–12 of 15
 ```
 
-- **Ctrl+Left**: Previous Comparison Page.
-- **Ctrl+Right**: Next Comparison Page.
-- Page navigation does not wrap at the first/last page.
+- **Ctrl+Left**: Previous Comparison Page when available.
+- **Ctrl+Right**: Next Comparison Page when available.
+- Page navigation does not wrap at the first/last page. At an unavailable endpoint
+  the application shortcut is disabled, so Ctrl+Arrow remains available to the
+  focused editor/control.
 - Changing page does not change Selected membership/order.
 - The active local slot is preserved when possible; a short final page clamps to
   its last available slot.
@@ -139,7 +141,11 @@ one-to-six images to use Folder Position again.
 - Selecting a primary flag changes presentation order within the Current Comparison
   Page without changing Selected ordering or page membership.
 - **Fit** fits visible tiles; **100%** uses native pixel scale.
-- **Split Channels** presents RGB or Bayer component views.
+- **Split Channels** keeps one source Selected in Files but derives transient
+  R/G/B or R/Gr/Gb/B viewer-local subchannels. Multi View exposes explicit Primary;
+  Single View navigates the same local subchannels with number/header/Left/Right
+  controls. Native Statistics/Histogram/Line/Difference authority remains on the
+  original source page.
 
 Registration count is independent of all of these presentation choices.
 
@@ -305,7 +311,7 @@ Open **Edit > Settings...**. Categories are **General**, **Files**, and
 ### Files
 
 **Default Open Folder** controls the initial directory for Open Images and Open
-Folders. **Default Export Folder** controls export dialogs. Blank values retain
+Folder. **Default Export Folder** controls export dialogs. Blank values retain
 last-used-folder behavior. These are starting locations, not workspace registration
 limits.
 

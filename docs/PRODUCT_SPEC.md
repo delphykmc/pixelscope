@@ -45,7 +45,9 @@ residency. Selected membership alone does not imply residency.
 ### Image and folder input
 
 PixelScope exposes **Open Images...** for selection-oriented image input and
-**Open Folders...** for registration-oriented dataset input. Supported images are:
+**Open Folder...** for native single-folder registration. Multiple folders remain
+registration-only through folder drag/drop or the registration API. Supported
+images are:
 
 ```text
 .png  .bmp  .jpg  .jpeg  .raw
@@ -60,13 +62,14 @@ registered and becomes part of the ordered Selected set. If more than six files 
 supplied, none are discarded: the initial Current Comparison Page contains the
 first six and later pages preserve the same Selected membership/order.
 
-**Open Folders...** supports multiple existing directories in one Qt-only picker.
-Resolved folder paths are deduplicated and ordered deterministically. Folder count
-has no artificial six-item limit. Supported immediate contents are registered in
-Files, but current Selected, Current Comparison Page, and presentation are not
-changed and no first image is automatically selected. A two-folder input is not a
-special comparison command. Folders with no supported images are skipped without
-failing other selected folders.
+**Open Folder...** uses the native single-folder picker and registers one existing
+directory per invocation. Multiple folders remain supported through folder
+drag/drop or the registration API; when multiple paths are supplied there, resolved
+paths are deduplicated and ordered deterministically. Folder registration has no
+artificial six-item limit. Supported immediate contents are registered in Files,
+but current Selected, Current Comparison Page, and presentation are not changed and
+no first image is automatically selected. Two folders are never a special comparison
+command. Folders with no supported images are skipped without failing other inputs.
 
 Drag/drop preserves the same intent split:
 
@@ -104,9 +107,13 @@ For `Selected > 6`:
 - Left/Right remains Previous/Next Selected Image across the complete Selected set;
 - crossing a page boundary with Left/Right automatically changes the page so the
   active image remains in context;
-- Ctrl+Left/Ctrl+Right moves Previous/Next Comparison Page;
-- Comparison Page navigation does not wrap at endpoints;
-- a compact affordance exposes current range and total, e.g. `7–12 of 15`;
+- Ctrl+Left/Ctrl+Right moves Previous/Next Comparison Page; the application-wide
+  shortcut is enabled only when that direction can move;
+- Comparison Page navigation does not wrap at endpoints, and unavailable Ctrl+Arrow
+  remains available to the focused control;
+- the presentation-control row above the image workspace always exposes Page status
+  and the current range/total, including a single page; previous/next arrows stay
+  present and disable at unavailable endpoints;
 - page navigation preserves the active local slot when possible and clamps it on a
   short final page;
 - primary/focus presentation ordering is page-local and cannot change Selected
@@ -163,6 +170,10 @@ all selected RAW files, or pick a profile from byte size alone.
   line coordinates.
 - Fixed two/three/four/five/six-image presentation layouts remain for
   `Selected <= 6`; large selections use fixed six-slot page geometry.
+- **Split Channels** derives a transient R/G/B or R/Gr/Gb/B presentation working
+  set from one Selected source. Multi View exposes explicit subchannel Primary;
+  Single View navigates the same local subchannels. Files selection and native
+  Current Comparison Page analysis remain source-owned.
 - Structured status reports active file, format/resolution, coordinate, pixel
   value, zoom, and background work.
 - Statistics uses explicit image/channel fields and full-image/ROI scope.

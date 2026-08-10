@@ -25,17 +25,21 @@ py -3.10 -m venv .venv
 ```
 
 Use **File > Open Images...** for selection-oriented direct file input and
-**File > Open Folders...** for registration-oriented folder input. Direct image
-files are registered and become the ordered logical selection; folder contents are
-registered in Files without changing that selection or the current presentation.
+**File > Open Folder...** for native single-folder registration. Multiple folders
+remain registration-only through folder drag/drop or the registration API. Direct
+image files are registered and become the ordered logical selection; folder contents
+are registered in Files without changing that selection or the current presentation.
 Registration and logical selection are not limited by viewer capacity.
 
 For more than six selected images, PixelScope derives a maximum-six **Current
 Comparison Page** from selection order. Multi View presents that page; Single View
 presents one page-local active image while Statistics, Histogram, Line Profile,
 and other default comparison analysis remain scoped to the same page. Viewer slots
-are local 1–6. `Ctrl+Left` / `Ctrl+Right` moves one Comparison Page, while
-Left/Right remains fine Previous/Next Selected Image navigation. PageUp/PageDown
+are local 1–6. The presentation-control row above the image workspace keeps
+Page status visible even for one page; previous/next arrows remain present and are
+disabled at unavailable endpoints. `Ctrl+Left` / `Ctrl+Right` moves one Comparison
+Page only when that direction is available, while Left/Right remains fine
+Previous/Next Selected Image navigation. PageUp/PageDown
 remains Folder Position and is available only for one-to-six selected images from
 distinct folders.
 

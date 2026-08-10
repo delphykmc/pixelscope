@@ -106,10 +106,12 @@ later pages are reached without changing Selected membership/order.
 
 ### Registration-oriented folder input
 
-`Open Folders...` uses a project-local, Qt-only non-native `QFileDialog` configured
-for extended directory selection. Selected existing directories are resolved,
-case-insensitively deduplicated, and deterministically ordered. No Windows COM
-runtime dependency is introduced.
+`Open Folder...` uses the native single-directory
+`QFileDialog.getExistingDirectory()` path and registers one folder per invocation.
+Multiple-folder registration remains supported through folder drag/drop and the
+registration API, with deterministic resolved-path deduplication where multiple
+paths are supplied. No custom multi-directory picker or Windows COM dependency is
+introduced.
 
 Opened or dropped folders use:
 
@@ -143,7 +145,7 @@ reports registered image/folder counts without implying presentation.
 `documents > 0` with zero selected documents is a valid state. `EmptyWorkspace`
 uses the same central-stack component in two modes:
 
-- truly empty: **Drop images or folders here**, with Open Images/Open Folders;
+- truly empty: **Drop images or folders here**, with Open Images/Open Folder;
 - registered but unselected: **Select an image from Files to view**.
 
 Actions that require a Selected/current-page source remain unavailable until
@@ -162,8 +164,12 @@ For `Selected > 6`:
 - `_page_start` is aligned in six-image increments and page membership is derived
   from Selected ordering;
 - Previous/Next Comparison Page are separate coarse actions using
-  `Ctrl+Left` / `Ctrl+Right` with non-wrapping endpoints;
-- compact toolbar controls show the current Selected range such as `7–12 of 15`;
+  `Ctrl+Left` / `Ctrl+Right` with non-wrapping endpoints; their application-wide
+  `QShortcut` is enabled only while that page direction is available, so unavailable
+  Ctrl+Arrow input remains owned by the focused control;
+- the presentation-control row above the image workspace keeps Page status and the
+  current Selected range visible even for a single page; previous/next arrows remain
+  present and disable at unavailable endpoints;
 - `Left` / `Right` remain Previous/Next Selected Image fine navigation across the
   complete ordered Selected set;
 - fine navigation crossing a page boundary updates `_page_start` so the active
@@ -180,6 +186,19 @@ For `Selected > 6`:
 `MultiCompareView.set_documents()` accepts a fixed geometry count and local-slot
 presentation mode for this bounded large-selection case. For `Selected <= 6`, the
 existing fixed two/three/four/five/six geometry contract is retained.
+
+### Split Channels presentation working set
+
+Split Channels does not add Registered or Selected documents. When exactly one
+supported RGB/RGBA or Bayer source is Selected, PixelScope derives a transient
+presentation working set (`R/G/B` or `R/Gr/Gb/B`). Multi View presents those
+subchannels with an explicit Primary; Single View presents one subchannel and uses
+local number/header/Left/Right navigation across the same transient set. Primary
+and active subchannel state survive Single/Multi presentation changes. Files still
+contains and selects only the original source, while Statistics, Histogram, Line
+Profile, Difference authority, source loading, and residency remain bound to the
+native Current Comparison Page source. Pending/loading sources keep channel
+placeholders so an unsplit stale frame is never presented while Split is active.
 
 ## RAW profile-resolution boundary
 
@@ -367,7 +386,9 @@ Difference panel inputs default to the Current Comparison Page, while the panel'
 explicit Image 1/Image 2 pair remains feature-owned authority. Difference never
 consumes general Display Gain, RAW Black/White metadata, `DisplayTransform`, or
 preview pixels. Folder-only registration does not invalidate Difference cache or
-presentation because it does not change Selected/current-page lifecycle.
+presentation because it does not change Selected/current-page lifecycle. For a
+six-source page, a cached Difference hit and an asynchronous fresh result share the
+same Diff-only Single View presentation and workspace-restore contract.
 
 ## RAW decode/display boundary
 

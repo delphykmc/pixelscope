@@ -1,16 +1,16 @@
 # UI implementation status
 
-Status: Current through P3-C merge baseline; P3-D unified input and Current Comparison Page work is active.
+Status: P3-D review follow-up active on PR #26; prior owner validation passed at `a462953b`, current follow-up head awaits owner revalidation.
 
 ## Current shell
 
-- Main toolbar remains focused on layout/view/analysis controls rather than file
-  opening, with a compact Comparison Page affordance shown only for large Selected
-  sets.
-- File menu owns **Open Images...** (`Ctrl+O`) and **Open Folders...**
+- Main toolbar owns image-view/analysis actions. **Layout / Page / Display Gain**
+  live in the dedicated presentation-control row above the image workspace. Page
+  status remains visible for one or many pages, with endpoint arrows disabled.
+- File menu owns **Open Images...** (`Ctrl+O`) and **Open Folder...**
   (`Ctrl+Shift+O`).
 - There is no separate **Open RAW with Profile...** action.
-- Empty Workspace exposes Open Images/Open Folders only in the truly-empty state.
+- Empty Workspace exposes Open Images/Open Folder only in the truly-empty state.
 - Files tree is the catalog/selection surface and keeps native Up/Down plus
   expand/collapse key behavior.
 - Analysis panel contains Statistics and Difference. Plots contains Histogram and
@@ -39,10 +39,10 @@ Resident when required
 - Viewer slots are local `1..6` inside the current page.
 - Open Images is selection-oriented: all directly selected supported files are
   registered and Selected.
-- Open Folders is registration-oriented: multiple folders may be added without
-  changing Selected, Current Comparison Page, or viewer presentation.
-- The project-local Qt folder picker uses extended multi-directory selection,
-  deterministic resolved-path deduplication, and no six-folder limit.
+- Open Folder is registration-oriented and uses the native single-folder picker
+  without changing Selected, Current Comparison Page, or viewer presentation.
+- Multiple folders remain registration-only through folder D&D / the registration
+  API, with deterministic resolved-path deduplication and no six-folder limit.
 - Folder D&D is registration-only for any folder count; the old exactly-two-folder
   auto-comparison behavior is removed.
 - Direct image-file D&D registers and selects those files.
@@ -58,10 +58,12 @@ Difference presentation, Display Gain, or existing view state.
 
 ## Current Comparison Page UI
 
-Large logical selections (`Selected > 6`) expose compact Previous/Next Comparison
-Page controls with the current Selected range, for example `7–12 of 15`.
+The presentation-control row always exposes Previous/Next Comparison Page controls,
+page number, and current Selected range. For one page both arrows remain visible and
+disabled; for multiple pages only unavailable endpoint directions are disabled.
 
-- `Ctrl+Left` / `Ctrl+Right` moves one Comparison Page and does not wrap.
+- `Ctrl+Left` / `Ctrl+Right` moves one Comparison Page and does not wrap. The
+  application-wide shortcut is enabled only while that direction is available.
 - `Left` / `Right` remains fine Previous/Next Selected Image navigation.
 - `PageUp` / `PageDown` remains Folder Position only.
 - Number keys `1..6` retain page-local slot meaning.
@@ -70,8 +72,8 @@ Page controls with the current Selected range, for example `7–12 of 15`.
   clears unused slots rather than reflowing geometry.
 - Primary/focus ordering is page-local and does not change Selected ordering or page
   membership.
-- When `Selected <= 6`, large-selection page controls are hidden and existing
-  Auto/Single/Multi behavior is retained.
+- When `Selected <= 6`, the same Page controls remain visible with `1 / 1`, the
+  selected range, and disabled arrows; Auto/Single/Multi behavior is retained.
 - When `Selected > 6`, Folder Position is unavailable rather than operating on only
   the current page.
 
@@ -102,7 +104,10 @@ the compatible profile format.
   follow the same Current Comparison Page authority.
 - PageUp/PageDown Folder Position derives only from one-to-six currently Selected
   documents, not from every registered folder.
-- Split Channels remains available for supported RGB/RGBA/Bayer sources.
+- Split Channels derives transient R/G/B or R/Gr/Gb/B presentation documents from
+  one Selected source. Multi View exposes explicit subchannel Primary; Single View
+  navigates the same local subchannels. Files selection and native analysis/residency
+  remain source-owned.
 
 ## Display Gain status
 
@@ -135,5 +140,7 @@ protection, Folder Position separation, lazy RAW cancel/retry behavior,
 multi-folder registration/deduplication, D&D intent, registered-but-unselected
 state, and folder-only preservation of presentation/runtime state.
 
-Tests were not run by this Chat implementation agent. Owner/local Windows
-validation is pending.
+Owner/local Windows validation passed on review baseline `a462953b`. The current
+independent-review follow-up adds runtime/test/doc changes after that baseline and
+therefore awaits owner/local Windows revalidation. No PASS is claimed for the new
+head by the Chat implementation agent.

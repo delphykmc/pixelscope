@@ -46,8 +46,9 @@
   Black Level, and White Level remain separate concepts.
 - **Open Images...** is selection-oriented and is the one top-level file-open
   command for PNG/BMP/JPEG/RAW.
-- **Open Folders...** is registration-oriented and may register arbitrary practical
-  folder counts without changing Selected, Current Comparison Page, or
+- **Open Folder...** is registration-oriented and uses the native single-folder
+  picker. Multiple-folder registration remains available through folder D&D / the
+  registration API without changing Selected, Current Comparison Page, or
   presentation.
 - RAW-specific profile resolution is conditional logic inside the common input
   pipeline rather than a second user-facing open mode.
@@ -289,12 +290,12 @@ Resident when required
 
 - **Open Images...** is selection-oriented. It supports multi-file input, registers
   every supported direct file, and makes those files the ordered Selected set.
-- **Open Folders...** is registration-oriented. It supports multiple directories,
-  deterministic resolved-path deduplication, and arbitrary practical folder count.
-  It registers supported contents without changing Selected, Current Comparison
-  Page, or presentation.
+- **Open Folder...** is registration-oriented and uses the native single-directory
+  picker. Multiple folders remain supported through folder D&D / the registration
+  API with deterministic resolved-path deduplication; folder registration does not
+  change Selected, Current Comparison Page, or presentation.
 - Direct image-file D&D uses Open Images intent.
-- Folder D&D uses Open Folders intent for one, two, six, fifteen, or any other
+- Folder D&D uses Open Folder registration intent for one, two, six, fifteen, or any other
   practical count. Exactly two folders have no special comparison behavior.
 - Mixed D&D preserves both intents: direct files become Selected; folder contents
   remain registration-only.
@@ -336,12 +337,19 @@ Resident when required
 - Left/Right remains fine previous/next Selected Image navigation across the full
   ordered set and automatically changes page at a boundary.
 - Ctrl+Left/Ctrl+Right is separate non-wrapping Previous/Next Comparison Page
-  navigation. The UI exposes current range/total such as `7–12 of 15`.
+  navigation. Its application-wide `QShortcut` is enabled only while movement in
+  that direction is available. The presentation-control row keeps Page status and
+  range visible even for one page, with endpoint arrows disabled rather than hidden.
 - Coarse page movement preserves active local slot where possible and clamps it on
   a short final page.
 - Primary/focus ordering is page-local and cannot change Selected ordering or page
   membership.
 - PageUp/PageDown is never Comparison Page navigation.
+- Split Channels is a transient presentation working set derived from one Selected
+  source; it does not create Registered/Selected subchannel documents or move native
+  analysis/residency authority away from Current Comparison Page.
+- Six-source Difference cache hits and fresh asynchronous results have identical
+  Diff-only Single View presentation and workspace-restore semantics.
 
 ### Folder Position
 

@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: repository owner + P3 orchestration agents
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 Current merged P3 baseline: P3-C / PR #25 merge commit
 `7f6bef73e6712f6a14a4d401820a915196e25da2`
 
@@ -119,20 +119,21 @@ Requirements:
 - no separate **Open RAW with Profile...** action or `MainWindow.open_raw()` path;
 - no `*.*` RAW wildcard.
 
-### 2. Open Folders... — registration-oriented
+### 2. Open Folder... — registration-oriented
 
 Final folder command:
 
 ```text
-Open Folders...   Ctrl+Shift+O
+Open Folder...    Ctrl+Shift+O
 ```
 
 Requirements:
 
-- support multiple existing directories in one operation;
-- use a maintainable Qt/PySide implementation without a Windows COM dependency;
-- resolve/deduplicate directories deterministically;
-- permit arbitrary practical folder count; do not cap at six;
+- use the native single-directory picker for File > Open Folder;
+- keep multiple-folder registration through folder D&D / the registration API;
+- use no custom multi-directory picker or Windows COM dependency;
+- resolve/deduplicate multiple supplied directories deterministically;
+- permit arbitrary practical registered folder count; do not cap at six;
 - discover/register all supported immediate contents;
 - do not change Selected, Current Comparison Page, presentation, or layout;
 - do not auto-select a first image when selection is empty;
@@ -204,10 +205,12 @@ For `Selected > 6`:
 - number keys `1..6` address current-page local slots;
 - Left/Right remains Previous/Next Selected Image across the complete ordered set;
 - crossing a boundary updates Current Comparison Page automatically;
-- Ctrl+Left/Ctrl+Right moves Previous/Next Comparison Page;
+- Ctrl+Left/Ctrl+Right moves Previous/Next Comparison Page only while that
+  direction is available; the application-wide shortcut is disabled at an endpoint;
 - Comparison Page navigation does not wrap;
-- toolbar/page affordance exposes total Selected count and current range, e.g.
-  `7–12 of 15`;
+- the presentation-control row above the image workspace always exposes Page
+  status, total Selected count, and current range; arrows remain visible and disable
+  at unavailable endpoints;
 - page movement preserves the active local slot where possible and clamps on a
   short final page;
 - primary/focus changes are page-local and may not change Selected ordering/page
@@ -362,7 +365,7 @@ first six Selected images.
 #### Input regression
 
 - Open Images multi-file, ordinary+RAW, six and >6;
-- Open Folders 1/2/6/>6, dedup, registration-only, no first auto-select;
+- Open Folder plus multi-folder D&D 1/2/6/>6, dedup, registration-only, no first auto-select;
 - folder/image/mixed D&D intents;
 - registered-but-unselected state;
 - folder-only runtime preservation.
@@ -419,8 +422,11 @@ git diff --check
 
 Do not claim PASS without observed output.
 
-Tests were not run by this Chat implementation agent. Owner/local Windows
-validation is pending.
+Owner/local Windows validation passed on review baseline
+`a462953b01c713a4cc4054a78854a0ed0fde9c4e`. The independent-review follow-up adds
+shortcut-availability, cached six-source Difference parity, preload-separation tests,
+and documentation changes after that baseline; owner/local Windows revalidation is
+therefore pending for the current head.
 
 Owner manual P3-D checks should include:
 
@@ -437,7 +443,7 @@ Owner manual P3-D checks should include:
     may prompt again.
 11. Exercise large-selection page visits under a small source-memory setting and
     verify off-page reload/eviction behavior.
-12. Recheck Open Folders multi-selection and folder/image/mixed D&D intent.
+12. Recheck native Open Folder and multi-folder D&D and folder/image/mixed D&D intent.
 13. Recheck Difference, Display Gain, ROI, Split Channels, and Plots regressions.
 
 ## P3 exit criteria

@@ -1,6 +1,6 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-09
+Snapshot date: 2026-08-10
 Current merged baseline / P3-C PR #25 merge commit:
 `7f6bef73e6712f6a14a4d401820a915196e25da2`
 
@@ -80,13 +80,14 @@ Selection-oriented input:
 
 There is no separate **Open RAW with Profile...** action.
 
-### Open Folders...
+### Open Folder...
 
 Registration-oriented input:
 
-- multiple existing directories may be selected in one Qt-only dialog;
-- resolved directory paths are deduplicated and ordered deterministically;
-- practical folder count is not limited to six;
+- the native picker selects one existing directory per invocation;
+- multiple folders remain supported through folder D&D / the registration API;
+- multiple supplied directory paths are deduplicated and ordered deterministically;
+- practical folder registration count is not limited to six;
 - supported immediate contents are registered in Files;
 - current Selected set, Current Comparison Page, and presentation do not change;
 - no first image is automatically selected;
@@ -101,7 +102,7 @@ render lifecycle.
 ### Drag and drop
 
 - dropped image files are registration + selection oriented, like Open Images;
-- dropped folders are registration-only, like Open Folders;
+- dropped folders are registration-only, like Open Folder registration;
 - any folder count uses the same policy; there is no exactly-two-folder special case;
 - mixed file + folder drop preserves both intents: explicit files become Selected
   while folder contents remain registered-only.
@@ -113,7 +114,7 @@ Unsupported files and standalone `.json` sidecars never become image documents.
 `registered documents > 0` with `selected documents == 0` is a supported state.
 The central workspace displays **Select an image from Files to view**. A truly
 empty workspace instead displays **Drop images or folders here** with Open Images
-and Open Folders actions.
+and Open Folder actions.
 
 ## Current Comparison Page navigation
 
@@ -123,9 +124,10 @@ behavior remains the baseline.
 For `Selected > 6`:
 
 - pages are derived in six-image chunks from Selected ordering;
-- the toolbar exposes the selected range, such as `7–12 of 15`, with non-wrapping
-  previous/next page controls;
-- `Ctrl+Left` / `Ctrl+Right` move one Comparison Page;
+- the presentation-control row above the image workspace always shows Page status
+  and selected range; previous/next arrows remain present and disable at endpoints;
+- `Ctrl+Left` / `Ctrl+Right` move one Comparison Page only while that direction is
+  available; unavailable Ctrl+Arrow remains native to the focused control;
 - `Left` / `Right` retain fine navigation across the complete ordered Selected set;
 - crossing a page boundary with Left/Right automatically changes Current Comparison
   Page so the active image remains in context;
@@ -180,8 +182,10 @@ size-only/fuzzy matching, sensor/Bayer inference, or Black/White estimation.
   same Current Comparison Page authority.
 - Feature-owned explicit Difference Image 1/Image 2 authority remains unchanged.
 - ROI uses Ctrl+drag / Esc; Line Profile uses Shift+drag / Shift+Esc.
-- Statistics, Histogram, Line Profile, Difference, Split Channels, and pixel
-  inspection consume native source semantics rather than gained preview pixels.
+- Statistics, Histogram, Line Profile, Difference, and pixel inspection consume
+  native source semantics rather than gained preview pixels. Split Channels derives
+  a transient viewer-local R/G/B or R/Gr/Gb/B working set while Files selection and
+  native analysis authority remain on the original Current Comparison Page source.
 - Difference supports Gray, RGB/RGBA, and same-CFA Bayer with native/normalized
   domain rules established by P3-A.
 
@@ -235,11 +239,14 @@ sanitized, and observation-only.
 Focused tests now cover unified menu/filter behavior, Open Images multi-selection,
 large logical selections, derived Comparison Pages, local slots, fine/coarse
 navigation, partial final-page clearing, page-authoritative Statistics/Histogram/
-Line Profile/Difference inputs, bounded residency protection, Folder Position
-separation, RAW off-page/lazy behavior and cancel retry boundaries, Open Folders
-multi-directory registration/deduplication, folder/image/mixed D&D intent, and
-registered-but-unselected state.
+Line Profile/Difference inputs, bounded residency protection, Folder Position /
+Comparison Page preload separation, RAW off-page/lazy behavior and cancel retry
+boundaries, native Open Folder registration, multi-folder D&D, folder/image/mixed
+D&D intent, Split transient working-set behavior, shortcut focus ownership,
+six-source Difference cache-hit parity, and registered-but-unselected state.
 
-The Chat implementation agent does not run the Windows `.venv` validation suite.
-Owner/local Windows validation is required before merge; no P3-D PASS claim is
-recorded here.
+Owner/local Windows validation passed on review baseline
+`a462953b01c713a4cc4054a78854a0ed0fde9c4e`. Independent-review follow-up code and
+documentation were added afterward, so the current review-follow-up head requires
+owner/local Windows revalidation before merge. The Chat implementation agent does
+not claim a PASS for the new head.
