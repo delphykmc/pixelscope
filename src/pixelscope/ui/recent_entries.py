@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable
@@ -15,6 +16,8 @@ from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
 from pixelscope.ui.comparison_set import ComparisonSetController
 from pixelscope.ui.design_tokens import menu_style
+
+LOGGER = logging.getLogger(__name__)
 
 
 class RecentEntriesController:
@@ -90,8 +93,7 @@ class RecentEntriesController:
                     and document.source_path is not None
                 ]
                 if paths:
-                    self.repository.record(RecentEntryKind.IMAGE, paths)
-                    self.refresh_menu()
+                    self._observe_history(RecentEntryKind.IMAGE, paths)
             return document_ids
 
         def observed_register_folders(folders: Sequence[Path]) -> Any:
@@ -99,12 +101,28 @@ class RecentEntriesController:
             result = self._register_folders_original(folders)
             existing = tuple(folder for folder in supplied if folder.is_dir())
             if existing:
-                self.repository.record(RecentEntryKind.FOLDER, existing)
-                self.refresh_menu()
+                self._observe_history(RecentEntryKind.FOLDER, existing)
             return result
 
         self.window._register_inputs = observed_register_inputs
         self.window.register_folders = observed_register_folders
+
+    def _observe_history(
+        self,
+        kind: RecentEntryKind,
+        paths: Sequence[str | Path],
+    ) -> None:
+        """Best-effort observer boundary; Recent must never own workflow correctness."""
+
+        try:
+            self.repository.record(kind, paths)
+            self.refresh_menu()
+        except Exception:  # noqa: BLE001 - optional history must not break runtime work
+            LOGGER.warning(
+                "Unable to update Recent %s history",
+                kind.value,
+                exc_info=True,
+            )
 
     def _install_recent_menu(self) -> None:
         actions = self.file_menu.actions()
@@ -204,8 +222,7 @@ class RecentEntriesController:
         if loaded == 0:
             return
         self._remember_directory(path.parent)
-        self.repository.record(RecentEntryKind.COMPARISON_SET, [path])
-        self.refresh_menu()
+        self._observe_history(RecentEntryKind.COMPARISON_SET, [path])
         self.comparison_set_controller.show_open_feedback(path, loaded, missing)
 
     def _entry_exists(self, kind: RecentEntryKind, path: Path) -> bool:
@@ -214,23 +231,37 @@ class RecentEntriesController:
         return path.is_file()
 
     def _remove_missing(self, kind: RecentEntryKind, path: Path) -> None:
-        self.repository.remove(kind, path)
-        self.refresh_menu()
+        try:
+            self.repository.remove(kind, path)
+            self.refresh_menu()
+        except Exception:  # noqa: BLE001 - stale-entry cleanup is also non-authoritative
+            LOGGER.warning(
+                "Unable to remove unavailable Recent %s entry",
+                kind.value,
+                exc_info=True,
+            )
         QMessageBox.warning(
             self.window,
             "Recent entry unavailable",
             f"The saved {kind.value.replace('_', ' ')} path is no longer available. "
-            "It was removed from Recent Entries.\n\n"
+            "It was removed from Recent Entries when possible.\n\n"
             f"{path}",
         )
 
     def _record_comparison_set(self, path: Path) -> None:
-        self.repository.record(RecentEntryKind.COMPARISON_SET, [path])
-        self.refresh_menu()
+        self._observe_history(RecentEntryKind.COMPARISON_SET, [path])
 
     def clear_all(self) -> None:
-        self.repository.clear()
-        self.refresh_menu()
+        try:
+            self.repository.clear()
+            self.refresh_menu()
+        except Exception as exc:  # noqa: BLE001 - report history-storage failure to user
+            QMessageBox.warning(
+                self.window,
+                "Cannot clear Recent Entries",
+                str(exc),
+            )
+            return
         self.window.statusBar().showMessage("Recent Entries cleared", 3000)
 
     def _remember_directory(self, path: Path) -> None:
