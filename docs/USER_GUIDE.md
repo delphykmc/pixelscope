@@ -155,6 +155,54 @@ Only the explicit **Pick** control changes curation membership. Normal image pan
 Ctrl+drag ROI, Shift+drag Line Profile, and ordinary tile activation do not toggle
 Pick state.
 
+## Save and open Comparison Sets
+
+Use **File > Save Comparison Set...** to save the current logical comparison
+membership for later reuse. PixelScope writes a `.pixelscope` JSON v1 artifact.
+
+A Comparison Set stores:
+
+- the ordered logical **Selected** native-source paths;
+- the selected **Active** source when applicable;
+- the current-page **Primary** source when applicable;
+- the stable layout mode;
+- resolved RAW profile metadata only when it is needed to reconstruct a saved RAW
+  source.
+
+Temporary Picks are not saved as their own membership. If you have checked Picks
+but have **not** used Keep Selection, Save Comparison Set still writes the current
+logical Selected set. If you first use **Keep Selection**, the resulting curated
+Selected subset is what is saved. Saving never applies or clears Picks.
+
+Use **File > Open Comparison Set...** to open a saved set. PixelScope validates the
+artifact before replacing logical Selected. Loadable saved sources become Selected
+in saved order; unrelated images already Registered in Files stay Registered. Saved
+Active determines the resulting Current Comparison Page, then an applicable Primary
+and the saved layout are restored. The Current Comparison Page/page offset itself is
+not stored in the file.
+
+If some saved paths are missing, the available sources are opened and a compact
+warning reports the unavailable paths. If none of the saved sources can be loaded,
+the current logical workspace is left unchanged. Corrupt files, unsupported/future
+schema versions, wrong artifact kind, invalid paths/layout, or invalid embedded RAW
+metadata are rejected without beginning registration or foreground loading.
+
+Resolved RAW metadata saved in the artifact is restored before foreground use.
+Unresolved RAW remains unresolved and follows the normal foreground RAW Profile
+workflow when it is actually needed. Saving a Comparison Set does not force an
+unresolved RAW to resolve.
+
+Comparison Set v1 identifies sources by normalized **absolute local paths** and does
+not relocate or fuzzy-match moved files. This makes the file deterministic but not
+portable across arbitrary machines or directory layouts. A `.pixelscope` file can
+also reveal local filesystem path names, so review it before sharing outside the
+intended environment.
+
+Comparison Sets do not save decoded image arrays, residency/LRU/preload state,
+Difference maps/cache, Display Gain, analysis request/results, workers/tokens,
+Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
+Pick state. Application Settings schema remains version 5.
+
 ## Fine image navigation
 
 **Left/Right** remains Previous/Next Selected Image across the complete ordered
@@ -226,6 +274,7 @@ resident native source as viewer-local derived presentation. Display Gain does n
 change pixel readout, Statistics, Histogram, Line Profile, Split Channel native
 data, Difference, source generation, or source residency. Pick identity also
 remains the native source document ID, not a gained preview representation.
+Comparison Sets do not persist Display Gain.
 
 ## Cursor, ROI, and Line Profile selection
 
@@ -295,6 +344,9 @@ six-source Difference workspace contract. Returning to a page with a cached
 Difference uses the same Diff-only Single View and restore behavior as a fresh
 asynchronous result.
 
+Comparison Sets do not persist Difference pair, map, cache, or Difference
+presentation state.
+
 ## RAW profile resolution
 
 RAW uses the same **Open Images...** entry as ordinary images.
@@ -330,6 +382,10 @@ retry.
 An unresolved RAW is not speculatively preloaded until a profile has been
 resolved. PixelScope never guesses profile parameters merely to make folder
 registration silent.
+
+When opening a Comparison Set, saved resolved RAW profile metadata is restored
+before foreground use. If the set contains an unresolved RAW without saved profile
+metadata, it remains unresolved and uses this same foreground resolution path.
 
 ### RAW profile fields
 
@@ -387,24 +443,26 @@ The default is 256 MiB. Current Comparison Page sources and other correctness
 requirements are protected; a large Selected set does **not** automatically protect
 every visited off-page source. Pick membership also does not protect an off-page
 source. Off-page Selected/Picked source may be evicted under the P2 soft budget and
-normally reload when its page is revisited.
+normally reload when its page is revisited. Saving or opening a Comparison Set does
+not create Selected-wide residency protection.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
 itself discard a valid generation-keyed Difference map.
 
 **Preload Next Folder Position** remains exactly one valid one-to-six Selected
 Folder Position ahead, direction +1, on a separate max-one worker. It does not
-preload the next Comparison Page or Pick Set. A physically RUNNING matching Folder
-Position preload may transfer to foreground authority without duplicate decode.
-Unresolved RAW without a profile is skipped rather than prompting from speculative
-preload.
+preload the next Comparison Page, Pick Set, or Comparison Set. A physically RUNNING
+matching Folder Position preload may transfer to foreground authority without
+duplicate decode. Unresolved RAW without a profile is skipped rather than prompting
+from speculative preload.
 
 Performance budget/preload changes are startup settings and display the restart-
 required indication when they differ from current runtime values.
 
 **Reset Settings** resets application preferences only. **View > Reset Workspace
 Layout** resets workspace layout separately. The captured curation baseline/Pick Set
-is temporary and adds no Settings/QSettings key.
+is temporary and adds no Settings/QSettings key. `.pixelscope` Comparison Sets are
+separate external files and do not change Settings schema v5.
 
 ## Runtime Diagnostics
 
