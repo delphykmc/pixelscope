@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from pixelscope.core.comparison_set import ComparisonSet, ComparisonSetError, ComparisonSetSource
+from pixelscope.core.comparison_set import (
+    ComparisonSet,
+    ComparisonSetError,
+    ComparisonSetSource,
+)
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.io.raw_profile import RawProfile
 
@@ -23,7 +27,9 @@ def _profile() -> RawProfile:
     )
 
 
-def test_v1_round_trip_preserves_order_optional_identity_and_raw_profile(tmp_path: Path) -> None:
+def test_v1_round_trip_preserves_order_optional_identity_and_raw_profile(
+    tmp_path: Path,
+) -> None:
     first = tmp_path / "b.raw"
     second = tmp_path / "a.png"
     comparison_set = ComparisonSet(
@@ -42,20 +48,56 @@ def test_v1_round_trip_preserves_order_optional_identity_and_raw_profile(tmp_pat
     restored = repository.load(target)
 
     assert restored == comparison_set
-    assert [source.path for source in restored.sources] == [str(first.resolve()), str(second.resolve())]
+    assert [source.path for source in restored.sources] == [
+        str(first.resolve()),
+        str(second.resolve()),
+    ]
     assert RawProfile.parse_obj(restored.sources[0].raw_profile) == _profile()
 
 
-def test_source_paths_are_normalized_to_absolute(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unresolved_raw_representation_has_no_profile_payload(tmp_path: Path) -> None:
+    source = ComparisonSetSource(str(tmp_path / "unresolved.raw"))
+    payload = ComparisonSetRepository().to_payload(ComparisonSet(sources=(source,)))
+    assert payload["sources"] == [{"path": str((tmp_path / "unresolved.raw").resolve())}]
+
+
+def test_source_paths_are_normalized_to_absolute(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.chdir(tmp_path)
-    comparison_set = ComparisonSet(sources=(ComparisonSetSource("folder/../image.png"),))
+    comparison_set = ComparisonSet(
+        sources=(ComparisonSetSource("folder/../image.png"),)
+    )
     assert comparison_set.sources[0].path == str((tmp_path / "image.png").resolve())
 
 
+def test_blank_source_path_is_rejected() -> None:
+    with pytest.raises(ComparisonSetError, match="must not be empty"):
+        ComparisonSetSource("   ")
+
+
 def test_duplicate_source_paths_are_rejected(tmp_path: Path) -> None:
-    path = tmp_path / "image.png"
+    path = str(tmp_path / "image.png")
     with pytest.raises(ComparisonSetError, match="duplicate"):
-        ComparisonSet(sources=(ComparisonSetSource(path), ComparisonSetSource(path)))
+        ComparisonSet(
+            sources=(ComparisonSetSource(path), ComparisonSetSource(path))
+        )
+
+
+def test_active_and_primary_must_reference_members(tmp_path: Path) -> None:
+    member = str(tmp_path / "member.png")
+    missing = str(tmp_path / "missing.png")
+    with pytest.raises(ComparisonSetError, match="active source"):
+        ComparisonSet(
+            sources=(ComparisonSetSource(member),),
+            active_path=missing,
+        )
+    with pytest.raises(ComparisonSetError, match="primary source"):
+        ComparisonSet(
+            sources=(ComparisonSetSource(member),),
+            primary_path=missing,
+        )
 
 
 @pytest.mark.parametrize(
@@ -63,10 +105,39 @@ def test_duplicate_source_paths_are_rejected(tmp_path: Path) -> None:
     [
         ({}, "kind"),
         ({"kind": "other", "schema_version": 1, "sources": []}, "kind"),
-        ({"kind": "pixelscope-comparison-set", "schema_version": 2, "sources": []}, "schema"),
-        ({"kind": "pixelscope-comparison-set", "schema_version": 1, "sources": []}, "sources"),
-        ({"kind": "pixelscope-comparison-set", "schema_version": 1, "sources": [{"path": 3}]}, "path"),
-        ({"kind": "pixelscope-comparison-set", "schema_version": 1, "sources": [{"path": "/x"}], "layout_mode": "Grid"}, "layout"),
+        (
+            {
+                "kind": "pixelscope-comparison-set",
+                "schema_version": 2,
+                "sources": [],
+            },
+            "schema",
+        ),
+        (
+            {
+                "kind": "pixelscope-comparison-set",
+                "schema_version": 1,
+                "sources": [],
+            },
+            "sources",
+        ),
+        (
+            {
+                "kind": "pixelscope-comparison-set",
+                "schema_version": 1,
+                "sources": [{"path": 3}],
+            },
+            "path",
+        ),
+        (
+            {
+                "kind": "pixelscope-comparison-set",
+                "schema_version": 1,
+                "sources": [{"path": "/x"}],
+                "layout_mode": "Grid",
+            },
+            "layout",
+        ),
     ],
 )
 def test_invalid_schema_is_rejected(payload: object, message: str) -> None:
@@ -96,7 +167,9 @@ def test_unknown_fields_are_ignored_within_supported_schema(tmp_path: Path) -> N
 
 def test_atomic_save_leaves_valid_json(tmp_path: Path) -> None:
     target = tmp_path / "set.pixelscope"
-    comparison_set = ComparisonSet(sources=(ComparisonSetSource(tmp_path / "image.png"),))
+    comparison_set = ComparisonSet(
+        sources=(ComparisonSetSource(str(tmp_path / "image.png")),)
+    )
     ComparisonSetRepository().save(target, comparison_set)
     payload = json.loads(target.read_text(encoding="utf-8"))
     assert payload["kind"] == "pixelscope-comparison-set"
