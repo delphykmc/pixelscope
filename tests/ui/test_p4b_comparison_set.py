@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -111,6 +112,44 @@ def test_keep_selection_result_is_the_saved_comparison_set(
     window.close()
 
 
+def test_large_pending_save_does_not_acquire_loading_or_residency_authority(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QSettings().clear()
+    documents = [
+        _pending_document(tmp_path / f"image{i:02d}.png") for i in range(20)
+    ]
+    window = _production_window(qtbot)
+    _register(window, documents)
+    load_requests: list[str] = []
+    monkeypatch.setattr(
+        window,
+        "_ensure_loaded",
+        lambda document: load_requests.append(document.document_id),
+    )
+    window._select_document_ids([document.document_id for document in documents])
+    load_requests.clear()
+    review = window.review_selection_controller
+    review.state.enter([document.document_id for document in documents])
+    review.state.set_picked(documents[8].document_id, True)
+    before_protected = set(window._residency_protected_document_ids())
+    before_sources = [document.source for document in documents]
+
+    saved = window.comparison_set_controller.save_to_path(
+        tmp_path / "large-save.pixelscope"
+    )
+
+    assert len(saved.sources) == 20
+    assert load_requests == []
+    assert [document.source for document in documents] == before_sources
+    assert set(window._residency_protected_document_ids()) == before_protected
+    assert review.active
+    assert review.picked_ids == {documents[8].document_id}
+    window.close()
+
+
 def test_open_restores_order_active_primary_layout_and_keeps_other_registered(
     qtbot: object,
     tmp_path: Path,
@@ -153,6 +192,40 @@ def test_open_restores_order_active_primary_layout_and_keeps_other_registered(
     window.close()
 
 
+def test_open_derives_later_page_from_saved_active_before_restoring_primary(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    QSettings().clear()
+    documents = [
+        _ready_document(tmp_path / f"image{i:02d}.png", i) for i in range(15)
+    ]
+    window = _production_window(qtbot)
+    _register(window, documents)
+    artifact = ComparisonSet(
+        sources=tuple(
+            ComparisonSetSource(str(document.source_path)) for document in documents
+        ),
+        active_path=str(documents[8].source_path),
+        primary_path=str(documents[10].source_path),
+        layout_mode="Multi View",
+    )
+    target = tmp_path / "later-page.pixelscope"
+    window.comparison_set_controller.repository.save(target, artifact)
+
+    loaded, missing = window.comparison_set_controller.open_from_path(target)
+
+    assert loaded == 15
+    assert missing == ()
+    assert window._page_start == 6
+    assert [
+        document.document_id for document in window.current_comparison_documents()
+    ] == [document.document_id for document in documents[6:12]]
+    assert window._active_document_id == documents[8].document_id
+    assert window._focus_document_id == documents[10].document_id
+    window.close()
+
+
 def test_open_partial_missing_loads_valid_subset_and_invalidates_curation(
     qtbot: object,
     tmp_path: Path,
@@ -183,6 +256,107 @@ def test_open_partial_missing_loads_valid_subset_and_invalidates_curation(
         second.document_id
     ]
     assert not review.active
+    window.close()
+
+
+def _semantic_invalid_payload(case: str, tmp_path: Path) -> dict[str, object]:
+    source = str((tmp_path / "saved.png").resolve())
+    payload: dict[str, object] = {
+        "kind": "pixelscope-comparison-set",
+        "schema_version": 1,
+        "sources": [{"path": source}],
+        "layout_mode": "Multi View",
+    }
+    if case == "future-schema":
+        payload["schema_version"] = 2
+    elif case == "wrong-kind":
+        payload["kind"] = "other"
+    elif case == "invalid-layout":
+        payload["layout_mode"] = "Grid"
+    elif case == "blank-active":
+        payload["active_path"] = "   "
+    elif case == "invalid-raw-profile":
+        payload["sources"] = [{"path": source, "raw_profile": {"name": "bad"}}]
+    elif case == "relative-source":
+        payload["sources"] = [{"path": "relative.png"}]
+    else:
+        raise AssertionError(f"unknown invalid payload case: {case}")
+    return payload
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "future-schema",
+        "wrong-kind",
+        "invalid-layout",
+        "blank-active",
+        "invalid-raw-profile",
+        "relative-source",
+    ],
+)
+def test_semantically_invalid_open_is_transactional_and_preserves_curation(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+) -> None:
+    QSettings().clear()
+    first = _ready_document(tmp_path / "current-a.png", 1)
+    second = _ready_document(tmp_path / "current-b.png", 2)
+    window = _production_window(qtbot)
+    _register(window, [first, second])
+    window._select_document_ids([first.document_id, second.document_id])
+    window.set_layout_mode("Multi View")
+    window._set_focus_document(first.document_id)
+    window._set_active_document(second)
+    review = window.review_selection_controller
+    review.state.enter([first.document_id, second.document_id])
+    review.state.set_picked(first.document_id, True)
+    before_registered = set(window.documents)
+    before_selected = [document.document_id for document in window.selected_documents]
+    before_active = window._active_document_id
+    before_primary = window._focus_document_id
+    before_review = (
+        review.state.active,
+        review.state.baseline_selected_ids,
+        set(review.state.picked_ids),
+    )
+    target = tmp_path / f"invalid-{case}.pixelscope"
+    target.write_text(
+        json.dumps(_semantic_invalid_payload(case, tmp_path)),
+        encoding="utf-8",
+    )
+    registration_calls = 0
+    load_calls = 0
+
+    def unexpected_register(*_args: object, **_kwargs: object) -> None:
+        nonlocal registration_calls
+        registration_calls += 1
+        return None
+
+    def unexpected_load(*_args: object, **_kwargs: object) -> None:
+        nonlocal load_calls
+        load_calls += 1
+        return None
+
+    monkeypatch.setattr(window, "_register_input", unexpected_register)
+    monkeypatch.setattr(window, "_ensure_loaded", unexpected_load)
+
+    with pytest.raises(ComparisonSetError):
+        window.comparison_set_controller.open_from_path(target)
+
+    assert set(window.documents) == before_registered
+    assert [document.document_id for document in window.selected_documents] == before_selected
+    assert window._active_document_id == before_active
+    assert window._focus_document_id == before_primary
+    assert (
+        review.state.active,
+        review.state.baseline_selected_ids,
+        set(review.state.picked_ids),
+    ) == before_review
+    assert registration_calls == 0
+    assert load_calls == 0
     window.close()
 
 
