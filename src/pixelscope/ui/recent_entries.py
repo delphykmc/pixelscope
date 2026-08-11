@@ -1,23 +1,24 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from PySide6.QtCore import QSettings
-from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QFileDialog, QMenu, QMessageBox
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenu, QMessageBox
 
 from pixelscope.app.recent_entries import RecentEntriesRepository
 from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
-from pixelscope.io.path_discovery import SUPPORTED_IMAGE_FILTER, discover_image_inputs
-from pixelscope.ui.comparison_set import COMPARISON_SET_FILTER, ComparisonSetController
+from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
+from pixelscope.ui.comparison_set import ComparisonSetController
 from pixelscope.ui.design_tokens import menu_style
 
 
 class RecentEntriesController:
-    """Typed recent-entry UI that delegates to existing P3/P4 runtime authorities."""
+    """Typed recent-entry UI that observes and delegates to existing runtime authorities."""
 
     def __init__(
         self,
@@ -30,7 +31,9 @@ class RecentEntriesController:
         )
         comparison_set = getattr(window, "comparison_set_controller", None)
         if not isinstance(comparison_set, ComparisonSetController):
-            raise RuntimeError("Recent Entries requires the P4-B Comparison Set controller")
+            raise RuntimeError(
+                "Recent Entries requires the P4-B Comparison Set controller"
+            )
         self.comparison_set_controller = comparison_set
         self.comparison_set_controller.set_recent_entry_callback(
             self._record_comparison_set
@@ -40,13 +43,6 @@ class RecentEntriesController:
         if not isinstance(file_menu, QMenu):
             raise RuntimeError("Recent Entries requires the retained File menu")
         self.file_menu = file_menu
-
-        self.open_images_action = QAction("Open Images...", window)
-        self.open_images_action.setShortcut(QKeySequence("Ctrl+O"))
-        self.open_images_action.triggered.connect(self.open_images_dialog)  # type: ignore[attr-defined]
-        self.open_folder_action = QAction("Open Folder...", window)
-        self.open_folder_action.setShortcut(QKeySequence("Ctrl+Shift+O"))
-        self.open_folder_action.triggered.connect(self.open_folder_dialog)  # type: ignore[attr-defined]
 
         self.recent_menu = QMenu("Recent", self.file_menu)
         self.recent_menu.setStyleSheet(menu_style())
@@ -58,7 +54,7 @@ class RecentEntriesController:
         self.clear_action = QAction("Clear Recent Entries", window)
         self.clear_action.triggered.connect(self.clear_all)  # type: ignore[attr-defined]
 
-        self._replace_primary_entry_actions()
+        self._install_runtime_observers()
         self._install_recent_menu()
         self.refresh_menu()
 
@@ -66,33 +62,49 @@ class RecentEntriesController:
         settings = getattr(self.window, "settings", None)
         return settings if isinstance(settings, QSettings) else QSettings()
 
-    def _replace_primary_entry_actions(self) -> None:
-        """Replace only File-menu entry actions; keep MainWindow methods authoritative."""
+    def _install_runtime_observers(self) -> None:
+        """Observe P3 entry APIs without rewiring constructor-time Qt signals."""
 
-        for name, replacement in (
-            ("Open Images...", self.open_images_action),
-            ("Open Folder...", self.open_folder_action),
-        ):
-            legacy = self.window.action_map.get(name)
-            if isinstance(legacy, QAction):
-                self.file_menu.removeAction(legacy)
-                legacy.setShortcut(QKeySequence())
-            self.window.action_map[name] = replacement
+        register_inputs = getattr(self.window, "_register_inputs", None)
+        register_folders = getattr(self.window, "register_folders", None)
+        if not callable(register_inputs) or not callable(register_folders):
+            raise RuntimeError("Recent Entries requires the P3 registration APIs")
 
-        actions = self.file_menu.actions()
-        anchor = next(
-            (action for action in actions if action.text().startswith("Open Comparison Set")),
-            None,
-        )
-        if anchor is None:
-            actions = self.file_menu.actions()
-            anchor = actions[0] if actions else None
-        if anchor is None:
-            self.file_menu.addAction(self.open_images_action)
-            self.file_menu.addAction(self.open_folder_action)
-        else:
-            self.file_menu.insertAction(anchor, self.open_images_action)
-            self.file_menu.insertAction(anchor, self.open_folder_action)
+        self._register_inputs_original: Callable[..., list[str]] = register_inputs
+        self._register_folders_original: Callable[..., Any] = register_folders
+
+        def observed_register_inputs(
+            inputs: tuple[ImageInput, ...],
+            *,
+            resolve_raw_profiles: bool,
+        ) -> list[str]:
+            document_ids = self._register_inputs_original(
+                inputs,
+                resolve_raw_profiles=resolve_raw_profiles,
+            )
+            if resolve_raw_profiles and document_ids:
+                paths = [
+                    document.source_path
+                    for document_id in document_ids
+                    if (document := self.window.documents.get(document_id)) is not None
+                    and document.source_path is not None
+                ]
+                if paths:
+                    self.repository.record(RecentEntryKind.IMAGE, paths)
+                    self.refresh_menu()
+            return document_ids
+
+        def observed_register_folders(folders: Sequence[Path]) -> Any:
+            supplied = tuple(Path(folder).resolve(strict=False) for folder in folders)
+            result = self._register_folders_original(folders)
+            existing = tuple(folder for folder in supplied if folder.is_dir())
+            if existing:
+                self.repository.record(RecentEntryKind.FOLDER, existing)
+                self.refresh_menu()
+            return result
+
+        self.window._register_inputs = observed_register_inputs
+        self.window.register_folders = observed_register_folders
 
     def _install_recent_menu(self) -> None:
         actions = self.file_menu.actions()
@@ -136,70 +148,21 @@ class RecentEntriesController:
 
     @staticmethod
     def _display_label(kind: RecentEntryKind, path: Path) -> str:
-        if kind is RecentEntryKind.FOLDER:
-            leaf = path.name or str(path)
-        else:
-            leaf = path.name
+        leaf = path.name or str(path)
         parent = path.parent.name
         return f"{leaf} — {parent}" if parent and parent != leaf else leaf
-
-    def open_images_dialog(self) -> None:
-        paths, _ = QFileDialog.getOpenFileNames(
-            self.window,
-            "Open images",
-            self._dialog_directory(),
-            SUPPORTED_IMAGE_FILTER,
-        )
-        if not paths:
-            return
-        supplied = [Path(path) for path in paths]
-        document_ids = self._open_image_paths(supplied)
-        if document_ids:
-            opened_paths = [
-                self.window.documents[document_id].source_path
-                for document_id in document_ids
-                if self.window.documents[document_id].source_path is not None
-            ]
-            self.repository.record(RecentEntryKind.IMAGE, opened_paths)
-            self.refresh_menu()
-
-    def open_folder_dialog(self) -> None:
-        path = QFileDialog.getExistingDirectory(
-            self.window,
-            "Open image folder",
-            self._dialog_directory(),
-        )
-        if not path:
-            return
-        folder = Path(path)
-        result = self.window.register_folders([folder])
-        self._remember_directory(folder)
-        if result.image_count > 0:
-            self.repository.record(RecentEntryKind.FOLDER, [folder])
-            self.refresh_menu()
-            self.window.statusBar().showMessage(
-                f"Registered {result.image_count} image(s) from 1 folder",
-                4000,
-            )
-        else:
-            self.window.statusBar().showMessage("No supported images found in folder", 4000)
 
     def open_recent(self, kind: RecentEntryKind, path: Path) -> None:
         if not self._entry_exists(kind, path):
             self._remove_missing(kind, path)
             return
         if kind is RecentEntryKind.IMAGE:
-            document_ids = self._open_image_paths([path])
-            if document_ids:
-                self.repository.record(kind, [path])
-                self.refresh_menu()
+            self._open_image_paths([path])
             return
         if kind is RecentEntryKind.FOLDER:
             result = self.window.register_folders([path])
             self._remember_directory(path)
             if result.image_count > 0:
-                self.repository.record(kind, [path])
-                self.refresh_menu()
                 self.window.statusBar().showMessage(
                     f"Registered {result.image_count} image(s) from recent folder",
                     4000,
@@ -269,10 +232,6 @@ class RecentEntriesController:
         self.repository.clear()
         self.refresh_menu()
         self.window.statusBar().showMessage("Recent Entries cleared", 3000)
-
-    def _dialog_directory(self) -> str:
-        getter = getattr(self.window, "_open_dialog_directory", None)
-        return str(getter()) if callable(getter) else ""
 
     def _remember_directory(self, path: Path) -> None:
         remember = getattr(self.window, "_remember_directory", None)
