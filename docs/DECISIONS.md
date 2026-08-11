@@ -431,13 +431,10 @@ so unlimited logical Selected membership does not defeat the existing P2 soft
 budget; it does not replace ResidencyManager or its accounting model. Native source
 remains authoritative and all P3-A/B/C analysis/display boundaries remain intact.
 
-## P4-A Review Selection & Curation decisions — implementation validated, merge pending
+## P4-A Review Selection & Curation decisions — Complete
 
-P4-0 is merged as PR #28 at
-`e30c49d6759715228a820d673ad8939ea9a3afe8`. P4-A is implemented on
-`feature/p4-a-review-selection-curation`. Owner/local Windows runtime and requested
-validation are reported PASS; independent re-review found the previous runtime/test
-blockers resolved. P4-A remains not Complete until durable-doc closure and merge.
+P4-A merged as PR #29 at
+`3486146494076e9b513843b90ec44e504043729e`.
 
 - There is **no explicit Review Select mode**. Eligible native source tiles in Multi
   View expose the curation **Pick** control directly; ordinary tile activation and
@@ -480,12 +477,55 @@ blockers resolved. P4-A remains not Complete until durable-doc closure and merge
   baseline/Pick Set before or with the ordinary mutation.
 - Registration-only folder input does not invalidate captured curation state because
   it does not mutate Selected.
-- Temporary curation state is not persisted. Settings schema remains v5 and P4-A
-  does not begin P4-B session serialization.
+- Temporary curation state is not persisted. Settings schema remains v5.
 - Comparison Page navigation creates no speculative preload for picked sources. P2
   preload remains Folder Position +1, one position, max-one worker.
 - Difference, Display Gain, RAW Black/White/native-source semantics, source
   generation identity, and source residency accounting remain unchanged.
+
+## P4-B Comparison Set Persistence decisions — implemented, merge pending
+
+- P4-B persists an explicit **Comparison Set**, not a full application/session
+  snapshot.
+- File extension is `.pixelscope`; v1 JSON requires
+  `kind = "pixelscope-comparison-set"` and `schema_version = 1`.
+- Persistent source identity is a normalized **absolute local native-source path**.
+  The external reader rejects non-string, blank, or relative source/Active/Primary
+  paths before normalization. v1 performs no relocation or fuzzy path resolution.
+- Absolute-path identity is intentionally deterministic but machine/path-layout
+  dependent. A shared artifact may expose local filesystem paths; this is a
+  documented privacy/portability constraint rather than hidden behavior.
+- Durable state is limited to ordered logical Selected source references, optional
+  selected Active, optional applicable page-local Primary, stable layout mode, and
+  minimum resolved RAW profile metadata required to reconstruct a RAW source.
+- Current Comparison Page/page index/page offset is **derived**, never serialized.
+  Saved Active plus Selected ordering derives the page before applicable Primary is
+  restored.
+- Save serializes logical Selected, not the temporary P4-A Pick Set. Before Keep,
+  Picks do not change saved membership; after Keep, the curated Selected subset is
+  the logical set and is therefore saved.
+- Save does not apply/clear Picks, call `_ensure_loaded()` for off-page members,
+  force unresolved RAW profile resolution, or acquire Selected-wide
+  residency/protection/LRU authority.
+- Open validates the complete artifact before logical mutation. Semantically invalid
+  artifacts begin no source registration or foreground loading.
+- Valid Open reuses normal registration and Selected mutation authorities, retains
+  unrelated Registered sources, restores loadable saved ordering, uses saved Active
+  or deterministic fallback, derives Current Comparison Page, then restores
+  applicable Primary/layout.
+- Missing paths partially load with compact warning. Zero-loadable input is a no-op.
+  Corrupt JSON, wrong kind, future schema, invalid identity/layout, or invalid
+  embedded RAW profile is rejected without logical workspace mutation.
+- Saved resolved RAW metadata is restored before foreground use. Unresolved RAW
+  remains unresolved and follows the existing lazy foreground profile-resolution
+  path; Save does not force resolution.
+- Comparison Set persistence owns none of decoded source arrays, source
+  residency/LRU/protection, preload/promotion, Difference maps/cache, Display Gain,
+  analysis request/results, workers/tokens/generation, Split/Difference derived
+  documents, transient view state, ROI/Line, or temporary Picks.
+- Comparison Sets are external user artifacts and do not change Settings schema v5.
+- P4-C should build **Comparison Set Entry UX / Recent Entries**, not revive the
+  broader obsolete "persistent session" framing.
 
 ## Current resource policy
 
@@ -500,24 +540,22 @@ blockers resolved. P4-A remains not Complete until durable-doc closure and merge
   pool max remains four.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Comparison Page navigation and Pick membership introduce no speculative
-  preload/cache/persistence owner.
+- Comparison Page navigation, Pick membership, and Comparison Set Save/Open introduce
+  no Selected-wide speculative preload/cache/residency owner.
 
 ## Validation and merge state
 
-P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28 at
-`e30c49d6759715228a820d673ad8939ea9a3afe8`.
+P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28. P4-A is Complete
+as PR #29 at `3486146494076e9b513843b90ec44e504043729e`.
 
-P4-A focused coverage on the feature branch addresses temporary-state semantics,
-direct first-Pick baseline capture, `1/2/6/7/15/50` Selected cases, cross-page Pick
-persistence, stable Pick checked/yellow visual state, ordered Keep Selection,
-zero-pick safety, Active/Primary/Pick separation, pan/ROI/Line drag non-pick
-behavior, production Files-removal and other external Selected mutation
-invalidation, post-Keep exact Files selection/first-Active behavior,
-derived-presentation identity, and bounded runtime ownership with no Pick-owned
-load/protection/preload/Difference/analysis behavior.
+P4-B focused coverage includes schema/path validation, atomic round-trip,
+logical-Selected-vs-Pick save semantics, later-page Active/Primary restore,
+missing/zero-loadable/corrupt transaction behavior, resolved/unresolved RAW
+semantics, large-set page-bounded foreground work, and save-side non-ownership of
+load/residency/protection.
 
-The repository owner subsequently reported the requested local Windows validation
-PASS on the runtime/test implementation. These durable-doc edits do not alter
-runtime or tests and still require the applicable docs/diff checks before merge; no
-new unobserved command PASS is inferred here.
+The repository owner reports the focused P4-B Windows validation PASS (`36 passed`).
+Independent review reports no remaining runtime/schema/test blocker. PR #30 remains
+merge-pending for durable-doc consistency and final review/validation closure. These
+durable-doc edits do not alter runtime or tests; no unobserved full-suite/tooling
+PASS is inferred here.
