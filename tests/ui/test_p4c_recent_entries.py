@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QMenu, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMenu, QMessageBox
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -35,6 +35,10 @@ def _register(window: MainWindow, document: ImageDocument) -> None:
     window.add_document(document, select=False)
 
 
+def _raise_recent_failure(*_args: object, **_kwargs: object) -> None:
+    raise RuntimeError("injected Recent storage failure")
+
+
 def test_production_file_menu_exposes_typed_recent_entry_surface(qtbot: object) -> None:
     window = _production_window(qtbot)
     controller = window.recent_entries_controller
@@ -46,7 +50,11 @@ def test_production_file_menu_exposes_typed_recent_entry_surface(qtbot: object) 
     assert texts.index("Open Folder...") < texts.index("Open Comparison Set...")
     assert "Recent" in texts
     assert texts.index("Recent") < texts.index("Save Comparison Set...")
-    assert [action.text() for action in controller.recent_menu.actions() if not action.isSeparator()] == [
+    assert [
+        action.text()
+        for action in controller.recent_menu.actions()
+        if not action.isSeparator()
+    ] == [
         "Images",
         "Folders",
         "Comparison Sets",
@@ -79,6 +87,65 @@ def test_direct_image_registration_is_observed_without_changing_selection_author
         document.source_path.resolve(),
     )
     assert window.selected_documents == []
+    window.close()
+
+
+def test_file_open_images_routes_through_history_observer_and_survives_failure(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    document = _ready_document(tmp_path / "from-file-action.png")
+    _register(window, document)
+    controller._register_inputs_original = lambda inputs, resolve_raw_profiles: [
+        document.document_id
+    ]
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileNames",
+        lambda *args, **kwargs: ([str(document.source_path)], ""),
+    )
+    monkeypatch.setattr(controller.repository, "record", _raise_recent_failure)
+
+    window.action_map["Open Images..."].trigger()
+
+    assert [item.document_id for item in window.selected_documents] == [
+        document.document_id
+    ]
+    assert window._active_document_id == document.document_id
+    assert window.statusBar().currentMessage() == "Opened 1 image(s)"
+    window.close()
+
+
+def test_recent_observer_failure_does_not_acquire_selection_or_residency_authority(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    selected = _ready_document(tmp_path / "selected.png", 1)
+    observed = _ready_document(tmp_path / "observed.png", 2)
+    _register(window, selected)
+    _register(window, observed)
+    window._select_document_ids([selected.document_id])
+    before_selected = tuple(item.document_id for item in window.selected_documents)
+    before_protected = set(window._residency_protected_document_ids())
+    controller._register_inputs_original = lambda inputs, resolve_raw_profiles: [
+        observed.document_id
+    ]
+    monkeypatch.setattr(controller.repository, "record", _raise_recent_failure)
+
+    result = window._register_inputs(
+        discover_image_inputs([observed.source_path]),
+        resolve_raw_profiles=True,
+    )
+
+    assert result == [observed.document_id]
+    assert tuple(item.document_id for item in window.selected_documents) == before_selected
+    assert set(window._residency_protected_document_ids()) == before_protected
     window.close()
 
 
@@ -133,6 +200,33 @@ def test_folder_registration_records_history_but_preserves_current_selection(
     window.close()
 
 
+def test_folder_registration_survives_recent_storage_failure_and_stays_registration_only(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    selected = _ready_document(tmp_path / "selected.png")
+    _register(window, selected)
+    window._select_document_ids([selected.document_id])
+    before_active = window._active_document_id
+    folder = tmp_path / "dataset"
+    folder.mkdir()
+    (folder / "frame.png").write_bytes(b"pending-image")
+    monkeypatch.setattr(controller.repository, "record", _raise_recent_failure)
+
+    result = window.register_folders([folder])
+
+    assert result.folder_count == 1
+    assert result.image_count == 1
+    assert [document.document_id for document in window.selected_documents] == [
+        selected.document_id
+    ]
+    assert window._active_document_id == before_active
+    window.close()
+
+
 def test_recent_comparison_set_delegates_to_p4b_loader_and_moves_to_mru(
     qtbot: object,
     tmp_path: Path,
@@ -165,18 +259,86 @@ def test_recent_comparison_set_delegates_to_p4b_loader_and_moves_to_mru(
     window.close()
 
 
-def test_successful_comparison_set_save_callback_records_history(
+def test_comparison_set_save_dialog_records_history_through_canonical_callback(
     qtbot: object,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window = _production_window(qtbot)
     controller = window.recent_entries_controller
+    document = _ready_document(tmp_path / "source.png")
+    _register(window, document)
+    window._select_document_ids([document.document_id])
     target = tmp_path / "saved.pixelscope"
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        lambda *args, **kwargs: (str(target), ""),
+    )
 
-    window.comparison_set_controller._notify_recent_entry(target)
+    window.comparison_set_controller.save_dialog()
 
+    assert target.is_file()
     assert controller.repository.load(RecentEntryKind.COMPARISON_SET) == (
         target.resolve(),
+    )
+    assert window.statusBar().currentMessage() == "Saved Comparison Set · saved.pixelscope"
+    window.close()
+
+
+def test_comparison_set_save_dialog_survives_recent_callback_failure(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    document = _ready_document(tmp_path / "source.png")
+    _register(window, document)
+    window._select_document_ids([document.document_id])
+    target = tmp_path / "saved.pixelscope"
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        lambda *args, **kwargs: (str(target), ""),
+    )
+    window.comparison_set_controller.set_recent_entry_callback(_raise_recent_failure)
+
+    window.comparison_set_controller.save_dialog()
+
+    assert target.is_file()
+    assert window.statusBar().currentMessage() == "Saved Comparison Set · saved.pixelscope"
+    assert [item.document_id for item in window.selected_documents] == [
+        document.document_id
+    ]
+    window.close()
+
+
+def test_comparison_set_open_dialog_survives_recent_callback_failure(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    document = _ready_document(tmp_path / "source.png")
+    _register(window, document)
+    window._select_document_ids([document.document_id])
+    target = tmp_path / "open.pixelscope"
+    window.comparison_set_controller.save_to_path(target)
+    window._select_document_ids([])
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileName",
+        lambda *args, **kwargs: (str(target), ""),
+    )
+    window.comparison_set_controller.set_recent_entry_callback(_raise_recent_failure)
+
+    window.comparison_set_controller.open_dialog()
+
+    assert [item.document_id for item in window.selected_documents] == [
+        document.document_id
+    ]
+    assert window.statusBar().currentMessage() == (
+        "Opened Comparison Set · open.pixelscope · 1 source(s)"
     )
     window.close()
 
@@ -204,7 +366,9 @@ def test_missing_recent_entry_removes_only_history_and_preserves_workspace(
     review = window.review_selection_controller
     review.state.enter([selected.document_id])
     review.state.set_picked(selected.document_id, True)
-    missing = tmp_path / ("missing-folder" if kind is RecentEntryKind.FOLDER else f"missing{suffix}")
+    missing = tmp_path / (
+        "missing-folder" if kind is RecentEntryKind.FOLDER else f"missing{suffix}"
+    )
     controller.repository.record(kind, [missing])
     controller.refresh_menu()
     before_registered = tuple(window.documents)
@@ -258,7 +422,10 @@ def test_existing_invalid_comparison_set_stays_in_history_on_open_error(
     window.close()
 
 
-def test_menu_labels_limit_path_exposure_and_clear_history(qtbot: object, tmp_path: Path) -> None:
+def test_menu_labels_limit_path_exposure_and_clear_history(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
     window = _production_window(qtbot)
     controller = window.recent_entries_controller
     image = (tmp_path / "private" / "frame.png").resolve()
