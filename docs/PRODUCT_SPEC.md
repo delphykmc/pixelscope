@@ -135,41 +135,44 @@ Selected
     ↓
 Current Comparison Page
     ↓
-temporary Review Pick Set
-    ↓ Keep Picked
+direct temporary Pick Set
+    ↓ Keep Selection
 new Selected subset
 ```
 
-**Review Select** is explicit. Entering the mode snapshots the current ordered
-Selected source IDs as the review baseline. Native source tiles expose a distinct
-**Pick / Picked** check affordance while the mode is active. Normal tile activation,
-Primary, and Picked remain independent states.
+There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+View expose a stable **Pick** control directly. The first checked Pick captures the
+current ordered Selected source IDs as the temporary baseline internally. The
+button text remains `Pick`; checked membership is represented by its depressed
+state and a bright-yellow tile-wide border. Normal tile activation, Primary, and
+Pick membership remain independent states.
 
-Picks survive Comparison Page navigation. A Picked source may be off-page and need
+Picks survive Comparison Page navigation. A picked source may be off-page and need
 not be decoded, resident, protected, preloaded, or presented. Pick Set membership is
 not an analysis input and does not extend the Current Comparison Page working set.
 
-The contextual review controls expose picked count, **Clear Picks**, **Keep Picked**,
-and **Cancel**. Keep Picked is disabled when the Pick Set is empty. Only Keep Picked
-changes Selected. It computes the new Selected set by filtering the original
-baseline ordering by picked membership, not by pick order. Non-picked images remain
-Registered in Files.
+The presentation row exposes the temporary curation state directly as
+`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+`Selected N` is the temporary Pick Set count, not the Files logical Selected count.
+**Clear Selection** clears only temporary pick membership. **Keep Selection** is
+disabled when the Pick Set is empty. Only Keep Selection changes logical Selected:
+it computes the new Selected set by filtering the captured baseline ordering by
+picked membership, not by pick order. Non-picked images remain Registered in Files.
+There is no user-facing Cancel command.
 
-Cancel and Clear Picks discard only temporary review state. Cancel leaves Selected,
-Current Comparison Page, Active, and Primary unchanged. If another selection-
-oriented workflow changes Selected while Review Select is active, PixelScope first
-invalidates the temporary review state and then performs the inherited normal
-Selected mutation. Registration-only folder input does not invalidate review state
-because it does not change Selected.
+A different selection-oriented workflow that changes logical Selected after a
+baseline has been captured invalidates the temporary baseline/Pick Set before or
+with the inherited normal Selected mutation. Registration-only folder input does not
+invalidate the curation state because it does not change Selected.
 
 Pick identity is the native Registered/Selected source document ID. Split Channel
 items, Difference derived documents, and gained preview representations are not
 independent pick identities.
 
-Review Pick Set is temporary application-session workflow state. It is not persisted
-to Settings/QSettings and does not own source arrays, previews, residency/LRU state,
-caches, workers, RAW profile copies, source generation, preload, Difference, or
-analysis requests.
+The captured baseline/Pick Set is temporary application-session workflow state. It
+is not persisted to Settings/QSettings and does not own source arrays, previews,
+residency/LRU state, caches, workers, RAW profile copies, source generation,
+preload, Difference, or analysis requests.
 
 ### RAW input resolution
 
@@ -210,7 +213,7 @@ all selected RAW files, or pick a profile from byte size alone.
 - Current Comparison Page is the default working set for Statistics, Histogram,
   Line Profile, selection-derived Difference inputs, ROI/Line normalization,
   foreground page-load completion, and current-page source protection.
-- Review Pick Set does not replace or extend the Current Comparison Page analysis
+- Temporary Pick Set does not replace or extend the Current Comparison Page analysis
   working set.
 - Difference's explicit Image 1/Image 2 pair remains feature-owned authority.
 - Up/Down retains Files-tree row navigation. Left/Right changes the active image
@@ -246,13 +249,13 @@ and workspace-restore semantics.
 Folder-only registration is not a presentation lifecycle operation: it must not
 reset Selected, Current Comparison Page, layout, active/primary state, ROI, Line
 Profile, Difference presentation/cache, Display Gain, zoom/pan preservation state,
-source-residency ownership, or temporary Review Select state.
+source-residency ownership, or captured temporary curation state.
 
 ## Settings and runtime policy
 
 `Edit > Settings...` uses **General / Files / Performance** category pages.
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
-persist Review Pick Set.
+persist the captured curation baseline/Pick Set.
 
 General owns persistent RAW JSON confirmation, exact RAW file-size validation,
 and native Difference Threshold/Gain defaults. Files owns optional default Open
@@ -265,7 +268,7 @@ ownership remain independent. Registration and off-page Selected/Picked membersh
 do not make source data resident.
 
 For large logical selections, **Selected alone is not a source-protection owner**.
-Review Pick membership is also not a protection owner. Current Comparison Page plus
+Pick membership is also not a protection owner. Current Comparison Page plus
 correctness dependencies such as foreground load, promoted foreground preload,
 explicit Difference dependencies, and non-reloadable sources are protected.
 Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
@@ -299,8 +302,8 @@ native-domain code default under schema v5. Normalized threshold is session-loca
 
 Difference owns its own independent presentation Gain. General Display Gain is
 not applied to Difference numerical sources, Difference preview generation, or
-Difference-cache identity. Review Pick/Unpick does not calculate Difference, change
-its explicit pair authority, or invalidate a generation-keyed Difference cache.
+Difference-cache identity. Pick/Unpick does not calculate Difference, change its
+explicit pair authority, or invalidate a generation-keyed Difference cache.
 
 ## Display Gain contract
 
@@ -340,7 +343,7 @@ resident source on the existing shared numerical pool.
 Display Gain is presentation-only. Pixel inspection, Statistics, Histogram, Line
 Profile, Split Channel source arrays, Difference, generation, source residency,
 and cache identity remain independent of it. `+` / `-` gain shortcuts are scoped
-to the image-presentation subtree so Files retains native key behavior. Review Pick
+to the image-presentation subtree so Files retains native key behavior. Pick
 identity remains the native source document ID rather than a gained preview.
 
 ## RAW profile and decode contract
@@ -379,7 +382,7 @@ sidecars remain supported because they are deterministic file-local evidence.
 Decoded samples in `ImageDocument.source` are the native RAW authority. Pixel
 inspection, Statistics, Histogram, Line Profile numerical data, Split Channels,
 Difference, preload/reload identity, and source residency operate on those native
-samples regardless of Display Gain or Review Pick membership.
+samples regardless of Display Gain or Pick membership.
 
 ## RAW display contract
 
@@ -419,8 +422,10 @@ and Current Comparison Page contracts.
 
 P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation is implemented on
-`feature/p4-a-review-selection-curation`; owner/local Windows validation,
-independent review, and merge are pending, so P4-A is not yet Complete.
+`feature/p4-a-review-selection-curation`; owner/local Windows runtime and requested
+validation are reported PASS, and independent re-review found the prior runtime/test
+blockers resolved. Durable-doc closure and merge remain pending, so P4-A is not yet
+Complete.
 
 Later planned P4 work covers persistent comparison sessions, typed recent-entry /
 session-entry UX, Saved ROI productivity, focused viewer overlay/export productivity,

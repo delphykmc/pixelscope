@@ -200,7 +200,7 @@ Profile, Difference authority, source loading, and residency remain bound to the
 native Current Comparison Page source. Pending/loading sources keep channel
 placeholders so an unsplit stale frame is never presented while Split is active.
 
-## P4-A temporary review-selection boundary
+## P4-A temporary curation boundary
 
 P4-A adds curation state without inserting a new source/analysis ownership layer.
 The product flow is:
@@ -212,62 +212,71 @@ Selected
     ↓
 Current Comparison Page
     ↓
-temporary Review Pick Set
-    ↓ Keep Picked
+direct temporary Pick Set
+    ↓ Keep Selection
 new Selected subset
 ```
 
 `core.review_selection.ReviewSelectionState` is a Qt-free workflow model containing
 only:
 
-- `baseline_selected_ids`: ordered source-document IDs captured on Review Select
-  entry;
+- `baseline_selected_ids`: ordered source-document IDs captured on the first direct
+  checked Pick for the current logical Selected set;
 - `picked_ids`: an unordered membership set of native source-document IDs;
-- `active`: mode state.
+- `active`: internal captured-baseline state, not a user-facing mode.
 
 It does not hold `ImageDocument` objects, native/preview arrays, resident/cache
 objects, workers, RAW profile copies, Current Comparison Page copies, or derived
 Split/Difference documents. `kept_selected_ids()` filters baseline order by picked
 membership so application order never depends on pick order.
 
-`ui.review_selection.ReviewSelectionController` owns the contextual Review Select /
-Picked count / Clear Picks / Keep Picked / Cancel orchestration. Production
-composition installs it beside the existing presentation controls; Layout,
-Comparison Page, Display Gain, and Main-toolbar ownership are unchanged.
-`TileHeader` owns only the explicit Pick/Picked affordance and emits ID-free UI
-intent; the controller resolves the currently presented tile back to a baseline
-native source ID that must still exist in `MainWindow.documents`. Active and
-Primary are not reused as Picked state.
+`ui.review_selection.ReviewSelectionController` owns direct temporary-curation
+orchestration. Production composition adds `Selected N / Clear Selection / Keep
+Selection` after Display Gain in the presentation row; there is no Review Select
+entry control and no user-facing Cancel action. `Selected N` is the temporary Pick
+Set count rather than Files logical Selected count.
 
-Pick/Unpick/Clear only mutate the temporary ID set and tile/control state. They do
-not call `_ensure_loaded()`, touch source LRU/protection, create preload/foreground
-promotion, generate gained previews, change source generation, issue numerical
-analysis, calculate Difference, or invalidate Difference cache. Off-page Picked
-sources may therefore be nonresident and unprotected. `Analysis Working Set`
-remains Current Comparison Page and explicit Difference-pair ownership remains
-feature-local.
+`TileHeader` owns the explicit stable **Pick** affordance on eligible native-source
+Multi View tiles and emits ID-free UI intent. The first checked Pick captures the
+baseline; checked membership keeps the text `Pick`, uses the depressed button state,
+and sets the viewer `reviewPicked` property so `tile_style()` applies a bright-yellow
+tile-wide border. Active and Primary are not reused as Pick state. The controller
+resolves each presented tile back to a native source ID that must still exist in
+`MainWindow.documents` and the captured/current Selected authority. Split and
+Difference derived tiles remain non-pickable.
 
-**Keep Picked** is the only review operation that mutates Selected. It delegates the
-ordered filtered result through the inherited `_select_document_ids()` lifecycle so
-Current Comparison Page derivation, stale-slot clearing, source loading/residency,
-and analysis rebinding remain ordinary selection behavior rather than a curation-
-specific lifecycle. Zero picks prevent this call.
+Pick/Unpick/Clear Selection only mutate the temporary ID set and tile/control state.
+They do not call `_ensure_loaded()`, touch source LRU/protection, create
+preload/foreground promotion, generate gained previews, change source generation,
+issue numerical analysis, calculate Difference, or invalidate Difference cache.
+Off-page picked sources may therefore be nonresident and unprotected. `Analysis
+Working Set` remains Current Comparison Page and explicit Difference-pair ownership
+remains feature-local.
+
+**Keep Selection** is the only curation operation that mutates Selected. It delegates
+the ordered filtered result through the inherited `_select_document_ids()` lifecycle
+so Current Comparison Page derivation, stale-slot clearing, source
+loading/residency, Files selection, first-result Active state, and analysis rebinding
+remain ordinary selection behavior rather than a curation-specific lifecycle. Zero
+picks prevent this call.
 
 External selection-oriented mutation is the invalidation boundary. Programmatic
-`_select_document_ids()` / selected-document removal adapters reset review before a
-different baseline is applied. Direct Files selection reconnects the existing
-MainWindow selection handler through the controller in the order:
+`_select_document_ids()` / selected-document removal adapters and the
+`DocumentListWidget` pre/post selection/removal signals ensure a captured baseline
+is cleared before or with a different logical Selected membership change while
+preserving MainWindow's existing mutation authority. The safe ordering is:
 
 ```text
-invalidate temporary Review state
+invalidate captured curation baseline/Pick Set
     ↓
 existing MainWindow Selected mutation
     ↓
-Review UI resync
+curation UI resync
 ```
 
-Registration-only folder input does not invalidate active review because it does
-not mutate Selected. Review state is not persisted; Settings schema remains v5.
+Registration-only folder input does not invalidate captured curation state because
+it does not mutate Selected. Temporary curation state is not persisted; Settings
+schema remains v5.
 
 ## RAW profile-resolution boundary
 
@@ -291,9 +300,9 @@ records the RAW path and deterministic sidecar path but does not show a dialog o
 decode the source.
 
 A folder-registered unresolved RAW does not prompt/decode merely because it belongs
-to Selected or Review Pick Set. Off-page Selected/Picked RAW stays pending and
-unprotected. When it enters Current Comparison Page, `_ensure_loaded()` becomes the
-foreground profile/load boundary.
+to Selected or the temporary Pick Set. Off-page Selected/Picked RAW stays pending
+and unprotected. When it enters Current Comparison Page, `_ensure_loaded()` becomes
+the foreground profile/load boundary.
 
 `_raw_profile_prompt_suppressed` defines the cancel retry boundary: one foreground
 attempt prompts an unresolved RAW at most once. Cancel leaves the document pending
@@ -326,9 +335,9 @@ partially moved.
 
 A valid PageUp/PageDown plan for `Selected <= 6` atomically replaces Selected with
 the corresponding previous/next members while preserving the existing Folder
-Position view/overlay and preload/promotion contract. If Review Select is active,
-that Selected replacement first invalidates the temporary review state. Endpoint or
-invalid-member plans remain no-ops.
+Position view/overlay and preload/promotion contract. If a curation baseline has
+been captured, that Selected replacement first invalidates the temporary baseline
+and Pick Set. Endpoint or invalid-member plans remain no-ops.
 
 ## Display Gain architecture
 
@@ -352,8 +361,7 @@ independent presentation Gain.
 
 Display Gain is presentation-only. `ImageDocument.source`, pixel inspection,
 Statistics, Histogram, Line Profile, Split Channel data, Difference, source
-residency, Difference cache identity, and Review Pick identity are independent of
-it.
+residency, Difference cache identity, and Pick identity are independent of it.
 
 The canonical 1× preview is reused directly. Gain >1 derives viewer-local preview
 from already resident native source on the shared numerical pool. Request identity,
@@ -370,9 +378,9 @@ directories, Difference Threshold/Gain, Difference Map Cache MiB, Decoded Source
 Memory MiB, and preload enablement.
 
 P4-A adds no setting/schema migration. Display Gain is QApplication-session state
-and Review Pick Set is temporary application-session workflow state. Neither is
-persisted through `ApplicationSettings`; `Reset Settings` remains separate from
-workspace-layout reset.
+and the captured curation baseline/Pick Set is temporary application-session
+workflow state. Neither is persisted through `ApplicationSettings`; `Reset
+Settings` remains separate from workspace-layout reset.
 
 ## Thread and request lifecycle
 
@@ -386,14 +394,14 @@ registry, and stale-result rejection. Cancellation is advisory; result acceptanc
 is authoritative.
 
 Selection/page presentation triggers `_ensure_loaded()` only for Current Comparison
-Page requirements. Registration and off-page Selected/Review Pick membership alone
-do not decode unrelated images. `_selected_load_batch_complete()` uses the Current
+Page requirements. Registration and off-page Selected/Pick membership alone do not
+decode unrelated images. `_selected_load_batch_complete()` uses the Current
 Comparison Page rather than an independent first-six slice.
 
 Statistics/Histogram request identity includes generation and operation parameters
 so rebinding an unchanged request does not restart work. Line Profile caches by
-generation and line coordinates. Pick/Unpick/Clear do not rebind those numerical
-requests.
+generation and line coordinates. Pick/Unpick/Clear Selection do not rebind those
+numerical requests.
 
 ## Source residency boundary
 
@@ -403,10 +411,10 @@ actual document mutation and Files-state updates.
 
 P2 established protected soft-budget LRU semantics. P3-D refines the generic
 selection owner for arbitrarily large logical selections: **Selected membership by
-itself is not protected**. P4-A adds the same non-authority rule for Review Pick
-membership. `MainWindow._residency_protected_document_ids()` protects Current
-Comparison Page plus correctness dependencies, including foreground-load,
-promoted-preload, Difference pair/result dependencies, and non-reloadable sources.
+itself is not protected**. P4-A adds the same non-authority rule for Pick membership.
+`MainWindow._residency_protected_document_ids()` protects Current Comparison Page
+plus correctness dependencies, including foreground-load, promoted-preload,
+Difference pair/result dependencies, and non-reloadable sources.
 Selected/Picked-but-off-page sources may be evicted and return to normal pending /
 reload state without losing Registered, Selected, or temporary Pick identity.
 
@@ -416,8 +424,8 @@ source larger than budget. Only unprotected resident sources are evicted.
 Registration and Pick membership do not add residency bytes. Eviction clears
 reloadable native source and source-local caches, returns the document to pending,
 and preserves its catalog identity. Preview arrays, Qt textures, Display Gain
-buffers, Difference maps, split-channel derivatives, Review ID sets, worker
-temporaries, and process RSS are outside decoded-source accounting.
+buffers, Difference maps, split-channel derivatives, temporary curation ID sets,
+worker temporaries, and process RSS are outside decoded-source accounting.
 
 ## Preload and promotion boundary
 
@@ -436,7 +444,7 @@ generation, source-path, RAW-profile, exact-size-policy, and token identity plus
 non-resident/running/not-cancelled state.
 
 Promoted success/failure delegates once to normal foreground paths. Folder
-registration or Review Pick membership alone does not create new speculative work;
+registration or Pick membership alone does not create new speculative work;
 unresolved RAW without a profile is not preloaded. Comparison Page navigation
 starts no new speculative page preload system; sources needed for a newly foreground
 page use normal foreground requirements.
@@ -457,8 +465,8 @@ domain selection.
 - Difference cache ownership remains independent from source residency.
 
 Difference panel inputs default to the Current Comparison Page, while the panel's
-explicit Image 1/Image 2 pair remains feature-owned authority. Review Pick Set is
-not a Difference input authority and Pick/Unpick does not calculate or invalidate
+explicit Image 1/Image 2 pair remains feature-owned authority. Temporary Pick Set
+is not a Difference input authority and Pick/Unpick does not calculate or invalidate
 Difference. Difference never consumes general Display Gain, RAW Black/White
 metadata, `DisplayTransform`, or preview pixels. Folder-only registration does not
 invalidate Difference cache or presentation because it does not change Selected /

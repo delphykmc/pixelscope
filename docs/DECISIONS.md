@@ -431,48 +431,58 @@ so unlimited logical Selected membership does not defeat the existing P2 soft
 budget; it does not replace ResidencyManager or its accounting model. Native source
 remains authoritative and all P3-A/B/C analysis/display boundaries remain intact.
 
-## P4-A Review Selection & Curation decisions — implementation pending merge
+## P4-A Review Selection & Curation decisions — implementation validated, merge pending
 
 P4-0 is merged as PR #28 at
 `e30c49d6759715228a820d673ad8939ea9a3afe8`. P4-A is implemented on
-`feature/p4-a-review-selection-curation`; owner/local Windows validation,
-independent review, and merge remain pending.
+`feature/p4-a-review-selection-curation`. Owner/local Windows runtime and requested
+validation are reported PASS; independent re-review found the previous runtime/test
+blockers resolved. P4-A remains not Complete until durable-doc closure and merge.
 
-- Review Select is an explicit temporary workflow mode. Ordinary tile activation
-  and Primary interaction retain their inherited meaning.
+- There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+  View expose the curation **Pick** control directly; ordinary tile activation and
+  Primary retain their inherited meanings.
+- The first checked Pick captures the current ordered Selected IDs as the temporary
+  baseline. `ReviewSelectionState.active` represents internal captured-baseline
+  state, not a user-facing mode.
 - `ReviewSelectionState` is the sole Pick Set model and contains only ordered
-  baseline Selected IDs, picked native source IDs, and active state.
+  baseline Selected IDs, picked native source IDs, and internal captured state.
 - `ImageDocument` does not gain a persistent/workflow Pick field. Pick state is not
   stored in source, preview, residency, cache, worker, RAW profile, or derived
   presentation objects.
 - Pick identity is the native Registered/Selected source document ID. Split Channel,
   Difference, and gained preview representations are not independent pick
   identities.
-- Active, Primary, and Picked are separate states and visual affordances.
-- Pick/Unpick/Clear are ID-set/UI operations only. They do not call decode or
-  `_ensure_loaded()`, touch source LRU/protection, create preload or promotion,
-  generate Display Gain previews, issue analysis requests, calculate Difference,
-  bump source generation, or invalidate Difference cache.
-- Off-page Picked sources may be evicted/unprotected; Pick membership is not a
+- Active, Primary, and Pick are separate states and visual affordances. The Pick
+  text remains `Pick`; checked membership uses the depressed control plus a
+  bright-yellow tile-wide border, with Active still independently visible.
+- The presentation row exposes
+  `Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+  `Selected N` is the temporary Pick Set count, not Files logical Selected count.
+- Pick/Unpick/**Clear Selection** are ID-set/UI operations only. They do not call
+  decode or `_ensure_loaded()`, touch source LRU/protection, create preload or
+  promotion, generate Display Gain previews, issue analysis requests, calculate
+  Difference, bump source generation, or invalidate Difference cache.
+- Off-page picked sources may be evicted/unprotected; Pick membership is not a
   source-residency owner.
-- `Analysis Working Set = Current Comparison Page` remains unchanged. Review Pick
+- `Analysis Working Set = Current Comparison Page` remains unchanged. Temporary Pick
   Set is not Statistics/Histogram/Line Profile/ROI/Difference authority.
-- **Keep Picked** is the only review operation that mutates Selected. The result is
-  `baseline_selected_ids` filtered by picked membership, preserving baseline order
-  rather than pick order.
-- Zero picks disable Keep Picked; there is no review path that silently creates an
-  empty Selected set.
-- Non-picked images remain Registered and Keep Picked reuses the inherited Selected
-  mutation/page/render/source lifecycle rather than creating a curation-specific
-  lifecycle.
-- Cancel clears temporary review state without changing Selected, Current Comparison
-  Page, Active, or Primary.
-- A different Selected-membership mutation invalidates temporary review state before
-  the ordinary mutation proceeds. Registration-only folder input does not invalidate
-  review because it does not mutate Selected.
-- Review state is not persisted. Settings schema remains v5 and P4-A does not begin
-  P4-B session serialization.
-- Comparison Page navigation creates no speculative preload for Picked sources. P2
+- **Keep Selection** is the only curation operation that mutates Selected. The
+  result is `baseline_selected_ids` filtered by picked membership, preserving
+  baseline order rather than pick order.
+- Zero picks disable Keep Selection; there is no curation path that silently creates
+  an empty Selected set.
+- Non-picked images remain Registered and Keep Selection reuses the inherited
+  Selected mutation/page/render/source lifecycle rather than creating a
+  curation-specific lifecycle.
+- There is no user-facing Cancel command. Clear Selection removes temporary picks;
+  a different logical Selected-membership mutation invalidates the captured
+  baseline/Pick Set before or with the ordinary mutation.
+- Registration-only folder input does not invalidate captured curation state because
+  it does not mutate Selected.
+- Temporary curation state is not persisted. Settings schema remains v5 and P4-A
+  does not begin P4-B session serialization.
+- Comparison Page navigation creates no speculative preload for picked sources. P2
   preload remains Folder Position +1, one position, max-one worker.
 - Difference, Display Gain, RAW Black/White/native-source semantics, source
   generation identity, and source residency accounting remain unchanged.
@@ -490,7 +500,7 @@ independent review, and merge remain pending.
   pool max remains four.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Comparison Page navigation and Review Pick membership introduce no speculative
+- Comparison Page navigation and Pick membership introduce no speculative
   preload/cache/persistence owner.
 
 ## Validation and merge state
@@ -499,13 +509,15 @@ P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28 at
 `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 
 P4-A focused coverage on the feature branch addresses temporary-state semantics,
-1/2/6/7/15/50 Selected cases, cross-page Pick persistence, ordered Keep Picked,
-zero-pick safety, Active/Primary/Picked separation, derived-presentation identity,
-external Selected mutation invalidation, and bounded runtime ownership with no
-Pick-owned load/protection/preload/Difference/analysis behavior.
+direct first-Pick baseline capture, `1/2/6/7/15/50` Selected cases, cross-page Pick
+persistence, stable Pick checked/yellow visual state, ordered Keep Selection,
+zero-pick safety, Active/Primary/Pick separation, pan/ROI/Line drag non-pick
+behavior, production Files-removal and other external Selected mutation
+invalidation, post-Keep exact Files selection/first-Active behavior,
+derived-presentation identity, and bounded runtime ownership with no Pick-owned
+load/protection/preload/Difference/analysis behavior.
 
-Only the Qt-free state-model focused test was executed in the implementation
-agent's scratch environment and reported `3 passed`; a syntax compile of changed
-Python drafts also succeeded there. PySide6 was unavailable, so focused UI tests
-and the full repository contract were **not run by this Chat implementation agent;
-owner/local Windows validation is pending**.
+The repository owner subsequently reported the requested local Windows validation
+PASS on the runtime/test implementation. These durable-doc edits do not alter
+runtime or tests and still require the applicable docs/diff checks before merge; no
+new unobserved command PASS is inferred here.

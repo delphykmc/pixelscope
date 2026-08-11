@@ -216,11 +216,12 @@ Recommended sequence:
 Merged as PR #28. This docs-only transition closed P3 status, archived the P3 plan,
 and established the P4 execution sequence without adding runtime/UI behavior.
 
-### P4-A — Review Selection & Curation — implementation pending validation/merge
+### P4-A — Review Selection & Curation — implementation validated, merge pending
 
-Implemented on `feature/p4-a-review-selection-curation`; owner/local Windows
-validation, independent review, and merge are pending. Do not treat this slice as
-Complete until those gates close.
+Implemented on `feature/p4-a-review-selection-curation`. Owner/local Windows
+runtime and requested validation are reported PASS. Independent re-review found the
+previous runtime/test blockers resolved and identified durable-document alignment as
+the remaining merge-closure item. P4-A remains not Complete until merge.
 
 Implemented workflow:
 
@@ -231,39 +232,47 @@ Selected
     ↓
 Current Comparison Page
     ↓
-temporary Review Pick Set
-    ↓ Keep Picked
+direct temporary Pick Set
+    ↓ Keep Selection
 new Selected subset
 ```
 
-Review Select is explicit. `ReviewSelectionState` owns only baseline Selected IDs,
-a picked native-source-ID set, and active state. Native source tiles expose a
-separate Pick/Picked check affordance plus a tile-wide Picked border while review
-mode is active; normal tile activation and Primary remain independent. When a tile
-is both Active and Picked, the Picked border remains tile-wide and the Active accent
-is retained separately. Picks persist across Comparison Pages and may remain
-off-page without becoming residency/protection owners.
+There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+View expose a stable **Pick** control directly. The first checked Pick captures the
+current ordered Selected IDs as the temporary baseline internally. Checked Pick
+membership is shown by the depressed button state plus a high-contrast bright-yellow
+tile-wide border; Active and Primary retain independent meanings. Picks persist
+across Comparison Pages and may remain off-page without becoming residency or
+protection owners.
 
-**Keep Picked** is disabled at zero picks and is the only review operation that
-changes Selected. It filters the original baseline Selected ordering by picked
-membership, so pick order cannot reorder the result. Non-picked images remain
-Registered. Clear Picks and Cancel discard only temporary state. A different
-Selected-membership mutation, including Files context-menu removal, invalidates the
-temporary review state before normal mutation continues.
+The presentation row exposes the curation state directly as
+`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+Here `Selected N` is the temporary Pick Set count, not Files logical Selected count.
+**Clear Selection** clears only temporary picks. **Keep Selection** is disabled at
+zero picks and is the only curation operation that changes logical Selected. It
+filters the captured baseline Selected ordering by picked membership, so pick order
+cannot reorder the result. Non-picked images remain Registered. There is no
+user-facing Cancel command.
 
-Picked membership does not own or trigger decode, `_ensure_loaded()`, source
+A different logical Selected-membership mutation, including Files context-menu
+removal, invalidates the captured temporary baseline/Pick Set before or with the
+normal mutation. Registration-only folder input preserves curation state because it
+does not change Selected.
+
+Pick membership does not own or trigger decode, `_ensure_loaded()`, source
 residency/protection/LRU touch, preload, foreground promotion, Display Gain preview
 generation, numerical analysis, Difference calculation, or Difference cache
 identity. Split/Difference derived documents are not independent pick identities.
-Review state is not persisted and Settings schema remains v5.
+Temporary curation state is not persisted and Settings schema remains v5.
 
-Focused coverage includes state lifetime/idempotence/order, explicit UI affordance,
-Active/Primary/Picked separation, tile-wide Picked persistence, 1/2/6/7/15/50
-Selected cases, cross-page picks, zero-pick safety, baseline-order Keep Picked,
-production Files-removal invalidation, viewer pan/ROI/Line drag non-pick behavior,
-post-apply Files selection/first-Active state, derived-presentation identity
-rejection, external Selected mutation invalidation, and 50-image bounded
-load/protection/preload regression. Owner/full validation is still required.
+Focused coverage includes state lifetime/idempotence/order, direct first-Pick
+baseline capture, stable Pick checked state, Active/Primary/Pick separation,
+tile-wide yellow persistence, `1/2/6/7/15/50` Selected cases, cross-page picks,
+zero-pick safety, baseline-order Keep Selection, production Files-removal
+invalidation, viewer pan/ROI/Line drag non-pick behavior, post-Keep Files
+selection/first-Active state, derived-presentation identity rejection, external
+Selected mutation invalidation, and 50-image bounded load/protection/preload
+regression.
 
 ### P4-B — Persistent Comparison Sessions
 

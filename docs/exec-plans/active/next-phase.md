@@ -1,6 +1,6 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-A implemented; owner validation / independent review / merge pending
+Status: Active — P4-A implemented and owner-validated; durable-doc closure / merge pending
 Owner: repository owner + P4 orchestration agents
 Last updated: 2026-08-11
 Inherited merged baseline: P4-0 / PR #28 merge commit
@@ -60,7 +60,7 @@ Inherited invariants:
 | Order | Slice | Status |
 |---|---|---|
 | 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
-| 1 | P4-A Review Selection & Curation | Implemented; validation/review/merge pending |
+| 1 | P4-A Review Selection & Curation | Implemented and owner-validated; docs/merge pending |
 | 2 | P4-B Persistent Comparison Sessions | Planned |
 | 3 | P4-C Recent Entries & Session Entry UX | Planned |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
@@ -101,74 +101,96 @@ Selected
     ↓
 Current Comparison Page
     ↓
-temporary Review Pick Set
-    ↓ Keep Picked
+direct temporary Pick Set
+    ↓ Keep Selection
 new Selected subset
 ```
 
 ### Implemented contract
 
-P4-A is implemented on `feature/p4-a-review-selection-curation`; owner/local Windows
-validation, independent review, and merge are pending.
+P4-A is implemented on `feature/p4-a-review-selection-curation`. Owner/local Windows
+runtime and requested validation are reported PASS. Independent re-review found the
+previous runtime/test blockers resolved; durable-doc closure and merge remain.
 
-- **Review Select** is an explicit mode, never an implicit side effect of normal
-  tile activation or navigation.
+- There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+  View expose **Pick** directly; normal tile activation and navigation retain their
+  inherited meanings.
+- The first checked Pick captures the current ordered Selected IDs as the temporary
+  baseline internally.
 - `ReviewSelectionState` stores only baseline Selected IDs, picked native source
-  IDs, and active state. It stores no source/preview arrays, workers, caches,
-  residency state, RAW-profile copies, or Current Comparison Page copy.
-- native source tiles expose a separate **Pick / Picked** check affordance only while
-  review mode is active.
+  IDs, and internal captured-baseline state. It stores no source/preview arrays,
+  workers, caches, residency state, RAW-profile copies, or Current Comparison Page
+  copy.
+- The Pick text remains `Pick`. Checked membership uses the depressed/checked button
+  state plus a bright-yellow tile-wide border; Active and Primary remain distinct.
 - Picks remain marked while navigating across Comparison Pages. Off-page picks do
   not need to remain resident or protected.
-- `Keep Picked` is disabled when the Pick Set is empty.
-- Applying `Keep Picked` preserves original baseline Selected ordering among picked
+- The presentation row exposes
+  `Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+  `Selected N` is the temporary Pick Set count, not the Files logical Selected count.
+- **Clear Selection** clears only temporary picks.
+- **Keep Selection** is disabled when the Pick Set is empty.
+- Applying Keep Selection preserves original baseline Selected ordering among picked
   images rather than pick order.
 - Non-picked images remain Registered in Files.
-- Picked membership alone does not trigger decode, `_ensure_loaded()`, source LRU
+- Pick membership alone does not trigger decode, `_ensure_loaded()`, source LRU
   touch/protection, preload, foreground promotion, gained-preview generation,
   Difference calculation/cache changes, or analysis requests.
-- **Active**, **Primary**, and **Picked** are distinct states and affordances.
 - Split/Difference derived presentation documents are not independent pick
   identities; picks refer to native registered/selected source document IDs.
-- Only `Keep Picked` mutates Selected. Pick/Unpick/Clear Picks do not.
-- **Cancel** clears the temporary baseline/Pick Set without changing Selected,
-  Current Comparison Page, Active, or Primary.
-- a different Selected-membership mutation invalidates the temporary review state
-  before the existing normal selection mutation proceeds.
+- Only Keep Selection mutates logical Selected. Pick/Unpick/Clear Selection do not.
+- There is no user-facing Cancel command.
+- a different logical Selected-membership mutation invalidates the captured
+  baseline/Pick Set before or with the existing normal selection mutation.
+- registration-only folder input preserves the temporary curation state because it
+  does not mutate Selected.
 - Initial P4-A Pick Set is not persisted across application/session restore.
 - Settings schema remains v5 and no P4-B persistent-session behavior is introduced.
 
 ### Implementation shape
 
-- `core.review_selection.ReviewSelectionState` is the Qt-free ID-only state model.
-- `ui.review_selection.ReviewSelectionController` owns temporary workflow
-  orchestration and the contextual control group.
-- `TileHeader` exposes the explicit source-tile Pick/Picked affordance separately
-  from its existing Primary flag.
-- production application composition installs the Review controller without moving
-  Layout, Comparison Page, Display Gain, or unrelated Main-toolbar commands.
-- Keep Picked delegates the resulting ordered subset through the inherited Selected
-  mutation/render/source lifecycle rather than creating a curation-specific source
-  lifecycle.
+- `core.review_selection.ReviewSelectionState` is the Qt-free ID-only state model;
+  its `active` field is internal captured-baseline state rather than product mode.
+- `ui.review_selection.ReviewSelectionController` owns temporary direct-curation
+  orchestration and the `Selected N / Clear Selection / Keep Selection` controls.
+- `TileHeader` exposes the stable source-tile Pick affordance separately from its
+  existing Primary flag. The viewer `reviewPicked` property drives the tile-wide
+  yellow selected border independently from Active styling.
+- production application composition places Display Gain before the row stretch and
+  then inserts the curation controls, producing the owner-approved unwrapped order
+  without moving unrelated Main-toolbar commands.
+- `DocumentListWidget` pre/post selection/removal signals allow curation invalidation
+  without runtime PySide signal disconnect/reconnect rewiring; MainWindow retains
+  normal selection/removal mutation authority.
+- Keep Selection delegates the resulting ordered subset through the inherited
+  Selected mutation/render/source lifecycle rather than creating a
+  curation-specific source lifecycle.
 
 ### Focused coverage
 
-New focused suites cover:
+Focused suites cover:
 
-- state enter/exit, Pick/Unpick, duplicate idempotence, Clear, zero-pick, temporary
-  lifetime, and baseline-order filtering;
-- inactive tile behavior, explicit active-mode Pick affordance, picked count,
-  Keep/Clear/Cancel state, and Active/Primary/Picked separation;
+- state capture/exit, Pick/Unpick, duplicate idempotence, Clear, zero-pick,
+  temporary lifetime, and baseline-order filtering;
+- direct first-Pick capture, stable Pick checked/depressed state, picked count, and
+  Active/Primary/Pick separation;
+- bright-yellow tile-wide Pick state and cross-page restoration;
 - `1 / 2 / 6 / 7 / 15 / 50` Selected cases;
 - cross-page picks for 7 and 15 images;
-- ordered Keep Picked result and non-picked registration retention;
+- ordered Keep Selection result and non-picked registration retention;
+- exact Files-tree subset and first-result Active state after Keep Selection;
 - 50-image page-bounded loading/protection with no Pick-owned preload;
-- no Pick/Unpick `_ensure_loaded`, render, Statistics, Difference-input, or Line
-  Profile request churn and no source-generation/residency/Difference-cache change;
+- no Pick/Unpick/Clear `_ensure_loaded`, render, Statistics, Difference-input, or
+  Line Profile request churn and no source-generation/residency/Difference-cache
+  change;
+- pan / Ctrl+drag ROI / Shift+drag Line Profile gestures not toggling Pick;
 - Split/Difference derived identity rejection;
-- programmatic and direct-Files Selected replacement invalidation.
+- programmatic, production Files removal, direct signal fallback, and direct-Files
+  Selected replacement invalidation.
 
-Owner/local Windows focused/full validation remains required before merge.
+The owner reports requested local Windows validation PASS. Independent re-review
+found no remaining runtime/test blocker; the remaining closure work is durable-doc
+alignment and merge.
 
 ## P4-B — Persistent Comparison Sessions
 
@@ -188,7 +210,7 @@ Do **not** serialize runtime/derived/temporary ownership such as:
 - active workers, preload state, tokens, request serials, generations used only for
   stale-result authority;
 - gained/derived preview buffers;
-- temporary Review Pick Set;
+- temporary Pick Set / captured curation baseline;
 - transient Split/Difference presentation documents;
 - Current Comparison Page as an independent duplicate collection.
 
@@ -302,7 +324,7 @@ for a local Windows virtual environment or install dependencies.
 Run focused tests first:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_review_selection.py tests\ui\test_p4a_review_selection.py
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_review_selection.py tests\ui\test_p4a_review_selection.py tests\ui\test_p4a_review_selection_review_fixes.py
 ```
 
 Then run the full owner/local contract:
@@ -317,8 +339,9 @@ Then run the full owner/local contract:
 git diff --check
 ```
 
-Implementation-agent evidence is limited to a scratch syntax compile of the changed
-Python drafts and the Qt-free state-model module test reporting `3 passed`. PySide6
-was unavailable in that scratch environment, so focused UI tests and the repository
-full validation above were **not run by the implementation agent; owner/local
-Windows validation is required**.
+Historical implementation-agent evidence was limited to a scratch syntax compile
+of changed Python drafts and the Qt-free state-model test reporting `3 passed`;
+PySide6 was unavailable in that scratch environment. The repository owner later
+reported the requested local Windows validation PASS on the runtime/test
+implementation. The current closure changes are docs-only, so applicable docs/diff
+checks still need to be observed before merge; no new unobserved PASS is inferred.
