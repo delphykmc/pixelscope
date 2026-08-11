@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ class ComparisonSetController:
     ) -> None:
         self.window = window
         self.repository = repository or ComparisonSetRepository()
+        self._recent_entry_callback: Callable[[Path], None] | None = None
         self.open_action = QAction("Open Comparison Set...", window)
         self.save_action = QAction("Save Comparison Set...", window)
         self.open_action.setToolTip("Open a saved logical comparison set")
@@ -39,6 +41,18 @@ class ComparisonSetController:
         self.open_action.triggered.connect(self.open_dialog)  # type: ignore[attr-defined]
         self.save_action.triggered.connect(self.save_dialog)  # type: ignore[attr-defined]
         self._install_file_menu_actions()
+
+    def set_recent_entry_callback(
+        self,
+        callback: Callable[[Path], None] | None,
+    ) -> None:
+        """Register optional P4-C history observation without changing P4-B ownership."""
+
+        self._recent_entry_callback = callback
+
+    def _notify_recent_entry(self, path: Path) -> None:
+        if self._recent_entry_callback is not None:
+            self._recent_entry_callback(path.resolve(strict=False))
 
     def _file_menu(self) -> QMenu:
         """Replace the legacy File menu with one whose Python wrapper we retain."""
@@ -132,6 +146,7 @@ class ComparisonSetController:
         remember = getattr(self.window, "_remember_directory", None)
         if callable(remember):
             remember(target.parent)
+        self._notify_recent_entry(target)
         self.window.statusBar().showMessage(
             f"Saved Comparison Set · {target.name}",
             4000,
@@ -210,6 +225,18 @@ class ComparisonSetController:
         remember = getattr(self.window, "_remember_directory", None)
         if callable(remember):
             remember(target.parent)
+        self._notify_recent_entry(target)
+        self.show_open_feedback(target, loaded, missing)
+
+    def show_open_feedback(
+        self,
+        path: str | Path,
+        loaded: int,
+        missing: tuple[Path, ...],
+    ) -> None:
+        """Present the canonical successful-open feedback for dialog or Recent entry."""
+
+        target = Path(path)
         if missing:
             preview = "\n".join(str(item) for item in missing[:5])
             suffix = f"\n… and {len(missing) - 5} more" if len(missing) > 5 else ""
@@ -220,7 +247,7 @@ class ComparisonSetController:
                 f"{preview}{suffix}",
             )
         self.window.statusBar().showMessage(
-            f"Opened Comparison Set · {loaded} source(s)",
+            f"Opened Comparison Set · {target.name} · {loaded} source(s)",
             4000,
         )
 
