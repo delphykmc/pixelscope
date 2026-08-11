@@ -7,9 +7,14 @@ import pytest
 from PySide6.QtCore import QSettings
 
 from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
-from pixelscope.core.comparison_set import ComparisonSet, ComparisonSetSource
+from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
+from pixelscope.core.comparison_set import (
+    ComparisonSet,
+    ComparisonSetError,
+    ComparisonSetSource,
+)
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.io.raw_profile import RawProfile
 
 
 def _production_window(qtbot: object) -> MainWindow:
@@ -28,12 +33,33 @@ def _ready_document(path: Path, value: int) -> ImageDocument:
     )
 
 
+def _pending_document(path: Path) -> ImageDocument:
+    path.write_bytes(b"pending-test-source")
+    return ImageDocument.pending_document(path)
+
+
+def _raw_profile() -> RawProfile:
+    return RawProfile(
+        name="gray10",
+        width=4,
+        height=4,
+        stride_bytes=8,
+        bit_depth=10,
+        channel_layout="GRAY",
+        black_level=64,
+        white_level=1023,
+    )
+
+
 def _register(window: MainWindow, documents: list[ImageDocument]) -> None:
     for document in documents:
         window.add_document(document, select=False)
 
 
-def test_save_uses_logical_selected_not_temporary_pick_set(qtbot: object, tmp_path: Path) -> None:
+def test_save_uses_logical_selected_not_temporary_pick_set(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
     QSettings().clear()
     documents = [_ready_document(tmp_path / f"image{i}.png", i) for i in range(3)]
     window = _production_window(qtbot)
@@ -55,7 +81,10 @@ def test_save_uses_logical_selected_not_temporary_pick_set(qtbot: object, tmp_pa
     window.close()
 
 
-def test_keep_selection_result_is_the_saved_comparison_set(qtbot: object, tmp_path: Path) -> None:
+def test_keep_selection_result_is_the_saved_comparison_set(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
     QSettings().clear()
     documents = [_ready_document(tmp_path / f"image{i}.png", i) for i in range(4)]
     window = _production_window(qtbot)
@@ -82,7 +111,9 @@ def test_open_restores_order_active_primary_layout_and_keeps_other_registered(
     extra = _ready_document(tmp_path / "extra.png", 9)
     window = _production_window(qtbot)
     _register(window, [*documents, extra])
-    window._select_document_ids([documents[2].document_id, documents[0].document_id, documents[1].document_id])
+    window._select_document_ids(
+        [documents[2].document_id, documents[0].document_id, documents[1].document_id]
+    )
     window.set_layout_mode("Multi View")
     window._set_focus_document(documents[0].document_id)
     window._set_active_document(documents[1])
@@ -122,8 +153,8 @@ def test_open_partial_missing_loads_valid_subset_and_invalidates_curation(
     review.state.set_picked(first.document_id, True)
     artifact = ComparisonSet(
         sources=(
-            ComparisonSetSource(second.source_path),
-            ComparisonSetSource(tmp_path / "missing.png"),
+            ComparisonSetSource(str(second.source_path)),
+            ComparisonSetSource(str(tmp_path / "missing.png")),
         )
     )
     target = tmp_path / "partial.pixelscope"
@@ -153,7 +184,7 @@ def test_corrupt_or_zero_loadable_set_leaves_workspace_unchanged(
 
     broken = tmp_path / "broken.pixelscope"
     broken.write_text("{bad", encoding="utf-8")
-    with pytest.raises(Exception):
+    with pytest.raises(ComparisonSetError):
         window.comparison_set_controller.open_from_path(broken)
     assert set(window.documents) == before_registered
     assert [item.document_id for item in window.selected_documents] == before_selected
@@ -161,11 +192,110 @@ def test_corrupt_or_zero_loadable_set_leaves_workspace_unchanged(
     unavailable = tmp_path / "unavailable.pixelscope"
     window.comparison_set_controller.repository.save(
         unavailable,
-        ComparisonSet(sources=(ComparisonSetSource(tmp_path / "gone.png"),)),
+        ComparisonSet(sources=(ComparisonSetSource(str(tmp_path / "gone.png")),)),
     )
     monkeypatch.setattr("pixelscope.ui.comparison_set.QMessageBox.warning", lambda *args: None)
     loaded, _missing = window.comparison_set_controller.open_from_path(unavailable)
     assert loaded == 0
     assert set(window.documents) == before_registered
     assert [item.document_id for item in window.selected_documents] == before_selected
+    window.close()
+
+
+def test_large_open_keeps_foreground_work_bounded_to_active_comparison_page(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QSettings().clear()
+    documents = [_pending_document(tmp_path / f"image{i:02d}.png") for i in range(50)]
+    window = _production_window(qtbot)
+    _register(window, documents)
+    target = tmp_path / "large.pixelscope"
+    active_index = 49
+    artifact = ComparisonSet(
+        sources=tuple(ComparisonSetSource(str(document.source_path)) for document in documents),
+        active_path=str(documents[active_index].source_path),
+        layout_mode="Multi View",
+    )
+    window.comparison_set_controller.repository.save(target, artifact)
+    requested: list[str] = []
+    monkeypatch.setattr(window, "_ensure_loaded", lambda document: requested.append(document.document_id))
+
+    loaded, missing = window.comparison_set_controller.open_from_path(target)
+
+    assert loaded == 50
+    assert missing == ()
+    assert window._page_start == 48
+    assert [document.document_id for document in window.current_comparison_documents()] == [
+        documents[48].document_id,
+        documents[49].document_id,
+    ]
+    assert set(requested) == {documents[48].document_id, documents[49].document_id}
+    assert len(requested) <= COMPARISON_PAGE_SIZE
+    assert not set(documents[:48]).intersection(window._residency_protected_document_ids())
+    window.close()
+
+
+def test_saved_resolved_raw_profile_is_restored_without_resolution_dialog(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QSettings().clear()
+    raw_path = tmp_path / "image.raw"
+    raw_path.write_bytes(b"\x00" * 32)
+    window = _production_window(qtbot)
+    profile = _raw_profile()
+    artifact = ComparisonSet(
+        sources=(ComparisonSetSource(str(raw_path), profile.dict()),),
+        layout_mode="Single View",
+    )
+    target = tmp_path / "raw.pixelscope"
+    window.comparison_set_controller.repository.save(target, artifact)
+    monkeypatch.setattr(window, "_ensure_loaded", lambda _document: None)
+    prompt_count = 0
+
+    def unexpected_prompt(*_args: object, **_kwargs: object) -> None:
+        nonlocal prompt_count
+        prompt_count += 1
+        return None
+
+    monkeypatch.setattr(window, "_confirm_raw_profile", unexpected_prompt)
+
+    loaded, missing = window.comparison_set_controller.open_from_path(target)
+
+    assert loaded == 1
+    assert missing == ()
+    selected = window.selected_documents[0]
+    assert window._raw_profiles[selected.document_id] == profile
+    assert selected.raw_profile == profile
+    assert prompt_count == 0
+    window.close()
+
+
+def test_unresolved_raw_remains_lazy_until_existing_foreground_resolution_path(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QSettings().clear()
+    raw_path = tmp_path / "unresolved.raw"
+    raw_path.write_bytes(b"\x00" * 32)
+    window = _production_window(qtbot)
+    target = tmp_path / "unresolved.pixelscope"
+    window.comparison_set_controller.repository.save(
+        target,
+        ComparisonSet(sources=(ComparisonSetSource(str(raw_path)),)),
+    )
+    foreground_ids: list[str] = []
+    monkeypatch.setattr(window, "_ensure_loaded", lambda document: foreground_ids.append(document.document_id))
+
+    loaded, missing = window.comparison_set_controller.open_from_path(target)
+
+    assert loaded == 1
+    assert missing == ()
+    selected = window.selected_documents[0]
+    assert selected.document_id not in window._raw_profiles
+    assert foreground_ids == [selected.document_id]
     window.close()
