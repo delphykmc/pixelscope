@@ -14,6 +14,7 @@ from pixelscope.core.comparison_set import (
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.io.path_discovery import ImageInput, image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.ui.design_tokens import menu_style
 
 COMPARISON_SET_FILTER = "PixelScope Comparison Set (*.pixelscope)"
 
@@ -40,11 +41,54 @@ class ComparisonSetController:
         self._install_file_menu_actions()
 
     def _file_menu(self) -> QMenu:
-        for action in self.window.menuBar().actions():
-            menu = action.menu()
-            if menu is not None and action.text().replace("&", "") == "File":
-                return menu
+        menu_bar = self.window.menuBar()
+        for action in menu_bar.actions():
+            if action.text().replace("&", "") != "File":
+                continue
+            try:
+                menu = action.menu()
+                if menu is not None:
+                    menu.actions()
+                    return menu
+            except RuntimeError:
+                return self._replace_deleted_file_menu(action)
         raise RuntimeError("Comparison Set commands require the File menu")
+
+    def _replace_deleted_file_menu(self, stale_action: QAction) -> QMenu:
+        """Recreate File menu when PySide released its temporary menu wrapper."""
+
+        menu_bar = self.window.menuBar()
+        top_level_actions = menu_bar.actions()
+        stale_index = top_level_actions.index(stale_action)
+        insert_before = (
+            top_level_actions[stale_index + 1]
+            if stale_index + 1 < len(top_level_actions)
+            else None
+        )
+
+        replacement = QMenu("&File", self.window)
+        replacement.setStyleSheet(menu_style())
+        action_map = self.window.action_map
+        for name in ("Open Images...", "Open Folder..."):
+            action = action_map.get(name)
+            if isinstance(action, QAction):
+                replacement.addAction(action)
+        replacement.addSeparator()
+        export_action = action_map.get("Export Statistics CSV...")
+        if isinstance(export_action, QAction):
+            replacement.addAction(export_action)
+        replacement.addSeparator()
+        exit_action = action_map.get("Exit")
+        if isinstance(exit_action, QAction):
+            replacement.addAction(exit_action)
+
+        menu_bar.removeAction(stale_action)
+        if insert_before is None:
+            menu_bar.addMenu(replacement)
+        else:
+            menu_bar.insertMenu(insert_before, replacement)
+        self._replacement_file_menu = replacement
+        return replacement
 
     def _install_file_menu_actions(self) -> None:
         menu = self._file_menu()
