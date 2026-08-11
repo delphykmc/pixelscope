@@ -34,7 +34,7 @@ knowledge belongs in focused documents under `docs/`.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
-- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current P2 execution plan.
+- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current P4 execution plan.
 - [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md): retained P1 workspace-polish rationale and completion evidence.
 - `exec-plans/completed/`: retained plans whose rationale remains useful.
 - `exec-plans/TEMPLATE.md`: standard long-work format.
