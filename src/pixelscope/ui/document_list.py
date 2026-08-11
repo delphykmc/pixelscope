@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import (
+    QItemSelection,
     QModelIndex,
     QPersistentModelIndex,
     QPoint,
@@ -65,6 +66,8 @@ class DocumentListWidget(QTreeWidget):
     previous_position_requested = Signal()
     next_position_requested = Signal()
     activate_requested = Signal(str)
+    selection_changing = Signal()
+    remove_changing = Signal(object)
     remove_requested = Signal(object)
     compare_requested = Signal()
     focus_requested = Signal(str)
@@ -256,6 +259,16 @@ class DocumentListWidget(QTreeWidget):
     ) -> list[Path]:
         return [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
 
+    def selectionChanged(  # noqa: N802
+        self,
+        selected: QItemSelection,
+        deselected: QItemSelection,
+    ) -> None:
+        """Expose a safe pre-mutation boundary before Qt emits itemSelectionChanged."""
+
+        self.selection_changing.emit()
+        super().selectionChanged(selected, deselected)
+
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if self._local_paths(event):
             event.acceptProposedAction()
@@ -293,6 +306,12 @@ class DocumentListWidget(QTreeWidget):
         if document_id is not None:
             self.activate_requested.emit(str(document_id))
 
+    def _emit_remove_request(self, document_ids: list[str]) -> None:
+        """Emit pre/post remove signals without rewriting existing MainWindow ownership."""
+
+        self.remove_changing.emit(document_ids)
+        self.remove_requested.emit(document_ids)
+
     def _show_context_menu(self, position: QPoint) -> None:
         item = self.itemAt(position)
         if item is None or item.data(0, Qt.ItemDataRole.UserRole) is None:
@@ -311,7 +330,7 @@ class DocumentListWidget(QTreeWidget):
         elif selected is compare_action:
             self.compare_requested.emit()
         elif selected is remove_action:
-            self.remove_requested.emit(
+            self._emit_remove_request(
                 [
                     str(candidate.data(0, Qt.ItemDataRole.UserRole))
                     for candidate in self.selected_document_items()

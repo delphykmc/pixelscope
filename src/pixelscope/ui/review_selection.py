@@ -36,7 +36,6 @@ class ReviewSelectionController(QObject):
         self.window = window
         self.state = ReviewSelectionState()
         self._applying = False
-        self._original_selection_changed = window._selection_changed
         self._original_select_document_ids = window._select_document_ids
         self._original_remove_document_ids = window._remove_document_ids
         self._build_controls()
@@ -176,10 +175,7 @@ class ReviewSelectionController(QObject):
             *args: object,
             **kwargs: object,
         ) -> Any:
-            if self.state.active and not self._applying:
-                baseline = set(self.state.baseline_selected_ids)
-                if any(document_id in baseline for document_id in document_ids):
-                    self.cancel_review()
+            self._invalidate_for_removed_ids(document_ids)
             result = self._original_remove_document_ids(list(document_ids), *args, **kwargs)
             self._sync_all()
             return result
@@ -187,18 +183,14 @@ class ReviewSelectionController(QObject):
         self.window._select_document_ids = select_document_ids
         self.window._remove_document_ids = remove_document_ids
 
-        # MainWindow connected these signals during construction, so replacing only
-        # the instance attributes would leave the original bound callables stored in
-        # Qt. Reconnect the production paths through the review invalidation wrappers.
-        self.window.document_list.remove_requested.disconnect(
-            self._original_remove_document_ids
-        )
-        self.window.document_list.remove_requested.connect(remove_document_ids)
-        self.window.document_list.itemSelectionChanged.disconnect(
-            self._original_selection_changed
-        )
-        self.window.document_list.itemSelectionChanged.connect(self._files_selection_changing)
-        self.window.document_list.itemSelectionChanged.connect(self._selection_changed_and_sync)
+        # Never disconnect constructor-time PySide signal connections here. On
+        # Windows/PySide6 that can fault in native code. DocumentListWidget exposes
+        # explicit safe pre-mutation boundaries instead; normal MainWindow slots stay
+        # connected and remain the mutation authority.
+        self.window.document_list.selection_changing.connect(self._files_selection_changing)
+        self.window.document_list.itemSelectionChanged.connect(self._files_selection_changed)
+        self.window.document_list.remove_changing.connect(self._files_remove_changing)
+        self.window.document_list.remove_requested.connect(self._files_remove_changed)
 
     def _invalidate_for_selected_mutation(self, requested: Sequence[str]) -> None:
         if (
@@ -206,23 +198,31 @@ class ReviewSelectionController(QObject):
             and not self._applying
             and tuple(requested) != self.state.baseline_selected_ids
         ):
-            self.cancel_review()
+            self.state.exit()
 
-    def _files_selection_changing(self) -> None:
+    def _invalidate_for_removed_ids(self, document_ids: Sequence[str]) -> None:
         if not self.state.active or self._applying:
             return
-        selected_ids = {
-            str(item.data(0, Qt.ItemDataRole.UserRole))
-            for item in self.window.document_list.document_items()
-            if item.isSelected()
-        }
-        if selected_ids != set(self.state.baseline_selected_ids):
+        baseline = set(self.state.baseline_selected_ids)
+        if any(document_id in baseline for document_id in document_ids):
             self.state.exit()
-            for viewer in self._all_viewers():
-                self._sync_tile(viewer)
 
-    def _selection_changed_and_sync(self) -> None:
-        self._original_selection_changed()
+    def _files_selection_changing(self) -> None:
+        if self.state.active and not self._applying:
+            self.state.exit()
+
+    def _files_selection_changed(self) -> None:
+        self._sync_all()
+
+    def _files_remove_changing(self, document_ids: object) -> None:
+        if isinstance(document_ids, list):
+            self._invalidate_for_removed_ids(
+                [str(document_id) for document_id in document_ids]
+            )
+
+    def _files_remove_changed(self, _document_ids: object) -> None:
+        if self.state.active and not self.state.matches_selected_ids(self._selected_ids()):
+            self.state.exit()
         self._sync_all()
 
     def _mode_clicked(self, checked: bool) -> None:

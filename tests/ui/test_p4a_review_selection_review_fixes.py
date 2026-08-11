@@ -49,7 +49,19 @@ def _selected_tree_ids(window: MainWindow) -> list[str]:
     ]
 
 
-def test_files_remove_requested_signal_invalidates_review_before_stale_state_survives(
+def test_production_composition_installs_review_without_qt_signal_rewire(
+    qtbot: object,
+) -> None:
+    QSettings().clear()
+    window, controller = _production_window(qtbot)
+
+    assert window.review_selection_controller is controller
+    assert not controller.active
+    assert not controller.mode_button.isChecked()
+    window.close()
+
+
+def test_files_remove_request_invalidates_review_before_stale_state_survives(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -63,7 +75,7 @@ def test_files_remove_requested_signal_invalidates_review_before_stale_state_sur
     assert controller.active
     assert controller.picked_ids == {documents[0].document_id}
 
-    window.document_list.remove_requested.emit([documents[0].document_id])
+    window.document_list._emit_remove_request([documents[0].document_id])
 
     assert not controller.active
     assert controller.picked_count == 0
@@ -73,6 +85,24 @@ def test_files_remove_requested_signal_invalidates_review_before_stale_state_sur
         not bool(viewer.property("reviewPicked"))
         for viewer in window.multi_compare_view.viewers
     )
+    window.close()
+
+
+def test_direct_remove_requested_fallback_clears_review_after_external_emit(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    QSettings().clear()
+    documents = _ready_documents(tmp_path, 3)
+    window, controller = _production_window(qtbot)
+    _register_and_select(window, documents)
+    controller.enter_review()
+
+    window.document_list.remove_requested.emit([documents[0].document_id])
+
+    assert documents[0].document_id not in window.documents
+    assert not controller.active
+    assert controller.picked_count == 0
     window.close()
 
 
