@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from pixelscope.io.path_discovery import ImageInput, image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import menu_style
 
+LOGGER = logging.getLogger(__name__)
 COMPARISON_SET_FILTER = "PixelScope Comparison Set (*.pixelscope)"
 
 
@@ -51,8 +53,14 @@ class ComparisonSetController:
         self._recent_entry_callback = callback
 
     def _notify_recent_entry(self, path: Path) -> None:
-        if self._recent_entry_callback is not None:
+        """Notify optional Recent history without making it a P4-B correctness dependency."""
+
+        if self._recent_entry_callback is None:
+            return
+        try:
             self._recent_entry_callback(path.resolve(strict=False))
+        except Exception:  # noqa: BLE001 - optional observer cannot break P4-B workflows
+            LOGGER.warning("Unable to update Recent Comparison Set history", exc_info=True)
 
     def _file_menu(self) -> QMenu:
         """Replace the legacy File menu with one whose Python wrapper we retain."""
