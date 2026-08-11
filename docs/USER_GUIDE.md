@@ -1,423 +1,143 @@
 # PixelScope user guide
 
-## Register, select, and view images
+## Opening images and folders
 
-PixelScope distinguishes five states:
+Use **File > Open Images...** to open one or more supported images for comparison.
+The opened files become the current logical Selected set. Direct image-file drag/drop
+uses the same selection-oriented intent.
 
-- **Registered**: the image is known to the Files workspace.
-- **Selected**: the image is in the ordered logical comparison set.
-- **Current Comparison Page**: the current working subset of Selected, maximum six.
-- **Presented**: the current viewer representation of that page.
-- **Resident**: the decoded native source is currently retained in memory when
-  required.
+Use **File > Open Folder...** to register supported images from a folder without
+replacing the current Selected set. Folder drag/drop is also registration-only.
 
-The six-image limit belongs to the **Current Comparison Page**, not Files
-registration or logical Selected membership. You may register many folders/images
-and select more than six; PixelScope works on them in six-image Comparison Pages.
+RAW files use PixelScope's existing RAW Profile workflow. Folder-registered unresolved
+RAW files can remain pending until they enter the foreground comparison page.
 
-`Analysis Working Set = Current Comparison Page`.
-Viewer slot numbers are always local `1..6` inside that page.
+## Selected and Comparison Pages
 
-### Open Images...
+Files selection is the logical comparison set. Selected may contain more than six
+images.
 
-Use **File > Open Images...** (`Ctrl+O`) when you are choosing image files to look
-at now. The dialog supports multiple files and exactly these formats:
+PixelScope presents up to six Selected images at a time as the **Current Comparison
+Page**. Use the page controls or Ctrl+Left/Ctrl+Right to move between pages. Left/Right
+retains fine Selected-image navigation. PageUp/PageDown remains Folder Position
+navigation.
 
-```text
-.png  .bmp  .jpg  .jpeg  .raw
-```
+Statistics, Histogram, Line Profile, page-derived Difference context, and foreground
+source loading operate on the Current Comparison Page rather than all Selected.
 
-All supported selected files are registered and become the current ordered
-Selected set. If 15 files are supplied, all 15 remain Selected. The initial
-Comparison Page is images 1–6, followed by 7–12 and 13–15.
+## Temporary review/curation
 
-PNG/BMP/JPEG open directly. RAW uses the same command but resolves RAW profile
-metadata internally. There is no separate top-level RAW-open command.
+In Multi View, use **Pick** on source tiles to mark temporary candidates. Picks can
+span Comparison Pages.
 
-### Open Folder...
-
-Use **File > Open Folder...** (`Ctrl+Shift+O`) when you are adding a dataset folder
-to the Files workspace. The native folder picker selects one directory per
-invocation. To register several folders at once, drag/drop them into Files; the same
-registration API deduplicates supplied paths and has no six-folder limit.
-
-Opening folders is **registration-only**:
-
-- supported images are added to Files;
-- the current Selected set does not change;
-- the Current Comparison Page does not change;
-- the current viewer/layout does not change;
-- no first image is automatically selected;
-- two folders do not implicitly create a comparison group;
-- folders with no supported images are skipped while other folders continue.
-
-Therefore adding folders while comparing A001/B001 leaves that comparison intact.
-ROI, Line Profile, Difference presentation, Display Gain, active/primary state,
-and current view state are not reset merely because another folder was registered.
-Any captured temporary curation baseline and Pick Set are also unaffected because
-Selected membership did not change.
-
-If images are registered but nothing is selected, the center workspace shows
-**Select an image from Files to view**. A truly empty workspace shows **Drop images
-or folders here** with Open Images/Open Folder buttons.
-
-### Drag and drop
-
-Drag/drop follows the same intent rules:
-
-- direct image files → register and make them the Selected set;
-- folders → register their supported contents only;
-- mixed image files + folders → direct files become Selected while folder contents
-  are registered only.
-
-Dropping one, two, six, or more folders behaves the same way. There is no special
-two-folder auto-comparison behavior. Unsupported files and standalone `.json`
-files are ignored rather than interpreted as RAW.
-
-## Current Comparison Page navigation
-
-The presentation-control row above the image workspace always shows Comparison
-Page status, including when there is only one page. Previous/next arrows remain in
-place and are disabled when that direction is unavailable, so the controls do not
-shift as selection size changes. Existing Auto/Single/Multi behavior remains
-unchanged for six or fewer Selected images. For example, a three-page selection may
-show:
+The presentation row shows:
 
 ```text
-Page [‹] 2 / 3 [›]  7–12 of 15
+Selected N | Clear Selection | Keep Selection
 ```
 
-- **Ctrl+Left**: Previous Comparison Page when available.
-- **Ctrl+Right**: Next Comparison Page when available.
-- Page navigation does not wrap at the first/last page. At an unavailable endpoint
-  the application shortcut is disabled, so Ctrl+Arrow remains available to the
-  focused editor/control.
-- Changing page does not change Selected membership/order.
-- The active local slot is preserved when possible; a short final page clamps to
-  its last available slot.
-
-In Multi View, large selections keep a six-slot grid for continuity. A final
-three-image page occupies slots 1–3 and leaves slots 4–6 empty rather than changing
-geometry.
-
-In Single View, one image is presented but its page context is still the full
-Current Comparison Page. Number keys **1–6** always mean local page slots.
-For example, image10 on the 7–12 page is slot **4**, not slot 10.
-
-## Pick and Keep Selection
-
-Use the direct **Pick** controls in Multi View when a large Selected set contains
-images you want to inspect page by page and reduce to a smaller comparison subset.
-There is no separate Review Select mode to enter.
-
-Each eligible native source tile in Multi View shows **Pick**. Clicking Pick toggles
-that source in the temporary Pick Set. The first checked Pick captures the current
-ordered Selected set as the temporary baseline internally. The button text remains
-**Pick** in both states; a picked tile shows the button depressed/checked and uses a
-bright-yellow tile-wide border. Normal tile activation and the Primary flag retain
-their existing meanings, so **Active**, **Primary**, and Pick membership remain
-independent.
-
-A typical 15-image curation can be performed as follows:
-
-1. In Multi View, click **Pick** on desired images on page 1.
-2. Move to pages 2 and 3 with the normal Comparison Page controls and continue
-   picking. Earlier picks remain remembered even while off-page.
-3. Check **Selected N** in the presentation row for the current temporary Pick Set
-   count. This number is not the Files logical Selected count.
-4. Use **Clear Selection** to clear only the temporary Pick Set if you want to start
-   the curation choices again.
-5. Use **Keep Selection** to replace logical Selected with the picked subset.
-
-**Keep Selection** is disabled when nothing is picked, so a zero-pick curation
-cannot silently replace Selected with an empty set.
-
-Keep Selection preserves the original baseline Selected order, not the order in
-which picks were made. For example, if baseline Selected is `A B C D E F G` and
-you pick `G → B → E`, the new Selected set is `B E G`. All non-picked images remain
-Registered in Files and can be selected again later.
-
-There is no separate Cancel command. **Clear Selection** removes the current Pick
-membership without changing logical Selected. If another selection-oriented
-workflow actually changes Selected—such as Open Images, direct image-file drag/drop,
-Files selection replacement/removal, or Folder Position movement—the captured
-baseline/Pick Set is invalidated before or with the normal selection operation.
-Registration-only folder input does not cause this reset because it does not change
-Selected. Temporary Pick state is not persisted across application restart.
-
-Picks refer to the native registered source image. Split Channel items and derived
-Difference presentation are not independent pick identities. Picking an image also
-does not decode or preload off-page images, protect them in source residency, run
-Difference or analysis, or otherwise change the Current Comparison Page working-set
-authority.
-
-Only the explicit **Pick** control changes curation membership. Normal image pan,
-Ctrl+drag ROI, Shift+drag Line Profile, and ordinary tile activation do not toggle
-Pick state.
-
-## Fine image navigation
-
-**Left/Right** remains Previous/Next Selected Image across the complete ordered
-Selected set.
-
-If Single View is showing image12, pressing Right moves to image13 and automatically
-changes the Current Comparison Page from 7–12 to 13–15. image13 is then local slot
-1. The reverse occurs when moving Left across the boundary.
-
-Up/Down remains Files-tree row navigation.
-
-## Folder Position navigation
-
-PageDown/PageUp remains exclusively Folder Position navigation; it is not reused
-for Comparison Page paging.
-
-Folder Position requires one to six Selected files from distinct folders. If 20
-folders are registered but the comparison contains A005, D005, F005, and K005,
-PageDown targets A006, D006, F006, and K006 only. All members move atomically in
-natural filename order. If any participating folder is at an endpoint, selection
-is unchanged and the status bar reports the boundary.
-
-When **more than six images are Selected**, Folder Position is unavailable and
-PageUp/PageDown does not partially move only the current page. Reduce Selected to
-one-to-six images to use Folder Position again.
-
-If Folder Position changes Selected after a curation baseline has been captured,
-the temporary baseline/Pick Set is discarded before normal Folder Position
-selection replacement.
-
-## View and navigate
-
-- **Auto** chooses the current layout from the applicable comparison size.
-- **Single View** presents one active image from the Current Comparison Page.
-- **Multi View** presents the Current Comparison Page with at most six source tiles.
-- Keys 1–6 and Single View header navigation address page-local slots.
-- Two-, four-, and six-image layouts keep equal tile sizes. Three- and five-image
-  layouts enlarge the primary tile for `Selected <= 6`.
-- For `Selected > 6`, Multi View keeps six-slot geometry even on a partial final
-  page.
-- Selecting a primary flag changes presentation order within the Current Comparison
-  Page without changing Selected ordering or page membership.
-- **Fit** fits visible tiles; **100%** uses native pixel scale.
-- **Split Channels** keeps one source Selected in Files but derives transient
-  R/G/B or R/Gr/Gb/B viewer-local subchannels. Multi View exposes explicit Primary;
-  Single View navigates the same local subchannels with number/header/Left/Right
-  controls. Native Statistics/Histogram/Line/Difference authority remains on the
-  original source page.
-
-Registration count is independent of all of these presentation choices.
-
-## Display Gain
-
-**Display Gain** provides 1×, 2×, 4×, 8×, and 16× viewer-only digital gain for
-ordinary Gray/RGB/RGBA and RAW. One session-local value is shared by supported
-Single/Multi View tiles.
-
-With focus inside an image viewer, `+` moves one gain step higher and `-` lower.
-With focus in Files, those keys keep Qt-native folder expand/collapse behavior.
-
-- ordinary Gray/RGB uses zero-anchored gain (`gain × source`);
-- ordinary RGB split channels use the same zero anchor;
-- RGBA gains RGB only and preserves canonical 1× alpha;
-- RAW uses its Black-derived gain anchor above 1×;
-- Difference has its own independent presentation Gain.
-
-At 1× PixelScope reuses canonical preview. Gain above 1× is generated from already
-resident native source as viewer-local derived presentation. Display Gain does not
-change pixel readout, Statistics, Histogram, Line Profile, Split Channel native
-data, Difference, source generation, or source residency. Pick identity also
-remains the native source document ID, not a gained preview representation.
-
-## Cursor, ROI, and Line Profile selection
-
-Moving over an image synchronizes the crosshair and status readout.
-
-- Ctrl+drag creates one shared ROI; Esc clears ROI.
-- Shift+drag creates a horizontal or vertical Line Profile selection.
-- Shift+Esc clears the shared line.
-- Alt+drag does not create a Line Profile.
-
-ROI normalization, Statistics, Histogram, and Line Profile all use the Current
-Comparison Page as the default analysis working set. Temporary Pick Set does not
-extend or replace that analysis working set.
-
-## Statistics and Histogram
-
-Statistics supports Full image and Active ROI scopes. The Images summary reports
-bit depth and analyzed pixel count. RGB/RGBA uses R/G/B for analysis; RGBA alpha
-is ignored. Bayer uses R/Gr/Gb/B native mosaic planes.
-
-Histogram supports Auto/256/1024/4096 bins, Count/Normalized/Log count, Separate or
-Overlay display, and native code-value x ranges. Identical source/generation/ROI/
-bin requests do not restart unchanged numerical work.
-
-When you change Comparison Page, Statistics and Histogram move to that same page;
-they do not remain bound to the first six Selected images. Pick/Unpick alone does
-not change their source set or reissue numerical analysis requests.
-
-## Line Profile
+Here `Selected N` is the temporary Pick count, not the Files logical Selected count.
 
-Line Profile supports Overlay, Separate by image, and Separate by channel. In
-Difference-from-reference mode, reference priority is primary, then active, then
-first displayed, while an explicitly selected available reference remains stable.
-Its normal source set follows the Current Comparison Page. Pick membership is not
-a Line Profile input authority.
-
-## Difference
+- **Clear Selection** clears temporary Picks only.
+- **Keep Selection** replaces Files logical Selected with the picked images while
+  preserving their original Selected ordering.
+- Non-picked images remain Registered in Files.
 
-Difference supports:
+Picks are temporary workflow state. They are not saved automatically and do not make
+off-page sources stay decoded/resident.
 
-- Gray ↔ Gray;
-- RGB/RGBA ↔ RGB/RGBA, alpha ignored;
-- Bayer ↔ Bayer with the same CFA pattern.
+## Saving a Comparison Set
 
-Cross-family, dimension-mismatch, CFA-mismatch, and unsupported layouts are
-rejected. PixelScope does not silently convert RGB to grayscale.
-
-Equal effective bit depths use the Native code domain. Mixed effective bit depths
-normalize each source independently by its own effective full-scale code and use
-float32 `[0,1]` Difference. RAW Black/White metadata, Display Gain, preview values,
-and demosaic do not participate in this normalization.
+Use **File > Save Comparison Set...** to save the current logical Selected comparison
+set as a `.pixelscope` file.
 
-Threshold units are `code` in Native and `%FS` in Normalized. Mask comparison is
-strict `>`. Difference cache is order-independent and separate from decoded-source
-residency. Folder-only registration does not invalidate a valid Difference cache
-entry or clear the current Difference presentation because it does not alter the
-Selected/current-page lifecycle.
+Important: **Save Comparison Set saves logical Selected, not temporary Picks.**
 
-Difference's available/default inputs follow the Current Comparison Page, while an
-explicit Image 1/Image 2 pair remains owned by the Difference feature. Pick
-membership does not change either authority and Pick/Unpick does not calculate or
-invalidate Difference.
-
-When all six source slots of a Comparison Page are occupied, the derived Difference
-result is presented in Single View until disabled, preserving the existing
-six-source Difference workspace contract. Returning to a page with a cached
-Difference uses the same Diff-only Single View and restore behavior as a fresh
-asynchronous result.
+If you have made Picks and want to save only that curated subset:
 
-## RAW profile resolution
-
-RAW uses the same **Open Images...** entry as ordinary images.
-
-### Direct RAW file open/drop
-
-- Exact same-basename sidecar (`frame.raw` + `frame.json`) is parsed and validated.
-- With no sidecar, the editable RAW Profile dialog opens.
-- An invalid sidecar shows a warning and then editable fallback.
-- Cancelling profile entry prevents that directly opened RAW from being registered.
-- Multiple RAW files are resolved independently; PixelScope does not silently
-  reuse the previous profile or select one from byte size alone.
+1. choose **Keep Selection**;
+2. confirm Files now shows the intended logical Selected subset;
+3. choose **File > Save Comparison Set...**.
 
-The dialog uses **Load Profile...** and **Save Profile...** terminology. JSON
-remains the compatible storage format.
+A Comparison Set v1 stores the ordered Selected source paths plus minimal stable
+comparison context: optional Active source, optional applicable Primary source,
+layout mode, and already-resolved RAW profile data when available.
 
-### RAW inside an opened/dropped folder
+Saving does not force every Selected source to decode or become resident, and it does
+not clear a temporary Pick Set. With no logical Selected, the command performs a
+normal no-op and reports that there is nothing to save.
 
-Folder registration is intentionally lazy. RAW paths and deterministic
-same-basename sidecar paths can be registered in Files without immediately opening
-RAW Profile dialogs or decoding every source.
+## Opening a Comparison Set
 
-A RAW may also be logically Selected or Picked while it is outside the Current
-Comparison Page. In that state it does not prompt, decode, or require residency
-merely because of Selected/Picked membership. Profile resolution occurs when the
-RAW enters the foreground Current Comparison Page and native source is required.
+Use **File > Open Comparison Set...** and choose a `.pixelscope` file.
 
-Within one foreground presentation attempt, an unresolved RAW dialog appears at
-most once. Cancel keeps the RAW registered/pending, starts no worker, and passive
-rerenders do not immediately reopen it. A later explicit foreground action may
-retry.
+PixelScope validates the artifact first. It then reuses saved sources that are already
+Registered and registers other available saved sources through the normal input path.
+Existing Registered images outside the set are not deleted.
 
-An unresolved RAW is not speculatively preloaded until a profile has been
-resolved. PixelScope never guesses profile parameters merely to make folder
-registration silent.
+Logical Selected becomes the loadable saved members in the artifact's saved order.
+PixelScope restores the saved Active source when available, derives the appropriate
+Current Comparison Page from that position, restores an applicable page-local Primary,
+and restores the saved stable layout mode.
 
-### RAW profile fields
+Opening a Comparison Set changes logical Selected. Therefore any temporary Pick
+workflow that was in progress is invalidated in the same way as another normal
+Selected replacement.
 
-Profiles retain storage format, unpacked container, effective bit depth, byte
-order/alignment, width/height, offset/stride, Gray/Bayer layout, Bayer pattern,
-Black Level, and White Level. Packed MIPI RAW10/12/14 owns fixed packing rules.
-The same RAW path may be re-resolved with corrected profile settings while keeping
-its document identity/reload semantics.
+### Missing files
 
-Current PixelScope intentionally has no global Profile Library, favorites/profile
-CRUD manager, fuzzy or size-only profile suggestion, sensor/Bayer inference, or
-automatic Black/White estimation.
+Comparison Set v1 uses exact normalized absolute local paths. If some saved sources
+were moved or deleted, PixelScope loads the sources that still exist in saved order
+and reports the missing paths compactly.
 
-## RAW display
+If no saved source is loadable, the current workspace is left unchanged.
 
-Decoded RAW source remains the native analysis authority.
+PixelScope v1 does not search disks for moved files, guess by filename/size, or repair
+paths automatically.
 
-At Display Gain 1×, RAW display maps effective native full scale
-`0..((1 << bit_depth) - 1)`. Black is not subtracted and White is not used as
-display maximum. Above 1×, gained display follows:
+### Invalid or newer artifacts
 
-```text
-B + G * (X - B)
-```
+Malformed JSON, wrong artifact kind, invalid required fields, or an unsupported future
+schema version is rejected before current workspace state is changed.
 
-Gray uses its scalar Black anchor. Bayer may use channel-specific R/Gr/Gb/B Black
-anchors; split Bayer views use their named channel anchor. Bayer processing uses
-CFA parity-plane views rather than a full-frame Black map. White Level remains
-metadata only.
+## RAW sources in a Comparison Set
 
-## Settings
+If a RAW source already has a deterministic resolved RawProfile when the set is saved,
+that profile is included so the source can reopen deterministically.
 
-Open **Edit > Settings...**. Categories are **General**, **Files**, and
-**Performance**.
+Saving does not prompt unresolved RAW just to populate the artifact. Such a RAW member
+stores only its source reference. On reopen, it follows the normal lazy foreground
+RAW Profile workflow when native pixels are actually required.
 
-### General
+## Comparison Set privacy
 
-- **Don't Show RAW JSON Profiles** may suppress repeated confirmation only for a
-  valid compatible same-basename sidecar.
-- **Require Exact RAW File Size** switches between minimum-required-byte and exact-
-  byte validation.
-- **Difference Defaults** owns persisted native Threshold/Gain defaults.
+`.pixelscope` files can contain **absolute local filesystem paths**. These paths may
+reveal usernames, directory names, project names, or other local metadata. Inspect or
+treat Comparison Set files appropriately before sharing them outside your environment.
 
-### Files
+No cloud sync or remote telemetry is part of P4-B.
 
-**Default Open Folder** controls the initial directory for Open Images and Open
-Folder. **Default Export Folder** controls export dialogs. Blank values retain
-last-used-folder behavior. These are starting locations, not workspace registration
-limits.
+## What a Comparison Set is not
 
-### Performance
+A Comparison Set is not a full PixelScope application session. It does not restore or
+save:
 
-**Decoded Source Memory** budgets native decoded `ImageDocument.source` arrays.
-The default is 256 MiB. Current Comparison Page sources and other correctness
-requirements are protected; a large Selected set does **not** automatically protect
-every visited off-page source. Pick membership also does not protect an off-page
-source. Off-page Selected/Picked source may be evicted under the P2 soft budget and
-normally reload when its page is revisited.
+- the entire Registered catalog;
+- current page offset as independent state;
+- decoded source/cache/residency/preload state;
+- temporary Picks;
+- ROI or Line Profile selection;
+- Plots/window/dock geometry inside the set;
+- Display Gain;
+- Recent history.
 
-**Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
-itself discard a valid generation-keyed Difference map.
+Those boundaries keep the artifact deterministic and focused on repeatable image-set
+comparison.
 
-**Preload Next Folder Position** remains exactly one valid one-to-six Selected
-Folder Position ahead, direction +1, on a separate max-one worker. It does not
-preload the next Comparison Page or Pick Set. A physically RUNNING matching Folder
-Position preload may transfer to foreground authority without duplicate decode.
-Unresolved RAW without a profile is skipped rather than prompting from speculative
-preload.
+## Layout and presentation
 
-Performance budget/preload changes are startup settings and display the restart-
-required indication when they differ from current runtime values.
-
-**Reset Settings** resets application preferences only. **View > Reset Workspace
-Layout** resets workspace layout separately. The captured curation baseline/Pick Set
-is temporary and adds no Settings/QSettings key.
-
-## Runtime Diagnostics
-
-**Help > Copy Diagnostics** copies one deterministic sanitized snapshot. It reports
-source residency, Difference cache usage, foreground/preload workers, preload
-counters including promotion, stale results, and bounded recent accepted failures.
-
-Diagnostics does not scan files, mutate selection, touch LRUs, start/cancel loads,
-calculate Difference, or change presentation. Paths, credentials, traceback
-context, and excess failure detail are sanitized.
-
-## Plots dock
-
-The Plots title bar provides Float/Dock, Maximize/Restore, and Hide. Histogram /
-Line Profile selected tab and floating geometry are restored separately from
-application Settings.
+Layout modes remain **Auto**, **Single View**, and **Multi View**. Display Gain remains
+presentation-only at the existing gain choices and is not part of a Comparison Set.
+
+Difference, Statistics, Histogram, Line Profile, Split Channels, RAW native/display
+semantics, and pixel inspection retain their existing P3 behavior.
