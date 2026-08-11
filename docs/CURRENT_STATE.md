@@ -1,13 +1,14 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-11
-Current merged baseline / P4-0 PR #28 merge commit:
-`e30c49d6759715228a820d673ad8939ea9a3afe8`
+Current merged baseline / P4-A PR #29 merge commit:
+`3486146494076e9b513843b90ec44e504043729e`
 
-P4-A is implemented on `feature/p4-a-review-selection-curation`. Owner/local
-Windows runtime and requested validation are reported PASS. Independent re-review
-found the prior runtime/test blockers resolved and durable-document alignment as the
-remaining merge-closure item. P4-A is not Complete until merge.
+P4-B Comparison Set Persistence is implemented on
+`feature/p4-b-comparison-set-persistence` / PR #30. The repository owner reports the
+focused P4-B Windows validation PASS (`36 passed`). Independent review reports no
+remaining runtime/schema/test blocker; merge closure is now limited to durable-doc
+consistency plus the normal final validation/re-review gates.
 
 ## Merge baseline
 
@@ -22,11 +23,12 @@ remaining merge-closure item. P4-A is not Complete until merge.
 - P3-D Unified Image Opening & RAW Profile Resolution merged as PR #26.
 - P3-E Integration, Presentation UI Polish & Phase Hardening merged as PR #27 at
   `835634a58609601605fd0fc18a3028b64225f535`, completing P3.
-- P4-0 P3 Closure & P4 Program Setup merged as PR #28 at the current baseline SHA.
+- P4-0 P3 Closure & P4 Program Setup merged as PR #28.
+- P4-A Review Selection & Curation merged as PR #29 at the current baseline SHA.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-A Review Selection & Curation is the
-active implementation slice on this feature branch.
+P4 is **Workflow & Session Productivity**. P4-B Comparison Set Persistence is the
+active implementation slice and is merge-pending on PR #30.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -112,6 +114,54 @@ Pick membership is **not** source ownership, decode authority, residency protect
 preload authority, analysis working-set authority, Difference input authority, or
 presentation-source authority. Split/Difference derived documents are not
 independent pick identities.
+
+## P4-B Comparison Set persistence
+
+P4-B introduces a small external **Comparison Set** artifact, not full application
+session persistence. The file extension is `.pixelscope`; v1 is JSON with
+`kind = "pixelscope-comparison-set"` and `schema_version = 1`.
+
+Persistent identity is a normalized **absolute local native-source path**. The v1
+reader rejects blank or relative `sources[].path`, `active_path`, and `primary_path`
+values before normalization. There is no relocation or fuzzy path resolution in v1,
+so a Comparison Set intentionally remains machine/path-layout dependent and may
+expose local filesystem paths if the artifact is shared.
+
+Save persists only durable logical comparison intent:
+
+- ordered logical **Selected** native-source paths;
+- optional selected **Active** path;
+- optional applicable current-page **Primary** path;
+- stable layout mode;
+- minimum resolved RAW profile metadata when required to reconstruct a RAW source.
+
+Temporary P4-A Picks are not serialized. If Picks exist but **Keep Selection** has
+not been applied, Save writes the original logical Selected set. After Keep, it
+writes the resulting curated Selected subset. Save neither applies nor clears Picks
+and does not decode off-page Selected members or acquire residency/protection.
+
+Open validates the artifact before logical workspace mutation, registers loadable
+native sources through the normal path, replaces logical Selected in saved/loadable
+order, and leaves unrelated Registered sources registered. Saved Active selects the
+derived Current Comparison Page; an applicable Primary is then restored only on that
+page, and layout mode is restored. Current Comparison Page/page offset itself is
+**derived, never serialized**.
+
+Missing sources use partial-load behavior with a compact warning. If no saved source
+is loadable, the existing logical workspace is unchanged. Corrupt JSON, wrong kind,
+future schema, invalid layout/identity, or invalid embedded RAW metadata is rejected
+without registration/foreground-load mutation.
+
+Resolved RAW profile metadata is restored before foreground use. Unresolved RAW
+remains unresolved and follows the existing lazy foreground profile-resolution path;
+saving does not force profile resolution.
+
+Comparison Set persistence owns **none** of decoded source arrays, source
+residency/LRU/protection state, preload plans/workers, Difference maps/cache, Display
+Gain previews/state, analysis requests/results, worker/request/generation tokens,
+Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
+P4-A curation. Settings schema remains v5 because `.pixelscope` is an external
+artifact rather than a SettingsRepository schema change.
 
 ## Unified input policy
 
@@ -313,7 +363,8 @@ gained preview representation.
 ## Runtime/settings baseline
 
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
-persist the captured curation baseline or temporary Pick Set.
+persist the captured curation baseline or temporary Pick Set. P4-B also does not
+change Settings schema: Comparison Sets are explicit external `.pixelscope` artifacts.
 
 Source residency remains exact native `source.nbytes` under P2 protected soft-budget
 LRU semantics, with the P3-D large-selection refinement that **Selected alone is not
@@ -325,8 +376,9 @@ and normally reloaded when revisited.
 
 Difference cache remains independent. Preload remains +1 Folder Position, max-one
 dedicated worker, with running-preload promotion as established by P2. P4-A does
-not add Comparison Page or Pick Set preloading. Diagnostics remain deterministic,
-bounded, sanitized, and observation-only.
+not add Comparison Page or Pick Set preloading. P4-B does not serialize or acquire
+preload/residency/cache authority. Diagnostics remain deterministic, bounded,
+sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -356,10 +408,10 @@ claimed here without separate observed evidence.
 ## Active P4 sequence
 
 1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
-2. P4-A — Review Selection & Curation — implemented and owner-validated on feature
-   branch; durable-doc closure / merge pending
-3. P4-B — Persistent Comparison Sessions — planned
-4. P4-C — Recent Entries & Session Entry UX — planned
+2. P4-A — Review Selection & Curation — Complete — PR #29
+3. P4-B — Comparison Set Persistence — implemented, focused owner validation PASS,
+   merge pending — PR #30
+4. P4-C — Comparison Set Entry UX / Recent Entries — planned
 5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
 6. P4-E — Viewer Overlay & Export Productivity — planned
 7. P4-F — Integration & Workflow Hardening — planned
