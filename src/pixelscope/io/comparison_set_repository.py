@@ -66,7 +66,11 @@ class ComparisonSetRepository:
         if payload.get("kind") != COMPARISON_SET_KIND:
             raise ComparisonSetError("invalid comparison-set kind")
         version = payload.get("schema_version")
-        if type(version) is not int or version != COMPARISON_SET_SCHEMA_VERSION:
+        if (
+            not isinstance(version, int)
+            or isinstance(version, bool)
+            or version != COMPARISON_SET_SCHEMA_VERSION
+        ):
             raise ComparisonSetError(
                 f"unsupported comparison-set schema version: {version!r}"
             )
