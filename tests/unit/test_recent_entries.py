@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QSettings
+
 from pixelscope.app.recent_entries import RecentEntriesRepository
+from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.recent_entries import RecentEntryKind, merge_recent_paths
 
 
@@ -96,3 +99,53 @@ def test_remove_and_clear_only_mutate_history_namespace(tmp_path: Path) -> None:
 
     assert repository.load(RecentEntryKind.FOLDER) == ()
     assert storage.values["settings/schema_version"] == 5
+
+
+def test_real_qsettings_history_survives_reconstruction_and_clear(
+    tmp_path: Path,
+) -> None:
+    ini_path = tmp_path / "pixelscope-recent.ini"
+    settings = QSettings(str(ini_path), QSettings.Format.IniFormat)
+    settings.clear()
+    settings.setValue("settings/schema_version", 5)
+    settings.setValue("settings/files/default_open_directory", str(tmp_path / "owned"))
+    settings.sync()
+
+    repository = RecentEntriesRepository(QSettingsAdapter(settings), limit=3)
+    images = [tmp_path / f"image-{index}.png" for index in range(4)]
+    folder = tmp_path / "dataset"
+    comparison_set = tmp_path / "review.pixelscope"
+    repository.record(RecentEntryKind.IMAGE, images)
+    repository.record(RecentEntryKind.IMAGE, [images[1]])
+    repository.record(RecentEntryKind.FOLDER, [folder])
+    repository.record(RecentEntryKind.COMPARISON_SET, [comparison_set])
+
+    reconstructed_settings = QSettings(str(ini_path), QSettings.Format.IniFormat)
+    reconstructed = RecentEntriesRepository(
+        QSettingsAdapter(reconstructed_settings),
+        limit=3,
+    )
+
+    assert reconstructed.load(RecentEntryKind.IMAGE) == (
+        images[1].resolve(),
+        images[0].resolve(),
+        images[2].resolve(),
+    )
+    assert reconstructed.load(RecentEntryKind.FOLDER) == (folder.resolve(),)
+    assert reconstructed.load(RecentEntryKind.COMPARISON_SET) == (
+        comparison_set.resolve(),
+    )
+    assert reconstructed_settings.value("settings/schema_version") == 5
+    assert reconstructed_settings.value("settings/files/default_open_directory") == str(
+        tmp_path / "owned"
+    )
+
+    reconstructed.clear()
+
+    after_clear_settings = QSettings(str(ini_path), QSettings.Format.IniFormat)
+    after_clear = RecentEntriesRepository(QSettingsAdapter(after_clear_settings), limit=3)
+    assert all(after_clear.load(kind) == () for kind in RecentEntryKind)
+    assert after_clear_settings.value("settings/schema_version") == 5
+    assert after_clear_settings.value("settings/files/default_open_directory") == str(
+        tmp_path / "owned"
+    )
