@@ -16,6 +16,8 @@ class ComparisonSetError(ValueError):
 def normalize_source_path(path: str | Path) -> str:
     """Return the canonical absolute local source reference used by v1 artifacts."""
 
+    if isinstance(path, str) and not path.strip():
+        raise ComparisonSetError("comparison-set source path must not be empty")
     return str(Path(path).expanduser().resolve(strict=False))
 
 
