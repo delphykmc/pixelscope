@@ -22,11 +22,14 @@ class ComparisonSetController:
         self.repository = repository or ComparisonSetRepository()
         self.open_action = QAction("Open Comparison Set...", window)
         self.save_action = QAction("Save Comparison Set...", window)
+        self.open_action.setToolTip("Open a saved logical comparison set")
+        self.save_action.setToolTip(
+            "Save the current logical Selected set; temporary Picks are not saved. "
+            "Use Keep Selection first to save a curated subset."
+        )
         self.open_action.triggered.connect(self.open_dialog)  # type: ignore[attr-defined]
         self.save_action.triggered.connect(self.save_dialog)  # type: ignore[attr-defined]
         self._install_file_menu_actions()
-        window.document_list.itemSelectionChanged.connect(self._sync_actions)
-        self._sync_actions()
 
     def _file_menu(self) -> QMenu:
         for action in self.window.menuBar().actions():
@@ -38,7 +41,10 @@ class ComparisonSetController:
     def _install_file_menu_actions(self) -> None:
         menu = self._file_menu()
         actions = menu.actions()
-        anchor = next((action for action in actions if action.text().startswith("Export Statistics")), None)
+        anchor = next(
+            (action for action in actions if action.text().startswith("Export Statistics")),
+            None,
+        )
         if anchor is None:
             menu.addAction(self.open_action)
             menu.addAction(self.save_action)
@@ -50,15 +56,13 @@ class ComparisonSetController:
         menu.insertAction(anchor, separator)
         self.separator_action = separator
 
-    def _sync_actions(self) -> None:
-        self.save_action.setEnabled(bool(self.window.selected_documents))
-
     def _dialog_directory(self) -> str:
         getter = getattr(self.window, "_open_dialog_directory", None)
         return str(getter()) if callable(getter) else ""
 
     def save_dialog(self) -> None:
         if not self.window.selected_documents:
+            self.window.statusBar().showMessage("No Selected images to save", 3000)
             return
         initial = self._dialog_directory()
         path, _ = QFileDialog.getSaveFileName(
@@ -142,7 +146,8 @@ class ComparisonSetController:
             QMessageBox.warning(
                 self.window,
                 "Comparison Set opened with missing sources",
-                f"Loaded {loaded} source(s); {len(missing)} source(s) were unavailable.\n\n{preview}{suffix}",
+                f"Loaded {loaded} source(s); {len(missing)} source(s) were unavailable.\n\n"
+                f"{preview}{suffix}",
             )
         self.window.statusBar().showMessage(f"Opened Comparison Set · {loaded} source(s)", 4000)
 
@@ -162,7 +167,8 @@ class ComparisonSetController:
             QMessageBox.warning(
                 self.window,
                 "Comparison Set sources unavailable",
-                "None of the saved source paths are currently loadable. The workspace was not changed.",
+                "None of the saved source paths are currently loadable. "
+                "The workspace was not changed.",
             )
             return 0, tuple(missing)
 
@@ -182,14 +188,15 @@ class ComparisonSetController:
             QMessageBox.warning(
                 self.window,
                 "Comparison Set sources unavailable",
-                "None of the saved source paths could be registered. The logical selection was not changed.",
+                "None of the saved source paths could be registered. "
+                "The logical selection was not changed.",
             )
             return 0, tuple(missing)
 
         active_id = self._saved_member_id(comparison_set.active_path, path_to_id) or document_ids[0]
         active_index = document_ids.index(active_id)
         self.window._current_index = active_index
-        self.window._page_start = (active_index // 6) * 6
+        self.window._page_start = 0
         self.window._focus_document_id = None
         self.window._primary_page_slot = 0
         self.window._select_document_ids(document_ids, preserve_view=True)
@@ -201,13 +208,16 @@ class ComparisonSetController:
         current_page_ids = {
             document.document_id for document in self.window.current_comparison_documents()
         }
-        if primary_id is not None and primary_id in current_page_ids and self.window._layout_mode != "Single View":
+        if (
+            primary_id is not None
+            and primary_id in current_page_ids
+            and self.window._layout_mode != "Single View"
+        ):
             self.window._set_focus_document(primary_id)
 
         active_document = self.window.documents.get(active_id)
         if active_document is not None:
             self.window._set_active_document(active_document)
-        self._sync_actions()
         return len(document_ids), tuple(missing)
 
     @staticmethod
