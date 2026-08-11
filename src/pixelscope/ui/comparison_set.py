@@ -41,21 +41,16 @@ class ComparisonSetController:
         self._install_file_menu_actions()
 
     def _file_menu(self) -> QMenu:
+        """Replace the legacy File menu with one whose Python wrapper we retain."""
+
         menu_bar = self.window.menuBar()
         for action in menu_bar.actions():
-            if action.text().replace("&", "") != "File":
-                continue
-            try:
-                menu = action.menu()
-                if menu is not None:
-                    menu.actions()
-                    return menu
-            except RuntimeError:
-                return self._replace_deleted_file_menu(action)
+            if action.text().replace("&", "") == "File":
+                return self._replace_file_menu(action)
         raise RuntimeError("Comparison Set commands require the File menu")
 
-    def _replace_deleted_file_menu(self, stale_action: QAction) -> QMenu:
-        """Recreate File menu when PySide released its temporary menu wrapper."""
+    def _replace_file_menu(self, stale_action: QAction) -> QMenu:
+        """Rebuild File from MainWindow-owned actions and retain its PySide wrapper."""
 
         menu_bar = self.window.menuBar()
         top_level_actions = menu_bar.actions()
@@ -66,8 +61,10 @@ class ComparisonSetController:
             else None
         )
 
-        replacement = QMenu("&File", self.window)
+        replacement = QMenu("&File", menu_bar)
         replacement.setStyleSheet(menu_style())
+        self._file_menu_ref = replacement
+
         action_map = self.window.action_map
         for name in ("Open Images...", "Open Folder..."):
             action = action_map.get(name)
@@ -87,7 +84,6 @@ class ComparisonSetController:
             menu_bar.addMenu(replacement)
         else:
             menu_bar.insertMenu(insert_before, replacement)
-        self._replacement_file_menu = replacement
         return replacement
 
     def _install_file_menu_actions(self) -> None:
