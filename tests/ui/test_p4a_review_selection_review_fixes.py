@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QSettings, Qt
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QWidget
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -49,7 +50,7 @@ def _selected_tree_ids(window: MainWindow) -> list[str]:
     ]
 
 
-def test_production_composition_installs_review_without_qt_signal_rewire(
+def test_production_composition_has_no_review_mode_and_unwraps_curation_controls(
     qtbot: object,
 ) -> None:
     QSettings().clear()
@@ -57,11 +58,27 @@ def test_production_composition_installs_review_without_qt_signal_rewire(
 
     assert window.review_selection_controller is controller
     assert not controller.active
-    assert not controller.mode_button.isChecked()
+    assert not hasattr(controller, "mode_button")
+    assert not hasattr(controller, "cancel_button")
+    assert controller.count_label.text() == "Selected 0"
+    assert controller.clear_button.text() == "Clear Selection"
+    assert controller.keep_button.text() == "Keep Selection"
+
+    layout = window.presentation_controls_layout
+    assert isinstance(layout, QHBoxLayout)
+    gain = window.findChild(QComboBox, "DisplayGainCombo")
+    assert gain is not None
+    gain_host = window.findChild(QWidget, "DisplayGainControl")
+    assert gain_host is not None
+    assert layout.indexOf(window.comparison_page_group) < layout.indexOf(gain_host)
+    assert layout.indexOf(gain_host) < layout.indexOf(controller.count_label)
+    assert layout.indexOf(controller.count_label) < layout.indexOf(controller.clear_button)
+    assert layout.indexOf(controller.clear_button) < layout.indexOf(controller.keep_button)
+    assert layout.spacing() >= TOKENS.spacing_md
     window.close()
 
 
-def test_files_remove_request_invalidates_review_before_stale_state_survives(
+def test_files_remove_request_clears_curation_before_stale_state_survives(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -69,7 +86,6 @@ def test_files_remove_request_invalidates_review_before_stale_state_survives(
     documents = _ready_documents(tmp_path, 3)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    controller.enter_review()
     _click(qtbot, window.multi_compare_view.occupied_viewers[0].header.pick)
 
     assert controller.active
@@ -80,7 +96,10 @@ def test_files_remove_request_invalidates_review_before_stale_state_survives(
     assert not controller.active
     assert controller.picked_count == 0
     assert documents[0].document_id not in window.documents
-    assert all(viewer.header.pick.isHidden() for viewer in window.multi_compare_view.viewers)
+    assert all(
+        not viewer.header.pick.isChecked()
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
     assert all(
         not bool(viewer.property("reviewPicked"))
         for viewer in window.multi_compare_view.viewers
@@ -88,7 +107,7 @@ def test_files_remove_request_invalidates_review_before_stale_state_survives(
     window.close()
 
 
-def test_direct_remove_requested_fallback_clears_review_after_external_emit(
+def test_direct_remove_requested_fallback_clears_curation_after_external_emit(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -96,7 +115,7 @@ def test_direct_remove_requested_fallback_clears_review_after_external_emit(
     documents = _ready_documents(tmp_path, 3)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    controller.enter_review()
+    _click(qtbot, window.multi_compare_view.occupied_viewers[0].header.pick)
 
     window.document_list.remove_requested.emit([documents[0].document_id])
 
@@ -106,7 +125,7 @@ def test_direct_remove_requested_fallback_clears_review_after_external_emit(
     window.close()
 
 
-def test_picked_tile_border_is_independent_and_persists_across_pages(
+def test_selected_tile_yellow_border_and_pressed_pick_persist_across_pages(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -114,7 +133,6 @@ def test_picked_tile_border_is_independent_and_persists_across_pages(
     documents = _ready_documents(tmp_path, 7)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    controller.enter_review()
 
     target = window.multi_compare_view.occupied_viewers[1]
     assert not bool(target.property("reviewPicked"))
@@ -122,10 +140,12 @@ def test_picked_tile_border_is_independent_and_persists_across_pages(
 
     assert bool(target.property("reviewPicked"))
     assert target.header.pick.isChecked()
-    assert TOKENS.warning in target.styleSheet()
+    assert target.header.pick.text() == "Pick"
+    assert not target.header.pick.autoRaise()
+    assert TOKENS.selection in target.styleSheet()
     assert 'ImageViewer[reviewPicked="true"]' in target.styleSheet()
-    assert TOKENS.warning in tile_style(False)
-    assert TOKENS.warning in tile_style(True)
+    assert TOKENS.selection in tile_style(False)
+    assert TOKENS.selection in tile_style(True)
     assert f"border-left: 5px solid {TOKENS.accent}" in tile_style(True)
 
     window.next_comparison_page()
@@ -136,6 +156,7 @@ def test_picked_tile_border_is_independent_and_persists_across_pages(
     assert restored.document is documents[1]
     assert bool(restored.property("reviewPicked"))
     assert restored.header.pick.isChecked()
+    assert restored.header.pick.text() == "Pick"
     window.close()
 
 
@@ -147,7 +168,7 @@ def test_picked_tile_border_is_independent_and_persists_across_pages(
         Qt.KeyboardModifier.ShiftModifier,
     ],
 )
-def test_viewer_drag_gestures_do_not_toggle_review_pick(
+def test_viewer_drag_gestures_do_not_toggle_direct_pick(
     qtbot: object,
     tmp_path: Path,
     modifier: Qt.KeyboardModifier,
@@ -157,7 +178,6 @@ def test_viewer_drag_gestures_do_not_toggle_review_pick(
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
     window.show()
-    controller.enter_review()
 
     viewer = window.multi_compare_view.occupied_viewers[0]
     viewport = viewer._graphics.viewport()
@@ -165,27 +185,30 @@ def test_viewer_drag_gestures_do_not_toggle_review_pick(
     end = start + QPoint(24, 18)
     picked_before = controller.picked_ids
 
+    # PySide6 6.4 QTest uses the modifier/key-state as the third positional
+    # argument; the newer `modifier=` keyword is not accepted on owner Windows.
     qtbot.mousePress(  # type: ignore[attr-defined]
         viewport,
         Qt.MouseButton.LeftButton,
-        modifier=modifier,
-        pos=start,
+        modifier,
+        start,
     )
-    qtbot.mouseMove(viewport, end, delay=10)  # type: ignore[attr-defined]
+    qtbot.mouseMove(viewport, end, 10)  # type: ignore[attr-defined]
     qtbot.mouseRelease(  # type: ignore[attr-defined]
         viewport,
         Qt.MouseButton.LeftButton,
-        modifier=modifier,
-        pos=end,
+        modifier,
+        end,
     )
 
     assert controller.picked_ids == picked_before
+    assert not controller.active
     assert not viewer.header.pick.isChecked()
     assert not bool(viewer.property("reviewPicked"))
     window.close()
 
 
-def test_keep_picked_updates_files_selection_and_first_result_is_active(
+def test_keep_selection_updates_files_selection_and_first_result_is_active(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -193,7 +216,6 @@ def test_keep_picked_updates_files_selection_and_first_result_is_active(
     documents = _ready_documents(tmp_path, 5)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    controller.enter_review()
 
     viewers = window.multi_compare_view.occupied_viewers
     _click(qtbot, viewers[1].header.pick)

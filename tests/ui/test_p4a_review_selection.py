@@ -52,30 +52,7 @@ def _wait_until(qtbot: object, callback: object) -> None:
     qtbot.waitUntil(callback)  # type: ignore[attr-defined]
 
 
-def test_review_inactive_preserves_tile_activation_and_hides_pick_affordance(
-    qtbot: object,
-    tmp_path: Path,
-) -> None:
-    QSettings().clear()
-    documents = _ready_documents(tmp_path, 2)
-    window, controller = _production_window(qtbot)
-    _register_and_select(window, documents)
-    window.show()
-
-    first, second = window.multi_compare_view.occupied_viewers
-    assert not controller.active
-    assert first.header.pick.isHidden()
-    assert second.header.pick.isHidden()
-
-    first_active = window._active_document_id
-    _click(qtbot, second._graphics.viewport())
-    _wait_until(qtbot, lambda: window._active_document_id == documents[1].document_id)
-    assert window._active_document_id != first_active
-    assert controller.picked_count == 0
-    window.close()
-
-
-def test_review_pick_is_explicit_and_independent_from_active_and_primary(
+def test_multi_view_pick_is_direct_and_independent_from_active_and_primary(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -85,32 +62,85 @@ def test_review_pick_is_explicit_and_independent_from_active_and_primary(
     _register_and_select(window, documents)
     window.show()
 
-    assert controller.mode_button.isEnabled()
-    _click(qtbot, controller.mode_button)
-    assert controller.active
-    assert controller.count_label.text() == "Picked 0"
-    assert not controller.keep_button.isEnabled()
-
     viewers = window.multi_compare_view.occupied_viewers
+    assert not controller.active
+    assert controller.count_label.text() == "Selected 0"
+    assert not controller.clear_button.isEnabled()
+    assert not controller.keep_button.isEnabled()
+    assert all(not viewer.header.pick.isHidden() for viewer in viewers)
+    assert all(viewer.header.pick.text() == "Pick" for viewer in viewers)
+
     primary_id = window._focus_document_id
     active_id = window._active_document_id
     target = viewers[1]
-    assert target.document is documents[1]
-    assert not target.header.pick.isChecked()
-
     _click(qtbot, target.header.pick)
 
+    assert controller.active
     assert controller.picked_ids == {documents[1].document_id}
     assert target.header.pick.isChecked()
-    assert target.header.pick.text() == "Picked"
-    assert controller.count_label.text() == "Picked 1"
+    assert target.header.pick.text() == "Pick"
+    assert controller.count_label.text() == "Selected 1"
+    assert controller.clear_button.isEnabled()
     assert controller.keep_button.isEnabled()
     assert window._focus_document_id == primary_id
     assert window._active_document_id == active_id
+
+    _click(qtbot, target._graphics.viewport())
+    _wait_until(qtbot, lambda: window._active_document_id == documents[1].document_id)
+    assert controller.picked_ids == {documents[1].document_id}
+    assert window._focus_document_id == primary_id
     window.close()
 
 
-def test_clear_and_cancel_leave_selected_page_active_and_primary_unchanged(
+def test_single_view_has_no_tile_pick_control(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    QSettings().clear()
+    document = _ready_documents(tmp_path, 1)[0]
+    window, controller = _production_window(qtbot)
+    _register_and_select(window, [document])
+
+    assert window.central_stack.currentWidget() is window.viewer
+    assert window.viewer.header.pick.isHidden()
+    assert controller.count_label.text() == "Selected 0"
+    assert not controller.active
+    window.close()
+
+
+@pytest.mark.parametrize("count", [1, 2, 6, 7, 15, 50])
+def test_direct_curation_install_preserves_selected_and_current_page(
+    qtbot: object,
+    tmp_path: Path,
+    count: int,
+) -> None:
+    QSettings().clear()
+    documents = _ready_documents(tmp_path, count)
+    window, controller = _production_window(qtbot)
+    _register_and_select(window, documents)
+    selected_before = tuple(document.document_id for document in window.selected_documents)
+    page_before = tuple(
+        document.document_id for document in window.current_comparison_documents()
+    )
+
+    assert tuple(document.document_id for document in window.selected_documents) == selected_before
+    assert (
+        tuple(document.document_id for document in window.current_comparison_documents())
+        == page_before
+    )
+    assert not controller.active
+    assert controller.picked_count == 0
+    if count == 1:
+        assert window.viewer.header.pick.isHidden()
+    else:
+        assert all(
+            not viewer.header.pick.isHidden()
+            for viewer in window.multi_compare_view.occupied_viewers
+        )
+    window.close()
+
+
+def test_clear_selection_leaves_selected_page_active_and_primary_unchanged(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -126,15 +156,13 @@ def test_clear_and_cancel_leave_selected_page_active_and_primary_unchanged(
     active_before = window._active_document_id
     primary_before = window._focus_document_id
 
-    controller.enter_review()
     _click(qtbot, window.multi_compare_view.occupied_viewers[0].header.pick)
+    assert controller.active
     controller.clear_picks()
+
     assert controller.picked_count == 0
+    assert controller.count_label.text() == "Selected 0"
     assert not controller.keep_button.isEnabled()
-
-    controller.cancel_review()
-
-    assert not controller.active
     assert tuple(document.document_id for document in window.selected_documents) == selected_before
     assert window._page_start == page_before
     assert window._active_document_id == active_before
@@ -142,33 +170,7 @@ def test_clear_and_cancel_leave_selected_page_active_and_primary_unchanged(
     window.close()
 
 
-@pytest.mark.parametrize("count", [1, 2, 6, 7, 15, 50])
-def test_review_entry_does_not_change_selected_or_current_page(
-    qtbot: object,
-    tmp_path: Path,
-    count: int,
-) -> None:
-    QSettings().clear()
-    documents = _ready_documents(tmp_path, count)
-    window, controller = _production_window(qtbot)
-    _register_and_select(window, documents)
-    selected_before = tuple(document.document_id for document in window.selected_documents)
-    page_before = tuple(
-        document.document_id for document in window.current_comparison_documents()
-    )
-
-    assert controller.enter_review()
-
-    assert tuple(document.document_id for document in window.selected_documents) == selected_before
-    assert (
-        tuple(document.document_id for document in window.current_comparison_documents())
-        == page_before
-    )
-    assert controller.state.baseline_selected_ids == selected_before
-    window.close()
-
-
-def test_seven_images_preserve_picks_across_pages(
+def test_seven_images_preserve_direct_picks_across_pages(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -176,7 +178,6 @@ def test_seven_images_preserve_picks_across_pages(
     documents = _ready_documents(tmp_path, 7)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    controller.enter_review()
 
     _click(qtbot, window.multi_compare_view.occupied_viewers[1].header.pick)
     window.next_comparison_page()
@@ -200,7 +201,6 @@ def test_fifteen_images_keep_first_middle_and_final_page_picks(
     documents = _ready_documents(tmp_path, 15)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    controller.enter_review()
 
     _click(qtbot, window.multi_compare_view.occupied_viewers[1].header.pick)
     window.next_comparison_page()
@@ -213,11 +213,11 @@ def test_fifteen_images_keep_first_middle_and_final_page_picks(
         documents[8].document_id,
         documents[14].document_id,
     }
-    assert controller.count_label.text() == "Picked 3"
+    assert controller.count_label.text() == "Selected 3"
     window.close()
 
 
-def test_keep_picked_filters_baseline_order_and_keeps_nonpicked_registered(
+def test_keep_selection_filters_baseline_order_and_keeps_nonpicked_registered(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -225,9 +225,8 @@ def test_keep_picked_filters_baseline_order_and_keeps_nonpicked_registered(
     documents = _ready_documents(tmp_path, 8)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    controller.enter_review()
 
-    # Pick out of order: H -> B -> E. Apply must preserve baseline order B, E, H.
+    # Select out of order: H -> B -> E. Keep must preserve baseline order B, E, H.
     window.next_comparison_page()
     _click(qtbot, window.multi_compare_view.occupied_viewers[1].header.pick)
     window.previous_comparison_page()
@@ -248,6 +247,7 @@ def test_keep_picked_filters_baseline_order_and_keeps_nonpicked_registered(
     assert set(window.documents) == {document.document_id for document in documents}
     assert not controller.active
     assert controller.picked_count == 0
+    assert controller.count_label.text() == "Selected 0"
     assert [
         viewer.document.document_id
         for viewer in window.multi_compare_view.occupied_viewers
@@ -256,7 +256,7 @@ def test_keep_picked_filters_baseline_order_and_keeps_nonpicked_registered(
     window.close()
 
 
-def test_zero_pick_keep_is_disabled_and_cannot_clear_selected(
+def test_zero_pick_keep_selection_is_disabled_and_cannot_clear_selected(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -265,17 +265,16 @@ def test_zero_pick_keep_is_disabled_and_cannot_clear_selected(
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
     selected_before = tuple(document.document_id for document in window.selected_documents)
-    controller.enter_review()
 
     assert controller.picked_count == 0
     assert not controller.keep_button.isEnabled()
     assert not controller.keep_picked()
     assert tuple(document.document_id for document in window.selected_documents) == selected_before
-    assert controller.active
+    assert not controller.active
     window.close()
 
 
-def test_pick_unpick_does_not_load_render_analyze_or_mutate_source_generation(
+def test_pick_unpick_clear_do_not_load_render_analyze_or_mutate_generation(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -313,7 +312,6 @@ def test_pick_unpick_does_not_load_render_analyze_or_mutate_source_generation(
         lambda *args, **kwargs: calls.append("line"),
     )
 
-    controller.enter_review()
     button = window.multi_compare_view.occupied_viewers[2].header.pick
     _click(qtbot, button)
     _click(qtbot, button)
@@ -329,7 +327,7 @@ def test_pick_unpick_does_not_load_render_analyze_or_mutate_source_generation(
     window.close()
 
 
-def test_fifty_image_review_picks_do_not_expand_load_protection_or_preload(
+def test_fifty_image_picks_do_not_expand_load_protection_or_preload(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -348,7 +346,6 @@ def test_fifty_image_review_picks_do_not_expand_load_protection_or_preload(
     assert requested == selected_ids[:6]
     requested.clear()
 
-    controller.enter_review()
     _click(qtbot, window.multi_compare_view.visible_viewers[0].header.pick)
     assert requested == []
 
@@ -388,7 +385,6 @@ def test_split_and_difference_derived_documents_are_not_pick_identities(
     )
     window, controller = _production_window(qtbot)
     _register_and_select(window, [source])
-    controller.enter_review()
 
     assert controller._pickable_document_id(source) == source.document_id
     for derived in split_document_channels(source):
@@ -404,7 +400,7 @@ def test_split_and_difference_derived_documents_are_not_pick_identities(
     window.close()
 
 
-def test_external_programmatic_selected_replacement_cancels_review_then_applies_normally(
+def test_external_programmatic_selected_replacement_clears_curation_then_applies_normally(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -412,7 +408,6 @@ def test_external_programmatic_selected_replacement_cancels_review_then_applies_
     documents = _ready_documents(tmp_path, 8)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents[:6])
-    controller.enter_review()
     _click(qtbot, window.multi_compare_view.occupied_viewers[1].header.pick)
 
     replacement = [documents[6].document_id, documents[7].document_id]
@@ -423,11 +418,14 @@ def test_external_programmatic_selected_replacement_cancels_review_then_applies_
     assert not controller.active
     assert controller.picked_count == 0
     assert [document.document_id for document in window.selected_documents] == replacement
-    assert all(viewer.header.pick.isHidden() for viewer in window.multi_compare_view.viewers)
+    assert all(
+        not viewer.header.pick.isHidden() and not viewer.header.pick.isChecked()
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
     window.close()
 
 
-def test_files_selection_change_cancels_review_without_stale_pick_state(
+def test_files_selection_change_clears_curation_without_stale_pick_state(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -436,7 +434,6 @@ def test_files_selection_change_cancels_review_without_stale_pick_state(
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents[:3])
     window.add_document(documents[3], select=False)
-    controller.enter_review()
     _click(qtbot, window.multi_compare_view.occupied_viewers[0].header.pick)
 
     target_item = next(

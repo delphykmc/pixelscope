@@ -55,10 +55,10 @@ class TileHeader(QWidget):
         self.navigation.hide()
         self.pick = QToolButton()
         self.pick.setObjectName("reviewPick")
-        self.pick.setAccessibleName("Review pick")
+        self.pick.setAccessibleName("Pick image")
         self.pick.setCheckable(True)
         self.pick.setText("Pick")
-        self.pick.setToolTip("Pick this source image for Keep Picked")
+        self.pick.setToolTip("Select this source image for Keep Selection")
         self.pick.setAutoRaise(True)
         self.pick.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.pick.setFixedHeight(TOKENS.control_height)
@@ -148,12 +148,12 @@ class TileHeader(QWidget):
         self._elide_name()
 
     def set_review_pick(self, *, visible: bool, picked: bool = False) -> None:
-        """Expose explicit Review Select membership independently of Active/Primary."""
+        """Expose direct curation selection independently of Active/Primary."""
 
         self.pick.blockSignals(True)
         self.pick.setChecked(picked)
         self.pick.blockSignals(False)
-        self._update_review_pick_text(picked)
+        self._update_review_pick_state(picked)
         self.pick.setVisible(visible)
         self._elide_name()
 
@@ -206,16 +206,16 @@ class TileHeader(QWidget):
         self._update_responsive_mode(event_width)
 
     def _review_pick_toggled(self, checked: bool) -> None:
-        self._update_review_pick_text(checked)
+        self._update_review_pick_state(checked)
         self.pick_requested.emit(checked)
 
-    def _update_review_pick_text(self, picked: bool) -> None:
-        self.pick.setText("Picked" if picked else "Pick")
+    def _update_review_pick_state(self, picked: bool) -> None:
+        self.pick.setText("Pick")
         self.pick.setAutoRaise(not picked)
         self.pick.setToolTip(
-            "Unpick this image from the review subset"
+            "Remove this image from the temporary selection"
             if picked
-            else "Pick this source image for Keep Picked"
+            else "Select this source image for Keep Selection"
         )
 
     def _update_responsive_mode(self, available_width: int | None = None) -> None:

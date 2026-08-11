@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import QObject, Qt, Signal, Slot
-from PySide6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLabel, QWidget
+from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QWidget
+
+from pixelscope.ui.design_tokens import TOKENS
 
 DISPLAY_GAIN_OPTIONS = (1.0, 2.0, 4.0, 8.0, 16.0)
 
@@ -88,8 +90,18 @@ def is_display_gain_capable(document: object) -> bool:
     return channel_layout == "BAYER" and getattr(document, "raw_profile", None) is not None
 
 
+def _insert_before_stretch(layout: QHBoxLayout, widget: QWidget) -> None:
+    stretch_index = layout.count()
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        if item is not None and item.spacerItem() is not None:
+            stretch_index = index
+            break
+    layout.insertWidget(stretch_index, widget)
+
+
 def install_display_gain_control(window: Any) -> QComboBox:
-    """Install the session-local Display Gain control beside image-view controls."""
+    """Install Display Gain inline with the image-view command controls."""
 
     state = display_gain_state()
     state.reset()
@@ -102,7 +114,7 @@ def install_display_gain_control(window: Any) -> QComboBox:
     host.setObjectName("DisplayGainControl")
     layout = QHBoxLayout(host)
     layout.setContentsMargins(4, 0, 4, 0)
-    layout.setSpacing(5)
+    layout.setSpacing(TOKENS.spacing_sm)
 
     label = QLabel("Display Gain", host)
     label.setObjectName("DisplayGainLabel")
@@ -140,8 +152,18 @@ def install_display_gain_control(window: Any) -> QComboBox:
         viewer.document_changed.connect(update_enabled)
 
     presentation_layout = getattr(window, "presentation_controls_layout", None)
-    if isinstance(presentation_host, QWidget) and presentation_layout is not None:
-        presentation_layout.addWidget(host)
+    if (
+        isinstance(presentation_host, QWidget)
+        and isinstance(presentation_layout, QHBoxLayout)
+    ):
+        separator = QFrame(presentation_host)
+        separator.setObjectName("displayGainSeparator")
+        separator.setFrameShape(QFrame.Shape.VLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setFixedHeight(TOKENS.control_height - 4)
+        separator.setStyleSheet(f"QFrame {{ color: {TOKENS.border}; }}")
+        _insert_before_stretch(presentation_layout, separator)
+        _insert_before_stretch(presentation_layout, host)
     else:
         window.main_toolbar.addSeparator()
         window.main_toolbar.addWidget(host)

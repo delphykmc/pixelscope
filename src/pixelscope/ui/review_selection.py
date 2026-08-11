@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from PySide6.QtCore import QObject, Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton, QWidget
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_selection import ReviewSelectionState
@@ -12,24 +12,31 @@ from pixelscope.ui.design_tokens import TOKENS, tile_style
 from pixelscope.ui.image_viewer import ImageViewer
 
 
-def _review_controls_style() -> str:
+def _selection_button_style() -> str:
     return (
-        f"QWidget#reviewSelectionControl {{ color: {TOKENS.text_primary}; }}"
-        f"QWidget#reviewSelectionControl QLabel {{ color: {TOKENS.text_secondary}; }}"
-        f"QWidget#reviewSelectionControl QToolButton {{ background: transparent; "
-        f"color: {TOKENS.text_primary}; border: 1px solid {TOKENS.border}; "
-        f"border-radius: 2px; padding: 0 {TOKENS.spacing_sm}px; }}"
-        f"QWidget#reviewSelectionControl QToolButton:hover {{ "
-        f"background: {TOKENS.raised_background}; }}"
-        f"QWidget#reviewSelectionControl QToolButton:checked {{ "
-        f"color: {TOKENS.accent}; border-color: {TOKENS.accent}; }}"
-        f"QWidget#reviewSelectionControl QToolButton:disabled {{ "
-        f"color: {TOKENS.text_disabled}; border-color: {TOKENS.border}; }}"
+        f"QToolButton {{ background: transparent; color: {TOKENS.text_primary}; "
+        f"border: 1px solid {TOKENS.border}; border-radius: 2px; "
+        f"padding: 0 {TOKENS.spacing_md}px; }}"
+        f"QToolButton:hover {{ background: {TOKENS.raised_background}; }}"
+        f"QToolButton:pressed {{ background: {TOKENS.workspace_background}; "
+        f"border-color: {TOKENS.accent}; }}"
+        f"QToolButton:disabled {{ color: {TOKENS.text_disabled}; "
+        f"border-color: {TOKENS.border}; }}"
     )
 
 
+def _insert_before_stretch(layout: QHBoxLayout, widget: QWidget) -> None:
+    stretch_index = layout.count()
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        if item is not None and item.spacerItem() is not None:
+            stretch_index = index
+            break
+    layout.insertWidget(stretch_index, widget)
+
+
 class ReviewSelectionController(QObject):
-    """Own temporary review picks without acquiring source or analysis authority."""
+    """Own direct temporary curation picks without source or analysis authority."""
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
@@ -45,6 +52,8 @@ class ReviewSelectionController(QObject):
 
     @property
     def active(self) -> bool:
+        """Whether the first direct Pick has captured a curation baseline."""
+
         return self.state.active
 
     @property
@@ -56,6 +65,8 @@ class ReviewSelectionController(QObject):
         return frozenset(self.state.picked_ids)
 
     def enter_review(self) -> bool:
+        """Capture the current baseline for internal/tests; product UI auto-enters."""
+
         selected_ids = self._selected_ids()
         if not selected_ids:
             self._sync_all()
@@ -65,6 +76,8 @@ class ReviewSelectionController(QObject):
         return True
 
     def cancel_review(self) -> None:
+        """Discard internal curation state; no dedicated product Cancel control exists."""
+
         if self.state.active:
             self.state.exit()
         self._sync_all()
@@ -89,63 +102,57 @@ class ReviewSelectionController(QObject):
 
     def _build_controls(self) -> None:
         parent = self.window.presentation_controls
-        self.host = QWidget(parent)
-        self.host.setObjectName("reviewSelectionControl")
-        self.host.setAccessibleName("Review selection controls")
-        self.host.setStyleSheet(_review_controls_style())
-        layout = QHBoxLayout(self.host)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(TOKENS.spacing_xs)
+        layout = self.window.presentation_controls_layout
+        if not isinstance(parent, QWidget) or not isinstance(layout, QHBoxLayout):
+            raise RuntimeError("Curation controls require the image presentation command row")
 
-        self.mode_button = QToolButton(self.host)
-        self.mode_button.setObjectName("reviewSelectMode")
-        self.mode_button.setText("Review Select")
-        self.mode_button.setAccessibleName("Review Select")
-        self.mode_button.setCheckable(True)
-        self.mode_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.mode_button.setFixedHeight(TOKENS.control_height)
-        self.mode_button.setToolTip(
-            "Pick images across Comparison Pages, then keep only the picked subset"
-        )
-        self.mode_button.clicked.connect(self._mode_clicked)  # type: ignore[attr-defined]
+        self.separator = QFrame(parent)
+        self.separator.setObjectName("curationSelectionSeparator")
+        self.separator.setFrameShape(QFrame.Shape.VLine)
+        self.separator.setFrameShadow(QFrame.Shadow.Plain)
+        self.separator.setFixedHeight(TOKENS.control_height - 4)
+        self.separator.setStyleSheet(f"QFrame {{ color: {TOKENS.border}; }}")
 
-        self.count_label = QLabel("Picked 0", self.host)
+        self.count_label = QLabel("Selected 0", parent)
         self.count_label.setObjectName("reviewPickedCount")
-        self.count_label.setAccessibleName("Picked image count")
+        self.count_label.setAccessibleName("Temporary selected image count")
+        self.count_label.setStyleSheet(
+            f"QLabel {{ color: {TOKENS.text_primary}; font-weight: 600; }}"
+        )
 
-        self.clear_button = QToolButton(self.host)
+        self.clear_button = QToolButton(parent)
         self.clear_button.setObjectName("reviewClearPicks")
-        self.clear_button.setText("Clear Picks")
-        self.clear_button.setAccessibleName("Clear Picks")
+        self.clear_button.setText("Clear Selection")
+        self.clear_button.setAccessibleName("Clear Selection")
+        self.clear_button.setToolTip(
+            "Clear the temporary multi-view selection without changing Files Selected"
+        )
         self.clear_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.clear_button.setFixedHeight(TOKENS.control_height)
+        self.clear_button.setMinimumWidth(96)
+        self.clear_button.setStyleSheet(_selection_button_style())
         self.clear_button.clicked.connect(self.clear_picks)  # type: ignore[attr-defined]
 
-        self.keep_button = QToolButton(self.host)
+        self.keep_button = QToolButton(parent)
         self.keep_button.setObjectName("reviewKeepPicked")
-        self.keep_button.setText("Keep Picked")
-        self.keep_button.setAccessibleName("Keep Picked")
+        self.keep_button.setText("Keep Selection")
+        self.keep_button.setAccessibleName("Keep Selection")
+        self.keep_button.setToolTip(
+            "Replace Files Selected with the temporary selection in original Selected order"
+        )
         self.keep_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.keep_button.setFixedHeight(TOKENS.control_height)
-        self.keep_button.setToolTip(
-            "Replace Selected with the picked subset in original Selected order"
-        )
+        self.keep_button.setMinimumWidth(96)
+        self.keep_button.setStyleSheet(_selection_button_style())
         self.keep_button.clicked.connect(self.keep_picked)  # type: ignore[attr-defined]
 
-        self.cancel_button = QToolButton(self.host)
-        self.cancel_button.setObjectName("reviewCancel")
-        self.cancel_button.setText("Cancel")
-        self.cancel_button.setAccessibleName("Cancel Review Select")
-        self.cancel_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.cancel_button.setFixedHeight(TOKENS.control_height)
-        self.cancel_button.clicked.connect(self.cancel_review)  # type: ignore[attr-defined]
-
-        layout.addWidget(self.mode_button)
-        layout.addWidget(self.count_label)
-        layout.addWidget(self.clear_button)
-        layout.addWidget(self.keep_button)
-        layout.addWidget(self.cancel_button)
-        self.window.presentation_controls_layout.addWidget(self.host)
+        for widget in (
+            self.separator,
+            self.count_label,
+            self.clear_button,
+            self.keep_button,
+        ):
+            _insert_before_stretch(layout, widget)
 
     def _connect_viewers(self) -> None:
         for viewer in self._all_viewers():
@@ -183,10 +190,9 @@ class ReviewSelectionController(QObject):
         self.window._select_document_ids = select_document_ids
         self.window._remove_document_ids = remove_document_ids
 
-        # Never disconnect constructor-time PySide signal connections here. On
-        # Windows/PySide6 that can fault in native code. DocumentListWidget exposes
-        # explicit safe pre-mutation boundaries instead; normal MainWindow slots stay
-        # connected and remain the mutation authority.
+        # Never disconnect constructor-time PySide signal connections. The Files tree
+        # exposes safe pre/post mutation boundaries while MainWindow remains the
+        # selection/removal authority.
         self.window.document_list.selection_changing.connect(self._files_selection_changing)
         self.window.document_list.itemSelectionChanged.connect(self._files_selection_changed)
         self.window.document_list.remove_changing.connect(self._files_remove_changing)
@@ -225,28 +231,33 @@ class ReviewSelectionController(QObject):
             self.state.exit()
         self._sync_all()
 
-    def _mode_clicked(self, checked: bool) -> None:
-        if checked:
-            if not self.enter_review():
-                self._sync_controls()
-        else:
-            self.cancel_review()
-
     def _pick_requested(self, viewer: ImageViewer, checked: bool) -> None:
         document_id = self._pickable_document_id(viewer.presented_document)
-        if document_id is None:
+        if document_id is None or viewer not in self.window.multi_compare_view.viewers:
+            self._sync_tile(viewer)
+            return
+        if checked and not self.state.active:
+            selected_ids = self._selected_ids()
+            if not selected_ids or document_id not in selected_ids:
+                self._sync_tile(viewer)
+                return
+            self.state.enter(selected_ids)
+        if not self.state.active:
             self._sync_tile(viewer)
             return
         self.state.set_picked(document_id, checked)
         self._sync_all()
 
     def _pickable_document_id(self, document: ImageDocument | None) -> str | None:
-        if not self.state.active or document is None:
+        if document is None:
             return None
         document_id = document.document_id
-        if document_id not in self.state.baseline_selected_ids:
-            return None
         if document_id not in self.window.documents:
+            return None
+        authority_ids = (
+            self.state.baseline_selected_ids if self.state.active else self._selected_ids()
+        )
+        if document_id not in authority_ids:
             return None
         return document_id
 
@@ -262,22 +273,20 @@ class ReviewSelectionController(QObject):
             self._sync_tile(viewer)
 
     def _sync_controls(self) -> None:
-        active = self.state.active
-        self.mode_button.blockSignals(True)
-        self.mode_button.setChecked(active)
-        self.mode_button.blockSignals(False)
-        self.mode_button.setEnabled(active or bool(self._selected_ids()))
-        self.count_label.setText(f"Picked {self.state.picked_count}")
-        self.count_label.setVisible(active)
-        self.clear_button.setVisible(active)
-        self.keep_button.setVisible(active)
-        self.cancel_button.setVisible(active)
+        selected_ids = self._selected_ids()
+        self.count_label.setText(f"Selected {self.state.picked_count}")
+        self.count_label.setEnabled(bool(selected_ids))
         has_picks = self.state.picked_count > 0
         self.clear_button.setEnabled(has_picks)
         self.keep_button.setEnabled(has_picks)
 
     def _sync_tile(self, viewer: ImageViewer) -> None:
-        document_id = self._pickable_document_id(viewer.presented_document)
+        is_multi_viewer = viewer in self.window.multi_compare_view.viewers
+        document_id = (
+            self._pickable_document_id(viewer.presented_document)
+            if is_multi_viewer
+            else None
+        )
         picked = document_id in self.state.picked_ids if document_id is not None else False
         viewer.setProperty("reviewPicked", picked)
         viewer.setStyleSheet(tile_style(bool(getattr(viewer, "_active", False))))
@@ -288,7 +297,7 @@ class ReviewSelectionController(QObject):
 
 
 def install_review_selection(window: Any) -> ReviewSelectionController:
-    """Install the P4-A temporary review/curation workflow once per MainWindow."""
+    """Install direct P4-A multi-view curation once per MainWindow."""
 
     existing = getattr(window, "review_selection_controller", None)
     if isinstance(existing, ReviewSelectionController):
