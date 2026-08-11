@@ -6,9 +6,13 @@ from typing import Any
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFileDialog, QMenu, QMessageBox
 
-from pixelscope.core.comparison_set import ComparisonSet, ComparisonSetError, ComparisonSetSource
+from pixelscope.core.comparison_set import (
+    ComparisonSet,
+    ComparisonSetError,
+    ComparisonSetSource,
+)
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
-from pixelscope.io.path_discovery import image_input_for_path
+from pixelscope.io.path_discovery import ImageInput, image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
 
 COMPARISON_SET_FILTER = "PixelScope Comparison Set (*.pixelscope)"
@@ -17,7 +21,11 @@ COMPARISON_SET_FILTER = "PixelScope Comparison Set (*.pixelscope)"
 class ComparisonSetController:
     """Bridge Comparison Set artifacts to existing MainWindow runtime authorities."""
 
-    def __init__(self, window: Any, repository: ComparisonSetRepository | None = None) -> None:
+    def __init__(
+        self,
+        window: Any,
+        repository: ComparisonSetRepository | None = None,
+    ) -> None:
         self.window = window
         self.repository = repository or ComparisonSetRepository()
         self.open_action = QAction("Open Comparison Set...", window)
@@ -84,7 +92,10 @@ class ComparisonSetController:
         remember = getattr(self.window, "_remember_directory", None)
         if callable(remember):
             remember(target.parent)
-        self.window.statusBar().showMessage(f"Saved Comparison Set · {target.name}", 4000)
+        self.window.statusBar().showMessage(
+            f"Saved Comparison Set · {target.name}",
+            4000,
+        )
 
     def save_to_path(self, path: str | Path) -> ComparisonSet:
         selected = list(self.window.selected_documents)
@@ -94,7 +105,8 @@ class ComparisonSetController:
         for document in selected:
             if document.source_path is None:
                 raise ComparisonSetError(
-                    f"Selected item has no persistent native source path: {document.display_name}"
+                    "Selected item has no persistent native source path: "
+                    f"{document.display_name}"
                 )
             profile = self.window._raw_profiles.get(document.document_id)
             if profile is None and isinstance(document.raw_profile, RawProfile):
@@ -103,8 +115,18 @@ class ComparisonSetController:
             sources.append(ComparisonSetSource(str(document.source_path), raw_payload))
 
         selected_ids = {document.document_id for document in selected}
-        active_path = self._path_for_runtime_id(self.window._active_document_id, selected_ids)
-        primary_path = self._path_for_runtime_id(self.window._focus_document_id, selected_ids)
+        active_path = self._path_for_runtime_id(
+            self.window._active_document_id,
+            selected_ids,
+        )
+        current_page_ids = {
+            document.document_id for document in self.window.current_comparison_documents()
+        }
+        primary_path = (
+            self._path_for_runtime_id(self.window._focus_document_id, current_page_ids)
+            if self.window._layout_mode != "Single View"
+            else None
+        )
         comparison_set = ComparisonSet(
             sources=tuple(sources),
             active_path=active_path,
@@ -114,11 +136,19 @@ class ComparisonSetController:
         self.repository.save(path, comparison_set)
         return comparison_set
 
-    def _path_for_runtime_id(self, document_id: str | None, selected_ids: set[str]) -> str | None:
-        if document_id is None or document_id not in selected_ids:
+    def _path_for_runtime_id(
+        self,
+        document_id: str | None,
+        allowed_ids: set[str],
+    ) -> str | None:
+        if document_id is None or document_id not in allowed_ids:
             return None
         document = self.window.documents.get(document_id)
-        return str(document.source_path) if document is not None and document.source_path else None
+        return (
+            str(document.source_path)
+            if document is not None and document.source_path is not None
+            else None
+        )
 
     def open_dialog(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -149,12 +179,15 @@ class ComparisonSetController:
                 f"Loaded {loaded} source(s); {len(missing)} source(s) were unavailable.\n\n"
                 f"{preview}{suffix}",
             )
-        self.window.statusBar().showMessage(f"Opened Comparison Set · {loaded} source(s)", 4000)
+        self.window.statusBar().showMessage(
+            f"Opened Comparison Set · {loaded} source(s)",
+            4000,
+        )
 
     def open_from_path(self, path: str | Path) -> tuple[int, tuple[Path, ...]]:
         comparison_set = self.repository.load(path)
 
-        loadable: list[tuple[ComparisonSetSource, Any]] = []
+        loadable: list[tuple[ComparisonSetSource, ImageInput]] = []
         missing: list[Path] = []
         for source in comparison_set.sources:
             source_path = Path(source.path)
@@ -175,7 +208,10 @@ class ComparisonSetController:
         document_ids: list[str] = []
         path_to_id: dict[str, str] = {}
         for source, image_input in loadable:
-            document_id = self.window._register_input(image_input, resolve_raw_profile=False)
+            document_id = self.window._register_input(
+                image_input,
+                resolve_raw_profile=False,
+            )
             if document_id is None:
                 continue
             document_ids.append(document_id)
@@ -193,7 +229,10 @@ class ComparisonSetController:
             )
             return 0, tuple(missing)
 
-        active_id = self._saved_member_id(comparison_set.active_path, path_to_id) or document_ids[0]
+        active_id = (
+            self._saved_member_id(comparison_set.active_path, path_to_id)
+            or document_ids[0]
+        )
         active_index = document_ids.index(active_id)
         self.window._current_index = active_index
         self.window._page_start = 0
@@ -221,7 +260,10 @@ class ComparisonSetController:
         return len(document_ids), tuple(missing)
 
     @staticmethod
-    def _saved_member_id(path: str | None, path_to_id: dict[str, str]) -> str | None:
+    def _saved_member_id(
+        path: str | None,
+        path_to_id: dict[str, str],
+    ) -> str | None:
         return None if path is None else path_to_id.get(path.casefold())
 
     def _apply_saved_raw_profile(self, document_id: str, profile: RawProfile) -> None:
