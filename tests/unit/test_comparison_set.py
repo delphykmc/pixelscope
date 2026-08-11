@@ -133,7 +133,7 @@ def test_active_and_primary_must_reference_members(tmp_path: Path) -> None:
             {
                 "kind": "pixelscope-comparison-set",
                 "schema_version": 1,
-                "sources": [{"path": "/x"}],
+                "sources": [{"path": str((Path.cwd() / "x").resolve())}],
                 "layout_mode": "Grid",
             },
             "layout",
