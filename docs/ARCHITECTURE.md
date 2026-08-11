@@ -278,6 +278,66 @@ Registration-only folder input does not invalidate captured curation state becau
 it does not mutate Selected. Temporary curation state is not persisted; Settings
 schema remains v5.
 
+## P4-B Comparison Set persistence boundary
+
+P4-B adds an external durable artifact without introducing a second runtime ownership
+model. `core.comparison_set.ComparisonSet` is Qt-free and runtime-document-ID-free;
+`io.comparison_set_repository.ComparisonSetRepository` owns schema validation and
+atomic JSON persistence; `ui.comparison_set.ComparisonSetController` bridges the
+artifact to existing MainWindow registration/selection/layout/Active/Primary paths.
+
+The artifact contract is:
+
+```text
+.pixelscope JSON v1
+    ↓ validate kind/schema/field types/path identities/RAW metadata
+ordered absolute native-source paths
+    ↓ normal registration path
+logical Selected
+    ↓ saved Active + Selected ordering
+Current Comparison Page        # derived, never serialized
+    ↓ applicable saved Primary + layout
+Presented
+    ↓ existing foreground/residency lifecycle
+Resident when required
+```
+
+`schema_version = 1` and `kind = "pixelscope-comparison-set"`. Persistent source
+identity is a normalized **absolute local path**. The repository rejects blank or
+relative source/Active/Primary identities before normalization; v1 performs no
+relocation/fuzzy resolution. This is deterministic but machine/path-layout dependent
+and means a shared artifact can reveal local filesystem paths.
+
+Durable state is intentionally narrow: ordered logical Selected native-source
+references, optional selected Active, optional applicable page-local Primary, stable
+layout mode, and minimum resolved RAW profile metadata needed to reconstruct a RAW
+source. Runtime `document_id`, Current Comparison Page/page offset, and P4-A Pick
+state are not durable identity.
+
+Save is metadata-only with respect to runtime resources. It serializes logical
+Selected rather than temporary Picks, does not call `_ensure_loaded()` for off-page
+members, does not force unresolved RAW resolution, does not alter Picks, and does not
+acquire source residency/protection/LRU ownership. If Keep Selection has already
+changed logical Selected, the curated subset is naturally what is saved.
+
+Open validates the entire artifact before logical workspace mutation. Loadable
+sources use `_register_input(..., resolve_raw_profile=False)` so registration remains
+lazy. Saved resolved RAW profile metadata is installed before foreground use;
+unresolved RAW remains unresolved. The saved Active ID seeds the existing selection
+lifecycle so Current Comparison Page is derived from Active + saved ordering; only
+then is an applicable saved Primary restored. Unrelated Registered documents remain
+registered. Partial missing paths are tolerated, zero-loadable input is a no-op, and
+corrupt/wrong-kind/future-schema/semantic-invalid artifacts do not begin source
+registration or foreground loading.
+
+Comparison Set persistence owns none of native source arrays, source
+residency/LRU/protection, Difference maps/cache, preload plans/workers, foreground
+promotion, Display Gain state/previews, Statistics/Histogram/Line Profile/Difference
+request state, worker/token/generation state, Split/Difference derived documents,
+transient zoom/pan, ROI/Line state, or temporary curation. Settings schema remains
+v5 because `.pixelscope` is an external artifact rather than an
+`ApplicationSettings` migration.
+
 ## RAW profile-resolution boundary
 
 RAW and ordinary images share the same user-facing image-open command but retain
@@ -303,6 +363,11 @@ A folder-registered unresolved RAW does not prompt/decode merely because it belo
 to Selected or the temporary Pick Set. Off-page Selected/Picked RAW stays pending
 and unprotected. When it enters Current Comparison Page, `_ensure_loaded()` becomes
 the foreground profile/load boundary.
+
+Comparison Set open uses the same lazy registration boundary. When saved resolved
+RAW metadata exists it is restored before foreground use; when no resolved metadata
+was saved, the RAW remains unresolved and follows the inherited foreground prompt
+path. Saving never resolves RAW merely to populate the artifact.
 
 `_raw_profile_prompt_suppressed` defines the cancel retry boundary: one foreground
 attempt prompts an unresolved RAW at most once. Cancel leaves the document pending
@@ -382,6 +447,10 @@ and the captured curation baseline/Pick Set is temporary application-session
 workflow state. Neither is persisted through `ApplicationSettings`; `Reset
 Settings` remains separate from workspace-layout reset.
 
+P4-B also leaves Settings schema v5 unchanged. `.pixelscope` Comparison Sets are
+explicit user-managed external artifacts rather than SettingsRepository/QSettings
+state.
+
 ## Thread and request lifecycle
 
 Foreground image loading uses a dedicated max-two pool. Preload uses a separate
@@ -397,6 +466,10 @@ Selection/page presentation triggers `_ensure_loaded()` only for Current Compari
 Page requirements. Registration and off-page Selected/Pick membership alone do not
 decode unrelated images. `_selected_load_batch_complete()` uses the Current
 Comparison Page rather than an independent first-six slice.
+
+Comparison Set Save does not schedule load/analysis work. Comparison Set Open only
+re-enters normal registration/selection/page foreground authority after full artifact
+validation; it does not restore workers/tokens/generations from disk.
 
 Statistics/Histogram request identity includes generation and operation parameters
 so rebinding an unchanged request does not restart work. Line Profile caches by
@@ -421,10 +494,13 @@ reload state without losing Registered, Selected, or temporary Pick identity.
 The budget remains soft: protected sources may exceed it, including one required
 source larger than budget. Only unprotected resident sources are evicted.
 
-Registration and Pick membership do not add residency bytes. Eviction clears
-reloadable native source and source-local caches, returns the document to pending,
-and preserves its catalog identity. Preview arrays, Qt textures, Display Gain
-buffers, Difference maps, split-channel derivatives, temporary curation ID sets,
+Registration and Pick membership do not add residency bytes. Comparison Set Save is
+also not a residency owner, and opening a large set does not protect all saved
+Selected members: only the derived Current Comparison Page plus inherited correctness
+dependencies own protection. Eviction clears reloadable native source and
+source-local caches, returns the document to pending, and preserves its catalog
+identity. Preview arrays, Qt textures, Display Gain buffers, Difference maps,
+split-channel derivatives, temporary curation ID sets, Comparison Set metadata,
 worker temporaries, and process RSS are outside decoded-source accounting.
 
 ## Preload and promotion boundary
@@ -447,7 +523,8 @@ Promoted success/failure delegates once to normal foreground paths. Folder
 registration or Pick membership alone does not create new speculative work;
 unresolved RAW without a profile is not preloaded. Comparison Page navigation
 starts no new speculative page preload system; sources needed for a newly foreground
-page use normal foreground requirements.
+page use normal foreground requirements. Comparison Set Save/Open introduces no
+Selected-wide or Comparison-Page-ahead preload system.
 
 ## Difference boundary
 
@@ -473,6 +550,9 @@ invalidate Difference cache or presentation because it does not change Selected 
 current-page lifecycle. For a six-source page, a cached Difference hit and an
 asynchronous fresh result share the same Diff-only Single View presentation and
 workspace-restore contract.
+
+Comparison Set persistence does not serialize or rehydrate Difference inputs, maps,
+cache entries, or presentation state.
 
 ## RAW decode/display boundary
 

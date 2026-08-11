@@ -1,11 +1,11 @@
 # UI implementation status
 
-Status: P4-0 merged as PR #28 at
-`e30c49d6759715228a820d673ad8939ea9a3afe8`. P4-A Review Selection & Curation is
-implemented on `feature/p4-a-review-selection-curation`; owner/local Windows runtime
-and requested validation are reported PASS. Independent re-review found the prior
-runtime/test blockers resolved. Durable-doc closure and merge remain, so P4-A is not
-marked Complete yet.
+Status: P4-A Review Selection & Curation is Complete as PR #29 at
+`3486146494076e9b513843b90ec44e504043729e`. P4-B Comparison Set Persistence is
+implemented on `feature/p4-b-comparison-set-persistence` / PR #30. The repository
+owner reports the focused P4-B Windows validation PASS (`36 passed`); independent
+review reports no remaining runtime/schema/test blocker. Merge closure is currently
+durable-doc consistency plus normal final review/validation.
 
 ## Current shell
 
@@ -16,8 +16,8 @@ marked Complete yet.
   are direct, stable row members after Display Gain.
 - P3-E/P4-A compose that row as a compact engineering command bar using existing
   design tokens and PixelScope's programmatic high-DPI icon infrastructure.
-- File menu owns **Open Images...** (`Ctrl+O`) and **Open Folder...**
-  (`Ctrl+Shift+O`).
+- File menu owns **Open Images...** (`Ctrl+O`), **Open Folder...**
+  (`Ctrl+Shift+O`), **Open Comparison Set...**, and **Save Comparison Set...**.
 - There is no separate **Open RAW with Profile...** action.
 - Empty Workspace exposes Open Images/Open Folder only in the truly-empty state.
 - Files tree is the catalog/selection surface and keeps native Up/Down plus
@@ -122,7 +122,7 @@ disabled; for multiple pages only unavailable endpoint directions are disabled.
 - When `Selected > 6`, Folder Position is unavailable rather than operating on only
   the current page.
 
-## P4-A Review Selection & Curation — implemented and owner-validated, merge pending
+## P4-A Review Selection & Curation — Complete
 
 P4-A adds this temporary workflow:
 
@@ -170,6 +170,38 @@ new Selected subset
 - temporary curation state is session-only UI/workflow state and is not persisted
   to Settings/QSettings.
 
+## P4-B Comparison Set Persistence — implemented, merge pending
+
+P4-B adds two File-menu commands without changing the Presentation Control Row:
+
+- **Open Comparison Set...** opens a `.pixelscope` artifact;
+- **Save Comparison Set...** saves the current logical Selected comparison set.
+
+The Save command persists logical Selected, optional selected Active, applicable
+page-local Primary, stable layout, and minimum resolved RAW metadata. Temporary P4-A
+Picks are never saved directly: before **Keep Selection**, Save writes the existing
+logical Selected set; after Keep, it writes the curated Selected subset. Save does
+not apply or clear Picks.
+
+Open validates the artifact before mutating the workspace. Loadable sources replace
+logical Selected in saved order while unrelated Registered sources remain. Saved
+Active derives the Current Comparison Page; an applicable Primary and layout are
+then restored. Current Comparison Page/page offset is never serialized.
+
+Missing sources may partially load with a compact warning. Zero-loadable, corrupt,
+wrong-kind, future-schema, or otherwise invalid sets do not replace the current
+logical workspace. Saved resolved RAW metadata is restored before foreground use;
+unresolved RAW remains on the normal lazy profile-resolution path.
+
+The v1 artifact stores normalized absolute local source paths and does not relocate
+or fuzzy-match moved files. The artifact may therefore expose local path information
+and is not guaranteed portable across machines or directory layouts.
+
+Comparison Set UI does not own decoded source arrays, residency/LRU/protection,
+preload, Difference/cache, Display Gain state, analysis requests, workers/tokens,
+derived Split/Difference documents, transient view state, ROI/Line, or temporary
+Pick state. Settings schema remains v5.
+
 ## RAW input UI
 
 RAW and ordinary images share **Open Images...**. Direct RAW keeps deterministic
@@ -182,6 +214,10 @@ page entry invokes RAW profile resolution when source is required. Within one
 foreground attempt, Cancel suppresses immediate passive re-prompt and starts no
 worker; a later explicit foreground action may retry. Unresolved RAW is not started
 by speculative preload.
+
+Comparison Set Open uses the same lazy RAW boundary. Persisted resolved RAW metadata
+is restored before foreground use; unresolved saved RAW remains unresolved rather
+than being force-resolved by persistence.
 
 The dialog uses **Load Profile...** / **Save Profile...** terminology. JSON remains
 the compatible profile format.
@@ -215,18 +251,21 @@ P3-C is complete as PR #25 at
 - 1× reuses canonical preview; gain>1 is viewer-local async presentation.
 - Native analysis, source generation/residency, Difference cache identity, and
   numerical analysis request identity are not changed by gain.
+- Comparison Sets do not persist Display Gain.
 
 ## Runtime/resource status
 
-P4-A preserves P2 exact native-source accounting and protected soft-budget LRU.
+P4-B preserves P2 exact native-source accounting and protected soft-budget LRU.
 Selected membership alone remains non-authoritative for large selections; Pick
-membership is also non-authoritative. Current Comparison Page plus correctness
-dependencies remain protected; off-page Selected/Picked sources may be evicted and
-reloaded. P2 preload remains +1 Folder Position only; there is no Comparison Page
-or Pick Set preload system.
+membership and Comparison Set metadata are also non-authoritative. Current
+Comparison Page plus correctness dependencies remain protected; off-page
+Selected/Picked sources may be evicted and reloaded. P2 preload remains +1 Folder
+Position only; there is no Comparison Page, Pick Set, or Comparison Set preload
+system.
 
-The deterministic 50-image P4-A regression checks that page-bounded foreground load
-requests/protection remain bounded while picks accumulate across pages.
+The deterministic large-set P4-B regressions check that Save causes no load or
+residency/protection acquisition and that Open keeps foreground load/protection
+bounded to the Active-derived Current Comparison Page.
 
 Arbitrary-angle Line Profile is not scheduled in P4. A future design would require
 an explicit discrete sampling/pixel-path and coordinate-display contract suitable
@@ -234,13 +273,11 @@ for an observation tool; interpolation is not assumed.
 
 ## Validation state
 
-P4-0 / PR #28 is merged at
-`e30c49d6759715228a820d673ad8939ea9a3afe8`.
+P4-A / PR #29 is merged at
+`3486146494076e9b513843b90ec44e504043729e`.
 
-The repository owner reports P4-A runtime behavior and all requested local Windows
-validation PASS on the implementation. Independent re-review found the earlier
-Files-removal invalidation, picked-tile visual-state, and interaction/apply coverage
-blockers resolved, with no new P2/P3 ownership regression. The remaining closure
-item identified by that review was durable-doc alignment; this file now reflects the
-owner-approved direct-curation UI. These docs-only edits still require applicable
-docs/diff validation before merge, and no unobserved command PASS is inferred.
+For P4-B / PR #30, the repository owner reports the focused Windows suite PASS with
+`36 passed`. Independent review reports no remaining runtime/schema/test blocker.
+The current merge-closure work is documentation-only and does not alter runtime or
+tests; applicable docs/diff validation and final review remain required, and no
+unobserved full-suite/tooling PASS is inferred.

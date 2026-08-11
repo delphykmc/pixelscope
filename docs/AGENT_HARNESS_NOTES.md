@@ -157,6 +157,89 @@ before treating the failure as ordinary Python logic. Keep at least one producti
 composition regression around any boundary that previously crashed before the
 window became usable.
 
+### Persistence / PySide test harness lessons from P4-B
+
+P4-B exposed three failure patterns that can recur in later persistence,
+composition, and residency work even when the production behavior is otherwise
+correct:
+
+- **Use platform-native absolute-path fixtures at serialization boundaries.** A
+  hard-coded POSIX path such as `/x` is not absolute on Windows, so an intended
+  layout/schema test can fail earlier in absolute-path validation. When a test
+  needs a valid persisted path, build it from `tmp_path` or `Path.cwd()` and
+  resolve it on the running platform. Reserve relative-path literals for tests
+  that intentionally exercise relative-path rejection, and make sure each
+  malformed payload reaches the validation layer the test actually names.
+- **Retain PySide wrappers for Qt objects that later composition must revisit.**
+  `MainWindow._create_actions()` creates top-level `QMenu` wrappers in a local
+  `menus` dictionary. A later production-composition layer that tries to reopen
+  those menus can encounter `Internal C++ object ... already deleted` on the
+  owner Windows/PySide6 environment. Future extensible menu/widget ownership
+  should keep required wrappers on the owning object or expose a stable extension
+  point. Do not assume that a surviving top-level `QAction` guarantees that a
+  previously returned Python `QMenu` wrapper is still usable. When many UI tests
+  fail at the same composition/setup line, cluster them as one ownership failure
+  before treating them as independent product regressions.
+- **Compare runtime identities at the same abstraction level.** APIs such as
+  `_residency_protected_document_ids()` return document IDs, not
+  `ImageDocument` objects. Tests should compare ID sets to ID sets. Constructing
+  `set(ImageDocument)` can fail first because the document object is unhashable,
+  hiding the intended residency assertion. A `TypeError` in assertion setup is a
+  harness defect unless the product contract explicitly requires hashability.
+
+These failures are reusable harness lessons rather than reasons to weaken the
+production contracts. Keep cross-platform fixtures, Qt lifetime ownership, and
+runtime-identity types explicit so focused validation reaches the behavior it is
+supposed to test.
+
+### Durable-document preservation lessons from P4-B
+
+P4-B also exposed a documentation failure mode with a much larger review cost than
+the feature itself: an agent replaced long-lived durable documents with shorter
+P4-B-centric summaries, deleting thousands of lines of still-valid P1/P2/P3/P4-A
+contracts. Restoring those files exactly to `main` then created the opposite problem:
+the inherited history returned, but the required P4-B delta disappeared and the
+documents again described P4-A/P4-B status incorrectly.
+
+Use the following rules for every implementation and review agent that touches
+PixelScope durable documentation:
+
+- **Treat durable docs as cumulative system-of-record contracts, not phase
+  summaries.** `ARCHITECTURE.md`, `DECISIONS.md`, `QUALITY.md`, `PRODUCT_SPEC.md`,
+  `CURRENT_STATE.md`, `ROADMAP.md`, `USER_GUIDE.md`, active execution plans, and UI
+  status notes may contain contracts from many completed phases. A new phase must
+  not compress them into a shorter phase-centric rewrite unless the repository owner
+  explicitly requested a documentation restructure/archive.
+- **Start from the current merged baseline.** Before changing a durable document,
+  inspect the version on current `main` and the branch version. Preserve inherited
+  paragraphs verbatim unless the current task explicitly supersedes that specific
+  statement. Add the smallest new section or replace the narrow stale paragraph.
+- **Whole-file write APIs do not justify whole-file authorship.** If a connector
+  requires complete replacement content, reconstruct it from the current repository
+  file plus local edits. Never generate a shortened replacement from chat memory,
+  a PR summary, or the current phase plan.
+- **Large unexplained deletion counts are a stop condition.** Before commit and
+  before merge review, inspect base→head per-file diff statistics. Hundreds of
+  deleted lines across durable docs, or a large net contraction unrelated to an
+  owner-approved cleanup, must be investigated before proceeding. Review agents
+  should treat destructive durable-doc churn as a merge blocker even if runtime
+  implementation is otherwise correct.
+- **Recovery requires restore plus reapplication.** If accidental churn occurs,
+  restore the affected files exactly from the latest merged baseline first, then
+  reapply only the feature's required durable delta. Do not stop after exact restore
+  if the feature has already changed product behavior, architecture, decisions,
+  validation, roadmap status, or user workflow.
+- **Mechanical docs checks are necessary but not sufficient.** Run
+  `scripts/check_docs.py`, the docs-contract test when applicable, and
+  `git diff --check`, but also inspect semantic diff scope and deletion statistics.
+  Link checks cannot detect that valid historical architecture or quality contracts
+  were silently removed.
+
+For review agents, documentation scope is part of merge readiness: verify both that
+new behavior is recorded and that inherited durable contracts survive. For
+implementation agents, documentation work should be a narrow reconciliation after
+runtime semantics are known, not a rewrite opportunity.
+
 ### 7. Treat entropy as recurring work
 
 The PR #1–#9 audit exposed a representative failure mode: implementation moved

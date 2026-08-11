@@ -203,6 +203,8 @@ profile suggestion, sensor/Bayer inference, or automatic Black/White estimation.
 
 P4-0 merged as PR #28 at
 `e30c49d6759715228a820d673ad8939ea9a3afe8`.
+P4-A Review Selection & Curation merged as PR #29 at
+`3486146494076e9b513843b90ec44e504043729e`.
 
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -216,12 +218,10 @@ Recommended sequence:
 Merged as PR #28. This docs-only transition closed P3 status, archived the P3 plan,
 and established the P4 execution sequence without adding runtime/UI behavior.
 
-### P4-A — Review Selection & Curation — implementation validated, merge pending
+### P4-A — Review Selection & Curation — Complete
 
-Implemented on `feature/p4-a-review-selection-curation`. Owner/local Windows
-runtime and requested validation are reported PASS. Independent re-review found the
-previous runtime/test blockers resolved and identified durable-document alignment as
-the remaining merge-closure item. P4-A remains not Complete until merge.
+Merged as PR #29. P4-A adds temporary review/curation state without changing the
+P2/P3 numerical or resource-ownership contracts.
 
 Implemented workflow:
 
@@ -274,17 +274,47 @@ selection/first-Active state, derived-presentation identity rejection, external
 Selected mutation invalidation, and 50-image bounded load/protection/preload
 regression.
 
-### P4-B — Persistent Comparison Sessions
+### P4-B — Comparison Set Persistence — implemented, merge pending
 
-Persist durable user intent only. Decoded source, caches, residency/LRU state,
-workers, preload state, request/generation tokens, derived gained previews, and
-temporary workflow state are runtime state and must not be serialized. Current
-Comparison Page remains derived rather than an independent serialized collection.
+P4-B introduces an explicit external **Comparison Set** artifact rather than full
+application-session persistence.
 
-### P4-C — Recent Entries & Session Entry UX
+The `.pixelscope` v1 JSON schema persists ordered logical Selected native-source
+references, optional Active, optional applicable Primary, stable layout mode, and
+minimum resolved RAW metadata needed to reconstruct a RAW source. Persistent source
+identity is a normalized **absolute local path**; blank/relative paths are rejected
+before normalization and v1 performs no relocation/fuzzy resolution. Sharing a set
+therefore also shares local path information and may not be portable across machines
+or directory layouts.
 
-Distinguish image, folder, and session history types. Define bounded history,
-missing-path behavior, and privacy/path-retention semantics before implementation.
+Save serializes logical Selected, never the temporary P4-A Pick Set. Picks that have
+not been applied by **Keep Selection** do not alter the saved membership; after Keep,
+the curated Selected subset is saved. Save does not apply/clear Picks, decode
+Selected-wide sources, or acquire residency/protection authority.
+
+Open validates before logical mutation, restores loadable Selected in saved order,
+restores saved Active, derives the Current Comparison Page from Active + Selected
+ordering, then restores an applicable page-local Primary and stable layout. Current
+Comparison Page/page offset is never serialized. Missing sources partially load with
+a compact warning; zero-loadable, corrupt, wrong-kind, future-schema, or otherwise
+invalid artifacts leave the current logical workspace unchanged.
+
+Resolved RAW reconstruction metadata is restored before foreground use; unresolved
+RAW remains unresolved and uses the existing lazy profile-resolution path. P4-B does
+not persist source arrays, residency/LRU/protection, preload, Difference/cache,
+Display Gain, analysis state, workers/tokens/generation, derived Split/Difference
+documents, transient view state, ROI/Line state, or temporary Picks. Settings schema
+remains v5.
+
+The repository owner reports the focused P4-B Windows suite PASS (`36 passed`). PR
+#30 remains merge-pending until durable-doc consistency and final review/validation
+closure.
+
+### P4-C — Comparison Set Entry UX & Recent Entries
+
+Define bounded recent-entry behavior around persisted Comparison Set artifacts,
+including missing-path handling and privacy/path-retention semantics. Do not reframe
+P4-C as a full persistent-session manager.
 
 ### P4-D — Saved ROI & Analysis Workspace Productivity
 

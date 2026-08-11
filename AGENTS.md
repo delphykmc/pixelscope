@@ -8,6 +8,7 @@ source and tests before changing behavior.
 
 - Current implementation and verified backlog: `docs/CURRENT_STATE.md`
 - Documentation ownership and task-based reading paths: `docs/index.md`
+- Reusable implementation/review harness lessons: `docs/AGENT_HARNESS_NOTES.md`
 - Product behavior: `docs/PRODUCT_SPEC.md`
 - Architecture and lifecycle invariants: `docs/ARCHITECTURE.md`
 - Durable engineering decisions: `docs/DECISIONS.md`
@@ -32,6 +33,11 @@ source and tests before changing behavior.
 - Add or update tests with every functional change.
 - Do not preserve temporary integration scripts, compatibility bridges, or
   workarounds as permanent architecture without a recorded decision.
+- Durable documents are cumulative system-of-record contracts. Do not replace or
+  condense them into a phase-centric summary unless the owner explicitly requests a
+  documentation restructure. Start from current merged content, make narrow edits,
+  and inspect base-to-head diff statistics for unexpected deletions before commit or
+  merge review.
 - Never log credentials, image content, or unnecessary sensitive paths.
 - Do not modify files outside this repository or perform destructive Git
   operations.
@@ -44,7 +50,9 @@ source and tests before changing behavior.
 
 1. Express the task as observable behavior and explicit scope exclusions.
 2. Read `docs/CURRENT_STATE.md`, then the smallest relevant document set from
-   `docs/index.md`.
+   `docs/index.md`. Consult the relevant lessons in
+   `docs/AGENT_HARNESS_NOTES.md` for implementation/review work; do not treat the
+   harness notes as a requirement to reread unrelated sections.
 3. Inspect implementation, call sites, and tests before editing.
 4. For work spanning components, multiple commits, or sessions, create and
    maintain an execution plan.
@@ -52,7 +60,9 @@ source and tests before changing behavior.
 6. Run the checks in `docs/QUALITY.md`; run `scripts/check_docs.py` whenever
    Markdown or repository guidance changes.
 7. Update durable docs in the same PR when behavior, architecture, constraints,
-   decisions, or backlog state changes.
+   decisions, or backlog state changes. For durable-doc edits, preserve the current
+   merged baseline, inspect semantic diff scope and deletion counts, and stop on
+   unexplained broad contractions before committing.
 8. Report only validation output that was actually observed.
 
 Final reports must list changed files, observable behavior, validation commands
