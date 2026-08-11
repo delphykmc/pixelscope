@@ -145,6 +145,48 @@ def test_invalid_schema_is_rejected(payload: object, message: str) -> None:
         ComparisonSetRepository().from_payload(payload)
 
 
+def test_artifact_reader_rejects_relative_source_path() -> None:
+    payload = {
+        "kind": "pixelscope-comparison-set",
+        "schema_version": 1,
+        "sources": [{"path": "images/a.png"}],
+    }
+    with pytest.raises(ComparisonSetError, match="absolute path"):
+        ComparisonSetRepository().from_payload(payload)
+
+
+@pytest.mark.parametrize("field", ["active_path", "primary_path"])
+def test_artifact_reader_rejects_blank_optional_identity_path(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    source = str((tmp_path / "image.png").resolve())
+    payload = {
+        "kind": "pixelscope-comparison-set",
+        "schema_version": 1,
+        "sources": [{"path": source}],
+        field: "   ",
+    }
+    with pytest.raises(ComparisonSetError, match=f"{field} must not be empty"):
+        ComparisonSetRepository().from_payload(payload)
+
+
+@pytest.mark.parametrize("field", ["active_path", "primary_path"])
+def test_artifact_reader_rejects_relative_optional_identity_path(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    source = str((tmp_path / "image.png").resolve())
+    payload = {
+        "kind": "pixelscope-comparison-set",
+        "schema_version": 1,
+        "sources": [{"path": source}],
+        field: "relative.png",
+    }
+    with pytest.raises(ComparisonSetError, match=f"{field} must be an absolute path"):
+        ComparisonSetRepository().from_payload(payload)
+
+
 def test_malformed_json_is_rejected(tmp_path: Path) -> None:
     target = tmp_path / "broken.pixelscope"
     target.write_text("{not-json", encoding="utf-8")
