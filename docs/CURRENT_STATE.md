@@ -1,8 +1,13 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-11
-Current merged baseline / P3-E PR #27 merge commit:
-`835634a58609601605fd0fc18a3028b64225f535`
+Current merged baseline / P4-0 PR #28 merge commit:
+`e30c49d6759715228a820d673ad8939ea9a3afe8`
+
+P4-A is implemented on `feature/p4-a-review-selection-curation`. Owner/local
+Windows runtime and requested validation are reported PASS. Independent re-review
+found the prior runtime/test blockers resolved and durable-document alignment as the
+remaining merge-closure item. P4-A is not Complete until merge.
 
 ## Merge baseline
 
@@ -16,11 +21,12 @@ Current merged baseline / P3-E PR #27 merge commit:
 - P3-C Display Gain generalization merged as PR #25.
 - P3-D Unified Image Opening & RAW Profile Resolution merged as PR #26.
 - P3-E Integration, Presentation UI Polish & Phase Hardening merged as PR #27 at
-  the baseline SHA above, completing P3.
+  `835634a58609601605fd0fc18a3028b64225f535`, completing P3.
+- P4-0 P3 Closure & P4 Program Setup merged as PR #28 at the current baseline SHA.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-0 is the docs-only program setup and
-P4-A Review Selection & Curation is the next design slice.
+P4 is **Workflow & Session Productivity**. P4-A Review Selection & Curation is the
+active implementation slice on this feature branch.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -57,6 +63,56 @@ global Selected ordinal and viewer slot are distinct concepts.
 Registration count, Selected count, current-page size, presentation capacity, and
 resident-source ownership are independent concerns.
 
+## P4-A temporary curation state
+
+P4-A adds one application-session temporary state layer beneath the Current
+Comparison Page for curation workflow only:
+
+```text
+Registered
+    ↓
+Selected
+    ↓
+Current Comparison Page
+    ↓
+direct temporary Pick Set
+    ↓ Keep Selection
+new Selected subset
+```
+
+`ReviewSelectionState` stores only an ordered snapshot of baseline Selected IDs, a
+set of picked native source IDs, and an internal captured-baseline flag. It does not
+store source arrays, preview arrays, resident/cache objects, workers, RAW profile
+copies, Current Comparison Page copies, or derived Difference/Split documents.
+
+There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+View expose a stable **Pick** control directly. The first checked Pick captures the
+current ordered Selected IDs as the baseline. The Pick label remains `Pick`; checked
+membership is communicated by the depressed/checked button plus a high-contrast
+bright-yellow tile-wide border. Normal tile activation and Primary remain
+independent. Picks persist across Comparison Pages and may refer to off-page Selected
+sources without making those sources resident or protected.
+
+The presentation row exposes temporary curation state directly as
+`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+`Selected N` here is the temporary Pick Set count, not Files logical Selected count.
+**Clear Selection** clears only temporary picks. **Keep Selection** is disabled at
+zero picks and is the only curation action that changes Selected. The result is the
+captured baseline Selected ordering filtered by picked membership, so pick order
+never reorders the result. Non-picked images stay Registered. There is no
+user-facing Cancel command.
+
+If another workflow replaces/removes logical Selected membership after a baseline
+has been captured, the temporary curation baseline/Pick Set is invalidated before or
+with the existing normal Selected mutation. Registration-only folder input does not
+invalidate curation state because it does not change Selected. Temporary curation
+state is not persisted to Settings/QSettings.
+
+Pick membership is **not** source ownership, decode authority, residency protection,
+preload authority, analysis working-set authority, Difference input authority, or
+presentation-source authority. Split/Difference derived documents are not
+independent pick identities.
+
 ## Unified input policy
 
 Supported image inputs are exactly:
@@ -86,6 +142,10 @@ Selection-oriented input:
 
 There is no separate **Open RAW with Profile...** action.
 
+If a temporary curation baseline has been captured, a normal Open Images/direct-file
+selection replacement invalidates that baseline/Pick Set before continuing with the
+inherited selection semantics.
+
 ### Open Folder...
 
 Registration-oriented input:
@@ -102,8 +162,8 @@ Registration-oriented input:
 
 Folder-only registration preserves layout, active/primary document, ROI, Line
 Profile selection, Difference presentation/cache, Display Gain, existing view
-state, and source-residency ownership because it does not invoke the selection or
-render lifecycle.
+state, source-residency ownership, and any captured temporary curation state because
+it does not mutate Selected.
 
 ### Drag and drop
 
@@ -145,13 +205,16 @@ For `Selected > 6`:
 - Single View displays one active image but its analysis/load context remains the
   full Current Comparison Page.
 
-PageUp/PageDown are not reused for Comparison Page navigation.
+PageUp/PageDown are not reused for Comparison Page navigation. Temporary picks
+survive page movement, but page movement does not derive from, preload, or protect
+Pick Set membership.
 
-## P3-E presentation-row integration
+## Presentation-row integration
 
-The production application composes the P3-D presentation row with a focused UI
-polish layer; command/state ownership remains in `MainWindow` and Display Gain
-remains owned by its existing session state.
+The production application composes the P3-D/P3-E presentation row with the P4-A
+direct curation controls. Command/state ownership remains in `MainWindow`, Display
+Gain remains owned by its existing session state, and P4-A adds no separate mode or
+contextual group.
 
 Presentation row contract:
 
@@ -163,13 +226,15 @@ Presentation row contract:
   behavior; Ctrl+Left/Ctrl+Right remain the keyboard command owners.
 - Page index and Selected range remain fixed-width semantic labels, preventing
   endpoint or digit-count layout shift.
-- Display Gain stays on the right at 1×/2×/4×/8×/16× and is viewer-only.
+- Display Gain follows Page at 1×/2×/4×/8×/16× and is viewer-only.
+- P4-A then exposes `Selected N | Clear Selection | Keep Selection` directly in the
+  same row with normal command spacing; `Selected N` is the temporary Pick count.
+- eligible Multi View native source tiles expose `Pick` directly; checked membership
+  remains a stable label plus depressed state and bright-yellow tile-wide border.
 - existing `design_tokens.py` colors, spacing, control height, border, and disabled
   text conventions define command-bar styling and Windows dark-UI contrast.
 - the row remains distinct from the Main toolbar and directly above the image
   workspace.
-
-No Review Pick/Keep Picked workflow state is introduced in the merged P3 baseline.
 
 ## RAW registration boundary
 
@@ -186,9 +251,9 @@ Folder registration is lazy for RAW. The RAW path and deterministic same-basenam
 sidecar path can be registered as a pending document without showing a dialog or
 decoding source. An unresolved RAW that is Selected but off-page remains logical
 selection only: it is not prompted, decoded, or made resident merely because it is
-Selected. Profile resolution occurs when it enters the foreground Current
-Comparison Page and native source is required. Unresolved RAW is excluded from
-speculative preload until a profile is resolved.
+Selected. Being Picked adds no authority. Profile resolution occurs when it enters
+the foreground Current Comparison Page and native source is required. Unresolved RAW
+is excluded from speculative preload until a profile is resolved.
 
 One foreground presentation attempt prompts an unresolved RAW at most once. Cancel
 leaves it registered and pending, starts no worker, and passive rerenders do not
@@ -210,6 +275,7 @@ size-only/fuzzy matching, sensor/Bayer inference, or Black/White estimation.
 - Statistics, Histogram, Line Profile, selection-derived Difference context, ROI
   normalization, current-page load completion, and local slot mapping all use the
   same Current Comparison Page authority.
+- Temporary Pick Set never replaces or extends that analysis working set.
 - Feature-owned explicit Difference Image 1/Image 2 authority remains unchanged.
 - ROI uses Ctrl+drag / Esc; Line Profile uses Shift+drag / Shift+Esc.
 - Statistics, Histogram, Line Profile, Difference, and pixel inspection consume
@@ -240,26 +306,27 @@ display = anchor + gain * (source - anchor)
 - gain changes do not mutate source, analysis results, request identity, residency,
   or Difference.
 
-P3-E adds regression coverage that a pure Display Gain change does not reissue
-Statistics, Difference-input, or Line Profile document requests when the native
-numerical working set is unchanged.
+P4-A does not change Display Gain workers, preview identity, RAW Black-anchored
+math, or native Difference semantics. Pick state follows source IDs rather than any
+gained preview representation.
 
 ## Runtime/settings baseline
 
-Settings schema remains version 5. P3-E adds no settings/schema migration and no
-Settings-owned RAW profile collection.
+Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
+persist the captured curation baseline or temporary Pick Set.
 
 Source residency remains exact native `source.nbytes` under P2 protected soft-budget
 LRU semantics, with the P3-D large-selection refinement that **Selected alone is not
-a protection owner**. The generic bounded protection authority is the Current
-Comparison Page plus correctness dependencies such as foreground loads, promoted
-foreground preload, and Difference dependencies. Selected-but-off-page resident
-sources may therefore be evicted and normally reloaded when revisited.
+a protection owner**. Pick membership is also not a protection owner. The generic
+bounded protection authority is the Current Comparison Page plus correctness
+dependencies such as foreground loads, promoted foreground preload, and Difference
+dependencies. Selected/Picked-but-off-page resident sources may therefore be evicted
+and normally reloaded when revisited.
 
 Difference cache remains independent. Preload remains +1 Folder Position, max-one
-dedicated worker, with running-preload promotion as established by P2. P3-E does
-not add Comparison Page preloading. Diagnostics remain deterministic, bounded,
-sanitized, and observation-only.
+dedicated worker, with running-preload promotion as established by P2. P4-A does
+not add Comparison Page or Pick Set preloading. Diagnostics remain deterministic,
+bounded, sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -288,8 +355,9 @@ claimed here without separate observed evidence.
 
 ## Active P4 sequence
 
-1. P4-0 — P3 Closure & P4 Program Setup — Active docs-only transition
-2. P4-A — Review Selection & Curation — design next
+1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
+2. P4-A — Review Selection & Curation — implemented and owner-validated on feature
+   branch; durable-doc closure / merge pending
 3. P4-B — Persistent Comparison Sessions — planned
 4. P4-C — Recent Entries & Session Entry UX — planned
 5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
@@ -297,7 +365,7 @@ claimed here without separate observed evidence.
 7. P4-F — Integration & Workflow Hardening — planned
 
 P4 inherits the P2/P3 ownership and numerical contracts above. Temporary workflow
-state must not become source/cache/residency authority.
+state must not become source/cache/residency/analysis authority.
 
 Arbitrary-angle Line Profile is intentionally omitted from P4. Because Line Profile
 is an observation/sampling tool, a future arbitrary-angle version should define a

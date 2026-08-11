@@ -75,6 +75,15 @@ Preserve deterministic fixtures and smoke paths for:
 - Keyboard separation: Files Up/Down rows, Left/Right selected-image activity,
   and PageUp/PageDown Folder Position membership.
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
+- P4-A direct curation: first-Pick baseline capture and stable Pick affordance;
+  Active/Primary/Pick separation; depressed Pick plus bright-yellow tile border;
+  `1/2/6/7/15/50` Selected cases; cross-page Pick persistence; zero-pick Keep
+  Selection disabled; baseline-order Keep Selection; non-picked registration
+  retention; Clear Selection and external-Selected-mutation invalidation; derived
+  Split/Difference identity rejection; pan/Ctrl+drag ROI/Shift+drag Line behavior
+  not toggling Pick; exact Files selection/first-Active state after Keep Selection;
+  and Pick/Unpick/Clear causing no source load, generation, residency/protection,
+  preload, Difference-cache, or numerical-analysis authority change.
 - Repeated Single View number-key navigation across an unchanged selected set must
   not restart an identical Statistics/Histogram request, flash **Preparing
   analysis...**, cancel/recreate the same in-flight numerical worker, or rerender
@@ -160,6 +169,45 @@ Preserve deterministic fixtures and smoke paths for:
 Add a focused fixture when a bug depends on pixel values, bit depth, Bayer
 layout, geometry, memory pressure, or event order. Keep fixtures small unless
 resolution or memory behavior is the subject of the test.
+
+## P4-A deterministic curation contract
+
+P4-A acceptance is state/ownership based rather than timing based. Focused Qt-free
+state tests and production-composition UI tests must establish direct first-Pick
+baseline capture, ID-only baseline/Pick Set lifetime, idempotent Pick/Unpick,
+zero-pick safety, original-order Keep Selection, cross-page retention, stable Pick
+checked/yellow visual state, and external logical Selected mutation invalidation.
+There is no acceptance requirement for an explicit Review Select mode because the
+product intentionally has no such mode.
+
+Production UI coverage must also establish the direct presentation-row contract
+`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`,
+where `Selected N` is temporary Pick count; eligible native Multi View tiles expose
+`Pick` with stable text; Single View and Split/Difference derived presentations do
+not acquire independent Pick identity; pan, Ctrl+drag ROI, and Shift+drag Line
+Profile gestures do not toggle Pick; and Keep Selection leaves the Files tree on
+exactly the resulting subset with the first result Active.
+
+Runtime regression must prove that Pick membership itself is inert with respect to
+native source ownership. On representative large pending selections, only the
+Current Comparison Page may cause ordinary foreground load/protection changes;
+Pick/Unpick/Clear Selection must add no `_ensure_loaded()` call, source generation
+change, residency byte/protection owner, LRU touch, Comparison Page/Pick preload,
+Difference calculation/cache invalidation, or Statistics/Histogram/Line Profile
+request churn. Off-page picked sources are allowed to be nonresident and
+unprotected.
+
+Derived Split/Difference presentation cannot become an independent Pick identity.
+Settings schema remains v5, the captured baseline/Pick Set is not persisted, and
+P4-B session persistence is outside P4-A.
+
+Owner/local Windows validation is authoritative for visual affordance, paging,
+selection replacement, and cross-feature interaction. Run the focused P4-A suite
+before the full repository contract:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_review_selection.py tests\ui\test_p4a_review_selection.py tests\ui\test_p4a_review_selection_review_fixes.py
+```
 
 ## P3-A deterministic Difference contract
 

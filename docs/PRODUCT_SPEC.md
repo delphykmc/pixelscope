@@ -123,6 +123,57 @@ PageUp/PageDown remains exclusively Folder Position. Folder Position accepts onl
 one-to-six Selected documents from distinct folders. `Selected > 6` makes Folder
 Position unavailable rather than applying it to only the current page.
 
+### Review Selection & Curation
+
+P4-A adds a temporary curation workflow without adding another source or analysis
+authority:
+
+```text
+Registered
+    ↓
+Selected
+    ↓
+Current Comparison Page
+    ↓
+direct temporary Pick Set
+    ↓ Keep Selection
+new Selected subset
+```
+
+There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+View expose a stable **Pick** control directly. The first checked Pick captures the
+current ordered Selected source IDs as the temporary baseline internally. The
+button text remains `Pick`; checked membership is represented by its depressed
+state and a bright-yellow tile-wide border. Normal tile activation, Primary, and
+Pick membership remain independent states.
+
+Picks survive Comparison Page navigation. A picked source may be off-page and need
+not be decoded, resident, protected, preloaded, or presented. Pick Set membership is
+not an analysis input and does not extend the Current Comparison Page working set.
+
+The presentation row exposes the temporary curation state directly as
+`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+`Selected N` is the temporary Pick Set count, not the Files logical Selected count.
+**Clear Selection** clears only temporary pick membership. **Keep Selection** is
+disabled when the Pick Set is empty. Only Keep Selection changes logical Selected:
+it computes the new Selected set by filtering the captured baseline ordering by
+picked membership, not by pick order. Non-picked images remain Registered in Files.
+There is no user-facing Cancel command.
+
+A different selection-oriented workflow that changes logical Selected after a
+baseline has been captured invalidates the temporary baseline/Pick Set before or
+with the inherited normal Selected mutation. Registration-only folder input does not
+invalidate the curation state because it does not change Selected.
+
+Pick identity is the native Registered/Selected source document ID. Split Channel
+items, Difference derived documents, and gained preview representations are not
+independent pick identities.
+
+The captured baseline/Pick Set is temporary application-session workflow state. It
+is not persisted to Settings/QSettings and does not own source arrays, previews,
+residency/LRU state, caches, workers, RAW profile copies, source generation,
+preload, Difference, or analysis requests.
+
 ### RAW input resolution
 
 Ordinary PNG/BMP/JPEG inputs register without RAW profile UI. Direct RAW file
@@ -141,10 +192,11 @@ registering datasets. A RAW path and deterministic same-basename sidecar path ma
 be registered as a pending catalog document without resolving the profile or
 decoding source.
 
-A folder-registered unresolved RAW may also be Selected while off-page. Selected
-membership alone does not prompt, decode, or require residency. Profile resolution
-occurs when foreground Current Comparison Page work actually requires that RAW.
-Unresolved RAW is not speculatively preloaded until a profile is resolved.
+A folder-registered unresolved RAW may also be Selected or Picked while off-page.
+Selected/Picked membership alone does not prompt, decode, or require residency.
+Profile resolution occurs when foreground Current Comparison Page work actually
+requires that RAW. Unresolved RAW is not speculatively preloaded until a profile is
+resolved.
 
 Within one foreground presentation attempt, an unresolved RAW may prompt at most
 once. Cancel leaves it registered/pending, starts no worker, and passive rerenders
@@ -161,6 +213,8 @@ all selected RAW files, or pick a profile from byte size alone.
 - Current Comparison Page is the default working set for Statistics, Histogram,
   Line Profile, selection-derived Difference inputs, ROI/Line normalization,
   foreground page-load completion, and current-page source protection.
+- Temporary Pick Set does not replace or extend the Current Comparison Page analysis
+  working set.
 - Difference's explicit Image 1/Image 2 pair remains feature-owned authority.
 - Up/Down retains Files-tree row navigation. Left/Right changes the active image
   across the complete Selected set.
@@ -195,12 +249,13 @@ and workspace-restore semantics.
 Folder-only registration is not a presentation lifecycle operation: it must not
 reset Selected, Current Comparison Page, layout, active/primary state, ROI, Line
 Profile, Difference presentation/cache, Display Gain, zoom/pan preservation state,
-or source-residency ownership.
+source-residency ownership, or captured temporary curation state.
 
 ## Settings and runtime policy
 
 `Edit > Settings...` uses **General / Files / Performance** category pages.
-Settings schema remains version 5.
+Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
+persist the captured curation baseline/Pick Set.
 
 General owns persistent RAW JSON confirmation, exact RAW file-size validation,
 and native Difference Threshold/Gain defaults. Files owns optional default Open
@@ -209,22 +264,20 @@ Cache, and preload settings.
 
 Decoded Source Memory accounts native resident `ImageDocument.source` arrays only
 and uses protected soft-budget LRU semantics. Source eviction and Difference cache
-ownership remain independent. Registration and off-page Selected membership do not
-make source data resident.
+ownership remain independent. Registration and off-page Selected/Picked membership
+do not make source data resident.
 
 For large logical selections, **Selected alone is not a source-protection owner**.
-Current Comparison Page plus correctness dependencies such as foreground load,
-promoted foreground preload, explicit Difference dependencies, and non-reloadable
-sources are protected. Selected-but-off-page resident sources may therefore be
-evicted under the P2 budget and normally reload when their page is revisited.
+Pick membership is also not a protection owner. Current Comparison Page plus
+correctness dependencies such as foreground load, promoted foreground preload,
+explicit Difference dependencies, and non-reloadable sources are protected.
+Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
+budget and normally reload when their page is revisited.
 
 **Preload Next Folder Position** remains exactly `+1`, one valid one-to-six
 Selected Folder Position deep, on a dedicated max-one worker; an exact matching
 physically RUNNING preload may transfer logical authority to foreground without
-duplicate decode. P3-D adds no Comparison Page preload system.
-
-P3-D adds no Settings key, Settings-owned profile library, or new RAW profile
-version field.
+duplicate decode. P4-A adds no Comparison Page or Pick Set preload system.
 
 ## Difference contract
 
@@ -249,7 +302,8 @@ native-domain code default under schema v5. Normalized threshold is session-loca
 
 Difference owns its own independent presentation Gain. General Display Gain is
 not applied to Difference numerical sources, Difference preview generation, or
-Difference-cache identity.
+Difference-cache identity. Pick/Unpick does not calculate Difference, change its
+explicit pair authority, or invalidate a generation-keyed Difference cache.
 
 ## Display Gain contract
 
@@ -289,7 +343,8 @@ resident source on the existing shared numerical pool.
 Display Gain is presentation-only. Pixel inspection, Statistics, Histogram, Line
 Profile, Split Channel source arrays, Difference, generation, source residency,
 and cache identity remain independent of it. `+` / `-` gain shortcuts are scoped
-to the image-presentation subtree so Files retains native key behavior.
+to the image-presentation subtree so Files retains native key behavior. Pick
+identity remains the native source document ID rather than a gained preview.
 
 ## RAW profile and decode contract
 
@@ -327,7 +382,7 @@ sidecars remain supported because they are deterministic file-local evidence.
 Decoded samples in `ImageDocument.source` are the native RAW authority. Pixel
 inspection, Statistics, Histogram, Line Profile numerical data, Split Channels,
 Difference, preload/reload identity, and source residency operate on those native
-samples regardless of Display Gain.
+samples regardless of Display Gain or Pick membership.
 
 ## RAW display contract
 
@@ -365,11 +420,16 @@ P3 — Image Semantics & RAW Processing is Complete through P3-E. PR #27 merged 
 hardening of the delivered Difference, RAW/display, Display Gain, unified input,
 and Current Comparison Page contracts.
 
-The next active program is **P4 — Workflow & Session Productivity**. Its first
-implementation slice is Review Selection & Curation; later planned work covers
-persistent comparison sessions, typed recent-entry/session entry UX, Saved ROI
-productivity, focused viewer overlay/export productivity, and integration hardening.
-P4 runtime behavior is not implemented by the P4-0 documentation transition.
+P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
+P4-A Review Selection & Curation is implemented on
+`feature/p4-a-review-selection-curation`; owner/local Windows runtime and requested
+validation are reported PASS, and independent re-review found the prior runtime/test
+blockers resolved. Durable-doc closure and merge remain pending, so P4-A is not yet
+Complete.
+
+Later planned P4 work covers persistent comparison sessions, typed recent-entry /
+session-entry UX, Saved ROI productivity, focused viewer overlay/export productivity,
+and integration hardening. P4-A does not begin P4-B persistence.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or

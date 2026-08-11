@@ -1,10 +1,10 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-0 program setup / P4-A design next
+Status: Active — P4-A implemented and owner-validated; durable-doc closure / merge pending
 Owner: repository owner + P4 orchestration agents
 Last updated: 2026-08-11
-Inherited merged baseline: P3-E / PR #27 merge commit
-`835634a58609601605fd0fc18a3028b64225f535`
+Inherited merged baseline: P4-0 / PR #28 merge commit
+`e30c49d6759715228a820d673ad8939ea9a3afe8`
 
 ## Goal
 
@@ -49,7 +49,7 @@ Inherited invariants:
   normalized `[0,1]` for mixed effective depth.
 - RAW Black/White metadata and display transforms do not enter Difference domain
   selection/normalization.
-- temporary workflow state must not become source/cache/residency authority.
+- temporary workflow state must not become source/cache/residency/analysis authority.
 - Current Comparison Page is derived from Selected ordering/page offset and must not
   be serialized as an independently owned collection.
 
@@ -59,8 +59,8 @@ Inherited invariants:
 
 | Order | Slice | Status |
 |---|---|---|
-| 0 | P4-0 P3 Closure & P4 Program Setup | Active |
-| 1 | P4-A Review Selection & Curation | Design next |
+| 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
+| 1 | P4-A Review Selection & Curation | Implemented and owner-validated; docs/merge pending |
 | 2 | P4-B Persistent Comparison Sessions | Planned |
 | 3 | P4-C Recent Entries & Session Entry UX | Planned |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
@@ -73,15 +73,16 @@ would require a deliberate discrete pixel-sampling/path and coordinate-display
 contract rather than casually introducing interpolation. The expected utility does
 not currently justify that semantic/UI cost.
 
-## P4-0 — P3 Closure & P4 Program Setup
+## P4-0 — P3 Closure & P4 Program Setup — Complete
 
-Docs-only orchestration slice:
+PR #28 merged at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
+The docs-only orchestration slice:
 
-- record P3-E / PR #27 as merged and P3 as Complete;
-- archive the completed P3 execution plan;
-- replace the active plan with this P4 program;
-- reconcile stale phase/status documentation only;
-- do not implement P4 runtime/UI state or change Settings/persistence schemas.
+- recorded P3-E / PR #27 as merged and P3 as Complete;
+- archived the completed P3 execution plan;
+- established this P4 program plan;
+- reconciled phase/status documentation;
+- added no P4 runtime/UI state and changed no Settings/persistence schema.
 
 ## P4-A — Review Selection & Curation
 
@@ -100,36 +101,96 @@ Selected
     ↓
 Current Comparison Page
     ↓
-temporary Review Pick Set
-    ↓ Apply
+direct temporary Pick Set
+    ↓ Keep Selection
 new Selected subset
 ```
 
-### Required contract
+### Implemented contract
 
-- **Review Select** is an explicit mode, never an implicit side effect of normal
-  selection/navigation.
-- Pick Set is temporary workflow state.
-- Picks remain marked while navigating across Comparison Pages.
-- `Keep Picked` is disabled when the Pick Set is empty.
-- Applying `Keep Picked` preserves original Selected ordering among picked images.
+P4-A is implemented on `feature/p4-a-review-selection-curation`. Owner/local Windows
+runtime and requested validation are reported PASS. Independent re-review found the
+previous runtime/test blockers resolved; durable-doc closure and merge remain.
+
+- There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+  View expose **Pick** directly; normal tile activation and navigation retain their
+  inherited meanings.
+- The first checked Pick captures the current ordered Selected IDs as the temporary
+  baseline internally.
+- `ReviewSelectionState` stores only baseline Selected IDs, picked native source
+  IDs, and internal captured-baseline state. It stores no source/preview arrays,
+  workers, caches, residency state, RAW-profile copies, or Current Comparison Page
+  copy.
+- The Pick text remains `Pick`. Checked membership uses the depressed/checked button
+  state plus a bright-yellow tile-wide border; Active and Primary remain distinct.
+- Picks remain marked while navigating across Comparison Pages. Off-page picks do
+  not need to remain resident or protected.
+- The presentation row exposes
+  `Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+  `Selected N` is the temporary Pick Set count, not the Files logical Selected count.
+- **Clear Selection** clears only temporary picks.
+- **Keep Selection** is disabled when the Pick Set is empty.
+- Applying Keep Selection preserves original baseline Selected ordering among picked
+  images rather than pick order.
 - Non-picked images remain Registered in Files.
-- Picked membership alone must not trigger decode, preload, residency protection,
-  foreground loading, Difference calculation, or analysis requests.
-- **Active**, **Primary**, and **Picked** are distinct states and affordances.
+- Pick membership alone does not trigger decode, `_ensure_loaded()`, source LRU
+  touch/protection, preload, foreground promotion, gained-preview generation,
+  Difference calculation/cache changes, or analysis requests.
 - Split/Difference derived presentation documents are not independent pick
-  identities; picks refer to native registered/selected source documents.
-- Only `Keep Picked` mutates Selected. Pick/Unpick/Clear Picks must not do so.
+  identities; picks refer to native registered/selected source document IDs.
+- Only Keep Selection mutates logical Selected. Pick/Unpick/Clear Selection do not.
+- There is no user-facing Cancel command.
+- a different logical Selected-membership mutation invalidates the captured
+  baseline/Pick Set before or with the existing normal selection mutation.
+- registration-only folder input preserves the temporary curation state because it
+  does not mutate Selected.
 - Initial P4-A Pick Set is not persisted across application/session restore.
-- Applying the subset must leave the resulting selection/page/active state
-  deterministic and compatible with the inherited Current Comparison Page model.
+- Settings schema remains v5 and no P4-B persistent-session behavior is introduced.
 
-### Validation direction
+### Implementation shape
 
-Tests should cover zero/one/many picks, cross-page persistence, original-order
-preservation, non-picked registration retention, no pick-owned decode/residency,
-Active/Primary/Picked separation, derived-presentation identity rejection, and
-apply behavior on large selections.
+- `core.review_selection.ReviewSelectionState` is the Qt-free ID-only state model;
+  its `active` field is internal captured-baseline state rather than product mode.
+- `ui.review_selection.ReviewSelectionController` owns temporary direct-curation
+  orchestration and the `Selected N / Clear Selection / Keep Selection` controls.
+- `TileHeader` exposes the stable source-tile Pick affordance separately from its
+  existing Primary flag. The viewer `reviewPicked` property drives the tile-wide
+  yellow selected border independently from Active styling.
+- production application composition places Display Gain before the row stretch and
+  then inserts the curation controls, producing the owner-approved unwrapped order
+  without moving unrelated Main-toolbar commands.
+- `DocumentListWidget` pre/post selection/removal signals allow curation invalidation
+  without runtime PySide signal disconnect/reconnect rewiring; MainWindow retains
+  normal selection/removal mutation authority.
+- Keep Selection delegates the resulting ordered subset through the inherited
+  Selected mutation/render/source lifecycle rather than creating a
+  curation-specific source lifecycle.
+
+### Focused coverage
+
+Focused suites cover:
+
+- state capture/exit, Pick/Unpick, duplicate idempotence, Clear, zero-pick,
+  temporary lifetime, and baseline-order filtering;
+- direct first-Pick capture, stable Pick checked/depressed state, picked count, and
+  Active/Primary/Pick separation;
+- bright-yellow tile-wide Pick state and cross-page restoration;
+- `1 / 2 / 6 / 7 / 15 / 50` Selected cases;
+- cross-page picks for 7 and 15 images;
+- ordered Keep Selection result and non-picked registration retention;
+- exact Files-tree subset and first-result Active state after Keep Selection;
+- 50-image page-bounded loading/protection with no Pick-owned preload;
+- no Pick/Unpick/Clear `_ensure_loaded`, render, Statistics, Difference-input, or
+  Line Profile request churn and no source-generation/residency/Difference-cache
+  change;
+- pan / Ctrl+drag ROI / Shift+drag Line Profile gestures not toggling Pick;
+- Split/Difference derived identity rejection;
+- programmatic, production Files removal, direct signal fallback, and direct-Files
+  Selected replacement invalidation.
+
+The owner reports requested local Windows validation PASS. Independent re-review
+found no remaining runtime/test blocker; the remaining closure work is durable-doc
+alignment and merge.
 
 ## P4-B — Persistent Comparison Sessions
 
@@ -149,7 +210,7 @@ Do **not** serialize runtime/derived/temporary ownership such as:
 - active workers, preload state, tokens, request serials, generations used only for
   stale-result authority;
 - gained/derived preview buffers;
-- temporary Review Pick Set;
+- temporary Pick Set / captured curation baseline;
 - transient Split/Difference presentation documents;
 - Current Comparison Page as an independent duplicate collection.
 
@@ -237,35 +298,50 @@ At minimum audit:
 No wall-clock performance threshold should become a merge gate without a separate,
 evidence-backed performance requirement.
 
-## Explicit exclusions for P4-0
+## P4-A explicit exclusions
 
-P4-0 implements none of the runtime/UI slices above. It does not add:
+P4-A does not add:
 
-- Review Select / Pick / Unpick / Keep Picked;
-- session serializer/loader;
-- Recent Files/Folders/Sessions;
+- persistent comparison session serializer/loader or session file format;
+- Recent Images/Folders/Sessions;
+- Pick Set persistence or Settings schema changes;
 - Saved ROI runtime/UI;
-- arbitrary-angle Line Profile;
-- Alpha Overlay;
-- export behavior;
-- Settings schema/persistence changes;
-- source residency/preload changes;
-- Difference/Display Gain/RAW profile workflow changes;
-- runtime source/test changes.
+- arbitrary-angle Line Profile or interpolation/sampling redesign;
+- Alpha Overlay or export behavior;
+- source residency or preload policy/concurrency changes;
+- Difference or Display Gain numerical changes;
+- RAW Profile Library/CRUD/favorites/search, demosaic, white balance, CCM, or tone
+  mapping;
+- remote IQA/authentication or packaging/signing/installer behavior;
+- broad MainWindow redesign.
 
-## P4-0 validation policy
+## P4-A validation policy
 
-P4-0 is docs-only. The Chat implementation agent does not bootstrap/search for a
-local Windows virtual environment or install dependencies.
+P4-A changes runtime/UI/source integration, so the P4-0 docs-only validation
+exception does not apply. The Chat implementation agent does not bootstrap/search
+for a local Windows virtual environment or install dependencies.
 
-Applicable owner/local checks:
+Run focused tests first:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_review_selection.py tests\ui\test_p4a_review_selection.py tests\ui\test_p4a_review_selection_review_fixes.py
+```
+
+Then run the full owner/local contract:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
-.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_docs_contract.py
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy src
+.\.venv\Scripts\python.exe -m pip check
 git diff --check
 ```
 
-Full pytest, Ruff, Ruff format, mypy, and `pip check` are not re-required solely for
-this docs-only transition. If a source/test/config file enters the diff, that
-exception no longer applies.
+Historical implementation-agent evidence was limited to a scratch syntax compile
+of changed Python drafts and the Qt-free state-model test reporting `3 passed`;
+PySide6 was unavailable in that scratch environment. The repository owner later
+reported the requested local Windows validation PASS on the runtime/test
+implementation. The current closure changes are docs-only, so applicable docs/diff
+checks still need to be observed before merge; no new unobserved PASS is inferred.

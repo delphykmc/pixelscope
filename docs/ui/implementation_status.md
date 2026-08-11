@@ -1,18 +1,21 @@
 # UI implementation status
 
-Status: P3-E is merged as PR #27 at
-`835634a58609601605fd0fc18a3028b64225f535`, completing P3. The owner reported a
-full local Windows pytest PASS for the validated P3-E code/test head
-`1af4f6703656028ca7d0e2bdaf369cce029e4bb1`; the subsequent
-`b29963cbf91bf5c022a53d9562e36510e80112a2` commit was docs-only. P4-A Review
-Selection & Curation is the next planned UI workflow and is not implemented yet.
+Status: P4-0 merged as PR #28 at
+`e30c49d6759715228a820d673ad8939ea9a3afe8`. P4-A Review Selection & Curation is
+implemented on `feature/p4-a-review-selection-curation`; owner/local Windows runtime
+and requested validation are reported PASS. Independent re-review found the prior
+runtime/test blockers resolved. Durable-doc closure and merge remain, so P4-A is not
+marked Complete yet.
 
 ## Current shell
 
-- Main toolbar owns image-view/analysis actions. **Layout / Page / Display Gain**
-  remain in the dedicated presentation-control row above the image workspace.
-- P3-E composes that row as a compact engineering command bar using existing design
-  tokens and PixelScope's programmatic high-DPI icon infrastructure.
+- Main toolbar owns image-view/analysis actions. **Layout / Page / Display Gain /
+  Selected N / Clear Selection / Keep Selection** share the dedicated presentation-
+  control row above the image workspace.
+- P4-A adds no separate Review Select mode or contextual group. Its curation controls
+  are direct, stable row members after Display Gain.
+- P3-E/P4-A compose that row as a compact engineering command bar using existing
+  design tokens and PixelScope's programmatic high-DPI icon infrastructure.
 - File menu owns **Open Images...** (`Ctrl+O`) and **Open Folder...**
   (`Ctrl+Shift+O`).
 - There is no separate **Open RAW with Profile...** action.
@@ -60,19 +63,21 @@ Resident when required
 
 Folder registration does not invoke the selection/presentation lifecycle, so it
 does not reset the current layout, active/primary state, ROI, Line Profile,
-Difference presentation, Display Gain, or existing view state.
+Difference presentation, Display Gain, existing view state, or captured temporary
+curation state.
 
 ## Presentation Control Row
 
-The row remains separate from the Main toolbar and keeps three semantic groups:
+The row remains separate from the Main toolbar. Its implemented sequence is:
 
 ```text
 Layout [Auto / Single View / Multi View]
-Page   [Previous] [current / total] [Next] [Selected range]
-Display Gain [1× / 2× / 4× / 8× / 16×]
+| Page [Previous] [current / total] [Next] [Selected range]
+| Display Gain [1× / 2× / 4× / 8× / 16×]
+| Selected N | Clear Selection | Keep Selection
 ```
 
-P3-E visual/interaction policy:
+P3-E/P4-A visual/interaction policy:
 
 - Layout remains left-aligned.
 - Comparison Page Previous/Next use compact `QToolButton` controls with minimal
@@ -85,8 +90,12 @@ P3-E visual/interaction policy:
   owners and are enabled only while movement is possible.
 - page index and range keep fixed-width semantic labels so first/middle/final page
   states do not shift neighboring controls.
-- Display Gain remains on the right and uses the same shared control height as
-  Layout/Page controls.
+- Display Gain is inserted immediately after Page rather than being left beyond the
+  row stretch.
+- P4-A follows Display Gain with `Selected N`, **Clear Selection**, and **Keep
+  Selection**, retaining normal command-row spacing and minimum button widths.
+- `Selected N` reports temporary Pick Set membership, not Files logical Selected.
+- there is no Review Select mode/button and no user-facing Cancel control.
 - panel background, separator, spacing, border, primary/secondary/disabled text,
   and control contrast come from `design_tokens.py`.
 - Windows scaling/clipping remains a manual characterization item rather than a
@@ -113,6 +122,54 @@ disabled; for multiple pages only unavailable endpoint directions are disabled.
 - When `Selected > 6`, Folder Position is unavailable rather than operating on only
   the current page.
 
+## P4-A Review Selection & Curation — implemented and owner-validated, merge pending
+
+P4-A adds this temporary workflow:
+
+```text
+Registered
+    ↓
+Selected
+    ↓
+Current Comparison Page
+    ↓
+direct temporary Pick Set
+    ↓ Keep Selection
+new Selected subset
+```
+
+- There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+  View expose **Pick** directly.
+- the first checked Pick captures the ordered current Selected IDs as the temporary
+  baseline internally;
+- Pick text remains **Pick** in both states; checked membership is represented by
+  the depressed/checked control state;
+- picked native-source tiles receive a bright-yellow tile-wide border;
+- when a tile is both Active and picked, the yellow picked border remains tile-wide
+  while the independent blue Active accent is retained;
+- Primary remains independent from both Active and Pick membership;
+- Pick is hidden in Single View and is not exposed for Split/Difference derived
+  identities;
+- picks persist across Comparison Page navigation, including off-page picks;
+- `Selected N` in the presentation row reports the temporary Pick count;
+- **Clear Selection** clears only temporary pick membership;
+- **Keep Selection** is disabled at zero picks;
+- **Keep Selection** replaces logical Selected with baseline IDs filtered by picked
+  membership, preserving original Selected ordering rather than pick order;
+- non-picked images remain Registered in Files;
+- there is no user-facing Cancel action;
+- a different logical Selected-membership mutation invalidates the captured
+  baseline/Pick Set before or with the normal selection workflow, avoiding stale
+  pick identity;
+- registration-only folder input preserves captured curation state because it does
+  not mutate Selected;
+- Pick/Unpick/Clear Selection do not call decode, foreground loading, source
+  protection, preload, Difference, or numerical analysis paths;
+- pan, Ctrl+drag ROI, Shift+drag Line Profile, and normal tile activation do not
+  toggle Pick; only the explicit Pick control owns that interaction;
+- temporary curation state is session-only UI/workflow state and is not persisted
+  to Settings/QSettings.
+
 ## RAW input UI
 
 RAW and ordinary images share **Open Images...**. Direct RAW keeps deterministic
@@ -120,11 +177,11 @@ same-basename sidecar/profile resolution, editable fallback, warning on invalid
 sidecar, and cancel-before-registration behavior.
 
 Folder RAW is registered lazily. An unresolved RAW outside the Current Comparison
-Page does not prompt or decode merely because it is Selected. Foreground page entry
-invokes RAW profile resolution when source is required. Within one foreground
-attempt, Cancel suppresses immediate passive re-prompt and starts no worker; a
-later explicit foreground action may retry. Unresolved RAW is not started by
-speculative preload.
+Page does not prompt or decode merely because it is Selected or Picked. Foreground
+page entry invokes RAW profile resolution when source is required. Within one
+foreground attempt, Cancel suppresses immediate passive re-prompt and starts no
+worker; a later explicit foreground action may retry. Unresolved RAW is not started
+by speculative preload.
 
 The dialog uses **Load Profile...** / **Save Profile...** terminology. JSON remains
 the compatible profile format.
@@ -161,38 +218,15 @@ P3-C is complete as PR #25 at
 
 ## Runtime/resource status
 
-P3-E preserves P2 exact native-source accounting and protected soft-budget LRU.
-Selected membership alone is not a generic protection owner for large selections.
-Current Comparison Page plus correctness dependencies are protected; off-page
-Selected sources may be evicted/reloaded. P2 preload remains +1 Folder Position
-only; there is no Comparison Page preload system.
+P4-A preserves P2 exact native-source accounting and protected soft-budget LRU.
+Selected membership alone remains non-authoritative for large selections; Pick
+membership is also non-authoritative. Current Comparison Page plus correctness
+dependencies remain protected; off-page Selected/Picked sources may be evicted and
+reloaded. P2 preload remains +1 Folder Position only; there is no Comparison Page
+or Pick Set preload system.
 
-The new deterministic 50-image regression checks page-bounded foreground load
-requests/protection rather than decoding or retaining all 50 sources.
-
-## P4-A Review Selection & Curation — next planned UI workflow
-
-P4-A remains unimplemented. Its planned workflow is:
-
-```text
-Registered
-    ↓
-Selected
-    ↓
-Current Comparison Page
-    ↓
-temporary Review Pick Set
-    ↓ Apply
-new Selected subset
-```
-
-Planned constraints include explicit Review Select mode, cross-page temporary picks,
-zero-pick **Keep Picked** disabled, original Selected ordering preservation on Apply,
-non-picked images remaining Registered, and distinct Active / Primary / Picked
-states. Picked membership must not own decode, residency/protection, analysis,
-Difference, or source loading. Split/Difference derived documents are not pick
-identities. Only **Keep Picked** mutates Selected, and the initial Pick Set is not
-persisted.
+The deterministic 50-image P4-A regression checks that page-bounded foreground load
+requests/protection remain bounded while picks accumulate across pages.
 
 Arbitrary-angle Line Profile is not scheduled in P4. A future design would require
 an explicit discrete sampling/pixel-path and coordinate-display contract suitable
@@ -200,16 +234,13 @@ for an observation tool; interpolation is not assumed.
 
 ## Validation state
 
-P3-E / PR #27 is merged at
-`835634a58609601605fd0fc18a3028b64225f535`.
+P4-0 / PR #28 is merged at
+`e30c49d6759715228a820d673ad8939ea9a3afe8`.
 
-Independent review's initial production-composition integration-test blocker was
-resolved by follow-up coverage for actual page-button clicks, final Display Gain
-shortcut/focus ownership, and Qt teardown/recreation. The owner reported the full
-local Windows pytest suite PASS on code/test head
-`1af4f6703656028ca7d0e2bdaf369cce029e4bb1`.
-
-The subsequent `b29963cbf91bf5c022a53d9562e36510e80112a2` commit changed only
-`docs/AGENT_HARNESS_NOTES.md` and did not alter runtime or tests before merge.
-No unobserved Ruff, Ruff-format, mypy, pip-check, docs-check, or `git diff --check`
-PASS is inferred here.
+The repository owner reports P4-A runtime behavior and all requested local Windows
+validation PASS on the implementation. Independent re-review found the earlier
+Files-removal invalidation, picked-tile visual-state, and interaction/apply coverage
+blockers resolved, with no new P2/P3 ownership regression. The remaining closure
+item identified by that review was durable-doc alignment; this file now reflects the
+owner-approved direct-curation UI. These docs-only edits still require applicable
+docs/diff validation before merge, and no unobserved command PASS is inferred.

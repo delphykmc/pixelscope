@@ -201,6 +201,9 @@ profile suggestion, sensor/Bayer inference, or automatic Black/White estimation.
 
 ## P4 — Workflow & Session Productivity — Active
 
+P4-0 merged as PR #28 at
+`e30c49d6759715228a820d673ad8939ea9a3afe8`.
+
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
 
@@ -208,13 +211,19 @@ Recommended sequence:
 
 `P4-0 → P4-A → P4-B → P4-C → P4-D → P4-E → P4-F`
 
-### P4-0 — P3 Closure & P4 Program Setup
+### P4-0 — P3 Closure & P4 Program Setup — Complete
 
-Docs-only transition. P4 runtime/UI behavior is not implemented in this slice.
+Merged as PR #28. This docs-only transition closed P3 status, archived the P3 plan,
+and established the P4 execution sequence without adding runtime/UI behavior.
 
-### P4-A — Review Selection & Curation
+### P4-A — Review Selection & Curation — implementation validated, merge pending
 
-Planned workflow:
+Implemented on `feature/p4-a-review-selection-curation`. Owner/local Windows
+runtime and requested validation are reported PASS. Independent re-review found the
+previous runtime/test blockers resolved and identified durable-document alignment as
+the remaining merge-closure item. P4-A remains not Complete until merge.
+
+Implemented workflow:
 
 ```text
 Registered
@@ -223,17 +232,47 @@ Selected
     ↓
 Current Comparison Page
     ↓
-temporary Review Pick Set
-    ↓ Apply
+direct temporary Pick Set
+    ↓ Keep Selection
 new Selected subset
 ```
 
-Review Select is explicit. Pick Set is temporary and cross-page, zero-pick
-**Keep Picked** is disabled, applying preserves original Selected ordering, and
-non-picked images remain Registered. Active, Primary, and Picked remain distinct.
-Picked membership does not own decode, residency/protection, analysis, Difference,
-or source loading. Only **Keep Picked** mutates Selected; the initial Pick Set is
-not persisted.
+There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+View expose a stable **Pick** control directly. The first checked Pick captures the
+current ordered Selected IDs as the temporary baseline internally. Checked Pick
+membership is shown by the depressed button state plus a high-contrast bright-yellow
+tile-wide border; Active and Primary retain independent meanings. Picks persist
+across Comparison Pages and may remain off-page without becoming residency or
+protection owners.
+
+The presentation row exposes the curation state directly as
+`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+Here `Selected N` is the temporary Pick Set count, not Files logical Selected count.
+**Clear Selection** clears only temporary picks. **Keep Selection** is disabled at
+zero picks and is the only curation operation that changes logical Selected. It
+filters the captured baseline Selected ordering by picked membership, so pick order
+cannot reorder the result. Non-picked images remain Registered. There is no
+user-facing Cancel command.
+
+A different logical Selected-membership mutation, including Files context-menu
+removal, invalidates the captured temporary baseline/Pick Set before or with the
+normal mutation. Registration-only folder input preserves curation state because it
+does not change Selected.
+
+Pick membership does not own or trigger decode, `_ensure_loaded()`, source
+residency/protection/LRU touch, preload, foreground promotion, Display Gain preview
+generation, numerical analysis, Difference calculation, or Difference cache
+identity. Split/Difference derived documents are not independent pick identities.
+Temporary curation state is not persisted and Settings schema remains v5.
+
+Focused coverage includes state lifetime/idempotence/order, direct first-Pick
+baseline capture, stable Pick checked state, Active/Primary/Pick separation,
+tile-wide yellow persistence, `1/2/6/7/15/50` Selected cases, cross-page picks,
+zero-pick safety, baseline-order Keep Selection, production Files-removal
+invalidation, viewer pan/ROI/Line drag non-pick behavior, post-Keep Files
+selection/first-Active state, derived-presentation identity rejection, external
+Selected mutation invalidation, and 50-image bounded load/protection/preload
+regression.
 
 ### P4-B — Persistent Comparison Sessions
 

@@ -21,6 +21,7 @@ from pixelscope.ui.toolbar_icons import toolbar_icon
 class TileHeader(QWidget):
     focus_requested = Signal()
     navigation_requested = Signal(str)
+    pick_requested = Signal(bool)
     COMPACT_WIDTH = 480
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -52,6 +53,17 @@ class TileHeader(QWidget):
         self.navigation_layout.setContentsMargins(0, 0, 0, 0)
         self.navigation_layout.setSpacing(TOKENS.spacing_xs)
         self.navigation.hide()
+        self.pick = QToolButton()
+        self.pick.setObjectName("reviewPick")
+        self.pick.setAccessibleName("Pick image")
+        self.pick.setCheckable(True)
+        self.pick.setText("Pick")
+        self.pick.setToolTip("Select this source image for Keep Selection")
+        self.pick.setAutoRaise(True)
+        self.pick.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.pick.setFixedHeight(TOKENS.control_height)
+        self.pick.hide()
+        self.pick.toggled.connect(self._review_pick_toggled)  # type: ignore[attr-defined]
         self.focus = QToolButton()
         self.focus.setObjectName("primaryFlag")
         self.focus.setAccessibleName("Primary image")
@@ -78,6 +90,7 @@ class TileHeader(QWidget):
         layout.addWidget(self.name, 1)
         layout.addWidget(self.meta)
         layout.addWidget(self.zoom)
+        layout.addWidget(self.pick)
         layout.addWidget(self.focus)
 
     @property
@@ -134,6 +147,16 @@ class TileHeader(QWidget):
         self.focus.setVisible(visible)
         self._elide_name()
 
+    def set_review_pick(self, *, visible: bool, picked: bool = False) -> None:
+        """Expose direct curation selection independently of Active/Primary."""
+
+        self.pick.blockSignals(True)
+        self.pick.setChecked(picked)
+        self.pick.blockSignals(False)
+        self._update_review_pick_state(picked)
+        self.pick.setVisible(visible)
+        self._elide_name()
+
     def set_navigation_items(
         self,
         items: list[tuple[str, str, str]],
@@ -181,6 +204,19 @@ class TileHeader(QWidget):
         size = getattr(event, "size", None)
         event_width = size().width() if callable(size) else self.width()
         self._update_responsive_mode(event_width)
+
+    def _review_pick_toggled(self, checked: bool) -> None:
+        self._update_review_pick_state(checked)
+        self.pick_requested.emit(checked)
+
+    def _update_review_pick_state(self, picked: bool) -> None:
+        self.pick.setText("Pick")
+        self.pick.setAutoRaise(not picked)
+        self.pick.setToolTip(
+            "Remove this image from the temporary selection"
+            if picked
+            else "Select this source image for Keep Selection"
+        )
 
     def _update_responsive_mode(self, available_width: int | None = None) -> None:
         width = self.width() if available_width is None else available_width
