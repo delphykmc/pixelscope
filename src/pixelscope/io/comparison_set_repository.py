@@ -80,10 +80,9 @@ class ComparisonSetRepository:
 
         sources: list[ComparisonSetSource] = []
         for entry in sources_value:
-            if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
-                raise ComparisonSetError(
-                    "each comparison-set source requires a string path"
-                )
+            if not isinstance(entry, dict):
+                raise ComparisonSetError("each comparison-set source must be an object")
+            source_path = self._artifact_absolute_path(entry.get("path"), "source path")
             raw_payload = entry.get("raw_profile")
             raw_profile: dict[str, Any] | None = None
             if raw_payload is not None:
@@ -93,15 +92,17 @@ class ComparisonSetRepository:
                     raw_profile = RawProfile.parse_obj(raw_payload).dict()
                 except Exception as exc:  # noqa: BLE001 - normalized validation boundary
                     raise ComparisonSetError(f"invalid RAW profile: {exc}") from exc
-            sources.append(ComparisonSetSource(entry["path"], raw_profile))
+            sources.append(ComparisonSetSource(source_path, raw_profile))
 
-        active = payload.get("active_path")
-        primary = payload.get("primary_path")
+        active = self._optional_artifact_absolute_path(
+            payload.get("active_path"),
+            "active_path",
+        )
+        primary = self._optional_artifact_absolute_path(
+            payload.get("primary_path"),
+            "primary_path",
+        )
         layout = payload.get("layout_mode", "Auto")
-        if active is not None and not isinstance(active, str):
-            raise ComparisonSetError("active_path must be a string or null")
-        if primary is not None and not isinstance(primary, str):
-            raise ComparisonSetError("primary_path must be a string or null")
         if not isinstance(layout, str):
             raise ComparisonSetError("layout_mode must be a string")
         return ComparisonSet(
@@ -110,6 +111,27 @@ class ComparisonSetRepository:
             primary_path=primary,
             layout_mode=layout,
         )
+
+    @staticmethod
+    def _artifact_absolute_path(value: object, field: str) -> str:
+        if not isinstance(value, str):
+            raise ComparisonSetError(f"{field} must be a string")
+        if not value.strip():
+            raise ComparisonSetError(f"{field} must not be empty")
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute():
+            raise ComparisonSetError(f"{field} must be an absolute path")
+        return str(candidate.resolve(strict=False))
+
+    @classmethod
+    def _optional_artifact_absolute_path(
+        cls,
+        value: object,
+        field: str,
+    ) -> str | None:
+        if value is None:
+            return None
+        return cls._artifact_absolute_path(value, field)
 
     def to_payload(self, comparison_set: ComparisonSet) -> dict[str, object]:
         return {
