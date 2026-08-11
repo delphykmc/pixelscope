@@ -442,9 +442,9 @@ def test_large_open_keeps_foreground_work_bounded_to_active_comparison_page(
         documents[49].document_id,
     }
     assert len(requested) <= COMPARISON_PAGE_SIZE
-    assert not set(documents[:48]).intersection(
-        window._residency_protected_document_ids()
-    )
+    assert not {
+        document.document_id for document in documents[:48]
+    }.intersection(window._residency_protected_document_ids())
     window.close()
 
 
