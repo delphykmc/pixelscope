@@ -1,17 +1,23 @@
-# Execution plan: P4 — Workflow Productivity
+# Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-B Comparison Set Persistence implementation/validation
-Owner: repository owner + P4 orchestration/implementation agents
+Status: Active — P4-A implemented and owner-validated; durable-doc closure / merge pending
+Owner: repository owner + P4 orchestration agents
 Last updated: 2026-08-11
-Inherited merged baseline: P4-A / PR #29 merge commit
-`3486146494076e9b513843b90ec44e504043729e`
+Inherited merged baseline: P4-0 / PR #28 merge commit
+`e30c49d6759715228a820d673ad8939ea9a3afe8`
 
 ## Goal
 
-Improve large-selection review and repeatable comparison workflows without creating a
-second source, selection, analysis, cache, residency, or preload authority.
+Build review/curation, reusable comparison sessions, workflow entry, saved analysis
+annotations, and focused viewer/export productivity on top of the stabilized P2/P3
+image semantics and bounded Current Comparison Page architecture.
 
-Authoritative runtime hierarchy:
+P4 must improve workflow without creating a second source, analysis, cache,
+selection, or residency authority.
+
+## Inherited P2/P3 baseline
+
+The following ownership hierarchy is authoritative:
 
 ```text
 Registered
@@ -25,207 +31,303 @@ Presented
 Resident when required
 ```
 
-`Analysis Working Set = Current Comparison Page`.
+```text
+Analysis Working Set = Current Comparison Page
+```
+
+Inherited invariants:
+
+- Selected alone is not decoded-source residency authority.
+- Current Comparison Page plus correctness dependencies remains the bounded generic
+  source-protection authority.
+- Comparison Page navigation creates no speculative preload.
+- P2 preload remains Folder Position `+1`, exactly one position ahead, max-one
+  speculative worker, with existing RUNNING promotion semantics.
+- Display Gain is presentation-only and never redefines native analysis/request
+  identity.
+- Difference remains native code-domain for equal effective depth and independently
+  normalized `[0,1]` for mixed effective depth.
+- RAW Black/White metadata and display transforms do not enter Difference domain
+  selection/normalization.
+- temporary workflow state must not become source/cache/residency/analysis authority.
+- Current Comparison Page is derived from Selected ordering/page offset and must not
+  be serialized as an independently owned collection.
 
 ## Program sequence
+
+`P4-0 → P4-A → P4-B → P4-C → P4-D → P4-E → P4-F`
 
 | Order | Slice | Status |
 |---|---|---|
 | 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
-| 1 | P4-A Review Selection & Curation | Complete — PR #29 |
-| 2 | P4-B Comparison Set Persistence | Active |
-| 3 | P4-C Recent Entries & Comparison Set Entry UX | Planned |
+| 1 | P4-A Review Selection & Curation | Implemented and owner-validated; docs/merge pending |
+| 2 | P4-B Persistent Comparison Sessions | Planned |
+| 3 | P4-C Recent Entries & Session Entry UX | Planned |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
 | 5 | P4-E Viewer Overlay & Export Productivity | Planned |
 | 6 | P4-F Integration & Workflow Hardening | Planned |
 
-P4-B and P4-C are sequential but solve different ownership problems:
+Arbitrary-angle Line Profile is intentionally **not** a P4 slice. PixelScope's line
+profile is an observation/sampling tool, so a future arbitrary-angle implementation
+would require a deliberate discrete pixel-sampling/path and coordinate-display
+contract rather than casually introducing interpolation. The expected utility does
+not currently justify that semantic/UI cost.
+
+## P4-0 — P3 Closure & P4 Program Setup — Complete
+
+PR #28 merged at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
+The docs-only orchestration slice:
+
+- recorded P3-E / PR #27 as merged and P3 as Complete;
+- archived the completed P3 execution plan;
+- established this P4 program plan;
+- reconciled phase/status documentation;
+- added no P4 runtime/UI state and changed no Settings/persistence schema.
+
+## P4-A — Review Selection & Curation
+
+### Goal
+
+Allow a user to browse a large Selected set page by page, make temporary review
+picks, then explicitly reduce Selected to the picked native images without changing
+Files registration.
+
+Authoritative flow:
 
 ```text
-P4-B: What durable comparison data is saved and how is it reopened?
-P4-C: What entry did the user recently open and how is it entered again quickly?
+Registered
+    ↓
+Selected
+    ↓
+Current Comparison Page
+    ↓
+direct temporary Pick Set
+    ↓ Keep Selection
+new Selected subset
 ```
 
-P4-C runtime work must not begin until P4-B is merged and latest main is rechecked.
+### Implemented contract
 
-## P4-A — Review Selection & Curation — Complete
+P4-A is implemented on `feature/p4-a-review-selection-curation`. Owner/local Windows
+runtime and requested validation are reported PASS. Independent re-review found the
+previous runtime/test blockers resolved; durable-doc closure and merge remain.
 
-PR #29 merged at `3486146494076e9b513843b90ec44e504043729e`.
+- There is **no explicit Review Select mode**. Eligible native source tiles in Multi
+  View expose **Pick** directly; normal tile activation and navigation retain their
+  inherited meanings.
+- The first checked Pick captures the current ordered Selected IDs as the temporary
+  baseline internally.
+- `ReviewSelectionState` stores only baseline Selected IDs, picked native source
+  IDs, and internal captured-baseline state. It stores no source/preview arrays,
+  workers, caches, residency state, RAW-profile copies, or Current Comparison Page
+  copy.
+- The Pick text remains `Pick`. Checked membership uses the depressed/checked button
+  state plus a bright-yellow tile-wide border; Active and Primary remain distinct.
+- Picks remain marked while navigating across Comparison Pages. Off-page picks do
+  not need to remain resident or protected.
+- The presentation row exposes
+  `Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
+  `Selected N` is the temporary Pick Set count, not the Files logical Selected count.
+- **Clear Selection** clears only temporary picks.
+- **Keep Selection** is disabled when the Pick Set is empty.
+- Applying Keep Selection preserves original baseline Selected ordering among picked
+  images rather than pick order.
+- Non-picked images remain Registered in Files.
+- Pick membership alone does not trigger decode, `_ensure_loaded()`, source LRU
+  touch/protection, preload, foreground promotion, gained-preview generation,
+  Difference calculation/cache changes, or analysis requests.
+- Split/Difference derived presentation documents are not independent pick
+  identities; picks refer to native registered/selected source document IDs.
+- Only Keep Selection mutates logical Selected. Pick/Unpick/Clear Selection do not.
+- There is no user-facing Cancel command.
+- a different logical Selected-membership mutation invalidates the captured
+  baseline/Pick Set before or with the existing normal selection mutation.
+- registration-only folder input preserves the temporary curation state because it
+  does not mutate Selected.
+- Initial P4-A Pick Set is not persisted across application/session restore.
+- Settings schema remains v5 and no P4-B persistent-session behavior is introduced.
 
-P4-A provides a temporary page-spanning Pick Set over logical Selected. The first Pick
-captures the Selected baseline. **Keep Selection** replaces logical Selected with the
-picked subset in baseline order. Pick state is ID-only, temporary, and never owns
-source residency, preload, cache, decode, or numerical analysis.
+### Implementation shape
 
-## P4-B — Comparison Set Persistence — Active
+- `core.review_selection.ReviewSelectionState` is the Qt-free ID-only state model;
+  its `active` field is internal captured-baseline state rather than product mode.
+- `ui.review_selection.ReviewSelectionController` owns temporary direct-curation
+  orchestration and the `Selected N / Clear Selection / Keep Selection` controls.
+- `TileHeader` exposes the stable source-tile Pick affordance separately from its
+  existing Primary flag. The viewer `reviewPicked` property drives the tile-wide
+  yellow selected border independently from Active styling.
+- production application composition places Display Gain before the row stretch and
+  then inserts the curation controls, producing the owner-approved unwrapped order
+  without moving unrelated Main-toolbar commands.
+- `DocumentListWidget` pre/post selection/removal signals allow curation invalidation
+  without runtime PySide signal disconnect/reconnect rewiring; MainWindow retains
+  normal selection/removal mutation authority.
+- Keep Selection delegates the resulting ordered subset through the inherited
+  Selected mutation/render/source lifecycle rather than creating a
+  curation-specific source lifecycle.
 
-Branch: `feature/p4-b-comparison-set-persistence`
-Recommended PR title: `[ChatGPT-assisted] Add comparison set persistence`
+### Focused coverage
 
-### Product boundary
+Focused suites cover:
 
-P4-B is **not** full application-session persistence. It stores a reusable ordered
-logical comparison set plus the minimum stable context needed to continue comparing.
+- state capture/exit, Pick/Unpick, duplicate idempotence, Clear, zero-pick,
+  temporary lifetime, and baseline-order filtering;
+- direct first-Pick capture, stable Pick checked/depressed state, picked count, and
+  Active/Primary/Pick separation;
+- bright-yellow tile-wide Pick state and cross-page restoration;
+- `1 / 2 / 6 / 7 / 15 / 50` Selected cases;
+- cross-page picks for 7 and 15 images;
+- ordered Keep Selection result and non-picked registration retention;
+- exact Files-tree subset and first-result Active state after Keep Selection;
+- 50-image page-bounded loading/protection with no Pick-owned preload;
+- no Pick/Unpick/Clear `_ensure_loaded`, render, Statistics, Difference-input, or
+  Line Profile request churn and no source-generation/residency/Difference-cache
+  change;
+- pan / Ctrl+drag ROI / Shift+drag Line Profile gestures not toggling Pick;
+- Split/Difference derived identity rejection;
+- programmatic, production Files removal, direct signal fallback, and direct-Files
+  Selected replacement invalidation.
 
-Versioned artifact:
+The owner reports requested local Windows validation PASS. Independent re-review
+found no remaining runtime/test blocker; the remaining closure work is durable-doc
+alignment and merge.
 
-```text
-*.pixelscope
-kind = pixelscope-comparison-set
-schema_version = 1
-```
+## P4-B — Persistent Comparison Sessions
 
-Persisted v1 payload:
+Define the session schema only after separating durable user intent from runtime
+implementation state.
 
-```text
-ordered logical Selected source references
-optional Active source reference
-optional Primary source reference
-layout mode: Auto | Single View | Multi View
-resolved RawProfile payload only when already deterministically available
-```
+Candidate durable state may include registered input references, ordered Selected,
+current comparison/page position derivation inputs, layout/presentation choices,
+applicable ROI/analysis/view state, and explicit feature state that has stable
+product meaning.
 
-Persistent identity is normalized absolute local source path. Runtime document IDs
-are never serialized.
+Do **not** serialize runtime/derived/temporary ownership such as:
 
-### Non-persisted state
+- decoded `ImageDocument.source` arrays;
+- source residency/LRU/protection state;
+- Difference or other caches;
+- active workers, preload state, tokens, request serials, generations used only for
+  stale-result authority;
+- gained/derived preview buffers;
+- temporary Pick Set / captured curation baseline;
+- transient Split/Difference presentation documents;
+- Current Comparison Page as an independent duplicate collection.
 
-Do not serialize:
+Session load must reconstruct runtime state through the normal registration,
+selection, page, profile-resolution, load, and residency paths rather than reviving
+internal worker/cache objects.
 
-- Registered non-Selected catalog members;
-- Current Comparison Page or page_start;
-- native decoded arrays or previews;
-- Difference cache, source residency/LRU/protection;
-- preload state, workers, load/preload tokens, request/generation serials;
-- P4-A Pick Set/captured baseline;
-- Split/Difference derived documents;
-- ROI/Line/Saved ROI/Plots state;
-- Display Gain;
-- window/dock/splitter geometry inside the artifact;
-- Recent history or diagnostics.
+Versioning, missing-path behavior, portability/path semantics, atomic save/load,
+corrupt/future-schema handling, and privacy implications must be explicit before
+implementation.
 
-### Save contract
+## P4-C — Recent Entries & Session Entry UX
 
-- Save current logical Selected in exact ordering.
-- Never substitute the temporary P4-A Pick Set.
-- A curated subset is saved only after **Keep Selection** changes logical Selected.
-- Saving must not clear Pick state, decode off-page sources, or promote Selected-wide
-  residency/protection.
-- Use atomic same-directory temporary write + replacement.
-- Empty Selected is a normal no-op UX.
+Design one coherent workflow-entry surface that distinguishes at least:
 
-### Open contract
+- recent image entry;
+- recent folder entry;
+- recent session entry.
 
-Validate artifact syntax/schema completely before mutating workspace state.
-Then:
+Requirements:
 
-```text
-loadable saved source refs
-        ↓ existing normal registration/reuse
-logical Selected in saved order
-        ↓
-restore saved Active when loadable, otherwise first loadable
-        ↓
-derive Current Comparison Page from Active position
-        ↓
-restore applicable Primary through existing page-local path
-        ↓
-restore stable layout mode
-```
+- entry type must be explicit rather than inferred ambiguously from one flat list;
+- history is bounded and deterministic;
+- missing/moved path behavior is defined and non-destructive;
+- privacy/path-retention implications are documented;
+- opening a recent image/folder must reuse the P3 input intent contract rather than
+  bypassing registration/selection semantics;
+- opening a recent session must use the P4-B session loader, not ad-hoc state
+  restoration;
+- history must not own source residency or preload.
 
-Existing Registered catalog is retained. Saved sources already Registered reuse their
-current runtime identity. New saved sources use normal registration without eager RAW
-profile dialog/decode.
+## P4-D — Saved ROI & Analysis Workspace Productivity
 
-A saved resolved RAW profile is validated and associated before foreground selection.
-An unresolved RAW stores only its source path and follows the inherited lazy foreground
-profile-resolution contract when native source is actually required.
+Separate the **current active ROI** used by existing analysis from **saved ROI
+definitions** used as reusable workflow annotations.
 
-Opening a set must call the inherited Selected mutation path so P4-A temporary
-curation invalidation is inherited rather than reimplemented.
+Before implementation define:
 
-Missing source paths are normal: load valid members in saved order and report missing
-members compactly. If no member is loadable, leave current workspace unchanged.
-Malformed/wrong-kind/future-schema/invalid-field artifacts are rejected before any
-workspace mutation.
+- image-space coordinate representation and bounds/clipping behavior;
+- naming/ordering/selection rules;
+- whether a saved ROI is global to a session or associated with a specific source;
+- behavior across different image dimensions;
+- apply/activate/delete semantics;
+- session persistence boundary once P4-B exists.
 
-### Path/privacy policy
+Saved definitions must not become an alternative analysis working-set authority.
+The active ROI applied to the current native analysis workflow remains the
+numerical input.
 
-v1 is a deterministic local workflow:
+## P4-E — Viewer Overlay & Export Productivity
 
-- normalized absolute paths;
-- no fuzzy relocation;
-- no filename-only/size-only match;
-- no recursive moved-file search;
-- no automatic repair.
+### Alpha Overlay
 
-The artifact therefore contains potentially sensitive local path metadata; document
-that clearly in user-facing guidance.
+Any Alpha Overlay must remain presentation-only. It may assist visual comparison
+but must not mutate native source, Difference, Statistics, Histogram, Line Profile,
+source generation, cache identity, residency accounting, or preload ownership.
 
-### Architecture shape
+Define source pairing, alignment/size compatibility, alpha control, active/primary
+interaction, and teardown state before implementation.
 
-```text
-Qt-free ComparisonSet domain/schema
-        ↓
-ComparisonSetRepository codec + atomic storage
-        ↓
-ComparisonSetController user command orchestration
-        ↓
-existing registration / Selected / Active / Primary / layout paths
-```
+### Export
 
-The repository/controller does not become a source owner and does not introduce a new
-worker pool.
+Export work is intentionally limited to concrete review/analysis pain points. Do
+not create a broad generic export framework in advance. For every exported artifact,
+define whether it represents native data, normalized Difference data, a viewer
+presentation, an ROI/plot result, or session metadata, and preserve the corresponding
+numerical/domain semantics.
 
-### P2/P3 invariants
+## P4-F — Integration & Workflow Hardening
 
-- Selected/Comparison Set membership is not residency protection authority.
-- Opening a large set must not eager-decode all members.
-- source residency remains exact native `source.nbytes`.
-- Difference cache remains independent.
-- Folder Position preload remains `+1`, one position, max-one speculative worker.
-- Comparison Page navigation creates no preload.
-- Difference, Display Gain, RAW Black/White, Statistics, Histogram, Line Profile, and
-  Split semantics remain unchanged.
-- Settings schema remains v5. Comparison Set is an external user artifact, separate
-  from ApplicationSettings and workspace QSettings.
+Close P4 with cross-feature integration rather than adding another broad feature.
+At minimum audit:
 
-### Required P4-B coverage
+- P4-A curation with large Selected sets and page navigation;
+- P4-B session round-trip with RAW profile resolution, missing paths, and P2
+  residency/preload reconstruction;
+- P4-C recent-entry intent against image/folder/session distinctions;
+- P4-D saved ROI activation against Statistics/Histogram/Difference/Line Profile;
+- P4-E presentation overlays/export against native-analysis and Difference domains;
+- P2/P3 request identity, stale-result, source residency, Difference-cache, and
+  preload invariants;
+- Qt lifetime/focus/teardown at new production composition boundaries;
+- durable docs, Windows owner characterization, and regression coverage.
 
-Qt-free domain/repository tests:
+No wall-clock performance threshold should become a merge gate without a separate,
+evidence-backed performance requirement.
 
-- v1 round trip and ordered sources;
-- duplicate rejection;
-- path normalization;
-- malformed/wrong-kind/empty/future-schema/field-type validation;
-- Active/Primary optional identities and layout validation;
-- resolved RAW profile round trip and unresolved representation;
-- explicit same-version unknown-field policy;
-- atomic-save result validity.
+## P4-A explicit exclusions
 
-Runtime/UI tests:
+P4-A does not add:
 
-- save logical Selected rather than Pick Set;
-- Keep Selection result is saveable;
-- save does not clear Pick state;
-- exact order, Active, derived page, applicable Primary, layout restore;
-- pre-existing non-set Registered documents retained;
-- corrupt/zero-loadable leaves workspace unchanged;
-- partial missing loads valid ordered subset;
-- open invalidates P4-A curation only through inherited Selected mutation;
-- large set remains page-bounded for foreground load/protection;
-- resolved RAW profile is reused; unresolved RAW remains lazy;
-- no Split/Difference derived identity persistence.
+- persistent comparison session serializer/loader or session file format;
+- Recent Images/Folders/Sessions;
+- Pick Set persistence or Settings schema changes;
+- Saved ROI runtime/UI;
+- arbitrary-angle Line Profile or interpolation/sampling redesign;
+- Alpha Overlay or export behavior;
+- source residency or preload policy/concurrency changes;
+- Difference or Display Gain numerical changes;
+- RAW Profile Library/CRUD/favorites/search, demosaic, white balance, CCM, or tone
+  mapping;
+- remote IQA/authentication or packaging/signing/installer behavior;
+- broad MainWindow redesign.
 
-### Owner-local validation
+## P4-A validation policy
 
-Focused first:
+P4-A changes runtime/UI/source integration, so the P4-0 docs-only validation
+exception does not apply. The Chat implementation agent does not bootstrap/search
+for a local Windows virtual environment or install dependencies.
+
+Run focused tests first:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_comparison_set.py tests\ui\test_p4b_comparison_set.py
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_review_selection.py tests\ui\test_p4a_review_selection.py tests\ui\test_p4a_review_selection_review_fixes.py
 ```
 
-Then full contract because runtime/source/tests changed:
+Then run the full owner/local contract:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -237,40 +339,9 @@ Then full contract because runtime/source/tests changed:
 git diff --check
 ```
 
-The implementation agent must not claim owner-local PASS until the owner reports it.
-
-## P4-C — Recent Entries & Comparison Set Entry UX — Planned
-
-P4-C begins only after P4-B merge and a fresh latest-main/runtime/docs audit.
-
-Planned model:
-
-```text
-RecentEntryKind
-├─ image
-├─ folder
-└─ comparison_set
-```
-
-Recommended history policy: max 15 total, MRU ordering, identity = kind + normalized
-path, duplicate reopen moves to front. History is a separate bounded repository; it
-is not ApplicationSettings schema and must not bump settings v5.
-
-Recent actions reuse existing workflows rather than reconstructing them:
-
-- Recent Image → Open Images intent: register + select;
-- Recent Folder → Open Folder intent: register only;
-- Recent Comparison Set → P4-B loader.
-
-Successful user-facing entry workflows create history. Internal source reload,
-residency reload, preload, and worker completion do not. A clicked missing entry warns,
-removes that stale history entry deterministically, and leaves workspace unchanged.
-
-Recent history is path metadata only: bounded, clearable, not telemetry, not diagnostics
-payload, not source/residency/preload/Registered/Selected authority.
-
-## Later P4 slices
-
-P4-D Saved ROI, P4-E Viewer Overlay & Export, and P4-F integration remain planned.
-A full persistent application session is deferred/future scope rather than an implicit
-extension of P4-B Comparison Set v1.
+Historical implementation-agent evidence was limited to a scratch syntax compile
+of changed Python drafts and the Qt-free state-model test reporting `3 passed`;
+PySide6 was unavailable in that scratch environment. The repository owner later
+reported the requested local Windows validation PASS on the runtime/test
+implementation. The current closure changes are docs-only, so applicable docs/diff
+checks still need to be observed before merge; no new unobserved PASS is inferred.
