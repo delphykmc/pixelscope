@@ -125,6 +125,38 @@ assuming multiple production regressions. Keep shortcut-logic unit coverage
 separate from at least one production-composition test that exercises the real
 mouse/key/focus boundary.
 
+### Qt / PySide harness lessons from P4-A
+
+P4-A exposed two additional failure modes that are easy for later UI agents to
+repeat because both look harmless at Python level:
+
+- **Do not rewrite live constructor-time PySide signal topology by disconnecting
+  stored bound methods and reconnecting wrappers.** On the owner Windows/PySide6
+  environment, disconnecting a constructor-time connection during production
+  composition caused a native access violation. `pytest` terminated with a
+  Windows fatal exception, while `python -m pixelscope` could simply exit without
+  a Python traceback or window. Prefer stable signal ownership: connect through
+  the desired dispatch path when the widget is constructed, or expose explicit
+  pre/post mutation signals from the owning widget and observe those without
+  disconnecting existing MainWindow slots. Python-level method wrappers are fine
+  only for call paths that actually resolve the method dynamically; they do not
+  replace a callable already captured by an existing Qt signal connection.
+- **Treat `pytest-qt` mouse helpers as bindings to the installed Qt/PySide API,
+  not as a version-independent keyword interface.** The project PySide6 version
+  rejected `modifier=` for `QTest.mousePress()` / `mouseRelease()` even though the
+  intent was valid. For modifier-sensitive mouse regressions, use the compatible
+  positional `Qt.KeyboardModifier` argument form (or verify the installed binding
+  signature) and exercise the actual viewport gesture. Do not diagnose a product
+  interaction regression from an `AttributeError` raised before Qt receives the
+  event.
+
+When Qt fails with a native access violation or the application exits before a
+normal traceback, reproduce through both production composition/startup and the
+smallest focused Qt test. Suspect signal lifetime/topology and Qt object ownership
+before treating the failure as ordinary Python logic. Keep at least one production-
+composition regression around any boundary that previously crashed before the
+window became usable.
+
 ### 7. Treat entropy as recurring work
 
 The PR #1–#9 audit exposed a representative failure mode: implementation moved
