@@ -41,6 +41,7 @@ ownership assertions rather than an elapsed-time threshold.
 | Worker/cache/asynchronous lifecycle | Tests for request identity, queued/running distinction, authority transition, stale-result rejection, cancellation/invalidation, generation changes, and bounded resources |
 | File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, bit-depth, profile identity, and exact-size policy cases as applicable |
 | Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, schema migration/future-version behavior, reset scope, and restart behavior |
+| External artifact persistence | Schema/kind/version validation, deterministic identity, atomic save, corrupt/future/semantic-invalid rejection before workspace mutation, missing/zero-loadable behavior, round-trip ordering/state, privacy/portability implications, and explicit non-ownership of runtime resources |
 | Performance/resource characterization | Representative FHD/UHD and dtype/channel/RAW cases; exact native bytes, cache/residency state, worker ownership, decode count, stale rejection, and output correctness as merge gates; wall-clock timings observational only |
 | Application identity/package resources | Focused SVG/PNG/ICO structure and decode tests, application-icon UI test, reproducible-generation check, wheel-content verification, unrelated-CWD launch, and Windows title-bar/Alt+Tab/running-taskbar/DPI visual checks |
 | Public workflow/terminology | Product/user documentation update and UI assertions |
@@ -84,6 +85,16 @@ Preserve deterministic fixtures and smoke paths for:
   not toggling Pick; exact Files selection/first-Active state after Keep Selection;
   and Pick/Unpick/Clear causing no source load, generation, residency/protection,
   preload, Difference-cache, or numerical-analysis authority change.
+- P4-B Comparison Set persistence: deterministic `.pixelscope` v1 round-trip and
+  saved order/Active/applicable Primary/layout; normalized absolute-path identity;
+  rejection of blank/relative identities, wrong kind, future schema, invalid layout,
+  invalid RawProfile, and corrupt JSON before registration/foreground load; logical
+  Selected save semantics independent from temporary Picks; post-Keep curated save;
+  atomic replace; partial-missing and zero-loadable behavior; later-page Active →
+  derived Current Comparison Page → applicable Primary restore; resolved RAW
+  metadata restore versus unresolved lazy RAW; large-set page-bounded foreground
+  load/protection; and Save causing no `_ensure_loaded`, residency/protection/LRU,
+  preload, Difference/cache, Display Gain, or analysis ownership change.
 - Repeated Single View number-key navigation across an unchanged selected set must
   not restart an identical Statistics/Histogram request, flash **Preparing
   analysis...**, cancel/recreate the same in-flight numerical worker, or rerender
@@ -199,7 +210,7 @@ unprotected.
 
 Derived Split/Difference presentation cannot become an independent Pick identity.
 Settings schema remains v5, the captured baseline/Pick Set is not persisted, and
-P4-B session persistence is outside P4-A.
+P4-B persistence is outside P4-A.
 
 Owner/local Windows validation is authoritative for visual affordance, paging,
 selection replacement, and cross-feature interaction. Run the focused P4-A suite
@@ -208,6 +219,49 @@ before the full repository contract:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q tests\unit\test_review_selection.py tests\ui\test_p4a_review_selection.py tests\ui\test_p4a_review_selection_review_fixes.py
 ```
+
+## P4-B deterministic Comparison Set contract
+
+P4-B acceptance is schema/transaction/ownership based rather than timing based.
+The external v1 artifact boundary must establish:
+
+- `.pixelscope` JSON with exact kind/schema version and same-version unknown-field
+  tolerance;
+- non-empty normalized absolute local source identities, with blank/relative
+  persisted paths rejected before normalization;
+- deterministic duplicate/member validation and atomic same-directory replacement;
+- logical Selected save ordering, temporary Picks ignored until Keep changes logical
+  Selected, and Save leaving curation state unchanged;
+- complete semantic validation before any source registration or foreground load;
+- partial missing-path load and zero-loadable no-mutation behavior;
+- saved Active deriving the Current Comparison Page before an applicable page-local
+  Primary/layout restore;
+- resolved RAW metadata restored before foreground use while unresolved RAW remains
+  lazy and Save does not force resolution;
+- no persistence ownership of source arrays, source residency/LRU/protection,
+  preload/promotion, Difference/cache, Display Gain, analysis requests/results,
+  worker/token/generation state, derived documents, transient view state, ROI/Line,
+  or P4-A Pick state;
+- Settings schema remaining v5; and
+- absolute-path privacy/portability implications documented in product/user docs.
+
+Large pending-set tests must prove Save is metadata-only with respect to load and
+residency authority. Large Open tests must prove foreground load/protection remains
+bounded to the Active-derived Current Comparison Page rather than all logical
+Selected members.
+
+Run the focused P4-B suite before the full repository contract:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_comparison_set.py `
+    tests\ui\test_p4b_comparison_set.py
+```
+
+The repository owner reported `36 passed` for this focused command on the current
+runtime/test implementation. That report does not imply unobserved docs, Ruff,
+format, mypy, pip-check, `git diff --check`, or full-suite PASS after later docs-only
+commits.
 
 ## P3-A deterministic Difference contract
 
