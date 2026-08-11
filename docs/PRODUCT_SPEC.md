@@ -174,6 +174,54 @@ is not persisted to Settings/QSettings and does not own source arrays, previews,
 residency/LRU state, caches, workers, RAW profile copies, source generation,
 preload, Difference, or analysis requests.
 
+### Comparison Set persistence
+
+P4-B adds an explicit user-managed **Comparison Set** artifact instead of full
+application-session persistence.
+
+The artifact uses extension `.pixelscope`. Version 1 is JSON with
+`kind = "pixelscope-comparison-set"` and `schema_version = 1`. Persisted native-source
+identity is a normalized **absolute local path**. Blank or relative source/Active/
+Primary paths are rejected before normalization, and v1 does not relocate or fuzzy-
+match moved files. Comparison Sets are therefore deterministic but machine/path-
+layout dependent; sharing one can reveal local filesystem paths.
+
+Save persists only durable logical comparison intent:
+
+- ordered logical Selected native-source references;
+- optional selected Active source;
+- optional applicable current-page Primary source;
+- stable layout mode;
+- minimum resolved RAW profile metadata needed to reconstruct a RAW source.
+
+Save uses logical Selected, never the temporary P4-A Pick Set. If Picks exist but
+**Keep Selection** has not been applied, the original Selected set is saved. After
+Keep, the curated Selected subset is the logical set and is saved. Saving does not
+apply/clear Picks, force RAW profile resolution, decode off-page members, or acquire
+Selected-wide source residency/protection.
+
+Open validates the artifact before logical workspace mutation. Loadable saved
+sources are registered through the normal input path and replace logical Selected in
+saved order while unrelated Registered sources remain. Saved Active determines the
+derived Current Comparison Page; only then is an applicable Primary restored, along
+with stable layout. Current Comparison Page/page offset itself is never serialized.
+
+Missing source paths partially load with a compact warning. If zero saved sources are
+loadable, the existing logical workspace is unchanged. Corrupt JSON, wrong kind,
+future schema, invalid path/layout, or invalid embedded RAW profile is rejected
+without beginning source registration or foreground loading.
+
+Resolved RAW reconstruction metadata is restored before foreground use. Unresolved
+RAW remains unresolved and follows the existing lazy foreground resolution path;
+Save does not force it to resolve.
+
+Comparison Set persistence owns none of decoded source arrays, source
+residency/LRU/protection, preload or promotion state, Difference maps/cache, Display
+Gain state/previews, Statistics/Histogram/Line Profile/Difference request state,
+workers/tokens/generation, Split/Difference derived documents, transient zoom/pan,
+ROI/Line state, or temporary Pick state. Settings schema remains version 5 because
+`.pixelscope` is an external artifact, not application-settings storage.
+
 ### RAW input resolution
 
 Ordinary PNG/BMP/JPEG inputs register without RAW profile UI. Direct RAW file
@@ -255,7 +303,8 @@ source-residency ownership, or captured temporary curation state.
 
 `Edit > Settings...` uses **General / Files / Performance** category pages.
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
-persist the captured curation baseline/Pick Set.
+persist the captured curation baseline/Pick Set. P4-B Comparison Sets are separate
+external artifacts and likewise do not change the Settings schema.
 
 General owns persistent RAW JSON confirmation, exact RAW file-size validation,
 and native Difference Threshold/Gain defaults. Files owns optional default Open
@@ -272,12 +321,14 @@ Pick membership is also not a protection owner. Current Comparison Page plus
 correctness dependencies such as foreground load, promoted foreground preload,
 explicit Difference dependencies, and non-reloadable sources are protected.
 Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
-budget and normally reload when their page is revisited.
+budget and normally reload when their page is revisited. Comparison Set Save/Open
+does not introduce Selected-wide protection or persistence-owned residency.
 
 **Preload Next Folder Position** remains exactly `+1`, one valid one-to-six
 Selected Folder Position deep, on a dedicated max-one worker; an exact matching
 physically RUNNING preload may transfer logical authority to foreground without
-duplicate decode. P4-A adds no Comparison Page or Pick Set preload system.
+duplicate decode. P4-A adds no Comparison Page or Pick Set preload system, and P4-B
+adds no Comparison Set preload system.
 
 ## Difference contract
 
@@ -304,6 +355,7 @@ Difference owns its own independent presentation Gain. General Display Gain is
 not applied to Difference numerical sources, Difference preview generation, or
 Difference-cache identity. Pick/Unpick does not calculate Difference, change its
 explicit pair authority, or invalidate a generation-keyed Difference cache.
+Comparison Sets do not persist Difference pair/map/cache state.
 
 ## Display Gain contract
 
@@ -325,7 +377,7 @@ PixelScope exposes one application-session **Display Gain** control with:
 ```
 
 The value is shared across supported Single/Multi View tiles and is not persisted
-to application Settings, workspace state, or RAW profiles.
+to application Settings, workspace state, RAW profiles, or Comparison Sets.
 
 Document policy is:
 
@@ -384,6 +436,10 @@ inspection, Statistics, Histogram, Line Profile numerical data, Split Channels,
 Difference, preload/reload identity, and source residency operate on those native
 samples regardless of Display Gain or Pick membership.
 
+Comparison Set persistence may store minimum **resolved** RawProfile metadata needed
+to reconstruct a saved RAW source. It does not change native-source semantics and
+does not force unresolved RAW to resolve during Save.
+
 ## RAW display contract
 
 RAW display is explicitly separate from analysis:
@@ -421,15 +477,18 @@ hardening of the delivered Difference, RAW/display, Display Gain, unified input,
 and Current Comparison Page contracts.
 
 P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
-P4-A Review Selection & Curation is implemented on
-`feature/p4-a-review-selection-curation`; owner/local Windows runtime and requested
-validation are reported PASS, and independent re-review found the prior runtime/test
-blockers resolved. Durable-doc closure and merge remain pending, so P4-A is not yet
-Complete.
+P4-A Review Selection & Curation merged as PR #29 at
+`3486146494076e9b513843b90ec44e504043729e`.
+P4-B Comparison Set Persistence is implemented on
+`feature/p4-b-comparison-set-persistence` / PR #30. The repository owner reports the
+focused Windows P4-B validation PASS (`36 passed`); independent review reports no
+remaining runtime/schema/test blocker. Durable-doc consistency and final
+review/validation closure remain before merge.
 
-Later planned P4 work covers persistent comparison sessions, typed recent-entry /
-session-entry UX, Saved ROI productivity, focused viewer overlay/export productivity,
-and integration hardening. P4-A does not begin P4-B persistence.
+Later planned P4 work begins with **Comparison Set Entry UX & Recent Entries**, then
+Saved ROI productivity, focused viewer overlay/export productivity, and integration
+hardening. P4-C must use the P4-B Comparison Set loader rather than reintroducing a
+broader full-session persistence model.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or
