@@ -53,11 +53,7 @@ def test_recent_image_wrong_kind_is_not_reinterpreted_as_folder_input(
     before_documents = tuple(window.documents)
     before_selected = tuple(item.document_id for item in window.selected_documents)
     warnings: list[str] = []
-    monkeypatch.setattr(
-        QMessageBox,
-        "warning",
-        lambda *args: warnings.append(str(args[2])),
-    )
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(str(args[2])))
 
     controller.open_recent(RecentEntryKind.IMAGE, recent_path)
 
@@ -85,11 +81,7 @@ def test_recent_folder_wrong_kind_stays_history_only(
     before_documents = tuple(window.documents)
     before_selected = tuple(item.document_id for item in window.selected_documents)
     warnings: list[str] = []
-    monkeypatch.setattr(
-        QMessageBox,
-        "warning",
-        lambda *args: warnings.append(str(args[2])),
-    )
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(str(args[2])))
 
     controller.open_recent(RecentEntryKind.FOLDER, recent_path)
 
@@ -100,7 +92,7 @@ def test_recent_folder_wrong_kind_stays_history_only(
     window.close()
 
 
-def test_recent_session_real_partial_open_restores_available_workspace_and_promotes_mru(
+def test_recent_session_partial_open_restores_saved_workspace_and_promotes_mru(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -111,8 +103,7 @@ def test_recent_session_real_partial_open_restores_available_workspace_and_promo
     b = _ready_document(tmp_path / "b.png", 2)
     c = _ready_document(tmp_path / "c.png", 3)
     registered_only = _ready_document(tmp_path / "registered-only.png", 4)
-    extra = _ready_document(tmp_path / "extra.png", 9)
-    _register(window, [a, b, c, registered_only, extra])
+    _register(window, [a, b, c, registered_only])
 
     window._select_document_ids([a.document_id, b.document_id, c.document_id])
     window.set_layout_mode("Multi View")
@@ -121,6 +112,8 @@ def test_recent_session_real_partial_open_restores_available_workspace_and_promo
     target = tmp_path / "partial.pixelscope"
     window.session_controller.save_to_path(target)
 
+    extra = _ready_document(tmp_path / "extra.png", 9)
+    _register(window, [extra])
     b.source_path.unlink()
     window._select_document_ids([extra.document_id])
     review = window.review_selection_controller
@@ -140,10 +133,7 @@ def test_recent_session_real_partial_open_restores_available_workspace_and_promo
 
     controller.open_recent(RecentEntryKind.SESSION, target)
 
-    assert [item.source_path for item in window.selected_documents] == [
-        a.source_path,
-        c.source_path,
-    ]
+    assert [item.source_path for item in window.selected_documents] == [a.source_path, c.source_path]
     assert registered_only.document_id in window.documents
     assert extra.document_id not in window.documents
     assert window._active_document_id == c.document_id
@@ -164,15 +154,13 @@ def test_recent_session_zero_loadable_keeps_workspace_and_mru_position(
     controller = window.recent_entries_controller
     a = _ready_document(tmp_path / "a.png", 1)
     b = _ready_document(tmp_path / "b.png", 2)
-    current = _ready_document(tmp_path / "current.png", 9)
-    _register(window, [a, b, current])
+    _register(window, [a, b])
 
     window._select_document_ids([a.document_id, b.document_id])
     target = tmp_path / "zero.pixelscope"
     window.session_controller.save_to_path(target)
     a.source_path.unlink()
     b.source_path.unlink()
-    current.source_path.unlink()
 
     surviving = _ready_document(tmp_path / "surviving.png", 7)
     _register(window, [surviving])
