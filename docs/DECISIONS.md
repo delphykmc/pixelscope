@@ -483,7 +483,9 @@ P4-A merged as PR #29 at
 - Difference, Display Gain, RAW Black/White/native-source semantics, source
   generation identity, and source residency accounting remain unchanged.
 
-## P4-B Comparison Set Persistence decisions — implemented, merge pending
+## P4-B Comparison Set Persistence decisions — Complete
+
+P4-B merged as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
 
 - P4-B persists an explicit **Comparison Set**, not a full application/session
   snapshot.
@@ -524,8 +526,49 @@ P4-A merged as PR #29 at
   analysis request/results, workers/tokens/generation, Split/Difference derived
   documents, transient view state, ROI/Line, or temporary Picks.
 - Comparison Sets are external user artifacts and do not change Settings schema v5.
-- P4-C should build **Comparison Set Entry UX / Recent Entries**, not revive the
-  broader obsolete "persistent session" framing.
+- P4-C builds **Comparison Set Entry UX / Recent Entries**, not the broader obsolete
+  "persistent session" framing.
+
+## P4-C Recent Entries decisions — implemented, merge pending
+
+- Recent is a bounded typed MRU of **user entry paths**, not automatic comparison or
+  workspace history and not a second session/state owner.
+- Types are explicit: Image, Folder, and Comparison Set. Each type retains at most
+  ten normalized absolute local paths and has an independent QSettings key.
+- Recent Image reuses P3 selection-oriented direct-image open; Recent Folder reuses
+  P3 registration-only folder input; Recent Comparison Set reuses the P4-B loader.
+- MRU promotion requires meaningful successful use rather than click/activation:
+  Image after at least one successful direct open, Folder after successful
+  `register_folders()` entry including an empty folder, and Comparison Set only
+  when P4-B returns `loaded > 0`.
+- Comparison Set save enters Recent only after successful P4-B atomic save. Cancelled
+  or failed saves do not create or promote history.
+- Only a definitely absent path is a stale candidate. Missing activation asks
+  **Remove / Keep**; Remove deletes only that typed entry and Keep changes nothing.
+  Neither changes workspace/runtime state.
+- Existing-but-unusable paths remain in history. A present path whose filesystem
+  kind no longer matches its typed Recent entry is retained, receives compact
+  feedback, is not reinterpreted through another input intent, and is not promoted.
+- Other filesystem/permission errors are history-preserving rather than automatic
+  deletion authority.
+- Missing sources *inside* a valid Comparison Set remain P4-B-owned. Partial
+  `loaded > 0` opens/promotes through P4-B; valid zero-loadable leaves workspace and
+  curation unchanged and retains existing MRU position; invalid existing artifacts
+  also retain position.
+- Recent persistence/menu refresh and the P4-B observer callback are best-effort.
+  Their failures cannot change the canonical success/failure semantics of Image,
+  Folder, or Comparison Set operations.
+- `recent/images`, `recent/folders`, and `recent/comparison_sets` are intentionally
+  outside ApplicationSettings schema v5 and outside **Reset Settings** ownership.
+  **Clear Recent Entries** is the explicit history/privacy removal command.
+- Absolute path retention can reveal local filesystem information and is documented
+  as a privacy/local-portability implication.
+- Recent owns no Selected, Active, Primary, Current Comparison Page, source arrays,
+  residency/LRU/protection, preload, Difference/cache, Display Gain, analysis,
+  workers/tokens/generation, derived presentation, or P4-A Pick authority.
+- P4-C adds no fuzzy relocation, source relocation inside Comparison Sets,
+  favorites/pins/search/timestamps/cloud sync, automatic workspace history, or full
+  session restoration.
 
 ## Current resource policy
 
@@ -540,22 +583,20 @@ P4-A merged as PR #29 at
   pool max remains four.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Comparison Page navigation, Pick membership, and Comparison Set Save/Open introduce
-  no Selected-wide speculative preload/cache/residency owner.
+- Comparison Page navigation, Pick membership, Comparison Set Save/Open, and Recent
+  history introduce no Selected-wide speculative preload/cache/residency owner.
 
 ## Validation and merge state
 
 P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28. P4-A is Complete
-as PR #29 at `3486146494076e9b513843b90ec44e504043729e`.
+as PR #29 at `3486146494076e9b513843b90ec44e504043729e`. P4-B is Complete as PR #30
+at `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
 
-P4-B focused coverage includes schema/path validation, atomic round-trip,
-logical-Selected-vs-Pick save semantics, later-page Active/Primary restore,
-missing/zero-loadable/corrupt transaction behavior, resolved/unresolved RAW
-semantics, large-set page-bounded foreground work, and save-side non-ownership of
-load/residency/protection.
+P4-C focused coverage includes typed MRU/restart persistence, best-effort observer
+failure isolation, production File/P4-B routing, missing Remove/Keep, wrong-kind
+protection, existing-invalid retention, empty-folder promotion, failed-save
+non-recording, and real P4-B partial/zero-loadable Recent integration.
 
-The repository owner reports the focused P4-B Windows validation PASS (`36 passed`).
-Independent review reports no remaining runtime/schema/test blocker. PR #30 remains
-merge-pending for durable-doc consistency and final review/validation closure. These
-durable-doc edits do not alter runtime or tests; no unobserved full-suite/tooling
-PASS is inferred here.
+Independent re-review identified the typed-path-kind, real P4-B integration, and
+durable-doc blockers now addressed on the branch. Owner/local Windows validation is
+still required on the updated head; no fresh PASS is inferred from earlier runs.
