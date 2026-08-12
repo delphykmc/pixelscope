@@ -53,7 +53,11 @@ def test_recent_image_wrong_kind_is_not_reinterpreted_as_folder_input(
     before_documents = tuple(window.documents)
     before_selected = tuple(item.document_id for item in window.selected_documents)
     warnings: list[str] = []
-    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(str(args[2])))
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda *args: warnings.append(str(args[2])),
+    )
 
     controller.open_recent(RecentEntryKind.IMAGE, recent_path)
 
@@ -81,7 +85,11 @@ def test_recent_folder_wrong_kind_stays_history_only(
     before_documents = tuple(window.documents)
     before_selected = tuple(item.document_id for item in window.selected_documents)
     warnings: list[str] = []
-    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(str(args[2])))
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda *args: warnings.append(str(args[2])),
+    )
 
     controller.open_recent(RecentEntryKind.FOLDER, recent_path)
 
@@ -133,7 +141,10 @@ def test_recent_session_partial_open_restores_saved_workspace_and_promotes_mru(
 
     controller.open_recent(RecentEntryKind.SESSION, target)
 
-    assert [item.source_path for item in window.selected_documents] == [a.source_path, c.source_path]
+    assert [item.source_path for item in window.selected_documents] == [
+        a.source_path,
+        c.source_path,
+    ]
     assert registered_only.document_id in window.documents
     assert extra.document_id not in window.documents
     assert window._active_document_id == c.document_id
