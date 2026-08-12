@@ -13,7 +13,8 @@ RECENT_ENTRY_LIMIT: Final = 10
 class RecentEntryKind(str, Enum):
     IMAGE = "image"
     FOLDER = "folder"
-    COMPARISON_SET = "comparison_set"
+    SESSION = "session"
+    COMPARISON_SET = "session"
 
 
 @dataclass(frozen=True)
