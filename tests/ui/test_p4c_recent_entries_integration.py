@@ -50,7 +50,6 @@ def test_recent_image_wrong_kind_is_not_reinterpreted_as_folder_input(
     recent_path.mkdir()
     (recent_path / "nested.png").write_bytes(b"nested")
     controller.repository.record(RecentEntryKind.IMAGE, [recent_path])
-    controller.refresh_menu()
     before_documents = tuple(window.documents)
     before_selected = tuple(item.document_id for item in window.selected_documents)
     warnings: list[str] = []
@@ -83,7 +82,6 @@ def test_recent_folder_wrong_kind_stays_history_only(
     recent_path = tmp_path / "dataset"
     recent_path.write_bytes(b"not-a-folder")
     controller.repository.record(RecentEntryKind.FOLDER, [recent_path])
-    controller.refresh_menu()
     before_documents = tuple(window.documents)
     before_selected = tuple(item.document_id for item in window.selected_documents)
     warnings: list[str] = []
@@ -102,7 +100,7 @@ def test_recent_folder_wrong_kind_stays_history_only(
     window.close()
 
 
-def test_recent_comparison_set_real_partial_open_uses_p4b_and_promotes_mru(
+def test_recent_session_real_partial_open_restores_available_workspace_and_promotes_mru(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -112,15 +110,16 @@ def test_recent_comparison_set_real_partial_open_uses_p4b_and_promotes_mru(
     a = _ready_document(tmp_path / "a.png", 1)
     b = _ready_document(tmp_path / "b.png", 2)
     c = _ready_document(tmp_path / "c.png", 3)
+    registered_only = _ready_document(tmp_path / "registered-only.png", 4)
     extra = _ready_document(tmp_path / "extra.png", 9)
-    _register(window, [a, b, c, extra])
+    _register(window, [a, b, c, registered_only, extra])
 
     window._select_document_ids([a.document_id, b.document_id, c.document_id])
     window.set_layout_mode("Multi View")
     window._set_focus_document(a.document_id)
     window._set_active_document(c)
     target = tmp_path / "partial.pixelscope"
-    window.comparison_set_controller.save_to_path(target)
+    window.session_controller.save_to_path(target)
 
     b.source_path.unlink()
     window._select_document_ids([extra.document_id])
@@ -130,9 +129,8 @@ def test_recent_comparison_set_real_partial_open_uses_p4b_and_promotes_mru(
 
     other = tmp_path / "other.pixelscope"
     other.write_text("{}", encoding="utf-8")
-    controller.repository.record(RecentEntryKind.COMPARISON_SET, [target])
-    controller.repository.record(RecentEntryKind.COMPARISON_SET, [other])
-    controller.refresh_menu()
+    controller.repository.record(RecentEntryKind.SESSION, [target])
+    controller.repository.record(RecentEntryKind.SESSION, [other])
     warnings: list[tuple[str, str]] = []
     monkeypatch.setattr(
         QMessageBox,
@@ -140,22 +138,24 @@ def test_recent_comparison_set_real_partial_open_uses_p4b_and_promotes_mru(
         lambda _parent, title, message: warnings.append((str(title), str(message))),
     )
 
-    controller.open_recent(RecentEntryKind.COMPARISON_SET, target)
+    controller.open_recent(RecentEntryKind.SESSION, target)
 
-    assert [item.document_id for item in window.selected_documents] == [
-        a.document_id,
-        c.document_id,
+    assert [item.source_path for item in window.selected_documents] == [
+        a.source_path,
+        c.source_path,
     ]
+    assert registered_only.document_id in window.documents
+    assert extra.document_id not in window.documents
     assert window._active_document_id == c.document_id
     assert window._focus_document_id == a.document_id
     assert window._layout_mode == "Multi View"
     assert not review.active
-    assert controller.repository.load(RecentEntryKind.COMPARISON_SET)[0] == target.resolve()
-    assert any("missing sources" in title for title, _message in warnings)
+    assert controller.repository.load(RecentEntryKind.SESSION)[0] == target.resolve()
+    assert any("missing sources" in title.lower() for title, _message in warnings)
     window.close()
 
 
-def test_recent_comparison_set_real_zero_loadable_keeps_workspace_and_mru_position(
+def test_recent_session_zero_loadable_keeps_workspace_and_mru_position(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -169,24 +169,25 @@ def test_recent_comparison_set_real_zero_loadable_keeps_workspace_and_mru_positi
 
     window._select_document_ids([a.document_id, b.document_id])
     target = tmp_path / "zero.pixelscope"
-    window.comparison_set_controller.save_to_path(target)
+    window.session_controller.save_to_path(target)
     a.source_path.unlink()
     b.source_path.unlink()
+    current.source_path.unlink()
 
-    window._select_document_ids([current.document_id])
+    surviving = _ready_document(tmp_path / "surviving.png", 7)
+    _register(window, [surviving])
+    window._select_document_ids([surviving.document_id])
     review = window.review_selection_controller
-    review.state.enter([current.document_id])
-    review.state.set_picked(current.document_id, True)
+    review.state.enter([surviving.document_id])
+    review.state.set_picked(surviving.document_id, True)
+    before_documents = tuple(window.documents)
     before_selected = tuple(item.document_id for item in window.selected_documents)
-    before_active = window._active_document_id
-    before_primary = window._focus_document_id
 
     other = tmp_path / "other.pixelscope"
     other.write_text("{}", encoding="utf-8")
-    controller.repository.record(RecentEntryKind.COMPARISON_SET, [target])
-    controller.repository.record(RecentEntryKind.COMPARISON_SET, [other])
-    controller.refresh_menu()
-    before_history = controller.repository.load(RecentEntryKind.COMPARISON_SET)
+    controller.repository.record(RecentEntryKind.SESSION, [target])
+    controller.repository.record(RecentEntryKind.SESSION, [other])
+    before_history = controller.repository.load(RecentEntryKind.SESSION)
     warnings: list[tuple[str, str]] = []
     monkeypatch.setattr(
         QMessageBox,
@@ -194,13 +195,12 @@ def test_recent_comparison_set_real_zero_loadable_keeps_workspace_and_mru_positi
         lambda _parent, title, message: warnings.append((str(title), str(message))),
     )
 
-    controller.open_recent(RecentEntryKind.COMPARISON_SET, target)
+    controller.open_recent(RecentEntryKind.SESSION, target)
 
+    assert tuple(window.documents) == before_documents
     assert tuple(item.document_id for item in window.selected_documents) == before_selected
-    assert window._active_document_id == before_active
-    assert window._focus_document_id == before_primary
     assert review.active
-    assert review.picked_ids == {current.document_id}
-    assert controller.repository.load(RecentEntryKind.COMPARISON_SET) == before_history
+    assert review.picked_ids == {surviving.document_id}
+    assert controller.repository.load(RecentEntryKind.SESSION) == before_history
     assert any("sources unavailable" in title.lower() for title, _message in warnings)
     window.close()
