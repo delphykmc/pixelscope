@@ -3,11 +3,17 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
 from pixelscope.core.comparison_set import (
     LEGACY_COMPARISON_SET_KIND,
+    SESSION_DIFFERENCE_CHANNELS,
+    SESSION_DIFFERENCE_MAX_GAIN,
+    SESSION_DIFFERENCE_MAX_THRESHOLD,
+    SESSION_DIFFERENCE_MODES,
+    SESSION_DIFFERENCE_REGIONS,
     SESSION_KIND,
     SESSION_SCHEMA_VERSION,
     ComparisonSetError,
@@ -92,9 +98,7 @@ class ComparisonSetRepository:
         layout = payload.get("layout_mode", "Auto")
         if not isinstance(layout, str):
             raise ComparisonSetError("layout_mode must be a string")
-        display_gain = payload.get("display_gain", 1.0)
-        if not isinstance(display_gain, int | float) or isinstance(display_gain, bool):
-            raise ComparisonSetError("display_gain must be numeric")
+        display_gain = self._number(payload.get("display_gain", 1.0), "display_gain")
         split_channels = payload.get("split_channels", False)
         if not isinstance(split_channels, bool):
             raise ComparisonSetError("split_channels must be boolean")
@@ -110,7 +114,7 @@ class ComparisonSetRepository:
             layout_mode=layout,
             roi=roi,
             line=line,
-            display_gain=float(display_gain),
+            display_gain=display_gain,
             split_channels=split_channels,
             difference=difference,
         )
@@ -161,36 +165,40 @@ class ComparisonSetRepository:
             result.append(SessionSource(source_path, raw_profile))
         return tuple(result)
 
-    @staticmethod
-    def _parse_roi(value: object) -> RoiBounds | None:
+    @classmethod
+    def _parse_roi(cls, value: object) -> RoiBounds | None:
         if value is None:
             return None
         if not isinstance(value, dict):
             raise ComparisonSetError("roi must be an object or null")
         try:
             return RoiBounds(
-                int(value["x"]),
-                int(value["y"]),
-                int(value["width"]),
-                int(value["height"]),
+                cls._integer(value["x"], "roi.x"),
+                cls._integer(value["y"], "roi.y"),
+                cls._integer(value["width"], "roi.width"),
+                cls._integer(value["height"], "roi.height"),
             )
-        except (KeyError, TypeError, ValueError) as exc:
+        except KeyError as exc:
+            raise ComparisonSetError(f"invalid ROI: missing {exc.args[0]}") from exc
+        except ValueError as exc:
             raise ComparisonSetError(f"invalid ROI: {exc}") from exc
 
-    @staticmethod
-    def _parse_line(value: object) -> LineSelection | None:
+    @classmethod
+    def _parse_line(cls, value: object) -> LineSelection | None:
         if value is None:
             return None
         if not isinstance(value, dict):
             raise ComparisonSetError("line must be an object or null")
         try:
             return LineSelection(
-                int(value["x1"]),
-                int(value["y1"]),
-                int(value["x2"]),
-                int(value["y2"]),
+                cls._integer(value["x1"], "line.x1"),
+                cls._integer(value["y1"], "line.y1"),
+                cls._integer(value["x2"], "line.x2"),
+                cls._integer(value["y2"], "line.y2"),
             )
-        except (KeyError, TypeError, ValueError) as exc:
+        except KeyError as exc:
+            raise ComparisonSetError(f"invalid line: missing {exc.args[0]}") from exc
+        except ValueError as exc:
             raise ComparisonSetError(f"invalid line: {exc}") from exc
 
     def _parse_difference(self, value: object) -> SessionDifference | None:
@@ -198,24 +206,65 @@ class ComparisonSetRepository:
             return None
         if not isinstance(value, dict):
             raise ComparisonSetError("difference must be an object or null")
-        try:
-            return SessionDifference(
-                image_a_path=self._artifact_absolute_path(
-                    value.get("image_a_path"),
-                    "difference image_a_path",
-                ),
-                image_b_path=self._artifact_absolute_path(
-                    value.get("image_b_path"),
-                    "difference image_b_path",
-                ),
-                channel=str(value.get("channel", "All")),
-                mode=str(value.get("mode", "Absolute")),
-                threshold=float(value.get("threshold", 10.0)),
-                gain=int(value.get("gain", 1)),
-                region=str(value.get("region", "Full image")),
-            )
-        except (TypeError, ValueError) as exc:
-            raise ComparisonSetError(f"invalid Difference recipe: {exc}") from exc
+
+        channel = self._choice(
+            value.get("channel", "All"),
+            "difference.channel",
+            SESSION_DIFFERENCE_CHANNELS,
+        )
+        mode = self._choice(
+            value.get("mode", "Absolute"),
+            "difference.mode",
+            SESSION_DIFFERENCE_MODES,
+        )
+        region = self._choice(
+            value.get("region", "Full image"),
+            "difference.region",
+            SESSION_DIFFERENCE_REGIONS,
+        )
+        threshold = self._number(value.get("threshold", 10.0), "difference.threshold")
+        if not 0.0 <= threshold <= SESSION_DIFFERENCE_MAX_THRESHOLD:
+            raise ComparisonSetError("difference.threshold is outside the supported range")
+        gain = self._integer(value.get("gain", 1), "difference.gain")
+        if not 1 <= gain <= SESSION_DIFFERENCE_MAX_GAIN:
+            raise ComparisonSetError("difference.gain is outside the supported range")
+
+        return SessionDifference(
+            image_a_path=self._artifact_absolute_path(
+                value.get("image_a_path"),
+                "difference image_a_path",
+            ),
+            image_b_path=self._artifact_absolute_path(
+                value.get("image_b_path"),
+                "difference image_b_path",
+            ),
+            channel=channel,
+            mode=mode,
+            threshold=threshold,
+            gain=gain,
+            region=region,
+        )
+
+    @staticmethod
+    def _integer(value: object, field: str) -> int:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(f"{field} must be an integer")
+        return value
+
+    @staticmethod
+    def _number(value: object, field: str) -> float:
+        if not isinstance(value, int | float) or isinstance(value, bool):
+            raise ComparisonSetError(f"{field} must be numeric")
+        result = float(value)
+        if not isfinite(result):
+            raise ComparisonSetError(f"{field} must be finite")
+        return result
+
+    @staticmethod
+    def _choice(value: object, field: str, allowed: frozenset[str]) -> str:
+        if not isinstance(value, str) or value not in allowed:
+            raise ComparisonSetError(f"unsupported {field}: {value!r}")
+        return value
 
     @staticmethod
     def _artifact_absolute_path(value: object, field: str) -> str:
