@@ -1,14 +1,14 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-11
-Current merged baseline / P4-A PR #29 merge commit:
-`3486146494076e9b513843b90ec44e504043729e`
+Snapshot date: 2026-08-12
+Current merged baseline / P4-B PR #30 merge commit:
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`
 
-P4-B Comparison Set Persistence is implemented on
-`feature/p4-b-comparison-set-persistence` / PR #30. The repository owner reports the
-focused P4-B Windows validation PASS (`36 passed`). Independent review reports no
-remaining runtime/schema/test blocker; merge closure is now limited to durable-doc
-consistency plus the normal final validation/re-review gates.
+P4-C Comparison Set Entry UX & Recent Entries is implemented on
+`feature/p4-c-comparison-set-entry-recent` / PR #31. Independent review identified
+typed-path-kind, real P4-B/P4-C partial/zero integration, and durable-document
+closure blockers; the corresponding code/test changes are now present. Owner/local
+Windows validation must be rerun on the updated head and no PASS is inferred here.
 
 ## Merge baseline
 
@@ -24,11 +24,12 @@ consistency plus the normal final validation/re-review gates.
 - P3-E Integration, Presentation UI Polish & Phase Hardening merged as PR #27 at
   `835634a58609601605fd0fc18a3028b64225f535`, completing P3.
 - P4-0 P3 Closure & P4 Program Setup merged as PR #28.
-- P4-A Review Selection & Curation merged as PR #29 at the current baseline SHA.
+- P4-A Review Selection & Curation merged as PR #29.
+- P4-B Comparison Set Persistence merged as PR #30 at the current baseline SHA.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-B Comparison Set Persistence is the
-active implementation slice and is merge-pending on PR #30.
+P4 is **Workflow & Session Productivity**. P4-C Comparison Set Entry UX & Recent
+Entries is the active implementation slice and is merge-pending on PR #31.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -162,6 +163,57 @@ Gain previews/state, analysis requests/results, worker/request/generation tokens
 Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
 P4-A curation. Settings schema remains v5 because `.pixelscope` is an external
 artifact rather than a SettingsRepository schema change.
+
+## P4-C typed Recent entry history
+
+P4-C adds **File > Recent** as a bounded typed MRU of successful user entry paths:
+
+- **Images** reuses P3 direct-image registration + selection intent;
+- **Folders** reuses P3 registration-only folder intent;
+- **Comparison Sets** delegates to P4-B save/open and never reconstructs workspace
+  state independently.
+
+Each type stores at most ten normalized absolute paths. Recent history is path-only
+workflow metadata; it is not automatic workspace history, a source owner, or a
+session owner. `recent/images`, `recent/folders`, and `recent/comparison_sets` are
+separate QSettings keys outside ApplicationSettings schema v5 and intentionally
+outside **Reset Settings** ownership. **Clear Recent Entries** is the explicit
+history/privacy removal command. Persisted absolute paths may expose local filesystem
+information.
+
+Missing and unusable behavior is deliberately non-destructive:
+
+- only a definitely absent path (`FileNotFoundError`) is a stale candidate;
+- missing activation asks **Remove / Keep** and neither choice mutates workspace
+  state;
+- an existing-but-unusable path remains in Recent;
+- a present path whose filesystem kind no longer matches its typed Recent entry is
+  retained, receives compact wrong-type feedback, is not reinterpreted as another
+  input intent, and is not promoted to MRU.
+
+MRU promotion follows meaningful successful use rather than mere activation:
+
+- Image promotes after at least one direct-image open succeeds;
+- Folder promotes after successful `register_folders()` entry, including an existing
+  folder with zero supported images;
+- Comparison Set promotes only when P4-B returns `loaded > 0`;
+- valid zero-loadable and invalid existing Comparison Sets retain their prior MRU
+  position;
+- successful Comparison Set save records only after the P4-B atomic save succeeds.
+
+For a valid Comparison Set with missing internal sources, P4-B remains authoritative.
+A partial `loaded > 0` open restores the loadable subset in saved order, uses P4-B
+Active-derived Current Comparison Page/applicable Primary/layout semantics,
+invalidates P4-A curation through the normal Selected mutation boundary, shows the
+canonical partial warning, and promotes the artifact. A valid zero-loadable artifact
+leaves current workspace and curation unchanged and shows P4-B zero-loadable
+feedback without MRU promotion.
+
+Recent observation is best-effort. History storage/menu-refresh/callback failure is
+exception-isolated and cannot turn a successful P3/P4-B operation into failure.
+Recent owns none of Selected, Active, Primary, Current Comparison Page, decoded
+sources, residency/LRU/protection, preload, Difference/cache, Display Gain, analysis,
+workers/tokens/generation, transient derived documents, or P4-A Picks.
 
 ## Unified input policy
 
@@ -365,20 +417,22 @@ gained preview representation.
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
 persist the captured curation baseline or temporary Pick Set. P4-B also does not
 change Settings schema: Comparison Sets are explicit external `.pixelscope` artifacts.
+P4-C adds only the separate `recent/*` history keys described above; they are not
+owned by ApplicationSettings v5 or Reset Settings.
 
 Source residency remains exact native `source.nbytes` under P2 protected soft-budget
 LRU semantics, with the P3-D large-selection refinement that **Selected alone is not
-a protection owner**. Pick membership is also not a protection owner. The generic
-bounded protection authority is the Current Comparison Page plus correctness
-dependencies such as foreground loads, promoted foreground preload, and Difference
-dependencies. Selected/Picked-but-off-page resident sources may therefore be evicted
-and normally reloaded when revisited.
+a protection owner**. Pick membership and Recent history are also not protection
+owners. The generic bounded protection authority is the Current Comparison Page plus
+correctness dependencies such as foreground loads, promoted foreground preload, and
+Difference dependencies. Selected/Picked-but-off-page resident sources may therefore
+be evicted and normally reloaded when revisited.
 
 Difference cache remains independent. Preload remains +1 Folder Position, max-one
 dedicated worker, with running-preload promotion as established by P2. P4-A does
 not add Comparison Page or Pick Set preloading. P4-B does not serialize or acquire
-preload/residency/cache authority. Diagnostics remain deterministic, bounded,
-sanitized, and observation-only.
+preload/residency/cache authority. P4-C adds no Recent-entry preload or residency
+authority. Diagnostics remain deterministic, bounded, sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -409,18 +463,11 @@ claimed here without separate observed evidence.
 
 1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
 2. P4-A — Review Selection & Curation — Complete — PR #29
-3. P4-B — Comparison Set Persistence — implemented, focused owner validation PASS,
-   merge pending — PR #30
-4. P4-C — Comparison Set Entry UX / Recent Entries — planned
+3. P4-B — Comparison Set Persistence — Complete — PR #30
+4. P4-C — Comparison Set Entry UX / Recent Entries — implemented, merge pending — PR #31
 5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
 6. P4-E — Viewer Overlay & Export Productivity — planned
 7. P4-F — Integration & Workflow Hardening — planned
 
 P4 inherits the P2/P3 ownership and numerical contracts above. Temporary workflow
-state must not become source/cache/residency/analysis authority.
-
-Arbitrary-angle Line Profile is intentionally omitted from P4. Because Line Profile
-is an observation/sampling tool, a future arbitrary-angle version should define a
-discrete sampling/pixel-path and coordinate-display contract explicitly rather than
-implicitly introducing interpolation. The current utility does not justify that
-semantic/UI complexity.
+state and Recent metadata must not become source/cache/residency/analysis authority.
