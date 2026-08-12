@@ -144,6 +144,17 @@ class Session:
         object.__setattr__(self, "active_path", active)
         object.__setattr__(self, "primary_path", primary)
 
+    @property
+    def sources(self) -> tuple[SessionSource, ...]:
+        """Legacy P4-B view of Selected members, retained for focused regressions."""
+
+        selected = {path.casefold() for path in self.selected_paths}
+        return tuple(
+            source
+            for source in self.registered_sources
+            if source.path.casefold() in selected
+        )
+
 
 ComparisonSetSource = SessionSource
 
