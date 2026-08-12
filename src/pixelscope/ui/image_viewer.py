@@ -47,6 +47,22 @@ from pixelscope.workers.task_worker import TaskWorker
 
 _DISPLAY_PREVIEW_MAX_THREADS = 2
 _DISPLAY_PREVIEW_POOL_ATTRIBUTE = "_pixelscope_display_preview_thread_pool"
+_DISPLAY_PREVIEW_POOL_SHUTDOWN_HOOK_ATTRIBUTE = (
+    "_pixelscope_display_preview_thread_pool_shutdown_hook"
+)
+
+
+def _shutdown_display_preview_thread_pool(timeout_ms: int = 3000) -> bool:
+    """Clear queued Display Gain work and wait briefly for running transforms."""
+
+    app = QApplication.instance()
+    if not isinstance(app, QApplication):
+        return True
+    pool = getattr(app, _DISPLAY_PREVIEW_POOL_ATTRIBUTE, None)
+    if not isinstance(pool, QThreadPool):
+        return True
+    pool.clear()
+    return pool.waitForDone(timeout_ms)
 
 
 def _display_preview_thread_pool() -> QThreadPool:
@@ -55,16 +71,18 @@ def _display_preview_thread_pool() -> QThreadPool:
     app = QApplication.instance()
     if not isinstance(app, QApplication):
         raise RuntimeError("Display Gain preview workers require QApplication")
-    existing = getattr(app, _DISPLAY_PREVIEW_POOL_ATTRIBUTE, None)
-    if isinstance(existing, QThreadPool):
-        return existing
-    pool = QThreadPool(app)
-    # Full-frame gain rendering is memory-bandwidth heavy and may allocate a
-    # float32 working image plus an output preview per task. Keep concurrency
-    # independent from the general worker pool so a six-tile view cannot launch
-    # six such allocations at once or starve foreground/difference workers.
-    pool.setMaxThreadCount(_DISPLAY_PREVIEW_MAX_THREADS)
-    setattr(app, _DISPLAY_PREVIEW_POOL_ATTRIBUTE, pool)
+    pool = getattr(app, _DISPLAY_PREVIEW_POOL_ATTRIBUTE, None)
+    if not isinstance(pool, QThreadPool):
+        pool = QThreadPool(app)
+        # Full-frame gain rendering is memory-bandwidth heavy and may allocate a
+        # float32 working image plus an output preview per task. Keep concurrency
+        # independent from the general analysis pool so a six-tile view cannot
+        # launch six such allocations at once.
+        pool.setMaxThreadCount(_DISPLAY_PREVIEW_MAX_THREADS)
+        setattr(app, _DISPLAY_PREVIEW_POOL_ATTRIBUTE, pool)
+    if not bool(getattr(app, _DISPLAY_PREVIEW_POOL_SHUTDOWN_HOOK_ATTRIBUTE, False)):
+        app.aboutToQuit.connect(_shutdown_display_preview_thread_pool)
+        setattr(app, _DISPLAY_PREVIEW_POOL_SHUTDOWN_HOOK_ATTRIBUTE, True)
     return pool
 
 
