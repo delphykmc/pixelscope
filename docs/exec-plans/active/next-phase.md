@@ -1,10 +1,10 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-A complete; P4-B implemented/focused validated, merge pending
+Status: Active — P4-A/P4-B complete; P4-C implemented, review/validation closure pending
 Owner: repository owner + P4 orchestration agents
-Last updated: 2026-08-11
-Inherited merged baseline: P4-A / PR #29 merge commit
-`3486146494076e9b513843b90ec44e504043729e`
+Last updated: 2026-08-12
+Inherited merged baseline: P4-B / PR #30 merge commit
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`
 
 ## Goal
 
@@ -61,8 +61,8 @@ Inherited invariants:
 |---|---|---|
 | 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
 | 1 | P4-A Review Selection & Curation | Complete — PR #29 |
-| 2 | P4-B Comparison Set Persistence | Implemented; focused owner validation PASS; merge pending — PR #30 |
-| 3 | P4-C Comparison Set Entry UX & Recent Entries | Planned |
+| 2 | P4-B Comparison Set Persistence | Complete — PR #30 |
+| 3 | P4-C Comparison Set Entry UX & Recent Entries | Implemented; review fixes present; owner validation pending — PR #31 |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
 | 5 | P4-E Viewer Overlay & Export Productivity | Planned |
 | 6 | P4-F Integration & Workflow Hardening | Planned |
@@ -186,7 +186,9 @@ Focused suites cover:
 - programmatic, production Files removal, direct signal fallback, and direct-Files
   Selected replacement invalidation.
 
-## P4-B — Comparison Set Persistence — implemented, merge pending
+## P4-B — Comparison Set Persistence — Complete
+
+P4-B merged as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
 
 ### Goal and artifact boundary
 
@@ -252,7 +254,7 @@ Comparison Sets are external artifacts and do not bump Settings schema v5.
 
 ### Validation status
 
-The repository owner reports the focused P4-B Windows suite PASS:
+The repository owner previously reported the focused P4-B Windows suite PASS:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
@@ -260,32 +262,111 @@ The repository owner reports the focused P4-B Windows suite PASS:
     tests\ui\test_p4b_comparison_set.py
 ```
 
-Observed owner result: `36 passed`.
+Observed owner result: `36 passed` before PR #30 merge.
 
-Independent review reports no remaining runtime/schema/test blocker. PR #30 remains
-merge-pending for durable-doc consistency and normal final review/validation closure.
+## P4-C — Comparison Set Entry UX & Recent Entries — implemented, merge pending
 
-## P4-C — Comparison Set Entry UX & Recent Entries
+### Product model
 
-Design one coherent workflow-entry surface that distinguishes at least:
+`File > Recent` is a bounded typed MRU of **user entry paths**, not automatic
+workspace history or an alternate session/state owner:
 
-- recent image entry;
-- recent folder entry;
-- recent Comparison Set entry.
+- **Images** → successful direct image-open paths;
+- **Folders** → successful folder-registration paths;
+- **Comparison Sets** → successfully saved/opened `.pixelscope` artifact paths.
 
-Requirements:
+Each type retains at most ten normalized absolute paths. The types remain explicit
+rather than inferred from one flat history. Full paths are persisted locally while
+menu labels are compact; **Clear Recent Entries** explicitly removes the three
+history namespaces.
 
-- entry type must be explicit rather than inferred ambiguously from one flat list;
-- history is bounded and deterministic;
-- missing/moved path behavior is defined and non-destructive;
-- privacy/path-retention implications are documented;
-- opening a recent image/folder must reuse the P3 input intent contract rather than
-  bypassing registration/selection semantics;
-- opening a recent Comparison Set must use the P4-B Comparison Set loader, not ad-hoc
-  state restoration;
-- history must not own source residency or preload.
+### Delegation and meaningful MRU boundary
 
-P4-C does not broaden P4-B into full persistent-session restoration.
+- Recent Image reuses the P3 direct-image registration + selection path and promotes
+  only after at least one image successfully follows that path.
+- Recent Folder reuses `register_folders()` and preserves registration-only
+  semantics. Reaching that canonical operation successfully promotes the existing
+  folder even if it contains zero supported images.
+- Recent Comparison Set delegates to P4-B `open_from_path()` and promotes only when
+  `loaded > 0`.
+- Comparison Set save enters Recent only after the P4-B atomic save completes.
+  Cancelled/failed saves do not create or promote history.
+
+### Missing, unusable, and wrong-kind paths
+
+Only a definitely absent path (`FileNotFoundError`) is a stale-entry candidate. The
+user receives **Remove / Keep**:
+
+- Remove deletes only that entry from its own typed history;
+- Keep leaves history unchanged;
+- neither action changes workspace/runtime state.
+
+A path that exists but is currently unusable remains in Recent. A path whose
+filesystem kind no longer matches its typed entry also remains, receives compact
+wrong-type feedback, is not reinterpreted through another P3 input intent, and is
+not promoted. Other filesystem/permission errors remain history-preserving rather
+than becoming automatic deletion authority.
+
+### P4-B partial/zero source behavior
+
+A valid Comparison Set may reference missing sources. P4-C does not add source
+relocation or a second loader:
+
+- partial `loaded > 0` uses the real P4-B open path, restores the loadable saved
+  subset/order and P4-B Active/Current Comparison Page/applicable Primary/layout
+  semantics, invalidates P4-A curation through normal Selected mutation, shows the
+  canonical partial warning, and promotes the artifact to MRU;
+- valid zero-loadable input leaves the current workspace and curation state
+  unchanged, keeps the Recent entry in its current position, and preserves P4-B's
+  clear zero-loadable feedback;
+- invalid existing artifacts remain in history and keep their MRU position.
+
+### Persistence / observer boundary
+
+Recent history uses separate QSettings keys:
+
+- `recent/images`
+- `recent/folders`
+- `recent/comparison_sets`
+
+These keys are outside ApplicationSettings schema v5 and intentionally outside
+**Reset Settings** ownership. Absolute-path retention can disclose local filesystem
+information, so **Clear Recent Entries** is the explicit removal/privacy control.
+
+History observation is best-effort. `record + menu refresh` failures and the P4-B
+observer callback are exception-isolated and cannot turn an otherwise successful
+canonical Image/Folder/Comparison-Set operation into a failed one.
+
+Recent history owns none of Selected, Active, Primary, Current Comparison Page,
+decoded source arrays, source residency/LRU/protection, preload, Difference/cache,
+Display Gain, analysis requests/results, workers/tokens/generation, transient
+Split/Difference presentation, or P4-A Picks.
+
+### Implementation and focused coverage
+
+Implementation is separated into:
+
+- `core.recent_entries` — typed path identities and bounded MRU merge;
+- `app.recent_entries` — path-only QSettings repository;
+- `ui.recent_entries` — typed menu, P3/P4-B delegation, best-effort observers, and
+  missing/wrong-kind interaction policy.
+
+Focused coverage includes:
+
+- typed MRU order/bounds/dedup and isolated real-QSettings restart/clear;
+- production File Open and P4-B save/open observer routing;
+- injected Recent persistence/UI failure isolation;
+- missing Remove/Keep with workspace/Pick preservation;
+- existing-invalid retention and empty-folder promotion;
+- typed wrong-kind Image/Folder protection;
+- failed Comparison Set save non-recording;
+- real `.pixelscope` partial and zero-loadable opens through the production-composed
+  Recent surface and real P4-B loader.
+
+P4-C does not add favorites/pins/search/timestamps/cloud sync, fuzzy relocation,
+automatic workspace history, source relocation inside a Comparison Set, full-session
+restoration, Saved ROI, overlay/export, or any source/residency/preload/numerical
+policy change.
 
 ## P4-D — Saved ROI & Analysis Workspace Productivity
 
@@ -373,15 +454,20 @@ or processing, remote IQA/authentication, or packaging/release work.
 Runtime/UI slices use owner/local Windows validation. Chat implementation agents do
 not bootstrap/search for a local Windows virtual environment or install dependencies.
 
-P4-B focused validation:
+P4-C focused validation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_recent_entries.py `
+    tests\ui\test_p4c_recent_entries.py `
+    tests\ui\test_p4c_recent_entries_integration.py `
     tests\unit\test_comparison_set.py `
     tests\ui\test_p4b_comparison_set.py
 ```
 
-Owner-reported focused result: `36 passed`.
+The owner has not yet reported this updated P4-C head as PASS. A previous owner Ruff
+run identified UP038/UP035 issues in the new Recent files; the corresponding source
+changes are now present and require rerun rather than inferred success.
 
 Before merge, run the standard repository contract as applicable:
 
