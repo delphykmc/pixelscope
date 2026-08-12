@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -12,8 +13,11 @@ LEGACY_COMPARISON_SET_KIND = "pixelscope-comparison-set"
 SESSION_SCHEMA_VERSION = 1
 SESSION_LAYOUTS = frozenset({"Auto", "Single View", "Multi View"})
 SESSION_DISPLAY_GAINS = frozenset({1.0, 2.0, 4.0, 8.0, 16.0})
+SESSION_DIFFERENCE_CHANNELS = frozenset({"All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb"})
 SESSION_DIFFERENCE_MODES = frozenset({"Absolute", "Mask"})
 SESSION_DIFFERENCE_REGIONS = frozenset({"Full image", "Active ROI"})
+SESSION_DIFFERENCE_MAX_THRESHOLD = 65535.0
+SESSION_DIFFERENCE_MAX_GAIN = 1000
 
 COMPARISON_SET_KIND = SESSION_KIND
 COMPARISON_SET_SCHEMA_VERSION = SESSION_SCHEMA_VERSION
@@ -66,18 +70,28 @@ class SessionDifference:
         b = normalize_source_path(self.image_b_path)
         if a.casefold() == b.casefold():
             raise ComparisonSetError("session Difference sources must be different")
-        if not self.channel:
-            raise ComparisonSetError("session Difference channel must not be empty")
-        if self.mode not in SESSION_DIFFERENCE_MODES:
+        if not isinstance(self.channel, str) or self.channel not in SESSION_DIFFERENCE_CHANNELS:
+            raise ComparisonSetError(f"unsupported Difference channel: {self.channel!r}")
+        if not isinstance(self.mode, str) or self.mode not in SESSION_DIFFERENCE_MODES:
             raise ComparisonSetError(f"unsupported Difference mode: {self.mode!r}")
-        if self.region not in SESSION_DIFFERENCE_REGIONS:
+        if not isinstance(self.region, str) or self.region not in SESSION_DIFFERENCE_REGIONS:
             raise ComparisonSetError(f"unsupported Difference region: {self.region!r}")
-        if self.threshold < 0:
-            raise ComparisonSetError("session Difference threshold must not be negative")
-        if self.gain < 1:
-            raise ComparisonSetError("session Difference gain must be at least 1")
+        if (
+            not isinstance(self.threshold, int | float)
+            or isinstance(self.threshold, bool)
+            or not isfinite(float(self.threshold))
+            or not 0.0 <= float(self.threshold) <= SESSION_DIFFERENCE_MAX_THRESHOLD
+        ):
+            raise ComparisonSetError("session Difference threshold is invalid")
+        if (
+            not isinstance(self.gain, int)
+            or isinstance(self.gain, bool)
+            or not 1 <= self.gain <= SESSION_DIFFERENCE_MAX_GAIN
+        ):
+            raise ComparisonSetError("session Difference gain is invalid")
         object.__setattr__(self, "image_a_path", a)
         object.__setattr__(self, "image_b_path", b)
+        object.__setattr__(self, "threshold", float(self.threshold))
 
 
 @dataclass(frozen=True)
@@ -135,6 +149,8 @@ class Session:
             ):
                 if path.casefold() not in registered:
                     raise ComparisonSetError("Difference source is not registered in the session")
+            if self.difference.region == "Active ROI" and self.roi is None:
+                raise ComparisonSetError("Active ROI Difference requires a saved ROI")
 
         object.__setattr__(self, "selected_paths", selected)
         object.__setattr__(self, "active_path", active)
