@@ -5,25 +5,28 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFileDialog, QMenu, QMessageBox
 
 from pixelscope.core.comparison_set import (
-    ComparisonSet,
     ComparisonSetError,
-    ComparisonSetSource,
+    Session,
+    SessionDifference,
+    SessionSource,
 )
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.io.path_discovery import ImageInput, image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import menu_style
+from pixelscope.ui.display_gain import display_gain_state
 
 LOGGER = logging.getLogger(__name__)
-COMPARISON_SET_FILTER = "PixelScope Comparison Set (*.pixelscope)"
+SESSION_FILTER = "PixelScope Session (*.pixelscope)"
 
 
-class ComparisonSetController:
-    """Bridge Comparison Set artifacts to existing MainWindow runtime authorities."""
+class SessionController:
+    """Bridge durable Session artifacts to existing MainWindow runtime authorities."""
 
     def __init__(
         self,
@@ -33,47 +36,49 @@ class ComparisonSetController:
         self.window = window
         self.repository = repository or ComparisonSetRepository()
         self._recent_entry_callback: Callable[[Path], None] | None = None
-        self.open_action = QAction("Open Comparison Set...", window)
-        self.save_action = QAction("Save Comparison Set...", window)
-        self.open_action.setToolTip("Open a saved logical comparison set")
+        self._pending_roi: object | None = None
+        self._pending_line: object | None = None
+        self._pending_difference: SessionDifference | None = None
+        self._pending_path_to_id: dict[str, str] = {}
+
+        self.open_action = QAction("Open Session...", window)
+        self.save_action = QAction("Save Session...", window)
+        self.open_action.setToolTip("Open a saved PixelScope workspace session")
         self.save_action.setToolTip(
-            "Save the current logical Selected set; temporary Picks are not saved. "
-            "Use Keep Selection first to save a curated subset."
+            "Save Registered files, Selected workspace state, ROI/Line and regenerable "
+            "presentation intent. Runtime caches and workers are not saved."
         )
         self.open_action.triggered.connect(self.open_dialog)  # type: ignore[attr-defined]
         self.save_action.triggered.connect(self.save_dialog)  # type: ignore[attr-defined]
         self._install_file_menu_actions()
+        self._connect_deferred_restore_signals()
 
     def set_recent_entry_callback(
         self,
         callback: Callable[[Path], None] | None,
     ) -> None:
-        """Register optional P4-C history observation without changing P4-B ownership."""
-
         self._recent_entry_callback = callback
 
     def _notify_recent_entry(self, path: Path) -> None:
-        """Notify optional Recent history without making it a P4-B correctness dependency."""
-
         if self._recent_entry_callback is None:
             return
         try:
             self._recent_entry_callback(path.resolve(strict=False))
-        except Exception:  # noqa: BLE001 - optional observer cannot break P4-B workflows
-            LOGGER.warning("Unable to update Recent Comparison Set history", exc_info=True)
+        except Exception:  # noqa: BLE001 - optional observer cannot break Session workflows
+            LOGGER.warning("Unable to update Recent Session history", exc_info=True)
+
+    def _connect_deferred_restore_signals(self) -> None:
+        for viewer in [self.window.viewer, *self.window.multi_compare_view.viewers]:
+            viewer.document_changed.connect(self._try_restore_deferred_state)
 
     def _file_menu(self) -> QMenu:
-        """Replace the legacy File menu with one whose Python wrapper we retain."""
-
         menu_bar = self.window.menuBar()
         for action in menu_bar.actions():
             if action.text().replace("&", "") == "File":
                 return self._replace_file_menu(action)
-        raise RuntimeError("Comparison Set commands require the File menu")
+        raise RuntimeError("Session commands require the File menu")
 
     def _replace_file_menu(self, stale_action: QAction) -> QMenu:
-        """Rebuild File from MainWindow-owned actions and retain its PySide wrapper."""
-
         menu_bar = self.window.menuBar()
         top_level_actions = menu_bar.actions()
         stale_index = top_level_actions.index(stale_action)
@@ -111,35 +116,29 @@ class ComparisonSetController:
     def _install_file_menu_actions(self) -> None:
         menu = self._file_menu()
         actions = menu.actions()
-        anchor = next(
-            (action for action in actions if action.text().startswith("Export Statistics")),
-            None,
-        )
-        if anchor is None:
+        first_separator = next((action for action in actions if action.isSeparator()), None)
+        if first_separator is None:
             menu.addAction(self.open_action)
+            menu.addSeparator()
             menu.addAction(self.save_action)
             return
-        menu.insertAction(anchor, self.open_action)
-        menu.insertAction(anchor, self.save_action)
-        separator = QAction(self.window)
-        separator.setSeparator(True)
-        menu.insertAction(anchor, separator)
-        self.separator_action = separator
+        menu.insertAction(first_separator, self.open_action)
+        menu.insertAction(first_separator, self.save_action)
+        self.separator_action = first_separator
 
     def _dialog_directory(self) -> str:
         getter = getattr(self.window, "_open_dialog_directory", None)
         return str(getter()) if callable(getter) else ""
 
     def save_dialog(self) -> None:
-        if not self.window.selected_documents:
-            self.window.statusBar().showMessage("No Selected images to save", 3000)
+        if not self._persistent_registered_documents():
+            self.window.statusBar().showMessage("No Registered images to save", 3000)
             return
-        initial = self._dialog_directory()
         path, _ = QFileDialog.getSaveFileName(
             self.window,
-            "Save Comparison Set",
-            initial,
-            COMPARISON_SET_FILTER,
+            "Save Session",
+            self._dialog_directory(),
+            SESSION_FILTER,
         )
         if not path:
             return
@@ -149,39 +148,36 @@ class ComparisonSetController:
         try:
             self.save_to_path(target)
         except (OSError, ComparisonSetError) as exc:
-            QMessageBox.warning(self.window, "Cannot save Comparison Set", str(exc))
+            QMessageBox.warning(self.window, "Cannot save Session", str(exc))
             return
         remember = getattr(self.window, "_remember_directory", None)
         if callable(remember):
             remember(target.parent)
         self._notify_recent_entry(target)
-        self.window.statusBar().showMessage(
-            f"Saved Comparison Set · {target.name}",
-            4000,
-        )
+        self.window.statusBar().showMessage(f"Saved Session · {target.name}", 4000)
 
-    def save_to_path(self, path: str | Path) -> ComparisonSet:
-        selected = list(self.window.selected_documents)
-        if not selected:
-            raise ComparisonSetError("no logical Selected images to save")
-        sources: list[ComparisonSetSource] = []
-        for document in selected:
-            if document.source_path is None:
-                raise ComparisonSetError(
-                    "Selected item has no persistent native source path: "
-                    f"{document.display_name}"
-                )
+    def save_to_path(self, path: str | Path) -> Session:
+        registered = self._persistent_registered_documents()
+        if not registered:
+            raise ComparisonSetError("no persistent Registered images to save")
+
+        registered_sources: list[SessionSource] = []
+        for document in registered:
+            assert document.source_path is not None
             profile = self.window._raw_profiles.get(document.document_id)
             if profile is None and isinstance(document.raw_profile, RawProfile):
                 profile = document.raw_profile
             raw_payload = profile.dict() if isinstance(profile, RawProfile) else None
-            sources.append(ComparisonSetSource(str(document.source_path), raw_payload))
+            registered_sources.append(SessionSource(str(document.source_path), raw_payload))
 
+        selected = [
+            document
+            for document in self.window.selected_documents
+            if document.source_path is not None
+        ]
+        selected_paths = tuple(str(document.source_path) for document in selected)
         selected_ids = {document.document_id for document in selected}
-        active_path = self._path_for_runtime_id(
-            self.window._active_document_id,
-            selected_ids,
-        )
+        active_path = self._path_for_runtime_id(self.window._active_document_id, selected_ids)
         current_page_ids = {
             document.document_id for document in self.window.current_comparison_documents()
         }
@@ -190,14 +186,46 @@ class ComparisonSetController:
             if self.window._layout_mode != "Single View"
             else None
         )
-        comparison_set = ComparisonSet(
-            sources=tuple(sources),
+        session = Session(
+            registered_sources=tuple(registered_sources),
+            selected_paths=selected_paths,
             active_path=active_path,
             primary_path=primary_path,
             layout_mode=self.window._layout_mode,
+            roi=self.window._shared_roi,
+            line=self.window._shared_line,
+            display_gain=display_gain_state().gain,
+            split_channels=bool(self.window._split_channels),
+            difference=self._capture_difference(),
         )
-        self.repository.save(path, comparison_set)
-        return comparison_set
+        self.repository.save(path, session)
+        return session
+
+    def _persistent_registered_documents(self) -> list[Any]:
+        return [
+            document
+            for document in self.window.documents.values()
+            if document.source_path is not None
+        ]
+
+    def _capture_difference(self) -> SessionDifference | None:
+        if self.window._difference_document is None or self.window._difference_source_ids is None:
+            return None
+        a_id, b_id = self.window._difference_source_ids
+        a = self.window.documents.get(a_id)
+        b = self.window.documents.get(b_id)
+        if a is None or b is None or a.source_path is None or b.source_path is None:
+            return None
+        panel = self.window.difference_panel
+        return SessionDifference(
+            image_a_path=str(a.source_path),
+            image_b_path=str(b.source_path),
+            channel=panel.channel.currentText() or "All",
+            mode=panel.mode.currentText() or "Absolute",
+            threshold=float(panel.threshold.value()),
+            gain=int(panel.gain.value()),
+            region=panel.region.currentText() or "Full image",
+        )
 
     def _path_for_runtime_id(
         self,
@@ -216,16 +244,16 @@ class ComparisonSetController:
     def open_dialog(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self.window,
-            "Open Comparison Set",
+            "Open Session",
             self._dialog_directory(),
-            COMPARISON_SET_FILTER,
+            SESSION_FILTER,
         )
         if not path:
             return
         try:
             loaded, missing = self.open_from_path(path)
         except (OSError, ComparisonSetError) as exc:
-            QMessageBox.warning(self.window, "Cannot open Comparison Set", str(exc))
+            QMessageBox.warning(self.window, "Cannot open Session", str(exc))
             return
         if loaded == 0:
             return
@@ -242,29 +270,27 @@ class ComparisonSetController:
         loaded: int,
         missing: tuple[Path, ...],
     ) -> None:
-        """Present the canonical successful-open feedback for dialog or Recent entry."""
-
         target = Path(path)
         if missing:
             preview = "\n".join(str(item) for item in missing[:5])
             suffix = f"\n… and {len(missing) - 5} more" if len(missing) > 5 else ""
             QMessageBox.warning(
                 self.window,
-                "Comparison Set opened with missing sources",
-                f"Loaded {loaded} source(s); {len(missing)} source(s) were unavailable.\n\n"
-                f"{preview}{suffix}",
+                "Session opened with missing sources",
+                f"Restored {loaded} Registered source(s); "
+                f"{len(missing)} source(s) were unavailable.\n\n{preview}{suffix}",
             )
         self.window.statusBar().showMessage(
-            f"Opened Comparison Set · {target.name} · {loaded} source(s)",
+            f"Opened Session · {target.name} · {loaded} Registered source(s)",
             4000,
         )
 
     def open_from_path(self, path: str | Path) -> tuple[int, tuple[Path, ...]]:
-        comparison_set = self.repository.load(path)
+        session = self.repository.load(path)
 
-        loadable: list[tuple[ComparisonSetSource, ImageInput]] = []
+        loadable: list[tuple[SessionSource, ImageInput]] = []
         missing: list[Path] = []
-        for source in comparison_set.sources:
+        for source in session.registered_sources:
             source_path = Path(source.path)
             image_input = image_input_for_path(source_path)
             if image_input is None:
@@ -274,13 +300,17 @@ class ComparisonSetController:
         if not loadable:
             QMessageBox.warning(
                 self.window,
-                "Comparison Set sources unavailable",
-                "None of the saved source paths are currently loadable. "
+                "Session sources unavailable",
+                "None of the saved Registered source paths are currently loadable. "
                 "The workspace was not changed.",
             )
             return 0, tuple(missing)
 
-        document_ids: list[str] = []
+        # Artifact validation and loadability probing complete before logical mutation.
+        existing_ids = list(self.window.documents)
+        if existing_ids:
+            self.window._remove_document_ids(existing_ids)
+
         path_to_id: dict[str, str] = {}
         for source, image_input in loadable:
             document_id = self.window._register_input(
@@ -289,36 +319,41 @@ class ComparisonSetController:
             )
             if document_id is None:
                 continue
-            document_ids.append(document_id)
             path_to_id[source.path.casefold()] = document_id
             if source.raw_profile is not None:
                 profile = RawProfile.parse_obj(source.raw_profile)
                 self._apply_saved_raw_profile(document_id, profile)
         self.window._update_empty_workspace_state()
-        if not document_ids:
+        if not path_to_id:
             QMessageBox.warning(
                 self.window,
-                "Comparison Set sources unavailable",
-                "None of the saved source paths could be registered. "
-                "The logical selection was not changed.",
+                "Session sources unavailable",
+                "None of the saved source paths could be registered.",
             )
             return 0, tuple(missing)
 
-        active_id = (
-            self._saved_member_id(comparison_set.active_path, path_to_id)
-            or document_ids[0]
-        )
-        active_index = document_ids.index(active_id)
-        self.window._current_index = active_index
-        self.window._page_start = 0
+        selected_ids = [
+            path_to_id[path.casefold()]
+            for path in session.selected_paths
+            if path.casefold() in path_to_id
+        ]
+        active_id = self._saved_member_id(session.active_path, path_to_id)
+        if selected_ids:
+            active_id = active_id if active_id in selected_ids else selected_ids[0]
+            self.window._current_index = selected_ids.index(active_id)
+            self.window._page_start = 0
+        else:
+            active_id = None
+            self.window._current_index = 0
+            self.window._page_start = 0
         self.window._focus_document_id = None
         self.window._primary_page_slot = 0
-        self.window._select_document_ids(document_ids, preserve_view=True)
+        self.window._select_document_ids(selected_ids, preserve_view=True)
 
-        if comparison_set.layout_mode != self.window._layout_mode:
-            self.window.set_layout_mode(comparison_set.layout_mode)
+        if session.layout_mode != self.window._layout_mode:
+            self.window.set_layout_mode(session.layout_mode)
 
-        primary_id = self._saved_member_id(comparison_set.primary_path, path_to_id)
+        primary_id = self._saved_member_id(session.primary_path, path_to_id)
         current_page_ids = {
             document.document_id for document in self.window.current_comparison_documents()
         }
@@ -329,10 +364,76 @@ class ComparisonSetController:
         ):
             self.window._set_focus_document(primary_id)
 
-        active_document = self.window.documents.get(active_id)
-        if active_document is not None:
-            self.window._set_active_document(active_document)
-        return len(document_ids), tuple(missing)
+        if active_id is not None:
+            active_document = self.window.documents.get(active_id)
+            if active_document is not None:
+                self.window._set_active_document(active_document)
+
+        display_gain_state().set_gain(session.display_gain)
+        split_enabled = session.split_channels and len(selected_ids) == 1
+        self.window.split_channels_action.setChecked(split_enabled)
+        self.window._set_split_channels(split_enabled)
+
+        self._pending_roi = session.roi
+        self._pending_line = session.line
+        self._pending_difference = session.difference
+        self._pending_path_to_id = path_to_id
+        QTimer.singleShot(0, self._try_restore_deferred_state)
+        return len(path_to_id), tuple(missing)
+
+    def _try_restore_deferred_state(self, *_args: object) -> None:
+        if self._pending_roi is not None or self._pending_line is not None:
+            ready = [
+                document
+                for document in self.window.current_comparison_documents()
+                if document.source is not None
+            ]
+            if ready:
+                if self._pending_roi is not None:
+                    self.window._shared_roi_changed(self._pending_roi)
+                    self._pending_roi = None
+                if self._pending_line is not None:
+                    self.window._shared_line_changed(self._pending_line)
+                    self._pending_line = None
+
+        if self._pending_difference is None:
+            return
+        recipe = self._pending_difference
+        a_id = self._pending_path_to_id.get(recipe.image_a_path.casefold())
+        b_id = self._pending_path_to_id.get(recipe.image_b_path.casefold())
+        if a_id is None or b_id is None:
+            self._pending_difference = None
+            return
+        a = self.window.documents.get(a_id)
+        b = self.window.documents.get(b_id)
+        if a is None or b is None or a.source is None or b.source is None:
+            return
+
+        panel = self.window.difference_panel
+        panel.set_documents(
+            self.window.current_comparison_documents(),
+            (a_id, b_id),
+            self.window._shared_roi,
+        )
+        a_index = panel.a_selector.findData(a_id)
+        b_index = panel.b_selector.findData(b_id)
+        if a_index < 0 or b_index < 0:
+            return
+        panel.a_selector.setCurrentIndex(a_index)
+        panel.b_selector.setCurrentIndex(b_index)
+        channel_index = panel.channel.findText(recipe.channel)
+        if channel_index >= 0:
+            panel.channel.setCurrentIndex(channel_index)
+        mode_index = panel.mode.findText(recipe.mode)
+        if mode_index >= 0:
+            panel.mode.setCurrentIndex(mode_index)
+        region_index = panel.region.findText(recipe.region)
+        if region_index >= 0:
+            panel.region.setCurrentIndex(region_index)
+        panel.threshold.setValue(recipe.threshold)
+        panel.gain.setValue(recipe.gain)
+        self._pending_difference = None
+        panel.calculate_difference()
 
     @staticmethod
     def _saved_member_id(
@@ -358,10 +459,15 @@ class ComparisonSetController:
         self.window._update_document_item(document)
 
 
-def install_comparison_set(window: Any) -> ComparisonSetController:
-    existing = getattr(window, "comparison_set_controller", None)
-    if isinstance(existing, ComparisonSetController):
+# Internal alias retained so P4-B-focused tests/imports keep exercising the Session implementation.
+ComparisonSetController = SessionController
+
+
+def install_comparison_set(window: Any) -> SessionController:
+    existing = getattr(window, "session_controller", None)
+    if isinstance(existing, SessionController):
         return existing
-    controller = ComparisonSetController(window)
+    controller = SessionController(window)
+    window.session_controller = controller
     window.comparison_set_controller = controller
     return controller
