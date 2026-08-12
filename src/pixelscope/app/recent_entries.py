@@ -41,8 +41,13 @@ class RecentEntriesRepository:
             raise ValueError("recent entry limit must be positive")
         self._storage = storage
         self._limit = limit
+        self._cache: dict[RecentEntryKind, tuple[Path, ...]] = {}
 
     def load(self, kind: RecentEntryKind) -> tuple[Path, ...]:
+        cached = self._cache.get(kind)
+        if cached is not None:
+            return cached
+
         raw = self._storage.value(self._key(kind), [])
         values = self._decode_values(raw)
 
@@ -65,7 +70,10 @@ class RecentEntriesRepository:
             loaded.append(normalized)
             if len(loaded) >= self._limit:
                 break
-        return tuple(loaded)
+
+        result = tuple(loaded)
+        self._cache[kind] = result
+        return result
 
     def record(
         self,
@@ -90,8 +98,10 @@ class RecentEntriesRepository:
         if kind is None:
             for candidate in RecentEntryKind:
                 self._storage.remove(self._key(candidate))
+                self._cache[candidate] = ()
         else:
             self._storage.remove(self._key(kind))
+            self._cache[kind] = ()
         self._storage.sync()
 
     @staticmethod
@@ -122,6 +132,7 @@ class RecentEntriesRepository:
         else:
             self._storage.remove(key)
         self._storage.sync()
+        self._cache[kind] = paths
 
     @staticmethod
     def _key(kind: RecentEntryKind) -> str:
