@@ -28,6 +28,23 @@ class _Storage:
         self.sync_count += 1
 
 
+class _StaleReadStorage(_Storage):
+    """Simulate a backend whose immediate read does not observe the latest write."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.persisted: dict[str, object] = {}
+
+    def value(self, key: str, default: object = None) -> object:
+        return self.values.get(key, default)
+
+    def set_value(self, key: str, value: object) -> None:
+        self.persisted[key] = value
+
+    def remove(self, key: str) -> None:
+        self.persisted.pop(key, None)
+
+
 def test_merge_recent_paths_preserves_batch_order_deduplicates_and_bounds(tmp_path: Path) -> None:
     existing = tuple((tmp_path / f"old-{index}.png").resolve() for index in range(5))
     opened = [existing[2], tmp_path / "new-a.png", tmp_path / "new-b.png"]
@@ -74,6 +91,20 @@ def test_repository_persists_backend_independent_json_strings(tmp_path: Path) ->
     assert isinstance(raw, str)
     assert json.loads(raw) == [str(path.resolve()) for path in paths]
     assert repository.load(RecentEntryKind.IMAGE) == tuple(path.resolve() for path in paths)
+
+
+def test_repository_runtime_cache_does_not_depend_on_immediate_backend_readback(
+    tmp_path: Path,
+) -> None:
+    storage = _StaleReadStorage()
+    repository = RecentEntriesRepository(storage)
+    image = (tmp_path / "image.png").resolve()
+
+    repository.record(RecentEntryKind.IMAGE, [image])
+
+    assert "recent/images" in storage.persisted
+    assert storage.value("recent/images", []) == []
+    assert repository.load(RecentEntryKind.IMAGE) == (image,)
 
 
 def test_repository_reads_pre_json_draft_values(tmp_path: Path) -> None:
