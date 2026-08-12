@@ -15,14 +15,14 @@ from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
-from pixelscope.ui.comparison_set import ComparisonSetController
+from pixelscope.ui.comparison_set import SessionController
 from pixelscope.ui.design_tokens import menu_style
 
 LOGGER = logging.getLogger(__name__)
 
 
 class RecentEntriesController:
-    """Typed recent-entry UI that observes and delegates to existing runtime authorities."""
+    """Typed Recent entry UI that delegates to canonical Image/Folder/Session workflows."""
 
     def __init__(
         self,
@@ -33,33 +33,29 @@ class RecentEntriesController:
         self.repository = repository or RecentEntriesRepository(
             QSettingsAdapter(self._settings())
         )
-        comparison_set = getattr(window, "comparison_set_controller", None)
-        if not isinstance(comparison_set, ComparisonSetController):
-            raise RuntimeError(
-                "Recent Entries requires the P4-B Comparison Set controller"
-            )
-        self.comparison_set_controller = comparison_set
-        self.comparison_set_controller.set_recent_entry_callback(
-            self._record_comparison_set
-        )
+        session = getattr(window, "session_controller", None)
+        if not isinstance(session, SessionController):
+            raise RuntimeError("Recent Entries requires the Session controller")
+        self.session_controller = session
+        self.comparison_set_controller = session
+        self.session_controller.set_recent_entry_callback(self._record_session)
 
-        file_menu = getattr(comparison_set, "_file_menu_ref", None)
+        file_menu = getattr(session, "_file_menu_ref", None)
         if not isinstance(file_menu, QMenu):
             raise RuntimeError("Recent Entries requires the retained File menu")
         self.file_menu = file_menu
 
-        self.recent_menu = QMenu("Recent", self.file_menu)
-        self.recent_menu.setStyleSheet(menu_style())
-        self.images_menu = QMenu("Images", self.recent_menu)
-        self.folders_menu = QMenu("Folders", self.recent_menu)
-        self.comparison_sets_menu = QMenu("Comparison Sets", self.recent_menu)
-        for menu in (self.images_menu, self.folders_menu, self.comparison_sets_menu):
+        self.images_menu = QMenu("Open Recent Images", self.file_menu)
+        self.folders_menu = QMenu("Open Recent Folders", self.file_menu)
+        self.sessions_menu = QMenu("Open Recent Sessions", self.file_menu)
+        self.comparison_sets_menu = self.sessions_menu
+        for menu in (self.images_menu, self.folders_menu, self.sessions_menu):
             menu.setStyleSheet(menu_style())
         self.clear_action = QAction("Clear Recent Entries", window)
         self.clear_action.triggered.connect(self.clear_all)  # type: ignore[attr-defined]
 
         self._install_runtime_observers()
-        self._install_recent_menu()
+        self._install_recent_menus()
         self.refresh_menu()
 
     def _settings(self) -> QSettings:
@@ -67,8 +63,6 @@ class RecentEntriesController:
         return settings if isinstance(settings, QSettings) else QSettings()
 
     def _install_runtime_observers(self) -> None:
-        """Observe P3 entry APIs without rewiring constructor-time Qt signals."""
-
         register_inputs = getattr(self.window, "_register_inputs", None)
         register_folders = getattr(self.window, "register_folders", None)
         if not callable(register_inputs) or not callable(register_folders):
@@ -113,39 +107,22 @@ class RecentEntriesController:
         kind: RecentEntryKind,
         paths: Sequence[str | Path],
     ) -> None:
-        """Best-effort observer boundary; Recent must never own workflow correctness."""
-
         try:
             self.repository.record(kind, paths)
             self.refresh_menu()
         except Exception:  # noqa: BLE001 - optional history must not break runtime work
-            LOGGER.warning(
-                "Unable to update Recent %s history",
-                kind.value,
-                exc_info=True,
-            )
+            LOGGER.warning("Unable to update Recent %s history", kind.value, exc_info=True)
 
-    def _install_recent_menu(self) -> None:
-        actions = self.file_menu.actions()
-        save_action = self.comparison_set_controller.save_action
-        if save_action in actions:
-            self.file_menu.insertMenu(save_action, self.recent_menu)
-        else:
-            self.file_menu.addMenu(self.recent_menu)
+    def _install_recent_menus(self) -> None:
+        save_action = self.session_controller.save_action
+        for menu in (self.images_menu, self.folders_menu, self.sessions_menu):
+            self.file_menu.insertMenu(save_action, menu)
 
     def refresh_menu(self) -> None:
         self._populate_menu(RecentEntryKind.IMAGE, self.images_menu)
         self._populate_menu(RecentEntryKind.FOLDER, self.folders_menu)
-        self._populate_menu(RecentEntryKind.COMPARISON_SET, self.comparison_sets_menu)
-        self.recent_menu.clear()
-        self.recent_menu.addMenu(self.images_menu)
-        self.recent_menu.addMenu(self.folders_menu)
-        self.recent_menu.addMenu(self.comparison_sets_menu)
-        self.recent_menu.addSeparator()
-        self.recent_menu.addAction(self.clear_action)
-        self.clear_action.setEnabled(
-            any(self.repository.load(kind) for kind in RecentEntryKind)
-        )
+        self._populate_menu(RecentEntryKind.SESSION, self.sessions_menu)
+        self.clear_action.setEnabled(any(self.repository.load(kind) for kind in RecentEntryKind))
 
     def _populate_menu(self, kind: RecentEntryKind, menu: QMenu) -> None:
         menu.clear()
@@ -153,17 +130,19 @@ class RecentEntriesController:
         if not entries:
             placeholder = menu.addAction("(None)")
             placeholder.setEnabled(False)
-            return
-        for path in entries:
-            action = menu.addAction(self._display_label(kind, path))
-            action.setToolTip(str(path))
-            action.setStatusTip(str(path))
-            action.triggered.connect(  # type: ignore[attr-defined]
-                lambda _checked=False, entry_kind=kind, entry_path=path: self.open_recent(
-                    entry_kind,
-                    entry_path,
+        else:
+            for path in entries:
+                action = menu.addAction(self._display_label(kind, path))
+                action.setToolTip(str(path))
+                action.setStatusTip(str(path))
+                action.triggered.connect(  # type: ignore[attr-defined]
+                    lambda _checked=False, entry_kind=kind, entry_path=path: self.open_recent(
+                        entry_kind,
+                        entry_path,
+                    )
                 )
-            )
+        menu.addSeparator()
+        menu.addAction(self.clear_action)
 
     @staticmethod
     def _display_label(kind: RecentEntryKind, path: Path) -> str:
@@ -196,7 +175,7 @@ class RecentEntriesController:
                     4000,
                 )
             return
-        self._open_recent_comparison_set(path)
+        self._open_recent_session(path)
 
     def _open_image_paths(self, paths: list[Path]) -> list[str]:
         if not paths:
@@ -218,17 +197,17 @@ class RecentEntriesController:
             self.window.statusBar().showMessage("No supported images opened", 4000)
         return document_ids
 
-    def _open_recent_comparison_set(self, path: Path) -> None:
+    def _open_recent_session(self, path: Path) -> None:
         try:
-            loaded, missing = self.comparison_set_controller.open_from_path(path)
+            loaded, missing = self.session_controller.open_from_path(path)
         except (OSError, ComparisonSetError) as exc:
-            QMessageBox.warning(self.window, "Cannot open Comparison Set", str(exc))
+            QMessageBox.warning(self.window, "Cannot open Session", str(exc))
             return
         if loaded == 0:
             return
         self._remember_directory(path.parent)
-        self._observe_history(RecentEntryKind.COMPARISON_SET, [path])
-        self.comparison_set_controller.show_open_feedback(path, loaded, missing)
+        self._observe_history(RecentEntryKind.SESSION, [path])
+        self.session_controller.show_open_feedback(path, loaded, missing)
 
     @staticmethod
     def _recent_path_state(kind: RecentEntryKind, path: Path) -> str:
@@ -268,35 +247,23 @@ class RecentEntriesController:
         dialog = QMessageBox(self.window)
         dialog.setIcon(QMessageBox.Icon.Warning)
         dialog.setWindowTitle("Recent entry unavailable")
-        dialog.setText(
-            f"The {item_type} cannot be found. Remove it from Recent Entries?"
-        )
+        dialog.setText(f"The {item_type} cannot be found. Remove it from Recent Entries?")
         dialog.setInformativeText(str(path))
-        remove_button = dialog.addButton(
-            "Remove",
-            QMessageBox.ButtonRole.DestructiveRole,
-        )
-        keep_button = dialog.addButton(
-            "Keep",
-            QMessageBox.ButtonRole.RejectRole,
-        )
+        remove_button = dialog.addButton("Remove", QMessageBox.ButtonRole.DestructiveRole)
+        keep_button = dialog.addButton("Keep", QMessageBox.ButtonRole.RejectRole)
         dialog.setDefaultButton(keep_button)
         dialog.exec()
         return dialog.clickedButton() is remove_button
 
-    def _record_comparison_set(self, path: Path) -> None:
-        self._observe_history(RecentEntryKind.COMPARISON_SET, [path])
+    def _record_session(self, path: Path) -> None:
+        self._observe_history(RecentEntryKind.SESSION, [path])
 
     def clear_all(self) -> None:
         try:
             self.repository.clear()
             self.refresh_menu()
         except Exception as exc:  # noqa: BLE001 - report history-storage failure to user
-            QMessageBox.warning(
-                self.window,
-                "Cannot clear Recent Entries",
-                str(exc),
-            )
+            QMessageBox.warning(self.window, "Cannot clear Recent Entries", str(exc))
             return
         self.window.statusBar().showMessage("Recent Entries cleared", 3000)
 
