@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Final, Protocol
@@ -43,13 +44,7 @@ class RecentEntriesRepository:
 
     def load(self, kind: RecentEntryKind) -> tuple[Path, ...]:
         raw = self._storage.value(self._key(kind), [])
-        values: list[object]
-        if isinstance(raw, str):
-            values = [raw]
-        elif isinstance(raw, list | tuple):
-            values = list(raw)
-        else:
-            values = []
+        values = self._decode_values(raw)
 
         loaded: list[Path] = []
         seen: set[str] = set()
@@ -99,10 +94,31 @@ class RecentEntriesRepository:
             self._storage.remove(self._key(kind))
         self._storage.sync()
 
+    @staticmethod
+    def _decode_values(raw: object) -> list[object]:
+        """Decode stable JSON storage while accepting pre-JSON draft values."""
+
+        if isinstance(raw, str):
+            try:
+                decoded = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return [raw]
+            if isinstance(decoded, list):
+                return list(decoded)
+            return [raw]
+        if isinstance(raw, list | tuple):
+            return list(raw)
+        return []
+
     def _write(self, kind: RecentEntryKind, paths: tuple[Path, ...]) -> None:
         key = self._key(kind)
         if paths:
-            self._storage.set_value(key, [str(path) for path in paths])
+            payload = json.dumps(
+                [str(path) for path in paths],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            self._storage.set_value(key, payload)
         else:
             self._storage.remove(key)
         self._storage.sync()
