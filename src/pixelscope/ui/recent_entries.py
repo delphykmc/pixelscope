@@ -171,7 +171,7 @@ class RecentEntriesController:
         return f"{leaf} — {parent}" if parent and parent != leaf else leaf
 
     def open_recent(self, kind: RecentEntryKind, path: Path) -> None:
-        if not self._entry_exists(kind, path):
+        if not self._path_exists_for_recent(path):
             self._handle_missing_entry(kind, path)
             return
         if kind is RecentEntryKind.IMAGE:
@@ -225,10 +225,15 @@ class RecentEntriesController:
         self._observe_history(RecentEntryKind.COMPARISON_SET, [path])
         self.comparison_set_controller.show_open_feedback(path, loaded, missing)
 
-    def _entry_exists(self, kind: RecentEntryKind, path: Path) -> bool:
-        if kind is RecentEntryKind.FOLDER:
-            return path.is_dir()
-        return path.is_file()
+    @staticmethod
+    def _path_exists_for_recent(path: Path) -> bool:
+        try:
+            path.stat()
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return True
+        return True
 
     def _handle_missing_entry(self, kind: RecentEntryKind, path: Path) -> None:
         if not self._confirm_remove_missing(kind, path):
