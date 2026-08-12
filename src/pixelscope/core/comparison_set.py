@@ -116,13 +116,24 @@ class Session:
     def __post_init__(self) -> None:
         if self.kind != SESSION_KIND:
             raise ComparisonSetError(f"unsupported session kind: {self.kind!r}")
-        if self.schema_version != SESSION_SCHEMA_VERSION:
-            raise ComparisonSetError(f"unsupported session schema version: {self.schema_version}")
+        if (
+            not isinstance(self.schema_version, int)
+            or isinstance(self.schema_version, bool)
+            or self.schema_version != SESSION_SCHEMA_VERSION
+        ):
+            raise ComparisonSetError(
+                f"unsupported session schema version: {self.schema_version!r}"
+            )
         if not self.registered_sources:
             raise ComparisonSetError("session must contain at least one registered source")
         if self.layout_mode not in SESSION_LAYOUTS:
             raise ComparisonSetError(f"unsupported layout mode: {self.layout_mode!r}")
-        if self.display_gain not in SESSION_DISPLAY_GAINS:
+        if (
+            not isinstance(self.display_gain, int | float)
+            or isinstance(self.display_gain, bool)
+            or not isfinite(float(self.display_gain))
+            or float(self.display_gain) not in SESSION_DISPLAY_GAINS
+        ):
             raise ComparisonSetError(f"unsupported display gain: {self.display_gain!r}")
 
         registered_ids = [source.path.casefold() for source in self.registered_sources]
@@ -159,6 +170,7 @@ class Session:
         object.__setattr__(self, "selected_paths", selected)
         object.__setattr__(self, "active_path", active)
         object.__setattr__(self, "primary_path", primary)
+        object.__setattr__(self, "display_gain", float(self.display_gain))
 
     @property
     def sources(self) -> tuple[SessionSource, ...]:
