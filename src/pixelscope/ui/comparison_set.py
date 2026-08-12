@@ -306,10 +306,15 @@ class SessionController:
             )
             return 0, tuple(missing)
 
-        # Artifact validation and loadability probing complete before logical mutation.
-        existing_ids = list(self.window.documents)
-        if existing_ids:
-            self.window._remove_document_ids(existing_ids)
+        desired_paths = {source.path.casefold() for source, _input in loadable}
+        remove_ids = [
+            document_id
+            for document_id, document in self.window.documents.items()
+            if document.source_path is None
+            or str(document.source_path.resolve(strict=False)).casefold() not in desired_paths
+        ]
+        if remove_ids:
+            self.window._remove_document_ids(remove_ids)
 
         path_to_id: dict[str, str] = {}
         for source, image_input in loadable:
@@ -459,7 +464,6 @@ class SessionController:
         self.window._update_document_item(document)
 
 
-# Internal alias retained so P4-B-focused tests/imports keep exercising the Session implementation.
 ComparisonSetController = SessionController
 
 
