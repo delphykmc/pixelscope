@@ -67,6 +67,7 @@ class SessionController(_BaseSessionController):
                 resolve_raw_profile=False,
             )
             if document_id is None:
+                missing.append(Path(source.path))
                 continue
             path_to_id[source.path.casefold()] = document_id
             if source.raw_profile is not None:
@@ -147,7 +148,7 @@ class SessionController(_BaseSessionController):
         self._pending_path_to_id = path_to_id
         self._establish_difference_dependency(session.difference, path_to_id)
         QTimer.singleShot(0, self._try_restore_deferred_state)
-        return len(path_to_id), tuple(missing)
+        return len(path_to_id), tuple(dict.fromkeys(missing))
 
     def _restore_saved_active(self, session: Session) -> None:
         if session.active_path is None:
@@ -207,6 +208,7 @@ class SessionController(_BaseSessionController):
         if recipe is None:
             return
         if recipe.region == "Active ROI" and self._pending_roi is not None:
+            QTimer.singleShot(50, self._try_restore_deferred_state)
             return
 
         a_id = self._pending_path_to_id.get(recipe.image_a_path.casefold())
@@ -216,7 +218,20 @@ class SessionController(_BaseSessionController):
             return
         a = self.window.documents.get(a_id)
         b = self.window.documents.get(b_id)
-        if a is None or b is None or a.source is None or b.source is None:
+        if a is None or b is None:
+            self._skip_difference_restore("Saved Difference sources are unavailable.")
+            return
+        if a.source is None or b.source is None:
+            if a.loading_state == "error" or b.loading_state == "error":
+                self._skip_difference_restore("A saved Difference source failed to load.")
+                return
+            suppressed = self.window._raw_profile_prompt_suppressed
+            if a_id in suppressed or b_id in suppressed:
+                self._skip_difference_restore(
+                    "A saved Difference RAW source was not resolved."
+                )
+                return
+            QTimer.singleShot(50, self._try_restore_deferred_state)
             return
 
         panel = self.window.difference_panel
