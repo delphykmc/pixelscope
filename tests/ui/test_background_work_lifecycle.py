@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 
 import pixelscope.ui.difference_panel as difference_panel_module
 import pixelscope.ui.image_viewer as image_viewer_module
+import pixelscope.workers.thread_pools as thread_pools_module
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.difference_cache import CachedDifferenceMap
 from pixelscope.core.image_document import ImageDocument
@@ -35,13 +36,25 @@ def _cache_current_difference(panel: DifferencePanel) -> CachedDifferenceMap:
     return cached
 
 
-def test_difference_panel_bounds_shared_analysis_pool(qtbot: object) -> None:
+def test_difference_panel_uses_app_owned_bounded_analysis_pool(qtbot: object) -> None:
     panel = DifferencePanel()
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
 
-    pool = QThreadPool.globalInstance()
+    pool = thread_pools_module.analysis_thread_pool()
+
     assert panel._pool is pool
-    assert 1 <= pool.maxThreadCount() <= difference_panel_module._ANALYSIS_MAX_THREADS
+    assert pool is not QThreadPool.globalInstance()
+    assert pool.parent() is app
+    assert pool.maxThreadCount() == thread_pools_module.ANALYSIS_MAX_THREADS
+    assert bool(
+        getattr(
+            app,
+            thread_pools_module._ANALYSIS_POOL_SHUTDOWN_HOOK_ATTRIBUTE,
+            False,
+        )
+    )
 
 
 def test_difference_preview_runs_off_gui_thread_and_drops_stale_result(
@@ -120,11 +133,17 @@ def test_display_gain_pool_is_bounded_and_has_explicit_shutdown_hook(
     assert image_viewer_module._shutdown_display_preview_thread_pool(100)
 
 
-def test_preload_pool_remains_independent_from_analysis_throttle(qtbot: object) -> None:
+def test_preload_and_load_pools_remain_independent_from_analysis_pool(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
+    analysis_pool = thread_pools_module.analysis_thread_pool()
 
     assert window._load_pool.maxThreadCount() == 2
     assert window._preload_pool.maxThreadCount() == 1
-    assert QThreadPool.globalInstance().maxThreadCount() <= 2
+    assert analysis_pool.maxThreadCount() == thread_pools_module.ANALYSIS_MAX_THREADS
+    assert window.comparison_analysis_panel._pool is analysis_pool
+    assert window.difference_panel._pool is analysis_pool
+    assert analysis_pool is not window._load_pool
+    assert analysis_pool is not window._preload_pool
     assert image_viewer_module._display_preview_thread_pool().maxThreadCount() == 2
+    assert thread_pools_module.shutdown_analysis_thread_pool(100)
