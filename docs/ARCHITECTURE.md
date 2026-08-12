@@ -338,6 +338,65 @@ transient zoom/pan, ROI/Line state, or temporary curation. Settings schema remai
 v5 because `.pixelscope` is an external artifact rather than an
 `ApplicationSettings` migration.
 
+## P4-C typed Recent-entry boundary
+
+P4-C adds path-only workflow history without inserting a new source, selection, or
+session ownership layer. `core.recent_entries` owns typed path identity and bounded
+MRU merge; `app.recent_entries.RecentEntriesRepository` owns the separate QSettings
+history namespace; `ui.recent_entries.RecentEntriesController` owns the File-menu
+surface and delegates activation to established P3/P4-B authorities.
+
+The three histories are explicit and independently bounded to ten entries:
+
+```text
+recent/images
+recent/folders
+recent/comparison_sets
+```
+
+They store normalized absolute local paths only. They are outside
+`ApplicationSettings` schema v5 and outside **Reset Settings** ownership. Because
+absolute paths may reveal local filesystem layout, **Clear Recent Entries** is the
+explicit history/privacy control.
+
+Production composition observes existing runtime methods rather than rewiring
+constructor-time Qt signals. Direct image history is observed after successful
+selection-oriented `_register_inputs(..., resolve_raw_profiles=True)` work. Folder
+history is observed after successful registration-only `register_folders()` work.
+P4-B exposes a narrow successful save/open callback seam. Every observer path is
+best-effort: Recent persistence/menu-refresh/callback exceptions are contained and
+cannot redefine canonical P3/P4-B success or failure.
+
+Activation is both existence-aware and typed-kind-aware:
+
+- `FileNotFoundError` is the only definite stale classification and asks
+  **Remove / Keep**;
+- other filesystem `OSError` conditions preserve history and canonical error
+  authority;
+- a present Image/Comparison-Set entry must still be a regular file and a Folder
+  entry must still be a directory;
+- a present wrong-kind path is retained, receives compact unavailable feedback, is
+  not reinterpreted through another P3 input intent, and is not promoted to MRU.
+
+Meaningful successful use defines MRU promotion. Image promotes after at least one
+canonical direct-image open succeeds. Folder promotes after successful
+`register_folders()` entry, including an existing empty folder. Comparison Set
+promotes only when the real P4-B loader returns `loaded > 0`; invalid or valid
+zero-loadable artifacts retain their prior position. Comparison Set save records
+only after P4-B's atomic save succeeds.
+
+P4-C never interprets missing sources *inside* a `.pixelscope` artifact as a stale
+Recent artifact. Partial `loaded > 0` and zero-loadable cases remain P4-B-owned.
+The real P4-B loader determines Selected order, Active-derived Current Comparison
+Page, applicable Primary/layout, P4-A Selected-change invalidation, partial warning,
+and zero-loadable no-mutation behavior. P4-C only applies the MRU rule after that
+result.
+
+Recent history owns none of `ImageDocument.source`, Selected, Active, Primary,
+Current Comparison Page, source residency/LRU/protection, preload, Difference/cache,
+Display Gain, analysis requests/results, workers/tokens/generation, transient
+Split/Difference documents, or P4-A Picks.
+
 ## RAW profile-resolution boundary
 
 RAW and ordinary images share the same user-facing image-open command but retain
@@ -451,6 +510,10 @@ P4-B also leaves Settings schema v5 unchanged. `.pixelscope` Comparison Sets are
 explicit user-managed external artifacts rather than SettingsRepository/QSettings
 state.
 
+P4-C keeps Settings schema v5 unchanged. Its `recent/*` path-history keys are a
+separate workflow-history QSettings namespace and are intentionally not
+`SettingsRepository.OWNED_SETTINGS_KEYS`; **Reset Settings** does not clear them.
+
 ## Thread and request lifecycle
 
 Foreground image loading uses a dedicated max-two pool. Preload uses a separate
@@ -469,7 +532,8 @@ Comparison Page rather than an independent first-six slice.
 
 Comparison Set Save does not schedule load/analysis work. Comparison Set Open only
 re-enters normal registration/selection/page foreground authority after full artifact
-validation; it does not restore workers/tokens/generations from disk.
+validation; it does not restore workers/tokens/generations from disk. Recent
+observation adds no workers and cannot alter these request identities.
 
 Statistics/Histogram request identity includes generation and operation parameters
 so rebinding an unchanged request does not restart work. Line Profile caches by
@@ -497,11 +561,12 @@ source larger than budget. Only unprotected resident sources are evicted.
 Registration and Pick membership do not add residency bytes. Comparison Set Save is
 also not a residency owner, and opening a large set does not protect all saved
 Selected members: only the derived Current Comparison Page plus inherited correctness
-dependencies own protection. Eviction clears reloadable native source and
-source-local caches, returns the document to pending, and preserves its catalog
-identity. Preview arrays, Qt textures, Display Gain buffers, Difference maps,
-split-channel derivatives, temporary curation ID sets, Comparison Set metadata,
-worker temporaries, and process RSS are outside decoded-source accounting.
+dependencies own protection. Recent path history is likewise not a residency owner.
+Eviction clears reloadable native source and source-local caches, returns the
+document to pending, and preserves its catalog identity. Preview arrays, Qt
+textures, Display Gain buffers, Difference maps, split-channel derivatives,
+temporary curation ID sets, Comparison Set metadata, Recent path metadata, worker
+temporaries, and process RSS are outside decoded-source accounting.
 
 ## Preload and promotion boundary
 
@@ -524,7 +589,8 @@ registration or Pick membership alone does not create new speculative work;
 unresolved RAW without a profile is not preloaded. Comparison Page navigation
 starts no new speculative page preload system; sources needed for a newly foreground
 page use normal foreground requirements. Comparison Set Save/Open introduces no
-Selected-wide or Comparison-Page-ahead preload system.
+Selected-wide or Comparison-Page-ahead preload system. Recent history and activation
+add no speculative preload policy.
 
 ## Difference boundary
 
@@ -552,7 +618,7 @@ asynchronous fresh result share the same Diff-only Single View presentation and
 workspace-restore contract.
 
 Comparison Set persistence does not serialize or rehydrate Difference inputs, maps,
-cache entries, or presentation state.
+cache entries, or presentation state. Recent history owns no Difference state.
 
 ## RAW decode/display boundary
 
