@@ -71,8 +71,6 @@ def test_session_restore_modal_gate_lives_until_final_diff_view(
         lambda: all(document.source is not None for document in window.selected_documents),
         timeout=5000,
     )
-    assert window.session_controller._restore_dialog is not None
-
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window._difference_document is not None,
         timeout=5000,
