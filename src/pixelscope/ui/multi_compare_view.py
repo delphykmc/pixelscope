@@ -402,16 +402,18 @@ class MultiCompareView(QWidget):
         if count == self._arranged_count:
             return
         self._arranged_count = count
+        active = self.visible_viewers[:count] if count > 0 else []
         for viewer in self.viewers:
             self._layout.removeWidget(viewer)
-            viewer.hide()
+            if viewer not in active:
+                viewer.hide()
         if count <= 0:
             return
-        active = self.visible_viewers[:count]
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
         for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
-            viewer.show()
+            if viewer.isHidden():
+                viewer.show()
         for row in range(3):
             self._layout.setRowStretch(row, row_stretches[row] if row < len(row_stretches) else 0)
         for column in range(3):

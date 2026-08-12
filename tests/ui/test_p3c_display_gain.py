@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QComboBox, QLabel
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel
 
 from pixelscope.app import main_window as main_window_module
 from pixelscope.app.main_window import MainWindow
@@ -13,6 +13,7 @@ from pixelscope.core.display_transform import DisplayTransform, render_ordinary_
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.raw_display import render_raw_preview
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.ui import image_viewer as image_viewer_module
 from pixelscope.ui.display_gain import display_gain_state, install_display_gain_control
 from pixelscope.ui.image_viewer import ImageViewer
 from pixelscope.ui.multi_compare_view import MultiCompareView
@@ -281,6 +282,54 @@ def test_mixed_raw_and_rgb_multi_view_share_document_specific_gain_semantics(
     )
     assert np.array_equal(view.viewers[0]._displayed_preview, raw_expected)
     assert np.array_equal(view.viewers[1]._displayed_preview, rgb_expected)
+
+    view.close()
+    state.reset()
+
+
+def test_display_gain_preview_pool_is_app_owned_and_bounded(qtbot: object) -> None:
+    viewer = ImageViewer()
+    qtbot.addWidget(viewer)  # type: ignore[attr-defined]
+
+    pool = image_viewer_module._display_preview_thread_pool()
+
+    assert pool is image_viewer_module._display_preview_thread_pool()
+    assert pool.parent() is QApplication.instance()
+    assert pool.maxThreadCount() == 2
+
+
+def test_multiview_relayout_keeps_retained_gain_previews(qtbot: object) -> None:
+    state = display_gain_state()
+    state.reset()
+    view = MultiCompareView()
+    qtbot.addWidget(view)  # type: ignore[attr-defined]
+    documents = [_ordinary_document("RGB", f"rgb-{index}", 20 + index) for index in range(3)]
+    view.set_capacity(6)
+    view.show()
+    view.set_documents(documents[:2], 0, 2, None, None)
+
+    state.set_gain(4.0)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            viewer._displayed_gain == 4.0 and viewer._display_preview_worker is None
+            for viewer in view.viewers[:2]
+        )
+    )
+    retained_previews = tuple(viewer._displayed_preview for viewer in view.viewers[:2])
+    retained_serials = tuple(
+        viewer._display_preview_request_serial for viewer in view.viewers[:2]
+    )
+
+    view.set_documents(documents, 0, 3, None, None)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: view.viewers[2]._displayed_gain == 4.0
+        and view.viewers[2]._display_preview_worker is None
+    )
+
+    assert tuple(viewer._displayed_preview for viewer in view.viewers[:2]) == retained_previews
+    assert tuple(
+        viewer._display_preview_request_serial for viewer in view.viewers[:2]
+    ) == retained_serials
 
     view.close()
     state.reset()
