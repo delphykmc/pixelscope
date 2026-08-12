@@ -2,10 +2,10 @@
 
 Status: P4-A Review Selection & Curation is Complete as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`. P4-B Comparison Set Persistence is
-implemented on `feature/p4-b-comparison-set-persistence` / PR #30. The repository
-owner reports the focused P4-B Windows validation PASS (`36 passed`); independent
-review reports no remaining runtime/schema/test blocker. Merge closure is currently
-durable-doc consistency plus normal final review/validation.
+Complete as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C
+Comparison Set Entry UX & Recent Entries is implemented on
+`feature/p4-c-comparison-set-entry-recent` / PR #31 and remains merge-pending while
+owner/local validation and final review closure are completed.
 
 ## Current shell
 
@@ -17,7 +17,9 @@ durable-doc consistency plus normal final review/validation.
 - P3-E/P4-A compose that row as a compact engineering command bar using existing
   design tokens and PixelScope's programmatic high-DPI icon infrastructure.
 - File menu owns **Open Images...** (`Ctrl+O`), **Open Folder...**
-  (`Ctrl+Shift+O`), **Open Comparison Set...**, and **Save Comparison Set...**.
+  (`Ctrl+Shift+O`), **Open Comparison Set...**, **Recent**, and **Save Comparison
+  Set...**. Recent contains explicit **Images / Folders / Comparison Sets** typed
+  submenus plus **Clear Recent Entries**.
 - There is no separate **Open RAW with Profile...** action.
 - Empty Workspace exposes Open Images/Open Folder only in the truly-empty state.
 - Files tree is the catalog/selection surface and keeps native Up/Down plus
@@ -170,7 +172,7 @@ new Selected subset
 - temporary curation state is session-only UI/workflow state and is not persisted
   to Settings/QSettings.
 
-## P4-B Comparison Set Persistence — implemented, merge pending
+## P4-B Comparison Set Persistence — Complete
 
 P4-B adds two File-menu commands without changing the Presentation Control Row:
 
@@ -201,6 +203,45 @@ Comparison Set UI does not own decoded source arrays, residency/LRU/protection,
 preload, Difference/cache, Display Gain state, analysis requests, workers/tokens,
 derived Split/Difference documents, transient view state, ROI/Line, or temporary
 Pick state. Settings schema remains v5.
+
+## P4-C Recent Entries — implemented, merge pending
+
+`File > Recent` is a bounded typed MRU of user entry paths, not a second session or
+workspace owner:
+
+- **Images** records successful direct image-open paths and reuses the P3
+  selection-oriented input path;
+- **Folders** records successful folder-registration paths and reuses the P3
+  registration-only path, including successful empty-folder registration;
+- **Comparison Sets** records successfully saved/opened `.pixelscope` artifact paths
+  and delegates opening/saving to the P4-B controller;
+- each type is independently bounded to ten normalized absolute paths;
+- menu labels are compact while full paths are retained in tooltip/status metadata;
+- **Clear Recent Entries** explicitly clears all three history namespaces.
+
+Missing paths are not deleted automatically. Activation asks **Remove / Keep**;
+Remove deletes only that one typed history item, while Keep leaves it unchanged.
+A path that still exists but is currently unusable remains in Recent. A present path
+whose filesystem kind no longer matches its typed entry is not reinterpreted as a
+different input intent: it is retained, produces compact wrong-type feedback, and
+does not promote MRU.
+
+For Comparison Sets, P4-B source-missing semantics remain authoritative. Partial
+`loaded > 0` opens the loadable saved subset, shows the canonical partial warning,
+and promotes the artifact to MRU. A valid zero-loadable artifact leaves the current
+workspace and P4-A curation state unchanged and retains its existing MRU position.
+Invalid existing artifacts also retain their history position.
+
+Recent observation is best-effort. History persistence/menu-refresh failure cannot
+turn a successful P3 image/folder operation or P4-B open/save into a failed canonical
+operation. Recent stores paths only and owns no Selected, Active, Primary, Current
+Comparison Page, source arrays, residency/LRU/protection, preload, Difference/cache,
+Display Gain, analysis state, workers/tokens/generation, or P4-A Picks.
+
+Recent uses separate `recent/images`, `recent/folders`, and `recent/comparison_sets`
+QSettings keys. These keys are intentionally outside ApplicationSettings schema v5
+and **Reset Settings** ownership; absolute-path retention has the same local-path
+privacy implications as other persisted local workflow paths.
 
 ## RAW input UI
 
@@ -255,17 +296,19 @@ P3-C is complete as PR #25 at
 
 ## Runtime/resource status
 
-P4-B preserves P2 exact native-source accounting and protected soft-budget LRU.
-Selected membership alone remains non-authoritative for large selections; Pick
-membership and Comparison Set metadata are also non-authoritative. Current
+P4-C preserves P2 exact native-source accounting and protected soft-budget LRU.
+Selected membership alone remains non-authoritative for large selections; Pick,
+Comparison Set metadata, and Recent history are also non-authoritative. Current
 Comparison Page plus correctness dependencies remain protected; off-page
 Selected/Picked sources may be evicted and reloaded. P2 preload remains +1 Folder
-Position only; there is no Comparison Page, Pick Set, or Comparison Set preload
-system.
+Position only; there is no Comparison Page, Pick Set, Comparison Set, or Recent-entry
+preload system.
 
 The deterministic large-set P4-B regressions check that Save causes no load or
 residency/protection acquisition and that Open keeps foreground load/protection
-bounded to the Active-derived Current Comparison Page.
+bounded to the Active-derived Current Comparison Page. P4-C integration regressions
+add typed wrong-kind protection and real P4-B partial/zero-loadable Recent-open
+coverage.
 
 Arbitrary-angle Line Profile is not scheduled in P4. A future design would require
 an explicit discrete sampling/pixel-path and coordinate-display contract suitable
@@ -275,9 +318,10 @@ for an observation tool; interpolation is not assumed.
 
 P4-A / PR #29 is merged at
 `3486146494076e9b513843b90ec44e504043729e`.
+P4-B / PR #30 is merged at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
 
-For P4-B / PR #30, the repository owner reports the focused Windows suite PASS with
-`36 passed`. Independent review reports no remaining runtime/schema/test blocker.
-The current merge-closure work is documentation-only and does not alter runtime or
-tests; applicable docs/diff validation and final review remain required, and no
-unobserved full-suite/tooling PASS is inferred.
+P4-C / PR #31 remains merge-pending. Independent review identified typed-path-kind,
+real P4-B/P4-C partial/zero integration, and durable-doc closure blockers; the code
+and regression changes for those findings are now present on the branch. Owner/local
+Windows validation must be rerun on the updated head; no PASS is inferred here.
