@@ -146,14 +146,10 @@ class Session:
 
     @property
     def sources(self) -> tuple[SessionSource, ...]:
-        """Legacy P4-B view of Selected members, retained for focused regressions."""
+        """Legacy P4-B view of Selected members in logical Selected order."""
 
-        selected = {path.casefold() for path in self.selected_paths}
-        return tuple(
-            source
-            for source in self.registered_sources
-            if source.path.casefold() in selected
-        )
+        by_path = {source.path.casefold(): source for source in self.registered_sources}
+        return tuple(by_path[path.casefold()] for path in self.selected_paths)
 
 
 ComparisonSetSource = SessionSource
