@@ -172,7 +172,7 @@ class RecentEntriesController:
 
     def open_recent(self, kind: RecentEntryKind, path: Path) -> None:
         if not self._entry_exists(kind, path):
-            self._remove_missing(kind, path)
+            self._handle_missing_entry(kind, path)
             return
         if kind is RecentEntryKind.IMAGE:
             self._open_image_paths([path])
@@ -230,23 +230,39 @@ class RecentEntriesController:
             return path.is_dir()
         return path.is_file()
 
-    def _remove_missing(self, kind: RecentEntryKind, path: Path) -> None:
+    def _handle_missing_entry(self, kind: RecentEntryKind, path: Path) -> None:
+        if not self._confirm_remove_missing(kind, path):
+            return
         try:
             self.repository.remove(kind, path)
             self.refresh_menu()
-        except Exception:  # noqa: BLE001 - stale-entry cleanup is also non-authoritative
+        except Exception:  # noqa: BLE001 - cleanup remains non-authoritative
             LOGGER.warning(
                 "Unable to remove unavailable Recent %s entry",
                 kind.value,
                 exc_info=True,
             )
-        QMessageBox.warning(
-            self.window,
-            "Recent entry unavailable",
-            f"The saved {kind.value.replace('_', ' ')} path is no longer available. "
-            "It was removed from Recent Entries when possible.\n\n"
-            f"{path}",
+
+    def _confirm_remove_missing(self, kind: RecentEntryKind, path: Path) -> bool:
+        item_type = "folder" if kind is RecentEntryKind.FOLDER else "file"
+        dialog = QMessageBox(self.window)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setWindowTitle("Recent entry unavailable")
+        dialog.setText(
+            f"The {item_type} cannot be found. Remove it from Recent Entries?"
         )
+        dialog.setInformativeText(str(path))
+        remove_button = dialog.addButton(
+            "Remove",
+            QMessageBox.ButtonRole.DestructiveRole,
+        )
+        keep_button = dialog.addButton(
+            "Keep",
+            QMessageBox.ButtonRole.RejectRole,
+        )
+        dialog.setDefaultButton(keep_button)
+        dialog.exec()
+        return dialog.clickedButton() is remove_button
 
     def _record_comparison_set(self, path: Path) -> None:
         self._observe_history(RecentEntryKind.COMPARISON_SET, [path])
