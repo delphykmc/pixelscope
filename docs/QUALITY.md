@@ -42,6 +42,7 @@ ownership assertions rather than an elapsed-time threshold.
 | File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, bit-depth, profile identity, and exact-size policy cases as applicable |
 | Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, schema migration/future-version behavior, reset scope, and restart behavior |
 | External artifact persistence | Schema/kind/version validation, deterministic identity, atomic save, corrupt/future/semantic-invalid rejection before workspace mutation, missing/zero-loadable behavior, round-trip ordering/state, privacy/portability implications, and explicit non-ownership of runtime resources |
+| Typed recent-entry history | Per-type MRU/bounds/restart persistence, canonical input delegation, meaningful-success promotion, missing Remove/Keep, existing-unusable/wrong-kind retention, observer-failure isolation, privacy/reset scope, and real cross-feature artifact behavior |
 | Performance/resource characterization | Representative FHD/UHD and dtype/channel/RAW cases; exact native bytes, cache/residency state, worker ownership, decode count, stale rejection, and output correctness as merge gates; wall-clock timings observational only |
 | Application identity/package resources | Focused SVG/PNG/ICO structure and decode tests, application-icon UI test, reproducible-generation check, wheel-content verification, unrelated-CWD launch, and Windows title-bar/Alt+Tab/running-taskbar/DPI visual checks |
 | Public workflow/terminology | Product/user documentation update and UI assertions |
@@ -95,6 +96,14 @@ Preserve deterministic fixtures and smoke paths for:
   metadata restore versus unresolved lazy RAW; large-set page-bounded foreground
   load/protection; and Save causing no `_ensure_loaded`, residency/protection/LRU,
   preload, Difference/cache, Display Gain, or analysis ownership change.
+- P4-C Recent Entries: typed Image/Folder/Comparison-Set MRU with ten-entry bounds,
+  normalized absolute paths, real QSettings restart/clear persistence, and
+  ApplicationSettings-v5/reset separation; production File/P4-B routing; meaningful
+  success promotion; missing Remove/Keep with no workspace/Pick mutation;
+  existing-invalid and other unusable retention; wrong-kind path retention without
+  cross-intent reinterpretation; empty-folder promotion; failed-save non-recording;
+  injected persistence/menu failure isolation; and real `.pixelscope` partial and
+  zero-loadable opens through the P4-B loader with correct MRU and workspace state.
 - Repeated Single View number-key navigation across an unchanged selected set must
   not restart an identical Statistics/Histogram request, flash **Preparing
   analysis...**, cancel/recreate the same in-flight numerical worker, or rerender
@@ -258,10 +267,51 @@ Run the focused P4-B suite before the full repository contract:
     tests\ui\test_p4b_comparison_set.py
 ```
 
-The repository owner reported `36 passed` for this focused command on the current
-runtime/test implementation. That report does not imply unobserved docs, Ruff,
-format, mypy, pip-check, `git diff --check`, or full-suite PASS after later docs-only
-commits.
+The repository owner reported `36 passed` for this focused P4-B command before PR
+#30 merged. That historical report does not imply unobserved P4-C, docs, Ruff,
+format, mypy, pip-check, `git diff --check`, or full-suite PASS.
+
+## P4-C deterministic Recent Entries contract
+
+P4-C acceptance is typed-path/delegation/persistence/ownership based rather than
+timing based. Focused coverage must establish:
+
+- independent Image/Folder/Comparison-Set MRU histories, ten-entry bounds,
+  normalized absolute-path identity, deterministic dedup/order, and real QSettings
+  restart persistence;
+- `recent/*` namespace separation from ApplicationSettings schema v5 and Reset
+  Settings, plus persistent Clear Recent Entries behavior;
+- production routing through P3 image/folder authorities and P4-B save/open rather
+  than ad-hoc workspace reconstruction;
+- best-effort observer isolation so Recent storage/menu/callback failure cannot
+  change canonical workflow success, Selected, residency/protection, or preload;
+- meaningful-success promotion: Image after successful direct open, Folder after
+  successful registration including empty folder, Comparison Set only for
+  `loaded > 0`, and save only after successful atomic save;
+- missing-path **Remove / Keep** with workspace/Pick preservation;
+- existing-but-unusable retention and typed wrong-kind retention without
+  cross-intent reinterpretation or MRU promotion;
+- existing invalid `.pixelscope` retention;
+- real P4-B partial-source Recent open with saved-order/Active/page/Primary/layout
+  behavior, canonical partial warning, P4-A invalidation, and MRU promotion;
+- real P4-B zero-loadable Recent open with workspace/Pick/MRU preservation and
+  canonical zero-loadable feedback; and
+- no ownership of source arrays, Current Comparison Page, residency/LRU/protection,
+  preload, Difference/cache, Display Gain, analysis, worker/token/generation state,
+  or temporary Picks.
+
+Run the focused P4-C/P4-B regression slice before the full repository contract:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_recent_entries.py `
+    tests\ui\test_p4c_recent_entries.py `
+    tests\ui\test_p4c_recent_entries_integration.py `
+    tests\unit\test_comparison_set.py `
+    tests\ui\test_p4b_comparison_set.py
+```
+
+No PASS is recorded for the current P4-C head until owner/local output is observed.
 
 ## P3-A deterministic Difference contract
 
