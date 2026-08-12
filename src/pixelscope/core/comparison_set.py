@@ -15,7 +15,6 @@ SESSION_DISPLAY_GAINS = frozenset({1.0, 2.0, 4.0, 8.0, 16.0})
 SESSION_DIFFERENCE_MODES = frozenset({"Absolute", "Mask"})
 SESSION_DIFFERENCE_REGIONS = frozenset({"Full image", "Active ROI"})
 
-# Backward-compatible constant names for the immediately preceding P4-B code/tests.
 COMPARISON_SET_KIND = SESSION_KIND
 COMPARISON_SET_SCHEMA_VERSION = SESSION_SCHEMA_VERSION
 COMPARISON_SET_LAYOUTS = SESSION_LAYOUTS
@@ -146,6 +145,22 @@ class Session:
         object.__setattr__(self, "primary_path", primary)
 
 
-# The P4-B implementation names remain import aliases while runtime/user terminology is Session.
 ComparisonSetSource = SessionSource
-ComparisonSet = Session
+
+
+def ComparisonSet(
+    *,
+    sources: tuple[SessionSource, ...],
+    active_path: str | None = None,
+    primary_path: str | None = None,
+    layout_mode: str = "Auto",
+) -> Session:
+    """Legacy P4-B constructor facade returning the new Session domain object."""
+
+    return Session(
+        registered_sources=sources,
+        selected_paths=tuple(source.path for source in sources),
+        active_path=active_path,
+        primary_path=primary_path,
+        layout_mode=layout_mode,
+    )
