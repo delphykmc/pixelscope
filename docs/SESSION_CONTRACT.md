@@ -86,7 +86,8 @@ Session open validates the artifact before mutating the workspace. For valid inp
 12. establish Current Comparison Page foreground loads plus at most two saved Difference correctness dependencies;
 13. wait until the Current Comparison Page foreground batch reaches a stable terminal state before restoring ROI/Line analysis intent;
 14. restore ROI and Line state against the settled ready Current Comparison Page sources;
-15. if a saved Difference recipe is applicable, wait until both recipe sources are ready, validate the saved channel/options against the reconstructed pair, then invoke the existing asynchronous Difference calculation path.
+15. if a saved Difference recipe is applicable, wait until both recipe sources are ready, validate the saved channel/options against the reconstructed pair, then invoke the existing asynchronous Difference calculation path;
+16. keep the Session restore busy transaction active until the final Difference presentation, layout, and Display Gain presentation state have settled.
 
 The loader must not synchronously decode all Registered sources. `Registered → Selected → Current Comparison Page → Presented → Resident when required` remains authoritative, and **Analysis Working Set = Current Comparison Page** remains unchanged.
 
@@ -120,6 +121,33 @@ Opening a large Session must not convert registration into eager decode.
 - incompatible saved Difference channel/options are not silently substituted; Difference restoration is skipped with compact feedback.
 
 Session loading therefore performs lightweight artifact/path/state reconstruction synchronously while heavy image decode, display-gain rendering, analysis, and Difference computation stay in the existing worker lifecycles.
+
+## Session restore busy transaction
+
+`Open Session` is one compound user command even though it delegates heavy work to several asynchronous runtime authorities. After artifact validation succeeds and restore begins, PixelScope therefore owns an **application-modal Session restore transaction** until the saved workspace reaches its final presentable state.
+
+The busy transaction:
+
+- blocks user interaction with PixelScope workspace controls while restore is in flight;
+- does **not** block the Qt event loop, wait synchronously for workers, or use a nested `exec()` loop;
+- keeps image-load, Difference, and Display Gain workers running normally;
+- reports the current phase rather than presenting intermediate reconstructed views as user-ready state;
+- uses determinate progress for the Current Comparison Page load count where the total is known;
+- uses an indeterminate progress state for operations such as Difference recalculation whose completion percentage is not meaningful;
+- remains active through final Difference presentation and Display Gain settling, not merely until source registration or source decode completes;
+- releases the input gate after the final presentation is ready, or after a bounded display-presentation settle timeout so a failed viewer-only preview cannot permanently lock the application.
+
+The user-facing phase sequence is conceptually:
+
+1. Registering sources;
+2. Loading selected images (`n / total`);
+3. Restoring ROI and Line Profile;
+4. loading saved Difference dependencies when required;
+5. Recalculating Difference when required;
+6. Applying display state;
+7. Session restored.
+
+Session restore v1 intentionally has no Cancel command. Correct Cancel semantics require a defined rollback of the pre-open Registered/Selected/presentation workspace, which is outside the P4-C contract. The modal input gate applies only to the compound Session Open workflow; ordinary user-initiated Difference calculations, Display Gain changes, preload, and normal analysis remain interactive under their existing contracts.
 
 ## Missing and unusable Session sources
 
@@ -197,7 +225,8 @@ P4-C Session closure requires coverage for:
 - off-page Difference pair bounded to at most two additional correctness dependencies;
 - incompatible saved Difference channel/options skip rather than substitute;
 - a real-worker integration path covering four Selected sources + Difference + ROI + Line + non-1× Display Gain reopening without a stuck loading presentation;
+- application-modal Session restore feedback present from restore start through final presentation, with no nested event loop and automatic release at completion;
 - partial and zero-loadable source behavior;
 - typed Recent MRU, missing Remove/Keep, wrong-kind protection, restart persistence, clear/privacy behavior, and observer failure isolation.
 
-Owner-reported Windows validation before the foreground-completion follow-up was green. The owner then reproduced a real Session reopen stall with four Selected sources plus Difference, ROI, Line, and 2× Display Gain. The foreground-completion/self-healing fix and its real-worker regression therefore require fresh owner validation before merge.
+Owner-reported Windows validation before the foreground-completion follow-up was green. The owner then reproduced a real Session reopen stall with four Selected sources plus Difference, ROI, Line, and 2× Display Gain. The timer-only deferred restore fix subsequently passed the owner's manual reproduction. The new application-modal restore-progress/input-gate follow-up requires fresh owner validation before merge.
