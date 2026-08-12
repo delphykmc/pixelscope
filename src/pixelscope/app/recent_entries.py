@@ -46,7 +46,7 @@ class RecentEntriesRepository:
         values: list[object]
         if isinstance(raw, str):
             values = [raw]
-        elif isinstance(raw, (list, tuple)):
+        elif isinstance(raw, list | tuple):
             values = list(raw)
         else:
             values = []
