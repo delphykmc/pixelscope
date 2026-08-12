@@ -50,7 +50,10 @@ def _workspace_snapshot(window: MainWindow) -> tuple[object, ...]:
     )
 
 
-def _prepare_existing_workspace(window: MainWindow, tmp_path: Path) -> tuple[ImageDocument, ImageDocument]:
+def _prepare_existing_workspace(
+    window: MainWindow,
+    tmp_path: Path,
+) -> tuple[ImageDocument, ImageDocument]:
     a = _ready_document(tmp_path / "existing-a.png", 1)
     b = _ready_document(tmp_path / "existing-b.png", 2)
     window.add_document(a, select=False)
