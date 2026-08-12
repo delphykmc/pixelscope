@@ -22,7 +22,6 @@ from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.session import install_session
-from pixelscope.ui.session_interaction_guard import install_session_interaction_guard
 
 LOGGER = logging.getLogger(__name__)
 WINDOWS_APP_USER_MODEL_ID = "PixelScope.PixelScope"
@@ -87,7 +86,6 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     gain_control = install_display_gain_control(window)
     install_review_selection(window)
     install_session(window)
-    install_session_interaction_guard(window)
     install_recent_entries(window)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
