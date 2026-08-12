@@ -50,13 +50,17 @@ def test_session_restores_roi_line_gain_and_difference_recipe_lazily(
     window._shared_roi = RoiBounds(1, 1, 2, 2)
     window._shared_line = LineSelection(0, 0, 3, 0)
     display_gain_state().set_gain(4.0)
-    window.difference_panel.set_documents([a, b], (a.document_id, b.document_id), window._shared_roi)
+    window.difference_panel.set_documents(
+        [a, b],
+        (a.document_id, b.document_id),
+        window._shared_roi,
+    )
     window.difference_panel.mode.setCurrentText("Mask")
     window.difference_panel.threshold.setValue(2.0)
     window.difference_panel.gain.setValue(3)
     window.difference_panel.region.setCurrentText("Active ROI")
     window._difference_source_ids = (a.document_id, b.document_id)
-    window._difference_document = object()  # recipe capture requires visible Difference intent only
+    window._difference_document = object()
     target = tmp_path / "workspace.pixelscope"
     window.session_controller.save_to_path(target)
 
@@ -82,7 +86,7 @@ def test_session_restores_roi_line_gain_and_difference_recipe_lazily(
 
     assert loaded == 3
     assert missing == ()
-    assert calls == []  # Difference work is deferred until the Qt event loop/source-ready path.
+    assert calls == []
     assert extra.document_id not in window.documents
     assert registered_only.document_id in window.documents
     qtbot.waitUntil(lambda: bool(calls))  # type: ignore[attr-defined]
