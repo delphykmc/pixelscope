@@ -15,7 +15,7 @@ from pixelscope.app.settings import (
     SettingsRepository,
 )
 from pixelscope.core.performance_settings import PerformanceSettings
-from pixelscope.ui.comparison_set import install_session
+from pixelscope.ui.comparison_set import install_comparison_set
 from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
@@ -85,7 +85,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
 
     gain_control = install_display_gain_control(window)
     install_review_selection(window)
-    install_session(window)
+    install_comparison_set(window)
     install_recent_entries(window)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
