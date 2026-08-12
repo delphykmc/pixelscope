@@ -47,6 +47,8 @@ from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.design_tokens import TOKENS, primary_button_style
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
+_ANALYSIS_MAX_THREADS = 2
+
 
 class DifferencePanel(QWidget):
     """Asynchronous Difference analysis with explicit family/domain semantics."""
@@ -64,6 +66,12 @@ class DifferencePanel(QWidget):
         self._active_roi: RoiBounds | None = None
         self._worker: TaskWorker | None = None
         self._worker_key: tuple[object, ...] | None = None
+        self._preview_worker: TaskWorker | None = None
+        self._preview_request_serial = 0
+        self._pool = QThreadPool.globalInstance()
+        self._pool.setMaxThreadCount(
+            min(_ANALYSIS_MAX_THREADS, max(1, self._pool.maxThreadCount()))
+        )
         self._map_cache = DifferenceMapCache(difference_cache_budget_bytes)
         self._metric_cache: dict[tuple[object, ...], DifferenceMetrics] = {}
         self._preview_key: tuple[object, ...] | None = None
@@ -265,6 +273,8 @@ class DifferencePanel(QWidget):
         self.a_selector.blockSignals(False)
         self.b_selector.blockSignals(False)
         self._update_channels()
+        if previous_key != self._cache_key():
+            self._cancel_preview_worker()
         if previous_key != self._cache_key() or previous_roi != active_roi:
             self.last_result = None
             self._clear_metrics()
@@ -301,6 +311,7 @@ class DifferencePanel(QWidget):
 
     def _pair_changed(self, _value: object = None) -> None:
         self._cancel_worker()
+        self._cancel_preview_worker()
         self.last_result = None
         self._clear_metrics()
         self._update_channels()
@@ -309,6 +320,7 @@ class DifferencePanel(QWidget):
 
     def _channel_changed(self, _value: object = None) -> None:
         self._cancel_worker()
+        self._cancel_preview_worker()
         self.last_result = None
         self._clear_metrics()
         self._update_metric_scope()
@@ -332,15 +344,17 @@ class DifferencePanel(QWidget):
 
     def _schedule_display_update(self, _value: object = None) -> None:
         if self.has_cached_map():
+            self._cancel_preview_worker()
             self.status.setText("Updating display…")
             self._display_timer.start()
 
     def _apply_display_update(self) -> None:
-        cached = self.cached_display_for_current()
-        if cached is None:
+        difference_map = self.cached_result_for_current()
+        if difference_map is None:
             return
-        self.status.setText("Ready")
-        self.preview_updated.emit(*cached)
+        self._configure_threshold_for_cached_map(difference_map)
+        selected = self._selected_absolute(difference_map, self.channel.currentText())
+        self._request_preview_render(difference_map, selected, publish_result=False)
 
     def _clear_metrics(self) -> None:
         for row in range(self.metrics.rowCount()):
@@ -466,6 +480,7 @@ class DifferencePanel(QWidget):
             return
         if compatibility.domain == self._threshold_domain:
             return
+        self._cancel_preview_worker()
         self._remember_threshold_state()
         self._configure_threshold_control(compatibility.domain)
         self._preview_key = None
@@ -549,24 +564,140 @@ class DifferencePanel(QWidget):
         selected = self._selected_absolute(difference_map, self.channel.currentText())
         return self._title(), selected, self._cached_preview(difference_map, selected)
 
-    def _cached_preview(
-        self,
-        difference_map: CachedDifferenceMap,
-        selected: NDArray[np.generic],
-    ) -> NDArray[np.uint8]:
-        threshold = self._threshold_value(difference_map.domain)
-        key = (
+    def _preview_cache_key(self, difference_map: CachedDifferenceMap) -> tuple[object, ...]:
+        return (
             self._cache_key(),
             difference_map.domain,
             self.channel.currentText(),
             self.mode.currentText(),
             self.gain.value(),
-            threshold,
+            self._threshold_value(difference_map.domain),
         )
+
+    def _cached_preview(
+        self,
+        difference_map: CachedDifferenceMap,
+        selected: NDArray[np.generic],
+    ) -> NDArray[np.uint8]:
+        key = self._preview_cache_key(difference_map)
         if key != self._preview_key or self._preview_value is None:
             self._preview_key = key
-            self._preview_value = self._preview(difference_map, selected)
+            self._preview_value = self._render_preview(
+                selected,
+                self.mode.currentText(),
+                float(self.gain.value()),
+                self._threshold_value(difference_map.domain),
+            )
         return self._preview_value
+
+    @staticmethod
+    def _render_preview(
+        selected: NDArray[np.generic],
+        mode: str,
+        gain: float,
+        threshold: float,
+    ) -> NDArray[np.uint8]:
+        if mode == "Mask":
+            return render_threshold_mask(selected, threshold)
+        return render_absolute_difference(selected, gain)
+
+    def _request_preview_render(
+        self,
+        difference_map: CachedDifferenceMap,
+        selected: NDArray[np.generic],
+        *,
+        publish_result: bool,
+    ) -> None:
+        key = self._preview_cache_key(difference_map)
+        if key == self._preview_key and self._preview_value is not None:
+            self.status.setText("Ready")
+            signal = self.result_ready if publish_result else self.preview_updated
+            signal.emit(self._title(), selected, self._preview_value)
+            return
+
+        mode = self.mode.currentText()
+        gain = float(self.gain.value())
+        threshold = self._threshold_value(difference_map.domain)
+        title = self._title()
+        self._cancel_preview_worker()
+        request_serial = self._preview_request_serial
+
+        worker = TaskWorker(
+            self._render_preview,
+            selected,
+            mode,
+            gain,
+            threshold,
+        )
+        worker.signals.succeeded.connect(
+            lambda task_id, _document_id, _generation, result: self._preview_succeeded(
+                task_id,
+                result,
+                request_serial=request_serial,
+                expected_key=key,
+                expected_map=difference_map,
+                title=title,
+                selected=selected,
+                publish_result=publish_result,
+            )
+        )
+        worker.signals.failed.connect(self._preview_failed)
+        worker.signals.finished.connect(self._preview_finished)
+        self._preview_worker = worker
+        self.status.setText("Rendering display…" if publish_result else "Updating display…")
+        self._pool.start(worker)
+
+    def _preview_succeeded(
+        self,
+        task_id: str,
+        result: object,
+        *,
+        request_serial: int,
+        expected_key: tuple[object, ...],
+        expected_map: CachedDifferenceMap,
+        title: str,
+        selected: NDArray[np.generic],
+        publish_result: bool,
+    ) -> None:
+        worker = self._preview_worker
+        if (
+            worker is None
+            or worker.task_id != task_id
+            or request_serial != self._preview_request_serial
+            or expected_key != self._preview_cache_key(expected_map)
+        ):
+            return
+        if not isinstance(result, np.ndarray) or result.dtype != np.uint8:
+            return
+        self._preview_key = expected_key
+        self._preview_value = result
+        self.status.setText("Ready")
+        signal = self.result_ready if publish_result else self.preview_updated
+        signal.emit(title, selected, result)
+
+    def _preview_failed(
+        self,
+        task_id: str,
+        _document_id: str | None,
+        _generation: int,
+        error: TaskError,
+    ) -> None:
+        worker = self._preview_worker
+        if worker is None or worker.task_id != task_id:
+            return
+        self.status.setText("Display update failed")
+        self.status.setToolTip(error.message)
+
+    def _preview_finished(self, task_id: str) -> None:
+        worker = self._preview_worker
+        if worker is not None and worker.task_id == task_id:
+            self._preview_worker = None
+
+    def _cancel_preview_worker(self) -> None:
+        self._preview_request_serial += 1
+        if self._preview_worker is not None:
+            self._preview_worker.cancel()
+            self._preview_worker = None
 
     @staticmethod
     def _selected_absolute(
@@ -676,7 +807,7 @@ class DifferencePanel(QWidget):
         worker.signals.finished.connect(self._on_finished)
         self._worker = worker
         self._worker_key = request_key
-        QThreadPool.globalInstance().start(worker)
+        self._pool.start(worker)
 
     def _on_result(
         self,
@@ -710,9 +841,7 @@ class DifferencePanel(QWidget):
             self.status.setText("Ready; map exceeds cache budget")
         if publish_result:
             selected = self._selected_absolute(difference_map, self.channel.currentText())
-            self.result_ready.emit(
-                self._title(), selected, self._cached_preview(difference_map, selected)
-            )
+            self._request_preview_render(difference_map, selected, publish_result=True)
 
     def _drop_dependent_cache_entries(
         self,
@@ -727,6 +856,7 @@ class DifferencePanel(QWidget):
             if len(metric_key) < 2 or (metric_key[0], metric_key[1]) not in evicted
         }
         if self._preview_key is not None and self._preview_key and self._preview_key[0] in evicted:
+            self._cancel_preview_worker()
             self._preview_key = None
             self._preview_value = None
 
@@ -755,18 +885,6 @@ class DifferencePanel(QWidget):
             f"{self.mode.currentText()} [{self.channel.currentText()}]: "
             f"{pair[0].display_name} vs {pair[1].display_name}"
         )
-
-    def _preview(
-        self,
-        difference_map: CachedDifferenceMap,
-        absolute: NDArray[np.generic],
-    ) -> NDArray[np.uint8]:
-        if self.mode.currentText() == "Mask":
-            return render_threshold_mask(
-                absolute,
-                self._threshold_value(difference_map.domain),
-            )
-        return render_absolute_difference(absolute, float(self.gain.value()))
 
     def _update_control_states(self) -> None:
         absolute = self.mode.currentText() == "Absolute"
@@ -797,4 +915,5 @@ class DifferencePanel(QWidget):
 
     def shutdown(self) -> None:
         self._display_timer.stop()
+        self._cancel_preview_worker()
         self._cancel_worker()
