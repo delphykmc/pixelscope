@@ -222,6 +222,55 @@ workers/tokens/generation, Split/Difference derived documents, transient zoom/pa
 ROI/Line state, or temporary Pick state. Settings schema remains version 5 because
 `.pixelscope` is an external artifact, not application-settings storage.
 
+### Recent Entries
+
+P4-C adds **File > Recent** as a bounded typed MRU of user entry paths. It is a
+shortcut history, not automatic comparison/workspace history and not an alternate
+session owner.
+
+- **Images** stores successful direct image-open paths and reuses the P3
+  selection-oriented path.
+- **Folders** stores successful folder-registration paths and reuses P3
+  registration-only semantics, including successful empty-folder registration.
+- **Comparison Sets** stores successfully saved/opened `.pixelscope` artifact paths
+  and delegates opening/saving to P4-B.
+- Each type retains at most ten normalized absolute paths.
+- **Clear Recent Entries** explicitly clears all three history lists.
+
+MRU promotion requires meaningful success rather than activation alone. Images
+promote after at least one direct image successfully opens. Folders promote after
+successful `register_folders()` entry even when no supported image currently exists
+inside. Comparison Sets promote only when P4-B returns `loaded > 0`; valid
+zero-loadable and invalid existing artifacts retain their previous position.
+Comparison Set save records only after its atomic save succeeds.
+
+Only a definitely absent Recent path is a stale candidate. Missing activation asks
+**Remove / Keep**; Remove deletes only the matching typed history item and Keep
+leaves it unchanged. Neither changes workspace state. Existing-but-unusable paths
+remain in history so the user can repair permissions/storage/content and retry.
+
+Typed history is not reinterpreted when filesystem kind changes. If an Image or
+Comparison Set path is now a directory, or a Folder path is now a regular file, the
+entry is retained, compact wrong-type feedback is shown, and the path is not routed
+through a different input intent or promoted to MRU.
+
+Missing source files *inside* a valid Comparison Set remain a P4-B concern. A
+partial `loaded > 0` open restores the available saved subset/order and P4-B
+Active-derived Current Comparison Page/applicable Primary/layout behavior, shows the
+canonical partial warning, and promotes the artifact. A valid zero-loadable artifact
+leaves workspace and P4-A curation unchanged and keeps its Recent position.
+
+Recent observation is best-effort. QSettings/menu/callback failures cannot turn an
+otherwise successful P3/P4-B workflow into a failed operation. Recent owns no
+Selected, Active, Primary, Current Comparison Page, decoded source, residency/LRU,
+preload, Difference/cache, Display Gain, analysis, worker/token/generation, derived
+presentation, or P4-A Pick state.
+
+Recent history uses `recent/images`, `recent/folders`, and
+`recent/comparison_sets` QSettings keys outside ApplicationSettings schema v5 and
+outside **Reset Settings** ownership. Absolute local path retention can disclose
+filesystem layout; **Clear Recent Entries** is the explicit history/privacy control.
+
 ### RAW input resolution
 
 Ordinary PNG/BMP/JPEG inputs register without RAW profile UI. Direct RAW file
@@ -304,7 +353,9 @@ source-residency ownership, or captured temporary curation state.
 `Edit > Settings...` uses **General / Files / Performance** category pages.
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
 persist the captured curation baseline/Pick Set. P4-B Comparison Sets are separate
-external artifacts and likewise do not change the Settings schema.
+external artifacts and likewise do not change the Settings schema. P4-C Recent
+history uses separate `recent/*` QSettings keys outside ApplicationSettings v5 and
+Reset Settings ownership.
 
 General owns persistent RAW JSON confirmation, exact RAW file-size validation,
 and native Difference Threshold/Gain defaults. Files owns optional default Open
@@ -317,18 +368,19 @@ ownership remain independent. Registration and off-page Selected/Picked membersh
 do not make source data resident.
 
 For large logical selections, **Selected alone is not a source-protection owner**.
-Pick membership is also not a protection owner. Current Comparison Page plus
-correctness dependencies such as foreground load, promoted foreground preload,
-explicit Difference dependencies, and non-reloadable sources are protected.
-Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
-budget and normally reload when their page is revisited. Comparison Set Save/Open
-does not introduce Selected-wide protection or persistence-owned residency.
+Pick membership and Recent history are also not protection owners. Current
+Comparison Page plus correctness dependencies such as foreground load, promoted
+foreground preload, explicit Difference dependencies, and non-reloadable sources
+are protected. Selected/Picked-but-off-page resident sources may therefore be
+evicted under the P2 budget and normally reload when their page is revisited.
+Comparison Set Save/Open and Recent history do not introduce Selected-wide
+protection or persistence-owned residency.
 
 **Preload Next Folder Position** remains exactly `+1`, one valid one-to-six
 Selected Folder Position deep, on a dedicated max-one worker; an exact matching
 physically RUNNING preload may transfer logical authority to foreground without
-duplicate decode. P4-A adds no Comparison Page or Pick Set preload system, and P4-B
-adds no Comparison Set preload system.
+duplicate decode. P4-A adds no Comparison Page or Pick Set preload system, P4-B
+adds no Comparison Set preload system, and P4-C adds no Recent-entry preload system.
 
 ## Difference contract
 
@@ -355,7 +407,8 @@ Difference owns its own independent presentation Gain. General Display Gain is
 not applied to Difference numerical sources, Difference preview generation, or
 Difference-cache identity. Pick/Unpick does not calculate Difference, change its
 explicit pair authority, or invalidate a generation-keyed Difference cache.
-Comparison Sets do not persist Difference pair/map/cache state.
+Comparison Sets and Recent history do not persist or own Difference pair/map/cache
+state.
 
 ## Display Gain contract
 
@@ -479,16 +532,16 @@ and Current Comparison Page contracts.
 P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
-P4-B Comparison Set Persistence is implemented on
-`feature/p4-b-comparison-set-persistence` / PR #30. The repository owner reports the
-focused Windows P4-B validation PASS (`36 passed`); independent review reports no
-remaining runtime/schema/test blocker. Durable-doc consistency and final
-review/validation closure remain before merge.
+P4-B Comparison Set Persistence merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+P4-C Comparison Set Entry UX & Recent Entries is implemented on
+`feature/p4-c-comparison-set-entry-recent` / PR #31 and remains merge-pending for
+owner/local validation and final independent review closure.
 
-Later planned P4 work begins with **Comparison Set Entry UX & Recent Entries**, then
-Saved ROI productivity, focused viewer overlay/export productivity, and integration
-hardening. P4-C must use the P4-B Comparison Set loader rather than reintroducing a
-broader full-session persistence model.
+Later planned P4 work begins with Saved ROI productivity, then focused viewer
+overlay/export productivity and integration hardening. P4-C deliberately does not
+broaden Recent into automatic workspace history, full-session persistence, or fuzzy
+relocation.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or
