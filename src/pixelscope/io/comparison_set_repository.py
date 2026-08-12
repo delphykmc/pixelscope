@@ -180,7 +180,7 @@ class ComparisonSetRepository:
             )
         except KeyError as exc:
             raise ComparisonSetError(f"invalid ROI: missing {exc.args[0]}") from exc
-        except ValueError as exc:
+        except ComparisonSetError as exc:
             raise ComparisonSetError(f"invalid ROI: {exc}") from exc
 
     @classmethod
@@ -198,7 +198,7 @@ class ComparisonSetRepository:
             )
         except KeyError as exc:
             raise ComparisonSetError(f"invalid line: missing {exc.args[0]}") from exc
-        except ValueError as exc:
+        except ComparisonSetError as exc:
             raise ComparisonSetError(f"invalid line: {exc}") from exc
 
     def _parse_difference(self, value: object) -> SessionDifference | None:
@@ -248,7 +248,7 @@ class ComparisonSetRepository:
     @staticmethod
     def _integer(value: object, field: str) -> int:
         if not isinstance(value, int) or isinstance(value, bool):
-            raise ValueError(f"{field} must be an integer")
+            raise ComparisonSetError(f"{field} must be an integer")
         return value
 
     @staticmethod
