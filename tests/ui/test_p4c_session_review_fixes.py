@@ -221,7 +221,7 @@ def test_zero_successful_registration_leaves_existing_workspace_and_picks_unchan
     loaded, missing = window.session_controller.open_from_path(target)
 
     assert loaded == 0
-    assert missing == ()
+    assert missing == (incoming.resolve(),)
     assert _workspace_snapshot(window) == before
     window.close()
 
