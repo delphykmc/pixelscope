@@ -190,9 +190,7 @@ def test_real_qsettings_history_survives_reconstruction_and_clear(
         images[2].resolve(),
     )
     assert reconstructed.load(RecentEntryKind.FOLDER) == (folder.resolve(),)
-    assert reconstructed.load(RecentEntryKind.COMPARISON_SET) == (
-        comparison_set.resolve(),
-    )
+    assert reconstructed.load(RecentEntryKind.COMPARISON_SET) == (comparison_set.resolve(),)
     assert reconstructed_settings.value("settings/schema_version") == 5
     assert reconstructed_settings.value("settings/files/default_open_directory") == str(
         tmp_path / "owned"

@@ -402,8 +402,7 @@ def test_comparison_page_navigation_preserves_primary_local_slot(
     focused = next(
         viewer
         for viewer in window.multi_compare_view.occupied_viewers
-        if viewer.document is not None
-        and viewer.document.document_id == window._focus_document_id
+        if viewer.document is not None and viewer.document.document_id == window._focus_document_id
     )
     assert focused._slot == 3
     window.close()

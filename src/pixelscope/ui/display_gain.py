@@ -152,10 +152,7 @@ def install_display_gain_control(window: Any) -> QComboBox:
         viewer.document_changed.connect(update_enabled)
 
     presentation_layout = getattr(window, "presentation_controls_layout", None)
-    if (
-        isinstance(presentation_host, QWidget)
-        and isinstance(presentation_layout, QHBoxLayout)
-    ):
+    if isinstance(presentation_host, QWidget) and isinstance(presentation_layout, QHBoxLayout):
         separator = QFrame(presentation_host)
         separator.setObjectName("displayGainSeparator")
         separator.setFrameShape(QFrame.Shape.VLine)

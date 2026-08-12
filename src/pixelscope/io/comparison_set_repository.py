@@ -79,8 +79,7 @@ class ComparisonSetRepository:
         if not isinstance(selected_value, list):
             raise ComparisonSetError("selected_paths must be an array")
         selected = tuple(
-            self._artifact_absolute_path(value, "selected path")
-            for value in selected_value
+            self._artifact_absolute_path(value, "selected path") for value in selected_value
         )
         active = self._optional_artifact_absolute_path(
             payload.get("active_path"),
@@ -244,8 +243,7 @@ class ComparisonSetRepository:
             "kind": session.kind,
             "schema_version": session.schema_version,
             "registered_sources": [
-                self._source_payload(source)
-                for source in session.registered_sources
+                self._source_payload(source) for source in session.registered_sources
             ],
             "selected_paths": list(session.selected_paths),
             "active_path": session.active_path,

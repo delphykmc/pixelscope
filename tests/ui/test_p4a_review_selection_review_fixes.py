@@ -97,12 +97,10 @@ def test_files_remove_request_clears_curation_before_stale_state_survives(
     assert controller.picked_count == 0
     assert documents[0].document_id not in window.documents
     assert all(
-        not viewer.header.pick.isChecked()
-        for viewer in window.multi_compare_view.occupied_viewers
+        not viewer.header.pick.isChecked() for viewer in window.multi_compare_view.occupied_viewers
     )
     assert all(
-        not bool(viewer.property("reviewPicked"))
-        for viewer in window.multi_compare_view.viewers
+        not bool(viewer.property("reviewPicked")) for viewer in window.multi_compare_view.viewers
     )
     window.close()
 

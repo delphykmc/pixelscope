@@ -101,9 +101,7 @@ class Session:
         if self.kind != SESSION_KIND:
             raise ComparisonSetError(f"unsupported session kind: {self.kind!r}")
         if self.schema_version != SESSION_SCHEMA_VERSION:
-            raise ComparisonSetError(
-                f"unsupported session schema version: {self.schema_version}"
-            )
+            raise ComparisonSetError(f"unsupported session schema version: {self.schema_version}")
         if not self.registered_sources:
             raise ComparisonSetError("session must contain at least one registered source")
         if self.layout_mode not in SESSION_LAYOUTS:
@@ -136,9 +134,7 @@ class Session:
                 self.difference.image_b_path,
             ):
                 if path.casefold() not in registered:
-                    raise ComparisonSetError(
-                        "Difference source is not registered in the session"
-                    )
+                    raise ComparisonSetError("Difference source is not registered in the session")
 
         object.__setattr__(self, "selected_paths", selected)
         object.__setattr__(self, "active_path", active)

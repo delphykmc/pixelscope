@@ -30,9 +30,7 @@ class RecentEntriesController:
         repository: RecentEntriesRepository | None = None,
     ) -> None:
         self.window = window
-        self.repository = repository or RecentEntriesRepository(
-            QSettingsAdapter(self._settings())
-        )
+        self.repository = repository or RecentEntriesRepository(QSettingsAdapter(self._settings()))
         session = getattr(window, "session_controller", None)
         if not isinstance(session, SessionController):
             raise RuntimeError("Recent Entries requires the Session controller")

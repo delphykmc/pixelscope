@@ -222,9 +222,7 @@ class ReviewSelectionController(QObject):
 
     def _files_remove_changing(self, document_ids: object) -> None:
         if isinstance(document_ids, list):
-            self._invalidate_for_removed_ids(
-                [str(document_id) for document_id in document_ids]
-            )
+            self._invalidate_for_removed_ids([str(document_id) for document_id in document_ids])
 
     def _files_remove_changed(self, _document_ids: object) -> None:
         if self.state.active and not self.state.matches_selected_ids(self._selected_ids()):
@@ -283,9 +281,7 @@ class ReviewSelectionController(QObject):
     def _sync_tile(self, viewer: ImageViewer) -> None:
         is_multi_viewer = viewer in self.window.multi_compare_view.viewers
         document_id = (
-            self._pickable_document_id(viewer.presented_document)
-            if is_multi_viewer
-            else None
+            self._pickable_document_id(viewer.presented_document) if is_multi_viewer else None
         )
         picked = document_id in self.state.picked_ids if document_id is not None else False
         viewer.setProperty("reviewPicked", picked)

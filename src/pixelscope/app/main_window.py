@@ -510,9 +510,7 @@ class MainWindow(QMainWindow):
         self.presentation_control_separator.setFrameShape(QFrame.Shape.VLine)
         self.presentation_control_separator.setFrameShadow(QFrame.Shadow.Plain)
         self.presentation_control_separator.setFixedHeight(TOKENS.control_height - 4)
-        self.presentation_control_separator.setStyleSheet(
-            f"QFrame {{ color: {TOKENS.border}; }}"
-        )
+        self.presentation_control_separator.setStyleSheet(f"QFrame {{ color: {TOKENS.border}; }}")
         self.presentation_controls_layout.addWidget(self.presentation_control_separator)
 
         self.comparison_page_group = QWidget(self.presentation_controls)
@@ -524,9 +522,7 @@ class MainWindow(QMainWindow):
         page_caption.setObjectName("comparisonPageCaption")
         self.previous_comparison_page_button = QPushButton("‹")
         self.previous_comparison_page_button.setObjectName("previousComparisonPage")
-        self.previous_comparison_page_button.setToolTip(
-            "Previous Comparison Page (Ctrl+Left)"
-        )
+        self.previous_comparison_page_button.setToolTip("Previous Comparison Page (Ctrl+Left)")
         self.previous_comparison_page_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.previous_comparison_page_button.clicked.connect(  # type: ignore[attr-defined]
             self.previous_comparison_page
@@ -544,16 +540,12 @@ class MainWindow(QMainWindow):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
         self.comparison_page_range_label.setFixedWidth(
-            self.comparison_page_range_label.fontMetrics().horizontalAdvance(
-                "99999–99999 of 99999"
-            )
+            self.comparison_page_range_label.fontMetrics().horizontalAdvance("99999–99999 of 99999")
             + 2 * TOKENS.spacing_sm
         )
         self.next_comparison_page_button = QPushButton("›")
         self.next_comparison_page_button.setObjectName("nextComparisonPage")
-        self.next_comparison_page_button.setToolTip(
-            "Next Comparison Page (Ctrl+Right)"
-        )
+        self.next_comparison_page_button.setToolTip("Next Comparison Page (Ctrl+Right)")
         self.next_comparison_page_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.next_comparison_page_button.clicked.connect(  # type: ignore[attr-defined]
             self.next_comparison_page
@@ -961,9 +953,7 @@ class MainWindow(QMainWindow):
         if not self.selected_documents:
             self._page_start = 0
             return
-        self._page_start = (
-            max(0, selected_index) // COMPARISON_PAGE_SIZE
-        ) * COMPARISON_PAGE_SIZE
+        self._page_start = (max(0, selected_index) // COMPARISON_PAGE_SIZE) * COMPARISON_PAGE_SIZE
 
     def _current_page_local_index(self) -> int:
         page = self.current_comparison_documents()
@@ -1005,10 +995,9 @@ class MainWindow(QMainWindow):
             return False
         pair_ids = (pair[0].document_id, pair[1].document_id)
         page_ids = {document.document_id for document in self.current_comparison_documents()}
-        return (
-            frozenset(pair_ids) == frozenset(self._difference_source_ids)
-            and set(pair_ids).issubset(page_ids)
-        )
+        return frozenset(pair_ids) == frozenset(self._difference_source_ids) and set(
+            pair_ids
+        ).issubset(page_ids)
 
     @property
     def current_document(self) -> ImageDocument | None:
@@ -1090,9 +1079,7 @@ class MainWindow(QMainWindow):
             if not inputs:
                 empty_folder_count += 1
                 continue
-            registered_ids.update(
-                self._register_inputs(inputs, resolve_raw_profiles=False)
-            )
+            registered_ids.update(self._register_inputs(inputs, resolve_raw_profiles=False))
         self._update_empty_workspace_state()
         return FolderRegistrationResult(
             folder_count=len(ordered_folders),
@@ -1106,9 +1093,7 @@ class MainWindow(QMainWindow):
             return "No folders registered"
         if result.image_count == 0:
             return f"No supported images found in {result.folder_count} folder(s)"
-        message = (
-            f"Registered {result.image_count} image(s) from {result.folder_count} folder(s)"
-        )
+        message = f"Registered {result.image_count} image(s) from {result.folder_count} folder(s)"
         if result.empty_folder_count:
             message += f" · {result.empty_folder_count} contained no supported images"
         return message
@@ -1130,7 +1115,8 @@ class MainWindow(QMainWindow):
                         image_input,
                         resolve_raw_profile=resolve_raw_profiles,
                     )
-                ) is not None
+                )
+                is not None
             )
         )
         self._update_empty_workspace_state()
@@ -1786,9 +1772,7 @@ class MainWindow(QMainWindow):
         protected = set(self._visible_document_ids)
         if self._active_document_id is not None:
             protected.add(self._active_document_id)
-        protected.update(
-            document.document_id for document in self.current_comparison_documents()
-        )
+        protected.update(document.document_id for document in self.current_comparison_documents())
         protected.update(self._load_worker_targets.values())
         protected.update(
             request.document_id
@@ -1869,9 +1853,7 @@ class MainWindow(QMainWindow):
             self._remember_folder_index(document_id)
         self._current_index = 0
         self._page_start = 0
-        page_ids = [
-            document.document_id for document in self.current_comparison_documents()
-        ]
+        page_ids = [document.document_id for document in self.current_comparison_documents()]
         self._promote_running_preloads(page_ids)
         self._invalidate_preload_plan()
         self._allow_raw_profile_retry(page_ids)
@@ -1904,11 +1886,7 @@ class MainWindow(QMainWindow):
             self._current_index = min(self._current_index, len(documents) - 1)
             self._page_start = self._normalized_comparison_page_start(documents)
             page = self.current_comparison_documents()
-            if not (
-                self._page_start
-                <= self._current_index
-                < self._page_start + len(page)
-            ):
+            if not (self._page_start <= self._current_index < self._page_start + len(page)):
                 self._current_index = self._page_start
         else:
             self._current_index = 0
@@ -2092,8 +2070,7 @@ class MainWindow(QMainWindow):
                 self._focus_document_id,
             )
             local_slot_by_id = {
-                document.document_id: index + 1
-                for index, document in enumerate(comparison_page)
+                document.document_id: index + 1 for index, document in enumerate(comparison_page)
             }
             self.multi_compare_view.set_documents(
                 visible,
@@ -2103,9 +2080,7 @@ class MainWindow(QMainWindow):
                 self._shared_line,
                 preserve_view,
                 local_slot_by_id,
-                fixed_geometry_count=(
-                    COMPARISON_PAGE_SIZE if large_selection else None
-                ),
+                fixed_geometry_count=(COMPARISON_PAGE_SIZE if large_selection else None),
                 local_slots=large_selection,
             )
             self.central_stack.setCurrentWidget(self.multi_compare_view)
@@ -2299,9 +2274,7 @@ class MainWindow(QMainWindow):
             self.layout_selector.blockSignals(True)
             self.layout_selector.setCurrentText(mode)
             self.layout_selector.blockSignals(False)
-        self._allow_raw_profile_retry(
-            [document.document_id for document in current_page]
-        )
+        self._allow_raw_profile_retry([document.document_id for document in current_page])
         if changed:
             self._reset_pixel_status()
         self._render_selection(preserve_view=not changed)
@@ -2820,9 +2793,7 @@ class MainWindow(QMainWindow):
         start = self._normalized_comparison_page_start(documents)
         local_index = self._current_page_local_index()
         new_start = start + step * COMPARISON_PAGE_SIZE
-        last_start = (
-            (len(documents) - 1) // COMPARISON_PAGE_SIZE
-        ) * COMPARISON_PAGE_SIZE
+        last_start = ((len(documents) - 1) // COMPARISON_PAGE_SIZE) * COMPARISON_PAGE_SIZE
         if new_start < 0:
             self.statusBar().showMessage("Already at the first Comparison Page", 2500)
             self._update_comparison_page_controls()
@@ -3035,9 +3006,7 @@ class MainWindow(QMainWindow):
             self._current_index = 0
             self._page_start = 0
 
-        page_ids = [
-            document.document_id for document in self.current_comparison_documents()
-        ]
+        page_ids = [document.document_id for document in self.current_comparison_documents()]
         self._promote_running_preloads(page_ids)
         self._invalidate_preload_plan()
         self._allow_raw_profile_retry(page_ids)

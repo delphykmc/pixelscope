@@ -1,0 +1,60 @@
+{
+  "kind": "pixelscope-session",
+  "schema_version": 1,
+  "registered_sources": [
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_01_color_gradient.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_02_edges_checker.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_03_frequency_patterns.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_04_radial_curves.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_05_textures.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_06_flat_shading.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_07_typography.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_08_geometry.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_09_pseudo_natural.jpg"
+    },
+    {
+      "path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_10_mixed_validation.jpg"
+    }
+  ],
+  "selected_paths": [
+    "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_01_color_gradient.jpg",
+    "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_02_edges_checker.jpg",
+    "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_03_frequency_patterns.jpg",
+    "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_04_radial_curves.jpg"
+  ],
+  "active_path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_01_color_gradient.jpg",
+  "primary_path": "C:\\Users\\MCKANG\\mycode\\pixelscope\\test_data\\manual\\fhd_chart_set\\base\\chart_01_color_gradient.jpg",
+  "layout_mode": "Multi View",
+  "display_gain": 1.0,
+  "split_channels": false,
+  "roi": {
+    "x": 401,
+    "y": 215,
+    "width": 521,
+    "height": 335
+  },
+  "line": {
+    "x1": 1309,
+    "y1": 185,
+    "x2": 1531,
+    "y2": 185
+  },
+  "difference": null
+}

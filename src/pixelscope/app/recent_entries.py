@@ -20,13 +20,17 @@ LEGACY_RECENT_COMPARISON_SETS_KEY: Final = "recent/comparison_sets"
 
 
 class RecentEntriesStorage(Protocol):
-    def value(self, key: str, default: object = None) -> object: ...
+    def value(self, key: str, default: object = None) -> object:
+        ...
 
-    def set_value(self, key: str, value: object) -> None: ...
+    def set_value(self, key: str, value: object) -> None:
+        ...
 
-    def remove(self, key: str) -> None: ...
+    def remove(self, key: str) -> None:
+        ...
 
-    def sync(self) -> None: ...
+    def sync(self) -> None:
+        ...
 
 
 class RecentEntriesRepository:
@@ -93,9 +97,7 @@ class RecentEntriesRepository:
     def remove(self, kind: RecentEntryKind, path: str | Path) -> tuple[Path, ...]:
         target = recent_path_identity(path)
         remaining = tuple(
-            candidate
-            for candidate in self.load(kind)
-            if recent_path_identity(candidate) != target
+            candidate for candidate in self.load(kind) if recent_path_identity(candidate) != target
         )
         self._write(kind, remaining)
         return remaining

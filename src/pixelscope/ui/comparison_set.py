@@ -83,9 +83,7 @@ class SessionController:
         top_level_actions = menu_bar.actions()
         stale_index = top_level_actions.index(stale_action)
         insert_before = (
-            top_level_actions[stale_index + 1]
-            if stale_index + 1 < len(top_level_actions)
-            else None
+            top_level_actions[stale_index + 1] if stale_index + 1 < len(top_level_actions) else None
         )
 
         replacement = QMenu("&File", menu_bar)
