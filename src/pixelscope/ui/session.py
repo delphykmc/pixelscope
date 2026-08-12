@@ -18,22 +18,7 @@ class SessionController(_BaseSessionController):
 
     def open_from_path(self, path: str | Path) -> tuple[int, tuple[Path, ...]]:
         session = self.repository.load(path)
-        original_ensure_loaded = self.window._ensure_loaded
-        ensured_ids: set[str] = set()
-
-        def ensure_loaded_once(document: Any) -> None:
-            document_id = str(document.document_id)
-            if document_id in ensured_ids:
-                return
-            ensured_ids.add(document_id)
-            original_ensure_loaded(document)
-
-        self.window._ensure_loaded = ensure_loaded_once
-        try:
-            loaded, missing = self._restore_session(session)
-        finally:
-            self.window._ensure_loaded = original_ensure_loaded
-
+        loaded, missing = self._restore_session(session)
         if loaded > 0:
             self._restore_saved_active(session)
         return loaded, missing
@@ -189,7 +174,34 @@ class SessionController(_BaseSessionController):
             if document is not None:
                 self.window._ensure_loaded(document)
 
+    def _foreground_page_settled(self) -> bool:
+        """Keep Session foreground loads live until the Current Page reaches a terminal state."""
+
+        settled = True
+        suppressed = self.window._raw_profile_prompt_suppressed
+        for document in self.window.current_comparison_documents():
+            if document.source is not None or document.loading_state == "error":
+                continue
+            if document.document_id in suppressed:
+                continue
+            if document.loading_state == "pending":
+                # Native _ensure_loaded() is already state-idempotent. Reissuing only
+                # pending work lets Session recover if a render/navigation transition
+                # cancelled a foreground worker during restore.
+                self.window._ensure_loaded(document)
+            if document.source is None and document.loading_state != "error":
+                settled = False
+        return settled
+
     def _try_restore_deferred_state(self, *_args: object) -> None:
+        # Do not start analysis/presentation restoration while the foreground page is
+        # still transitioning through pending/loading states. This avoids overlapping
+        # ROI/Line/Difference work with the source-load batch and provides a self-healing
+        # restart for any source returned to pending by cancellation/token invalidation.
+        if not self._foreground_page_settled():
+            QTimer.singleShot(50, self._try_restore_deferred_state)
+            return
+
         if self._pending_roi is not None or self._pending_line is not None:
             ready = [
                 document
@@ -231,6 +243,9 @@ class SessionController(_BaseSessionController):
                     "A saved Difference RAW source was not resolved."
                 )
                 return
+            for document in (a, b):
+                if document.source is None and document.loading_state == "pending":
+                    self.window._ensure_loaded(document)
             QTimer.singleShot(50, self._try_restore_deferred_state)
             return
 
