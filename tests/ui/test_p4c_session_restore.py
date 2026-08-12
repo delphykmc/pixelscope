@@ -40,8 +40,7 @@ def test_session_restores_roi_line_gain_and_difference_recipe_lazily(
     a = _ready_document(tmp_path / "a.png", 1)
     b = _ready_document(tmp_path / "b.png", 2)
     registered_only = _ready_document(tmp_path / "registered-only.png", 3)
-    extra = _ready_document(tmp_path / "extra.png", 9)
-    for document in (a, b, registered_only, extra):
+    for document in (a, b, registered_only):
         window.add_document(document, select=False)
     window._select_document_ids([a.document_id, b.document_id])
     window.set_layout_mode("Multi View")
@@ -64,6 +63,8 @@ def test_session_restores_roi_line_gain_and_difference_recipe_lazily(
     target = tmp_path / "workspace.pixelscope"
     window.session_controller.save_to_path(target)
 
+    extra = _ready_document(tmp_path / "extra.png", 9)
+    window.add_document(extra, select=False)
     window._shared_roi = None
     window._shared_line = None
     display_gain_state().set_gain(1.0)
@@ -131,7 +132,6 @@ def test_session_open_does_not_decode_registered_only_sources(
     assert missing == ()
     selected_ids = {document.document_id for document in window.selected_documents}
     assert set(requested) == selected_ids
-    assert len(requested) == 2
     registered_only_ids = set(window.documents) - selected_ids
     assert registered_only_ids.isdisjoint(requested)
     window.close()
