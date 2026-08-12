@@ -71,16 +71,24 @@ class ComparisonSetRepository:
         if version != SESSION_SCHEMA_VERSION:
             raise ComparisonSetError(f"unsupported session schema version: {version!r}")
 
-        registered = self._parse_sources(payload.get("registered_sources"), "registered_sources")
+        registered = self._parse_sources(
+            payload.get("registered_sources"),
+            "registered_sources",
+        )
         selected_value = payload.get("selected_paths", [])
         if not isinstance(selected_value, list):
             raise ComparisonSetError("selected_paths must be an array")
         selected = tuple(
-            self._artifact_absolute_path(value, "selected path") for value in selected_value
+            self._artifact_absolute_path(value, "selected path")
+            for value in selected_value
         )
-        active = self._optional_artifact_absolute_path(payload.get("active_path"), "active_path")
+        active = self._optional_artifact_absolute_path(
+            payload.get("active_path"),
+            "active_path",
+        )
         primary = self._optional_artifact_absolute_path(
-            payload.get("primary_path"), "primary_path"
+            payload.get("primary_path"),
+            "primary_path",
         )
         layout = payload.get("layout_mode", "Auto")
         if not isinstance(layout, str):
@@ -112,9 +120,13 @@ class ComparisonSetRepository:
         """Read P4-B draft artifacts as Sessions without preserving the old UI concept."""
 
         sources = self._parse_sources(payload.get("sources"), "sources")
-        active = self._optional_artifact_absolute_path(payload.get("active_path"), "active_path")
+        active = self._optional_artifact_absolute_path(
+            payload.get("active_path"),
+            "active_path",
+        )
         primary = self._optional_artifact_absolute_path(
-            payload.get("primary_path"), "primary_path"
+            payload.get("primary_path"),
+            "primary_path",
         )
         layout = payload.get("layout_mode", "Auto")
         if not isinstance(layout, str):
@@ -134,7 +146,10 @@ class ComparisonSetRepository:
         for entry in value:
             if not isinstance(entry, dict):
                 raise ComparisonSetError(f"each {field} entry must be an object")
-            source_path = self._artifact_absolute_path(entry.get("path"), "source path")
+            source_path = self._artifact_absolute_path(
+                entry.get("path"),
+                "source path",
+            )
             raw_payload = entry.get("raw_profile")
             raw_profile: dict[str, Any] | None = None
             if raw_payload is not None:
@@ -187,10 +202,12 @@ class ComparisonSetRepository:
         try:
             return SessionDifference(
                 image_a_path=self._artifact_absolute_path(
-                    value.get("image_a_path"), "difference image_a_path"
+                    value.get("image_a_path"),
+                    "difference image_a_path",
                 ),
                 image_b_path=self._artifact_absolute_path(
-                    value.get("image_b_path"), "difference image_b_path"
+                    value.get("image_b_path"),
+                    "difference image_b_path",
                 ),
                 channel=str(value.get("channel", "All")),
                 mode=str(value.get("mode", "Absolute")),
@@ -226,7 +243,10 @@ class ComparisonSetRepository:
         payload: dict[str, object] = {
             "kind": session.kind,
             "schema_version": session.schema_version,
-            "registered_sources": [self._source_payload(source) for source in session.registered_sources],
+            "registered_sources": [
+                self._source_payload(source)
+                for source in session.registered_sources
+            ],
             "selected_paths": list(session.selected_paths),
             "active_path": session.active_path,
             "primary_path": session.primary_path,
@@ -250,17 +270,29 @@ class ComparisonSetRepository:
     def _roi_payload(roi: RoiBounds | None) -> dict[str, int] | None:
         if roi is None:
             return None
-        return {"x": roi.x, "y": roi.y, "width": roi.width, "height": roi.height}
+        return {
+            "x": roi.x,
+            "y": roi.y,
+            "width": roi.width,
+            "height": roi.height,
+        }
 
     @staticmethod
     def _line_payload(line: LineSelection | None) -> dict[str, int] | None:
         if line is None:
             return None
         assert line.y2 is not None
-        return {"x1": line.x1, "y1": line.y1, "x2": line.x2, "y2": line.y2}
+        return {
+            "x1": line.x1,
+            "y1": line.y1,
+            "x2": line.x2,
+            "y2": line.y2,
+        }
 
     @staticmethod
-    def _difference_payload(difference: SessionDifference | None) -> dict[str, object] | None:
+    def _difference_payload(
+        difference: SessionDifference | None,
+    ) -> dict[str, object] | None:
         if difference is None:
             return None
         return {
