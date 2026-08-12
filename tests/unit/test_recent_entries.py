@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
@@ -60,6 +61,32 @@ def test_repository_keeps_kinds_independent_and_mru_order(tmp_path: Path) -> Non
     )
     assert repository.load(RecentEntryKind.FOLDER) == (folder.resolve(),)
     assert repository.load(RecentEntryKind.COMPARISON_SET) == (comparison_set.resolve(),)
+
+
+def test_repository_persists_backend_independent_json_strings(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    paths = [tmp_path / "a.png", tmp_path / "b.png"]
+
+    repository.record(RecentEntryKind.IMAGE, paths)
+
+    raw = storage.values["recent/images"]
+    assert isinstance(raw, str)
+    assert json.loads(raw) == [str(path.resolve()) for path in paths]
+    assert repository.load(RecentEntryKind.IMAGE) == tuple(path.resolve() for path in paths)
+
+
+def test_repository_reads_pre_json_draft_values(tmp_path: Path) -> None:
+    storage = _Storage()
+    repository = RecentEntriesRepository(storage)
+    first = (tmp_path / "first.png").resolve()
+    second = (tmp_path / "second.png").resolve()
+
+    storage.values["recent/images"] = [str(first), str(second)]
+    storage.values["recent/folders"] = str((tmp_path / "folder").resolve())
+
+    assert repository.load(RecentEntryKind.IMAGE) == (first, second)
+    assert repository.load(RecentEntryKind.FOLDER) == ((tmp_path / "folder").resolve(),)
 
 
 def test_repository_ignores_invalid_persisted_values_without_touching_storage(
