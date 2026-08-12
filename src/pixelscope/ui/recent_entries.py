@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+import stat
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QAction
@@ -171,8 +172,12 @@ class RecentEntriesController:
         return f"{leaf} — {parent}" if parent and parent != leaf else leaf
 
     def open_recent(self, kind: RecentEntryKind, path: Path) -> None:
-        if not self._path_exists_for_recent(path):
+        path_state = self._recent_path_state(kind, path)
+        if path_state == "missing":
             self._handle_missing_entry(kind, path)
+            return
+        if path_state == "wrong_type":
+            self._show_wrong_type(kind, path)
             return
         if kind is RecentEntryKind.IMAGE:
             self._open_image_paths([path])
@@ -226,14 +231,24 @@ class RecentEntriesController:
         self.comparison_set_controller.show_open_feedback(path, loaded, missing)
 
     @staticmethod
-    def _path_exists_for_recent(path: Path) -> bool:
+    def _recent_path_state(kind: RecentEntryKind, path: Path) -> str:
         try:
-            path.stat()
+            path_stat = path.stat()
         except FileNotFoundError:
-            return False
+            return "missing"
         except OSError:
-            return True
-        return True
+            return "unknown"
+        if kind is RecentEntryKind.FOLDER:
+            return "usable" if stat.S_ISDIR(path_stat.st_mode) else "wrong_type"
+        return "usable" if stat.S_ISREG(path_stat.st_mode) else "wrong_type"
+
+    def _show_wrong_type(self, kind: RecentEntryKind, path: Path) -> None:
+        expected = "folder" if kind is RecentEntryKind.FOLDER else "file"
+        QMessageBox.warning(
+            self.window,
+            "Recent entry unavailable",
+            f"This Recent entry is no longer a {expected}. The history entry was kept.\n\n{path}",
+        )
 
     def _handle_missing_entry(self, kind: RecentEntryKind, path: Path) -> None:
         if not self._confirm_remove_missing(kind, path):
