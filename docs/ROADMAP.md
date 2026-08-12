@@ -205,6 +205,8 @@ P4-0 merged as PR #28 at
 `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
+P4-B Comparison Set Persistence merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
 
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -274,7 +276,7 @@ selection/first-Active state, derived-presentation identity rejection, external
 Selected mutation invalidation, and 50-image bounded load/protection/preload
 regression.
 
-### P4-B — Comparison Set Persistence — implemented, merge pending
+### P4-B — Comparison Set Persistence — Complete
 
 P4-B introduces an explicit external **Comparison Set** artifact rather than full
 application-session persistence.
@@ -306,15 +308,48 @@ Display Gain, analysis state, workers/tokens/generation, derived Split/Differenc
 documents, transient view state, ROI/Line state, or temporary Picks. Settings schema
 remains v5.
 
-The repository owner reports the focused P4-B Windows suite PASS (`36 passed`). PR
-#30 remains merge-pending until durable-doc consistency and final review/validation
-closure.
+### P4-C — Comparison Set Entry UX & Recent Entries — implemented, merge pending
 
-### P4-C — Comparison Set Entry UX & Recent Entries
+P4-C adds a bounded typed MRU of user entry paths under **File > Recent**:
 
-Define bounded recent-entry behavior around persisted Comparison Set artifacts,
-including missing-path handling and privacy/path-retention semantics. Do not reframe
-P4-C as a full persistent-session manager.
+- Images: successful direct image-open paths, reusing P3 selection-oriented input;
+- Folders: successful folder-registration paths, reusing P3 registration-only input;
+- Comparison Sets: successfully saved/opened `.pixelscope` artifact paths, delegating
+  to P4-B save/open;
+- each type retains at most ten normalized absolute paths;
+- **Clear Recent Entries** explicitly clears all three history namespaces.
+
+Recent is path-only workflow metadata, not automatic workspace/session history. It
+owns no Selected, Active, Primary, Current Comparison Page, native source arrays,
+residency/LRU/protection, preload, Difference/cache, Display Gain, analysis state,
+worker/request tokens, or P4-A Picks.
+
+Missing paths ask **Remove / Keep**. Remove deletes only the matching typed history
+entry; Keep changes nothing. Existing-but-unusable resources remain in history. A
+present path whose filesystem kind no longer matches its typed entry is retained and
+reported without being reinterpreted through another P3 input intent or promoted to
+MRU.
+
+Comparison Set source availability remains P4-B-owned: partial `loaded > 0` opens
+the loadable saved subset in saved order, preserves P4-B Active/page/Primary/layout
+semantics, shows the canonical partial warning, and promotes the artifact to MRU.
+A valid zero-loadable artifact leaves the workspace and curation state unchanged and
+retains its prior MRU position. Invalid existing artifacts likewise stay in history.
+Successful atomic save records only after P4-B save succeeds.
+
+Recent persistence/menu refresh is best-effort and cannot turn an otherwise
+successful P3/P4-B operation into failure. History uses separate `recent/images`,
+`recent/folders`, and `recent/comparison_sets` QSettings keys outside
+ApplicationSettings schema v5 and **Reset Settings** ownership. Absolute-path
+retention has explicit local-path privacy implications.
+
+Focused coverage includes real QSettings restart/clear persistence, observer failure
+isolation, production File action/P4-B dialog routing, typed wrong-kind protection,
+Remove/Keep missing behavior, existing-invalid retention, empty-folder MRU, failed
+save non-recording, and real P4-B partial/zero-loadable Recent-open integration.
+
+P4-C remains merge-pending until owner/local validation, final independent review,
+and durable-doc/PR closure complete.
 
 ### P4-D — Saved ROI & Analysis Workspace Productivity
 
