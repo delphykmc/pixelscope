@@ -173,6 +173,27 @@ def test_recent_image_open_reuses_direct_image_selection_path(
     window.close()
 
 
+def test_existing_but_unusable_recent_image_stays_in_history_and_position(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    first = tmp_path / "first.png"
+    target = tmp_path / "target.png"
+    first.write_bytes(b"first")
+    target.write_bytes(b"target")
+    controller.repository.record(RecentEntryKind.IMAGE, [target, first])
+    before = controller.repository.load(RecentEntryKind.IMAGE)
+    controller._register_inputs_original = lambda inputs, resolve_raw_profiles: []
+
+    controller.open_recent(RecentEntryKind.IMAGE, target)
+
+    assert controller.repository.load(RecentEntryKind.IMAGE) == before
+    assert window.statusBar().currentMessage() == "No supported images opened"
+    window.close()
+
+
 def test_folder_registration_records_history_but_preserves_current_selection(
     qtbot: object,
     tmp_path: Path,
@@ -227,6 +248,28 @@ def test_folder_registration_survives_recent_storage_failure_and_stays_registrat
     window.close()
 
 
+def test_existing_empty_recent_folder_moves_to_mru_after_successful_registration(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    other = tmp_path / "other"
+    target = tmp_path / "empty"
+    other.mkdir()
+    target.mkdir()
+    controller.repository.record(RecentEntryKind.FOLDER, [target, other])
+    assert controller.repository.load(RecentEntryKind.FOLDER)[0] == target.resolve()
+    controller.repository.record(RecentEntryKind.FOLDER, [other])
+    assert controller.repository.load(RecentEntryKind.FOLDER)[0] == other.resolve()
+
+    controller.open_recent(RecentEntryKind.FOLDER, target)
+
+    assert controller.repository.load(RecentEntryKind.FOLDER)[0] == target.resolve()
+    assert window.statusBar().currentMessage() == "Recent folder contains no supported images"
+    window.close()
+
+
 def test_recent_comparison_set_delegates_to_p4b_loader_and_moves_to_mru(
     qtbot: object,
     tmp_path: Path,
@@ -259,6 +302,79 @@ def test_recent_comparison_set_delegates_to_p4b_loader_and_moves_to_mru(
     window.close()
 
 
+def test_recent_comparison_set_partial_open_moves_to_mru_and_preserves_feedback(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    target = tmp_path / "partial.pixelscope"
+    other = tmp_path / "other.pixelscope"
+    missing = tmp_path / "missing.png"
+    target.write_text("{}", encoding="utf-8")
+    other.write_text("{}", encoding="utf-8")
+    controller.repository.record(RecentEntryKind.COMPARISON_SET, [target, other])
+    controller.repository.record(RecentEntryKind.COMPARISON_SET, [other])
+    feedback: list[tuple[Path, int, tuple[Path, ...]]] = []
+    monkeypatch.setattr(
+        window.comparison_set_controller,
+        "open_from_path",
+        lambda path: (2, (missing,)),
+    )
+    monkeypatch.setattr(
+        window.comparison_set_controller,
+        "show_open_feedback",
+        lambda path, loaded, unavailable: feedback.append(
+            (Path(path), loaded, unavailable)
+        ),
+    )
+
+    controller.open_recent(RecentEntryKind.COMPARISON_SET, target)
+
+    assert controller.repository.load(RecentEntryKind.COMPARISON_SET)[0] == target.resolve()
+    assert feedback == [(target, 2, (missing,))]
+    window.close()
+
+
+def test_recent_comparison_set_zero_loadable_keeps_position_and_workspace(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    selected = _ready_document(tmp_path / "selected.png")
+    _register(window, selected)
+    window._select_document_ids([selected.document_id])
+    target = tmp_path / "zero.pixelscope"
+    other = tmp_path / "other.pixelscope"
+    target.write_text("{}", encoding="utf-8")
+    other.write_text("{}", encoding="utf-8")
+    controller.repository.record(RecentEntryKind.COMPARISON_SET, [target, other])
+    controller.repository.record(RecentEntryKind.COMPARISON_SET, [other])
+    before_history = controller.repository.load(RecentEntryKind.COMPARISON_SET)
+    before_selected = tuple(item.document_id for item in window.selected_documents)
+    feedback: list[object] = []
+    monkeypatch.setattr(
+        window.comparison_set_controller,
+        "open_from_path",
+        lambda path: (0, (tmp_path / "missing.png",)),
+    )
+    monkeypatch.setattr(
+        window.comparison_set_controller,
+        "show_open_feedback",
+        lambda *args: feedback.append(args),
+    )
+
+    controller.open_recent(RecentEntryKind.COMPARISON_SET, target)
+
+    assert controller.repository.load(RecentEntryKind.COMPARISON_SET) == before_history
+    assert tuple(item.document_id for item in window.selected_documents) == before_selected
+    assert feedback == []
+    window.close()
+
+
 def test_comparison_set_save_dialog_records_history_through_canonical_callback(
     qtbot: object,
     tmp_path: Path,
@@ -283,6 +399,36 @@ def test_comparison_set_save_dialog_records_history_through_canonical_callback(
         target.resolve(),
     )
     assert window.statusBar().currentMessage() == "Saved Comparison Set · saved.pixelscope"
+    window.close()
+
+
+def test_failed_comparison_set_save_does_not_create_recent_entry(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    document = _ready_document(tmp_path / "source.png")
+    _register(window, document)
+    window._select_document_ids([document.document_id])
+    target = tmp_path / "failed.pixelscope"
+    monkeypatch.setattr(
+        QFileDialog,
+        "getSaveFileName",
+        lambda *args, **kwargs: (str(target), ""),
+    )
+    monkeypatch.setattr(
+        window.comparison_set_controller.repository,
+        "save",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk full")),
+    )
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: None)
+
+    window.comparison_set_controller.save_dialog()
+
+    assert not target.exists()
+    assert controller.repository.load(RecentEntryKind.COMPARISON_SET) == ()
     window.close()
 
 
@@ -351,7 +497,7 @@ def test_comparison_set_open_dialog_survives_recent_callback_failure(
         (RecentEntryKind.COMPARISON_SET, ".pixelscope"),
     ],
 )
-def test_missing_recent_entry_removes_only_history_and_preserves_workspace(
+def test_missing_recent_entry_remove_choice_deletes_only_history_and_preserves_workspace(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -369,29 +515,66 @@ def test_missing_recent_entry_removes_only_history_and_preserves_workspace(
     missing = tmp_path / (
         "missing-folder" if kind is RecentEntryKind.FOLDER else f"missing{suffix}"
     )
-    controller.repository.record(kind, [missing])
-    controller.refresh_menu()
+    other = tmp_path / (
+        "other-folder" if kind is RecentEntryKind.FOLDER else f"other{suffix}"
+    )
+    controller.repository.record(kind, [missing, other])
     before_registered = tuple(window.documents)
     before_selected = tuple(document.document_id for document in window.selected_documents)
     before_active = window._active_document_id
     before_primary = window._focus_document_id
-    warnings: list[str] = []
-    monkeypatch.setattr(
-        QMessageBox,
-        "warning",
-        lambda *args: warnings.append(str(args[2])),
-    )
+    monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: True)
 
     controller.open_recent(kind, missing)
 
-    assert controller.repository.load(kind) == ()
+    assert controller.repository.load(kind) == (other.resolve(),)
     assert tuple(window.documents) == before_registered
     assert tuple(document.document_id for document in window.selected_documents) == before_selected
     assert window._active_document_id == before_active
     assert window._focus_document_id == before_primary
     assert review.active
     assert review.picked_ids == {selected.document_id}
-    assert len(warnings) == 1
+    window.close()
+
+
+@pytest.mark.parametrize(
+    "kind,suffix",
+    [
+        (RecentEntryKind.IMAGE, ".png"),
+        (RecentEntryKind.FOLDER, ""),
+        (RecentEntryKind.COMPARISON_SET, ".pixelscope"),
+    ],
+)
+def test_missing_recent_entry_keep_choice_preserves_history_and_workspace(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: RecentEntryKind,
+    suffix: str,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    selected = _ready_document(tmp_path / "selected.png")
+    _register(window, selected)
+    window._select_document_ids([selected.document_id])
+    missing = tmp_path / (
+        "missing-folder" if kind is RecentEntryKind.FOLDER else f"missing{suffix}"
+    )
+    controller.repository.record(kind, [missing])
+    before_history = controller.repository.load(kind)
+    before_registered = tuple(window.documents)
+    before_selected = tuple(document.document_id for document in window.selected_documents)
+    before_active = window._active_document_id
+    before_primary = window._focus_document_id
+    monkeypatch.setattr(controller, "_confirm_remove_missing", lambda *args: False)
+
+    controller.open_recent(kind, missing)
+
+    assert controller.repository.load(kind) == before_history
+    assert tuple(window.documents) == before_registered
+    assert tuple(document.document_id for document in window.selected_documents) == before_selected
+    assert window._active_document_id == before_active
+    assert window._focus_document_id == before_primary
     window.close()
 
 
