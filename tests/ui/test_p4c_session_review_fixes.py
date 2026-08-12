@@ -18,8 +18,6 @@ from pixelscope.core.comparison_set import (
     SessionSource,
 )
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.line_profile import LineSelection
-from pixelscope.core.roi import RoiBounds
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 
 
