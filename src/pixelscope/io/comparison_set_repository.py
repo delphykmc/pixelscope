@@ -180,7 +180,7 @@ class ComparisonSetRepository:
             )
         except KeyError as exc:
             raise ComparisonSetError(f"invalid ROI: missing {exc.args[0]}") from exc
-        except ComparisonSetError as exc:
+        except ValueError as exc:
             raise ComparisonSetError(f"invalid ROI: {exc}") from exc
 
     @classmethod
@@ -198,7 +198,7 @@ class ComparisonSetRepository:
             )
         except KeyError as exc:
             raise ComparisonSetError(f"invalid line: missing {exc.args[0]}") from exc
-        except ComparisonSetError as exc:
+        except ValueError as exc:
             raise ComparisonSetError(f"invalid line: {exc}") from exc
 
     def _parse_difference(self, value: object) -> SessionDifference | None:
