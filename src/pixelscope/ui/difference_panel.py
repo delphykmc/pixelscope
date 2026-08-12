@@ -4,7 +4,7 @@ from math import isinf
 
 import numpy as np
 from numpy.typing import NDArray
-from PySide6.QtCore import Qt, QThreadPool, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -46,8 +46,7 @@ from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.design_tokens import TOKENS, primary_button_style
 from pixelscope.workers.task_worker import TaskError, TaskWorker
-
-_ANALYSIS_MAX_THREADS = 2
+from pixelscope.workers.thread_pools import analysis_thread_pool
 
 
 class DifferencePanel(QWidget):
@@ -68,10 +67,7 @@ class DifferencePanel(QWidget):
         self._worker_key: tuple[object, ...] | None = None
         self._preview_worker: TaskWorker | None = None
         self._preview_request_serial = 0
-        self._pool = QThreadPool.globalInstance()
-        self._pool.setMaxThreadCount(
-            min(_ANALYSIS_MAX_THREADS, max(1, self._pool.maxThreadCount()))
-        )
+        self._pool = analysis_thread_pool()
         self._map_cache = DifferenceMapCache(difference_cache_budget_bytes)
         self._metric_cache: dict[tuple[object, ...], DifferenceMetrics] = {}
         self._preview_key: tuple[object, ...] | None = None
