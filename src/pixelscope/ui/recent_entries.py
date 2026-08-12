@@ -115,8 +115,27 @@ class RecentEntriesController:
 
     def _install_recent_menus(self) -> None:
         save_action = self.session_controller.save_action
+        open_group_separator = self.session_controller.separator_action
+        self.file_menu.removeAction(save_action)
         for menu in (self.images_menu, self.folders_menu, self.sessions_menu):
-            self.file_menu.insertMenu(save_action, menu)
+            self.file_menu.insertMenu(open_group_separator, menu)
+
+        export_action = next(
+            (
+                action
+                for action in self.file_menu.actions()
+                if action.text().startswith("Export Statistics")
+            ),
+            None,
+        )
+        if export_action is None:
+            self.file_menu.addAction(save_action)
+            return
+        self.file_menu.insertAction(export_action, save_action)
+        separator = QAction(self.window)
+        separator.setSeparator(True)
+        self.file_menu.insertAction(export_action, separator)
+        self.save_group_separator = separator
 
     def refresh_menu(self) -> None:
         self._populate_menu(RecentEntryKind.IMAGE, self.images_menu)
