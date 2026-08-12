@@ -16,6 +16,17 @@ from pixelscope.ui.display_gain import display_gain_state
 class SessionController(_BaseSessionController):
     """Transactional Session restore layered on the legacy P4-B bridge."""
 
+    def _connect_deferred_restore_signals(self) -> None:
+        """Keep Session restore out of viewer render callbacks.
+
+        The P4-B bridge connects viewer ``document_changed`` signals to deferred
+        restoration. For Session restore that is unsafe because ``set_document()``
+        emits synchronously while MainWindow is still inside ``_render_selection()``.
+        Timer-driven polling below observes the same readiness state only after the
+        current Qt call stack has returned, preventing ROI/Line/Difference restore
+        from re-entering a foreground render.
+        """
+
     def open_from_path(self, path: str | Path) -> tuple[int, tuple[Path, ...]]:
         session = self.repository.load(path)
         loaded, missing = self._restore_session(session)
@@ -194,10 +205,9 @@ class SessionController(_BaseSessionController):
         return settled
 
     def _try_restore_deferred_state(self, *_args: object) -> None:
-        # Do not start analysis/presentation restoration while the foreground page is
-        # still transitioning through pending/loading states. This avoids overlapping
-        # ROI/Line/Difference work with the source-load batch and provides a self-healing
-        # restart for any source returned to pending by cancellation/token invalidation.
+        # This method is reached only from QTimer callbacks in the Session controller.
+        # Never invoke it from viewer.document_changed: those signals are synchronous
+        # inside MainWindow._render_selection() and would re-enter presentation state.
         if not self._foreground_page_settled():
             QTimer.singleShot(50, self._try_restore_deferred_state)
             return
