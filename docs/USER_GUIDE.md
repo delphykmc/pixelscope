@@ -203,6 +203,56 @@ Difference maps/cache, Display Gain, analysis request/results, workers/tokens,
 Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
 Pick state. Application Settings schema remains version 5.
 
+## Recent Entries
+
+Use **File > Recent** to reopen recently used user entry paths. The menu is split
+into explicit typed submenus:
+
+- **Images** — successful direct image-open paths;
+- **Folders** — successful folder-registration paths;
+- **Comparison Sets** — successfully saved/opened `.pixelscope` artifact paths;
+- **Clear Recent Entries** — clears all three recent-history lists.
+
+Each type retains at most ten entries in most-recently-used order. Recent Image uses
+the same selection-oriented behavior as Open Images. Recent Folder uses the same
+registration-only behavior as Open Folder. Recent Comparison Set uses the same P4-B
+loader and does not restore state independently.
+
+Recent history is updated only after meaningful successful use. An Image moves to
+the top after at least one image successfully opens. A Folder moves to the top after
+successful folder registration, even when the existing folder currently contains no
+supported images. A Comparison Set moves to the top only when at least one saved
+source is actually loaded. A successful Comparison Set save enters Recent only after
+the atomic save completes.
+
+If a Recent path no longer exists, PixelScope asks whether to **Remove** or **Keep**
+it. Remove deletes only that typed history entry; Keep leaves it unchanged. Neither
+choice changes the current workspace. Existing-but-unusable resources are kept so
+they can be retried later.
+
+If a stored Recent type no longer matches the filesystem object—for example an Image
+entry path is now a directory, or a Folder entry path is now a regular file—PixelScope
+keeps the entry and reports that it is no longer the expected type. It does not
+reinterpret the path as a different Open intent and does not promote it in MRU.
+
+Missing sources *inside* a valid Comparison Set are different from a missing Recent
+artifact. When some referenced sources are missing, P4-B opens the available subset
+in saved order, shows its normal partial-missing warning, and the Comparison Set moves
+to the Recent MRU top because it meaningfully opened. If none of the referenced
+sources are loadable, the current workspace remains unchanged and the Recent entry
+keeps its existing position. Corrupt/invalid existing `.pixelscope` artifacts also
+stay in Recent so they can be fixed or retried.
+
+Recent history stores normalized absolute local paths in QSettings. These paths can
+reveal local filesystem names. **Clear Recent Entries** is the explicit removal and
+privacy control. Recent history is separate from Application Settings schema v5;
+**Reset Settings** does not clear it.
+
+Recent bookkeeping is best-effort. A Recent-storage or menu-refresh failure does not
+turn an otherwise successful image/folder/Comparison-Set operation into a failed
+operation and does not own source residency, preload, analysis, Difference, Display
+Gain, Current Comparison Page, or Pick state.
+
 ## Fine image navigation
 
 **Left/Right** remains Previous/Next Selected Image across the complete ordered
@@ -451,10 +501,10 @@ itself discard a valid generation-keyed Difference map.
 
 **Preload Next Folder Position** remains exactly one valid one-to-six Selected
 Folder Position ahead, direction +1, on a separate max-one worker. It does not
-preload the next Comparison Page, Pick Set, or Comparison Set. A physically RUNNING
-matching Folder Position preload may transfer to foreground authority without
-duplicate decode. Unresolved RAW without a profile is skipped rather than prompting
-from speculative preload.
+preload the next Comparison Page, Pick Set, Comparison Set, or Recent entry. A
+physically RUNNING matching Folder Position preload may transfer to foreground
+authority without duplicate decode. Unresolved RAW without a profile is skipped
+rather than prompting from speculative preload.
 
 Performance budget/preload changes are startup settings and display the restart-
 required indication when they differ from current runtime values.
@@ -462,7 +512,9 @@ required indication when they differ from current runtime values.
 **Reset Settings** resets application preferences only. **View > Reset Workspace
 Layout** resets workspace layout separately. The captured curation baseline/Pick Set
 is temporary and adds no Settings/QSettings key. `.pixelscope` Comparison Sets are
-separate external files and do not change Settings schema v5.
+separate external files and do not change Settings schema v5. Recent history uses
+separate `recent/*` QSettings keys and is intentionally not cleared by Reset
+Settings; use **File > Recent > Clear Recent Entries** instead.
 
 ## Runtime Diagnostics
 
