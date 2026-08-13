@@ -256,29 +256,40 @@ cache. Off-page picked sources may therefore be nonresident and unprotected.
 `Analysis Working Set` remains Current Comparison Page and explicit Difference-pair
 ownership remains feature-local.
 
-**Keep Selection** is the only curation operation that mutates Selected. The
-Qt-free `difference_sources_survive_selection()` predicate evaluates the existing
-Difference provenance IDs against the already-computed ordered Keep result; it owns
-no Difference state. If an active Difference has complete A/B provenance and both
-source IDs survive, the controller leaves Difference untouched and delegates the
-filtered result through the inherited `_select_document_ids()` lifecycle.
+**Keep Selection** is the only curation operation that mutates Selected. Production
+composition installs `ui.difference_curation_lifecycle.DifferenceCurationLifecycle`
+after `ReviewSelectionController` to apply the owner-final Difference lifecycle at
+that commit boundary without moving Difference numerical/cache ownership out of the
+existing panel/MainWindow paths.
 
-If either provenance source is absent, or active Difference provenance is
-incomplete, `ReviewSelectionController` unchecks the existing `diff_action` before
-mutating Selected. That invokes MainWindow's normal Difference teardown path, which
-is the single authority for PR #32 six-source workspace restoration, Single/Multi
-presentation, navigation, Active state, and subsequent source rendering. The
-ordering is intentional: it prevents an intermediate render or recomputation using
-stale A/B provenance against the new logical Selected set while still making
-**Keep Selection** the only curation operation that changes Selected.
+When Keep succeeds, any active Difference is closed unconditionally before Selected
+mutates. The adapter first delegates visible-result teardown to the existing PR #32
+path, then clears active Difference document/provenance bindings and stale reusable
+viewer references, applies the ordered kept IDs through the inherited
+`_select_document_ids()` lifecycle, and leaves toolbar `Diff` unchecked and disabled.
+The decision does not inspect whether old A/B survived or where they would appear in
+the resulting Current Comparison Page.
 
-After Difference teardown when required, `_select_document_ids()` remains the sole
-Selected mutation/render path. Current Comparison Page derivation, stale-slot
-clearing, source loading/residency, Files selection, first-result Active state, and
-analysis rebinding therefore remain ordinary selection behavior rather than a
-curation-specific lifecycle. Zero picks prevent this call. Curation never purges
-Difference Map Cache entries or bumps source generations as part of presentation
-reconciliation.
+Keep is a presentation/binding reset, not a cache invalidation. It never purges the
+generation-aware Difference Map Cache, changes source generations, or adds
+curation-owned source residency/preload authority. Current Comparison Page
+derivation, stale-slot clearing, source loading/residency, Files selection,
+first-result Active state, and analysis rebinding remain ordinary selection behavior.
+Zero picks prevent the Selected mutation.
+
+The same lifecycle adapter makes explicit Difference calculation the only path that
+may establish a new active Difference result. During passive selection/page renders,
+it suppresses MainWindow's legacy cached-display promotion and implicit calculation
+hooks while still allowing DifferencePanel inputs/metrics to rebind. The
+DifferencePanel remains the cache/numerical owner: explicit **Calculate** performs
+normal pair validation and generation-aware cache lookup, reuses a hit or runs the
+existing asynchronous calculation on a miss, and `result_ready` then establishes
+the active Difference document/provenance.
+
+Toolbar `Diff` enablement is derived from that explicit active binding, not from
+mere cache availability. Once a result is established, the toolbar is
+visibility-only: uncheck hides the same active result, recheck shows the same result,
+and neither operation infers another A/B pair or starts numerical work.
 
 External selection-oriented mutation is the invalidation boundary. Programmatic
 `_select_document_ids()` / selected-document removal adapters and the
@@ -568,22 +579,29 @@ is not a Difference input authority and Pick/Unpick/Clear Selection does not
 calculate, reconcile, or invalidate Difference. Difference never consumes general
 Display Gain, RAW Black/White metadata, `DisplayTransform`, or preview pixels.
 Folder-only registration does not invalidate Difference cache or presentation
-because it does not change Selected/current-page lifecycle. For a six-source page,
-a cached Difference hit and an asynchronous fresh result share the same Diff-only
-Single View presentation and workspace-restore contract.
+because it does not change Selected/current-page lifecycle.
+
+The DifferencePanel remains the numerical/cache authority. An explicit Calculate
+validates its current A/B pair, constructs the generation-aware cache key, reuses a
+cached map on hit or dispatches the existing asynchronous numerical path on miss,
+and emits the successful result through the existing MainWindow presentation path.
+For a six-source page, an explicit-Calculate cache hit and a fresh asynchronous
+result share the same Diff-only Single View presentation and workspace-restore
+contract.
 
 Difference is a derived presentation rather than a Registered/Selected/Pick identity.
-P4-A curation reads MainWindow's existing `_difference_source_ids` provenance only at
-Keep commit time. If both A/B source IDs are in the computed kept Selected set, the
-existing Difference remains eligible for presentation without a curation-driven
-reset. Otherwise curation only requests the existing `diff_action` teardown; normal
-Difference lifecycle remains authoritative for `_difference_document`, provenance,
-navigation, six-source restore state, Single/Multi presentation, and Active/viewer
-state. The subsequent ordinary Selected render clears stale derived representation.
-No curation-specific Difference state machine or cache invalidation path exists.
+`DifferenceCurationLifecycle` defines the P4-A integration boundary: Keep always
+closes any active Difference before Selected changes, clears active
+`_difference_document` / `_difference_source_ids` binding, and preserves the
+Difference Map Cache and source generations. Passive rerenders cannot promote a
+cached map or implicitly calculate Difference. After a successful explicit
+Calculate, toolbar `Diff` is enabled because an active result is bound and then
+acts only as hide/show visibility for that exact result. It never guesses a new A/B
+pair from Current Comparison Page state.
 
-Comparison Set persistence does not serialize or rehydrate Difference inputs, maps,
-cache entries, or presentation state.
+No curation-specific Difference numerical algorithm, cache, source generation, or
+residency owner is introduced. Comparison Set persistence does not serialize or
+rehydrate Difference inputs, maps, cache entries, or presentation state.
 
 ## RAW decode/display boundary
 
