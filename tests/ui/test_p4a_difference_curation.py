@@ -59,9 +59,11 @@ def _activate_difference(
     pair: tuple[ImageDocument, ImageDocument],
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[ImageDocument, list[str]]:
-    numerical = np.abs(
-        pair[0].source.astype(np.int16) - pair[1].source.astype(np.int16)  # type: ignore[union-attr]
-    )
+    source_a = pair[0].source
+    source_b = pair[1].source
+    assert source_a is not None
+    assert source_b is not None
+    numerical = np.abs(source_a.astype(np.int16) - source_b.astype(np.int16))
     preview = np.clip(numerical, 0, 255).astype(np.uint8)
     title = f"Difference: {pair[0].display_name} vs {pair[1].display_name}"
     cached = (title, numerical, preview)
@@ -170,10 +172,18 @@ def test_keep_selection_reconciles_difference_by_provenance_not_selected_count(
             documents[0].document_id,
             documents[1].document_id,
         )
+        assert any(
+            viewer.presented_document is difference
+            for viewer in window.multi_compare_view.occupied_viewers
+        )
         assert calculate_calls == []
     else:
         assert window._difference_document is None
         assert window._difference_source_ids is None
+        assert all(
+            viewer.presented_document is not difference
+            for viewer in window.multi_compare_view.occupied_viewers
+        )
     window.close()
 
 
@@ -228,9 +238,9 @@ def test_invalid_keep_does_not_own_or_purge_difference_cache(
         channel_layout="GRAY",
         bayer_pattern=None,
     )
-    put_result = window.difference_panel.difference_cache.put(unrelated_key, unrelated_value)
+    put_result = window.difference_panel._map_cache.put(unrelated_key, unrelated_value)
     assert put_result.stored
-    keys_before = window.difference_panel.difference_cache.keys()
+    keys_before = window.difference_panel._map_cache.keys()
 
     for index in (2, 3, 4):
         _pick_document(qtbot, window, documents[index])
@@ -243,8 +253,8 @@ def test_invalid_keep_does_not_own_or_purge_difference_cache(
     assert controller.keep_picked()
 
     assert not window.diff_action.isChecked()
-    assert window.difference_panel.difference_cache.keys() == keys_before
-    assert window.difference_panel.difference_cache.peek(unrelated_key) is unrelated_value
+    assert window.difference_panel._map_cache.keys() == keys_before
+    assert window.difference_panel._map_cache.peek(unrelated_key) is unrelated_value
     assert tuple(document.generation for document in documents) == generations
     window.close()
 
@@ -328,8 +338,17 @@ def test_six_source_difference_keep_uses_pr32_teardown_and_leaves_no_stale_deriv
     assert window._six_image_diff_restore_state is None
     assert window.central_stack.currentWidget() is window.multi_compare_view
     assert window.viewer.presented_document is not difference
+    assert window.viewer.header.derived.isHidden()
     assert all(
         viewer.presented_document is not difference
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
+    assert all(
+        viewer.header.derived.isHidden()
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
+    assert all(
+        not viewer.header.pick.isHidden()
         for viewer in window.multi_compare_view.occupied_viewers
     )
     assert window._active_document_id in expected
