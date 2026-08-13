@@ -74,9 +74,12 @@ P2-F as PR #13–#20. The merged P2 baseline establishes these durable boundarie
 - Schema v4 migrates to v5 by preserving values and adding enabled preload. Older
   schemas and the legacy RAW-confirmation key remain supported. A future schema
   is never guessed or destructively rewritten.
-- Settings UI uses General, Files, and Performance categories. Workspace geometry,
-  splitter/dock state, current layout, Plots state, and last-directory state remain
-  separate workspace persistence.
+- Settings UI uses General, Files, and Performance categories. General owns RAW
+  confirmation/exact-size policy and Difference Threshold/Gain defaults; Files owns
+  default Open/Export directories; Performance owns Difference Map Cache, Decoded
+  Source Memory, and preload enablement. Workspace geometry, splitter/dock state,
+  current layout, Plots state, and last-directory state remain separate workspace
+  persistence.
 - Difference Map Cache defaults to 128 MiB. Decoded Source Memory defaults to
   256 MiB. When physical RAM is known, the Settings UI constrains the combined
   configured budgets to at most 50% of RAM; this is a configuration envelope,
@@ -348,8 +351,9 @@ Resident when required
 - Split Channels is a transient presentation working set derived from one Selected
   source; it does not create Registered/Selected subchannel documents or move native
   analysis/residency authority away from Current Comparison Page.
-- Six-source Difference cache hits and fresh asynchronous results have identical
-  Diff-only Single View presentation and workspace-restore semantics.
+- Six-source Difference results established by explicit Calculate use the same
+  Diff-only Single View and workspace-restore semantics whether the generation-aware
+  map came from cache or fresh asynchronous calculation.
 
 ### Folder Position
 
@@ -471,21 +475,29 @@ P4-A merged as PR #29 at
 - **Keep Selection** is the only curation operation that mutates Selected. The
   result is `baseline_selected_ids` filtered by picked membership, preserving
   baseline order rather than pick order.
-- At that Keep commit boundary, an active `Difference(A, B)` remains represented
-  **iff both A and B remain in the resulting logical Selected set**. The decision
-  uses the stored Difference provenance source identities, not Selected cardinality.
-  If either source is removed, the existing normal Difference teardown path
-  deactivates presentation/navigation/restore state before ordinary surviving-source
-  selection rendering continues. If both survive, curation does not deliberately
-  reset or recompute the valid Difference.
-- Difference presentation validity and Difference-cache ownership are independent.
-  Curation-driven presentation teardown does not purge generation-keyed Difference
-  maps, bump source generations, or introduce source reload/residency ownership.
+- **Keep Selection is an unconditional active-Difference reset boundary.** If a
+  Difference is active/visible, the existing PR #32 teardown path runs before
+  Selected mutates; active Difference document/provenance and stale presentation
+  binding are then cleared. This does not depend on whether old A/B survive in the
+  resulting Selected set or Current Comparison Page.
+- Immediately after Keep, toolbar `Diff` is unchecked and disabled because no active
+  Difference result is bound to the new workspace. Curation does not purge or
+  rewrite generation-keyed Difference Map Cache entries, bump source generations,
+  or introduce source reload/residency/preload ownership.
+- The next active Difference is established only by an explicit **Calculate** for
+  the current Difference Image 1/Image 2 pair. Calculate performs normal validation
+  and generation-aware cache lookup first, reuses a hit without numerical-map
+  recomputation, or runs the existing asynchronous calculation on miss.
+- After successful Calculate, toolbar `Diff` is visibility-only for that explicitly
+  established result: checked shows it, unchecked hides it, and re-checking shows
+  the same result without inferring another pair or recalculating.
+- Passive selection/page rerenders must not promote a cached map into an active
+  Difference or start implicit Difference calculation.
 - Zero picks disable Keep Selection; there is no curation path that silently creates
   an empty Selected set.
 - Non-picked images remain Registered and Keep Selection reuses the inherited
   Selected mutation/page/render/source lifecycle rather than creating a
-  curation-specific lifecycle.
+  curation-specific source lifecycle.
 - There is no user-facing Cancel command. Clear Selection removes temporary picks;
   a different logical Selected-membership mutation invalidates the captured
   baseline/Pick Set before or with the ordinary mutation.
@@ -495,8 +507,8 @@ P4-A merged as PR #29 at
 - Comparison Page navigation creates no speculative preload for picked sources. P2
   preload remains Folder Position +1, one position, max-one worker.
 - Difference numerical semantics, Display Gain, RAW Black/White/native-source
-  semantics, source generation identity, and source residency accounting remain
-  unchanged.
+  semantics, source generation identity, Difference cache identity, and source
+  residency accounting remain unchanged.
 
 ## P4-B Comparison Set Persistence decisions — Complete
 
@@ -542,8 +554,9 @@ P4-B merged as PR #30 at
   analysis request/results, workers/tokens/generation, Split/Difference derived
   documents, transient view state, ROI/Line, or temporary Picks.
 - Comparison Sets are external user artifacts and do not change Settings schema v5.
-- P4-C should build **Comparison Set Entry UX / Recent Entries**, not revive the
-  broader obsolete "persistent session" framing.
+- P4-C / PR #31 is the separate owner-approved Session persistence / typed Recent
+  workstream. It may build on P4-B Comparison Set primitives without changing the
+  P4-B `.pixelscope` artifact contract; PR #33 does not implement P4-C behavior.
 
 ## Current resource policy
 
@@ -565,12 +578,13 @@ P4-B merged as PR #30 at
 
 P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28. P4-A is Complete
 as PR #29 at `3486146494076e9b513843b90ec44e504043729e`. P4-B is Complete as PR #30
-at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Comparison Set Entry UX /
-Recent Entries is active on draft PR #31. Display Gain/Difference presentation
-lifecycle stabilization merged as PR #32 at
+at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session persistence / typed
+Recent is active on draft PR #31. Display Gain/Difference presentation lifecycle
+stabilization merged as PR #32 at
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`.
 
-The source-only Difference curation follow-up adds focused provenance/UI/integration
-coverage on top of that merged PR #32 lifecycle. No owner Windows full-suite or
-static-tool PASS is claimed for this follow-up until those commands are actually
-run.
+The source-only Difference curation follow-up adds the owner-final Keep/Calculate/
+toolbar lifecycle and focused UI/integration regression coverage on top of merged PR
+#32. The repository owner reported the implementation validation suite passing and
+confirmed the program behavior matches the intended contract. Subsequent changes in
+this final cleanup are durable-documentation-only.
