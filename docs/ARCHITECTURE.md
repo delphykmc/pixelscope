@@ -243,22 +243,53 @@ and sets the viewer `reviewPicked` property so `tile_style()` applies a bright-y
 tile-wide border. Active and Primary are not reused as Pick state. The controller
 resolves each presented tile back to a native source ID that must still exist in
 `MainWindow.documents` and the captured/current Selected authority. Split and
-Difference derived tiles remain non-pickable.
+Difference derived tiles remain non-pickable. A presented Difference uses the same
+fixed header-role width but shows a neutral `QLabel` **Derived** badge with no focus,
+check state, or Pick signal, so viewer reuse cannot accidentally expose source-only
+curation intent on a derived document.
 
 Pick/Unpick/Clear Selection only mutate the temporary ID set and tile/control state.
 They do not call `_ensure_loaded()`, touch source LRU/protection, create
 preload/foreground promotion, generate gained previews, change source generation,
-issue numerical analysis, calculate Difference, or invalidate Difference cache.
-Off-page picked sources may therefore be nonresident and unprotected. `Analysis
-Working Set` remains Current Comparison Page and explicit Difference-pair ownership
-remains feature-local.
+issue numerical analysis, calculate/reconcile Difference, or invalidate Difference
+cache. Off-page picked sources may therefore be nonresident and unprotected.
+`Analysis Working Set` remains Current Comparison Page and explicit Difference-pair
+ownership remains feature-local.
 
-**Keep Selection** is the only curation operation that mutates Selected. It delegates
-the ordered filtered result through the inherited `_select_document_ids()` lifecycle
-so Current Comparison Page derivation, stale-slot clearing, source
-loading/residency, Files selection, first-result Active state, and analysis rebinding
-remain ordinary selection behavior rather than a curation-specific lifecycle. Zero
-picks prevent this call.
+**Keep Selection** is the only curation operation that mutates Selected. Production
+composition installs `ui.difference_curation_lifecycle.DifferenceCurationLifecycle`
+after `ReviewSelectionController` to apply the owner-final Difference lifecycle at
+that commit boundary without moving Difference numerical/cache ownership out of the
+existing panel/MainWindow paths.
+
+When Keep succeeds, any active Difference is closed unconditionally before Selected
+mutates. The adapter first delegates visible-result teardown to the existing PR #32
+path, then clears active Difference document/provenance bindings and stale reusable
+viewer references, applies the ordered kept IDs through the inherited
+`_select_document_ids()` lifecycle, and leaves toolbar `Diff` unchecked and disabled.
+The decision does not inspect whether old A/B survived or where they would appear in
+the resulting Current Comparison Page.
+
+Keep is a presentation/binding reset, not a cache invalidation. It never purges the
+generation-aware Difference Map Cache, changes source generations, or adds
+curation-owned source residency/preload authority. Current Comparison Page
+derivation, stale-slot clearing, source loading/residency, Files selection,
+first-result Active state, and analysis rebinding remain ordinary selection behavior.
+Zero picks prevent the Selected mutation.
+
+The same lifecycle adapter makes explicit Difference calculation the only path that
+may establish a new active Difference result. During passive selection/page renders,
+it suppresses MainWindow's legacy cached-display promotion and implicit calculation
+hooks while still allowing DifferencePanel inputs/metrics to rebind. The
+DifferencePanel remains the cache/numerical owner: explicit **Calculate** performs
+normal pair validation and generation-aware cache lookup, reuses a hit or runs the
+existing asynchronous calculation on a miss, and `result_ready` then establishes
+the active Difference document/provenance.
+
+Toolbar `Diff` enablement is derived from that explicit active binding, not from
+mere cache availability. Once a result is established, the toolbar is
+visibility-only: uncheck hides the same active result, recheck shows the same result,
+and neither operation infers another A/B pair or starts numerical work.
 
 External selection-oriented mutation is the invalidation boundary. Programmatic
 `_select_document_ids()` / selected-document removal adapters and the
@@ -539,20 +570,38 @@ domain selection.
   level histogram contract.
 - `CachedDifferenceMap` stores domain/data-range/family/layout/Bayer metadata while
   retaining order-independent generation-pair identity.
-- Difference cache ownership remains independent from source residency.
+- Difference cache ownership remains independent from source residency and from
+  derived presentation visibility.
 
 Difference panel inputs default to the Current Comparison Page, while the panel's
 explicit Image 1/Image 2 pair remains feature-owned authority. Temporary Pick Set
-is not a Difference input authority and Pick/Unpick does not calculate or invalidate
-Difference. Difference never consumes general Display Gain, RAW Black/White
-metadata, `DisplayTransform`, or preview pixels. Folder-only registration does not
-invalidate Difference cache or presentation because it does not change Selected /
-current-page lifecycle. For a six-source page, a cached Difference hit and an
-asynchronous fresh result share the same Diff-only Single View presentation and
-workspace-restore contract.
+is not a Difference input authority and Pick/Unpick/Clear Selection does not
+calculate, reconcile, or invalidate Difference. Difference never consumes general
+Display Gain, RAW Black/White metadata, `DisplayTransform`, or preview pixels.
+Folder-only registration does not invalidate Difference cache or presentation
+because it does not change Selected/current-page lifecycle.
 
-Comparison Set persistence does not serialize or rehydrate Difference inputs, maps,
-cache entries, or presentation state.
+The DifferencePanel remains the numerical/cache authority. An explicit Calculate
+validates its current A/B pair, constructs the generation-aware cache key, reuses a
+cached map on hit or dispatches the existing asynchronous numerical path on miss,
+and emits the successful result through the existing MainWindow presentation path.
+For a six-source page, an explicit-Calculate cache hit and a fresh asynchronous
+result share the same Diff-only Single View presentation and workspace-restore
+contract.
+
+Difference is a derived presentation rather than a Registered/Selected/Pick identity.
+`DifferenceCurationLifecycle` defines the P4-A integration boundary: Keep always
+closes any active Difference before Selected changes, clears active
+`_difference_document` / `_difference_source_ids` binding, and preserves the
+Difference Map Cache and source generations. Passive rerenders cannot promote a
+cached map or implicitly calculate Difference. After a successful explicit
+Calculate, toolbar `Diff` is enabled because an active result is bound and then
+acts only as hide/show visibility for that exact result. It never guesses a new A/B
+pair from Current Comparison Page state.
+
+No curation-specific Difference numerical algorithm, cache, source generation, or
+residency owner is introduced. Comparison Set persistence does not serialize or
+rehydrate Difference inputs, maps, cache entries, or presentation state.
 
 ## RAW decode/display boundary
 

@@ -23,6 +23,7 @@ class TileHeader(QWidget):
     navigation_requested = Signal(str)
     pick_requested = Signal(bool)
     COMPACT_WIDTH = 480
+    REVIEW_ROLE_WIDTH = 60
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -42,6 +43,39 @@ class TileHeader(QWidget):
         self.name.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.name.setMinimumWidth(0)
         self.name.setToolTip("")
+
+        self.difference_reference = QWidget()
+        self.difference_reference.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        self.difference_reference.setMinimumWidth(0)
+        difference_layout = QHBoxLayout(self.difference_reference)
+        difference_layout.setContentsMargins(0, 0, 0, 0)
+        difference_layout.setSpacing(TOKENS.spacing_xs)
+        self.difference_prefix = QLabel()
+        self.difference_a_badge = QLabel()
+        self.difference_a_badge.setObjectName("slotBadge")
+        self.difference_a_name = QLabel()
+        self.difference_vs = QLabel("vs")
+        self.difference_b_badge = QLabel()
+        self.difference_b_badge.setObjectName("slotBadge")
+        self.difference_b_name = QLabel()
+        for name in (self.difference_a_name, self.difference_b_name):
+            name.setMinimumWidth(0)
+            name.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        for widget in (
+            self.difference_prefix,
+            self.difference_a_badge,
+            self.difference_a_name,
+            self.difference_vs,
+            self.difference_b_badge,
+            self.difference_b_name,
+        ):
+            difference_layout.addWidget(widget)
+        difference_layout.addStretch(1)
+        self.difference_reference.hide()
+
         self.meta = QLabel()
         self.meta.setObjectName("tileMeta")
         self.meta.setMinimumWidth(0)
@@ -62,8 +96,22 @@ class TileHeader(QWidget):
         self.pick.setAutoRaise(True)
         self.pick.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.pick.setFixedHeight(TOKENS.control_height)
+        self.pick.setFixedWidth(self.REVIEW_ROLE_WIDTH)
         self.pick.hide()
         self.pick.toggled.connect(self._review_pick_toggled)  # type: ignore[attr-defined]
+        self.derived = QLabel("Derived")
+        self.derived.setObjectName("reviewDerived")
+        self.derived.setAccessibleName("Derived presentation")
+        self.derived.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.derived.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.derived.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self.derived.setFixedHeight(TOKENS.control_height)
+        self.derived.setFixedWidth(self.REVIEW_ROLE_WIDTH)
+        self.derived.setStyleSheet(
+            f"QLabel {{ color: {TOKENS.text_secondary}; border: 1px solid {TOKENS.border}; "
+            "border-radius: 2px; background: transparent; }"
+        )
+        self.derived.hide()
         self.focus = QToolButton()
         self.focus.setObjectName("primaryFlag")
         self.focus.setAccessibleName("Primary image")
@@ -88,9 +136,11 @@ class TileHeader(QWidget):
         layout.addWidget(self.badge)
         layout.addWidget(self.navigation)
         layout.addWidget(self.name, 1)
+        layout.addWidget(self.difference_reference, 1)
         layout.addWidget(self.meta)
         layout.addWidget(self.zoom)
         layout.addWidget(self.pick)
+        layout.addWidget(self.derived)
         layout.addWidget(self.focus)
 
     @property
@@ -112,6 +162,7 @@ class TileHeader(QWidget):
             self._display_name = ""
             self.name.clear()
             self.name.setToolTip("")
+            self.set_difference_reference(visible=False)
             self.meta.clear()
             self.zoom.setText("—")
             return
@@ -155,6 +206,52 @@ class TileHeader(QWidget):
         self.pick.blockSignals(False)
         self._update_review_pick_state(picked)
         self.pick.setVisible(visible)
+        if visible:
+            self.derived.hide()
+        self._elide_name()
+
+    def set_review_derived(self, *, visible: bool, tooltip: str = "") -> None:
+        """Show a non-interactive role badge for derived presentations."""
+
+        self.derived.setToolTip(tooltip if visible else "")
+        self.derived.setVisible(visible)
+        if visible:
+            self.pick.blockSignals(True)
+            self.pick.setChecked(False)
+            self.pick.blockSignals(False)
+            self._update_review_pick_state(False)
+            self.pick.hide()
+        self._elide_name()
+
+    def set_difference_reference(
+        self,
+        *,
+        visible: bool,
+        prefix: str = "",
+        a_slot: int | None = None,
+        a_name: str = "",
+        b_slot: int | None = None,
+        b_name: str = "",
+        detailed: bool = False,
+        tooltip: str = "",
+    ) -> None:
+        """Render Difference A/B using the same boxed local-slot language as source tiles."""
+
+        valid = visible and a_slot is not None and b_slot is not None
+        self.difference_reference.setVisible(valid)
+        self.name.setVisible(not valid)
+        if not valid:
+            self.difference_reference.setToolTip("")
+            self._elide_name()
+            return
+        self.difference_prefix.setText(prefix)
+        self.difference_a_badge.setText(str(a_slot))
+        self.difference_b_badge.setText(str(b_slot))
+        self.difference_a_name.setText(a_name)
+        self.difference_b_name.setText(b_name)
+        self.difference_a_name.setVisible(detailed)
+        self.difference_b_name.setVisible(detailed)
+        self.difference_reference.setToolTip(tooltip)
         self._elide_name()
 
     def set_navigation_items(
@@ -230,6 +327,8 @@ class TileHeader(QWidget):
         self._elide_name()
 
     def _elide_name(self) -> None:
+        if self.difference_reference.isVisible():
+            return
         width = max(40, self.name.width())
         source = self._display_name if self._compact else self._full_name
         self.name.setText(

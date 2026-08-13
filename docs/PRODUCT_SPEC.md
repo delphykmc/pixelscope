@@ -167,7 +167,31 @@ invalidate the curation state because it does not change Selected.
 
 Pick identity is the native Registered/Selected source document ID. Split Channel
 items, Difference derived documents, and gained preview representations are not
-independent pick identities.
+independent pick identities. A displayed Difference tile therefore exposes a
+non-interactive **Derived** role instead of Pick; it has no independent curation or
+logical Selected membership.
+
+Pick, Unpick, and Clear Selection do not reconcile Difference because they change
+only temporary workflow state. A successful **Keep Selection** is instead an
+unconditional active-Difference reset boundary. If Difference is visible, Keep first
+uses the existing PR #32 teardown/restore path, then clears active Difference
+presentation/binding/provenance before applying the ordered kept Selected subset.
+This happens regardless of whether the previous A/B sources survive the new
+Selected set. Immediately after Keep, toolbar `Diff` is unchecked and disabled.
+
+Keep does not purge generation-keyed Difference Map Cache entries, bump source
+generations, or acquire curation-owned residency/preload authority. The next active
+Difference must be established by an explicit **Calculate** request in the Difference
+analysis UI for a valid current-page A/B pair. Calculate uses the existing
+generation-aware cache first: a cache hit reuses the numerical map without redundant
+map calculation; a miss uses the existing asynchronous Difference path. After
+successful Calculate, toolbar `Diff` controls visibility of that same established
+result only; hiding/showing it does not infer another pair or calculate again.
+
+Ordinary source viewer/header presentation and Difference Image 1/Image 2 selector
+text remain unchanged and Current Comparison Page scoped. Difference result headers
+may use the existing page-local slot visualization, but page identity is not a
+survival policy and does not become document/cache/Pick identity.
 
 The captured baseline/Pick Set is temporary application-session workflow state. It
 is not persisted to Settings/QSettings and does not own source arrays, previews,
@@ -306,10 +330,10 @@ Settings schema remains version 5. P4-A adds no Settings/QSettings key and does 
 persist the captured curation baseline/Pick Set. P4-B Comparison Sets are separate
 external artifacts and likewise do not change the Settings schema.
 
-General owns persistent RAW JSON confirmation, exact RAW file-size validation,
-and native Difference Threshold/Gain defaults. Files owns optional default Open
-and Export folders. Performance owns startup Decoded Source Memory, Difference Map
-Cache, and preload settings.
+**General** owns persistent RAW JSON confirmation, exact RAW file-size policy, and
+Difference Threshold/Gain defaults. **Files** owns default Open/Export directories.
+**Performance** owns Difference Map Cache MiB, Decoded Source Memory MiB, and preload
+enablement.
 
 Decoded Source Memory accounts native resident `ImageDocument.source` arrays only
 and uses protected soft-budget LRU semantics. Source eviction and Difference cache
@@ -353,9 +377,21 @@ native-domain code default under schema v5. Normalized threshold is session-loca
 
 Difference owns its own independent presentation Gain. General Display Gain is
 not applied to Difference numerical sources, Difference preview generation, or
-Difference-cache identity. Pick/Unpick does not calculate Difference, change its
-explicit pair authority, or invalidate a generation-keyed Difference cache.
-Comparison Sets do not persist Difference pair/map/cache state.
+Difference-cache identity. Pick/Unpick/Clear Selection does not calculate
+Difference, change its explicit pair authority, or invalidate a generation-keyed
+Difference cache. Difference is a derived presentation rather than a logical
+Selected or independently Pickable member.
+
+Keep Selection always closes and clears the active Difference presentation/binding/
+provenance before applying the new logical Selected subset, even when the old A/B
+sources both survive. Cache entries and source generations remain unchanged. The
+next active Difference is established only by explicit Difference **Calculate** for
+a valid current-page pair. Calculate performs the existing generation-aware cache
+lookup first and reuses a hit without redundant numerical map calculation; a miss
+uses the existing asynchronous calculation. Once established, toolbar `Diff`
+controls visibility of that same active result only and must not infer another pair
+or trigger calculation. Comparison Sets do not persist Difference pair/map/cache
+state.
 
 ## Display Gain contract
 
@@ -479,16 +515,16 @@ and Current Comparison Page contracts.
 P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
-P4-B Comparison Set Persistence is implemented on
-`feature/p4-b-comparison-set-persistence` / PR #30. The repository owner reports the
-focused Windows P4-B validation PASS (`36 passed`); independent review reports no
-remaining runtime/schema/test blocker. Durable-doc consistency and final
-review/validation closure remain before merge.
+P4-B Comparison Set Persistence merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session / Recent Entries is
+active on draft PR #31. Display Gain and Difference presentation lifecycle
+stabilization merged separately as PR #32 at
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`.
 
-Later planned P4 work begins with **Comparison Set Entry UX & Recent Entries**, then
-Saved ROI productivity, focused viewer overlay/export productivity, and integration
-hardening. P4-C must use the P4-B Comparison Set loader rather than reintroducing a
-broader full-session persistence model.
+Later planned P4 work continues with Saved ROI productivity, focused viewer
+overlay/export productivity, and integration hardening. P4-C remains the
+owner-approved Session/Recent workstream defined by PR #31; this P4-A × Difference
+follow-up does not constrain or reimplement that persistence model.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or
