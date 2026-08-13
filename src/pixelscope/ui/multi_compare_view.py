@@ -65,7 +65,9 @@ class MultiCompareView(QWidget):
             viewer.line_changed.connect(self.line_changed)
             viewer.line_cleared.connect(self.line_cleared)
             viewer.view_box.sigRangeChanged.connect(
-                lambda _box, ranges, _changed=None, active=viewer: self._sync_range(active, ranges)
+                lambda _box, ranges, _changed=None, active=viewer: self._sync_range(
+                    active, ranges
+                )
             )
         self.set_capacity(2)
 
@@ -189,7 +191,8 @@ class MultiCompareView(QWidget):
             (
                 viewer
                 for viewer in self.visible_viewers
-                if viewer.document is not None and viewer.document.document_id == previous_active_id
+                if viewer.document is not None
+                and viewer.document.document_id == previous_active_id
             ),
             None,
         ) or next((viewer for viewer in self.visible_viewers if viewer.document), None)
@@ -248,7 +251,9 @@ class MultiCompareView(QWidget):
             ordered.append(reusable)
             used_viewer_ids.add(id(reusable))
 
-        remaining = [viewer for viewer in self.viewers if id(viewer) not in used_viewer_ids]
+        remaining = [
+            viewer for viewer in self.viewers if id(viewer) not in used_viewer_ids
+        ]
         filled: list[ImageViewer] = []
         for reusable in ordered:
             filled.append(remaining.pop(0) if reusable is None else reusable)
@@ -486,8 +491,7 @@ class MultiCompareView(QWidget):
                 viewer.show()
         for row in range(3):
             self._layout.setRowStretch(
-                row,
-                row_stretches[row] if row < len(row_stretches) else 0,
+                row, row_stretches[row] if row < len(row_stretches) else 0
             )
         for column in range(3):
             self._layout.setColumnStretch(
