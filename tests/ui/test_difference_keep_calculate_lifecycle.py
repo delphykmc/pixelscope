@@ -10,7 +10,10 @@ from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 
 
-def _window(qtbot: object, tmp_path: Path) -> tuple[MainWindow, list[ImageDocument]]:
+def _window(
+    qtbot: object,
+    tmp_path: Path,
+) -> tuple[MainWindow, list[ImageDocument]]:
     QSettings().clear()
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -35,7 +38,10 @@ def _pick(qtbot: object, window: MainWindow, document: ImageDocument) -> None:
         for viewer in window.multi_compare_view.occupied_viewers
         if viewer.presented_document is document
     )
-    qtbot.mouseClick(viewer.header.pick, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    qtbot.mouseClick(  # type: ignore[attr-defined]
+        viewer.header.pick,
+        Qt.MouseButton.LeftButton,
+    )
 
 
 def test_keep_requires_explicit_calculate_to_establish_next_active_difference(
@@ -47,7 +53,10 @@ def test_keep_requires_explicit_calculate_to_establish_next_active_difference(
 
     assert not window.diff_action.isEnabled()
     window.difference_panel.calculate_difference()
-    qtbot.waitUntil(lambda: window._difference_document is not None, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None,
+        timeout=5000,
+    )
     assert window.diff_action.isEnabled()
     assert window.diff_action.isChecked()
 
@@ -61,8 +70,14 @@ def test_keep_requires_explicit_calculate_to_establish_next_active_difference(
     assert not window.diff_action.isEnabled()
 
     window.difference_panel.calculate_difference()
-    qtbot.waitUntil(lambda: window._difference_document is not None, timeout=5000)  # type: ignore[attr-defined]
-    assert window._difference_source_ids == (documents[0].document_id, documents[1].document_id)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None,
+        timeout=5000,
+    )
+    assert window._difference_source_ids == (
+        documents[0].document_id,
+        documents[1].document_id,
+    )
     assert window.diff_action.isEnabled()
     assert window.diff_action.isChecked()
     window.close()
