@@ -6,7 +6,7 @@ from pixelscope.core.image_document import ImageDocument
 
 
 class DifferenceCurationLifecycle:
-    """Apply the owner-final Keep/Calculate/toolbar contract around existing Diff owners."""
+    """Apply the owner-final Keep/Calculate/toolbar contract around Diff owners."""
 
     def __init__(self, window: Any, review_controller: Any) -> None:
         self.window = window
@@ -29,7 +29,9 @@ class DifferenceCurationLifecycle:
         # Normal selection/page renders may still rebind DifferencePanel inputs and
         # metrics, but cannot promote a cached map or start an implicit calculation.
         self.window._render_selection = self._render_selection
-        self.window._difference_result_matches_current_pair = self._active_result_bound
+        self.window._difference_result_matches_current_pair = (
+            self._active_result_bound
+        )
 
         action = self.window.diff_action
         try:
@@ -92,7 +94,9 @@ class DifferenceCurationLifecycle:
             return
 
         difference = getattr(self.window, "_difference_document", None)
-        if not self._active_result_bound() or not isinstance(difference, ImageDocument):
+        if not self._active_result_bound() or not isinstance(
+            difference, ImageDocument
+        ):
             self._enforce_action_state()
             return
 
@@ -134,7 +138,9 @@ class DifferenceCurationLifecycle:
 
     def _reset_active_difference(self) -> None:
         difference = getattr(self.window, "_difference_document", None)
-        difference_id = difference.document_id if isinstance(difference, ImageDocument) else None
+        difference_id = (
+            difference.document_id if isinstance(difference, ImageDocument) else None
+        )
         action = self.window.diff_action
 
         if action.isChecked():
@@ -153,7 +159,10 @@ class DifferenceCurationLifecycle:
             if self.window._active_document_id == difference_id:
                 self.window._active_document_id = None
 
-        if difference is not None and self.window.viewer.presented_document is difference:
+        if (
+            difference is not None
+            and self.window.viewer.presented_document is difference
+        ):
             self.window.viewer.set_document(None)
             self.window.viewer.set_navigation_items([], "")
 
@@ -165,18 +174,26 @@ class DifferenceCurationLifecycle:
     def _difference_tooltip(self) -> str:
         source_ids = getattr(self.window, "_difference_source_ids", None)
         if not isinstance(source_ids, tuple) or len(source_ids) != 2:
-            return "Derived from source images. Keep Selection closes the active Difference."
+            return (
+                "Derived from source images. "
+                "Keep Selection closes the active Difference."
+            )
         names: list[str] = []
         for document_id in source_ids:
             document = self.window.documents.get(document_id)
-            names.append(document.display_name if document is not None else str(document_id))
+            names.append(
+                document.display_name if document is not None else str(document_id)
+            )
         return (
             f"Derived from {names[0]} / {names[1]}. "
             "Keep Selection closes the active Difference; its cache is retained."
         )
 
 
-def install_difference_curation_lifecycle(window: Any, review_controller: Any) -> None:
+def install_difference_curation_lifecycle(
+    window: Any,
+    review_controller: Any,
+) -> None:
     existing = getattr(window, "difference_curation_lifecycle", None)
     if isinstance(existing, DifferenceCurationLifecycle):
         return
