@@ -146,10 +146,20 @@ Registration-only folder input does not cause this reset because it does not cha
 Selected. Temporary Pick state is not persisted across application restart.
 
 Picks refer to the native registered source image. Split Channel items and derived
-Difference presentation are not independent pick identities. Picking an image also
-does not decode or preload off-page images, protect them in source residency, run
-Difference or analysis, or otherwise change the Current Comparison Page working-set
-authority.
+Difference presentation are not independent pick identities. A Difference tile
+shows a non-interactive **Derived** badge instead of Pick. Pick/Unpick/Clear
+Selection therefore leave an existing Difference presentation unchanged.
+
+When **Keep Selection** is applied, a displayed `Difference(A, B)` remains only if
+both source A and source B were kept. If either source is excluded, PixelScope
+removes the Difference presentation and returns to the normal surviving-source
+presentation. The decision uses the actual A/B source identities, not the number of
+images left Selected. Removing the presentation does not purge the generation-keyed
+Difference cache, so a still-valid cached A/B map can be reused later.
+
+Picking an image also does not decode or preload off-page images, protect them in
+source residency, run Difference or analysis, or otherwise change the Current
+Comparison Page working-set authority.
 
 Only the explicit **Pick** control changes curation membership. Normal image pan,
 Ctrl+drag ROI, Shift+drag Line Profile, and ordinary tile activation do not toggle
@@ -335,8 +345,12 @@ Selected/current-page lifecycle.
 
 Difference's available/default inputs follow the Current Comparison Page, while an
 explicit Image 1/Image 2 pair remains owned by the Difference feature. Pick
-membership does not change either authority and Pick/Unpick does not calculate or
-invalidate Difference.
+membership does not change either authority and Pick/Unpick/Clear Selection does
+not calculate, remove, or invalidate Difference. Difference is derived from its A/B
+sources, never an independent Pick or logical Selected member. After Keep Selection,
+a displayed Difference remains only when both A and B are still Selected; otherwise
+its presentation is removed through the normal Difference lifecycle while cache
+ownership remains unchanged.
 
 When all six source slots of a Comparison Page are occupied, the derived Difference
 result is presented in Single View until disabled, preserving the existing
@@ -447,7 +461,9 @@ normally reload when its page is revisited. Saving or opening a Comparison Set d
 not create Selected-wide residency protection.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
-itself discard a valid generation-keyed Difference map.
+itself discard a valid generation-keyed Difference map. Removing a Difference
+presentation after Keep Selection also does not purge the cache merely because one
+of its source images was excluded from the new Selected subset.
 
 **Preload Next Folder Position** remains exactly one valid one-to-six Selected
 Folder Position ahead, direction +1, on a separate max-one worker. It does not
