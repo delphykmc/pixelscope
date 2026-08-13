@@ -21,6 +21,7 @@ from pixelscope.ui.difference_curation_lifecycle import install_difference_curat
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
 from pixelscope.ui.presentation_controls import polish_presentation_controls
+from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 
 LOGGER = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     review_controller = install_review_selection(window)
     install_difference_curation_lifecycle(window, review_controller)
     install_comparison_set(window)
+    install_recent_entries(window)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     return gain_control
