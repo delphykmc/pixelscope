@@ -100,10 +100,10 @@ class ReviewSelectionController(QObject):
         # path can restore any six-source workspace without ever rendering stale
         # A/B provenance against the new logical Selected set.
         difference_source_ids = getattr(self.window, "_difference_source_ids", None)
-        difference_valid = difference_sources_survive_selection(
+        difference_valid = isinstance(
             difference_source_ids,
-            kept_ids,
-        )
+            tuple,
+        ) and difference_sources_survive_selection(difference_source_ids, kept_ids)
         diff_action = getattr(self.window, "diff_action", None)
         if not difference_valid and diff_action is not None and diff_action.isChecked():
             diff_action.setChecked(False)
