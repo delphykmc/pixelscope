@@ -478,12 +478,17 @@ class MultiCompareView(QWidget):
                 viewer.hide()
 
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
-        for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
+        for viewer, (row, column, row_span, column_span) in zip(
+            active, placements, strict=False
+        ):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
             if viewer.isHidden():
                 viewer.show()
         for row in range(3):
-            self._layout.setRowStretch(row, row_stretches[row] if row < len(row_stretches) else 0)
+            self._layout.setRowStretch(
+                row,
+                row_stretches[row] if row < len(row_stretches) else 0,
+            )
         for column in range(3):
             self._layout.setColumnStretch(
                 column,
