@@ -1,10 +1,10 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-A complete; P4-B implemented/focused validated, merge pending
+Status: Active — P4-A/P4-B complete; P4-C Recent entry workflow active on PR #31
 Owner: repository owner + P4 orchestration agents
-Last updated: 2026-08-11
-Inherited merged baseline: P4-A / PR #29 merge commit
-`3486146494076e9b513843b90ec44e504043729e`
+Last updated: 2026-08-14
+Inherited merged baseline: PR #33 merge commit
+`51a540c92c372d71e02fd849fb5e0d406d0e9327`
 
 ## Goal
 
@@ -45,6 +45,13 @@ Inherited invariants:
   speculative worker, with existing RUNNING promotion semantics.
 - Display Gain is presentation-only and never redefines native analysis/request
   identity.
+- PR #32 owns retained-viewer/source identity, bounded Display Gain/heavy-analysis
+  pools, asynchronous Difference preview rendering/stale rejection, and the merged
+  six-source Difference navigation/lifetime behavior.
+- PR #33 owns the active Difference binding contract: Difference is derived
+  presentation; explicit Calculate establishes a result; toolbar Diff is
+  visibility-only for that result; Selected/Keep mutation tears down stale active
+  binding while the Difference Map Cache remains feature-owned.
 - Difference remains native code-domain for equal effective depth and independently
   normalized `[0,1]` for mixed effective depth.
 - RAW Black/White metadata and display transforms do not enter Difference domain
@@ -61,8 +68,8 @@ Inherited invariants:
 |---|---|---|
 | 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
 | 1 | P4-A Review Selection & Curation | Complete — PR #29 |
-| 2 | P4-B Comparison Set Persistence | Implemented; focused owner validation PASS; merge pending — PR #30 |
-| 3 | P4-C Comparison Set Entry UX & Recent Entries | Planned |
+| 2 | P4-B Comparison Set Persistence | Complete — PR #30 |
+| 3 | P4-C Comparison Set Entry UX & Recent Entries | Active draft — PR #31 |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
 | 5 | P4-E Viewer Overlay & Export Productivity | Planned |
 | 6 | P4-F Integration & Workflow Hardening | Planned |
@@ -186,7 +193,7 @@ Focused suites cover:
 - programmatic, production Files removal, direct signal fallback, and direct-Files
   Selected replacement invalidation.
 
-## P4-B — Comparison Set Persistence — implemented, merge pending
+## P4-B — Comparison Set Persistence — Complete
 
 ### Goal and artifact boundary
 
@@ -250,42 +257,66 @@ Do **not** serialize or acquire ownership of:
 
 Comparison Sets are external artifacts and do not bump Settings schema v5.
 
-### Validation status
+### Validation/merge status
 
-The repository owner reports the focused P4-B Windows suite PASS:
+P4-B merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340` after focused owner validation and
+independent review closure. P4-C must reuse this loader/writer rather than extending
+its artifact schema.
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_comparison_set.py `
-    tests\ui\test_p4b_comparison_set.py
-```
+## P4-C — Comparison Set Entry UX & Recent Entries — Active — PR #31
 
-Observed owner result: `36 passed`.
+P4-C is a **typed workflow-entry history** layer around existing canonical actions.
+It does not broaden P4-B into full persistent-session restoration.
 
-Independent review reports no remaining runtime/schema/test blocker. PR #30 remains
-merge-pending for durable-doc consistency and normal final review/validation closure.
+The File entry surface distinguishes:
 
-## P4-C — Comparison Set Entry UX & Recent Entries
+- Recent Images;
+- Recent Folders;
+- Recent Comparison Sets.
 
-Design one coherent workflow-entry surface that distinguishes at least:
+Requirements and active implementation contract:
 
-- recent image entry;
-- recent folder entry;
-- recent Comparison Set entry.
+- entry type is explicit rather than inferred ambiguously from one flat list;
+- each typed MRU is deterministic, deduplicated, normalized to absolute local paths,
+  and bounded to 10 entries;
+- persistence uses separate QSettings keys `recent/images`, `recent/folders`, and
+  `recent/comparison_sets`, outside ApplicationSettings schema v5;
+- the abandoned draft-only `recent/sessions` key is accepted only as a migration
+  fallback for Comparison Set history and is removed on the next Comparison Set
+  history write;
+- recent Image delegates to the existing P3 direct-image registration + Selected
+  replacement path;
+- recent Folder delegates to the existing registration-only folder path and does not
+  acquire selection/presentation authority;
+- recent Comparison Set delegates to P4-B `ComparisonSetController.open_from_path()`;
+- Comparison Set history is promoted only after a meaningful open (`loaded > 0`) or
+  a successful canonical save;
+- history updates are best-effort observer metadata and may not turn a successful
+  canonical workflow into failure;
+- missing paths use explicit Remove/Keep handling without workspace mutation;
+- wrong filesystem type is reported and retained rather than reinterpreted;
+- an existing invalid Comparison Set stays in history while the canonical P4-B
+  loader reports its error;
+- privacy/path-retention is explicit: history stores normalized local paths only,
+  with compact menu labels and full path in tooltip/status context;
+- each typed submenu provides its own Clear Recent command;
+- history owns no source residency, preload, Difference, Display Gain, analysis,
+  curation, Current Comparison Page, or RAW-profile semantics.
 
-Requirements:
+PR #32/#33 behavior is inherited without modification. In particular, opening a
+Recent Comparison Set that replaces Selected passes through the ordinary P4-B/P4-A
+Selected mutation path and therefore inherits #33 Difference teardown/explicit-
+Calculate rules rather than introducing a P4-C-specific Difference lifecycle.
 
-- entry type must be explicit rather than inferred ambiguously from one flat list;
-- history is bounded and deterministic;
-- missing/moved path behavior is defined and non-destructive;
-- privacy/path-retention implications are documented;
-- opening a recent image/folder must reuse the P3 input intent contract rather than
-  bypassing registration/selection semantics;
-- opening a recent Comparison Set must use the P4-B Comparison Set loader, not ad-hoc
-  state restoration;
-- history must not own source residency or preload.
+Explicit exclusions:
 
-P4-C does not broaden P4-B into full persistent-session restoration.
+- no full Session schema or Session restore transaction;
+- no ROI/Line/Display Gain/Split/Difference persistence or Difference recipe;
+- no Difference/Display Gain/viewer lifecycle changes;
+- no P4-A Pick/Keep semantic changes;
+- no source residency/preload or Current Comparison Page redesign;
+- no Settings schema bump.
 
 ## P4-D — Saved ROI & Analysis Workspace Productivity
 
@@ -373,15 +404,16 @@ or processing, remote IQA/authentication, or packaging/release work.
 Runtime/UI slices use owner/local Windows validation. Chat implementation agents do
 not bootstrap/search for a local Windows virtual environment or install dependencies.
 
-P4-B focused validation:
+P4-C focused validation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_comparison_set.py `
-    tests\ui\test_p4b_comparison_set.py
+    tests\unit\test_recent_entries.py `
+    tests\ui\test_p4b_comparison_set.py `
+    tests\ui\test_p4c_recent_entries.py `
+    tests\ui\test_difference_keep_calculate_lifecycle.py `
+    tests\ui\test_difference_cache_toolbar_lifecycle.py
 ```
-
-Owner-reported focused result: `36 passed`.
 
 Before merge, run the standard repository contract as applicable:
 
