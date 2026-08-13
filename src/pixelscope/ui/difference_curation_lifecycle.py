@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
 
 from pixelscope.core.image_document import ImageDocument
@@ -20,19 +21,15 @@ class DifferenceCurationLifecycle:
     def _install(self) -> None:
         self.review_controller.keep_picked = self.keep_picked
         self.review_controller._difference_tooltip = self._difference_tooltip
-        try:
+        with suppress(RuntimeError):
             self.review_controller.keep_button.clicked.disconnect()
-        except RuntimeError:
-            pass
         self.review_controller.keep_button.clicked.connect(self.keep_picked)
 
         # Calculate is the only operation allowed to establish an active Difference.
         # Normal selection/page renders may still rebind DifferencePanel inputs and
         # metrics, but cannot promote a cached map or start an implicit calculation.
         self.window._render_selection = self._render_selection
-        self.window._difference_result_matches_current_pair = (
-            self._active_result_bound
-        )
+        self.window._difference_result_matches_current_pair = self._active_result_bound
 
         action = self.window.diff_action
         try:
