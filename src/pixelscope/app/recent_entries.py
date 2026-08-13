@@ -15,8 +15,8 @@ from pixelscope.core.recent_entries import (
 
 RECENT_IMAGES_KEY: Final = "recent/images"
 RECENT_FOLDERS_KEY: Final = "recent/folders"
-RECENT_COMPARISON_SETS_KEY: Final = "recent/comparison_sets"
-LEGACY_DRAFT_RECENT_SESSIONS_KEY: Final = "recent/sessions"
+RECENT_SESSIONS_KEY: Final = "recent/sessions"
+LEGACY_RECENT_COMPARISON_SETS_KEY: Final = "recent/comparison_sets"
 
 
 class RecentEntriesStorage(Protocol):
@@ -54,8 +54,8 @@ class RecentEntriesRepository:
             return cached
 
         raw = self._storage.value(self._key(kind), [])
-        if kind is RecentEntryKind.COMPARISON_SET and not self._decode_values(raw):
-            raw = self._storage.value(LEGACY_DRAFT_RECENT_SESSIONS_KEY, [])
+        if kind is RecentEntryKind.SESSION and not self._decode_values(raw):
+            raw = self._storage.value(LEGACY_RECENT_COMPARISON_SETS_KEY, [])
         values = self._decode_values(raw)
 
         loaded: list[Path] = []
@@ -89,8 +89,8 @@ class RecentEntriesRepository:
     ) -> tuple[Path, ...]:
         merged = merge_recent_paths(self.load(kind), paths, limit=self._limit)
         self._write(kind, merged)
-        if kind is RecentEntryKind.COMPARISON_SET:
-            self._storage.remove(LEGACY_DRAFT_RECENT_SESSIONS_KEY)
+        if kind is RecentEntryKind.SESSION:
+            self._storage.remove(LEGACY_RECENT_COMPARISON_SETS_KEY)
             self._storage.sync()
         return merged
 
@@ -107,12 +107,12 @@ class RecentEntriesRepository:
             for candidate in RecentEntryKind:
                 self._storage.remove(self._key(candidate))
                 self._cache[candidate] = ()
-            self._storage.remove(LEGACY_DRAFT_RECENT_SESSIONS_KEY)
+            self._storage.remove(LEGACY_RECENT_COMPARISON_SETS_KEY)
         else:
             self._storage.remove(self._key(kind))
             self._cache[kind] = ()
-            if kind is RecentEntryKind.COMPARISON_SET:
-                self._storage.remove(LEGACY_DRAFT_RECENT_SESSIONS_KEY)
+            if kind is RecentEntryKind.SESSION:
+                self._storage.remove(LEGACY_RECENT_COMPARISON_SETS_KEY)
         self._storage.sync()
 
     @staticmethod
@@ -149,6 +149,6 @@ class RecentEntriesRepository:
             return RECENT_IMAGES_KEY
         if kind is RecentEntryKind.FOLDER:
             return RECENT_FOLDERS_KEY
-        if kind is RecentEntryKind.COMPARISON_SET:
-            return RECENT_COMPARISON_SETS_KEY
+        if kind is RecentEntryKind.SESSION:
+            return RECENT_SESSIONS_KEY
         raise ValueError(f"unsupported recent entry kind: {kind!r}")
