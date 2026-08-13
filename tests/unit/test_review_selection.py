@@ -1,4 +1,7 @@
-from pixelscope.core.review_selection import ReviewSelectionState
+from pixelscope.core.review_selection import (
+    ReviewSelectionState,
+    difference_sources_survive_selection,
+)
 
 
 def test_review_state_enter_pick_unpick_clear_and_exit() -> None:
@@ -53,3 +56,12 @@ def test_review_state_reenter_replaces_temporary_baseline_and_picks() -> None:
     assert state.picked_ids == set()
     assert state.matches_selected_ids(["C", "D"])
     assert not state.matches_selected_ids(["D", "C"])
+
+
+def test_difference_sources_survive_only_when_both_provenance_sources_are_kept() -> None:
+    assert difference_sources_survive_selection(("A", "B"), ("A", "B"))
+    assert difference_sources_survive_selection(("A", "B"), ("C", "A", "B"))
+    assert not difference_sources_survive_selection(("A", "B"), ("A", "C"))
+    assert not difference_sources_survive_selection(("A", "B"), ("B", "C"))
+    assert not difference_sources_survive_selection(("A", "B"), ("C", "D", "E"))
+    assert difference_sources_survive_selection(None, ("C", "D"))
