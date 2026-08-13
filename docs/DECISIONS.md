@@ -376,7 +376,7 @@ Direct RAW image input preserves this sequence:
 6. Multiple direct RAW inputs resolve independently.
 
 Folder registration deliberately does not prompt for unresolved RAW. It registers
-the pending RAW path and any deterministic sidecar path.
+ the pending RAW path and any deterministic sidecar path.
 
 Selected-but-off-page unresolved RAW is logical selection only: it must not prompt,
 decode, or require residency merely because it is Selected. When it enters a
@@ -554,9 +554,31 @@ P4-B merged as PR #30 at
   analysis request/results, workers/tokens/generation, Split/Difference derived
   documents, transient view state, ROI/Line, or temporary Picks.
 - Comparison Sets are external user artifacts and do not change Settings schema v5.
-- P4-C / PR #31 is the separate owner-approved Session persistence / typed Recent
-  workstream. It may build on P4-B Comparison Set primitives without changing the
-  P4-B `.pixelscope` artifact contract; PR #33 does not implement P4-C behavior.
+- P4-C / PR #31 is the separate typed Recent workflow-entry layer around existing
+  Image, Folder, and Comparison Set actions. It does not add a full Session schema
+  or change the P4-B `.pixelscope` artifact contract.
+
+## P4-C typed Recent entry decisions — Active
+
+- P4-C persists path-only workflow-entry history, not workspace/session state.
+- Recent Images, Recent Folders, and Recent Comparison Sets are separate typed MRUs,
+  each bounded to 10 normalized absolute local paths.
+- P4-C reuses the canonical P3 image/folder intent and P4-B Comparison Set loader /
+  writer rather than defining alternate open/save state machines.
+- A Comparison Set history entry is promoted only after a meaningful open
+  (`loaded > 0`) or successful canonical save.
+- Missing paths use explicit Remove/Keep behavior without workspace mutation.
+  Wrong filesystem kind and invalid existing Comparison Set artifacts remain in
+  history and are not silently reinterpreted.
+- Recent bookkeeping is best-effort observer metadata. History/QSettings failure
+  cannot change the success or correctness of the underlying canonical workflow.
+- Recent persistence uses `recent/images`, `recent/folders`, and
+  `recent/comparison_sets` outside ApplicationSettings schema v5 and Reset Settings.
+  The abandoned draft-only `recent/sessions` key is migration input only.
+- P4-C owns no source residency, preload, Difference, Display Gain, analysis,
+  curation, RAW-profile, or Current Comparison Page state.
+- PR #32 and PR #33 are inherited baseline authority; P4-C does not reimplement
+  their worker/viewer/Difference lifecycle contracts.
 
 ## Current resource policy
 
@@ -567,24 +589,24 @@ P4-B merged as PR #30 at
 - Current Comparison Page plus correctness dependencies are the generic P3-D
   protection set; Selected/Picked-but-off-page is not protected solely by logical
   membership.
-- Normal load pool max remains two; preload pool max remains one; shared numerical
-  pool max remains four.
+- Normal load pool max remains two and preload pool max remains one. PR #32 owns a
+  separate app-owned Display Gain pool capped at two and a separate heavy-analysis
+  pool capped at two for Statistics/Difference work.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Comparison Page navigation, Pick membership, and Comparison Set Save/Open introduce
-  no Selected-wide speculative preload/cache/residency owner.
+- Comparison Page navigation, Pick membership, Comparison Set Save/Open, and Recent
+  history introduce no Selected-wide speculative preload/cache/residency owner.
 
 ## Validation and merge state
 
 P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28. P4-A is Complete
 as PR #29 at `3486146494076e9b513843b90ec44e504043729e`. P4-B is Complete as PR #30
-at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session persistence / typed
-Recent is active on draft PR #31. Display Gain/Difference presentation lifecycle
-stabilization merged as PR #32 at
-`e1ccf264f86e37b438c923faceae96c3ecb539b7`.
+at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. PR #32 merged at
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`, and PR #33 merged at
+`51a540c92c372d71e02fd849fb5e0d406d0e9327`; those worker/viewer/Difference
+contracts are the current baseline. P4-C typed Recent entry UX is active on draft
+PR #31.
 
-The source-only Difference curation follow-up adds the owner-final Keep/Calculate/
-toolbar lifecycle and focused UI/integration regression coverage on top of merged PR
-#32. The repository owner reported the implementation validation suite passing and
-confirmed the program behavior matches the intended contract. Subsequent changes in
-this final cleanup are durable-documentation-only.
+PR #31 does not claim validation from its abandoned Session-heavy draft. The clean
+Recent-only rebase requires fresh owner-local focused and full repository validation
+before merge.
