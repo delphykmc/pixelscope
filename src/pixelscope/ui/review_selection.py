@@ -7,7 +7,10 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton, QWidget
 
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.review_selection import ReviewSelectionState
+from pixelscope.core.review_selection import (
+    ReviewSelectionState,
+    difference_sources_survive_selection,
+)
 from pixelscope.ui.design_tokens import TOKENS, tile_style
 from pixelscope.ui.image_viewer import ImageViewer
 
@@ -91,6 +94,20 @@ class ReviewSelectionController(QObject):
         if not self.state.active or not kept_ids:
             self._sync_all()
             return False
+
+        # Keep Selection is the curation commit boundary. Reconcile an active
+        # Difference before Selected mutates so MainWindow's existing teardown
+        # path can restore any six-source workspace without ever rendering stale
+        # A/B provenance against the new logical Selected set.
+        difference_source_ids = getattr(self.window, "_difference_source_ids", None)
+        difference_valid = difference_sources_survive_selection(
+            difference_source_ids,
+            kept_ids,
+        )
+        diff_action = getattr(self.window, "diff_action", None)
+        if not difference_valid and diff_action is not None and diff_action.isChecked():
+            diff_action.setChecked(False)
+
         self._applying = True
         try:
             self._original_select_document_ids(list(kept_ids))
@@ -280,19 +297,34 @@ class ReviewSelectionController(QObject):
         self.clear_button.setEnabled(has_picks)
         self.keep_button.setEnabled(has_picks)
 
+    def _difference_tooltip(self) -> str:
+        source_ids = getattr(self.window, "_difference_source_ids", None)
+        if source_ids is None:
+            return "Derived from source images. Kept only when both source images are kept."
+        names: list[str] = []
+        for document_id in source_ids:
+            document = self.window.documents.get(document_id)
+            names.append(document.display_name if document is not None else str(document_id))
+        if len(names) != 2:
+            return "Derived from source images. Kept only when both source images are kept."
+        return f"Derived from {names[0]} / {names[1]}. Kept only when both source images are kept."
+
     def _sync_tile(self, viewer: ImageViewer) -> None:
+        presented = viewer.presented_document
+        difference_document = getattr(self.window, "_difference_document", None)
+        is_difference = presented is not None and presented is difference_document
         is_multi_viewer = viewer in self.window.multi_compare_view.viewers
-        document_id = (
-            self._pickable_document_id(viewer.presented_document)
-            if is_multi_viewer
-            else None
-        )
+        document_id = self._pickable_document_id(presented) if is_multi_viewer else None
         picked = document_id in self.state.picked_ids if document_id is not None else False
         viewer.setProperty("reviewPicked", picked)
         viewer.setStyleSheet(tile_style(bool(getattr(viewer, "_active", False))))
         viewer.header.set_review_pick(
             visible=document_id is not None,
             picked=picked,
+        )
+        viewer.header.set_review_derived(
+            visible=is_difference,
+            tooltip=self._difference_tooltip() if is_difference else "",
         )
 
 
