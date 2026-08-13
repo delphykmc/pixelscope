@@ -450,6 +450,9 @@ P4-A merged as PR #29 at
 - Pick identity is the native Registered/Selected source document ID. Split Channel,
   Difference, and gained preview representations are not independent pick
   identities.
+- **Review curation is source-only. Difference is a derived presentation and is
+  never an independent Pick or logical Selected member.** Difference tiles expose
+  a neutral non-interactive `Derived` role instead of an interactive Pick control.
 - Active, Primary, and Pick are separate states and visual affordances. The Pick
   text remains `Pick`; checked membership uses the depressed control plus a
   bright-yellow tile-wide border, with Active still independently visible.
@@ -459,7 +462,8 @@ P4-A merged as PR #29 at
 - Pick/Unpick/**Clear Selection** are ID-set/UI operations only. They do not call
   decode or `_ensure_loaded()`, touch source LRU/protection, create preload or
   promotion, generate Display Gain previews, issue analysis requests, calculate
-  Difference, bump source generation, or invalidate Difference cache.
+  Difference, bump source generation, invalidate Difference cache, or reconcile
+  an active Difference presentation.
 - Off-page picked sources may be evicted/unprotected; Pick membership is not a
   source-residency owner.
 - `Analysis Working Set = Current Comparison Page` remains unchanged. Temporary Pick
@@ -467,6 +471,16 @@ P4-A merged as PR #29 at
 - **Keep Selection** is the only curation operation that mutates Selected. The
   result is `baseline_selected_ids` filtered by picked membership, preserving
   baseline order rather than pick order.
+- At that Keep commit boundary, an active `Difference(A, B)` remains represented
+  **iff both A and B remain in the resulting logical Selected set**. The decision
+  uses the stored Difference provenance source identities, not Selected cardinality.
+  If either source is removed, the existing normal Difference teardown path
+  deactivates presentation/navigation/restore state before ordinary surviving-source
+  selection rendering continues. If both survive, curation does not deliberately
+  reset or recompute the valid Difference.
+- Difference presentation validity and Difference-cache ownership are independent.
+  Curation-driven presentation teardown does not purge generation-keyed Difference
+  maps, bump source generations, or introduce source reload/residency ownership.
 - Zero picks disable Keep Selection; there is no curation path that silently creates
   an empty Selected set.
 - Non-picked images remain Registered and Keep Selection reuses the inherited
@@ -480,10 +494,14 @@ P4-A merged as PR #29 at
 - Temporary curation state is not persisted. Settings schema remains v5.
 - Comparison Page navigation creates no speculative preload for picked sources. P2
   preload remains Folder Position +1, one position, max-one worker.
-- Difference, Display Gain, RAW Black/White/native-source semantics, source
-  generation identity, and source residency accounting remain unchanged.
+- Difference numerical semantics, Display Gain, RAW Black/White/native-source
+  semantics, source generation identity, and source residency accounting remain
+  unchanged.
 
-## P4-B Comparison Set Persistence decisions — implemented, merge pending
+## P4-B Comparison Set Persistence decisions — Complete
+
+P4-B merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
 
 - P4-B persists an explicit **Comparison Set**, not a full application/session
   snapshot.
@@ -546,16 +564,13 @@ P4-A merged as PR #29 at
 ## Validation and merge state
 
 P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28. P4-A is Complete
-as PR #29 at `3486146494076e9b513843b90ec44e504043729e`.
+as PR #29 at `3486146494076e9b513843b90ec44e504043729e`. P4-B is Complete as PR #30
+at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Comparison Set Entry UX /
+Recent Entries is active on draft PR #31. Display Gain/Difference presentation
+lifecycle stabilization merged as PR #32 at
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`.
 
-P4-B focused coverage includes schema/path validation, atomic round-trip,
-logical-Selected-vs-Pick save semantics, later-page Active/Primary restore,
-missing/zero-loadable/corrupt transaction behavior, resolved/unresolved RAW
-semantics, large-set page-bounded foreground work, and save-side non-ownership of
-load/residency/protection.
-
-The repository owner reports the focused P4-B Windows validation PASS (`36 passed`).
-Independent review reports no remaining runtime/schema/test blocker. PR #30 remains
-merge-pending for durable-doc consistency and final review/validation closure. These
-durable-doc edits do not alter runtime or tests; no unobserved full-suite/tooling
-PASS is inferred here.
+The source-only Difference curation follow-up adds focused provenance/UI/integration
+coverage on top of that merged PR #32 lifecycle. No owner Windows full-suite or
+static-tool PASS is claimed for this follow-up until those commands are actually
+run.
