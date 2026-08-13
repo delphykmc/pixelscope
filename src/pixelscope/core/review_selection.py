@@ -5,13 +5,13 @@ from dataclasses import dataclass, field
 
 
 def difference_sources_survive_selection(
-    source_ids: Sequence[str] | None,
+    source_ids: Sequence[str],
     selected_ids: Sequence[str],
 ) -> bool:
-    """Return whether an existing Difference provenance survives Selected replacement."""
+    """Return whether one complete Difference A/B provenance survives Selected replacement."""
 
-    if source_ids is None:
-        return True
+    if len(source_ids) != 2:
+        return False
     selected = set(selected_ids)
     return all(source_id in selected for source_id in source_ids)
 
