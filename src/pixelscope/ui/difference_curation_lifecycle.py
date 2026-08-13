@@ -12,6 +12,7 @@ class DifferenceCurationLifecycle:
         self.window = window
         self.review_controller = review_controller
         self._syncing_action = False
+        self._resetting_difference = False
         self._original_render_selection = window._render_selection
         self._original_set_difference_visible = window._set_difference_visible
         self._install()
@@ -50,7 +51,27 @@ class DifferenceCurationLifecycle:
             and len(source_ids) == 2
         )
 
+    def _active_sources_still_selected(self) -> bool:
+        source_ids = getattr(self.window, "_difference_source_ids", None)
+        if not isinstance(source_ids, tuple) or len(source_ids) != 2:
+            return False
+        selected_ids = {
+            document.document_id for document in self.window.selected_documents
+        }
+        return all(source_id in selected_ids for source_id in source_ids)
+
     def _render_selection(self, preserve_view: bool = False) -> None:
+        # Ordinary logical Selected mutations can invalidate an explicitly
+        # established Difference just as surely as Keep. If either provenance source
+        # has left Selected, close the active binding before rendering the new
+        # workspace while preserving the generation-keyed map cache.
+        if (
+            not self._resetting_difference
+            and self._active_result_bound()
+            and not self._active_sources_still_selected()
+        ):
+            self._reset_active_difference()
+
         panel = self.window.difference_panel
         cached_display = panel.cached_display_for_current
         calculate = panel.calculate_difference
@@ -137,38 +158,46 @@ class DifferenceCurationLifecycle:
         return True
 
     def _reset_active_difference(self) -> None:
-        difference = getattr(self.window, "_difference_document", None)
-        difference_id = (
-            difference.document_id if isinstance(difference, ImageDocument) else None
-        )
-        action = self.window.diff_action
+        if self._resetting_difference:
+            return
+        self._resetting_difference = True
+        try:
+            difference = getattr(self.window, "_difference_document", None)
+            difference_id = (
+                difference.document_id
+                if isinstance(difference, ImageDocument)
+                else None
+            )
+            action = self.window.diff_action
 
-        if action.isChecked():
-            # False delegates to the original PR #32 visibility teardown before the
-            # active binding/provenance are cleared.
-            action.setChecked(False)
+            if action.isChecked():
+                # False delegates to the original PR #32 visibility teardown before
+                # the active binding/provenance are cleared.
+                action.setChecked(False)
 
-        if difference_id is not None:
-            self.window._multi_display_order = [
-                document_id
-                for document_id in self.window._multi_display_order
-                if document_id != difference_id
-            ]
-            if self.window._focus_document_id == difference_id:
-                self.window._focus_document_id = None
-            if self.window._active_document_id == difference_id:
-                self.window._active_document_id = None
+            if difference_id is not None:
+                self.window._multi_display_order = [
+                    document_id
+                    for document_id in self.window._multi_display_order
+                    if document_id != difference_id
+                ]
+                if self.window._focus_document_id == difference_id:
+                    self.window._focus_document_id = None
+                if self.window._active_document_id == difference_id:
+                    self.window._active_document_id = None
 
-        if (
-            difference is not None
-            and self.window.viewer.presented_document is difference
-        ):
-            self.window.viewer.set_document(None)
-            self.window.viewer.set_navigation_items([], "")
+            if (
+                difference is not None
+                and self.window.viewer.presented_document is difference
+            ):
+                self.window.viewer.set_document(None)
+                self.window.viewer.set_navigation_items([], "")
 
-        self.window._six_image_diff_restore_state = None
-        self.window._difference_document = None
-        self.window._difference_source_ids = None
+            self.window._six_image_diff_restore_state = None
+            self.window._difference_document = None
+            self.window._difference_source_ids = None
+        finally:
+            self._resetting_difference = False
         self._enforce_action_state()
 
     def _difference_tooltip(self) -> str:
