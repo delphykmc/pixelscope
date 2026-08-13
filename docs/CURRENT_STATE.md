@@ -1,19 +1,20 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-13
+Snapshot date: 2026-08-14
 Current merged baseline / PR #32 merge commit:
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`
 
 P4-B Comparison Set Persistence merged as PR #30 at
-`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session / Recent Entries is
-active on draft PR #31. PR #32 separately stabilized Display Gain
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session persistence / typed
+Recent is active on draft PR #31. PR #32 separately stabilized Display Gain
 worker/lifetime behavior and Difference insert/remove/viewer-reuse presentation
 lifecycle and is now part of `main`.
 
 This follow-up branch, `fix/p4a-difference-curation-semantics`, aligns P4-A source
-curation with that merged Difference lifecycle. Runtime/tests/docs are implemented
-on the branch; owner Windows validation remains pending and no unobserved PASS is
-claimed.
+curation with that merged Difference lifecycle under the owner-final Keep/Calculate/
+toolbar contract. The repository owner reported the implementation validation suite
+passing and confirmed the program behavior matches the intended contract. Final
+changes after that validation are durable-documentation-only.
 
 ## Merge baseline
 
@@ -36,9 +37,9 @@ claimed.
   baseline SHA.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-C Session / Recent Entries is active
-on draft PR #31; this P4-A × Difference follow-up is intentionally separate from
-P4-C.
+P4 is **Workflow & Session Productivity**. P4-C Session persistence / typed Recent
+is active on draft PR #31; this P4-A × Difference follow-up is intentionally
+separate from P4-C.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -125,35 +126,32 @@ preload authority, analysis working-set authority, Difference input authority, o
 presentation-source authority. Split/Difference derived documents are not
 independent pick identities.
 
-The P4-A × Difference follow-up makes that source/derived boundary explicit and uses
-Keep Selection as an unconditional active-Difference reset boundary:
+The P4-A × Difference follow-up makes that source/derived boundary explicit:
 
 - native source tiles retain the interactive `Pick` control;
 - a presented Difference tile shows a non-interactive/non-focusable `Derived` role
   and emits no Pick intent;
 - Pick/Unpick/Clear Selection leave an active Difference unchanged because they are
   temporary workflow state only;
-- successful Keep Selection first uses the existing PR #32 teardown when Difference
-  is visible, then clears active Difference presentation/binding/provenance before
-  applying the ordered kept Selected subset;
-- this reset is unconditional and does not inspect whether the old A/B source IDs
-  survive the Keep result;
-- immediately after Keep, `_difference_document` / `_difference_source_ids` are
-  cleared and toolbar `Diff` is unchecked and disabled;
+- **Keep Selection always closes any active Difference before Selected mutates**,
+  regardless of whether the old A/B sources survive in the kept subset;
+- active Difference presentation/binding/provenance is cleared and toolbar `Diff`
+  becomes unchecked and disabled for the new workspace;
 - Keep does not purge generation-keyed Difference Map Cache entries, bump source
-  generations, or create curation-owned reload/residency behavior;
-- the next active Difference must be explicitly established from the Difference
-  analysis UI with **Calculate** for the current valid A/B pair;
-- Calculate uses the existing generation-aware cache first and reuses a hit without
-  redundant numerical map calculation, otherwise using the existing async path;
-- after a successful Calculate, toolbar `Diff` is visibility-only for that established
-  active result: hide/show does not infer another pair or calculate again.
+  generations, or create curation-owned reload/residency/preload behavior;
+- the next active Difference is established only by an explicit **Calculate** for a
+  valid current-page Image 1/Image 2 pair;
+- Calculate performs the existing generation-aware cache lookup first, reusing a
+  hit without numerical-map recomputation or running the existing asynchronous
+  calculation on a miss;
+- after successful Calculate, toolbar `Diff` is visibility-only for that same active
+  result and does not infer another pair or calculate implicitly.
 
-Difference source selectors remain Current Comparison Page/source-name oriented and
-ordinary source viewer/header presentation is unchanged. Difference result headers
-may use the existing local-slot visualization, but no page-bound or cross-page
-survival rule applies across Keep. The lifecycle adapter adds no second Difference
-cache or numerical state machine; `DifferencePanel` remains cache/calculation owner.
+The Keep sequencing reuses PR #32 teardown/six-source restore before the ordinary
+Selected mutation. Passive selection/page rerenders do not promote a cached map to
+active Difference state. `DifferencePanel` remains the cache/numerical owner and
+MainWindow retains the existing result presentation/restore paths; P4-A introduces
+no second Difference numerical/cache state machine.
 
 ## P4-B Comparison Set persistence
 
@@ -416,15 +414,13 @@ dependencies such as foreground loads, promoted foreground preload, and Differen
 dependencies. Selected/Picked-but-off-page resident sources may therefore be evicted
 and normally reloaded when revisited.
 
-Difference cache remains independent. Keep Selection always clears the active
-Difference presentation/binding/provenance without clearing generation-keyed cache
-entries or changing source generations. A subsequent explicit Calculate is cache-first
-and, after success, establishes the active result consumed by the visibility-only
-toolbar Diff action. Preload remains +1 Folder Position, max-one dedicated worker,
-with running-preload promotion as established by P2. P4-A does not add Comparison
-Page or Pick Set preloading. P4-B does not serialize or acquire
-preload/residency/cache authority. Diagnostics remain deterministic, bounded,
-sanitized, and observation-only.
+Difference cache remains independent. Keep Selection always resets the active
+Difference presentation/binding for the new Selected workspace but does not clear
+generation-keyed cache entries or change source generations. Preload remains +1
+Folder Position, max-one dedicated worker, with running-preload promotion as
+established by P2. P4-A does not add Comparison Page or Pick Set preloading. P4-B
+does not serialize or acquire preload/residency/cache authority. Diagnostics remain
+deterministic, bounded, sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -456,7 +452,7 @@ claimed here without separate observed evidence.
 1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
 2. P4-A — Review Selection & Curation — Complete — PR #29
 3. P4-B — Comparison Set Persistence — Complete — PR #30
-4. P4-C — Session / Recent Entries — active draft — PR #31
+4. P4-C — Session persistence / typed Recent — active draft — PR #31
 5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
 6. P4-E — Viewer Overlay & Export Productivity — planned
 7. P4-F — Integration & Workflow Hardening — planned
