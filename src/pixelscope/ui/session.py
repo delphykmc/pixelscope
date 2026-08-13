@@ -6,7 +6,7 @@ from typing import Any
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
 
-from pixelscope.core.comparison_set import Session, SessionDifference
+from pixelscope.core.comparison_set import Session
 from pixelscope.io.path_discovery import image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.comparison_set import SessionController as _BaseSessionController
@@ -85,11 +85,15 @@ class SessionController(_BaseSessionController):
             for path in session.selected_paths
             if path.casefold() in path_to_id
         ]
+        page_anchor_id = self._saved_member_id(session.page_anchor_path, path_to_id)
         active_id = self._saved_member_id(session.active_path, path_to_id)
         if selected_ids:
-            active_id = active_id if active_id in selected_ids else selected_ids[0]
-            self.window._current_index = selected_ids.index(active_id)
+            if page_anchor_id not in selected_ids:
+                page_anchor_id = active_id if active_id in selected_ids else selected_ids[0]
+            assert page_anchor_id is not None
+            self.window._current_index = selected_ids.index(page_anchor_id)
         else:
+            page_anchor_id = None
             active_id = None
             self.window._current_index = 0
         self.window._page_start = 0
@@ -99,21 +103,27 @@ class SessionController(_BaseSessionController):
 
         if session.layout_mode != self.window._layout_mode:
             self.window.set_layout_mode(session.layout_mode)
-        primary_id = self._saved_member_id(session.primary_path, path_to_id)
+
         page_ids = {
             document.document_id
             for document in self.window.current_comparison_documents()
         }
+        if active_id is not None and active_id in page_ids:
+            active_index = selected_ids.index(active_id)
+            if self.window._current_index != active_index:
+                self.window._current_index = active_index
+                self.window._render_selection(preserve_view=True)
+            active = self.window.documents.get(active_id)
+            if active is not None:
+                self.window._set_active_document(active)
+
+        primary_id = self._saved_member_id(session.primary_path, path_to_id)
         if (
             primary_id is not None
             and primary_id in page_ids
             and self.window._layout_mode != "Single View"
         ):
             self.window._set_focus_document(primary_id)
-        if active_id is not None:
-            active = self.window.documents.get(active_id)
-            if active is not None:
-                self.window._set_active_document(active)
 
         display_gain_state().set_gain(session.display_gain)
         split_enabled = session.split_channels and len(selected_ids) == 1
@@ -125,7 +135,6 @@ class SessionController(_BaseSessionController):
         self._pending_line = session.line
         self._pending_difference = session.difference
         self._pending_path_to_id = path_to_id
-        self._request_difference_sources(session.difference, path_to_id)
         QTimer.singleShot(0, self._try_restore_deferred_state)
         return len(path_to_id), tuple(dict.fromkeys(missing))
 
@@ -154,23 +163,6 @@ class SessionController(_BaseSessionController):
         if callable(sync):
             sync()
 
-    def _request_difference_sources(
-        self,
-        recipe: SessionDifference | None,
-        path_to_id: dict[str, str],
-    ) -> None:
-        if recipe is None:
-            return
-        a_id = path_to_id.get(recipe.image_a_path.casefold())
-        b_id = path_to_id.get(recipe.image_b_path.casefold())
-        if a_id is None or b_id is None:
-            self._skip_difference("Saved Difference sources are unavailable.")
-            return
-        for document_id in (a_id, b_id):
-            document = self.window.documents.get(document_id)
-            if document is not None:
-                self.window._ensure_loaded(document)
-
     def _foreground_page_settled(self) -> bool:
         settled = True
         suppressed = self.window._raw_profile_prompt_suppressed
@@ -189,24 +181,39 @@ class SessionController(_BaseSessionController):
             QTimer.singleShot(50, self._try_restore_deferred_state)
             return
 
-        ready = [
-            document
-            for document in self.window.current_comparison_documents()
-            if document.source is not None
-        ]
-        if ready:
-            if self._pending_roi is not None:
-                self.window._shared_roi_changed(self._pending_roi)
-                self._pending_roi = None
-            if self._pending_line is not None:
-                self.window._shared_line_changed(self._pending_line)
-                self._pending_line = None
+        current_page = self.window.current_comparison_documents()
+        ready = [document for document in current_page if document.source is not None]
+        if not ready:
+            had_analysis_intent = (
+                self._pending_roi is not None
+                or self._pending_line is not None
+                or self._pending_difference is not None
+            )
+            self._pending_roi = None
+            self._pending_line = None
+            if self._pending_difference is not None:
+                self._skip_difference(
+                    "Saved analysis sources are unavailable on the restored page."
+                )
+            elif had_analysis_intent:
+                self.window.statusBar().showMessage(
+                    "Saved ROI/Line state was not restored because the page has no usable source.",
+                    5000,
+                )
+            return
+
+        if self._pending_roi is not None:
+            self.window._shared_roi_changed(self._pending_roi)
+            self._pending_roi = None
+        if self._pending_line is not None:
+            self.window._shared_line_changed(self._pending_line)
+            self._pending_line = None
 
         recipe = self._pending_difference
         if recipe is None:
             return
-        if recipe.region == "Active ROI" and self._pending_roi is not None:
-            QTimer.singleShot(50, self._try_restore_deferred_state)
+        if recipe.region == "Active ROI" and self.window._shared_roi is None:
+            self._skip_difference("Saved Active ROI is unavailable on the restored page.")
             return
 
         a_id = self._pending_path_to_id.get(recipe.image_a_path.casefold())
@@ -214,6 +221,14 @@ class SessionController(_BaseSessionController):
         if a_id is None or b_id is None:
             self._skip_difference("Saved Difference sources are unavailable.")
             return
+
+        page_ids = {document.document_id for document in current_page}
+        if a_id not in page_ids or b_id not in page_ids:
+            self._skip_difference(
+                "Saved Difference pair is not part of the restored Comparison Page."
+            )
+            return
+
         a = self.window.documents.get(a_id)
         b = self.window.documents.get(b_id)
         if a is None or b is None:
@@ -222,21 +237,18 @@ class SessionController(_BaseSessionController):
         if a.source is None or b.source is None:
             if a.loading_state == "error" or b.loading_state == "error":
                 self._skip_difference("A saved Difference source failed to load.")
-                return
-            suppressed = self.window._raw_profile_prompt_suppressed
-            if a_id in suppressed or b_id in suppressed:
-                self._skip_difference(
-                    "A saved Difference RAW source was not resolved."
-                )
-                return
-            for document in (a, b):
-                if document.source is None and document.loading_state == "pending":
-                    self.window._ensure_loaded(document)
-            QTimer.singleShot(50, self._try_restore_deferred_state)
+            else:
+                self._skip_difference("A saved Difference source is unavailable.")
             return
 
         panel = self.window.difference_panel
-        panel.set_documents([a, b], (a_id, b_id), self.window._shared_roi)
+        panel.set_documents(current_page, (a_id, b_id), self.window._shared_roi)
+        a_index = panel.a_selector.findData(a_id)
+        b_index = panel.b_selector.findData(b_id)
+        if a_index < 0 or b_index < 0:
+            self._skip_difference("Saved Difference pair is unavailable on the restored page.")
+            return
+
         channel_index = panel.channel.findText(recipe.channel)
         mode_index = panel.mode.findText(recipe.mode)
         region_index = panel.region.findText(recipe.region)
@@ -251,8 +263,8 @@ class SessionController(_BaseSessionController):
             )
             return
 
-        panel.a_selector.setCurrentIndex(panel.a_selector.findData(a_id))
-        panel.b_selector.setCurrentIndex(panel.b_selector.findData(b_id))
+        panel.a_selector.setCurrentIndex(a_index)
+        panel.b_selector.setCurrentIndex(b_index)
         panel.channel.setCurrentIndex(channel_index)
         panel.mode.setCurrentIndex(mode_index)
         panel.region.setCurrentIndex(region_index)
