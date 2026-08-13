@@ -107,11 +107,20 @@ def test_difference_presentation_does_not_change_logical_source_slots(qtbot: obj
         "Difference",
         channel_layout="DIFFERENCE",
     )
-    logical_slots = {document.document_id: index + 1 for index, document in enumerate(sources)}
+    logical_slots = {
+        document.document_id: index + 1 for index, document in enumerate(sources)
+    }
 
     view.set_capacity(6)
     view.show()
-    view.set_documents(sources, 0, len(sources), None, None, slot_by_id=logical_slots)
+    view.set_documents(
+        sources,
+        0,
+        len(sources),
+        None,
+        None,
+        slot_by_id=logical_slots,
+    )
     before = {
         viewer.document.document_id: viewer._slot
         for viewer in view.occupied_viewers
@@ -135,5 +144,8 @@ def test_difference_presentation_does_not_change_logical_source_slots(qtbot: obj
         if viewer.document is not None and viewer.document is not difference
     }
     assert before == logical_slots
-    assert after == {document.document_id: logical_slots[document.document_id] for document in sources[:5]}
+    assert after == {
+        document.document_id: logical_slots[document.document_id]
+        for document in sources[:5]
+    }
     view.close()
