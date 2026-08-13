@@ -8,9 +8,12 @@ context; the current product concept is **PixelScope Session**.
 
 ## Product intent
 
-A Session persists **user-authored workspace intent**, not a process snapshot.
-Reopening a Session should reconstruct the same practical analysis workspace while
-letting the existing P2/P3/P4 runtime owners regenerate decoded/derived state.
+A Session persists enough durable **user-authored workspace intent** to reproduce the
+practical workspace that existed at Save time. It is not a process snapshot.
+
+Restore reconstructs that intent through the existing P2/P3/P4 loading, residency,
+Difference, viewer, and presentation pipelines. Session must not create parallel
+runtime authority merely to reproduce saved state.
 
 ## File and compatibility boundary
 
@@ -32,10 +35,11 @@ New UI, new writes, Recent history, and subsequent P4 work use **Session** termi
 
 Session v1 stores:
 
-- all persistent **Registered** source paths in registration order;
+- persistent **Registered membership** as source paths;
 - resolved RAW profile metadata needed to reconstruct a saved RAW source;
 - ordered logical **Selected** paths;
-- saved **Active** path when applicable;
+- a stable source-path **Current Comparison Page anchor**;
+- saved source **Active** path when applicable;
 - saved **Primary** path when applicable;
 - stable layout mode;
 - shared ROI bounds;
@@ -44,7 +48,33 @@ Session v1 stores:
 - Split Channels state;
 - a regenerable Difference recipe when an active Difference binding exists.
 
-The Difference recipe contains only intent:
+### Ordering semantics
+
+Registered insertion/registration order is **not** durable Session state. Reopening a
+Session restores Registered membership; the Files tree keeps its existing grouping and
+presentation-order policy. Session does not add a new global Files ordering rule.
+
+Selected order **is** durable because it defines Current Comparison Page membership,
+navigation, and presentation. For the loadable subset, saved Selected order is
+preserved exactly.
+
+### Current Comparison Page identity
+
+Current Comparison Page is still derived runtime state rather than a duplicated saved
+collection, but Session persists one Selected source-path anchor so the same page can
+be reconstructed independently of source Active state.
+
+This matters when the saved Active presentation is generated Difference. A generated
+Difference document has no durable source `active_path`; the page anchor still returns
+the workspace to the page on which that Difference was calculated.
+
+For older Session artifacts without an explicit anchor, the model derives a compatible
+anchor from durable state in this order: Primary, source Active, Difference source A,
+then first Selected source.
+
+## Difference recipe
+
+The Difference recipe contains intent only:
 
 - source A path;
 - source B path;
@@ -54,9 +84,11 @@ The Difference recipe contains only intent:
 - Difference gain;
 - Full image/Active ROI region.
 
-Difference A/B must be distinct Selected Session members. They may be off the
-restored Current Comparison Page; this creates at most two feature-owned correctness
-dependencies, not a Selected-wide load/residency authority.
+Difference A/B must be distinct Selected Session members. A normally saved recipe is
+Current-Comparison-Page scoped because Difference calculation itself is page scoped.
+Session therefore restores the saved page first and then replays the recipe through
+the normal current-page Difference controls. It does **not** create special off-page
+Difference loading/residency ownership.
 
 ## Explicitly non-persistent state
 
@@ -68,8 +100,9 @@ Session v1 does **not** serialize:
 - preload plans or workers;
 - foreground workers, tokens, generations, or task objects;
 - Difference maps/cache entries/metrics/results;
+- generated Difference documents;
 - Statistics/Histogram/Line calculated results;
-- transient Split/Difference `ImageDocument`s;
+- transient Split `ImageDocument`s;
 - P4-A temporary baseline/Pick Set;
 - other reproducible runtime/derived buffers.
 
@@ -78,7 +111,7 @@ and `Analysis Working Set = Current Comparison Page` remain authoritative.
 
 ## Open transaction
 
-For a valid Session, the restore sequence is:
+For a valid Session, restore proceeds in this order:
 
 1. read/parse/semantically validate the artifact exactly once;
 2. probe Registered source paths without decoding them;
@@ -91,16 +124,21 @@ For a valid Session, the restore sequence is:
    saved Session;
 7. restore saved RAW reconstruction metadata;
 8. restore loadable Selected in saved order;
-9. derive Current Comparison Page from Selected + saved Active;
-10. restore layout, applicable Primary, and Active independently;
+9. reconstruct the saved Current Comparison Page from the saved page anchor and
+   Selected order;
+10. restore layout, applicable Primary, and source Active independently within that
+    page;
 11. restore Display Gain and applicable Split state;
-12. foreground-load Current Comparison Page plus at most the saved Difference A/B
-    correctness dependencies;
-13. wait for Current Comparison Page foreground work to settle before replaying
+12. foreground-load the Current Comparison Page through the existing MainWindow load
+    pipeline;
+13. wait for that page to reach a stable terminal source state before replaying
     ROI/Line analysis intent;
-14. restore ROI and Line;
-15. when saved Difference A/B are ready, validate exact saved options and replay the
-    recipe through one explicit Difference **Calculate** request.
+14. restore applicable ROI and Line state;
+15. if the saved Difference recipe remains applicable to the restored current page,
+    bind its exact A/B/options through DifferencePanel and issue exactly one explicit
+    **Calculate** request;
+16. let the merged PR #33 result-ready path alone establish active Difference
+    provenance/document/toolbar state.
 
 The loader never eagerly decodes every Registered source.
 
@@ -134,24 +172,25 @@ PR #33 remains authoritative for active Difference lifecycle:
 
 Therefore a saved Session recipe **must not pre-populate
 `MainWindow._difference_source_ids` or otherwise impersonate an active result**.
-During restore, saved A/B are only pending correctness dependencies. Once both are
-ready, Session binds the explicit DifferencePanel pair/options and invokes
-`calculate_difference()`. The normal PR #33 result-ready path alone establishes the
-active Difference document/provenance and toolbar visibility state.
+Session restores the saved Current Comparison Page, binds the saved A/B pair through
+that page's normal DifferencePanel controls, restores exact compatible options, and
+calls `calculate_difference()` once. The normal PR #33 result-ready path alone
+establishes active Difference provenance and visibility state.
 
-If a saved channel/mode/region/threshold is incompatible with the reconstructed pair,
-Difference restore is skipped with compact feedback. No channel, pair, or option is
-silently substituted.
+If the saved pair is no longer on the restored page, a source is unavailable, or a
+saved channel/mode/region/threshold is incompatible with the reconstructed pair,
+Difference restore terminates with compact feedback. No pair, channel, page, or
+option is silently substituted.
 
-## Foreground completion and self-healing
+## Foreground completion and terminal analysis behavior
 
 Session restore reuses MainWindow's native `_ensure_loaded()` state machine. It must
 not maintain a permanent one-shot request cache of its own.
 
-If ordinary navigation/render/token reconciliation returns a required source to
-`pending`, the Session completion loop may request that source again. The completion
-loop is event-loop/timer driven; it does not decode, busy-wait, or synchronously
-calculate Difference.
+If ordinary navigation/render/token reconciliation returns a required current-page
+source to `pending`, the Session completion loop may request that same page source
+again. The loop is event-loop/timer driven; it does not decode, busy-wait, or
+synchronously calculate Difference.
 
 A Current Comparison Page member is settled when it is:
 
@@ -159,16 +198,23 @@ A Current Comparison Page member is settled when it is:
 - in explicit load error;
 - unresolved RAW whose foreground profile prompt was explicitly cancelled/suppressed.
 
-ROI/Line/Difference reconstruction waits for the applicable source boundary instead
-of re-entering synchronous viewer render callbacks.
+ROI/Line/Difference reconstruction begins only after the whole page is settled. If the
+settled page has no usable source for saved ROI/Line intent, those derived states are
+skipped and their pending state is cleared. An `Active ROI` Difference whose ROI
+cannot be restored is also skipped. These are terminal outcomes: Session must not keep
+rescheduling a completion timer indefinitely for analysis state that cannot become
+applicable.
 
 ## Missing/unusable sources
 
 - partial availability restores the loadable Registered/Selected subset and reports
   unavailable paths;
-- a missing Selected member is omitted from restored Selected;
-- unavailable Active falls back through existing Selected policy;
-- Primary restores only when applicable to the derived page;
+- a missing Selected member is omitted from restored Selected while remaining
+  Selected order is preserved;
+- if the saved page anchor is unavailable, restore falls back deterministically to an
+  available saved source Active or first loadable Selected member;
+- source Active restores only when applicable to the reconstructed page;
+- Primary restores only when applicable to the reconstructed page;
 - missing/incompatible Difference sources/options do not trigger substitution;
 - zero successful incoming registrations leave the pre-open workspace/Picks intact;
 - no fuzzy relocation is performed.
@@ -220,22 +266,23 @@ P4-C closure requires fresh validation on the #32/#33-based head for:
 - Session schema roundtrip and legacy P4-B read compatibility;
 - strict malformed-schema rejection with no runtime mutation;
 - exactly-one-read open transaction;
-- Registered-all versus Selected-subset semantics;
-- Active/Primary/layout independence;
+- Registered membership versus ordered Selected semantics;
+- page-anchor persistence and same-page Save→Open with more than six Selected;
+- generated-Difference Active Save→Open returning to the same later page;
+- Active/Primary/layout independence within the restored page;
 - zero-registration non-destructive behavior;
 - no Registered-only eager decode;
 - resolved/unresolved RAW restore behavior;
 - ROI/Line/Display Gain/Split restoration;
-- Difference recipe replay through PR #33 explicit Calculate, without provenance
-  pre-binding;
-- off-page Difference dependency bounded to at most two extra sources;
-- incompatible saved Difference options skip rather than substitute;
+- terminal skip when settled page analysis state is unusable;
+- Difference recipe replay through current-page controls and PR #33 explicit
+  Calculate, without provenance pre-binding;
+- incompatible saved Difference pair/options skip rather than substitute;
 - real-worker four-source + ROI + Line + non-1× Gain + Difference reopen to final
   Difference presentation;
 - typed Recent MRU, migration, Remove/Keep, wrong-kind protection, restart
   persistence, per-type clear, and observer failure isolation;
 - inherited PR #32/#33 Difference/Display Gain lifecycle regressions.
 
-Validation from the abandoned pre-rebase/freeze-debug heads is historical only. No
-PASS is inferred for the current rebuilt head until owner-local validation is
-reported.
+Validation from abandoned pre-rebase/freeze-debug heads is historical only. No PASS
+is inferred for the current rebuilt head until owner-local validation is reported.
