@@ -150,12 +150,20 @@ Difference presentation are not independent pick identities. A Difference tile
 shows a non-interactive **Derived** badge instead of Pick. Pick/Unpick/Clear
 Selection therefore leave an existing Difference presentation unchanged.
 
-When **Keep Selection** is applied, a displayed `Difference(A, B)` remains only if
-both source A and source B were kept. If either source is excluded, PixelScope
-removes the Difference presentation and returns to the normal surviving-source
-presentation. The decision uses the actual A/B source identities, not the number of
-images left Selected. Removing the presentation does not purge the generation-keyed
-Difference cache, so a still-valid cached A/B map can be reused later.
+**Keep Selection is a Difference reset boundary.** If a Difference is active when
+Keep Selection commits the picked subset, PixelScope closes that active Difference
+before replacing Selected. This happens even when both of the old A/B source images
+are included in the kept subset. After Keep, no active Difference document or A/B
+provenance is bound to the new workspace and the toolbar **Diff** action is unchecked
+and disabled.
+
+Keep Selection does not purge the generation-keyed Difference Map Cache or change
+source generations. To establish a Difference again, choose a valid current-page
+Image 1/Image 2 pair in the Difference panel and explicitly use **Calculate**. A
+matching cached generation pair is reused without recomputing the numerical map;
+otherwise the normal Difference calculation runs. After a successful Calculate,
+the toolbar **Diff** action controls visibility of that same active result only.
+Hiding and showing it does not select a new pair or start another calculation.
 
 Picking an image also does not decode or preload off-page images, protect them in
 source residency, run Difference or analysis, or otherwise change the Current
@@ -347,16 +355,30 @@ Difference's available/default inputs follow the Current Comparison Page, while 
 explicit Image 1/Image 2 pair remains owned by the Difference feature. Pick
 membership does not change either authority and Pick/Unpick/Clear Selection does
 not calculate, remove, or invalidate Difference. Difference is derived from its A/B
-sources, never an independent Pick or logical Selected member. After Keep Selection,
-a displayed Difference remains only when both A and B are still Selected; otherwise
-its presentation is removed through the normal Difference lifecycle while cache
-ownership remains unchanged.
+sources, never an independent Pick or logical Selected member.
 
-When all six source slots of a Comparison Page are occupied, the derived Difference
-result is presented in Single View until disabled, preserving the existing
-six-source Difference workspace contract. Returning to a page with a cached
-Difference uses the same Diff-only Single View and restore behavior as a fresh
-asynchronous result.
+When **Keep Selection** commits a new Selected subset, any active Difference is
+closed unconditionally before the Selected mutation, even if its old A/B sources
+both remain in the kept subset. The active Difference document/provenance is cleared
+and toolbar **Diff** remains unchecked and disabled. The generation-keyed cache is
+preserved and source generations are unchanged.
+
+A new active Difference is established only by an explicit **Calculate** request
+for the current Difference Image 1/Image 2 pair. Calculate performs the normal
+compatibility checks and generation-aware cache lookup first. A cache hit is reused
+without numerical-map recomputation; a miss uses the normal asynchronous
+calculation. On success, the result becomes the active Difference and toolbar
+**Diff** becomes enabled and checked.
+
+After Calculate, toolbar **Diff** is visibility-only: unchecking hides that same
+active result and checking it again shows the same result. The toolbar does not infer
+a different A/B pair from the current page, does not promote an unrelated cached
+result, and does not calculate implicitly.
+
+When all six source slots of a Comparison Page are occupied, a successfully
+established Difference result uses the existing Diff-only Single View presentation
+and workspace-restore behavior. A cache hit obtained through explicit Calculate
+uses the same presentation path as a freshly calculated result.
 
 Comparison Sets do not persist Difference pair, map, cache, or Difference
 presentation state.
@@ -461,9 +483,9 @@ normally reload when its page is revisited. Saving or opening a Comparison Set d
 not create Selected-wide residency protection.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
-itself discard a valid generation-keyed Difference map. Removing a Difference
-presentation after Keep Selection also does not purge the cache merely because one
-of its source images was excluded from the new Selected subset.
+itself discard a valid generation-keyed Difference map. Keep Selection also does
+not purge that cache when it closes the active Difference presentation for the new
+Selected workspace.
 
 **Preload Next Folder Position** remains exactly one valid one-to-six Selected
 Folder Position ahead, direction +1, on a separate max-one worker. It does not
