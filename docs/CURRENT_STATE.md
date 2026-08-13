@@ -1,18 +1,20 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-14
-Current merged baseline / PR #33 merge commit:
-`51a540c92c372d71e02fd849fb5e0d406d0e9327`
+Current merged baseline / PR #32 merge commit:
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`
 
 P4-B Comparison Set Persistence merged as PR #30 at
-`3a19589e6cbad5fa8c814c522df6a553f59ee340`. PR #32 stabilized Display Gain /
-Difference background work and viewer lifecycle; PR #33 finalized Difference ×
-curation/Selected semantics. Both are now authoritative `main` behavior.
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session persistence / typed
+Recent is active on draft PR #31. PR #32 separately stabilized Display Gain
+worker/lifetime behavior and Difference insert/remove/viewer-reuse presentation
+lifecycle and is now part of `main`.
 
-P4-C **Comparison Set Entry UX & Recent Entries** is active on draft PR #31. The PR
-was rebuilt from the PR #33 baseline after the earlier draft drifted into full
-Session persistence. P4-C now owns typed Recent history/entry UX only and delegates
-image, folder, and Comparison Set operations to their existing canonical workflows.
+This follow-up branch, `fix/p4a-difference-curation-semantics`, aligns P4-A source
+curation with that merged Difference lifecycle under the owner-final Keep/Calculate/
+toolbar contract. The repository owner reported the implementation validation suite
+passing and confirmed the program behavior matches the intended contract. Final
+changes after that validation are durable-documentation-only.
 
 ## Merge baseline
 
@@ -31,14 +33,13 @@ image, folder, and Comparison Set operations to their existing canonical workflo
 - P4-A Review Selection & Curation merged as PR #29 at
   `3486146494076e9b513843b90ec44e504043729e`.
 - P4-B Comparison Set Persistence merged as PR #30.
-- PR #32 Display Gain/Difference lifecycle stabilization merged as
-  `e1ccf264f86e37b438c923faceae96c3ecb539b7`.
-- PR #33 Difference × source-curation semantic alignment merged at the current
+- PR #32 Display Gain/Difference lifecycle stabilization merged at the current
   baseline SHA.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-C Comparison Set Entry UX / typed
-Recent is active on draft PR #31.
+P4 is **Workflow & Session Productivity**. P4-C Session persistence / typed Recent
+is active on draft PR #31; this P4-A × Difference follow-up is intentionally
+separate from P4-C.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -199,40 +200,6 @@ Gain previews/state, analysis requests/results, worker/request/generation tokens
 Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
 P4-A curation. Settings schema remains v5 because `.pixelscope` is an external
 artifact rather than a SettingsRepository schema change.
-
-## P4-C typed Recent entry workflow
-
-P4-C adds only typed workflow-entry history around existing canonical operations.
-It does **not** introduce a full persistent Session schema or restore transaction.
-
-Recent histories are separated into Images, Folders, and Comparison Sets. Each is
-bounded to 10 deterministic normalized absolute local paths. Persistence uses
-`recent/images`, `recent/folders`, and `recent/comparison_sets` QSettings keys outside
-ApplicationSettings schema v5. The abandoned draft-only `recent/sessions` key may be
-read as a migration fallback for Comparison Set history and is removed on the next
-Comparison Set history write.
-
-Recent entry authority is observational and narrow:
-
-- Image reuses the normal direct-image registration + Selected replacement path;
-- Folder reuses registration-only folder input and therefore does not acquire
-  Selected/presentation authority;
-- Comparison Set delegates to the P4-B loader/writer and is promoted only after a
-  meaningful open (`loaded > 0`) or successful save;
-- history/QSettings failure cannot turn a successful canonical workflow into a
-  failed operation;
-- missing paths use explicit Remove/Keep behavior with no workspace mutation;
-- wrong filesystem type is reported and kept rather than reinterpreted;
-- invalid existing Comparison Set artifacts remain history entries while P4-B owns
-  validation/error reporting;
-- each typed submenu has its own clear command;
-- compact menu text limits path exposure while full normalized paths remain available
-  in tooltip/status context.
-
-P4-C owns no Difference, Display Gain, curation, residency, preload, RAW, analysis,
-or Current Comparison Page state. Recent Comparison Set open therefore inherits PR
-#33 Selected/Difference teardown and explicit-Calculate behavior through the ordinary
-P4-B selection path rather than defining a separate lifecycle.
 
 ## Unified input policy
 
@@ -429,17 +396,15 @@ display = anchor + gain * (source - anchor)
 - gain changes do not mutate source, analysis results, request identity, residency,
   or Difference.
 
-PR #32 bounds full-frame Display Gain preview work on its dedicated application-owned
-pool and preserves retained source/viewer identity across Difference presentation
-changes. PR #33 does not alter Display Gain numerical semantics.
+P4-A does not change Display Gain workers, preview identity, RAW Black-anchored
+math, or native Difference semantics. Pick state follows source IDs rather than any
+gained preview representation.
 
 ## Runtime/settings baseline
 
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
 persist the captured curation baseline or temporary Pick Set. P4-B also does not
 change Settings schema: Comparison Sets are explicit external `.pixelscope` artifacts.
-P4-C Recent uses separate `recent/*` QSettings keys outside ApplicationSettings and
-Reset Settings.
 
 Source residency remains exact native `source.nbytes` under P2 protected soft-budget
 LRU semantics, with the P3-D large-selection refinement that **Selected alone is not
@@ -454,9 +419,8 @@ Difference presentation/binding for the new Selected workspace but does not clea
 generation-keyed cache entries or change source generations. Preload remains +1
 Folder Position, max-one dedicated worker, with running-preload promotion as
 established by P2. P4-A does not add Comparison Page or Pick Set preloading. P4-B
-does not serialize or acquire preload/residency/cache authority. P4-C Recent adds no
-residency/preload/cache owner. Diagnostics remain deterministic, bounded, sanitized,
-and observation-only.
+does not serialize or acquire preload/residency/cache authority. Diagnostics remain
+deterministic, bounded, sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -488,15 +452,15 @@ claimed here without separate observed evidence.
 1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
 2. P4-A — Review Selection & Curation — Complete — PR #29
 3. P4-B — Comparison Set Persistence — Complete — PR #30
-4. P4-C — Comparison Set Entry UX & Recent Entries — active draft — PR #31
+4. P4-C — Session persistence / typed Recent — active draft — PR #31
 5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
 6. P4-E — Viewer Overlay & Export Productivity — planned
 7. P4-F — Integration & Workflow Hardening — planned
 
-PR #32 and PR #33 are merged baseline corrections, not numbered P4 slices and not
-part of PR #31. P4 inherits their worker/presentation/Difference contracts. Temporary
-workflow state and Recent history must not become source/cache/residency/analysis
-authority.
+The source-only Difference curation follow-up is a bounded P4-A semantic correction,
+not a new numbered P4 phase and not part of PR #31. P4 inherits the P2/P3 ownership
+and numerical contracts above. Temporary workflow state must not become
+source/cache/residency/analysis authority.
 
 Arbitrary-angle Line Profile is intentionally omitted from P4. Because Line Profile
 is an observation/sampling tool, a future arbitrary-angle version should define a
