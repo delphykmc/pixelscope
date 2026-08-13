@@ -17,6 +17,7 @@ from pixelscope.app.settings import (
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.ui.comparison_set import install_comparison_set
 from pixelscope.ui.design_tokens import apply_engineering_palette
+from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
 from pixelscope.ui.presentation_controls import polish_presentation_controls
@@ -83,7 +84,8 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     """Install the production presentation control composition in one authoritative order."""
 
     gain_control = install_display_gain_control(window)
-    install_review_selection(window)
+    review_controller = install_review_selection(window)
+    install_difference_curation_lifecycle(window, review_controller)
     install_comparison_set(window)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
