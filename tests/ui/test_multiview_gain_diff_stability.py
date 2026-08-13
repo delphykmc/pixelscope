@@ -41,20 +41,20 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         timeout=3000,
     )
 
-    inventory_ids = tuple(id(viewer) for viewer in view.viewers)
     source_viewers = {
         document.document_id: next(
             viewer for viewer in view.occupied_viewers if viewer.document is document
         )
         for document in sources
     }
+    viewer_inventory = tuple(view.viewers)
     request_serials = {
         document_id: viewer._display_preview_request_serial
         for document_id, viewer in source_viewers.items()
     }
 
     view.set_capacity(6)
-    with_difference = [difference, *sources]
+    with_difference = [sources[0], difference, *sources[1:]]
     view.set_documents(
         with_difference,
         0,
@@ -64,7 +64,7 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         preserve_view=True,
     )
 
-    assert tuple(id(viewer) for viewer in view.viewers) == inventory_ids
+    assert tuple(view.viewers) == viewer_inventory
     assert [viewer.document for viewer in view.occupied_viewers] == with_difference
     for document in sources:
         viewer = next(
@@ -74,8 +74,6 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         assert viewer._display_preview_request_serial == request_serials[document.document_id]
         assert viewer._displayed_gain == 2.0
 
-    # Match MainWindow production order: capacity shrinks before the source-only
-    # document list is reassigned. No retained source may be hidden in between.
     view.set_capacity(4)
     view.set_documents(
         sources,
@@ -86,7 +84,7 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         preserve_view=True,
     )
 
-    assert tuple(id(viewer) for viewer in view.viewers) == inventory_ids
+    assert tuple(view.viewers) == viewer_inventory
     assert [viewer.document for viewer in view.occupied_viewers] == sources
     for document in sources:
         viewer = next(
@@ -98,3 +96,44 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
 
     view.close()
     state.reset()
+
+
+def test_difference_presentation_does_not_change_logical_source_slots(qtbot: object) -> None:
+    view = MultiCompareView()
+    qtbot.addWidget(view)  # type: ignore[attr-defined]
+    sources = [_rgb_document(f"source-{index}.png", 20 + index) for index in range(6)]
+    difference = ImageDocument.from_array(
+        np.zeros((64, 64), dtype=np.uint8),
+        "Difference",
+        channel_layout="DIFFERENCE",
+    )
+    logical_slots = {document.document_id: index + 1 for index, document in enumerate(sources)}
+
+    view.set_capacity(6)
+    view.show()
+    view.set_documents(sources, 0, len(sources), None, None, slot_by_id=logical_slots)
+    before = {
+        viewer.document.document_id: viewer._slot
+        for viewer in view.occupied_viewers
+        if viewer.document is not None
+    }
+
+    presented = [difference, *sources[:5]]
+    view.set_documents(
+        presented,
+        0,
+        len(sources),
+        None,
+        None,
+        preserve_view=True,
+        slot_by_id=logical_slots,
+    )
+
+    after = {
+        viewer.document.document_id: viewer._slot
+        for viewer in view.occupied_viewers
+        if viewer.document is not None and viewer.document is not difference
+    }
+    assert before == logical_slots
+    assert after == {document.document_id: logical_slots[document.document_id] for document in sources[:5]}
+    view.close()
