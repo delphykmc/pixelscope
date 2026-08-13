@@ -41,6 +41,7 @@ def test_session_v1_round_trip_preserves_workspace_intent(tmp_path: Path) -> Non
             SessionSource(str(third)),
         ),
         selected_paths=(str(first), str(second)),
+        page_anchor_path=str(first),
         active_path=str(second),
         primary_path=str(first),
         layout_mode="Multi View",
@@ -66,6 +67,7 @@ def test_session_v1_round_trip_preserves_workspace_intent(tmp_path: Path) -> Non
 
     assert restored == session
     assert restored.kind == "pixelscope-session"
+    assert Path(restored.page_anchor_path or "").name == "b.raw"
     assert [Path(source.path).name for source in restored.registered_sources] == [
         "b.raw",
         "a.png",
@@ -73,6 +75,33 @@ def test_session_v1_round_trip_preserves_workspace_intent(tmp_path: Path) -> Non
     ]
     assert [Path(path).name for path in restored.selected_paths] == ["b.raw", "a.png"]
     assert RawProfile.parse_obj(restored.registered_sources[0].raw_profile) == _profile()
+
+
+def test_difference_recipe_derives_page_anchor_when_active_is_derived(tmp_path: Path) -> None:
+    paths = [tmp_path / f"image-{index}.png" for index in range(8)]
+    session = Session(
+        registered_sources=tuple(SessionSource(str(path)) for path in paths),
+        selected_paths=tuple(str(path) for path in paths),
+        active_path=None,
+        primary_path=None,
+        difference=SessionDifference(str(paths[6]), str(paths[7])),
+    )
+
+    assert session.page_anchor_path == str(paths[6].resolve())
+    assert ComparisonSetRepository().to_payload(session)["page_anchor_path"] == str(
+        paths[6].resolve()
+    )
+
+
+def test_page_anchor_must_be_a_selected_member(tmp_path: Path) -> None:
+    selected = tmp_path / "selected.png"
+    other = tmp_path / "registered-only.png"
+    with pytest.raises(ComparisonSetError, match="page anchor"):
+        Session(
+            registered_sources=(SessionSource(str(selected)), SessionSource(str(other))),
+            selected_paths=(str(selected),),
+            page_anchor_path=str(other),
+        )
 
 
 def test_writer_persists_recipe_not_difference_cache_or_result(tmp_path: Path) -> None:
@@ -87,6 +116,7 @@ def test_writer_persists_recipe_not_difference_cache_or_result(tmp_path: Path) -
     payload = ComparisonSetRepository().to_payload(session)
 
     assert payload["kind"] == "pixelscope-session"
+    assert payload["page_anchor_path"] == str(a.resolve())
     assert "difference" in payload
     assert "cache" not in payload
     assert "difference_map" not in payload
@@ -107,6 +137,7 @@ def test_session_allows_registered_workspace_with_zero_selected(tmp_path: Path) 
     source = SessionSource(str(tmp_path / "registered.png"))
     session = Session(registered_sources=(source,))
     assert session.selected_paths == ()
+    assert session.page_anchor_path is None
     assert session.active_path is None
 
 
@@ -194,6 +225,7 @@ def test_legacy_p4b_comparison_set_is_read_as_session(tmp_path: Path) -> None:
     assert session.kind == "pixelscope-session"
     assert tuple(source.path for source in session.registered_sources) == (first, second)
     assert session.selected_paths == (first, second)
+    assert session.page_anchor_path == second
     assert session.active_path == second
     assert session.primary_path == first
 
