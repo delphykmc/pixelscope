@@ -92,6 +92,7 @@ def test_six_source_diff_number_keys_show_matching_source_and_keep_diff_availabl
 
     window._navigate_single_view("difference")
     assert window.viewer.document is difference
+    assert window._active_document_id == difference.document_id
     assert window.diff_action.isChecked()
     assert tuple(document.document_id for document in window.selected_documents) == logical_ids
     window.close()
