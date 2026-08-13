@@ -221,49 +221,6 @@ Difference maps/cache, Display Gain, analysis request/results, workers/tokens,
 Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
 Pick state. Application Settings schema remains version 5.
 
-## Recent entry history
-
-PixelScope keeps separate bounded histories for the three user entry intents:
-
-- **File > Open Recent Images**;
-- **File > Open Recent Folders**;
-- **File > Open Recent Comparison Sets**.
-
-Each list keeps at most 10 normalized absolute local paths in deterministic MRU
-order. The type is explicit: an Image history item is never reinterpreted as a
-Folder, and vice versa. Recent is history only; it does not own source residency,
-preload, Difference, Display Gain, analysis state, or curation state.
-
-Opening a Recent entry reuses the same canonical workflow as the corresponding
-normal command:
-
-- Recent Image behaves like direct image open: the successfully opened image becomes
-  Selected through the normal P3 path;
-- Recent Folder behaves like folder open: supported contents are registered but the
-  current Selected set/presentation is not replaced merely because the folder was
-  reopened;
-- Recent Comparison Set delegates to the P4-B Comparison Set loader, including its
-  partial-missing, zero-loadable, Active/Primary/layout, RAW-profile, and Selected
-  mutation behavior.
-
-A Comparison Set moves to the top of Recent only when at least one saved source is
-actually loaded. A save enters Recent only after the canonical atomic save succeeds.
-History persistence is best-effort: failure to update Recent does not turn an
-otherwise successful open/save into a failed workflow.
-
-If a Recent path no longer exists, PixelScope asks whether to **Remove** the history
-entry or **Keep** it for a later retry. Either choice leaves the current workspace
-unchanged. If an existing path is now the wrong filesystem kind, PixelScope keeps the
-entry, reports the mismatch, and does not reinterpret it. An existing but invalid
-`.pixelscope` artifact also stays in Recent while the normal Comparison Set loader
-reports the artifact error.
-
-Each typed submenu provides its own **Clear Recent ...** command. Recent history is
-stored separately from Application Settings and is not removed by **Reset Settings**.
-The stored values are local absolute paths and can reveal filesystem names. Menu
-labels are compact, but the full path remains available in tooltip/status context;
-clear the applicable Recent list when path retention is not desired.
-
 ## Fine image navigation
 
 **Left/Right** remains Previous/Next Selected Image across the complete ordered
@@ -283,8 +240,8 @@ for Comparison Page paging.
 Folder Position requires one to six Selected files from distinct folders. If 20
 folders are registered but the comparison contains A005, D005, F005, and K005,
 PageDown targets A006, D006, F006, and K006 only. All members move atomically in
-natural filename order. If any participating folder is at an endpoint, selection is
-unchanged and the status bar reports the boundary.
+natural filename order. If any participating folder is at an endpoint, selection
+is unchanged and the status bar reports the boundary.
 
 When **more than six images are Selected**, Folder Position is unavailable and
 PageUp/PageDown does not partially move only the current page. Reduce Selected to
@@ -543,9 +500,7 @@ required indication when they differ from current runtime values.
 **Reset Settings** resets application preferences only. **View > Reset Workspace
 Layout** resets workspace layout separately. The captured curation baseline/Pick Set
 is temporary and adds no Settings/QSettings key. `.pixelscope` Comparison Sets are
-separate external files and do not change Settings schema v5. Recent history uses
-separate `recent/*` keys and is intentionally not removed by Reset Settings; use the
-applicable **Clear Recent ...** submenu command to remove retained paths.
+separate external files and do not change Settings schema v5.
 
 ## Runtime Diagnostics
 
