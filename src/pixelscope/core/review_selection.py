@@ -4,18 +4,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 
-def difference_sources_survive_selection(
-    source_ids: Sequence[str],
-    selected_ids: Sequence[str],
-) -> bool:
-    """Return whether one complete Difference A/B provenance survives Selected replacement."""
-
-    if len(source_ids) != 2:
-        return False
-    selected = set(selected_ids)
-    return all(source_id in selected for source_id in source_ids)
-
-
 @dataclass
 class ReviewSelectionState:
     """Temporary ID-only state captured by the first direct curation Pick."""
