@@ -25,26 +25,38 @@ def _ready_documents(tmp_path: Path, count: int) -> list[ImageDocument]:
     ]
 
 
-def _production_window(qtbot: object) -> tuple[MainWindow, ReviewSelectionController]:
+def _production_window(
+    qtbot: object,
+) -> tuple[MainWindow, ReviewSelectionController]:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     _compose_main_window_presentation(window)
     return window, window.review_selection_controller
 
 
-def _register_and_select(window: MainWindow, documents: list[ImageDocument]) -> None:
+def _register_and_select(
+    window: MainWindow,
+    documents: list[ImageDocument],
+) -> None:
     for document in documents:
         window.add_document(document, select=False)
     window._select_document_ids([document.document_id for document in documents])
 
 
-def _pick_document(qtbot: object, window: MainWindow, document: ImageDocument) -> None:
+def _pick_document(
+    qtbot: object,
+    window: MainWindow,
+    document: ImageDocument,
+) -> None:
     viewer = next(
         viewer
         for viewer in window.multi_compare_view.occupied_viewers
         if viewer.presented_document is document
     )
-    qtbot.mouseClick(viewer.header.pick, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    qtbot.mouseClick(  # type: ignore[attr-defined]
+        viewer.header.pick,
+        Qt.MouseButton.LeftButton,
+    )
 
 
 def _activate_difference(
@@ -66,11 +78,18 @@ def _activate_difference(
     numerical = np.abs(source_a.astype(np.int16) - source_b.astype(np.int16))
     preview = np.clip(numerical, 0, 255).astype(np.uint8)
     title = f"Absolute [All]: {pair[0].display_name} vs {pair[1].display_name}"
-    monkeypatch.setattr(window.difference_panel, "calculate_difference", lambda: None)
+    monkeypatch.setattr(
+        window.difference_panel,
+        "calculate_difference",
+        lambda: None,
+    )
     window._difference_panel_ready(title, numerical, preview)
     difference = window._difference_document
     assert difference is not None
-    assert window._difference_source_ids == (pair[0].document_id, pair[1].document_id)
+    assert window._difference_source_ids == (
+        pair[0].document_id,
+        pair[1].document_id,
+    )
     assert window.diff_action.isChecked()
     assert window.diff_action.isEnabled()
     return difference
@@ -90,7 +109,11 @@ def test_difference_is_derived_and_uses_local_slot_presentation(
     window, _controller = _production_window(qtbot)
     _register_and_select(window, documents)
 
-    difference = _activate_difference(window, (documents[0], documents[1]), monkeypatch)
+    difference = _activate_difference(
+        window,
+        (documents[0], documents[1]),
+        monkeypatch,
+    )
     difference_viewer = next(
         viewer
         for viewer in window.multi_compare_view.occupied_viewers
@@ -116,7 +139,9 @@ def test_difference_is_derived_and_uses_local_slot_presentation(
     assert source_viewers
     assert all(not viewer.header.pick.isHidden() for viewer in source_viewers)
     assert all(viewer.header.derived.isHidden() for viewer in source_viewers)
-    assert all(viewer.header.difference_reference.isHidden() for viewer in source_viewers)
+    assert all(
+        viewer.header.difference_reference.isHidden() for viewer in source_viewers
+    )
     assert "(P" not in window.difference_panel.a_selector.currentText()
     assert "(P" not in window.difference_panel.b_selector.currentText()
     window.close()
@@ -131,7 +156,11 @@ def test_pick_unpick_and_clear_leave_active_difference_unchanged(
     documents = _ready_documents(tmp_path, 4)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
-    difference = _activate_difference(window, (documents[0], documents[1]), monkeypatch)
+    difference = _activate_difference(
+        window,
+        (documents[0], documents[1]),
+        monkeypatch,
+    )
     provenance = window._difference_source_ids
 
     _pick_document(qtbot, window, documents[0])
@@ -160,11 +189,18 @@ def test_keep_always_resets_active_difference_even_when_both_sources_are_kept(
     _pick_document(qtbot, window, documents[0])
     _pick_document(qtbot, window, documents[1])
     generations = tuple(document.generation for document in documents)
-    difference = _activate_difference(window, (documents[0], documents[1]), monkeypatch)
+    difference = _activate_difference(
+        window,
+        (documents[0], documents[1]),
+        monkeypatch,
+    )
 
     assert controller.keep_picked()
 
-    assert _selected_ids(window) == [documents[0].document_id, documents[1].document_id]
+    assert _selected_ids(window) == [
+        documents[0].document_id,
+        documents[1].document_id,
+    ]
     assert window._difference_document is None
     assert window._difference_source_ids is None
     assert not window.diff_action.isChecked()
@@ -231,7 +267,11 @@ def test_six_source_keep_restores_workspace_without_stale_derived_state(
     for document in documents[:3]:
         _pick_document(qtbot, window, document)
 
-    difference = _activate_difference(window, (documents[0], documents[1]), monkeypatch)
+    difference = _activate_difference(
+        window,
+        (documents[0], documents[1]),
+        monkeypatch,
+    )
     assert window.central_stack.currentWidget() is window.viewer
     assert window.viewer.presented_document is difference
     assert window._six_image_diff_restore_state is not None
