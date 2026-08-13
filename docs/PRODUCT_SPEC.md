@@ -167,7 +167,20 @@ invalidate the curation state because it does not change Selected.
 
 Pick identity is the native Registered/Selected source document ID. Split Channel
 items, Difference derived documents, and gained preview representations are not
-independent pick identities.
+independent pick identities. A displayed Difference tile therefore exposes a
+non-interactive **Derived** role instead of Pick; it has no independent curation or
+logical Selected membership.
+
+Pick, Unpick, and Clear Selection do not reconcile Difference because they change
+only temporary workflow state. At **Keep Selection**, an existing
+`Difference(A, B)` remains represented only when both source A and source B are in
+the resulting logical Selected set. If either provenance source is excluded, the
+Difference presentation is deactivated through the normal Difference teardown and
+ordinary surviving-source presentation lifecycle. This decision is based on the
+actual A/B source identities, never on the resulting Selected count. Difference
+cache ownership is unchanged; curation does not purge a valid generation-keyed map.
+When both A and B survive, curation does not deliberately reset or recompute an
+otherwise valid Difference result.
 
 The captured baseline/Pick Set is temporary application-session workflow state. It
 is not persisted to Settings/QSettings and does not own source arrays, previews,
@@ -306,10 +319,9 @@ Settings schema remains version 5. P4-A adds no Settings/QSettings key and does 
 persist the captured curation baseline/Pick Set. P4-B Comparison Sets are separate
 external artifacts and likewise do not change the Settings schema.
 
-General owns persistent RAW JSON confirmation, exact RAW file-size validation,
-and native Difference Threshold/Gain defaults. Files owns optional default Open
-and Export folders. Performance owns startup Decoded Source Memory, Difference Map
-Cache, and preload settings.
+General owns persistent RAW JSON confirmation, exact RAW size, default Open/Export
+directories, Difference Threshold/Gain, Difference Map Cache MiB, Decoded Source
+Memory MiB, and preload enablement.
 
 Decoded Source Memory accounts native resident `ImageDocument.source` arrays only
 and uses protected soft-budget LRU semantics. Source eviction and Difference cache
@@ -353,9 +365,14 @@ native-domain code default under schema v5. Normalized threshold is session-loca
 
 Difference owns its own independent presentation Gain. General Display Gain is
 not applied to Difference numerical sources, Difference preview generation, or
-Difference-cache identity. Pick/Unpick does not calculate Difference, change its
-explicit pair authority, or invalidate a generation-keyed Difference cache.
-Comparison Sets do not persist Difference pair/map/cache state.
+Difference-cache identity. Pick/Unpick/Clear Selection does not calculate
+Difference, change its explicit pair authority, or invalidate a generation-keyed
+Difference cache. Difference is a derived presentation rather than a logical
+Selected or independently Pickable member. When Keep Selection commits a new
+Selected subset, an active `Difference(A, B)` remains only if both provenance
+sources survive; otherwise normal Difference teardown removes the presentation
+without making curation the cache owner. Comparison Sets do not persist Difference
+pair/map/cache state.
 
 ## Display Gain contract
 
@@ -479,16 +496,16 @@ and Current Comparison Page contracts.
 P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
-P4-B Comparison Set Persistence is implemented on
-`feature/p4-b-comparison-set-persistence` / PR #30. The repository owner reports the
-focused Windows P4-B validation PASS (`36 passed`); independent review reports no
-remaining runtime/schema/test blocker. Durable-doc consistency and final
-review/validation closure remain before merge.
+P4-B Comparison Set Persistence merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Comparison Set Entry UX /
+Recent Entries is active on draft PR #31. Display Gain and Difference presentation
+lifecycle stabilization merged separately as PR #32 at
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`.
 
-Later planned P4 work begins with **Comparison Set Entry UX & Recent Entries**, then
-Saved ROI productivity, focused viewer overlay/export productivity, and integration
-hardening. P4-C must use the P4-B Comparison Set loader rather than reintroducing a
-broader full-session persistence model.
+Later planned P4 work continues with Saved ROI productivity, focused viewer
+overlay/export productivity, and integration hardening. P4-C must use the P4-B
+Comparison Set loader rather than reintroducing a broader full-session persistence
+model.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or
