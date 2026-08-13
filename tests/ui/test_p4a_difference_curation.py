@@ -67,6 +67,15 @@ def _activate_difference(
     preview = np.clip(numerical, 0, 255).astype(np.uint8)
     title = f"Absolute [All]: {pair[0].display_name} vs {pair[1].display_name}"
     cached = (title, numerical, preview)
+
+    for selector, document in (
+        (window.difference_panel.a_selector, pair[0]),
+        (window.difference_panel.b_selector, pair[1]),
+    ):
+        index = selector.findData(document.document_id)
+        assert index >= 0
+        selector.setCurrentIndex(index)
+
     requested_ids = frozenset((pair[0].document_id, pair[1].document_id))
     selected_pair = window.difference_panel.selected_documents()
     assert selected_pair is not None
@@ -155,10 +164,113 @@ def test_difference_tile_is_derived_while_source_tiles_remain_pickable(
     assert difference_viewer.header.difference_a_name.isHidden()
     assert difference_viewer.header.difference_b_name.isHidden()
 
+    # Source presentation is intentionally unchanged; page context already exists
+    # outside the tile header and the ordinary source slot/name UI remains authority.
     assert source_viewers
     assert all(not viewer.header.pick.isHidden() for viewer in source_viewers)
     assert all(viewer.header.derived.isHidden() for viewer in source_viewers)
     assert all(viewer.header.difference_reference.isHidden() for viewer in source_viewers)
+    assert all(not viewer.header.name.isHidden() for viewer in source_viewers)
+    assert all(not viewer.header.text().startswith("(P") for viewer in source_viewers)
+    window.close()
+
+
+def test_large_selection_difference_uses_page_local_slots_without_source_relabeling(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QSettings().clear()
+    documents = _ready_documents(tmp_path, 8)
+    window, _controller = _production_window(qtbot)
+    _register_and_select(window, documents)
+
+    window.next_comparison_page()
+    page = window.current_comparison_documents()
+    assert page == documents[6:8]
+
+    source_viewers = {
+        viewer.presented_document.document_id: viewer
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.presented_document is not None
+    }
+    for local_slot, document in enumerate(page, start=1):
+        viewer = source_viewers[document.document_id]
+        assert viewer.header.badge.text() == str(local_slot)
+        assert viewer.header.difference_reference.isHidden()
+        assert not viewer.header.name.isHidden()
+        assert not viewer.header.text().startswith("(P")
+
+    pair = (documents[6], documents[7])
+    difference, _calls = _activate_difference(window, pair, monkeypatch)
+    difference_viewer = next(
+        viewer
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.presented_document is difference
+    )
+    assert difference_viewer.header.difference_a_badge.text() == "1"
+    assert difference_viewer.header.difference_b_badge.text() == "2"
+    assert difference_viewer.header.difference_a_name.isHidden()
+    assert difference_viewer.header.difference_b_name.isHidden()
+
+    # Difference selectors remain source/name-oriented; page metadata is not injected
+    # into selector text or source document identity.
+    assert pair[0].display_name in window.difference_panel.a_selector.currentText()
+    assert pair[1].display_name in window.difference_panel.b_selector.currentText()
+    assert "(P" not in window.difference_panel.a_selector.currentText()
+    assert "(P" not in window.difference_panel.b_selector.currentText()
+    original_ids = (pair[0].document_id, pair[1].document_id)
+
+    window._navigate_single_view("difference")
+    assert window.viewer.presented_document is difference
+    assert window.viewer.header.difference_a_badge.text() == "1"
+    assert window.viewer.header.difference_b_badge.text() == "2"
+    assert window.viewer.header.difference_a_name.text() == pair[0].display_name
+    assert window.viewer.header.difference_b_name.text() == pair[1].display_name
+    assert (pair[0].document_id, pair[1].document_id) == original_ids
+    window.close()
+
+
+def test_valid_keep_recomputes_difference_local_slots_without_rewriting_identity(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    QSettings().clear()
+    documents = _ready_documents(tmp_path, 4)
+    window, controller = _production_window(qtbot)
+    _register_and_select(window, documents)
+
+    pair = (documents[1], documents[3])
+    _pick_document(qtbot, window, pair[0])
+    _pick_document(qtbot, window, pair[1])
+    source_identity = tuple(document.document_id for document in pair)
+    source_generations = tuple(document.generation for document in pair)
+
+    difference, calculate_calls = _activate_difference(window, pair, monkeypatch)
+    difference_viewer = next(
+        viewer
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.presented_document is difference
+    )
+    assert difference_viewer.header.difference_a_badge.text() == "2"
+    assert difference_viewer.header.difference_b_badge.text() == "4"
+
+    assert controller.keep_picked()
+
+    assert _selected_ids(window) == list(source_identity)
+    assert window._difference_document is difference
+    assert window._difference_source_ids == source_identity
+    assert calculate_calls == []
+    difference_viewer = next(
+        viewer
+        for viewer in window.multi_compare_view.occupied_viewers
+        if viewer.presented_document is difference
+    )
+    assert difference_viewer.header.difference_a_badge.text() == "1"
+    assert difference_viewer.header.difference_b_badge.text() == "2"
+    assert tuple(document.document_id for document in pair) == source_identity
+    assert tuple(document.generation for document in pair) == source_generations
     window.close()
 
 
