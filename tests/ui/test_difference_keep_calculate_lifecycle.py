@@ -44,6 +44,15 @@ def _pick(qtbot: object, window: MainWindow, document: ImageDocument) -> None:
     )
 
 
+def _difference_key(
+    first: ImageDocument,
+    second: ImageDocument,
+) -> tuple[tuple[str, int], tuple[str, int]]:
+    left = (first.document_id, first.generation)
+    right = (second.document_id, second.generation)
+    return (left, right) if left <= right else (right, left)
+
+
 def test_keep_requires_explicit_calculate_to_establish_next_active_difference(
     qtbot: object,
     tmp_path: Path,
@@ -80,4 +89,44 @@ def test_keep_requires_explicit_calculate_to_establish_next_active_difference(
     )
     assert window.diff_action.isEnabled()
     assert window.diff_action.isChecked()
+    window.close()
+
+
+def test_ordinary_selected_replacement_removing_difference_source_resets_binding(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, documents = _window(qtbot, tmp_path)
+    a, b, c, d = documents
+    generations = tuple(document.generation for document in documents)
+
+    window.difference_panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None,
+        timeout=5000,
+    )
+    difference = window._difference_document
+    assert difference is not None
+    assert window._difference_source_ids == (a.document_id, b.document_id)
+    cache_key = _difference_key(a, b)
+    cached = window.difference_panel._map_cache.peek(cache_key)
+    assert cached is not None
+
+    window._select_document_ids([c.document_id, d.document_id])
+
+    assert [document.document_id for document in window.selected_documents] == [
+        c.document_id,
+        d.document_id,
+    ]
+    assert window._difference_document is None
+    assert window._difference_source_ids is None
+    assert not window.diff_action.isChecked()
+    assert not window.diff_action.isEnabled()
+    assert window.difference_panel._map_cache.peek(cache_key) is cached
+    assert tuple(document.generation for document in documents) == generations
+    assert window.viewer.presented_document is not difference
+    assert all(
+        viewer.presented_document is not difference
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
     window.close()
