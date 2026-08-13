@@ -321,6 +321,43 @@ class ReviewSelectionController(QObject):
             return "Derived from source images. Kept only when both source images are kept."
         return f"Derived from {names[0]} / {names[1]}. Kept only when both source images are kept."
 
+    def _difference_reference(
+        self,
+        difference_document: ImageDocument,
+    ) -> tuple[str, int, str, int, str, str] | None:
+        source_ids = getattr(self.window, "_difference_source_ids", None)
+        if not isinstance(source_ids, tuple) or len(source_ids) != 2:
+            return None
+        page = self.window.current_comparison_documents()
+        slot_by_id = {
+            document.document_id: index + 1 for index, document in enumerate(page)
+        }
+        a_slot = slot_by_id.get(source_ids[0])
+        b_slot = slot_by_id.get(source_ids[1])
+        a_document = self.window.documents.get(source_ids[0])
+        b_document = self.window.documents.get(source_ids[1])
+        if (
+            a_slot is None
+            or b_slot is None
+            or a_document is None
+            or b_document is None
+        ):
+            return None
+        semantic, separator, _details = difference_document.display_name.partition(":")
+        prefix = f"{semantic.strip()}:" if separator else "Difference:"
+        tooltip = (
+            f"{prefix} [{a_slot}] {a_document.display_name} vs "
+            f"[{b_slot}] {b_document.display_name}"
+        )
+        return (
+            prefix,
+            a_slot,
+            a_document.display_name,
+            b_slot,
+            b_document.display_name,
+            tooltip,
+        )
+
     def _sync_tile(self, viewer: ImageViewer) -> None:
         presented = viewer.presented_document
         difference_document = getattr(self.window, "_difference_document", None)
@@ -338,6 +375,25 @@ class ReviewSelectionController(QObject):
             visible=is_difference,
             tooltip=self._difference_tooltip() if is_difference else "",
         )
+        reference = (
+            self._difference_reference(difference_document)
+            if is_difference and isinstance(difference_document, ImageDocument)
+            else None
+        )
+        if reference is None:
+            viewer.header.set_difference_reference(visible=False)
+        else:
+            prefix, a_slot, a_name, b_slot, b_name, tooltip = reference
+            viewer.header.set_difference_reference(
+                visible=True,
+                prefix=prefix,
+                a_slot=a_slot,
+                a_name=a_name,
+                b_slot=b_slot,
+                b_name=b_name,
+                detailed=viewer is self.window.viewer,
+                tooltip=tooltip,
+            )
 
 
 def install_review_selection(window: Any) -> ReviewSelectionController:
