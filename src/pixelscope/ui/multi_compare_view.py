@@ -113,6 +113,7 @@ class MultiCompareView(QWidget):
             else:
                 viewer.end_layout_refit()
         anchor_range = self._current_shared_range() if not requires_refit else None
+        self._reuse_viewers_for_documents(documents)
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
         geometry_count = min(
@@ -191,6 +192,30 @@ class MultiCompareView(QWidget):
             document.loading_state not in ("pending", "loading") for document in documents
         ):
             self._finish_layout_refit()
+
+    def _reuse_viewers_for_documents(self, documents: list[ImageDocument]) -> None:
+        """Keep a source on its existing viewer while logical tile order changes."""
+
+        target_documents = documents[: self.capacity]
+        by_document_id: dict[str, ImageViewer] = {}
+        for viewer in self.viewers:
+            presented = viewer.presented_document
+            if presented is not None and presented.document_id not in by_document_id:
+                by_document_id[presented.document_id] = viewer
+
+        used_viewer_ids: set[int] = set()
+        ordered: list[ImageViewer | None] = []
+        for document in target_documents:
+            viewer = by_document_id.get(document.document_id)
+            if viewer is None or id(viewer) in used_viewer_ids:
+                ordered.append(None)
+                continue
+            ordered.append(viewer)
+            used_viewer_ids.add(id(viewer))
+
+        remaining = [viewer for viewer in self.viewers if id(viewer) not in used_viewer_ids]
+        filled = [remaining.pop(0) if viewer is None else viewer for viewer in ordered]
+        self.viewers = [*filled, *remaining]
 
     def set_shared_roi(self, bounds: RoiBounds | None) -> None:
         for viewer in self.visible_viewers:
@@ -402,13 +427,19 @@ class MultiCompareView(QWidget):
         if count == self._arranged_count:
             return
         self._arranged_count = count
-        active = self.visible_viewers[:count] if count > 0 else []
         for viewer in self.viewers:
             self._layout.removeWidget(viewer)
-            if viewer not in active:
-                viewer.hide()
         if count <= 0:
+            for viewer in self.viewers:
+                viewer.hide()
             return
+
+        active = self.visible_viewers[:count]
+        active_ids = {id(viewer) for viewer in active}
+        for viewer in self.viewers:
+            if id(viewer) not in active_ids and not viewer.isHidden():
+                viewer.hide()
+
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
         for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
