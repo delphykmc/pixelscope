@@ -106,7 +106,19 @@ class ReviewSelectionController(QObject):
         ) and difference_sources_survive_selection(difference_source_ids, kept_ids)
         diff_action = getattr(self.window, "diff_action", None)
         if not difference_valid and diff_action is not None and diff_action.isChecked():
+            difference_document = getattr(self.window, "_difference_document", None)
             diff_action.setChecked(False)
+            # Six-source Diff teardown restores Multi View but the reusable hidden
+            # Single View widget may still retain the old derived document binding.
+            # Clear only that inactive stale binding; Difference state/cache remain
+            # owned by MainWindow/DifferencePanel and the normal teardown path.
+            if (
+                difference_document is not None
+                and self.window.central_stack.currentWidget() is not self.window.viewer
+                and self.window.viewer.presented_document is difference_document
+            ):
+                self.window.viewer.set_document(None)
+                self.window.viewer.set_navigation_items([], "")
 
         self._applying = True
         try:
