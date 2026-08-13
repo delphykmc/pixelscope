@@ -206,14 +206,10 @@ class ReviewSelectionController(QObject):
             **kwargs: object,
         ) -> Any:
             requested = tuple(
-                document_id
-                for document_id in document_ids
-                if document_id in self.window.documents
+                document_id for document_id in document_ids if document_id in self.window.documents
             )
             self._invalidate_for_selected_mutation(requested)
-            result = self._original_select_document_ids(
-                list(document_ids), *args, **kwargs
-            )
+            result = self._original_select_document_ids(list(document_ids), *args, **kwargs)
             self._sync_all()
             return result
 
@@ -223,9 +219,7 @@ class ReviewSelectionController(QObject):
             **kwargs: object,
         ) -> Any:
             self._invalidate_for_removed_ids(document_ids)
-            result = self._original_remove_document_ids(
-                list(document_ids), *args, **kwargs
-            )
+            result = self._original_remove_document_ids(list(document_ids), *args, **kwargs)
             self._sync_all()
             return result
 
@@ -235,12 +229,8 @@ class ReviewSelectionController(QObject):
         # Never disconnect constructor-time PySide signal connections. The Files tree
         # exposes safe pre/post mutation boundaries while MainWindow remains the
         # selection/removal authority.
-        self.window.document_list.selection_changing.connect(
-            self._files_selection_changing
-        )
-        self.window.document_list.itemSelectionChanged.connect(
-            self._files_selection_changed
-        )
+        self.window.document_list.selection_changing.connect(self._files_selection_changing)
+        self.window.document_list.itemSelectionChanged.connect(self._files_selection_changed)
         self.window.document_list.remove_changing.connect(self._files_remove_changing)
         self.window.document_list.remove_requested.connect(self._files_remove_changed)
 
@@ -268,9 +258,7 @@ class ReviewSelectionController(QObject):
 
     def _files_remove_changing(self, document_ids: object) -> None:
         if isinstance(document_ids, list):
-            self._invalidate_for_removed_ids(
-                [str(document_id) for document_id in document_ids]
-            )
+            self._invalidate_for_removed_ids([str(document_id) for document_id in document_ids])
 
     def _files_remove_changed(self, _document_ids: object) -> None:
         if self.state.active and not self.state.matches_selected_ids(self._selected_ids()):
@@ -301,9 +289,7 @@ class ReviewSelectionController(QObject):
         if document_id not in self.window.documents:
             return None
         authority_ids = (
-            self.state.baseline_selected_ids
-            if self.state.active
-            else self._selected_ids()
+            self.state.baseline_selected_ids if self.state.active else self._selected_ids()
         )
         if document_id not in authority_ids:
             return None
@@ -331,19 +317,13 @@ class ReviewSelectionController(QObject):
     def _difference_tooltip(self) -> str:
         source_ids = getattr(self.window, "_difference_source_ids", None)
         if source_ids is None:
-            return (
-                "Derived from source images. Keep Selection closes the active Difference."
-            )
+            return "Derived from source images. Keep Selection closes the active Difference."
         names: list[str] = []
         for document_id in source_ids:
             document = self.window.documents.get(document_id)
-            names.append(
-                document.display_name if document is not None else str(document_id)
-            )
+            names.append(document.display_name if document is not None else str(document_id))
         if len(names) != 2:
-            return (
-                "Derived from source images. Keep Selection closes the active Difference."
-            )
+            return "Derived from source images. Keep Selection closes the active Difference."
         return (
             f"Derived from {names[0]} / {names[1]}. "
             "Keep Selection closes the active Difference; its cache is retained."
@@ -357,19 +337,12 @@ class ReviewSelectionController(QObject):
         if not isinstance(source_ids, tuple) or len(source_ids) != 2:
             return None
         page = self.window.current_comparison_documents()
-        slot_by_id = {
-            document.document_id: index + 1 for index, document in enumerate(page)
-        }
+        slot_by_id = {document.document_id: index + 1 for index, document in enumerate(page)}
         a_slot = slot_by_id.get(source_ids[0])
         b_slot = slot_by_id.get(source_ids[1])
         a_document = self.window.documents.get(source_ids[0])
         b_document = self.window.documents.get(source_ids[1])
-        if (
-            a_slot is None
-            or b_slot is None
-            or a_document is None
-            or b_document is None
-        ):
+        if a_slot is None or b_slot is None or a_document is None or b_document is None:
             return None
         semantic, separator, _details = difference_document.display_name.partition(":")
         prefix = f"{semantic.strip()}:" if separator else "Difference:"
@@ -391,12 +364,8 @@ class ReviewSelectionController(QObject):
         difference_document = getattr(self.window, "_difference_document", None)
         is_difference = presented is not None and presented is difference_document
         is_multi_viewer = viewer in self.window.multi_compare_view.viewers
-        document_id = (
-            self._pickable_document_id(presented) if is_multi_viewer else None
-        )
-        picked = (
-            document_id in self.state.picked_ids if document_id is not None else False
-        )
+        document_id = self._pickable_document_id(presented) if is_multi_viewer else None
+        picked = document_id in self.state.picked_ids if document_id is not None else False
         viewer.setProperty("reviewPicked", picked)
         viewer.setStyleSheet(tile_style(bool(getattr(viewer, "_active", False))))
         viewer.header.set_review_pick(

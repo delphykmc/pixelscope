@@ -139,9 +139,7 @@ def test_difference_is_derived_and_uses_local_slot_presentation(
     assert source_viewers
     assert all(not viewer.header.pick.isHidden() for viewer in source_viewers)
     assert all(viewer.header.derived.isHidden() for viewer in source_viewers)
-    assert all(
-        viewer.header.difference_reference.isHidden() for viewer in source_viewers
-    )
+    assert all(viewer.header.difference_reference.isHidden() for viewer in source_viewers)
     assert "(P" not in window.difference_panel.a_selector.currentText()
     assert "(P" not in window.difference_panel.b_selector.currentText()
     window.close()
@@ -295,11 +293,9 @@ def test_six_source_keep_restores_workspace_without_stale_derived_state(
         for viewer in window.multi_compare_view.occupied_viewers
     )
     assert all(
-        viewer.header.derived.isHidden()
-        for viewer in window.multi_compare_view.occupied_viewers
+        viewer.header.derived.isHidden() for viewer in window.multi_compare_view.occupied_viewers
     )
     assert all(
-        not viewer.header.pick.isHidden()
-        for viewer in window.multi_compare_view.occupied_viewers
+        not viewer.header.pick.isHidden() for viewer in window.multi_compare_view.occupied_viewers
     )
     window.close()
