@@ -87,6 +87,10 @@ class ComparisonSetRepository:
         selected = tuple(
             self._artifact_absolute_path(value, "selected path") for value in selected_value
         )
+        page_anchor = self._optional_artifact_absolute_path(
+            payload.get("page_anchor_path"),
+            "page_anchor_path",
+        )
         active = self._optional_artifact_absolute_path(
             payload.get("active_path"),
             "active_path",
@@ -109,6 +113,7 @@ class ComparisonSetRepository:
         return Session(
             registered_sources=registered,
             selected_paths=selected,
+            page_anchor_path=page_anchor,
             active_path=active,
             primary_path=primary,
             layout_mode=layout,
@@ -137,6 +142,7 @@ class ComparisonSetRepository:
         return Session(
             registered_sources=sources,
             selected_paths=tuple(source.path for source in sources),
+            page_anchor_path=active,
             active_path=active,
             primary_path=primary,
             layout_mode=layout,
@@ -295,6 +301,7 @@ class ComparisonSetRepository:
                 self._source_payload(source) for source in session.registered_sources
             ],
             "selected_paths": list(session.selected_paths),
+            "page_anchor_path": session.page_anchor_path,
             "active_path": session.active_path,
             "primary_path": session.primary_path,
             "layout_mode": session.layout_mode,
