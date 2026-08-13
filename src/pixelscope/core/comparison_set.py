@@ -102,6 +102,7 @@ class Session:
 
     registered_sources: tuple[SessionSource, ...]
     selected_paths: tuple[str, ...] = ()
+    page_anchor_path: str | None = None
     active_path: str | None = None
     primary_path: str | None = None
     layout_mode: str = "Auto"
@@ -148,9 +149,16 @@ class Session:
         if any(identity not in registered for identity in selected_ids):
             raise ComparisonSetError("Selected source is not registered in the session")
 
+        page_anchor = (
+            normalize_source_path(self.page_anchor_path)
+            if self.page_anchor_path
+            else None
+        )
         active = normalize_source_path(self.active_path) if self.active_path else None
         primary = normalize_source_path(self.primary_path) if self.primary_path else None
         selected_set = set(selected_ids)
+        if page_anchor is not None and page_anchor.casefold() not in selected_set:
+            raise ComparisonSetError("page anchor is not a Selected session member")
         if active is not None and active.casefold() not in selected_set:
             raise ComparisonSetError("active source is not a Selected session member")
         if primary is not None and primary.casefold() not in selected_set:
@@ -168,6 +176,7 @@ class Session:
                 raise ComparisonSetError("Active ROI Difference requires a saved ROI")
 
         object.__setattr__(self, "selected_paths", selected)
+        object.__setattr__(self, "page_anchor_path", page_anchor)
         object.__setattr__(self, "active_path", active)
         object.__setattr__(self, "primary_path", primary)
         object.__setattr__(self, "display_gain", float(self.display_gain))
@@ -195,6 +204,7 @@ def ComparisonSet(
     return Session(
         registered_sources=sources,
         selected_paths=tuple(source.path for source in sources),
+        page_anchor_path=active_path,
         active_path=active_path,
         primary_path=primary_path,
         layout_mode=layout_mode,
