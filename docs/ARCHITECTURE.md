@@ -243,22 +243,42 @@ and sets the viewer `reviewPicked` property so `tile_style()` applies a bright-y
 tile-wide border. Active and Primary are not reused as Pick state. The controller
 resolves each presented tile back to a native source ID that must still exist in
 `MainWindow.documents` and the captured/current Selected authority. Split and
-Difference derived tiles remain non-pickable.
+Difference derived tiles remain non-pickable. A presented Difference uses the same
+fixed header-role width but shows a neutral `QLabel` **Derived** badge with no focus,
+check state, or Pick signal, so viewer reuse cannot accidentally expose source-only
+curation intent on a derived document.
 
 Pick/Unpick/Clear Selection only mutate the temporary ID set and tile/control state.
 They do not call `_ensure_loaded()`, touch source LRU/protection, create
 preload/foreground promotion, generate gained previews, change source generation,
-issue numerical analysis, calculate Difference, or invalidate Difference cache.
-Off-page picked sources may therefore be nonresident and unprotected. `Analysis
-Working Set` remains Current Comparison Page and explicit Difference-pair ownership
-remains feature-local.
+issue numerical analysis, calculate/reconcile Difference, or invalidate Difference
+cache. Off-page picked sources may therefore be nonresident and unprotected.
+`Analysis Working Set` remains Current Comparison Page and explicit Difference-pair
+ownership remains feature-local.
 
-**Keep Selection** is the only curation operation that mutates Selected. It delegates
-the ordered filtered result through the inherited `_select_document_ids()` lifecycle
-so Current Comparison Page derivation, stale-slot clearing, source
-loading/residency, Files selection, first-result Active state, and analysis rebinding
-remain ordinary selection behavior rather than a curation-specific lifecycle. Zero
-picks prevent this call.
+**Keep Selection** is the only curation operation that mutates Selected. The
+Qt-free `difference_sources_survive_selection()` predicate evaluates the existing
+Difference provenance IDs against the already-computed ordered Keep result; it owns
+no Difference state. If an active Difference has complete A/B provenance and both
+source IDs survive, the controller leaves Difference untouched and delegates the
+filtered result through the inherited `_select_document_ids()` lifecycle.
+
+If either provenance source is absent, or active Difference provenance is
+incomplete, `ReviewSelectionController` unchecks the existing `diff_action` before
+mutating Selected. That invokes MainWindow's normal Difference teardown path, which
+is the single authority for PR #32 six-source workspace restoration, Single/Multi
+presentation, navigation, Active state, and subsequent source rendering. The
+ordering is intentional: it prevents an intermediate render or recomputation using
+stale A/B provenance against the new logical Selected set while still making
+**Keep Selection** the only curation operation that changes Selected.
+
+After Difference teardown when required, `_select_document_ids()` remains the sole
+Selected mutation/render path. Current Comparison Page derivation, stale-slot
+clearing, source loading/residency, Files selection, first-result Active state, and
+analysis rebinding therefore remain ordinary selection behavior rather than a
+curation-specific lifecycle. Zero picks prevent this call. Curation never purges
+Difference Map Cache entries or bumps source generations as part of presentation
+reconciliation.
 
 External selection-oriented mutation is the invalidation boundary. Programmatic
 `_select_document_ids()` / selected-document removal adapters and the
@@ -539,17 +559,28 @@ domain selection.
   level histogram contract.
 - `CachedDifferenceMap` stores domain/data-range/family/layout/Bayer metadata while
   retaining order-independent generation-pair identity.
-- Difference cache ownership remains independent from source residency.
+- Difference cache ownership remains independent from source residency and from
+  derived presentation visibility.
 
 Difference panel inputs default to the Current Comparison Page, while the panel's
 explicit Image 1/Image 2 pair remains feature-owned authority. Temporary Pick Set
-is not a Difference input authority and Pick/Unpick does not calculate or invalidate
-Difference. Difference never consumes general Display Gain, RAW Black/White
-metadata, `DisplayTransform`, or preview pixels. Folder-only registration does not
-invalidate Difference cache or presentation because it does not change Selected /
-current-page lifecycle. For a six-source page, a cached Difference hit and an
-asynchronous fresh result share the same Diff-only Single View presentation and
-workspace-restore contract.
+is not a Difference input authority and Pick/Unpick/Clear Selection does not
+calculate, reconcile, or invalidate Difference. Difference never consumes general
+Display Gain, RAW Black/White metadata, `DisplayTransform`, or preview pixels.
+Folder-only registration does not invalidate Difference cache or presentation
+because it does not change Selected/current-page lifecycle. For a six-source page,
+a cached Difference hit and an asynchronous fresh result share the same Diff-only
+Single View presentation and workspace-restore contract.
+
+Difference is a derived presentation rather than a Registered/Selected/Pick identity.
+P4-A curation reads MainWindow's existing `_difference_source_ids` provenance only at
+Keep commit time. If both A/B source IDs are in the computed kept Selected set, the
+existing Difference remains eligible for presentation without a curation-driven
+reset. Otherwise curation only requests the existing `diff_action` teardown; normal
+Difference lifecycle remains authoritative for `_difference_document`, provenance,
+navigation, six-source restore state, Single/Multi presentation, and Active/viewer
+state. The subsequent ordinary Selected render clears stale derived representation.
+No curation-specific Difference state machine or cache invalidation path exists.
 
 Comparison Set persistence does not serialize or rehydrate Difference inputs, maps,
 cache entries, or presentation state.
