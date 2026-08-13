@@ -7,10 +7,7 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton, QWidget
 
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.core.review_selection import (
-    ReviewSelectionState,
-    difference_sources_survive_selection,
-)
+from pixelscope.core.review_selection import ReviewSelectionState
 from pixelscope.ui.design_tokens import TOKENS, tile_style
 from pixelscope.ui.image_viewer import ImageViewer
 
@@ -95,30 +92,40 @@ class ReviewSelectionController(QObject):
             self._sync_all()
             return False
 
-        # Keep Selection is the curation commit boundary. Reconcile an active
-        # Difference before Selected mutates so MainWindow's existing teardown
-        # path can restore any six-source workspace without ever rendering stale
-        # A/B provenance against the new logical Selected set.
-        difference_source_ids = getattr(self.window, "_difference_source_ids", None)
-        difference_valid = isinstance(
-            difference_source_ids,
-            tuple,
-        ) and difference_sources_survive_selection(difference_source_ids, kept_ids)
+        # Keep Selection replaces the logical comparison workspace. Any active
+        # Difference is closed unconditionally before Selected mutates. The normal
+        # PR #32 teardown remains presentation/restore authority; curation does not
+        # purge the generation-aware Difference cache.
         diff_action = getattr(self.window, "diff_action", None)
-        if not difference_valid and diff_action is not None and diff_action.isChecked():
-            difference_document = getattr(self.window, "_difference_document", None)
+        difference_document = getattr(self.window, "_difference_document", None)
+        if diff_action is not None and diff_action.isChecked():
             diff_action.setChecked(False)
-            # Six-source Diff teardown restores Multi View but the reusable hidden
-            # Single View widget may still retain the old derived document binding.
-            # Clear only that inactive stale binding; Difference state/cache remain
-            # owned by MainWindow/DifferencePanel and the normal teardown path.
-            if (
-                difference_document is not None
-                and self.window.central_stack.currentWidget() is not self.window.viewer
-                and self.window.viewer.presented_document is difference_document
-            ):
-                self.window.viewer.set_document(None)
-                self.window.viewer.set_navigation_items([], "")
+        if (
+            difference_document is not None
+            and self.window.central_stack.currentWidget() is not self.window.viewer
+            and self.window.viewer.presented_document is difference_document
+        ):
+            self.window.viewer.set_document(None)
+            self.window.viewer.set_navigation_items([], "")
+
+        difference_id = (
+            difference_document.document_id
+            if isinstance(difference_document, ImageDocument)
+            else None
+        )
+        if difference_id is not None:
+            self.window._multi_display_order = [
+                document_id
+                for document_id in self.window._multi_display_order
+                if document_id != difference_id
+            ]
+            if self.window._focus_document_id == difference_id:
+                self.window._focus_document_id = None
+            if self.window._active_document_id == difference_id:
+                self.window._active_document_id = None
+        self.window._six_image_diff_restore_state = None
+        self.window._difference_document = None
+        self.window._difference_source_ids = None
 
         self._applying = True
         try:
@@ -199,10 +206,14 @@ class ReviewSelectionController(QObject):
             **kwargs: object,
         ) -> Any:
             requested = tuple(
-                document_id for document_id in document_ids if document_id in self.window.documents
+                document_id
+                for document_id in document_ids
+                if document_id in self.window.documents
             )
             self._invalidate_for_selected_mutation(requested)
-            result = self._original_select_document_ids(list(document_ids), *args, **kwargs)
+            result = self._original_select_document_ids(
+                list(document_ids), *args, **kwargs
+            )
             self._sync_all()
             return result
 
@@ -212,7 +223,9 @@ class ReviewSelectionController(QObject):
             **kwargs: object,
         ) -> Any:
             self._invalidate_for_removed_ids(document_ids)
-            result = self._original_remove_document_ids(list(document_ids), *args, **kwargs)
+            result = self._original_remove_document_ids(
+                list(document_ids), *args, **kwargs
+            )
             self._sync_all()
             return result
 
@@ -222,8 +235,12 @@ class ReviewSelectionController(QObject):
         # Never disconnect constructor-time PySide signal connections. The Files tree
         # exposes safe pre/post mutation boundaries while MainWindow remains the
         # selection/removal authority.
-        self.window.document_list.selection_changing.connect(self._files_selection_changing)
-        self.window.document_list.itemSelectionChanged.connect(self._files_selection_changed)
+        self.window.document_list.selection_changing.connect(
+            self._files_selection_changing
+        )
+        self.window.document_list.itemSelectionChanged.connect(
+            self._files_selection_changed
+        )
         self.window.document_list.remove_changing.connect(self._files_remove_changing)
         self.window.document_list.remove_requested.connect(self._files_remove_changed)
 
@@ -284,7 +301,9 @@ class ReviewSelectionController(QObject):
         if document_id not in self.window.documents:
             return None
         authority_ids = (
-            self.state.baseline_selected_ids if self.state.active else self._selected_ids()
+            self.state.baseline_selected_ids
+            if self.state.active
+            else self._selected_ids()
         )
         if document_id not in authority_ids:
             return None
@@ -312,14 +331,23 @@ class ReviewSelectionController(QObject):
     def _difference_tooltip(self) -> str:
         source_ids = getattr(self.window, "_difference_source_ids", None)
         if source_ids is None:
-            return "Derived from source images. Kept only when both source images are kept."
+            return (
+                "Derived from source images. Keep Selection closes the active Difference."
+            )
         names: list[str] = []
         for document_id in source_ids:
             document = self.window.documents.get(document_id)
-            names.append(document.display_name if document is not None else str(document_id))
+            names.append(
+                document.display_name if document is not None else str(document_id)
+            )
         if len(names) != 2:
-            return "Derived from source images. Kept only when both source images are kept."
-        return f"Derived from {names[0]} / {names[1]}. Kept only when both source images are kept."
+            return (
+                "Derived from source images. Keep Selection closes the active Difference."
+            )
+        return (
+            f"Derived from {names[0]} / {names[1]}. "
+            "Keep Selection closes the active Difference; its cache is retained."
+        )
 
     def _difference_reference(
         self,
@@ -363,8 +391,12 @@ class ReviewSelectionController(QObject):
         difference_document = getattr(self.window, "_difference_document", None)
         is_difference = presented is not None and presented is difference_document
         is_multi_viewer = viewer in self.window.multi_compare_view.viewers
-        document_id = self._pickable_document_id(presented) if is_multi_viewer else None
-        picked = document_id in self.state.picked_ids if document_id is not None else False
+        document_id = (
+            self._pickable_document_id(presented) if is_multi_viewer else None
+        )
+        picked = (
+            document_id in self.state.picked_ids if document_id is not None else False
+        )
         viewer.setProperty("reviewPicked", picked)
         viewer.setStyleSheet(tile_style(bool(getattr(viewer, "_active", False))))
         viewer.header.set_review_pick(
