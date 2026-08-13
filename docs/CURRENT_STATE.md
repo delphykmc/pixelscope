@@ -1,14 +1,19 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-11
-Current merged baseline / P4-A PR #29 merge commit:
-`3486146494076e9b513843b90ec44e504043729e`
+Snapshot date: 2026-08-13
+Current merged baseline / PR #32 merge commit:
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`
 
-P4-B Comparison Set Persistence is implemented on
-`feature/p4-b-comparison-set-persistence` / PR #30. The repository owner reports the
-focused P4-B Windows validation PASS (`36 passed`). Independent review reports no
-remaining runtime/schema/test blocker; merge closure is now limited to durable-doc
-consistency plus the normal final validation/re-review gates.
+P4-B Comparison Set Persistence merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Comparison Set Entry UX /
+Recent Entries is active on draft PR #31. PR #32 separately stabilized Display Gain
+worker/lifetime behavior and Difference insert/remove/viewer-reuse presentation
+lifecycle and is now part of `main`.
+
+This follow-up branch, `fix/p4a-difference-curation-semantics`, aligns P4-A source
+curation with that merged Difference lifecycle. Runtime/tests/docs are implemented
+on the branch; owner Windows validation remains pending and no unobserved PASS is
+claimed.
 
 ## Merge baseline
 
@@ -24,11 +29,16 @@ consistency plus the normal final validation/re-review gates.
 - P3-E Integration, Presentation UI Polish & Phase Hardening merged as PR #27 at
   `835634a58609601605fd0fc18a3028b64225f535`, completing P3.
 - P4-0 P3 Closure & P4 Program Setup merged as PR #28.
-- P4-A Review Selection & Curation merged as PR #29 at the current baseline SHA.
+- P4-A Review Selection & Curation merged as PR #29 at
+  `3486146494076e9b513843b90ec44e504043729e`.
+- P4-B Comparison Set Persistence merged as PR #30.
+- PR #32 Display Gain/Difference lifecycle stabilization merged at the current
+  baseline SHA.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-B Comparison Set Persistence is the
-active implementation slice and is merge-pending on PR #30.
+P4 is **Workflow & Session Productivity**. P4-C Comparison Set Entry UX / Recent
+Entries is active on draft PR #31; this P4-A × Difference follow-up is intentionally
+separate from P4-C.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -114,6 +124,30 @@ Pick membership is **not** source ownership, decode authority, residency protect
 preload authority, analysis working-set authority, Difference input authority, or
 presentation-source authority. Split/Difference derived documents are not
 independent pick identities.
+
+The P4-A × Difference follow-up makes that source/derived boundary explicit in both
+UI and Keep semantics:
+
+- native source tiles retain the interactive `Pick` control;
+- a presented Difference tile shows a non-interactive/non-focusable `Derived` role
+  and emits no Pick intent;
+- Pick/Unpick/Clear Selection leave an active Difference unchanged because they are
+  temporary workflow state only;
+- Keep Selection evaluates the existing Difference provenance A/B against the
+  resulting logical Selected IDs;
+- `Difference(A, B)` remains represented iff both A and B survive the Keep result;
+  one or both missing sources deactivate Difference through the existing normal
+  teardown/restore/render path, regardless of how many other sources remain;
+- when both provenance sources survive, curation does not deliberately toggle or
+  recompute the existing valid Difference;
+- Difference presentation teardown does not purge Difference Map Cache entries,
+  bump source generations, or create curation-owned reload/residency behavior.
+
+The reconciliation uses the computed Keep result as the decision boundary and
+executes teardown before the Selected mutation when invalid. This sequencing reuses
+PR #32 six-source workspace restoration and avoids rendering stale A/B provenance
+against the new Selected subset; it does not create a second Difference state
+machine.
 
 ## P4-B Comparison Set persistence
 
@@ -281,6 +315,8 @@ Presentation row contract:
   same row with normal command spacing; `Selected N` is the temporary Pick count.
 - eligible Multi View native source tiles expose `Pick` directly; checked membership
   remains a stable label plus depressed state and bright-yellow tile-wide border.
+- Difference uses the same header role width but shows `Derived` instead of an
+  interactive Pick control.
 - existing `design_tokens.py` colors, spacing, control height, border, and disabled
   text conventions define command-bar styling and Windows dark-UI contrast.
 - the row remains distinct from the Main toolbar and directly above the image
@@ -374,11 +410,12 @@ dependencies such as foreground loads, promoted foreground preload, and Differen
 dependencies. Selected/Picked-but-off-page resident sources may therefore be evicted
 and normally reloaded when revisited.
 
-Difference cache remains independent. Preload remains +1 Folder Position, max-one
-dedicated worker, with running-preload promotion as established by P2. P4-A does
-not add Comparison Page or Pick Set preloading. P4-B does not serialize or acquire
-preload/residency/cache authority. Diagnostics remain deterministic, bounded,
-sanitized, and observation-only.
+Difference cache remains independent. Curation may deactivate an invalid
+Difference presentation at Keep without clearing generation-keyed cache entries.
+Preload remains +1 Folder Position, max-one dedicated worker, with running-preload
+promotion as established by P2. P4-A does not add Comparison Page or Pick Set
+preloading. P4-B does not serialize or acquire preload/residency/cache authority.
+Diagnostics remain deterministic, bounded, sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -409,15 +446,16 @@ claimed here without separate observed evidence.
 
 1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
 2. P4-A — Review Selection & Curation — Complete — PR #29
-3. P4-B — Comparison Set Persistence — implemented, focused owner validation PASS,
-   merge pending — PR #30
-4. P4-C — Comparison Set Entry UX / Recent Entries — planned
+3. P4-B — Comparison Set Persistence — Complete — PR #30
+4. P4-C — Comparison Set Entry UX / Recent Entries — active draft — PR #31
 5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
 6. P4-E — Viewer Overlay & Export Productivity — planned
 7. P4-F — Integration & Workflow Hardening — planned
 
-P4 inherits the P2/P3 ownership and numerical contracts above. Temporary workflow
-state must not become source/cache/residency/analysis authority.
+The source-only Difference curation follow-up is a bounded P4-A semantic correction,
+not a new numbered P4 phase and not part of PR #31. P4 inherits the P2/P3 ownership
+and numerical contracts above. Temporary workflow state must not become
+source/cache/residency/analysis authority.
 
 Arbitrary-angle Line Profile is intentionally omitted from P4. Because Line Profile
 is an observation/sampling tool, a future arbitrary-angle version should define a
