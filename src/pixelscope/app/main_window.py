@@ -2647,6 +2647,7 @@ class MainWindow(QMainWindow):
             self.viewer.set_header(difference.display_name)
             self._set_single_navigation("difference")
             self.central_stack.setCurrentWidget(self.viewer)
+            self._set_active_document(difference)
             self._reset_pixel_status()
             return
         documents = self.selected_documents
