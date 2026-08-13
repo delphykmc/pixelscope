@@ -76,7 +76,7 @@ class TileHeader(QWidget):
         self.derived.setFixedWidth(self.REVIEW_ROLE_WIDTH)
         self.derived.setStyleSheet(
             f"QLabel {{ color: {TOKENS.text_secondary}; border: 1px solid {TOKENS.border}; "
-            "border-radius: 2px; background: transparent; }}"
+            "border-radius: 2px; background: transparent; }"
         )
         self.derived.hide()
         self.focus = QToolButton()
