@@ -8,9 +8,7 @@ from PySide6.QtWidgets import QApplication
 ANALYSIS_MAX_THREADS = 2
 _ANALYSIS_POOL_ATTRIBUTE = "_pixelscope_analysis_thread_pool"
 _DISPLAY_PREVIEW_POOL_ATTRIBUTE = "_pixelscope_display_preview_thread_pool"
-_BACKGROUND_POOL_SHUTDOWN_HOOK_ATTRIBUTE = (
-    "_pixelscope_background_thread_pool_shutdown_hook"
-)
+_BACKGROUND_POOL_SHUTDOWN_HOOK_ATTRIBUTE = "_pixelscope_background_thread_pool_shutdown_hook"
 
 
 def _shutdown_pool(attribute: str, timeout_ms: int) -> bool:
