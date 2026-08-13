@@ -101,6 +101,40 @@ def test_session_restores_roi_line_gain_and_difference_recipe_lazily(
     window.close()
 
 
+def test_registered_order_is_not_session_semantic_but_selected_order_is(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    b = _ready_document(tmp_path / "b.png", 1)
+    a = _ready_document(tmp_path / "a.png", 2)
+    window = _production_window(qtbot)
+    for document in (b, a):
+        window.add_document(document, select=False)
+
+    session = Session(
+        registered_sources=(SessionSource(str(b.source_path)), SessionSource(str(a.source_path))),
+        selected_paths=(str(b.source_path), str(a.source_path)),
+        page_anchor_path=str(b.source_path),
+    )
+    target = tmp_path / "ordering.pixelscope"
+    window.session_controller.repository.save(target, session)
+
+    loaded, missing = window.session_controller.open_from_path(target)
+
+    assert loaded == 2
+    assert missing == ()
+    assert [document.source_path for document in window.selected_documents] == [
+        b.source_path,
+        a.source_path,
+    ]
+    file_paths = [
+        Path(str(item.data(0, window.document_list.PATH_ROLE)))
+        for item in window.document_list.document_items()
+    ]
+    assert file_paths == [a.source_path, b.source_path]
+    window.close()
+
+
 def test_session_open_does_not_decode_registered_only_sources(
     qtbot: object,
     tmp_path: Path,
