@@ -149,16 +149,9 @@ class Session:
         if any(identity not in registered for identity in selected_ids):
             raise ComparisonSetError("Selected source is not registered in the session")
 
-        page_anchor = (
-            normalize_source_path(self.page_anchor_path)
-            if self.page_anchor_path
-            else None
-        )
         active = normalize_source_path(self.active_path) if self.active_path else None
         primary = normalize_source_path(self.primary_path) if self.primary_path else None
         selected_set = set(selected_ids)
-        if page_anchor is not None and page_anchor.casefold() not in selected_set:
-            raise ComparisonSetError("page anchor is not a Selected session member")
         if active is not None and active.casefold() not in selected_set:
             raise ComparisonSetError("active source is not a Selected session member")
         if primary is not None and primary.casefold() not in selected_set:
@@ -174,6 +167,23 @@ class Session:
                     )
             if self.difference.region == "Active ROI" and self.roi is None:
                 raise ComparisonSetError("Active ROI Difference requires a saved ROI")
+
+        page_anchor = (
+            normalize_source_path(self.page_anchor_path)
+            if self.page_anchor_path
+            else None
+        )
+        if page_anchor is None:
+            if primary is not None:
+                page_anchor = primary
+            elif active is not None:
+                page_anchor = active
+            elif self.difference is not None:
+                page_anchor = self.difference.image_a_path
+            elif selected:
+                page_anchor = selected[0]
+        if page_anchor is not None and page_anchor.casefold() not in selected_set:
+            raise ComparisonSetError("page anchor is not a Selected session member")
 
         object.__setattr__(self, "selected_paths", selected)
         object.__setattr__(self, "page_anchor_path", page_anchor)
