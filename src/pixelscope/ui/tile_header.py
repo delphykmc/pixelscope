@@ -23,6 +23,7 @@ class TileHeader(QWidget):
     navigation_requested = Signal(str)
     pick_requested = Signal(bool)
     COMPACT_WIDTH = 480
+    REVIEW_ROLE_WIDTH = 60
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -62,8 +63,22 @@ class TileHeader(QWidget):
         self.pick.setAutoRaise(True)
         self.pick.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.pick.setFixedHeight(TOKENS.control_height)
+        self.pick.setFixedWidth(self.REVIEW_ROLE_WIDTH)
         self.pick.hide()
         self.pick.toggled.connect(self._review_pick_toggled)  # type: ignore[attr-defined]
+        self.derived = QLabel("Derived")
+        self.derived.setObjectName("reviewDerived")
+        self.derived.setAccessibleName("Derived presentation")
+        self.derived.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.derived.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.derived.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self.derived.setFixedHeight(TOKENS.control_height)
+        self.derived.setFixedWidth(self.REVIEW_ROLE_WIDTH)
+        self.derived.setStyleSheet(
+            f"QLabel {{ color: {TOKENS.text_secondary}; border: 1px solid {TOKENS.border}; "
+            "border-radius: 2px; background: transparent; }}"
+        )
+        self.derived.hide()
         self.focus = QToolButton()
         self.focus.setObjectName("primaryFlag")
         self.focus.setAccessibleName("Primary image")
@@ -91,6 +106,7 @@ class TileHeader(QWidget):
         layout.addWidget(self.meta)
         layout.addWidget(self.zoom)
         layout.addWidget(self.pick)
+        layout.addWidget(self.derived)
         layout.addWidget(self.focus)
 
     @property
@@ -155,6 +171,21 @@ class TileHeader(QWidget):
         self.pick.blockSignals(False)
         self._update_review_pick_state(picked)
         self.pick.setVisible(visible)
+        if visible:
+            self.derived.hide()
+        self._elide_name()
+
+    def set_review_derived(self, *, visible: bool, tooltip: str = "") -> None:
+        """Show a non-interactive role badge for derived presentations."""
+
+        self.derived.setToolTip(tooltip if visible else "")
+        self.derived.setVisible(visible)
+        if visible:
+            self.pick.blockSignals(True)
+            self.pick.setChecked(False)
+            self.pick.blockSignals(False)
+            self._update_review_pick_state(False)
+            self.pick.hide()
         self._elide_name()
 
     def set_navigation_items(
