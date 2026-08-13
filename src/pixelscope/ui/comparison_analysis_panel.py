@@ -11,7 +11,6 @@ from PySide6.QtCore import (
     QModelIndex,
     QPersistentModelIndex,
     Qt,
-    QThreadPool,
     QTimer,
     Signal,
 )
@@ -50,6 +49,7 @@ from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
 from pixelscope.workers.task_worker import TaskError, TaskWorker
+from pixelscope.workers.thread_pools import analysis_thread_pool
 
 
 class KiloAxisItem(pg.AxisItem):  # type: ignore[misc]
@@ -169,7 +169,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._completed_signature: tuple[object, ...] = ()
         self._histogram_specs: list[tuple[int, tuple[float, float] | None]] = []
         self.last_results: tuple[RoiAnalysisResult, ...] = ()
-        self._pool = QThreadPool.globalInstance()
+        self._pool = analysis_thread_pool()
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(140)

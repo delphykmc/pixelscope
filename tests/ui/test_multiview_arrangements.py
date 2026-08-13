@@ -254,7 +254,7 @@ def test_difference_becomes_primary_for_three_and_five_tiles(
         and len(window.multi_compare_view.occupied_viewers) == source_count + 1,
         timeout=3000,
     )
-    assert window.multi_compare_view.viewers[0].document is window._difference_document
+    assert window.multi_compare_view.occupied_viewers[0].document is window._difference_document
     assert window._focus_document_id == window._difference_document.document_id
     assert all(
         not viewer.header.focus.isHidden() for viewer in window.multi_compare_view.occupied_viewers

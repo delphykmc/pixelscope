@@ -2540,10 +2540,8 @@ class MainWindow(QMainWindow):
         page = self.current_comparison_documents()
         if local_index >= len(page):
             return
-        self._current_index = self._page_start + local_index
-        self._allow_raw_profile_retry([page[local_index].document_id])
-        self._reset_pixel_status()
-        self._render_selection(preserve_view=True)
+        selected_index = self._page_start + local_index
+        self._show_single_document(page[local_index], selected_index)
 
     def _set_single_navigation(self, current_key: str) -> None:
         split_documents = self._current_split_documents()
@@ -2649,6 +2647,7 @@ class MainWindow(QMainWindow):
             self.viewer.set_header(difference.display_name)
             self._set_single_navigation("difference")
             self.central_stack.setCurrentWidget(self.viewer)
+            self._set_active_document(difference)
             self._reset_pixel_status()
             return
         documents = self.selected_documents

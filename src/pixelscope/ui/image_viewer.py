@@ -27,6 +27,7 @@ from PySide6.QtGui import (
     QShowEvent,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QGraphicsItem,
     QGraphicsSceneResizeEvent,
     QVBoxLayout,
@@ -43,6 +44,28 @@ from pixelscope.ui.design_tokens import tile_style
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
 from pixelscope.ui.tile_header import TileHeader
 from pixelscope.workers.task_worker import TaskWorker
+
+_DISPLAY_PREVIEW_MAX_THREADS = 2
+_DISPLAY_PREVIEW_POOL_ATTRIBUTE = "_pixelscope_display_preview_thread_pool"
+
+
+def _display_preview_thread_pool() -> QThreadPool:
+    """Return the app-owned pool for memory-heavy Display Gain preview work."""
+
+    app = QApplication.instance()
+    if not isinstance(app, QApplication):
+        raise RuntimeError("Display Gain preview workers require QApplication")
+    existing = getattr(app, _DISPLAY_PREVIEW_POOL_ATTRIBUTE, None)
+    if isinstance(existing, QThreadPool):
+        return existing
+    pool = QThreadPool(app)
+    # Full-frame gain rendering is memory-bandwidth heavy and may allocate a
+    # float32 working image plus an output preview per task. Keep concurrency
+    # independent from the general worker pool so a six-tile view cannot launch
+    # six such allocations at once or starve foreground/difference workers.
+    pool.setMaxThreadCount(_DISPLAY_PREVIEW_MAX_THREADS)
+    setattr(app, _DISPLAY_PREVIEW_POOL_ATTRIBUTE, pool)
+    return pool
 
 
 class LoadingSpinnerItem(QGraphicsItem):
@@ -451,7 +474,7 @@ class ImageViewer(QWidget):
         worker.signals.finished.connect(self._display_preview_finished)
         self._display_preview_worker = worker
         self._display_preview_request_identity = identity
-        QThreadPool.globalInstance().start(worker)
+        _display_preview_thread_pool().start(worker)
 
     def _display_preview_succeeded(
         self,

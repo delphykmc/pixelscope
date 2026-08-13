@@ -47,6 +47,9 @@ class MultiCompareView(QWidget):
         self.layout_kind = "Auto"
         self.focus_document_id: str | None = None
         self.viewers = [ImageViewer() for _ in range(6)]
+        self._presentation_viewers = list(self.viewers)
+        self._presentation_document_ids: tuple[str, ...] = ()
+        self._presentation_has_difference = False
         self._layout = QGridLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(3)
@@ -62,13 +65,15 @@ class MultiCompareView(QWidget):
             viewer.line_changed.connect(self.line_changed)
             viewer.line_cleared.connect(self.line_cleared)
             viewer.view_box.sigRangeChanged.connect(
-                lambda _box, ranges, _changed=None, active=viewer: self._sync_range(active, ranges)
+                lambda _box, ranges, _changed=None, active=viewer: self._sync_range(
+                    active, ranges
+                )
             )
         self.set_capacity(2)
 
     @property
     def visible_viewers(self) -> list[ImageViewer]:
-        return self.viewers[: self.capacity]
+        return self._presentation_viewers[: self.capacity]
 
     @property
     def occupied_viewers(self) -> list[ImageViewer]:
@@ -83,7 +88,16 @@ class MultiCompareView(QWidget):
             raise ValueError("comparison capacity must be 2, 4, or 6")
         if capacity == self.capacity:
             return
+        shrinking_diff_presentation = (
+            capacity < self.capacity and self._presentation_has_difference
+        )
         self.capacity = capacity
+        if shrinking_diff_presentation:
+            # MainWindow immediately follows a Difference capacity change with
+            # set_documents(). Deferring the hide step prevents a retained source
+            # from briefly leaving the active set and releasing its gained preview.
+            self._arranged_count = -1
+            return
         self._arrange_viewers(min(self._document_count, capacity))
 
     def set_documents(
@@ -113,6 +127,7 @@ class MultiCompareView(QWidget):
             else:
                 viewer.end_layout_refit()
         anchor_range = self._current_shared_range() if not requires_refit else None
+        self._prepare_viewers_for_documents(documents)
         self._setting_documents = True
         self._document_count = min(len(documents), self.capacity)
         geometry_count = min(
@@ -176,7 +191,8 @@ class MultiCompareView(QWidget):
             (
                 viewer
                 for viewer in self.visible_viewers
-                if viewer.document is not None and viewer.document.document_id == previous_active_id
+                if viewer.document is not None
+                and viewer.document.document_id == previous_active_id
             ),
             None,
         ) or next((viewer for viewer in self.visible_viewers if viewer.document), None)
@@ -191,6 +207,57 @@ class MultiCompareView(QWidget):
             document.loading_state not in ("pending", "loading") for document in documents
         ):
             self._finish_layout_refit()
+
+    def _prepare_viewers_for_documents(self, documents: list[ImageDocument]) -> None:
+        target_documents = documents[: self.capacity]
+        target_ids = tuple(document.document_id for document in target_documents)
+        target_has_difference = any(
+            document.channel_layout == "DIFFERENCE" for document in target_documents
+        )
+        if target_ids == self._presentation_document_ids:
+            return
+
+        if target_has_difference != self._presentation_has_difference:
+            self._reuse_viewers_for_documents(target_documents)
+        else:
+            self._set_presentation_viewers(list(self.viewers))
+        self._presentation_document_ids = target_ids
+        self._presentation_has_difference = target_has_difference
+
+    def _set_presentation_viewers(self, viewers: list[ImageViewer]) -> None:
+        previous_ids = tuple(id(viewer) for viewer in self._presentation_viewers)
+        next_ids = tuple(id(viewer) for viewer in viewers)
+        if next_ids == previous_ids:
+            return
+        self._presentation_viewers = viewers
+        self._arranged_count = -1
+
+    def _reuse_viewers_for_documents(self, documents: list[ImageDocument]) -> None:
+        """Keep retained sources on their viewers while Difference membership changes."""
+
+        by_document_id: dict[str, ImageViewer] = {}
+        for viewer in self.viewers:
+            presented = viewer.presented_document
+            if presented is not None and presented.document_id not in by_document_id:
+                by_document_id[presented.document_id] = viewer
+
+        used_viewer_ids: set[int] = set()
+        ordered: list[ImageViewer | None] = []
+        for document in documents:
+            reusable = by_document_id.get(document.document_id)
+            if reusable is None or id(reusable) in used_viewer_ids:
+                ordered.append(None)
+                continue
+            ordered.append(reusable)
+            used_viewer_ids.add(id(reusable))
+
+        remaining = [
+            viewer for viewer in self.viewers if id(viewer) not in used_viewer_ids
+        ]
+        filled: list[ImageViewer] = []
+        for reusable in ordered:
+            filled.append(remaining.pop(0) if reusable is None else reusable)
+        self._set_presentation_viewers([*filled, *remaining])
 
     def set_shared_roi(self, bounds: RoiBounds | None) -> None:
         for viewer in self.visible_viewers:
@@ -404,16 +471,28 @@ class MultiCompareView(QWidget):
         self._arranged_count = count
         for viewer in self.viewers:
             self._layout.removeWidget(viewer)
-            viewer.hide()
         if count <= 0:
+            for viewer in self.viewers:
+                viewer.hide()
             return
+
         active = self.visible_viewers[:count]
+        active_ids = {id(viewer) for viewer in active}
+        for viewer in self.viewers:
+            if id(viewer) not in active_ids and not viewer.isHidden():
+                viewer.hide()
+
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
-        for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
+        for viewer, (row, column, row_span, column_span) in zip(
+            active, placements, strict=False
+        ):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
-            viewer.show()
+            if viewer.isHidden():
+                viewer.show()
         for row in range(3):
-            self._layout.setRowStretch(row, row_stretches[row] if row < len(row_stretches) else 0)
+            self._layout.setRowStretch(
+                row, row_stretches[row] if row < len(row_stretches) else 0
+            )
         for column in range(3):
             self._layout.setColumnStretch(
                 column,
