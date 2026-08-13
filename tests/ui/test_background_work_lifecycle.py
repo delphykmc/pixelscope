@@ -51,7 +51,7 @@ def test_difference_panel_uses_app_owned_bounded_analysis_pool(qtbot: object) ->
     assert bool(
         getattr(
             app,
-            thread_pools_module._ANALYSIS_POOL_SHUTDOWN_HOOK_ATTRIBUTE,
+            thread_pools_module._BACKGROUND_POOL_SHUTDOWN_HOOK_ATTRIBUTE,
             False,
         )
     )
@@ -112,25 +112,25 @@ def test_difference_preview_runs_off_gui_thread_and_drops_stale_result(
     panel.shutdown()
 
 
-def test_display_gain_pool_is_bounded_and_has_explicit_shutdown_hook(
-    qtbot: object,
-) -> None:
+def test_display_gain_pool_is_bounded_and_uses_app_shutdown_hook(qtbot: object) -> None:
     del qtbot
     app = QApplication.instance()
     assert isinstance(app, QApplication)
 
-    pool = image_viewer_module._display_preview_thread_pool()
+    analysis_pool = thread_pools_module.analysis_thread_pool()
+    display_pool = image_viewer_module._display_preview_thread_pool()
 
-    assert pool.parent() is app
-    assert pool.maxThreadCount() == image_viewer_module._DISPLAY_PREVIEW_MAX_THREADS
+    assert analysis_pool.parent() is app
+    assert display_pool.parent() is app
+    assert display_pool.maxThreadCount() == image_viewer_module._DISPLAY_PREVIEW_MAX_THREADS
     assert bool(
         getattr(
             app,
-            image_viewer_module._DISPLAY_PREVIEW_POOL_SHUTDOWN_HOOK_ATTRIBUTE,
+            thread_pools_module._BACKGROUND_POOL_SHUTDOWN_HOOK_ATTRIBUTE,
             False,
         )
     )
-    assert image_viewer_module._shutdown_display_preview_thread_pool(100)
+    assert thread_pools_module.shutdown_background_thread_pools(100)
 
 
 def test_preload_and_load_pools_remain_independent_from_analysis_pool(qtbot: object) -> None:
@@ -146,4 +146,4 @@ def test_preload_and_load_pools_remain_independent_from_analysis_pool(qtbot: obj
     assert analysis_pool is not window._load_pool
     assert analysis_pool is not window._preload_pool
     assert image_viewer_module._display_preview_thread_pool().maxThreadCount() == 2
-    assert thread_pools_module.shutdown_analysis_thread_pool(100)
+    assert thread_pools_module.shutdown_background_thread_pools(100)
