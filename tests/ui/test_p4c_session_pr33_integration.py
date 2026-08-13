@@ -70,6 +70,140 @@ def test_session_recipe_does_not_prebind_difference_provenance(
     window.close()
 
 
+def test_later_comparison_page_restores_independently_of_active_presentation(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    paths = [tmp_path / f"later-{index:02d}.png" for index in range(12)]
+    for index, path in enumerate(paths):
+        _write_gray(path, 10 + index)
+    session = Session(
+        registered_sources=tuple(SessionSource(str(path)) for path in paths),
+        selected_paths=tuple(str(path) for path in paths),
+        page_anchor_path=str(paths[6]),
+        active_path=str(paths[8]),
+        primary_path=str(paths[6]),
+        layout_mode="Multi View",
+    )
+    target = tmp_path / "later-page.pixelscope"
+    ComparisonSetRepository().save(target, session)
+
+    window = _window(qtbot)
+    loaded, missing = window.session_controller.open_from_path(target)
+
+    assert loaded == 12
+    assert missing == ()
+    assert [document.source_path for document in window.selected_documents] == paths
+    assert [document.source_path for document in window.current_comparison_documents()] == paths[6:12]
+    active = window.documents.get(window._active_document_id or "")
+    assert active is not None and active.source_path == paths[8]
+    window.close()
+
+
+def test_active_difference_restores_saved_page_before_explicit_calculate(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = [tmp_path / f"diff-page-{index:02d}.png" for index in range(12)]
+    for index, path in enumerate(paths):
+        _write_gray(path, 30 + index)
+    session = Session(
+        registered_sources=tuple(SessionSource(str(path)) for path in paths),
+        selected_paths=tuple(str(path) for path in paths),
+        page_anchor_path=str(paths[6]),
+        active_path=None,
+        primary_path=str(paths[6]),
+        layout_mode="Multi View",
+        difference=SessionDifference(
+            image_a_path=str(paths[6]),
+            image_b_path=str(paths[7]),
+            channel="Gray",
+        ),
+    )
+    target = tmp_path / "later-page-diff.pixelscope"
+    ComparisonSetRepository().save(target, session)
+
+    window = _window(qtbot)
+    requested: list[Path] = []
+    original_ensure_loaded = window._ensure_loaded
+
+    def observed_ensure_loaded(document: object) -> None:
+        source_path = getattr(document, "source_path", None)
+        if isinstance(source_path, Path):
+            requested.append(source_path)
+        original_ensure_loaded(document)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(window, "_ensure_loaded", observed_ensure_loaded)
+    calculations: list[tuple[object, object]] = []
+
+    def observe_calculate() -> None:
+        assert window._difference_source_ids is None
+        assert window._difference_document is None
+        assert [document.source_path for document in window.current_comparison_documents()] == paths[6:12]
+        calculations.append(
+            (
+                window.difference_panel.a_selector.currentData(),
+                window.difference_panel.b_selector.currentData(),
+            )
+        )
+
+    monkeypatch.setattr(window.difference_panel, "calculate_difference", observe_calculate)
+    loaded, missing = window.session_controller.open_from_path(target)
+
+    assert loaded == 12
+    assert missing == ()
+    qtbot.waitUntil(lambda: bool(calculations), timeout=5000)  # type: ignore[attr-defined]
+    assert [document.source_path for document in window.current_comparison_documents()] == paths[6:12]
+    assert set(requested).issubset(set(paths[6:12]))
+    assert not set(requested).intersection(paths[:6])
+    assert window._difference_source_ids is None
+    window.close()
+
+
+def test_unavailable_page_analysis_state_terminates_without_retry_loop(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = [tmp_path / f"unavailable-{index}.png" for index in range(2)]
+    for path in paths:
+        path.write_bytes(b"pending")
+    session = Session(
+        registered_sources=tuple(SessionSource(str(path)) for path in paths),
+        selected_paths=tuple(str(path) for path in paths),
+        page_anchor_path=str(paths[0]),
+        roi=RoiBounds(0, 0, 1, 1),
+        line=LineSelection(0, 0, 1, 0),
+        difference=SessionDifference(
+            image_a_path=str(paths[0]),
+            image_b_path=str(paths[1]),
+            channel="Gray",
+            region="Active ROI",
+        ),
+    )
+    target = tmp_path / "unavailable-analysis.pixelscope"
+    ComparisonSetRepository().save(target, session)
+
+    window = _window(qtbot)
+
+    def fail_load(document: object) -> None:
+        setattr(document, "loading_state", "error")
+
+    monkeypatch.setattr(window, "_ensure_loaded", fail_load)
+    loaded, missing = window.session_controller.open_from_path(target)
+    assert loaded == 2
+    assert missing == ()
+
+    window.session_controller._try_restore_deferred_state()
+
+    assert window.session_controller._pending_roi is None
+    assert window.session_controller._pending_line is None
+    assert window.session_controller._pending_difference is None
+    assert "not restored" in window.statusBar().currentMessage()
+    window.close()
+
+
 def test_real_session_restore_reestablishes_diff_roi_line_and_gain(
     qtbot: object,
     tmp_path: Path,
