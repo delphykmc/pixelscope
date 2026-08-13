@@ -13,7 +13,10 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui import difference_panel as difference_panel_module
 
 
-def _window(qtbot: object, tmp_path: Path) -> tuple[MainWindow, list[ImageDocument]]:
+def _window(
+    qtbot: object,
+    tmp_path: Path,
+) -> tuple[MainWindow, list[ImageDocument]]:
     QSettings().clear()
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -54,10 +57,21 @@ def test_cache_hit_calculate_and_toolbar_hide_show_do_not_recompute(
     def fail_map(*_args: object, **_kwargs: object) -> np.ndarray:
         raise AssertionError("cached Difference map was recomputed")
 
-    monkeypatch.setattr(difference_panel_module, "compact_absolute_difference", fail_map)
-    monkeypatch.setattr(difference_panel_module, "normalized_absolute_difference", fail_map)
+    monkeypatch.setattr(
+        difference_panel_module,
+        "compact_absolute_difference",
+        fail_map,
+    )
+    monkeypatch.setattr(
+        difference_panel_module,
+        "normalized_absolute_difference",
+        fail_map,
+    )
     window.difference_panel.calculate_difference()
-    qtbot.waitUntil(lambda: window._difference_document is not None, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None,
+        timeout=5000,
+    )
 
     difference = window._difference_document
     provenance = window._difference_source_ids
