@@ -65,7 +65,7 @@ def _activate_difference(
     assert source_b is not None
     numerical = np.abs(source_a.astype(np.int16) - source_b.astype(np.int16))
     preview = np.clip(numerical, 0, 255).astype(np.uint8)
-    title = f"Difference: {pair[0].display_name} vs {pair[1].display_name}"
+    title = f"Absolute [All]: {pair[0].display_name} vs {pair[1].display_name}"
     cached = (title, numerical, preview)
     requested_ids = frozenset((pair[0].document_id, pair[1].document_id))
     selected_pair = window.difference_panel.selected_documents()
@@ -142,9 +142,23 @@ def test_difference_tile_is_derived_while_source_tiles_remain_pickable(
     assert documents[0].display_name in difference_viewer.header.derived.toolTip()
     assert documents[1].display_name in difference_viewer.header.derived.toolTip()
     assert difference_viewer.header.pick.width() == difference_viewer.header.derived.width()
+
+    # Multi View keeps the semantic prefix but replaces long filenames with the
+    # same boxed local-slot language already used by source tiles.
+    assert not difference_viewer.header.difference_reference.isHidden()
+    assert difference_viewer.header.name.isHidden()
+    assert difference_viewer.header.difference_prefix.text() == "Absolute [All]:"
+    assert difference_viewer.header.difference_a_badge.objectName() == "slotBadge"
+    assert difference_viewer.header.difference_b_badge.objectName() == "slotBadge"
+    assert difference_viewer.header.difference_a_badge.text() == "1"
+    assert difference_viewer.header.difference_b_badge.text() == "2"
+    assert difference_viewer.header.difference_a_name.isHidden()
+    assert difference_viewer.header.difference_b_name.isHidden()
+
     assert source_viewers
     assert all(not viewer.header.pick.isHidden() for viewer in source_viewers)
     assert all(viewer.header.derived.isHidden() for viewer in source_viewers)
+    assert all(viewer.header.difference_reference.isHidden() for viewer in source_viewers)
     window.close()
 
 
@@ -347,6 +361,16 @@ def test_six_source_difference_keep_uses_pr32_teardown_and_leaves_no_stale_deriv
     assert not window.viewer.header.derived.isHidden()
     assert window._six_image_diff_restore_state is not None
 
+    # Single View uses the same boxed local slots but keeps both source filenames.
+    assert not window.viewer.header.difference_reference.isHidden()
+    assert window.viewer.header.difference_prefix.text() == "Absolute [All]:"
+    assert window.viewer.header.difference_a_badge.text() == "1"
+    assert window.viewer.header.difference_b_badge.text() == "2"
+    assert not window.viewer.header.difference_a_name.isHidden()
+    assert not window.viewer.header.difference_b_name.isHidden()
+    assert window.viewer.header.difference_a_name.text() == documents[0].display_name
+    assert window.viewer.header.difference_b_name.text() == documents[1].display_name
+
     assert controller.keep_picked()
 
     expected = [documents[index].document_id for index in (2, 3, 4)]
@@ -358,12 +382,17 @@ def test_six_source_difference_keep_uses_pr32_teardown_and_leaves_no_stale_deriv
     assert window.central_stack.currentWidget() is window.multi_compare_view
     assert window.viewer.presented_document is not difference
     assert window.viewer.header.derived.isHidden()
+    assert window.viewer.header.difference_reference.isHidden()
     assert all(
         viewer.presented_document is not difference
         for viewer in window.multi_compare_view.occupied_viewers
     )
     assert all(
         viewer.header.derived.isHidden()
+        for viewer in window.multi_compare_view.occupied_viewers
+    )
+    assert all(
+        viewer.header.difference_reference.isHidden()
         for viewer in window.multi_compare_view.occupied_viewers
     )
     assert all(
