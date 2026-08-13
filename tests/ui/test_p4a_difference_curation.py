@@ -67,9 +67,28 @@ def _activate_difference(
     preview = np.clip(numerical, 0, 255).astype(np.uint8)
     title = f"Difference: {pair[0].display_name} vs {pair[1].display_name}"
     cached = (title, numerical, preview)
+    requested_ids = frozenset((pair[0].document_id, pair[1].document_id))
+    selected_pair = window.difference_panel.selected_documents()
+    assert selected_pair is not None
+    assert frozenset(
+        (selected_pair[0].document_id, selected_pair[1].document_id)
+    ) == requested_ids
+
+    def cached_display_for_requested_pair() -> tuple[str, np.ndarray, np.ndarray] | None:
+        current_pair = window.difference_panel.selected_documents()
+        if current_pair is None:
+            return None
+        current_ids = frozenset(
+            (current_pair[0].document_id, current_pair[1].document_id)
+        )
+        return cached if current_ids == requested_ids else None
+
     calculate_calls: list[str] = []
-    monkeypatch.setattr(window.difference_panel, "selected_documents", lambda: pair)
-    monkeypatch.setattr(window.difference_panel, "cached_display_for_current", lambda: cached)
+    monkeypatch.setattr(
+        window.difference_panel,
+        "cached_display_for_current",
+        cached_display_for_requested_pair,
+    )
     monkeypatch.setattr(
         window.difference_panel,
         "calculate_difference",
