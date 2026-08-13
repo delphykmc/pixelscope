@@ -41,6 +41,7 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         timeout=3000,
     )
 
+    inventory_ids = tuple(id(viewer) for viewer in view.viewers)
     source_viewers = {
         document.document_id: next(
             viewer for viewer in view.occupied_viewers if viewer.document is document
@@ -53,7 +54,7 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
     }
 
     view.set_capacity(6)
-    with_difference = [sources[0], difference, *sources[1:]]
+    with_difference = [difference, *sources]
     view.set_documents(
         with_difference,
         0,
@@ -63,6 +64,7 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         preserve_view=True,
     )
 
+    assert tuple(id(viewer) for viewer in view.viewers) == inventory_ids
     assert [viewer.document for viewer in view.occupied_viewers] == with_difference
     for document in sources:
         viewer = next(
@@ -72,6 +74,9 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         assert viewer._display_preview_request_serial == request_serials[document.document_id]
         assert viewer._displayed_gain == 2.0
 
+    # Match MainWindow production order: capacity shrinks before the source-only
+    # document list is reassigned. No retained source may be hidden in between.
+    view.set_capacity(4)
     view.set_documents(
         sources,
         0,
@@ -80,8 +85,8 @@ def test_gain_requests_survive_diff_insert_remove_without_source_viewer_churn(
         None,
         preserve_view=True,
     )
-    view.set_capacity(4)
 
+    assert tuple(id(viewer) for viewer in view.viewers) == inventory_ids
     assert [viewer.document for viewer in view.occupied_viewers] == sources
     for document in sources:
         viewer = next(
