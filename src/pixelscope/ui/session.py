@@ -17,8 +17,8 @@ class SessionController(_BaseSessionController):
     """Transactional Session open adapted to the merged PR #33 Difference lifecycle."""
 
     def _connect_deferred_restore_signals(self) -> None:
-        # Session restore is timer-driven so it cannot re-enter _render_selection()
-        # from ImageViewer.document_changed.
+        # Timer-driven restore cannot re-enter _render_selection() from the
+        # synchronous ImageViewer.document_changed signal.
         return
 
     def open_from_path(self, path: str | Path) -> tuple[int, tuple[Path, ...]]:
@@ -45,7 +45,10 @@ class SessionController(_BaseSessionController):
 
         path_to_id: dict[str, str] = {}
         for source, image_input in loadable:
-            document_id = self.window._register_input(image_input, resolve_raw_profile=False)
+            document_id = self.window._register_input(
+                image_input,
+                resolve_raw_profile=False,
+            )
             if document_id is None:
                 missing.append(Path(source.path))
                 continue
@@ -97,15 +100,20 @@ class SessionController(_BaseSessionController):
         if session.layout_mode != self.window._layout_mode:
             self.window.set_layout_mode(session.layout_mode)
         primary_id = self._saved_member_id(session.primary_path, path_to_id)
-        page_ids = {doc.document_id for doc in self.window.current_comparison_documents()}
+        page_ids = {
+            document.document_id
+            for document in self.window.current_comparison_documents()
+        }
         if (
             primary_id is not None
             and primary_id in page_ids
             and self.window._layout_mode != "Single View"
         ):
             self.window._set_focus_document(primary_id)
-        if active_id is not None and (active := self.window.documents.get(active_id)) is not None:
-            self.window._set_active_document(active)
+        if active_id is not None:
+            active = self.window.documents.get(active_id)
+            if active is not None:
+                self.window._set_active_document(active)
 
         display_gain_state().set_gain(session.display_gain)
         split_enabled = session.split_channels and len(selected_ids) == 1
@@ -129,6 +137,12 @@ class SessionController(_BaseSessionController):
             return
         self.window._difference_document = None
         self.window._difference_source_ids = None
+        action = getattr(self.window, "diff_action", None)
+        if action is not None:
+            action.blockSignals(True)
+            action.setChecked(False)
+            action.setEnabled(False)
+            action.blockSignals(False)
 
     def _clear_picks(self) -> None:
         controller = getattr(self.window, "review_selection_controller", None)
@@ -147,14 +161,12 @@ class SessionController(_BaseSessionController):
     ) -> None:
         if recipe is None:
             return
-        source_ids = (
-            path_to_id.get(recipe.image_a_path.casefold()),
-            path_to_id.get(recipe.image_b_path.casefold()),
-        )
-        if None in source_ids:
+        a_id = path_to_id.get(recipe.image_a_path.casefold())
+        b_id = path_to_id.get(recipe.image_b_path.casefold())
+        if a_id is None or b_id is None:
             self._skip_difference("Saved Difference sources are unavailable.")
             return
-        for document_id in source_ids:
+        for document_id in (a_id, b_id):
             document = self.window.documents.get(document_id)
             if document is not None:
                 self.window._ensure_loaded(document)
@@ -177,7 +189,11 @@ class SessionController(_BaseSessionController):
             QTimer.singleShot(50, self._try_restore_deferred_state)
             return
 
-        ready = [doc for doc in self.window.current_comparison_documents() if doc.source is not None]
+        ready = [
+            document
+            for document in self.window.current_comparison_documents()
+            if document.source is not None
+        ]
         if ready:
             if self._pending_roi is not None:
                 self.window._shared_roi_changed(self._pending_roi)
@@ -192,6 +208,7 @@ class SessionController(_BaseSessionController):
         if recipe.region == "Active ROI" and self._pending_roi is not None:
             QTimer.singleShot(50, self._try_restore_deferred_state)
             return
+
         a_id = self._pending_path_to_id.get(recipe.image_a_path.casefold())
         b_id = self._pending_path_to_id.get(recipe.image_b_path.casefold())
         if a_id is None or b_id is None:
@@ -208,7 +225,9 @@ class SessionController(_BaseSessionController):
                 return
             suppressed = self.window._raw_profile_prompt_suppressed
             if a_id in suppressed or b_id in suppressed:
-                self._skip_difference("A saved Difference RAW source was not resolved.")
+                self._skip_difference(
+                    "A saved Difference RAW source was not resolved."
+                )
                 return
             for document in (a, b):
                 if document.source is None and document.loading_state == "pending":
@@ -222,11 +241,16 @@ class SessionController(_BaseSessionController):
         mode_index = panel.mode.findText(recipe.mode)
         region_index = panel.region.findText(recipe.region)
         if channel_index < 0 or mode_index < 0 or region_index < 0:
-            self._skip_difference("Saved Difference options are not available for this pair.")
+            self._skip_difference(
+                "Saved Difference options are not available for this pair."
+            )
             return
         if not panel.threshold.minimum() <= recipe.threshold <= panel.threshold.maximum():
-            self._skip_difference("Saved Difference threshold is invalid for this pair.")
+            self._skip_difference(
+                "Saved Difference threshold is invalid for this pair."
+            )
             return
+
         panel.a_selector.setCurrentIndex(panel.a_selector.findData(a_id))
         panel.b_selector.setCurrentIndex(panel.b_selector.findData(b_id))
         panel.channel.setCurrentIndex(channel_index)
@@ -240,7 +264,10 @@ class SessionController(_BaseSessionController):
 
     def _skip_difference(self, message: str) -> None:
         self._pending_difference = None
-        self.window.statusBar().showMessage(f"{message} Difference was not restored.", 5000)
+        self.window.statusBar().showMessage(
+            f"{message} Difference was not restored.",
+            5000,
+        )
 
 
 class _ComparisonSetControllerFacade:
