@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QMessageBox
 
@@ -49,8 +49,6 @@ class RecentEntriesController:
         self.comparison_sets_menu = self.sessions_menu
         for menu in (self.images_menu, self.folders_menu, self.sessions_menu):
             menu.setStyleSheet(menu_style())
-        self.clear_action = QAction("Clear Recent Entries", window)
-        self.clear_action.triggered.connect(self.clear_all)  # type: ignore[attr-defined]
 
         self._install_runtime_observers()
         self._install_recent_menus()
@@ -107,7 +105,7 @@ class RecentEntriesController:
     ) -> None:
         try:
             self.repository.record(kind, paths)
-            self.refresh_menu()
+            QTimer.singleShot(0, self.refresh_menu)
         except Exception:  # noqa: BLE001 - optional history must not break runtime work
             LOGGER.warning("Unable to update Recent %s history", kind.value, exc_info=True)
 
@@ -136,12 +134,16 @@ class RecentEntriesController:
         self.save_group_separator = separator
 
     def refresh_menu(self) -> None:
-        self._populate_menu(RecentEntryKind.IMAGE, self.images_menu)
-        self._populate_menu(RecentEntryKind.FOLDER, self.folders_menu)
-        self._populate_menu(RecentEntryKind.SESSION, self.sessions_menu)
-        self.clear_action.setEnabled(any(self.repository.load(kind) for kind in RecentEntryKind))
+        self._populate_menu(RecentEntryKind.IMAGE, self.images_menu, "Images")
+        self._populate_menu(RecentEntryKind.FOLDER, self.folders_menu, "Folders")
+        self._populate_menu(RecentEntryKind.SESSION, self.sessions_menu, "Sessions")
 
-    def _populate_menu(self, kind: RecentEntryKind, menu: QMenu) -> None:
+    def _populate_menu(
+        self,
+        kind: RecentEntryKind,
+        menu: QMenu,
+        clear_label: str,
+    ) -> None:
         menu.clear()
         entries = self.repository.load(kind)
         if not entries:
@@ -149,7 +151,7 @@ class RecentEntriesController:
             placeholder.setEnabled(False)
         else:
             for path in entries:
-                action = menu.addAction(self._display_label(kind, path))
+                action = menu.addAction(self._display_label(path))
                 action.setToolTip(str(path))
                 action.setStatusTip(str(path))
                 action.triggered.connect(  # type: ignore[attr-defined]
@@ -159,10 +161,14 @@ class RecentEntriesController:
                     )
                 )
         menu.addSeparator()
-        menu.addAction(self.clear_action)
+        clear_action = menu.addAction(f"Clear Recent {clear_label}")
+        clear_action.setEnabled(bool(entries))
+        clear_action.triggered.connect(  # type: ignore[attr-defined]
+            lambda _checked=False, entry_kind=kind: self.clear_kind(entry_kind)
+        )
 
     @staticmethod
-    def _display_label(kind: RecentEntryKind, path: Path) -> str:
+    def _display_label(path: Path) -> str:
         leaf = path.name or str(path)
         parent = path.parent.name
         return f"{leaf} — {parent}" if parent and parent != leaf else leaf
@@ -251,7 +257,7 @@ class RecentEntriesController:
             return
         try:
             self.repository.remove(kind, path)
-            self.refresh_menu()
+            QTimer.singleShot(0, self.refresh_menu)
         except Exception:  # noqa: BLE001 - cleanup remains non-authoritative
             LOGGER.warning(
                 "Unable to remove unavailable Recent %s entry",
@@ -275,14 +281,21 @@ class RecentEntriesController:
     def _record_session(self, path: Path) -> None:
         self._observe_history(RecentEntryKind.SESSION, [path])
 
-    def clear_all(self) -> None:
+    def clear_kind(self, kind: RecentEntryKind) -> None:
         try:
-            self.repository.clear()
-            self.refresh_menu()
+            self.repository.clear(kind)
+            QTimer.singleShot(0, self.refresh_menu)
         except Exception as exc:  # noqa: BLE001 - report history-storage failure to user
             QMessageBox.warning(self.window, "Cannot clear Recent Entries", str(exc))
             return
-        self.window.statusBar().showMessage("Recent Entries cleared", 3000)
+        label = (
+            "Images"
+            if kind is RecentEntryKind.IMAGE
+            else "Folders"
+            if kind is RecentEntryKind.FOLDER
+            else "Sessions"
+        )
+        self.window.statusBar().showMessage(f"Recent {label} cleared", 3000)
 
     def _remember_directory(self, path: Path) -> None:
         remember = getattr(self.window, "_remember_directory", None)
