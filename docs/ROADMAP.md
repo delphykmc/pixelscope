@@ -205,6 +205,10 @@ P4-0 merged as PR #28 at
 `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
+P4-B Comparison Set Persistence merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+PR #32 and PR #33 subsequently stabilized the Display Gain/Difference worker,
+viewer, and source-curation lifecycle contracts now inherited by P4-C.
 
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -274,7 +278,7 @@ selection/first-Active state, derived-presentation identity rejection, external
 Selected mutation invalidation, and 50-image bounded load/protection/preload
 regression.
 
-### P4-B — Comparison Set Persistence — implemented, merge pending
+### P4-B — Comparison Set Persistence — Complete
 
 P4-B introduces an explicit external **Comparison Set** artifact rather than full
 application-session persistence.
@@ -306,15 +310,35 @@ Display Gain, analysis state, workers/tokens/generation, derived Split/Differenc
 documents, transient view state, ROI/Line state, or temporary Picks. Settings schema
 remains v5.
 
-The repository owner reports the focused P4-B Windows suite PASS (`36 passed`). PR
-#30 remains merge-pending until durable-doc consistency and final review/validation
-closure.
+P4-B merged as PR #30 after focused owner validation and independent review closure.
+P4-C reuses the P4-B loader/writer unchanged rather than extending the artifact.
 
-### P4-C — Comparison Set Entry UX & Recent Entries
+### P4-C — Comparison Set Entry UX & Recent Entries — Active — PR #31
 
-Define bounded recent-entry behavior around persisted Comparison Set artifacts,
-including missing-path handling and privacy/path-retention semantics. Do not reframe
-P4-C as a full persistent-session manager.
+P4-C provides typed, bounded Recent entry behavior around the existing Image,
+Folder, and Comparison Set workflows. It does not reframe P4-C as a full
+persistent-session manager.
+
+Active contract:
+
+- explicit Recent Images, Recent Folders, and Recent Comparison Sets histories;
+- deterministic normalized absolute-path MRU, max 10 per type;
+- canonical P3 image/folder intent reused rather than bypassed;
+- canonical P4-B Comparison Set loader/writer reused rather than extended;
+- missing path uses explicit Remove/Keep and is non-destructive;
+- wrong filesystem type is retained/reported rather than reinterpreted;
+- invalid existing Comparison Set remains history while P4-B reports its error;
+- Comparison Set MRU promotion occurs only after a meaningful open (`loaded > 0`)
+  or successful save;
+- history updates are best-effort observer metadata and do not own workflow success;
+- QSettings keys remain outside Settings schema v5;
+- path-retention/privacy is explicit and each typed submenu has its own clear action;
+- no source residency, preload, Difference, Display Gain, analysis, curation, RAW,
+  or Current Comparison Page ownership is added.
+
+PR #32/#33 lifecycle contracts are inherited unchanged. In particular, Recent
+Comparison Set open passes through the normal P4-B Selected mutation path, so #33
+Difference teardown/explicit-Calculate behavior remains authoritative.
 
 ### P4-D — Saved ROI & Analysis Workspace Productivity
 
