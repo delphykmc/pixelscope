@@ -1,8 +1,8 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-C complete; P4-E Analysis Export Productivity active; P4-F next
+Status: Active — P4-E implemented/owner-validated on PR #34; P4-F next
 Owner: repository owner + P4 orchestration agents
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 Inherited merged baseline: PR #31 / main
 `436033a0d99513fe8db35f08305395127e430af2`
 
@@ -70,7 +70,7 @@ Inherited invariants:
 | 2 | P4-B Comparison Set Persistence | Complete — PR #30 |
 | 3 | P4-C Session Persistence & Typed Recent | Complete — PR #31 — `436033a0d99513fe8db35f08305395127e430af2` |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Deferred |
-| 5 | P4-E Analysis Export Productivity | Active |
+| 5 | P4-E Analysis Export Productivity | Implemented / owner validation PASS — PR #34 merge pending |
 | 6 | P4-F Integration & Workflow Hardening | Next / P4 closure |
 
 P4-D is intentionally skipped in the execution order. Session v1 already persists
@@ -338,7 +338,7 @@ No sufficiently concrete workflow pain point currently justifies those semantics
 P4-D is deferred and is not a P4 completion blocker. The existing active ROI remains
 the sole ROI input to native analysis.
 
-## P4-E — Analysis Export Productivity — Active
+## P4-E — Analysis Export Productivity — Implemented / owner validation PASS — PR #34 merge pending
 
 ### Goal
 
@@ -358,13 +358,18 @@ native source
 Export is never the numerical, Difference, source, analysis-working-set,
 residency/preload, or generation authority.
 
-### Focused deliverables
+### Implemented deliverables
 
 1. **Export Difference Image...**
-   - available only for an explicitly established active Difference result;
-   - writes PNG from the current Difference presentation preview;
-   - therefore reflects current Absolute/Mask, threshold, Difference display gain,
-     and compatible channel/presentation state;
+   - requires an explicitly established active Difference result;
+   - current panel A/B must match active provenance;
+   - current presentation identity `(pair/generation/domain/channel/mode/gain/threshold)`
+     must match the last settled preview key, so returning to an active pair cannot
+     relabel an old presentation with newly changed controls;
+   - writes PNG from the same settled Difference presentation preview used by the
+     current semantic filename;
+   - reflects current Absolute/Mask, threshold, Difference display gain, and
+     compatible channel/presentation state;
    - never screenshots toolbar/window chrome, never recalculates Difference, and
      never promotes a cached-but-inactive map to active state;
    - full-frame PNG encode/file I/O reuses the existing bounded analysis worker pool.
@@ -380,12 +385,37 @@ residency/preload, or generation authority.
    - deterministic rows identify current line coordinates, source/series/channel,
      x/y presentation mode, sample index/position, and current rendered value;
    - sampling/interpolation semantics are unchanged.
+4. **Statistics / metrics productivity**
+   - File-menu Statistics export and the main toolbar Export action share the same
+     timestamped P4-E controller path while preserving existing Statistics CSV data
+     semantics;
+   - Difference metrics can be exported locally as deterministic CSV with source A/B,
+     region, channel, comparison domain, effective bit depths, metric identity, and
+     value;
+   - Channel statistics and Difference metrics expose full-table CSV clipboard copy
+     controls with headers;
+   - all default analysis-export filenames include `YYYYMMDD-HHMMSS-mmm`; user-edited
+     filenames remain respected;
+   - Difference PNG default names encode channel/mode plus only the applicable gain
+     or threshold/domain unit.
+5. **Analysis presentation/lifecycle polish**
+   - Statistics headings are `Region`, `Images`, and `Channel statistics` with clear
+     title emphasis and the Channel statistics Copy control beside its heading;
+   - Difference metrics has a local heading, CSV, and Copy controls while redundant
+     native Scope/Domain helper rows are removed; normalized mixed-bit context remains
+     visible when semantically necessary;
+   - Statistics Copy, Difference Calculate, Difference metrics CSV, and Difference
+     metrics Copy share one subtle command interaction model: transparent normal
+     chrome, hover-revealed button chrome, recessed pressed feedback, keyboard-focus
+     accent, and low-contrast/etched disabled state; Copy glyphs use the larger
+     18 px presentation;
+   - controller shutdown disarms late table/model callbacks and running PNG worker
+     completion from touching deleted UI during MainWindow close/recreation.
 
-Existing **Export Statistics CSV...** remains unchanged. File-menu exports reuse the
-existing configured Export directory and successful last-directory behavior. No new
-Export Settings schema is introduced. Missing/in-flight results disable or safely
-no-op the corresponding export. Cancel mutates nothing; write failure gives compact
-status feedback.
+Exports reuse the existing configured Export directory and successful last-directory
+behavior. No new Export Settings schema is introduced. Missing/in-flight or stale
+results disable or safely no-op the corresponding export. Cancel mutates nothing;
+write failure gives compact status feedback.
 
 ### Explicit exclusions
 
@@ -401,21 +431,33 @@ workflow, so P4-E does not add unproven pairing/alpha/Gain/Split/Session semanti
 
 ### Focused validation
 
-Add deterministic coverage for:
+Deterministic coverage now includes:
 
-- current Difference Absolute/Mask presentation PNG export;
-- current Difference display parameters reflected in exported preview;
+- exact current Difference Absolute/Mask presentation PNG export;
+- active A/B provenance and settled-presentation freshness, including
+  `A/B Calculate → uncached C/D → control change → A/B return` stale re-entry;
+- filename/PNG-byte agreement after the current presentation settles;
 - inactive/no Difference unavailable; explicit Calculate remains required;
 - export calls no Difference recalculation and changes no source generation/cache;
 - Histogram exact visible series with deterministic Gray/RGB/Bayer and ROI/full
   scope identity;
 - Line Profile exact current rendered series/sample ordering;
+- Difference metrics CSV and Statistics/Difference table clipboard CSV;
+- timestamped default paths and custom-name preservation;
+- Statistics File-menu/toolbar export parity;
 - no-result safe action state/no-op;
 - configured Export directory reuse, cancel/no-path no mutation, compact write
   failure;
 - Selected/Active/Primary/Page, normal/preload workers, and production File-menu
   wiring remaining unchanged;
-- idempotent composition/teardown behavior without duplicate export actions/signals.
+- idempotent composition/teardown behavior without duplicate export actions/signals;
+- late model callback shutdown safety; and
+- MainWindow close/recreate while a Difference PNG worker is physically running.
+
+The repository owner reports the requested focused Windows validation and post-fix
+static checks PASS on code/test head
+`d8fa4b0c0ffe0a3517d37c703c490ec399f8ccf9`. Subsequent merge-closure commits are
+documentation/PR-metadata only.
 
 ## P4-F — Integration & Workflow Hardening — Next / P4 closure
 
@@ -496,8 +538,14 @@ For P4-E, run the focused export slice first:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
     tests\unit\test_analysis_export.py `
-    tests\ui\test_p4e_analysis_export.py
+    tests\unit\test_analysis_export_metrics.py `
+    tests\ui\test_p4e_analysis_export.py `
+    tests\ui\test_p4e_analysis_productivity.py `
+    tests\ui\test_p4e_analysis_export_lifecycle.py `
+    tests\ui\test_p4e_analysis_export_review_regressions.py
 ```
 
-Only observed results are recorded as PASS. P4-C's previously reported validation
-belongs to its merged implementation and does not imply P4-E validation.
+The repository owner reports the requested focused P4-E validation and requested
+post-fix static checks PASS on code/test head
+`d8fa4b0c0ffe0a3517d37c703c490ec399f8ccf9`. Only observed results are recorded as
+PASS; the docs-only closure commits do not imply a new unobserved runtime run.
