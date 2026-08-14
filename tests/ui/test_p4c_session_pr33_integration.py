@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -94,7 +95,9 @@ def test_later_comparison_page_restores_independently_of_active_presentation(
     assert loaded == 12
     assert missing == ()
     assert [document.source_path for document in window.selected_documents] == paths
-    assert [document.source_path for document in window.current_comparison_documents()] == paths[6:12]
+    assert [
+        document.source_path for document in window.current_comparison_documents()
+    ] == paths[6:12]
     active = window.documents.get(window._active_document_id or "")
     assert active is not None and active.source_path == paths[8]
     window.close()
@@ -140,7 +143,9 @@ def test_active_difference_restores_saved_page_before_explicit_calculate(
     def observe_calculate() -> None:
         assert window._difference_source_ids is None
         assert window._difference_document is None
-        assert [document.source_path for document in window.current_comparison_documents()] == paths[6:12]
+        assert [
+            document.source_path for document in window.current_comparison_documents()
+        ] == paths[6:12]
         calculations.append(
             (
                 window.difference_panel.a_selector.currentData(),
@@ -153,8 +158,13 @@ def test_active_difference_restores_saved_page_before_explicit_calculate(
 
     assert loaded == 12
     assert missing == ()
-    qtbot.waitUntil(lambda: bool(calculations), timeout=5000)  # type: ignore[attr-defined]
-    assert [document.source_path for document in window.current_comparison_documents()] == paths[6:12]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: bool(calculations),
+        timeout=5000,
+    )
+    assert [
+        document.source_path for document in window.current_comparison_documents()
+    ] == paths[6:12]
     assert set(requested).issubset(set(paths[6:12]))
     assert not set(requested).intersection(paths[:6])
     assert window._difference_source_ids is None
@@ -187,8 +197,8 @@ def test_unavailable_page_analysis_state_terminates_without_retry_loop(
 
     window = _window(qtbot)
 
-    def fail_load(document: object) -> None:
-        setattr(document, "loading_state", "error")
+    def fail_load(document: Any) -> None:
+        document.loading_state = "error"
 
     monkeypatch.setattr(window, "_ensure_loaded", fail_load)
     loaded, missing = window.session_controller.open_from_path(target)
@@ -240,11 +250,56 @@ def test_real_session_restore_reestablishes_diff_roi_line_and_gain(
         lambda: all(document.source is not None for document in window.selected_documents),
         timeout=5000,
     )
-    qtbot.waitUntil(lambda: window._difference_document is not None, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None,
+        timeout=5000,
+    )
     assert window._difference_source_ids is not None
     assert window._shared_roi == RoiBounds(8, 8, 24, 24)
     assert window._shared_line == LineSelection(4, 4, 40, 4)
     assert display_gain_state().gain == 2.0
     assert len(window.multi_compare_view.occupied_viewers) == 5
     assert window.diff_action.isChecked()
+    window.close()
+
+
+def test_difference_restore_finishes_with_saved_source_primary(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    paths = [tmp_path / f"primary-{index}.png" for index in range(5)]
+    for index, path in enumerate(paths):
+        _write_gray(path, 40 + index * 10)
+    session = Session(
+        registered_sources=tuple(SessionSource(str(path)) for path in paths),
+        selected_paths=tuple(str(path) for path in paths),
+        page_anchor_path=str(paths[0]),
+        active_path=None,
+        primary_path=str(paths[1]),
+        layout_mode="Multi View",
+        display_gain=2.0,
+        difference=SessionDifference(
+            image_a_path=str(paths[0]),
+            image_b_path=str(paths[1]),
+            channel="Gray",
+            mode="Absolute",
+        ),
+    )
+    target = tmp_path / "source-primary.pixelscope"
+    ComparisonSetRepository().save(target, session)
+
+    window = _window(qtbot)
+    loaded, missing = window.session_controller.open_from_path(target)
+
+    assert loaded == 5
+    assert missing == ()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None,
+        timeout=5000,
+    )
+    primary = window.documents.get(window._focus_document_id or "")
+    assert primary is not None
+    assert primary.source_path == paths[1]
+    assert display_gain_state().gain == 2.0
+    assert len(window.multi_compare_view.occupied_viewers) == 6
     window.close()
