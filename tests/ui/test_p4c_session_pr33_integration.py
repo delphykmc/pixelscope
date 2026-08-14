@@ -11,6 +11,7 @@ from PySide6.QtCore import QSettings
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.comparison_set import Session, SessionDifference, SessionSource
+from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
@@ -28,6 +29,15 @@ def _window(qtbot: object) -> MainWindow:
 
 def _write_gray(path: Path, value: int) -> None:
     assert cv2.imwrite(str(path), np.full((64, 64), value, dtype=np.uint8))
+
+
+def _ready_gray(path: Path, value: int) -> ImageDocument:
+    _write_gray(path, value)
+    return ImageDocument.from_array(
+        np.full((64, 64), value, dtype=np.uint8),
+        path.name,
+        source_path=path,
+    )
 
 
 def test_session_recipe_does_not_prebind_difference_provenance(
@@ -169,6 +179,70 @@ def test_active_difference_restores_saved_page_before_explicit_calculate(
     assert not set(requested).intersection(paths[:6])
     assert window._difference_source_ids is None
     window.close()
+
+
+def test_save_omits_hidden_difference_recipe_after_navigating_away_from_pair(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    paths = [tmp_path / f"off-page-{index:02d}.png" for index in range(12)]
+    documents = [
+        _ready_gray(path, 20 + index)
+        for index, path in enumerate(paths)
+    ]
+    window = _window(qtbot)
+    for document in documents:
+        window.add_document(document, select=False)
+    window._select_document_ids([document.document_id for document in documents])
+    window.set_layout_mode("Multi View")
+
+    a_id = documents[0].document_id
+    b_id = documents[1].document_id
+    panel = window.difference_panel
+    panel.set_documents(window.current_comparison_documents(), (a_id, b_id))
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None,
+        timeout=5000,
+    )
+    assert window._difference_source_ids == (a_id, b_id)
+    assert window.diff_action.isChecked()
+
+    window.diff_action.trigger()
+    assert not window.diff_action.isChecked()
+    assert window._difference_source_ids == (a_id, b_id)
+
+    window.next_comparison_page()
+    assert [
+        document.source_path for document in window.current_comparison_documents()
+    ] == paths[6:12]
+    assert window._difference_source_ids == (a_id, b_id)
+
+    window._set_focus_document(documents[6].document_id)
+    window._set_active_document(documents[6])
+    target = tmp_path / "off-page-difference.pixelscope"
+    saved = window.session_controller.save_to_path(target)
+
+    assert saved.difference is None
+    persisted = ComparisonSetRepository().load(target)
+    assert persisted.difference is None
+    assert persisted.page_anchor_path == str(paths[6])
+    window.close()
+
+    reopened = _window(qtbot)
+    loaded, missing = reopened.session_controller.open_from_path(target)
+    assert loaded == 12
+    assert missing == ()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        reopened.session_controller._restore_overlay.isHidden,
+        timeout=5000,
+    )
+    assert [
+        document.source_path for document in reopened.current_comparison_documents()
+    ] == paths[6:12]
+    assert reopened._difference_document is None
+    assert reopened._difference_source_ids is None
+    reopened.close()
 
 
 def test_unavailable_page_analysis_state_terminates_without_retry_loop(
