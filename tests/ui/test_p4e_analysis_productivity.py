@@ -33,7 +33,7 @@ def _seed_statistics_table(window: MainWindow) -> None:
     panel.table.setRowCount(1)
     values = ("1", "Gray", "0", "15", "7.5", "2", "1", "8", "14")
     for column, value in enumerate(values):
-        panel.table.setItem(row=0, column=column, item=QTableWidgetItem(value))
+        panel.table.setItem(0, column, QTableWidgetItem(value))
 
 
 def _seed_difference(window: MainWindow, tmp_path: Path) -> None:
