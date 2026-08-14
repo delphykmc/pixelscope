@@ -1,16 +1,17 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-A/P4-B complete; P4-C implemented and owner-validated, merge pending
+Status: Active — P4-C complete; P4-E Analysis Export Productivity active; P4-F next
 Owner: repository owner + P4 orchestration agents
 Last updated: 2026-08-14
-Inherited merged baseline: PR #33 / main
-`51a540c92c372d71e02fd849fb5e0d406d0e9327`
+Inherited merged baseline: PR #31 / main
+`436033a0d99513fe8db35f08305395127e430af2`
 
 ## Goal
 
-Build review/curation, reusable workflow persistence, typed Recent entry, saved analysis
-annotations, and focused viewer/export productivity on top of the stabilized P2/P3
-image semantics and bounded Current Comparison Page architecture.
+Complete the focused workflow-productivity program on top of the stabilized P2/P3
+image semantics and bounded Current Comparison Page architecture. P4-C now owns
+durable Session/Recent workflow intent. P4-E adds only focused export of current
+analysis/presentation results, and P4-F closes P4 through integration hardening.
 
 P4 must improve workflow without creating a second source, analysis, cache,
 selection, or residency authority.
@@ -55,20 +56,31 @@ Inherited invariants:
 - PR #32 owns generic Display Gain/Difference worker and presentation stability.
 - PR #33 owns active Difference establishment, provenance, visibility, teardown, and
   cache lifecycle; only explicit successful Calculate establishes an active result.
+- export is a consumer of current canonical/result presentation and must not become
+  numerical, source, residency, preload, or Difference authority.
 
 ## Program sequence
 
-`P4-0 → P4-A → P4-B → P4-C → P4-D → P4-E → P4-F`
+`P4-0 → P4-A → P4-B → P4-C → P4-E → P4-F → P4 Complete`
 
 | Order | Slice | Status |
 |---|---|---|
 | 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
 | 1 | P4-A Review Selection & Curation | Complete — PR #29 |
 | 2 | P4-B Comparison Set Persistence | Complete — PR #30 |
-| 3 | P4-C Session Persistence & Typed Recent | Implemented; owner validation PASS; merge pending — PR #31 |
-| 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
-| 5 | P4-E Viewer Overlay & Export Productivity | Planned |
-| 6 | P4-F Integration & Workflow Hardening | Planned |
+| 3 | P4-C Session Persistence & Typed Recent | Complete — PR #31 — `436033a0d99513fe8db35f08305395127e430af2` |
+| 4 | P4-D Saved ROI & Analysis Workspace Productivity | Deferred |
+| 5 | P4-E Analysis Export Productivity | Active |
+| 6 | P4-F Integration & Workflow Hardening | Next / P4 closure |
+
+P4-D is intentionally skipped in the execution order. Session v1 already persists
+the current active ROI/Line; the remaining named/multiple ROI manager needs product
+semantics for ownership, mixed dimensions, and coordinates that are not yet justified
+by a demonstrated workflow pain point.
+
+Alpha Overlay is also deferred. Multi View, synchronized navigation, and Difference
+already cover the principal comparison workflow; Overlay/Flicker/Wipe utility has not
+been validated sufficiently to add pairing/alpha/Gain/Split/Session semantics.
 
 Arbitrary-angle Line Profile is intentionally **not** a P4 slice. PixelScope's line
 profile is an observation/sampling tool, so a future arbitrary-angle implementation
@@ -217,10 +229,11 @@ legacy Comparison Set v1 read compatibility.
 The repository owner reported the focused P4-B Windows suite PASS (`36 passed`)
 before PR #30 merged.
 
-## P4-C — Session Persistence & Typed Recent — implemented, validation PASS, merge pending
+## P4-C — Session Persistence & Typed Recent — Complete
 
 ### Goal and durable contract
 
+P4-C merged as PR #31 at `436033a0d99513fe8db35f08305395127e430af2`.
 P4-C generalizes the workflow artifact into **PixelScope Session v1**. New writes use
 `kind = "pixelscope-session"`, schema v1, and `.pixelscope`; legacy P4-B
 `pixelscope-comparison-set` v1 remains read-compatible.
@@ -307,47 +320,104 @@ Difference reconstruction, restore-overlay lifetime, typed Recent persistence an
 observer isolation, inherited PR #32/#33 regressions, and the final
 `>6 Selected → page-1 Diff → hide → page 2 → Save/Open` writer/reader-symmetry case.
 
-Merge-closure changes after this validated head are documentation/PR-metadata only.
+Merge-closure changes after this validated head were documentation/PR-metadata only.
 
-## P4-D — Saved ROI & Analysis Workspace Productivity
+## P4-D — Saved ROI & Analysis Workspace Productivity — Deferred
 
-Separate the **current active ROI** used by existing analysis from **saved ROI
-definitions** used as reusable workflow annotations.
+Session v1 already persists/restores the current active ROI and Line selection. The
+remaining feature is effectively a saved/named/multiple ROI manager. Before such a
+feature can be implemented safely, product semantics are needed for:
 
-Before implementation define:
+- session-global versus source-specific versus scene-specific ROI ownership;
+- coordinate representation, bounds/clipping, and mixed image dimensions;
+- naming/ordering/selection and activate/delete behavior;
+- persistence ownership if a future Session schema intentionally adds saved ROI
+  definitions.
 
-- image-space coordinate representation and bounds/clipping behavior;
-- naming/ordering/selection rules;
-- whether a saved ROI is global to a workflow artifact or associated with a specific
-  source;
-- behavior across different image dimensions;
-- apply/activate/delete semantics;
-- persistence boundary if/when saved ROI is intentionally added to a future schema.
+No sufficiently concrete workflow pain point currently justifies those semantics.
+P4-D is deferred and is not a P4 completion blocker. The existing active ROI remains
+the sole ROI input to native analysis.
 
-Saved definitions must not become an alternative analysis working-set authority.
-The active ROI applied to the current native analysis workflow remains the
-numerical input.
+## P4-E — Analysis Export Productivity — Active
 
-## P4-E — Viewer Overlay & Export Productivity
+### Goal
 
-### Alpha Overlay
+Export only the analysis/presentation results PixelScope already owns so they can be
+reused in external engineering/reporting workflows. Do not add new numerical
+algorithms and do not create a generic “export everything” framework.
 
-Any Alpha Overlay must remain presentation-only. It may assist visual comparison
-but must not mutate native source, Difference, Statistics, Histogram, Line Profile,
-source generation, cache identity, residency accounting, or preload ownership.
+Authoritative flow:
 
-Define source pairing, alignment/size compatibility, alpha control, active/primary
-interaction, and teardown state before implementation.
+```text
+native source
+→ existing analysis/result owner
+→ current result/presentation
+→ export consumer
+```
 
-### Export
+Export is never the numerical, Difference, source, analysis-working-set,
+residency/preload, or generation authority.
 
-Export work is intentionally limited to concrete review/analysis pain points. Do
-not create a broad generic export framework in advance. For every exported artifact,
-define whether it represents native data, normalized Difference data, a viewer
-presentation, an ROI/plot result, or workflow metadata, and preserve the corresponding
-numerical/domain semantics.
+### Focused deliverables
 
-## P4-F — Integration & Workflow Hardening
+1. **Export Difference Image...**
+   - available only for an explicitly established active Difference result;
+   - writes PNG from the current Difference presentation preview;
+   - therefore reflects current Absolute/Mask, threshold, Difference display gain,
+     and compatible channel/presentation state;
+   - never screenshots toolbar/window chrome, never recalculates Difference, and
+     never promotes a cached-but-inactive map to active state;
+   - full-frame PNG encode/file I/O reuses the existing bounded analysis worker pool.
+2. **Export Histogram CSV...**
+   - serializes exact current plotted Histogram series;
+   - deterministic rows identify Full image/Active ROI scope and bounds,
+     source/series/channel, native bin edges and raw counts, current display bin
+     edges, and current x/y presentation modes;
+   - Gray/RGB/Bayer series follow current supported/rendered behavior with no new
+     histogram calculation.
+3. **Export Line Profile CSV...**
+   - serializes exact current plotted Line Profile series;
+   - deterministic rows identify current line coordinates, source/series/channel,
+     x/y presentation mode, sample index/position, and current rendered value;
+   - sampling/interpolation semantics are unchanged.
+
+Existing **Export Statistics CSV...** remains unchanged. File-menu exports reuse the
+existing configured Export directory and successful last-directory behavior. No new
+Export Settings schema is introduced. Missing/in-flight results disable or safely
+no-op the corresponding export. Cancel mutates nothing; write failure gives compact
+status feedback.
+
+### Explicit exclusions
+
+P4-E does not add Saved/Named/Multiple ROI, Alpha Overlay, Flicker, Wipe, generic
+screenshot/viewer capture, raw-source export, Difference numerical-map interchange,
+Session export redesign, P4-A Pick export, arbitrary-angle Line Profile, new
+Difference/Histogram/Line algorithms, source residency/preload redesign, Display
+Gain/RAW redesign, Settings schema bump, remote IQA, or packaging/release work.
+
+**Alpha Overlay is deferred by owner decision.** Overlay/Flicker/Wipe UX has not been
+validated against the current Multi View + synchronized navigation + Difference
+workflow, so P4-E does not add unproven pairing/alpha/Gain/Split/Session semantics.
+
+### Focused validation
+
+Add deterministic coverage for:
+
+- current Difference Absolute/Mask presentation PNG export;
+- current Difference display parameters reflected in exported preview;
+- inactive/no Difference unavailable; explicit Calculate remains required;
+- export calls no Difference recalculation and changes no source generation/cache;
+- Histogram exact visible series with deterministic Gray/RGB/Bayer and ROI/full
+  scope identity;
+- Line Profile exact current rendered series/sample ordering;
+- no-result safe action state/no-op;
+- configured Export directory reuse, cancel/no-path no mutation, compact write
+  failure;
+- Selected/Active/Primary/Page, normal/preload workers, and production File-menu
+  wiring remaining unchanged;
+- idempotent composition/teardown behavior without duplicate export actions/signals.
+
+## P4-F — Integration & Workflow Hardening — Next / P4 closure
 
 Close P4 with cross-feature integration rather than adding another broad feature.
 At minimum audit:
@@ -357,12 +427,16 @@ At minimum audit:
 - P4-C Session round-trip with RAW profile resolution, missing paths, Current
   Comparison Page, Difference, and P2 residency/preload reconstruction;
 - P4-C typed Recent Image/Folder/Session intent;
-- P4-D saved ROI activation against Statistics/Histogram/Difference/Line Profile;
-- P4-E presentation overlays/export against native-analysis and Difference domains;
+- PR #32/#33 Display Gain/Difference presentation and active-result lifecycle;
+- P4-E exports against native-analysis, current-result, and Difference presentation
+  domains;
 - P2/P3 request identity, stale-result, source residency, Difference-cache, and
   preload invariants;
 - Qt lifetime/focus/teardown at production composition boundaries;
 - durable docs, Windows owner characterization, and regression coverage.
+
+P4-F does not reintroduce P4-D Saved ROI or Alpha Overlay as completion blockers.
+After P4-F closure, P4 is Complete.
 
 No wall-clock performance threshold should become a merge gate without a separate,
 evidence-backed performance requirement.
@@ -417,7 +491,13 @@ Before merge, the standard repository contract is:
 git diff --check
 ```
 
-The repository owner reports the requested validation set PASS on P4-C code/test
-head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`. Only observed results are recorded
-as PASS. Subsequent merge-closure commits are documentation/PR-metadata only and do
-not change the validated runtime/test surface.
+For P4-E, run the focused export slice first:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_analysis_export.py `
+    tests\ui\test_p4e_analysis_export.py
+```
+
+Only observed results are recorded as PASS. P4-C's previously reported validation
+belongs to its merged implementation and does not imply P4-E validation.

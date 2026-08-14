@@ -198,10 +198,12 @@ is not persisted to Settings/QSettings and does not own source arrays, previews,
 residency/LRU state, caches, workers, RAW profile copies, source generation,
 preload, Difference, or analysis requests.
 
-### Comparison Set persistence
+### Comparison Set persistence — legacy read compatibility
 
-P4-B adds an explicit user-managed **Comparison Set** artifact instead of full
-application-session persistence.
+P4-B introduced an explicit user-managed **Comparison Set** artifact before the
+broader P4-C Session format. P4-C supersedes current writes and File-menu terminology
+with Session v1 while preserving Comparison Set v1 read compatibility through
+**Open Session...**.
 
 The artifact uses extension `.pixelscope`. Version 1 is JSON with
 `kind = "pixelscope-comparison-set"` and `schema_version = 1`. Persisted native-source
@@ -218,11 +220,11 @@ Save persists only durable logical comparison intent:
 - stable layout mode;
 - minimum resolved RAW profile metadata needed to reconstruct a RAW source.
 
-Save uses logical Selected, never the temporary P4-A Pick Set. If Picks exist but
-**Keep Selection** has not been applied, the original Selected set is saved. After
-Keep, the curated Selected subset is the logical set and is saved. Saving does not
-apply/clear Picks, force RAW profile resolution, decode off-page members, or acquire
-Selected-wide source residency/protection.
+Historical P4-B Save used logical Selected, never the temporary P4-A Pick Set. If
+Picks existed but **Keep Selection** had not been applied, the original Selected set
+was saved. After Keep, the curated Selected subset was the logical set and was saved.
+Saving did not apply/clear Picks, force RAW profile resolution, decode off-page
+members, or acquire Selected-wide source residency/protection.
 
 Open validates the artifact before logical workspace mutation. Loadable saved
 sources are registered through the normal input path and replace logical Selected in
@@ -237,7 +239,7 @@ without beginning source registration or foreground loading.
 
 Resolved RAW reconstruction metadata is restored before foreground use. Unresolved
 RAW remains unresolved and follows the existing lazy foreground resolution path;
-Save does not force it to resolve.
+Save did not force it to resolve.
 
 Comparison Set persistence owns none of decoded source arrays, source
 residency/LRU/protection, preload or promotion state, Difference maps/cache, Display
@@ -245,6 +247,38 @@ Gain state/previews, Statistics/Histogram/Line Profile/Difference request state,
 workers/tokens/generation, Split/Difference derived documents, transient zoom/pan,
 ROI/Line state, or temporary Pick state. Settings schema remains version 5 because
 `.pixelscope` is an external artifact, not application-settings storage.
+
+### Session persistence and typed Recent
+
+P4-C merged as PR #31 at `436033a0d99513fe8db35f08305395127e430af2`.
+Current `.pixelscope` writes use **PixelScope Session v1** with
+`kind = "pixelscope-session"` and `schema_version = 1`. The authoritative external
+artifact contract is `docs/SESSION_CONTRACT.md`.
+
+Session v1 persists durable workspace intent:
+
+- Registered membership plus minimum resolved RAW reconstruction metadata;
+- exact ordered Selected paths;
+- one Selected source-path Current Comparison Page anchor;
+- applicable source Active and Primary plus stable layout;
+- shared ROI and Line;
+- Display Gain and applicable Split Channels state;
+- a regenerable Difference recipe only when its A/B both belong to the saved Current
+  Comparison Page.
+
+Session does not serialize decoded arrays, source residency/LRU/protection, previews,
+preload/workers/tokens/generations, Difference maps/cache/generated results,
+calculated Statistics/Histogram/Line Profile results, or temporary Picks. Open
+validates and stages incoming identities before destructive replacement, then
+foreground-loads only the reconstructed Current Comparison Page through the inherited
+loader. An eligible Difference recipe restores panel intent and issues one explicit
+**Calculate**; Session never pre-binds active Difference provenance.
+
+Current File UX exposes **Open Session...**, **Save Session...**, and typed bounded
+**Open Recent Images/Folders/Sessions** submenus. Recent history is max-10, path-only,
+best-effort observer metadata. Image, Folder, and Session activation delegate to
+their canonical workflows; missing paths use explicit Remove/Keep. Recent history is
+outside Settings schema v5 and owns no source/runtime state.
 
 ### RAW input resolution
 
@@ -323,12 +357,40 @@ reset Selected, Current Comparison Page, layout, active/primary state, ROI, Line
 Profile, Difference presentation/cache, Display Gain, zoom/pan preservation state,
 source-residency ownership, or captured temporary curation state.
 
+### Analysis export productivity
+
+P4-E adds focused reuse of results PixelScope already calculates or presents. File
+menu keeps **Export Statistics CSV...** and adds:
+
+- **Export Histogram CSV...** for the exact current plotted Histogram series. The
+  artifact identifies Full image/Active ROI scope and bounds, source/series/channel,
+  native bin edges and raw counts, current displayed bin edges, and current X/Y
+  modes in stable deterministic order.
+- **Export Line Profile CSV...** for the exact current plotted Line Profile series.
+  The artifact identifies line coordinates, source/series/channel, current X/Y
+  modes, sample index/position, and current rendered value in stable deterministic
+  order.
+- **Export Difference Image...** for an explicitly established active Difference
+  result. PNG is encoded from the current Difference presentation preview, so it
+  reflects current Absolute/Mask, threshold, Difference display gain, and compatible
+  channel presentation without including toolbar/window chrome.
+
+Export does not recalculate Histogram, Line Profile, or Difference, load/reload
+source, promote residency, preload, bump source generation, or alter Difference-cache
+identity. Difference PNG encoding/file I/O reuses the existing bounded analysis
+worker pool; CSV serialization consumes already-computed in-memory series. The
+existing configured Export directory is reused. Missing/in-flight results are
+unavailable or safe no-ops, Cancel mutates nothing, and failed writes leave the
+workspace unchanged. No new Settings schema or generic export framework is added.
+
 ## Settings and runtime policy
 
 `Edit > Settings...` uses **General / Files / Performance** category pages.
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
-persist the captured curation baseline/Pick Set. P4-B Comparison Sets are separate
-external artifacts and likewise do not change the Settings schema.
+persist the captured curation baseline/Pick Set. Comparison Set/Session artifacts
+and P4-E exports are external files and do not change the Settings schema. Typed
+Recent path history is separate QSettings observer metadata outside the typed
+ApplicationSettings schema.
 
 **General** owns persistent RAW JSON confirmation, exact RAW file-size policy, and
 Difference Threshold/Gain defaults. **Files** owns default Open/Export directories.
@@ -345,14 +407,15 @@ Pick membership is also not a protection owner. Current Comparison Page plus
 correctness dependencies such as foreground load, promoted foreground preload,
 explicit Difference dependencies, and non-reloadable sources are protected.
 Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
-budget and normally reload when their page is revisited. Comparison Set Save/Open
-does not introduce Selected-wide protection or persistence-owned residency.
+budget and normally reload when their page is revisited. Comparison Set/Session
+persistence and P4-E export do not introduce Selected-wide protection or
+persistence/export-owned residency.
 
 **Preload Next Folder Position** remains exactly `+1`, one valid one-to-six
 Selected Folder Position deep, on a dedicated max-one worker; an exact matching
 physically RUNNING preload may transfer logical authority to foreground without
-duplicate decode. P4-A adds no Comparison Page or Pick Set preload system, and P4-B
-adds no Comparison Set preload system.
+duplicate decode. P4-A adds no Comparison Page or Pick Set preload system, and
+Session/P4-E add no new preload policy.
 
 ## Difference contract
 
@@ -390,8 +453,13 @@ a valid current-page pair. Calculate performs the existing generation-aware cach
 lookup first and reuses a hit without redundant numerical map calculation; a miss
 uses the existing asynchronous calculation. Once established, toolbar `Diff`
 controls visibility of that same active result only and must not infer another pair
-or trigger calculation. Comparison Sets do not persist Difference pair/map/cache
-state.
+or trigger calculation.
+
+Legacy Comparison Set v1 does not persist Difference pair/map/cache state. Session
+v1 may persist only an eligible current-page regenerable Difference recipe, never the
+map/cache/generated result. P4-E Difference export consumes the current established
+presentation preview only; it does not call Calculate or promote an inactive cached
+map into active Difference state.
 
 ## Display Gain contract
 
@@ -412,8 +480,10 @@ PixelScope exposes one application-session **Display Gain** control with:
 1× / 2× / 4× / 8× / 16×
 ```
 
-The value is shared across supported Single/Multi View tiles and is not persisted
-to application Settings, workspace state, RAW profiles, or Comparison Sets.
+The value is shared across supported Single/Multi View tiles. It is not persisted to
+application Settings or RAW profiles; Session v1 persists the scalar workflow intent
+and restores it through the existing Display Gain runtime path. Legacy Comparison
+Set v1 does not persist Display Gain.
 
 Document policy is:
 
@@ -472,9 +542,10 @@ inspection, Statistics, Histogram, Line Profile numerical data, Split Channels,
 Difference, preload/reload identity, and source residency operate on those native
 samples regardless of Display Gain or Pick membership.
 
-Comparison Set persistence may store minimum **resolved** RawProfile metadata needed
-to reconstruct a saved RAW source. It does not change native-source semantics and
-does not force unresolved RAW to resolve during Save.
+Current Session v1 may store minimum **resolved** RawProfile metadata needed to
+reconstruct saved RAW sources; legacy Comparison Set v1 has compatible reconstruction
+metadata. Neither persistence path changes native-source semantics or forces an
+unresolved RAW to resolve during Save.
 
 ## RAW display contract
 
@@ -516,15 +587,19 @@ P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
 P4-B Comparison Set Persistence merged as PR #30 at
-`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session / Recent Entries is
-active on draft PR #31. Display Gain and Difference presentation lifecycle
-stabilization merged separately as PR #32 at
-`e1ccf264f86e37b438c923faceae96c3ecb539b7`.
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+P4-C Session Persistence & Typed Recent merged as PR #31 at
+`436033a0d99513fe8db35f08305395127e430af2`. Display Gain/Difference runtime
+stabilization and source-curation lifecycle are inherited from merged PR #32/#33.
 
-Later planned P4 work continues with Saved ROI productivity, focused viewer
-overlay/export productivity, and integration hardening. P4-C remains the
-owner-approved Session/Recent workstream defined by PR #31; this P4-A × Difference
-follow-up does not constrain or reimplement that persistence model.
+P4-E **Analysis Export Productivity** is active. P4-D Saved/named/multiple ROI is
+deferred because Session v1 already persists current active ROI/Line and the
+remaining manager needs unresolved ownership/coordinate semantics. Alpha Overlay is
+also deferred because no concrete workflow need currently justifies Overlay/Flicker/
+Wipe pairing and presentation semantics beyond Multi View and Difference.
+
+P4-F **Integration & Workflow Hardening** follows P4-E and is the final P4 closure
+phase. P4-D Saved ROI and Alpha Overlay are not P4 completion blockers.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or

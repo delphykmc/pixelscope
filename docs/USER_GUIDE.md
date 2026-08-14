@@ -173,53 +173,67 @@ Only the explicit **Pick** control changes curation membership. Normal image pan
 Ctrl+drag ROI, Shift+drag Line Profile, and ordinary tile activation do not toggle
 Pick state.
 
-## Save and open Comparison Sets
+## Save and open Sessions
 
-Use **File > Save Comparison Set...** to save the current logical comparison
-membership for later reuse. PixelScope writes a `.pixelscope` JSON v1 artifact.
+Use **File > Save Session...** to save durable workspace intent for later reuse.
+PixelScope writes a `.pixelscope` JSON Session v1 artifact.
 
-A Comparison Set stores:
+A Session can store:
 
-- the ordered logical **Selected** native-source paths;
-- the selected **Active** source when applicable;
-- the current-page **Primary** source when applicable;
-- the stable layout mode;
-- resolved RAW profile metadata only when it is needed to reconstruct a saved RAW
-  source.
+- **Registered** native-source membership and minimum resolved RAW reconstruction
+  metadata;
+- exact ordered **Selected** paths;
+- one Selected source-path anchor that reconstructs the Current Comparison Page;
+- applicable source **Active** and page-local **Primary** state;
+- stable layout mode;
+- current shared ROI and Line Profile selection;
+- current Display Gain;
+- applicable Split Channels state;
+- an eligible regenerable Difference recipe only when its A/B are both on the saved
+  Current Comparison Page.
 
-Temporary Picks are not saved as their own membership. If you have checked Picks
-but have **not** used Keep Selection, Save Comparison Set still writes the current
-logical Selected set. If you first use **Keep Selection**, the resulting curated
-Selected subset is what is saved. Saving never applies or clears Picks.
+Temporary Picks are not persisted. Session also does not save decoded image arrays,
+residency/LRU/preload state, workers/tokens/generations, calculated Statistics/
+Histogram/Line Profile results, Difference maps/cache/generated result image, or
+transient zoom/pan buffers.
 
-Use **File > Open Comparison Set...** to open a saved set. PixelScope validates the
-artifact before replacing logical Selected. Loadable saved sources become Selected
-in saved order; unrelated images already Registered in Files stay Registered. Saved
-Active determines the resulting Current Comparison Page, then an applicable Primary
-and the saved layout are restored. The Current Comparison Page/page offset itself is
-not stored in the file.
+Use **File > Open Session...** to restore a Session. PixelScope validates and stages
+incoming identities before replacing the current logical workspace. It restores the
+saved page and foreground-loads only that bounded Current Comparison Page through
+the normal loader, then restores applicable presentation/analysis intent through the
+existing Display Gain, Split, ROI/Line, and Difference paths. If an eligible
+Difference recipe exists, Open restores its exact compatible options and issues one
+explicit **Calculate**; Session does not pre-bind a Difference result.
 
-If some saved paths are missing, the available sources are opened and a compact
-warning reports the unavailable paths. If none of the saved sources can be loaded,
-the current logical workspace is left unchanged. Corrupt files, unsupported/future
-schema versions, wrong artifact kind, invalid paths/layout, or invalid embedded RAW
-metadata are rejected without beginning registration or foreground loading.
+If some saved paths are missing, loadable sources are restored and a compact warning
+reports unavailable entries. If none can be registered, the existing workspace is
+left unchanged. Corrupt files, unsupported/future schema versions, wrong artifact
+kind, invalid paths/layout, or invalid embedded RAW metadata are rejected before
+logical workspace replacement.
 
-Resolved RAW metadata saved in the artifact is restored before foreground use.
-Unresolved RAW remains unresolved and follows the normal foreground RAW Profile
-workflow when it is actually needed. Saving a Comparison Set does not force an
-unresolved RAW to resolve.
+Session v1 identifies sources by normalized **absolute local paths** and does not
+relocate or fuzzy-match moved files. A `.pixelscope` file may reveal local filesystem
+path names, so review it before sharing outside the intended environment.
 
-Comparison Set v1 identifies sources by normalized **absolute local paths** and does
-not relocate or fuzzy-match moved files. This makes the file deterministic but not
-portable across arbitrary machines or directory layouts. A `.pixelscope` file can
-also reveal local filesystem path names, so review it before sharing outside the
-intended environment.
+Legacy P4-B `pixelscope-comparison-set` v1 files remain readable through
+**Open Session...**, but there is no separate current Open/Save Comparison Set UI.
+Legacy Comparison Sets contain the narrower Selected/Active/Primary/layout/RAW
+contract and do not gain Session-only fields retroactively.
 
-Comparison Sets do not save decoded image arrays, residency/LRU/preload state,
-Difference maps/cache, Display Gain, analysis request/results, workers/tokens,
-Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
-Pick state. Application Settings schema remains version 5.
+### Open Recent
+
+The File menu provides typed **Open Recent Images**, **Open Recent Folders**, and
+**Open Recent Sessions** submenus. Each keeps at most ten path entries.
+
+- Recent Image repeats normal direct-image selection intent.
+- Recent Folder repeats registration-only folder intent.
+- Recent Session delegates to normal Session Open.
+- Missing paths offer explicit **Remove / Keep**.
+- Existing wrong-kind or invalid Session artifacts stay in history until explicitly
+  removed.
+
+Recent history is best-effort path metadata; it does not own source, selection,
+residency, Difference, or analysis state.
 
 ## Fine image navigation
 
@@ -292,7 +306,8 @@ resident native source as viewer-local derived presentation. Display Gain does n
 change pixel readout, Statistics, Histogram, Line Profile, Split Channel native
 data, Difference, source generation, or source residency. Pick identity also
 remains the native source document ID, not a gained preview representation.
-Comparison Sets do not persist Display Gain.
+Session v1 persists the scalar Display Gain workflow intent and restores it through
+the same presentation path; legacy Comparison Set v1 does not persist Display Gain.
 
 ## Cursor, ROI, and Line Profile selection
 
@@ -305,7 +320,8 @@ Moving over an image synchronizes the crosshair and status readout.
 
 ROI normalization, Statistics, Histogram, and Line Profile all use the Current
 Comparison Page as the default analysis working set. Temporary Pick Set does not
-extend or replace that analysis working set.
+extend or replace that analysis working set. Session v1 persists/restores the current
+active ROI and Line selection; it does not add named/multiple ROI management.
 
 ## Statistics and Histogram
 
@@ -380,8 +396,35 @@ established Difference result uses the existing Diff-only Single View presentati
 and workspace-restore behavior. A cache hit obtained through explicit Calculate
 uses the same presentation path as a freshly calculated result.
 
-Comparison Sets do not persist Difference pair, map, cache, or Difference
-presentation state.
+Legacy Comparison Set v1 does not persist Difference. Session v1 may persist only an
+eligible regenerable current-page Difference recipe; it does not persist the map,
+cache, or generated result image.
+
+## Export analysis results
+
+The File menu keeps **Export Statistics CSV...** and adds three focused exports:
+
+- **Export Histogram CSV...** saves the exact current plotted Histogram series. CSV
+  rows identify Full image/Active ROI scope and bounds, source/series/channel,
+  native bin edges and raw count, current displayed bin edges, and current X/Y
+  modes. Gray, RGB, and Bayer follow the same currently plotted series semantics.
+- **Export Line Profile CSV...** saves the exact current plotted samples with line
+  coordinates, source/series/channel, current X/Y modes, sample index/position, and
+  current displayed value.
+- **Export Difference Image...** saves PNG only when an explicit **Calculate** has
+  established an active Difference result. The PNG comes from the current Difference
+  presentation, so current Absolute/Mask, threshold, Difference Gain, and compatible
+  channel presentation are reflected. It contains no toolbar/window chrome.
+
+These commands do not recalculate analysis merely for export. In particular, a
+Difference cache entry by itself does not make Difference export available and
+export never calls Calculate. Export also does not load/reload sources, change
+Selected/Active/Primary/Page, bump source generation, alter Difference cache
+identity, or create preload/residency ownership.
+
+The dialogs reuse **Default Export Folder** and the existing last-used-folder
+fallback. Cancelling leaves the workspace unchanged. A failed write reports a short
+status message and leaves the current analysis/workspace intact.
 
 ## RAW profile resolution
 
@@ -419,9 +462,11 @@ An unresolved RAW is not speculatively preloaded until a profile has been
 resolved. PixelScope never guesses profile parameters merely to make folder
 registration silent.
 
-When opening a Comparison Set, saved resolved RAW profile metadata is restored
-before foreground use. If the set contains an unresolved RAW without saved profile
+When opening a Session, saved resolved RAW profile metadata is restored before
+foreground use. If the Session contains an unresolved RAW without saved profile
 metadata, it remains unresolved and uses this same foreground resolution path.
+Legacy Comparison Set v1 files use their compatible narrower RAW reconstruction
+metadata through Open Session.
 
 ### RAW profile fields
 
@@ -479,28 +524,30 @@ The default is 256 MiB. Current Comparison Page sources and other correctness
 requirements are protected; a large Selected set does **not** automatically protect
 every visited off-page source. Pick membership also does not protect an off-page
 source. Off-page Selected/Picked source may be evicted under the P2 soft budget and
-normally reload when its page is revisited. Saving or opening a Comparison Set does
-not create Selected-wide residency protection.
+normally reload when its page is revisited. Saving/opening a Session or exporting
+analysis does not create Selected-wide residency protection.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
 itself discard a valid generation-keyed Difference map. Keep Selection also does
 not purge that cache when it closes the active Difference presentation for the new
-Selected workspace.
+Selected workspace. Difference export consumes the current presentation only and
+does not mutate the cache.
 
 **Preload Next Folder Position** remains exactly one valid one-to-six Selected
 Folder Position ahead, direction +1, on a separate max-one worker. It does not
-preload the next Comparison Page, Pick Set, or Comparison Set. A physically RUNNING
-matching Folder Position preload may transfer to foreground authority without
-duplicate decode. Unresolved RAW without a profile is skipped rather than prompting
-from speculative preload.
+preload the next Comparison Page, Pick Set, Session, or export target. A physically
+RUNNING matching Folder Position preload may transfer to foreground authority
+without duplicate decode. Unresolved RAW without a profile is skipped rather than
+prompting from speculative preload.
 
 Performance budget/preload changes are startup settings and display the restart-
 required indication when they differ from current runtime values.
 
 **Reset Settings** resets application preferences only. **View > Reset Workspace
 Layout** resets workspace layout separately. The captured curation baseline/Pick Set
-is temporary and adds no Settings/QSettings key. `.pixelscope` Comparison Sets are
-separate external files and do not change Settings schema v5.
+is temporary and adds no Settings/QSettings key. `.pixelscope` Session/legacy
+Comparison Set artifacts and P4-E exports are separate external files and do not
+change Settings schema v5. Typed Recent path history is separate observer metadata.
 
 ## Runtime Diagnostics
 

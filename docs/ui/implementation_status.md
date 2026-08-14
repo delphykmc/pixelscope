@@ -4,8 +4,10 @@ Status: P4-A Review Selection & Curation is Complete as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`. P4-B Comparison Set Persistence is
 Complete as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340` and remains the
 legacy `.pixelscope` read-compatibility format. P4-C Session Persistence & Typed
-Recent is implemented and owner-validated on PR #31, pending merge closure.
+Recent is Complete as PR #31 at `436033a0d99513fe8db35f08305395127e430af2`.
 PR #32/#33 runtime and Difference contracts are inherited rather than reimplemented.
+P4-E Analysis Export Productivity is Active; P4-D Saved ROI and Alpha Overlay are
+deferred, and P4-F Integration & Workflow Hardening is next/final for P4.
 
 ## Current shell
 
@@ -18,7 +20,9 @@ PR #32/#33 runtime and Difference contracts are inherited rather than reimplemen
   design tokens and PixelScope's programmatic high-DPI icon infrastructure.
 - File menu owns **Open Images...** (`Ctrl+O`), **Open Folder...**
   (`Ctrl+Shift+O`), **Open Session...**, typed **Open Recent Images/Folders/Sessions**
-  submenus, and **Save Session...**.
+  submenus, **Save Session...**, **Export Statistics CSV...**,
+  **Export Histogram CSV...**, **Export Line Profile CSV...**, and
+  **Export Difference Image...**.
 - Legacy P4-B Comparison Set v1 artifacts remain loadable through **Open Session...**;
   there is no separate current **Open/Save Comparison Set...** UI.
 - There is no separate **Open RAW with Profile...** action.
@@ -193,8 +197,9 @@ Difference/cache, Display Gain, analysis requests/results, workers/tokens,
 derived Split/Difference documents, transient view state, ROI/Line, or temporary
 Pick state.
 
-## P4-C Session & Recent UI — implemented, validation PASS, merge pending
+## P4-C Session & Recent UI — Complete
 
+P4-C merged as PR #31 at `436033a0d99513fe8db35f08305395127e430af2`.
 Current File-menu workflow is:
 
 ```text
@@ -206,6 +211,10 @@ Open Recent Folders     >
 Open Recent Sessions    >
 --------------------------
 Save Session...
+Export Statistics CSV...
+Export Histogram CSV...
+Export Line Profile CSV...
+Export Difference Image...
 ```
 
 **Save Session...** writes durable workspace intent: Registered membership, exact
@@ -238,6 +247,38 @@ best-effort observer metadata and remains outside Settings schema v5.
 
 Legacy `recent/comparison_sets` is migration/read fallback only; `recent/sessions` is
 the current Session history key.
+
+## P4-E Analysis Export Productivity — Active
+
+P4-E adds no new analysis algorithm. Its UI is a focused File-menu export surface
+for already-current results:
+
+- **Export Statistics CSV...** remains unchanged.
+- **Export Histogram CSV...** is enabled for settled current Histogram data and
+  serializes the current plotted series plus unambiguous scope/ROI, source/channel,
+  native count/bin, and display-axis/unit identity.
+- **Export Line Profile CSV...** is enabled for a current Line selection/result and
+  serializes the current plotted samples with line/source/channel/sample and X/Y
+  mode identity.
+- **Export Difference Image...** is enabled only for an explicitly established
+  active Difference result whose current presentation preview is settled. It saves
+  PNG for current Absolute/Mask, threshold, Difference gain, and compatible channel
+  presentation.
+
+Export actions reuse the existing configured Export directory. Missing/in-flight
+results are disabled or safe no-ops. Cancel does not mutate the workspace and write
+failure reports compact status. Difference export uses the current presentation
+preview rather than a screenshot or new Difference Calculate. A cached numerical map
+alone does not activate the command.
+
+The export controller is installed only after P4-C Session/Recent has composed the
+final File menu, retains that menu wrapper, and installs idempotently per MainWindow.
+Difference PNG encoding/file I/O uses the existing bounded analysis worker pool; no
+new worker pool or Settings schema is added.
+
+Saved/named/multiple ROI and Alpha Overlay are deferred by owner decision. They are
+not P4 completion blockers. P4-F Integration & Workflow Hardening follows P4-E and
+closes P4.
 
 ## RAW input UI
 
@@ -295,14 +336,17 @@ P3-C is complete as PR #25 at
 
 P2 exact native-source accounting and protected soft-budget LRU remain authoritative.
 Selected membership alone remains non-authoritative for large selections; Pick
-membership and Session metadata are also non-authoritative. Current Comparison Page
-plus existing correctness dependencies remain protected; off-page Selected/Picked
-sources may be evicted and reloaded. P2 preload remains +1 Folder Position only;
-there is no Comparison Page, Pick Set, or Session speculative preload system.
+membership, Session metadata, and export metadata are also non-authoritative. Current
+Comparison Page plus existing correctness dependencies remain protected; off-page
+Selected/Picked sources may be evicted and reloaded. P2 preload remains +1 Folder
+Position only; there is no Comparison Page, Pick Set, Session, or export speculative
+preload system.
 
 Session Save causes no source decode/residency acquisition. Session Open registers
 saved identities but foreground-loads only the reconstructed Current Comparison Page.
 Session never serializes or restores runtime cache/residency/preload ownership.
+P4-E export consumes current in-memory result/presentation data and does not create
+source load/promotion/residency/preload or Difference-cache authority.
 
 Arbitrary-angle Line Profile is not scheduled in P4. A future design would require
 an explicit discrete sampling/pixel-path and coordinate-display contract suitable
@@ -310,11 +354,11 @@ for an observation tool; interpolation is not assumed.
 
 ## Validation state
 
-P4-A / PR #29 and P4-B / PR #30 are merged. PR #32 and PR #33 are also merged into
-main and provide the inherited runtime/Difference baseline for P4-C.
+P4-A / PR #29, P4-B / PR #30, P4-C / PR #31, PR #32, and PR #33 are merged into
+main. P4-C merged at `436033a0d99513fe8db35f08305395127e430af2` and provides the
+current inherited Session/Recent baseline for P4-E.
 
-For P4-C / PR #31, the repository owner reports the complete requested local
-validation set PASS on code/test head
-`b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`, including the final off-page
-Difference Save/Open regression. Subsequent merge-closure changes are documentation
-and PR-metadata only; they do not alter runtime or tests.
+For P4-E, owner Windows validation is pending. Agent-side focused serializer tests
+may be recorded only when actually observed; PySide6/UI/full repository checks must
+not be marked PASS unless their command output is observed on an appropriate
+environment.
