@@ -39,8 +39,28 @@ def test_difference_metrics_csv_preserves_analysis_context_and_values(tmp_path: 
         "value",
     ]
     assert rows[1:] == [
-        ["a.raw", "b.raw", "Active ROI", "Gr", "normalized", "10", "12", "MAE", "0.125"],
-        ["a.raw", "b.raw", "Active ROI", "Gr", "normalized", "10", "12", "PSNR", "42.5"],
+        [
+            "a.raw",
+            "b.raw",
+            "Active ROI",
+            "Gr",
+            "normalized",
+            "10",
+            "12",
+            "MAE",
+            "0.125",
+        ],
+        [
+            "a.raw",
+            "b.raw",
+            "Active ROI",
+            "Gr",
+            "normalized",
+            "10",
+            "12",
+            "PSNR",
+            "42.5",
+        ],
         [
             "a.raw",
             "b.raw",
