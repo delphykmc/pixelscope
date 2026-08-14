@@ -23,6 +23,4 @@ def test_analysis_export_close_disarms_late_table_refresh(qtbot: object) -> None
     statistics.setItem(0, 0, QTableWidgetItem("1"))
     metrics.setItem(0, 1, QTableWidgetItem("0"))
     controller.refresh_actions()
-
-    window.deleteLater()
     qtbot.wait(1)  # type: ignore[attr-defined]
