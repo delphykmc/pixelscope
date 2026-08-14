@@ -337,9 +337,19 @@ class AnalysisExportController(QObject):
             and any(panel._profile_series)
         )
 
+    def _difference_pair_matches_active(self) -> bool:
+        source_ids = getattr(self.window, "_difference_source_ids", None)
+        if not isinstance(source_ids, tuple) or len(source_ids) != 2:
+            return False
+        pair = self.window.difference_panel.selected_documents()
+        if pair is None:
+            return False
+        pair_ids = (pair[0].document_id, pair[1].document_id)
+        return frozenset(pair_ids) == frozenset(source_ids)
+
     def _difference_preview(self) -> NDArray[np.uint8] | None:
         document = getattr(self.window, "_difference_document", None)
-        if document is None or not self.window._difference_result_matches_current_pair():
+        if document is None or not self._difference_pair_matches_active():
             return None
         preview = getattr(document, "preview", None)
         if not isinstance(preview, np.ndarray) or preview.dtype != np.uint8:
