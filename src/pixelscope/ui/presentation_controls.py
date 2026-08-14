@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -57,31 +57,20 @@ def _presentation_controls_style() -> str:
 
 
 def _analysis_action_button_style() -> str:
-    """Give Analysis commands raised, hover, pressed, and recessed-disabled states."""
+    """Render Analysis actions as quiet commands that reveal button chrome on use."""
 
-    # The rendered Analysis pane is approximately #3f4349 under the current Fusion
-    # composition. Normal/hover therefore sit above that surface, while pressed and
-    # disabled deliberately move back toward or below it. Directional borders make
-    # the elevation change legible without introducing a heavy 3-D bevel.
-    rest_background = "#4b5058"
-    hover_background = "#565d66"
+    hover_background = "#4b5058"
+    hover_border = "#6a737e"
     pressed_background = "#34383e"
-    disabled_background = "#3a3d42"
-    rest_border_high = "#6a737e"
-    rest_border_low = "#2f3338"
-    hover_border = "#89939e"
     pressed_border_high = "#25282d"
     pressed_border_low = "#59616b"
-    disabled_border_high = "#2f3236"
-    disabled_border_low = "#484c52"
     disabled_text = "#666b72"
     return (
         "QPushButton, QToolButton { "
-        f"background: {rest_background}; color: {TOKENS.text_primary}; "
-        "border: 1px solid; border-radius: 3px; "
-        f"border-top-color: {rest_border_high}; border-left-color: {rest_border_high}; "
-        f"border-right-color: {rest_border_low}; border-bottom-color: {rest_border_low}; "
-        f"padding: {TOKENS.spacing_xs}px {TOKENS.spacing_md}px; }}"
+        f"background: transparent; color: {TOKENS.text_primary}; "
+        "border: 1px solid transparent; border-radius: 3px; }"
+        f"QPushButton {{ padding: {TOKENS.spacing_xs}px {TOKENS.spacing_md}px; }}"
+        f"QToolButton {{ padding: 1px {TOKENS.spacing_xs}px; }}"
         "QPushButton:hover:enabled, QToolButton:hover:enabled { "
         f"background: {hover_background}; border-color: {hover_border}; }}"
         "QPushButton:pressed:enabled, QToolButton:pressed:enabled { "
@@ -95,11 +84,8 @@ def _analysis_action_button_style() -> str:
         "QPushButton:focus:enabled, QToolButton:focus:enabled { "
         f"border-color: {TOKENS.accent}; }}"
         "QPushButton:disabled, QToolButton:disabled { "
-        f"background: {disabled_background}; color: {disabled_text}; "
-        f"border-top-color: {disabled_border_high}; "
-        f"border-left-color: {disabled_border_high}; "
-        f"border-right-color: {disabled_border_low}; "
-        f"border-bottom-color: {disabled_border_low}; }}"
+        f"background: transparent; color: {disabled_text}; "
+        "border-color: transparent; }"
     )
 
 
@@ -165,10 +151,12 @@ def _polish_analysis_export_controls(window: Any) -> None:
         button.setFixedHeight(TOKENS.control_height)
 
     if isinstance(copy_button, QAbstractButton):
-        copy_button.setFixedWidth(TOKENS.control_height + 4)
+        copy_button.setFixedWidth(TOKENS.control_height + 2)
+        copy_button.setIconSize(QSize(18, 18))
     difference_copy = getattr(controller, "difference_metrics_copy_button", None)
     if isinstance(difference_copy, QAbstractButton):
-        difference_copy.setFixedWidth(TOKENS.control_height + 4)
+        difference_copy.setFixedWidth(TOKENS.control_height + 2)
+        difference_copy.setIconSize(QSize(18, 18))
     difference_csv = getattr(controller, "difference_metrics_export_button", None)
     if isinstance(difference_csv, QAbstractButton):
         difference_csv.setMinimumWidth(46)
