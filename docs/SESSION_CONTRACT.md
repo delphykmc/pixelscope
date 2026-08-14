@@ -46,7 +46,8 @@ Session v1 stores:
 - shared Line selection;
 - Display Gain;
 - Split Channels state;
-- a regenerable Difference recipe when an active Difference binding exists.
+- a regenerable Difference recipe only when an active Difference binding exists and
+  both saved A/B sources belong to the saved Current Comparison Page.
 
 ### Ordering semantics
 
@@ -84,11 +85,21 @@ The Difference recipe contains intent only:
 - Difference gain;
 - Full image/Active ROI region.
 
-Difference A/B must be distinct Selected Session members. A normally saved recipe is
-Current-Comparison-Page scoped because Difference calculation itself is page scoped.
-Session therefore restores the saved page first and then replays the recipe through
-the normal current-page Difference controls. It does **not** create special off-page
-Difference loading/residency ownership.
+Difference A/B must be distinct Selected Session members **and both must belong to the
+Current Comparison Page being saved**. Difference calculation itself is page scoped,
+so writer eligibility deliberately matches reader eligibility.
+
+PR #33 permits an established Difference binding/provenance to remain after its result
+is hidden and the user navigates to another Comparison Page while A/B remain logically
+Selected. That state is valid runtime state, but it is not a valid saved Difference
+recipe for the later page. Session Save therefore omits the Difference recipe when
+either bound A/B source is outside the saved Current Comparison Page. It does not move
+the saved page back to A/B, add an off-page dependency, or substitute a different
+pair.
+
+For an eligible recipe, Session restores the saved page first and then replays the
+recipe through the normal current-page Difference controls. It does **not** create
+special off-page Difference loading/residency ownership.
 
 ## Explicitly non-persistent state
 
@@ -228,7 +239,9 @@ establishes active Difference provenance and visibility state.
 If the saved pair is no longer on the restored page, a source is unavailable, or a
 saved channel/mode/region/threshold is incompatible with the reconstructed pair,
 Difference restore terminates with compact feedback. No pair, channel, page, or
-option is silently substituted.
+option is silently substituted. New Session writes avoid the page-mismatch case by
+omitting off-page Difference recipes at Save time; the reader still retains the
+terminal-skip guard for malformed/legacy/otherwise inapplicable input.
 
 ## Foreground completion and terminal analysis behavior
 
@@ -309,7 +322,7 @@ layout.
 
 ## Validation gates
 
-P4-C closure requires fresh validation on the #32/#33-based head for:
+P4-C closure validation covers:
 
 - Session schema roundtrip and legacy P4-B read compatibility;
 - strict malformed-schema rejection with no runtime mutation;
@@ -317,6 +330,8 @@ P4-C closure requires fresh validation on the #32/#33-based head for:
 - Registered membership versus ordered Selected semantics;
 - page-anchor persistence and same-page Save→Open with more than six Selected;
 - generated-Difference Active Save→Open returning to the same later page;
+- writer/reader symmetry when a page-1 active Difference is hidden, navigation moves
+  to page 2, and Save/Open must omit the now off-page recipe;
 - Active/Primary/layout independence within the restored page;
 - zero-registration non-destructive behavior;
 - no Registered-only eager decode;
@@ -333,5 +348,7 @@ P4-C closure requires fresh validation on the #32/#33-based head for:
   persistence, per-type clear, and observer failure isolation;
 - inherited PR #32/#33 Difference/Display Gain lifecycle regressions.
 
-Validation from abandoned pre-rebase/freeze-debug heads is historical only. No PASS
-is inferred for the current rebuilt head until owner-local validation is reported.
+The repository owner reports the complete requested local validation set PASS on the
+code/test head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`. Validation from abandoned
+pre-rebase/freeze-debug heads is historical only. Subsequent merge-closure changes are
+documentation/PR-metadata only and do not alter the validated runtime/test surface.
