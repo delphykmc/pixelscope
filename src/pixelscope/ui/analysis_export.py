@@ -37,20 +37,8 @@ from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
 
-_METRIC_NAMES = (
-    "MAE",
-    "MSE",
-    "RMSE",
-    "PSNR",
-    "P95",
-    "P99",
-    "Max difference",
-    "Non-zero ratio",
-)
-
-
 def _export_timestamp() -> str:
-    return datetime.now().strftime("%Y%m%d-%H%M%S")
+    return datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
 
 
 def _filename_token(value: str) -> str:
@@ -106,6 +94,15 @@ def _copy_button(parent: QWidget, tooltip: str) -> QToolButton:
     return button
 
 
+def _csv_export_button(parent: QWidget, tooltip: str) -> QToolButton:
+    button = QToolButton(parent)
+    button.setAutoRaise(True)
+    button.setText("CSV")
+    button.setToolTip(tooltip)
+    button.setAccessibleName(tooltip)
+    return button
+
+
 class AnalysisExportController(QObject):
     """Focused export and clipboard adapter for already-computed analysis results."""
 
@@ -117,16 +114,12 @@ class AnalysisExportController(QObject):
 
         self.histogram_action = QAction("Export Histogram CSV...", window)
         self.line_profile_action = QAction("Export Line Profile CSV...", window)
-        self.difference_metrics_action = QAction("Export Difference Metrics CSV...", window)
         self.difference_action = QAction("Export Difference Image...", window)
         self.histogram_action.triggered.connect(  # type: ignore[attr-defined]
             self.export_histogram_csv
         )
         self.line_profile_action.triggered.connect(  # type: ignore[attr-defined]
             self.export_line_profile_csv
-        )
-        self.difference_metrics_action.triggered.connect(  # type: ignore[attr-defined]
-            self.export_difference_metrics_csv
         )
         self.difference_action.triggered.connect(  # type: ignore[attr-defined]
             self.export_difference_image
@@ -162,7 +155,6 @@ class AnalysisExportController(QObject):
         for action in (
             self.histogram_action,
             self.line_profile_action,
-            self.difference_metrics_action,
             self.difference_action,
         ):
             if before is None:
@@ -202,6 +194,10 @@ class AnalysisExportController(QObject):
         difference.domain_status.hide()
         self.difference_metrics_label = QLabel("Difference metrics", difference)
         self.difference_metrics_label.setStyleSheet("font-weight: 600;")
+        self.difference_metrics_export_button = _csv_export_button(
+            difference,
+            "Export Difference metrics CSV",
+        )
         self.difference_metrics_copy_button = _copy_button(
             difference,
             "Copy Difference metrics as CSV",
@@ -212,9 +208,13 @@ class AnalysisExportController(QObject):
             metric_header.setContentsMargins(0, 0, 0, 0)
             metric_header.addWidget(self.difference_metrics_label)
             metric_header.addStretch(1)
+            metric_header.addWidget(self.difference_metrics_export_button)
             metric_header.addWidget(self.difference_metrics_copy_button)
             metric_index = difference_layout.indexOf(difference.metrics)
             difference_layout.insertLayout(max(0, metric_index), metric_header)
+        self.difference_metrics_export_button.clicked.connect(  # type: ignore[attr-defined]
+            self.export_difference_metrics_csv
+        )
         self.difference_metrics_copy_button.clicked.connect(  # type: ignore[attr-defined]
             self.copy_difference_metrics_csv
         )
@@ -239,11 +239,11 @@ class AnalysisExportController(QObject):
         self.statistics_action.setEnabled(statistics_ready)
         self.histogram_action.setEnabled(self._histogram_ready())
         self.line_profile_action.setEnabled(self._line_profile_ready())
-        self.difference_metrics_action.setEnabled(difference_metrics_ready)
         self.difference_action.setEnabled(
             self._difference_worker is None and self._difference_preview() is not None
         )
         self.statistics_copy_button.setEnabled(statistics_ready)
+        self.difference_metrics_export_button.setEnabled(difference_metrics_ready)
         self.difference_metrics_copy_button.setEnabled(difference_metrics_ready)
 
     def _statistics_ready(self) -> bool:
@@ -421,24 +421,27 @@ class AnalysisExportController(QObject):
         filename: str,
         file_filter: str,
         suffix: str,
+        *,
+        timestamp_default: bool = False,
     ) -> Path | None:
+        initial_path = self._initial_path(filename)
         path, _ = QFileDialog.getSaveFileName(
             self.window,
             title,
-            self._initial_path(filename),
+            initial_path,
             file_filter,
         )
         if not path:
             return None
         target = Path(path)
-        return target if target.suffix.casefold() == suffix else target.with_suffix(suffix)
+        if target.suffix.casefold() != suffix:
+            target = target.with_suffix(suffix)
+        if timestamp_default and Path(path).name.casefold() == Path(filename).name.casefold():
+            target = target.with_name(f"{target.stem}_{_export_timestamp()}{target.suffix}")
+        return target
 
     def _remember_success(self, target: Path) -> None:
         self.window._remember_directory(target.parent)
-
-    @staticmethod
-    def _timestamped_filename(stem: str, suffix: str) -> str:
-        return f"{stem}_{_export_timestamp()}{suffix}"
 
     def _difference_image_filename(self) -> str:
         panel = self.window.difference_panel
@@ -450,26 +453,25 @@ class AnalysisExportController(QObject):
             parts.append(f"thr-{_filename_number(float(panel.threshold.value()))}{unit}")
         else:
             parts.append(f"gain-{int(panel.gain.value())}x")
-        parts.append(_export_timestamp())
         return "_".join(parts) + ".png"
 
     def _difference_metrics_filename(self, result: DifferenceMetricsExport) -> str:
-        stem = "_".join(
+        return "_".join(
             (
                 "pixelscope_difference_metrics",
                 _filename_token(result.channel),
                 _filename_token(result.region),
                 _filename_token(result.domain),
             )
-        )
-        return self._timestamped_filename(stem, ".csv")
+        ) + ".csv"
 
     def copy_statistics_csv(self) -> None:
         if not self._statistics_ready():
             self.window.statusBar().showMessage("No current statistics to copy", 3000)
             self.refresh_actions()
             return
-        QApplication.clipboard().setText(_table_csv_text(self.window.comparison_analysis_panel.table))
+        table = self.window.comparison_analysis_panel.table
+        QApplication.clipboard().setText(_table_csv_text(table))
         self.window.statusBar().showMessage("Copied Channel statistics as CSV", 3000)
 
     def copy_difference_metrics_csv(self) -> None:
@@ -477,7 +479,8 @@ class AnalysisExportController(QObject):
             self.window.statusBar().showMessage("No current Difference metrics to copy", 3000)
             self.refresh_actions()
             return
-        QApplication.clipboard().setText(_table_csv_text(self.window.difference_panel.metrics))
+        table = self.window.difference_panel.metrics
+        QApplication.clipboard().setText(_table_csv_text(table))
         self.window.statusBar().showMessage("Copied Difference metrics as CSV", 3000)
 
     def export_statistics_csv(self) -> None:
@@ -487,9 +490,10 @@ class AnalysisExportController(QObject):
             return
         target = self._choose_path(
             "Export Statistics",
-            self._timestamped_filename("pixelscope_statistics", ".csv"),
+            "pixelscope_statistics.csv",
             "CSV (*.csv)",
             ".csv",
+            timestamp_default=True,
         )
         if target is None:
             return
@@ -509,9 +513,10 @@ class AnalysisExportController(QObject):
             return
         target = self._choose_path(
             "Export Histogram",
-            self._timestamped_filename("pixelscope_histogram", ".csv"),
+            "pixelscope_histogram.csv",
             "CSV (*.csv)",
             ".csv",
+            timestamp_default=True,
         )
         if target is None:
             return
@@ -531,9 +536,10 @@ class AnalysisExportController(QObject):
             return
         target = self._choose_path(
             "Export Line Profile",
-            self._timestamped_filename("pixelscope_line_profile", ".csv"),
+            "pixelscope_line_profile.csv",
             "CSV (*.csv)",
             ".csv",
+            timestamp_default=True,
         )
         if target is None:
             return
@@ -556,6 +562,7 @@ class AnalysisExportController(QObject):
             self._difference_metrics_filename(result),
             "CSV (*.csv)",
             ".csv",
+            timestamp_default=True,
         )
         if target is None:
             return
@@ -581,6 +588,7 @@ class AnalysisExportController(QObject):
             self._difference_image_filename(),
             "PNG (*.png)",
             ".png",
+            timestamp_default=True,
         )
         if target is None:
             return
