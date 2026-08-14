@@ -212,6 +212,8 @@ P4-C Session Persistence & Typed Recent merged as PR #31 at
 PR #32 runtime stabilization merged at
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`, and PR #33 Difference/source-curation
 semantics merged at `51a540c92c372d71e02fd849fb5e0d406d0e9327`.
+P4-E Analysis Export Productivity merged as PR #34 at
+`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`.
 
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -357,8 +359,9 @@ policy. No concrete workflow pain point currently justifies adding those semanti
 Saved/named/multiple ROI is therefore deferred for future productivity work and is
 not a P4 completion blocker.
 
-### P4-E — Analysis Export Productivity — Active
+### P4-E — Analysis Export Productivity — Complete
 
+Merged as PR #34 at `79ee74134f1ebef9dd13f82e49f8e34407bb78f4`.
 P4-E is a focused export slice for results PixelScope already calculates or presents:
 
 - **Export Difference Image...** writes the current established Difference
@@ -383,13 +386,25 @@ already cover the primary comparison workflow, while Overlay/Flicker/Wipe utilit
 not been validated. P4-E does not add pairing/alpha/Gain/Split/Session semantics for
 an unproven overlay workflow.
 
-### P4-F — Integration & Workflow Hardening — Next / P4 closure
+### P4-F — Integration & Workflow Hardening — Active
 
-P4-F is the final P4 phase. It adds no broad new feature; it stress/integration tests
-P4-A curation, P4-C Session/Recent, PR #32/#33 Display Gain/Difference lifecycle,
-and P4-E exports against the inherited P2/P3 Current Comparison Page, source
-residency, preload, RAW profile-resolution, request-identity, and Qt-lifetime
-contracts. After P4-F closure, P4 is Complete.
+P4-F is the final P4 phase and adds no broad feature. It audits the merged P4
+composition for cross-feature transition gaps across curation, Session/Recent,
+Display Gain/Difference, export, bounded source ownership, stale-result rejection,
+and Qt close/recreate lifetime.
+
+The implementation branch currently contains two narrow contract fixes with focused
+cross-feature regression coverage:
+
+- Session Save persists the Current Comparison Page anchor explicitly from the
+  actual page instead of relying on Active/Primary/model fallback state;
+- closing a production MainWindow disarms its application-global Display Gain
+  subscriptions and cancels viewer-local Gain preview work so a recreated window
+  cannot cause work in the closed window.
+
+P4-F remains **Active** until owner Windows validation, independent review, and merge.
+After merge, P4 closure is recorded in a small docs-only follow-up; no P5 runtime work
+starts in this phase.
 
 ### Deferred from P4
 
