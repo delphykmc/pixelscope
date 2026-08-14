@@ -5,6 +5,7 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QComboBox,
     QGroupBox,
     QHBoxLayout,
@@ -56,18 +57,34 @@ def _presentation_controls_style() -> str:
 
 
 def _analysis_action_button_style() -> str:
-    """Make compact analysis actions read unmistakably as buttons."""
+    """Give all Analysis commands one tactile dark-button state model."""
 
+    # Rest/hover/pressed follow the Windows control-elevation pattern: the rest
+    # surface is visibly raised from the panel, hover increases contrast, and
+    # pressed drops back toward the panel while gaining the accent contour.
+    rest_background = "#353a41"
+    hover_background = "#40464e"
+    pressed_background = "#202328"
+    rest_border = "#59616b"
+    hover_border = "#7a838e"
+    disabled_background = "#292c31"
+    disabled_border = "#363b42"
     return (
-        f"QToolButton {{ background: {TOKENS.raised_background}; "
-        f"color: {TOKENS.text_primary}; border: 1px solid {TOKENS.border}; "
-        f"border-radius: 2px; padding: {TOKENS.spacing_xs}px {TOKENS.spacing_sm}px; }}"
-        f"QToolButton:hover {{ background: {TOKENS.panel_background}; "
-        f"border-color: {TOKENS.text_secondary}; }}"
-        f"QToolButton:pressed {{ background: {TOKENS.workspace_background}; "
+        "QPushButton, QToolButton { "
+        f"background: {rest_background}; color: {TOKENS.text_primary}; "
+        f"border: 1px solid {rest_border}; border-radius: 3px; "
+        f"padding: {TOKENS.spacing_xs}px {TOKENS.spacing_md}px; }}"
+        "QPushButton:hover:enabled, QToolButton:hover:enabled { "
+        f"background: {hover_background}; border-color: {hover_border}; }}"
+        "QPushButton:pressed:enabled, QToolButton:pressed:enabled { "
+        f"background: {pressed_background}; border-color: {TOKENS.accent}; "
+        f"padding-top: {TOKENS.spacing_xs + 1}px; "
+        f"padding-bottom: {max(0, TOKENS.spacing_xs - 1)}px; }}"
+        "QPushButton:focus:enabled, QToolButton:focus:enabled { "
         f"border-color: {TOKENS.accent}; }}"
-        f"QToolButton:disabled {{ background: {TOKENS.panel_background}; "
-        f"color: {TOKENS.text_disabled}; border-color: {TOKENS.border}; }}"
+        "QPushButton:disabled, QToolButton:disabled { "
+        f"background: {disabled_background}; color: {TOKENS.text_disabled}; "
+        f"border-color: {disabled_border}; }}"
     )
 
 
@@ -116,25 +133,32 @@ def _polish_analysis_export_controls(window: Any) -> None:
         controller.statistics_heading_label = label
         controller.statistics_header = header
 
-    if isinstance(copy_button, QToolButton):
-        copy_button.setAutoRaise(False)
-        copy_button.setStyleSheet(_analysis_action_button_style())
-        copy_button.setFixedSize(TOKENS.control_height + 4, TOKENS.control_height)
-
-    for button_name in (
-        "difference_metrics_export_button",
-        "difference_metrics_copy_button",
-    ):
-        button = getattr(controller, button_name, None)
-        if not isinstance(button, QToolButton):
+    command_style = _analysis_action_button_style()
+    analysis_buttons = (
+        getattr(controller, "statistics_copy_button", None),
+        getattr(difference, "calculate", None),
+        getattr(controller, "difference_metrics_export_button", None),
+        getattr(controller, "difference_metrics_copy_button", None),
+    )
+    for button in analysis_buttons:
+        if not isinstance(button, QAbstractButton):
             continue
-        button.setAutoRaise(False)
-        button.setStyleSheet(_analysis_action_button_style())
+        if isinstance(button, QToolButton):
+            button.setAutoRaise(False)
+        button.setStyleSheet(command_style)
         button.setFixedHeight(TOKENS.control_height)
-        if button_name == "difference_metrics_copy_button":
-            button.setFixedWidth(TOKENS.control_height + 4)
-        else:
-            button.setMinimumWidth(46)
+
+    if isinstance(copy_button, QAbstractButton):
+        copy_button.setFixedWidth(TOKENS.control_height + 4)
+    difference_copy = getattr(controller, "difference_metrics_copy_button", None)
+    if isinstance(difference_copy, QAbstractButton):
+        difference_copy.setFixedWidth(TOKENS.control_height + 4)
+    difference_csv = getattr(controller, "difference_metrics_export_button", None)
+    if isinstance(difference_csv, QAbstractButton):
+        difference_csv.setMinimumWidth(46)
+    calculate = getattr(difference, "calculate", None)
+    if isinstance(calculate, QAbstractButton):
+        calculate.setMinimumWidth(92)
 
     difference_heading = getattr(controller, "difference_metrics_label", None)
     if isinstance(difference_heading, QLabel):
