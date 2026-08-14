@@ -93,7 +93,12 @@ def _polish_analysis_export_controls(window: Any) -> None:
     statistics_group = statistics.statistics_group
     statistics_layout = statistics_group.layout()
     copy_button = getattr(controller, "statistics_copy_button", None)
-    if isinstance(statistics_group, QGroupBox) and isinstance(statistics_layout, QVBoxLayout):
+    existing_header = getattr(controller, "statistics_header", None)
+    if (
+        isinstance(statistics_group, QGroupBox)
+        and isinstance(statistics_layout, QVBoxLayout)
+        and not isinstance(existing_header, QWidget)
+    ):
         statistics_group.setTitle("")
         header = QWidget(statistics_group)
         header.setObjectName("channelStatisticsHeader")
@@ -105,14 +110,16 @@ def _polish_analysis_export_controls(window: Any) -> None:
         _set_bold_label(label)
         header_layout.addWidget(label)
         if isinstance(copy_button, QToolButton):
-            copy_button.setAutoRaise(False)
-            copy_button.setStyleSheet(_analysis_action_button_style())
-            copy_button.setFixedSize(TOKENS.control_height, TOKENS.control_height)
             header_layout.addWidget(copy_button)
         header_layout.addStretch(1)
         statistics_layout.insertWidget(0, header)
         controller.statistics_heading_label = label
         controller.statistics_header = header
+
+    if isinstance(copy_button, QToolButton):
+        copy_button.setAutoRaise(False)
+        copy_button.setStyleSheet(_analysis_action_button_style())
+        copy_button.setFixedSize(TOKENS.control_height + 4, TOKENS.control_height)
 
     for button_name in (
         "difference_metrics_export_button",
@@ -125,7 +132,7 @@ def _polish_analysis_export_controls(window: Any) -> None:
         button.setStyleSheet(_analysis_action_button_style())
         button.setFixedHeight(TOKENS.control_height)
         if button_name == "difference_metrics_copy_button":
-            button.setFixedWidth(TOKENS.control_height)
+            button.setFixedWidth(TOKENS.control_height + 4)
         else:
             button.setMinimumWidth(46)
 
