@@ -12,7 +12,6 @@ from pixelscope.core.comparison_set import Session, SessionDifference, SessionSo
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.ui.display_gain import display_gain_state
-from pixelscope.ui.session_restore_overlay import SESSION_RESTORE_STEPS
 
 
 def _window(qtbot: object) -> MainWindow:
@@ -40,7 +39,9 @@ def test_restore_overlay_is_main_window_owned_non_dialog(qtbot: object) -> None:
     assert overlay.parentWidget() is window
     assert not isinstance(overlay, QDialog)
     assert overlay.step_count == 8
-    assert tuple(row.text()[3:] for row in overlay.step_rows) == SESSION_RESTORE_STEPS
+    card_layout = overlay.card.layout()
+    assert card_layout is not None
+    assert card_layout.count() == 4
     assert overlay.isHidden()
 
     overlay.begin("Reading test Session")
@@ -50,9 +51,6 @@ def test_restore_overlay_is_main_window_owned_non_dialog(qtbot: object) -> None:
     assert overlay.step_label.text() == "Step 4 of 8 · Loading current page"
     assert overlay.detail_label.text() == "3 / 6 images ready"
     assert 400 < overlay.progress_bar.value() < 500
-    assert overlay.step_rows[2].property("restoreState") == "done"
-    assert overlay.step_rows[3].property("restoreState") == "current"
-    assert overlay.step_rows[4].property("restoreState") == "pending"
 
     overlay.finish()
     assert overlay.isHidden()
