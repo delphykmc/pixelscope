@@ -5,7 +5,12 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QTableWidgetItem, QToolButton, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QTableWidgetItem,
+    QToolButton,
+    QWidget,
+)
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -63,7 +68,9 @@ def _csv_rows(path: Path) -> list[list[str]]:
         return list(csv.reader(stream))
 
 
-def test_analysis_tables_use_clean_headings_and_unified_command_buttons(qtbot: object) -> None:
+def test_analysis_tables_use_clean_headings_and_unified_command_buttons(
+    qtbot: object,
+) -> None:
     window = _window(qtbot)
     controller = window.analysis_export_controller
     statistics = window.comparison_analysis_panel
