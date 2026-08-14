@@ -1,0 +1,247 @@
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+
+import numpy as np
+from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QApplication, QTableWidgetItem
+
+from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.main_window import MainWindow
+from pixelscope.core.image_document import ImageDocument
+
+
+def _window(qtbot: object) -> MainWindow:
+    QSettings().clear()
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _compose_main_window_presentation(window)
+    return window
+
+
+def _seed_statistics_table(window: MainWindow) -> None:
+    panel = window.comparison_analysis_panel
+    panel.image_summary.setRowCount(1)
+    for column, value in enumerate(("1", "sample.raw", "10-bit", "16")):
+        panel.image_summary.setItem(0, column, QTableWidgetItem(value))
+    panel.table.setRowCount(1)
+    for column, value in enumerate(("1", "Gray", "0", "15", "7.5", "2", "1", "8", "14")):
+        panel.table.setItem(0, column, QTableWidgetItem(value))
+
+
+def _seed_difference(window: MainWindow, tmp_path: Path) -> None:
+    first = ImageDocument.from_array(
+        np.zeros((4, 4), dtype=np.uint8),
+        "first.png",
+        source_path=tmp_path / "first.png",
+    )
+    second = ImageDocument.from_array(
+        np.full((4, 4), 20, dtype=np.uint8),
+        "second.png",
+        source_path=tmp_path / "second.png",
+    )
+    for document in (first, second):
+        window.add_document(document, select=False)
+    window._select_document_ids([first.document_id, second.document_id])
+
+
+def _calculate_difference(qtbot: object, window: MainWindow) -> None:
+    window.difference_panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.difference_panel.last_result is not None
+        and window.difference_panel._worker is None
+        and window.difference_panel._preview_worker is None,
+        timeout=5000,
+    )
+    window.analysis_export_controller.refresh_actions()
+
+
+def _csv_rows(path: Path) -> list[list[str]]:
+    with path.open("r", newline="", encoding="utf-8-sig") as stream:
+        return list(csv.reader(stream))
+
+
+def test_analysis_tables_use_clean_headings_and_csv_copy_buttons(qtbot: object) -> None:
+    window = _window(qtbot)
+    controller = window.analysis_export_controller
+    statistics = window.comparison_analysis_panel
+    difference = window.difference_panel
+
+    assert statistics.region_group.title() == "Region"
+    assert statistics.image_summary_group.title() == "Images"
+    assert statistics.statistics_group.title() == "Channel statistics"
+    assert controller.statistics_copy_button.toolTip() == "Copy Channel statistics as CSV"
+
+    assert controller.difference_metrics_label.text() == "Difference metrics"
+    assert not difference.metric_scope.isVisible()
+    assert not difference.domain_status.isVisible()
+    assert controller.difference_metrics_copy_button.toolTip() == "Copy Difference metrics as CSV"
+    assert controller.difference_metrics_export_button.text() == "CSV"
+
+    _seed_statistics_table(window)
+    controller.refresh_actions()
+    controller.statistics_copy_button.click()
+
+    assert QApplication.clipboard().text() == (
+        "Id,Ch,Min,Max,Mean,Std,P1,P50,P99\n"
+        "1,Gray,0,15,7.5,2,1,8,14\n"
+    )
+
+
+def test_default_export_path_adds_timestamp_but_custom_name_is_respected(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    window = _window(qtbot)
+    controller = window.analysis_export_controller
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export._export_timestamp",
+        lambda: "20260814-221500-123",
+    )
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        window,
+        "_export_dialog_directory",
+        lambda: str(tmp_path),
+    )
+
+    def accept_default(
+        _parent: object,
+        _title: str,
+        initial: str,
+        _filter: str,
+    ) -> tuple[str, str]:
+        return initial, "CSV (*.csv)"
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export.QFileDialog.getSaveFileName",
+        accept_default,
+    )
+    target = controller._choose_path(
+        "Export Histogram",
+        "pixelscope_histogram.csv",
+        "CSV (*.csv)",
+        ".csv",
+        timestamp_default=True,
+    )
+    assert target == tmp_path / "pixelscope_histogram_20260814-221500-123.csv"
+
+    custom = tmp_path / "review.csv"
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: (str(custom), "CSV (*.csv)"),
+    )
+    assert controller._choose_path(
+        "Export Histogram",
+        "pixelscope_histogram.csv",
+        "CSV (*.csv)",
+        ".csv",
+        timestamp_default=True,
+    ) == custom
+
+
+def test_difference_postfix_and_metrics_export_preserve_current_context(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    window = _window(qtbot)
+    controller = window.analysis_export_controller
+    _seed_difference(window, tmp_path)
+    _calculate_difference(qtbot, window)
+    panel = window.difference_panel
+
+    panel.gain.setValue(4)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not panel._display_timer.isActive() and panel._preview_worker is None,
+        timeout=5000,
+    )
+    assert controller._difference_image_filename() == (
+        "pixelscope_difference_gray_absolute_gain-4x.png"
+    )
+
+    panel.mode.setCurrentText("Mask")
+    panel.threshold.setValue(5)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not panel._display_timer.isActive() and panel._preview_worker is None,
+        timeout=5000,
+    )
+    assert controller._difference_image_filename() == (
+        "pixelscope_difference_gray_mask_thr-5code.png"
+    )
+
+    controller.copy_difference_metrics_csv()
+    clipboard_rows = list(csv.reader(QApplication.clipboard().text().splitlines()))
+    assert clipboard_rows[0] == ["Metric", "Value"]
+    assert [row[0] for row in clipboard_rows[1:]] == [
+        "MAE",
+        "MSE",
+        "RMSE",
+        "PSNR",
+        "P95",
+        "P99",
+        "Max difference",
+        "Non-zero ratio",
+    ]
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export._export_timestamp",
+        lambda: "20260814-221500-123",
+    )
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        window,
+        "_export_dialog_directory",
+        lambda: str(tmp_path),
+    )
+
+    observed_initial: list[str] = []
+
+    def accept_default(
+        _parent: object,
+        _title: str,
+        initial: str,
+        _filter: str,
+    ) -> tuple[str, str]:
+        observed_initial.append(initial)
+        return initial, "CSV (*.csv)"
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export.QFileDialog.getSaveFileName",
+        accept_default,
+    )
+    controller.export_difference_metrics_csv()
+
+    assert observed_initial == [
+        str(tmp_path / "pixelscope_difference_metrics_gray_full-image_native.csv")
+    ]
+    target = tmp_path / (
+        "pixelscope_difference_metrics_gray_full-image_native_20260814-221500-123.csv"
+    )
+    rows = _csv_rows(target)
+    assert rows[0] == [
+        "source_a",
+        "source_b",
+        "region",
+        "channel",
+        "domain",
+        "bit_depth_a",
+        "bit_depth_b",
+        "metric",
+        "value",
+    ]
+    assert {row[2] for row in rows[1:]} == {"Full image"}
+    assert {row[3] for row in rows[1:]} == {"Gray"}
+    assert {row[4] for row in rows[1:]} == {"native"}
+    assert {row[5] for row in rows[1:]} == {"8"}
+    assert {row[6] for row in rows[1:]} == {"8"}
+    assert [row[7] for row in rows[1:]] == [
+        "MAE",
+        "MSE",
+        "RMSE",
+        "PSNR",
+        "P95",
+        "P99",
+        "Max difference",
+        "Non-zero ratio",
+    ]
