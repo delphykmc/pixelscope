@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QTableWidgetItem, QWidget
+from PySide6.QtWidgets import QApplication, QTableWidgetItem, QToolButton, QWidget
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -63,7 +63,7 @@ def _csv_rows(path: Path) -> list[list[str]]:
         return list(csv.reader(stream))
 
 
-def test_analysis_tables_use_clean_headings_and_bordered_action_buttons(qtbot: object) -> None:
+def test_analysis_tables_use_clean_headings_and_unified_command_buttons(qtbot: object) -> None:
     window = _window(qtbot)
     controller = window.analysis_export_controller
     statistics = window.comparison_analysis_panel
@@ -90,14 +90,24 @@ def test_analysis_tables_use_clean_headings_and_bordered_action_buttons(qtbot: o
     assert controller.difference_metrics_copy_button.toolTip() == "Copy Difference metrics as CSV"
     assert controller.difference_metrics_export_button.text() == "CSV"
 
-    for button in (
+    analysis_buttons = (
         controller.statistics_copy_button,
+        difference.calculate,
         controller.difference_metrics_export_button,
         controller.difference_metrics_copy_button,
-    ):
-        assert not button.autoRaise()
-        assert "border: 1px solid" in button.styleSheet()
-        assert "padding:" in button.styleSheet()
+    )
+    assert len({button.styleSheet() for button in analysis_buttons}) == 1
+    command_style = analysis_buttons[0].styleSheet()
+    assert "hover:enabled" in command_style
+    assert "pressed:enabled" in command_style
+    assert ":disabled" in command_style
+    assert "border: 1px solid" in command_style
+    assert "padding-top:" in command_style
+    assert len({button.height() for button in analysis_buttons}) == 1
+    assert all(not button.isEnabled() for button in analysis_buttons)
+    for button in analysis_buttons:
+        if isinstance(button, QToolButton):
+            assert not button.autoRaise()
 
     _compose_main_window_presentation(window)
     headers = statistics.statistics_group.findChildren(QWidget, "channelStatisticsHeader")
@@ -105,6 +115,7 @@ def test_analysis_tables_use_clean_headings_and_bordered_action_buttons(qtbot: o
 
     _seed_statistics_table(window)
     controller.refresh_actions()
+    assert controller.statistics_copy_button.isEnabled()
     controller.statistics_copy_button.click()
 
     assert QApplication.clipboard().text() == (
