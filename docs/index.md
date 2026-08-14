@@ -9,6 +9,7 @@ knowledge belongs in focused documents under `docs/`.
 |---|---|---|
 | Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
 | User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `ui/` note | Behavior, terminology, shortcut, or workflow changes |
+| Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
@@ -26,6 +27,9 @@ knowledge belongs in focused documents under `docs/`.
   and lifecycle invariants; planned components are explicitly marked.
 - `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
+- `SESSION_CONTRACT.md`: authoritative P4-C Session v1 persistence, restore,
+  legacy Comparison Set compatibility, typed Recent, and PR #32/#33 integration
+  contract.
 - `BRANDING.md`: canonical application identity, asset roles, visual constraints,
   supported icon sizes, and release-tool consumption rules.
 - `PACKAGING_CONSTRAINTS.md`: deployment environment and fixed packaging rules.

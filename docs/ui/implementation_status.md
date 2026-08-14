@@ -2,10 +2,10 @@
 
 Status: P4-A Review Selection & Curation is Complete as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`. P4-B Comparison Set Persistence is
-implemented on `feature/p4-b-comparison-set-persistence` / PR #30. The repository
-owner reports the focused P4-B Windows validation PASS (`36 passed`); independent
-review reports no remaining runtime/schema/test blocker. Merge closure is currently
-durable-doc consistency plus normal final review/validation.
+Complete as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340` and remains the
+legacy `.pixelscope` read-compatibility format. P4-C Session Persistence & Typed
+Recent is implemented and owner-validated on PR #31, pending merge closure.
+PR #32/#33 runtime and Difference contracts are inherited rather than reimplemented.
 
 ## Current shell
 
@@ -17,7 +17,10 @@ durable-doc consistency plus normal final review/validation.
 - P3-E/P4-A compose that row as a compact engineering command bar using existing
   design tokens and PixelScope's programmatic high-DPI icon infrastructure.
 - File menu owns **Open Images...** (`Ctrl+O`), **Open Folder...**
-  (`Ctrl+Shift+O`), **Open Comparison Set...**, and **Save Comparison Set...**.
+  (`Ctrl+Shift+O`), **Open Session...**, typed **Open Recent Images/Folders/Sessions**
+  submenus, and **Save Session...**.
+- Legacy P4-B Comparison Set v1 artifacts remain loadable through **Open Session...**;
+  there is no separate current **Open/Save Comparison Set...** UI.
 - There is no separate **Open RAW with Profile...** action.
 - Empty Workspace exposes Open Images/Open Folder only in the truly-empty state.
 - Files tree is the catalog/selection surface and keeps native Up/Down plus
@@ -167,40 +170,74 @@ new Selected subset
   protection, preload, Difference, or numerical analysis paths;
 - pan, Ctrl+drag ROI, Shift+drag Line Profile, and normal tile activation do not
   toggle Pick; only the explicit Pick control owns that interaction;
-- temporary curation state is session-only UI/workflow state and is not persisted
-  to Settings/QSettings.
+- temporary curation state is application-session-only UI/workflow state and is not
+  persisted to Settings/QSettings or Session artifacts.
 
-## P4-B Comparison Set Persistence — implemented, merge pending
+PR #33 is authoritative for Difference interaction with curation: a Difference tile
+is `Derived`, Pick/Unpick/Clear do not alter an active Difference, Keep Selection
+tears active Difference down before Selected mutation, and only explicit successful
+**Calculate** establishes a new active Difference binding/result. Toolbar **Diff** is
+visibility-only for an established result.
 
-P4-B adds two File-menu commands without changing the Presentation Control Row:
+## P4-B Comparison Set Persistence — Complete / legacy read compatibility
 
-- **Open Comparison Set...** opens a `.pixelscope` artifact;
-- **Save Comparison Set...** saves the current logical Selected comparison set.
+P4-B originally exposed **Open Comparison Set... / Save Comparison Set...** and wrote
+`pixelscope-comparison-set` v1 `.pixelscope` artifacts. PR #30 is merged. P4-C keeps
+those artifacts readable but supersedes current File-menu terminology and new writes
+with Session v1.
 
-The Save command persists logical Selected, optional selected Active, applicable
-page-local Primary, stable layout, and minimum resolved RAW metadata. Temporary P4-A
-Picks are never saved directly: before **Keep Selection**, Save writes the existing
-logical Selected set; after Keep, it writes the curated Selected subset. Save does
-not apply or clear Picks.
-
-Open validates the artifact before mutating the workspace. Loadable sources replace
-logical Selected in saved order while unrelated Registered sources remain. Saved
-Active derives the Current Comparison Page; an applicable Primary and layout are
-then restored. Current Comparison Page/page offset is never serialized.
-
-Missing sources may partially load with a compact warning. Zero-loadable, corrupt,
-wrong-kind, future-schema, or otherwise invalid sets do not replace the current
-logical workspace. Saved resolved RAW metadata is restored before foreground use;
-unresolved RAW remains on the normal lazy profile-resolution path.
-
-The v1 artifact stores normalized absolute local source paths and does not relocate
-or fuzzy-match moved files. The artifact may therefore expose local path information
-and is not guaranteed portable across machines or directory layouts.
-
-Comparison Set UI does not own decoded source arrays, residency/LRU/protection,
-preload, Difference/cache, Display Gain state, analysis requests, workers/tokens,
+Comparison Set v1 stores ordered logical Selected, optional selected Active,
+applicable page-local Primary, stable layout, and minimum resolved RAW metadata. It
+does not own decoded source arrays, residency/LRU/protection, preload,
+Difference/cache, Display Gain, analysis requests/results, workers/tokens,
 derived Split/Difference documents, transient view state, ROI/Line, or temporary
-Pick state. Settings schema remains v5.
+Pick state.
+
+## P4-C Session & Recent UI — implemented, validation PASS, merge pending
+
+Current File-menu workflow is:
+
+```text
+Open Images...
+Open Folder...
+Open Session...
+Open Recent Images      >
+Open Recent Folders     >
+Open Recent Sessions    >
+--------------------------
+Save Session...
+```
+
+**Save Session...** writes durable workspace intent: Registered membership, exact
+ordered Selected, page anchor, applicable source Active/Primary, layout, ROI, Line,
+Display Gain, applicable Split state, RAW reconstruction metadata, and an eligible
+Difference recipe. It never writes temporary Picks, source arrays, cache/residency,
+workers, or generated Difference results.
+
+Difference persistence is current-page scoped. If Diff(A,B) was established on a
+prior page, then hidden, and the user navigates to another Comparison Page while the
+A/B provenance remains logically Selected, Save omits that off-page recipe. Writer
+and reader therefore use the same eligibility and Open never invents an off-page
+Difference dependency.
+
+**Open Session...** validates and stages incoming source identities before destructive
+workspace replacement. It restores the saved page, foreground-loads only that page,
+then reconstructs display/analysis intent through the existing pipelines. An
+eligible Difference recipe restores exact compatible A/B/options and issues one
+explicit Calculate; Session never pre-binds active Difference provenance.
+
+During asynchronous Open, a MainWindow-owned child overlay reports eight procedure
+steps. It is not a modal `QDialog`, creates no nested event loop, owns no runtime
+state, and has no Cancel command/partial rollback contract.
+
+Recent submenus are typed max-10 path-only MRUs. Recent Image keeps direct-open
+selection intent; Recent Folder remains registration-only; Recent Session delegates
+to canonical Session Open. Missing paths use **Remove / Keep**. Existing wrong-kind
+or invalid Session paths remain until explicitly removed. Recent bookkeeping is
+best-effort observer metadata and remains outside Settings schema v5.
+
+Legacy `recent/comparison_sets` is migration/read fallback only; `recent/sessions` is
+the current Session history key.
 
 ## RAW input UI
 
@@ -215,9 +252,9 @@ foreground attempt, Cancel suppresses immediate passive re-prompt and starts no
 worker; a later explicit foreground action may retry. Unresolved RAW is not started
 by speculative preload.
 
-Comparison Set Open uses the same lazy RAW boundary. Persisted resolved RAW metadata
-is restored before foreground use; unresolved saved RAW remains unresolved rather
-than being force-resolved by persistence.
+Session Open uses the same lazy RAW boundary. Persisted resolved RAW metadata is
+restored before foreground use; unresolved saved RAW remains unresolved rather than
+being force-resolved by persistence.
 
 The dialog uses **Load Profile...** / **Save Profile...** terminology. JSON remains
 the compatible profile format.
@@ -243,7 +280,7 @@ the compatible profile format.
 P3-C is complete as PR #25 at
 `7f6bef73e6712f6a14a4d401820a915196e25da2`.
 
-- One session-local Display Gain control owns 1×/2×/4×/8×/16×.
+- One application-session Display Gain control owns 1×/2×/4×/8×/16×.
 - Ordinary Gray/RGB and split RGB use anchor 0.
 - RGBA gains RGB only and preserves alpha.
 - RAW retains P3-B native 1× and Black-anchored gain semantics.
@@ -251,21 +288,21 @@ P3-C is complete as PR #25 at
 - 1× reuses canonical preview; gain>1 is viewer-local async presentation.
 - Native analysis, source generation/residency, Difference cache identity, and
   numerical analysis request identity are not changed by gain.
-- Comparison Sets do not persist Display Gain.
+- Session persists only the scalar Display Gain intent; PR #32 remains the runtime
+  preview/concurrency authority during restore.
 
 ## Runtime/resource status
 
-P4-B preserves P2 exact native-source accounting and protected soft-budget LRU.
+P2 exact native-source accounting and protected soft-budget LRU remain authoritative.
 Selected membership alone remains non-authoritative for large selections; Pick
-membership and Comparison Set metadata are also non-authoritative. Current
-Comparison Page plus correctness dependencies remain protected; off-page
-Selected/Picked sources may be evicted and reloaded. P2 preload remains +1 Folder
-Position only; there is no Comparison Page, Pick Set, or Comparison Set preload
-system.
+membership and Session metadata are also non-authoritative. Current Comparison Page
+plus existing correctness dependencies remain protected; off-page Selected/Picked
+sources may be evicted and reloaded. P2 preload remains +1 Folder Position only;
+there is no Comparison Page, Pick Set, or Session speculative preload system.
 
-The deterministic large-set P4-B regressions check that Save causes no load or
-residency/protection acquisition and that Open keeps foreground load/protection
-bounded to the Active-derived Current Comparison Page.
+Session Save causes no source decode/residency acquisition. Session Open registers
+saved identities but foreground-loads only the reconstructed Current Comparison Page.
+Session never serializes or restores runtime cache/residency/preload ownership.
 
 Arbitrary-angle Line Profile is not scheduled in P4. A future design would require
 an explicit discrete sampling/pixel-path and coordinate-display contract suitable
@@ -273,11 +310,11 @@ for an observation tool; interpolation is not assumed.
 
 ## Validation state
 
-P4-A / PR #29 is merged at
-`3486146494076e9b513843b90ec44e504043729e`.
+P4-A / PR #29 and P4-B / PR #30 are merged. PR #32 and PR #33 are also merged into
+main and provide the inherited runtime/Difference baseline for P4-C.
 
-For P4-B / PR #30, the repository owner reports the focused Windows suite PASS with
-`36 passed`. Independent review reports no remaining runtime/schema/test blocker.
-The current merge-closure work is documentation-only and does not alter runtime or
-tests; applicable docs/diff validation and final review remain required, and no
-unobserved full-suite/tooling PASS is inferred.
+For P4-C / PR #31, the repository owner reports the complete requested local
+validation set PASS on code/test head
+`b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`, including the final off-page
+Difference Save/Open regression. Subsequent merge-closure changes are documentation
+and PR-metadata only; they do not alter runtime or tests.

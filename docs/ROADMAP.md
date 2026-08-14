@@ -205,6 +205,13 @@ P4-0 merged as PR #28 at
 `e30c49d6759715228a820d673ad8939ea9a3afe8`.
 P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
+P4-B Comparison Set Persistence merged as PR #30 at
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+PR #32 runtime stabilization merged at
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`, and PR #33 Difference/source-curation
+semantics merged at `51a540c92c372d71e02fd849fb5e0d406d0e9327`.
+P4-C Session persistence / typed Recent is implemented and owner-validated on
+PR #31, pending merge closure.
 
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -274,47 +281,67 @@ selection/first-Active state, derived-presentation identity rejection, external
 Selected mutation invalidation, and 50-image bounded load/protection/preload
 regression.
 
-### P4-B — Comparison Set Persistence — implemented, merge pending
+### P4-B — Comparison Set Persistence — Complete
 
-P4-B introduces an explicit external **Comparison Set** artifact rather than full
-application-session persistence.
+Merged as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+P4-B established the first external `.pixelscope` v1 **Comparison Set** artifact.
+That artifact remains a historical compatibility format and is still read-compatible
+under P4-C Session v1.
 
-The `.pixelscope` v1 JSON schema persists ordered logical Selected native-source
-references, optional Active, optional applicable Primary, stable layout mode, and
-minimum resolved RAW metadata needed to reconstruct a RAW source. Persistent source
-identity is a normalized **absolute local path**; blank/relative paths are rejected
-before normalization and v1 performs no relocation/fuzzy resolution. Sharing a set
-therefore also shares local path information and may not be portable across machines
-or directory layouts.
+Comparison Set v1 persists ordered logical Selected native-source references,
+optional Active, optional applicable Primary, stable layout mode, and minimum resolved
+RAW metadata needed to reconstruct a RAW source. Persistent source identity is a
+normalized **absolute local path** and v1 performs no relocation/fuzzy resolution.
 
-Save serializes logical Selected, never the temporary P4-A Pick Set. Picks that have
-not been applied by **Keep Selection** do not alter the saved membership; after Keep,
-the curated Selected subset is saved. Save does not apply/clear Picks, decode
-Selected-wide sources, or acquire residency/protection authority.
+P4-B deliberately does not persist source arrays, residency/LRU/protection, preload,
+Difference/cache, Display Gain, analysis state, workers/tokens/generation,
+derived Split/Difference documents, transient view state, ROI/Line state, or
+temporary Picks. Settings schema remains v5.
 
-Open validates before logical mutation, restores loadable Selected in saved order,
-restores saved Active, derives the Current Comparison Page from Active + Selected
-ordering, then restores an applicable page-local Primary and stable layout. Current
-Comparison Page/page offset is never serialized. Missing sources partially load with
-a compact warning; zero-loadable, corrupt, wrong-kind, future-schema, or otherwise
-invalid artifacts leave the current logical workspace unchanged.
+The repository owner reported the focused P4-B Windows suite PASS (`36 passed`)
+before PR #30 merged.
 
-Resolved RAW reconstruction metadata is restored before foreground use; unresolved
-RAW remains unresolved and uses the existing lazy profile-resolution path. P4-B does
-not persist source arrays, residency/LRU/protection, preload, Difference/cache,
-Display Gain, analysis state, workers/tokens/generation, derived Split/Difference
-documents, transient view state, ROI/Line state, or temporary Picks. Settings schema
-remains v5.
+### P4-C — Session Persistence & Typed Recent — implemented, validation PASS, merge pending
 
-The repository owner reports the focused P4-B Windows suite PASS (`36 passed`). PR
-#30 remains merge-pending until durable-doc consistency and final review/validation
-closure.
+P4-C generalizes new `.pixelscope` writes to **PixelScope Session v1** while keeping
+legacy Comparison Set v1 read compatibility. The authoritative contract is
+[`docs/SESSION_CONTRACT.md`](SESSION_CONTRACT.md).
 
-### P4-C — Comparison Set Entry UX & Recent Entries
+Session v1 persists durable workspace intent rather than process state:
 
-Define bounded recent-entry behavior around persisted Comparison Set artifacts,
-including missing-path handling and privacy/path-retention semantics. Do not reframe
-P4-C as a full persistent-session manager.
+- Registered membership plus minimum RAW reconstruction metadata;
+- exact ordered Selected paths;
+- a Selected source-path Current Comparison Page anchor;
+- applicable source Active and Primary plus stable layout;
+- ROI, Line, Display Gain, and applicable Split Channels state;
+- a regenerable Difference recipe only when saved Difference A/B both belong to the
+  saved Current Comparison Page.
+
+The Difference rule deliberately matches reader eligibility. A hidden active
+Difference binding may survive page navigation under PR #33, but Session Save omits
+that recipe after the user moves to a page that no longer contains A/B. Reopen never
+creates an off-page Difference dependency or implicit calculation. For an eligible
+saved recipe, Session restores the page and exact compatible panel intent, then
+issues one explicit **Calculate** request; PR #33 alone establishes active Difference
+provenance/result state.
+
+Open is a single-read staged transaction. It validates first, stages incoming
+registration identities before destructive replacement, preserves the prior workspace
+when zero incoming registrations succeed, restores only the bounded foreground page,
+and uses the existing P2/P3/P4 loading, residency, Display Gain, and Difference
+pipelines. A MainWindow-owned eight-step overlay reports asynchronous reconstruction
+without a nested event loop or new runtime authority. Temporary P4-A Picks and all
+runtime arrays/caches/workers/tokens are not persisted.
+
+File UX uses **Open Session... / Save Session...** plus typed bounded MRU menus for
+Recent Images, Recent Folders, and Recent Sessions. Recent history is path-only,
+best-effort observer metadata and remains outside Settings schema v5; missing entries
+use Remove/Keep and legacy `recent/comparison_sets` is migration/read fallback only.
+
+The repository owner reports the complete requested local validation set PASS on the
+code/test head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`, including the regression for
+`>6 Selected → page-1 Difference → hide → page 2 → Save/Open` writer/reader symmetry.
+Subsequent merge-closure changes are documentation/PR-metadata only.
 
 ### P4-D — Saved ROI & Analysis Workspace Productivity
 

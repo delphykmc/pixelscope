@@ -1,20 +1,18 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-14
-Current merged baseline / PR #32 merge commit:
-`e1ccf264f86e37b438c923faceae96c3ecb539b7`
+Current merged baseline / PR #33 merge commit:
+`51a540c92c372d71e02fd849fb5e0d406d0e9327`
 
 P4-B Comparison Set Persistence merged as PR #30 at
-`3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session persistence / typed
-Recent is active on draft PR #31. PR #32 separately stabilized Display Gain
-worker/lifetime behavior and Difference insert/remove/viewer-reuse presentation
-lifecycle and is now part of `main`.
+`3a19589e6cbad5fa8c814c522df6a553f59ee340`. PR #32 runtime stabilization merged at
+`e1ccf264f86e37b438c923faceae96c3ecb539b7`. PR #33 source-curation / Difference
+semantics then merged at the current `main` baseline above.
 
-This follow-up branch, `fix/p4a-difference-curation-semantics`, aligns P4-A source
-curation with that merged Difference lifecycle under the owner-final Keep/Calculate/
-toolbar contract. The repository owner reported the implementation validation suite
-passing and confirmed the program behavior matches the intended contract. Final
-changes after that validation are durable-documentation-only.
+P4-C **Session Persistence & Typed Recent** is implemented on PR #31. The repository
+owner reports the complete requested local validation set PASS on the code/test head
+`b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`; remaining merge-closure changes are
+durable documentation and PR metadata only.
 
 ## Merge baseline
 
@@ -32,14 +30,17 @@ changes after that validation are durable-documentation-only.
 - P4-0 P3 Closure & P4 Program Setup merged as PR #28.
 - P4-A Review Selection & Curation merged as PR #29 at
   `3486146494076e9b513843b90ec44e504043729e`.
-- P4-B Comparison Set Persistence merged as PR #30.
-- PR #32 Display Gain/Difference lifecycle stabilization merged at the current
-  baseline SHA.
+- P4-B Comparison Set Persistence merged as PR #30 at
+  `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+- PR #32 Display Gain/Difference runtime stabilization merged at
+  `e1ccf264f86e37b438c923faceae96c3ecb539b7`.
+- PR #33 Difference/source-curation lifecycle merged at
+  `51a540c92c372d71e02fd849fb5e0d406d0e9327` and is the current inherited runtime
+  baseline for PR #31.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-C Session persistence / typed Recent
-is active on draft PR #31; this P4-A × Difference follow-up is intentionally
-separate from P4-C.
+P4 is **Workflow & Session Productivity**. P4-C Session persistence / typed Recent is
+implemented and owner-validated on PR #31, pending merge closure.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -119,14 +120,14 @@ If another workflow replaces/removes logical Selected membership after a baselin
 has been captured, the temporary curation baseline/Pick Set is invalidated before or
 with the existing normal Selected mutation. Registration-only folder input does not
 invalidate curation state because it does not change Selected. Temporary curation
-state is not persisted to Settings/QSettings.
+state is not persisted to Settings/QSettings or Session artifacts.
 
 Pick membership is **not** source ownership, decode authority, residency protection,
 preload authority, analysis working-set authority, Difference input authority, or
 presentation-source authority. Split/Difference derived documents are not
 independent pick identities.
 
-The P4-A × Difference follow-up makes that source/derived boundary explicit:
+PR #33 makes the source/derived Difference boundary explicit:
 
 - native source tiles retain the interactive `Pick` control;
 - a presented Difference tile shows a non-interactive/non-focusable `Derived` role
@@ -147,59 +148,111 @@ The P4-A × Difference follow-up makes that source/derived boundary explicit:
 - after successful Calculate, toolbar `Diff` is visibility-only for that same active
   result and does not infer another pair or calculate implicitly.
 
-The Keep sequencing reuses PR #32 teardown/six-source restore before the ordinary
-Selected mutation. Passive selection/page rerenders do not promote a cached map to
-active Difference state. `DifferencePanel` remains the cache/numerical owner and
-MainWindow retains the existing result presentation/restore paths; P4-A introduces
-no second Difference numerical/cache state machine.
+Passive selection/page rerenders do not promote a cached map to active Difference
+state. `DifferencePanel` remains the cache/numerical owner and MainWindow retains the
+existing result presentation/restore paths.
 
-## P4-B Comparison Set persistence
+## P4-B Comparison Set persistence — historical compatibility
 
-P4-B introduces a small external **Comparison Set** artifact, not full application
-session persistence. The file extension is `.pixelscope`; v1 is JSON with
-`kind = "pixelscope-comparison-set"` and `schema_version = 1`.
+P4-B introduced the first external `.pixelscope` v1 **Comparison Set** artifact with
+`kind = "pixelscope-comparison-set"`. PR #30 is merged. P4-C supersedes new writes and
+UI terminology with Session v1 but retains Comparison Set v1 read compatibility.
 
-Persistent identity is a normalized **absolute local native-source path**. The v1
-reader rejects blank or relative `sources[].path`, `active_path`, and `primary_path`
-values before normalization. There is no relocation or fuzzy path resolution in v1,
-so a Comparison Set intentionally remains machine/path-layout dependent and may
-expose local filesystem paths if the artifact is shared.
+Comparison Set v1 persistent identity is a normalized **absolute local native-source
+path**. It persists ordered logical Selected paths, optional selected Active,
+optional applicable current-page Primary, stable layout, and minimum resolved RAW
+profile metadata. It intentionally does not persist source arrays,
+residency/LRU/protection, preload, Difference/cache, Display Gain, analysis state,
+workers/tokens/generations, derived Split/Difference documents, ROI/Line, or temporary
+P4-A Picks.
 
-Save persists only durable logical comparison intent:
+## P4-C PixelScope Session v1
 
-- ordered logical **Selected** native-source paths;
-- optional selected **Active** path;
-- optional applicable current-page **Primary** path;
+P4-C generalizes new `.pixelscope` writes to `kind = "pixelscope-session"`, schema
+version 1. The authoritative contract is
+[`SESSION_CONTRACT.md`](SESSION_CONTRACT.md).
+
+A Session persists durable user-authored workspace intent, not a process snapshot:
+
+- Registered membership plus minimum resolved RAW reconstruction metadata;
+- exact ordered Selected paths;
+- one Selected source-path Current Comparison Page anchor;
+- applicable source Active and Primary;
 - stable layout mode;
-- minimum resolved RAW profile metadata when required to reconstruct a RAW source.
+- shared ROI and Line;
+- Display Gain and applicable Split Channels state;
+- a regenerable Difference recipe only when the saved A/B are both members of the
+  saved Current Comparison Page.
 
-Temporary P4-A Picks are not serialized. If Picks exist but **Keep Selection** has
-not been applied, Save writes the original logical Selected set. After Keep, it
-writes the resulting curated Selected subset. Save neither applies nor clears Picks
-and does not decode off-page Selected members or acquire residency/protection.
+Registered insertion order is not semantic Session state; Selected order is semantic.
+Temporary Picks, decoded arrays, source residency/LRU/protection, previews, preload,
+workers/tokens/generations, Difference maps/cache/results/generated documents,
+calculated analysis results, and other reproducible runtime buffers are not saved.
+Settings schema remains v5.
 
-Open validates the artifact before logical workspace mutation, registers loadable
-native sources through the normal path, replaces logical Selected in saved/loadable
-order, and leaves unrelated Registered sources registered. Saved Active selects the
-derived Current Comparison Page; an applicable Primary is then restored only on that
-page, and layout mode is restored. Current Comparison Page/page offset itself is
-**derived, never serialized**.
+### Session Open transaction
 
-Missing sources use partial-load behavior with a compact warning. If no saved source
-is loadable, the existing logical workspace is unchanged. Corrupt JSON, wrong kind,
-future schema, invalid layout/identity, or invalid embedded RAW metadata is rejected
-without registration/foreground-load mutation.
+Session Open reads/parses the artifact exactly once. It validates and probes paths
+before decode, stages incoming registration identities before removing unrelated
+current Registered sources, and leaves the existing workspace/Picks intact if zero
+incoming sources actually register.
 
-Resolved RAW profile metadata is restored before foreground use. Unresolved RAW
-remains unresolved and follows the existing lazy foreground profile-resolution path;
-saving does not force profile resolution.
+After the commit boundary it tears down any pre-existing active Difference through
+the PR #33 lifecycle, clears temporary curation, restores loadable Selected in exact
+saved order, reconstructs the saved page from the page anchor, establishes applicable
+layout/Primary/source Active, and foreground-loads only the bounded Current Comparison
+Page through the inherited MainWindow loader. It then restores Display Gain/Split,
+ROI/Line, and applicable Difference intent. There is no Registered-wide eager decode.
 
-Comparison Set persistence owns **none** of decoded source arrays, source
-residency/LRU/protection state, preload plans/workers, Difference maps/cache, Display
-Gain previews/state, analysis requests/results, worker/request/generation tokens,
-Split/Difference derived documents, transient zoom/pan, ROI/Line state, or temporary
-P4-A curation. Settings schema remains v5 because `.pixelscope` is an external
-artifact rather than a SettingsRepository schema change.
+Session restore exposes this asynchronous reconstruction through a MainWindow-owned
+child overlay with a fixed eight-step procedure. It is an input shield/observer only:
+no `QDialog`, no application-modal nested event loop, no Cancel/partial rollback
+contract, and no source/selection/residency/worker/Difference authority.
+
+### Session Difference contract
+
+PR #32 remains generic runtime/concurrency/presentation authority and PR #33 remains
+active Difference authority. Session does not pre-populate `_difference_source_ids`.
+For an eligible recipe it restores exact compatible A/B/options on the reconstructed
+Current Comparison Page and invokes one explicit **Calculate**. Only the normal PR
+#33 result-ready path establishes active Difference provenance/document/toolbar
+state.
+
+Writer and reader eligibility are symmetric. PR #33 permits a hidden active
+Difference binding to remain after page navigation while its A/B remain logically
+Selected. If the user saves from a later page that no longer contains those A/B,
+Session Save omits the stale/off-page Difference recipe. Reopen therefore never
+creates special off-page Difference loading/residency ownership and never performs
+an implicit calculation or pair/page substitution.
+
+## Typed Recent entry
+
+File entry UX is:
+
+```text
+Open Images...
+Open Folder...
+Open Session...
+Open Recent Images      >
+Open Recent Folders     >
+Open Recent Sessions    >
+--------------------------
+Save Session...
+```
+
+Recent is a max-10 typed path-only MRU per Image, Folder, and Session. Image activation
+delegates to the normal direct-image selection path; Folder activation delegates to
+registration-only folder input; Session activation delegates to Session Open.
+Missing paths use explicit **Remove / Keep**. Wrong-kind paths and existing invalid
+Session artifacts remain history until explicitly removed. Recent bookkeeping is
+best-effort observer metadata and cannot turn a successful canonical workflow into
+failure.
+
+Authoritative keys are `recent/images`, `recent/folders`, and `recent/sessions`;
+legacy `recent/comparison_sets` is migration/read fallback only. Recent history is
+outside ApplicationSettings schema v5 and Reset Settings and owns no source,
+selection, curation, residency, preload, Difference, analysis, or page state.
+Absolute paths may expose local filesystem layout.
 
 ## Unified input policy
 
@@ -301,8 +354,8 @@ Pick Set membership.
 
 The production application composes the P3-D/P3-E presentation row with the P4-A
 direct curation controls. Command/state ownership remains in `MainWindow`, Display
-Gain remains owned by its existing session state, and P4-A adds no separate mode or
-contextual group.
+Gain remains owned by its existing application-session state, and P4-A adds no
+separate mode or contextual group.
 
 Presentation row contract:
 
@@ -396,31 +449,32 @@ display = anchor + gain * (source - anchor)
 - gain changes do not mutate source, analysis results, request identity, residency,
   or Difference.
 
-P4-A does not change Display Gain workers, preview identity, RAW Black-anchored
-math, or native Difference semantics. Pick state follows source IDs rather than any
-gained preview representation.
+PR #32 owns Display Gain worker/concurrency/presentation stabilization. P4-C persists
+only the scalar Display Gain intent and reuses that existing runtime path during
+restore.
 
 ## Runtime/settings baseline
 
 Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
-persist the captured curation baseline or temporary Pick Set. P4-B also does not
-change Settings schema: Comparison Sets are explicit external `.pixelscope` artifacts.
+persist the captured curation baseline or temporary Pick Set. Session is an explicit
+external `.pixelscope` artifact and does not bump Settings schema. Typed Recent uses
+separate QSettings path-history keys outside `SettingsRepository` ownership and Reset
+Settings.
 
 Source residency remains exact native `source.nbytes` under P2 protected soft-budget
 LRU semantics, with the P3-D large-selection refinement that **Selected alone is not
-a protection owner**. Pick membership is also not a protection owner. The generic
-bounded protection authority is the Current Comparison Page plus correctness
-dependencies such as foreground loads, promoted foreground preload, and Difference
-dependencies. Selected/Picked-but-off-page resident sources may therefore be evicted
-and normally reloaded when revisited.
+a protection owner**. Pick membership and Session metadata are also not protection
+owners. The generic bounded protection authority is the Current Comparison Page plus
+existing correctness dependencies. Selected/Picked-but-off-page resident sources may
+therefore be evicted and normally reloaded when revisited.
 
 Difference cache remains independent. Keep Selection always resets the active
 Difference presentation/binding for the new Selected workspace but does not clear
-generation-keyed cache entries or change source generations. Preload remains +1
-Folder Position, max-one dedicated worker, with running-preload promotion as
-established by P2. P4-A does not add Comparison Page or Pick Set preloading. P4-B
-does not serialize or acquire preload/residency/cache authority. Diagnostics remain
-deterministic, bounded, sanitized, and observation-only.
+generation-keyed cache entries or change source generations. Session never serializes
+that cache or generated Difference result. Preload remains +1 Folder Position,
+max-one dedicated worker, with running-preload promotion as established by P2.
+Session adds no Comparison Page speculative preload or Registered-wide eager decode.
+Diagnostics remain deterministic, bounded, sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -452,15 +506,14 @@ claimed here without separate observed evidence.
 1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
 2. P4-A — Review Selection & Curation — Complete — PR #29
 3. P4-B — Comparison Set Persistence — Complete — PR #30
-4. P4-C — Session persistence / typed Recent — active draft — PR #31
+4. P4-C — Session Persistence & Typed Recent — implemented; validation PASS; merge pending — PR #31
 5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
 6. P4-E — Viewer Overlay & Export Productivity — planned
 7. P4-F — Integration & Workflow Hardening — planned
 
-The source-only Difference curation follow-up is a bounded P4-A semantic correction,
-not a new numbered P4 phase and not part of PR #31. P4 inherits the P2/P3 ownership
-and numerical contracts above. Temporary workflow state must not become
-source/cache/residency/analysis authority.
+P4 inherits the P2/P3 ownership and numerical contracts above. Temporary workflow
+state must not become source/cache/residency/analysis authority, and Session
+persistence must remain durable intent rather than process/runtime serialization.
 
 Arbitrary-angle Line Profile is intentionally omitted from P4. Because Line Profile
 is an observation/sampling tool, a future arbitrary-angle version should define a

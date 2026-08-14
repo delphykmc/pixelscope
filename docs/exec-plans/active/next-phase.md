@@ -1,14 +1,14 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-A complete; P4-B implemented/focused validated, merge pending
+Status: Active — P4-A/P4-B complete; P4-C implemented and owner-validated, merge pending
 Owner: repository owner + P4 orchestration agents
-Last updated: 2026-08-11
-Inherited merged baseline: P4-A / PR #29 merge commit
-`3486146494076e9b513843b90ec44e504043729e`
+Last updated: 2026-08-14
+Inherited merged baseline: PR #33 / main
+`51a540c92c372d71e02fd849fb5e0d406d0e9327`
 
 ## Goal
 
-Build review/curation, reusable comparison sets, workflow entry, saved analysis
+Build review/curation, reusable workflow persistence, typed Recent entry, saved analysis
 annotations, and focused viewer/export productivity on top of the stabilized P2/P3
 image semantics and bounded Current Comparison Page architecture.
 
@@ -50,8 +50,11 @@ Inherited invariants:
 - RAW Black/White metadata and display transforms do not enter Difference domain
   selection/normalization.
 - temporary workflow state must not become source/cache/residency/analysis authority.
-- Current Comparison Page is derived from Selected ordering/page offset and must not
-  be serialized as an independently owned collection.
+- Current Comparison Page remains derived runtime state; durable Session persistence
+  may store only a source-path page anchor needed to reconstruct the same page.
+- PR #32 owns generic Display Gain/Difference worker and presentation stability.
+- PR #33 owns active Difference establishment, provenance, visibility, teardown, and
+  cache lifecycle; only explicit successful Calculate establishes an active result.
 
 ## Program sequence
 
@@ -61,8 +64,8 @@ Inherited invariants:
 |---|---|---|
 | 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
 | 1 | P4-A Review Selection & Curation | Complete — PR #29 |
-| 2 | P4-B Comparison Set Persistence | Implemented; focused owner validation PASS; merge pending — PR #30 |
-| 3 | P4-C Comparison Set Entry UX & Recent Entries | Planned |
+| 2 | P4-B Comparison Set Persistence | Complete — PR #30 |
+| 3 | P4-C Session Persistence & Typed Recent | Implemented; owner validation PASS; merge pending — PR #31 |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Planned |
 | 5 | P4-E Viewer Overlay & Export Productivity | Planned |
 | 6 | P4-F Integration & Workflow Hardening | Planned |
@@ -142,7 +145,7 @@ P4-A merged as PR #29 at `3486146494076e9b513843b90ec44e504043729e`.
   baseline/Pick Set before or with the existing normal selection mutation.
 - registration-only folder input preserves the temporary curation state because it
   does not mutate Selected.
-- P4-A Pick Set is not persisted across application/session restore.
+- P4-A Pick Set is not persisted across Session restore.
 - Settings schema remains v5.
 
 ### Implementation shape
@@ -186,106 +189,125 @@ Focused suites cover:
 - programmatic, production Files removal, direct signal fallback, and direct-Files
   Selected replacement invalidation.
 
-## P4-B — Comparison Set Persistence — implemented, merge pending
+## P4-B — Comparison Set Persistence — Complete
 
-### Goal and artifact boundary
+### Historical artifact boundary
 
-P4-B adds a small explicit **Comparison Set** artifact instead of full application
-session persistence. The extension is `.pixelscope`; v1 is JSON with
+P4-B merged as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+It established the first external `.pixelscope` artifact with
 `kind = "pixelscope-comparison-set"` and `schema_version = 1`.
 
 The persisted source identity contract is a normalized **absolute local source
-path**. The v1 reader rejects blank/relative `sources[].path`, `active_path`, and
-`primary_path` values before normalization. There is no relocation/fuzzy path
-resolution. This makes v1 deterministic but machine/path-layout dependent and means
-sharing the artifact can disclose local filesystem paths.
+path**. The v1 reader rejects blank/relative source, Active, and Primary paths before
+normalization. There is no relocation/fuzzy path resolution. Comparison Set v1 is
+therefore deterministic but path-layout dependent and may disclose local paths.
 
-### Durable state
+Comparison Set v1 persists ordered logical Selected native-source references,
+optional selected Active, optional applicable Primary, stable layout mode, and
+minimum resolved RAW profile metadata needed to reconstruct a RAW source. It does
+not persist runtime arrays, residency/LRU/protection, preload, Difference/cache,
+Display Gain, ROI/Line, analysis results, workers/tokens/generations, or temporary
+P4-A Picks.
 
-Persist only:
-
-- ordered logical Selected native-source references;
-- optional selected Active source;
-- optional applicable Primary source;
-- stable layout mode;
-- minimum resolved RAW profile metadata needed to reconstruct a RAW source.
-
-Save always serializes logical Selected rather than the temporary P4-A Pick Set. If
-Picks exist but **Keep Selection** has not been applied, the original Selected set is
-saved. After Keep, the curated Selected subset is saved. Save does not apply/clear
-Picks, force RAW resolution, decode off-page members, or acquire Selected-wide
-residency/protection.
-
-### Open and transaction semantics
-
-Open fully validates the artifact before logical workspace mutation. Loadable native
-sources are registered through the normal path and replace Selected in saved order;
-unrelated Registered sources remain. Saved Active determines the derived Current
-Comparison Page, then an applicable page-local Primary and stable layout are
-restored. Current Comparison Page/page index/page offset is derived and is never
-serialized.
-
-Missing paths partially load with a compact warning. Zero-loadable input leaves the
-workspace unchanged. Corrupt JSON, wrong kind, future schema, invalid layout/path,
-or invalid embedded RAW profile is rejected before registration/foreground loading.
-
-Resolved RAW profile metadata is restored before foreground use. Unresolved RAW
-remains unresolved and follows the inherited lazy foreground resolution path.
-
-### Explicit non-ownership
-
-Do **not** serialize or acquire ownership of:
-
-- decoded `ImageDocument.source` arrays;
-- source residency/LRU/protection state;
-- Difference maps/cache;
-- preload plans/workers or foreground-promotion state;
-- active workers, request serials, generation/tokens;
-- Display Gain state or gained preview buffers;
-- Statistics/Histogram/Line Profile/Difference analysis request/result state;
-- temporary Pick Set / captured curation baseline;
-- transient Split/Difference presentation documents;
-- Current Comparison Page as an independent duplicate collection;
-- transient zoom/pan, ROI, or Line Profile state.
-
-Comparison Sets are external artifacts and do not bump Settings schema v5.
+P4-C supersedes **new writes/UI terminology** with Session v1 while preserving
+legacy Comparison Set v1 read compatibility.
 
 ### Validation status
 
-The repository owner reports the focused P4-B Windows suite PASS:
+The repository owner reported the focused P4-B Windows suite PASS (`36 passed`)
+before PR #30 merged.
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_comparison_set.py `
-    tests\ui\test_p4b_comparison_set.py
+## P4-C — Session Persistence & Typed Recent — implemented, validation PASS, merge pending
+
+### Goal and durable contract
+
+P4-C generalizes the workflow artifact into **PixelScope Session v1**. New writes use
+`kind = "pixelscope-session"`, schema v1, and `.pixelscope`; legacy P4-B
+`pixelscope-comparison-set` v1 remains read-compatible.
+
+Authoritative contract:
+[`docs/SESSION_CONTRACT.md`](../../SESSION_CONTRACT.md).
+
+Persist durable workspace intent only:
+
+- Registered membership and resolved RAW reconstruction metadata;
+- exact ordered Selected paths;
+- a Selected source-path Current Comparison Page anchor;
+- applicable source Active and Primary;
+- stable layout mode;
+- ROI and Line;
+- Display Gain and applicable Split Channels state;
+- a regenerable Difference recipe only when its A/B are both members of the saved
+  Current Comparison Page.
+
+Registered order is non-semantic; Selected order is semantic. Temporary Picks,
+decoded arrays, previews, residency/LRU/protection state, preload/workers/tokens,
+Difference maps/cache/results/documents, calculated analysis results, and other
+derived buffers remain non-persistent.
+
+### Restore transaction and PR #32/#33 boundary
+
+Session Open is a single-read transaction. It validates first, probes paths without
+decoding, stages incoming registrations before removing unrelated current workspace
+members, and leaves the existing workspace/Picks intact if zero incoming sources
+actually register.
+
+After commit, restore clears stale P4-A curation, restores exact loadable Selected
+order and the saved Current Comparison Page from the page anchor, then uses the
+existing bounded foreground loader, Display Gain pipeline, ROI/Line state, and
+DifferencePanel. There is no Registered-wide eager decode.
+
+PR #32 remains the runtime/concurrency/presentation authority. PR #33 remains active
+Difference authority. Session never pre-binds `_difference_source_ids`; an eligible
+saved recipe restores exact compatible A/B/options on the reconstructed page and
+issues one explicit **Calculate** request. The normal PR #33 result-ready path alone
+establishes active Difference provenance/result/toolbar state.
+
+Writer and reader use the same page eligibility. If an active Difference binding from
+an earlier page remains after Diff is hidden and the user navigates elsewhere,
+Session Save omits that off-page recipe. Session does not create special off-page
+Difference loading/residency ownership or silently substitute another pair/page.
+
+Session restore progress is reported by a MainWindow-owned child overlay with a
+fixed eight-step procedure. It is an input shield/observer only: no `QDialog`, no
+application-modal nested event loop, no Cancel/partial rollback contract, and no new
+runtime authority.
+
+### Typed Recent/Open UX
+
+File UX is:
+
+```text
+Open Images...
+Open Folder...
+Open Session...
+Open Recent Images      >
+Open Recent Folders     >
+Open Recent Sessions    >
+--------------------------
+Save Session...
 ```
 
-Observed owner result: `36 passed`.
+Recent history is an independent max-10 MRU per type. Image activation reuses the P3
+selection-oriented path; Folder activation reuses registration-only behavior;
+Session activation delegates to the Session controller. Missing entries use explicit
+Remove/Keep. Wrong-kind or existing invalid artifacts remain history until explicitly
+removed. History is path-only best-effort observer metadata, owns no source/runtime
+state, and stays outside Settings schema v5. `recent/comparison_sets` is migration/read
+fallback only; `recent/sessions` is authoritative.
 
-Independent review reports no remaining runtime/schema/test blocker. PR #30 remains
-merge-pending for durable-doc consistency and normal final review/validation closure.
+### Validation status
 
-## P4-C — Comparison Set Entry UX & Recent Entries
+The repository owner reports the complete requested local validation set PASS on
+code/test head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`. Coverage includes Session
+schema/legacy read compatibility, strict validation/no-mutation, single-read and
+registration commit boundaries, exact Selected/page/Primary/Active behavior,
+RAW/display/ROI/Line/Split restoration, terminal analysis skip, real-worker
+Difference reconstruction, restore-overlay lifetime, typed Recent persistence and
+observer isolation, inherited PR #32/#33 regressions, and the final
+`>6 Selected → page-1 Diff → hide → page 2 → Save/Open` writer/reader-symmetry case.
 
-Design one coherent workflow-entry surface that distinguishes at least:
-
-- recent image entry;
-- recent folder entry;
-- recent Comparison Set entry.
-
-Requirements:
-
-- entry type must be explicit rather than inferred ambiguously from one flat list;
-- history is bounded and deterministic;
-- missing/moved path behavior is defined and non-destructive;
-- privacy/path-retention implications are documented;
-- opening a recent image/folder must reuse the P3 input intent contract rather than
-  bypassing registration/selection semantics;
-- opening a recent Comparison Set must use the P4-B Comparison Set loader, not ad-hoc
-  state restoration;
-- history must not own source residency or preload.
-
-P4-C does not broaden P4-B into full persistent-session restoration.
+Merge-closure changes after this validated head are documentation/PR-metadata only.
 
 ## P4-D — Saved ROI & Analysis Workspace Productivity
 
@@ -331,14 +353,15 @@ Close P4 with cross-feature integration rather than adding another broad feature
 At minimum audit:
 
 - P4-A curation with large Selected sets and page navigation;
-- P4-B Comparison Set round-trip with RAW profile resolution, missing paths, and P2
-  residency/preload reconstruction;
-- P4-C recent-entry intent against image/folder/Comparison Set distinctions;
+- legacy P4-B Comparison Set v1 read compatibility under Session;
+- P4-C Session round-trip with RAW profile resolution, missing paths, Current
+  Comparison Page, Difference, and P2 residency/preload reconstruction;
+- P4-C typed Recent Image/Folder/Session intent;
 - P4-D saved ROI activation against Statistics/Histogram/Difference/Line Profile;
 - P4-E presentation overlays/export against native-analysis and Difference domains;
 - P2/P3 request identity, stale-result, source residency, Difference-cache, and
   preload invariants;
-- Qt lifetime/focus/teardown at new production composition boundaries;
+- Qt lifetime/focus/teardown at production composition boundaries;
 - durable docs, Windows owner characterization, and regression coverage.
 
 No wall-clock performance threshold should become a merge gate without a separate,
@@ -348,8 +371,8 @@ evidence-backed performance requirement.
 
 P4-A does not add:
 
-- Comparison Set serializer/loader or `.pixelscope` file format;
-- Recent Images/Folders/Comparison Sets;
+- Session/Comparison Set serializer/loader or `.pixelscope` file format;
+- Recent Images/Folders/Sessions;
 - Pick Set persistence or Settings schema changes;
 - Saved ROI runtime/UI;
 - arbitrary-angle Line Profile or interpolation/sampling redesign;
@@ -361,29 +384,28 @@ P4-A does not add:
 - remote IQA/authentication or packaging/signing/installer behavior;
 - broad MainWindow redesign.
 
-## P4-B explicit exclusions
+## P4-B historical exclusions
 
-P4-B does not add full application/session persistence, Recent-entry history, Saved
-ROI, arbitrary-angle Line Profile, Alpha Overlay/export workflows, source residency
-or preload redesign, Difference/Display Gain numerical changes, RAW Profile Library
-or processing, remote IQA/authentication, or packaging/release work.
+P4-B itself did not add full Session persistence, Recent-entry history, Saved ROI,
+arbitrary-angle Line Profile, Alpha Overlay/export workflows, source residency or
+preload redesign, Difference/Display Gain numerical changes, RAW Profile Library or
+processing, remote IQA/authentication, or packaging/release work. P4-C intentionally
+extends the external artifact beyond that historical P4-B boundary.
+
+## P4-C explicit exclusions
+
+P4-C does not persist or own decoded source arrays, preview buffers,
+residency/LRU/protection state, preload plans/workers, Difference maps/cache/results,
+calculated analysis results, temporary P4-A Picks, request tokens/generations, or
+other runtime/process state. It does not change generic PR #32 worker/concurrency
+policy or PR #33 Difference lifecycle.
 
 ## Validation policy
 
 Runtime/UI slices use owner/local Windows validation. Chat implementation agents do
 not bootstrap/search for a local Windows virtual environment or install dependencies.
 
-P4-B focused validation:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_comparison_set.py `
-    tests\ui\test_p4b_comparison_set.py
-```
-
-Owner-reported focused result: `36 passed`.
-
-Before merge, run the standard repository contract as applicable:
+Before merge, the standard repository contract is:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -395,5 +417,7 @@ Before merge, run the standard repository contract as applicable:
 git diff --check
 ```
 
-Only observed results may be recorded as PASS. Docs-only closure commits do not
-retroactively imply unobserved full-suite/tooling results.
+The repository owner reports the requested validation set PASS on P4-C code/test
+head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`. Only observed results are recorded
+as PASS. Subsequent merge-closure commits are documentation/PR-metadata only and do
+not change the validated runtime/test surface.

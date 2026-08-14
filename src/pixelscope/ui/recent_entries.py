@@ -1,0 +1,315 @@
+from __future__ import annotations
+
+import logging
+import stat
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenu, QMessageBox
+
+from pixelscope.app.recent_entries import RecentEntriesRepository
+from pixelscope.app.settings import QSettingsAdapter
+from pixelscope.core.comparison_set import ComparisonSetError
+from pixelscope.core.recent_entries import RecentEntryKind
+from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
+from pixelscope.ui.comparison_set import SessionController
+from pixelscope.ui.design_tokens import menu_style
+
+LOGGER = logging.getLogger(__name__)
+
+
+class RecentEntriesController:
+    """Typed Recent entry UI that delegates to canonical Image/Folder/Session workflows."""
+
+    def __init__(
+        self,
+        window: Any,
+        repository: RecentEntriesRepository | None = None,
+    ) -> None:
+        self.window = window
+        self.repository = repository or RecentEntriesRepository(QSettingsAdapter(self._settings()))
+        session = getattr(window, "session_controller", None)
+        if not isinstance(session, SessionController):
+            raise RuntimeError("Recent Entries requires the Session controller")
+        self.session_controller = session
+        self.comparison_set_controller = session
+        self.session_controller.set_recent_entry_callback(self._record_session)
+
+        file_menu = getattr(session, "_file_menu_ref", None)
+        if not isinstance(file_menu, QMenu):
+            raise RuntimeError("Recent Entries requires the retained File menu")
+        self.file_menu = file_menu
+
+        self.images_menu = QMenu("Open Recent Images", self.file_menu)
+        self.folders_menu = QMenu("Open Recent Folders", self.file_menu)
+        self.sessions_menu = QMenu("Open Recent Sessions", self.file_menu)
+        self.comparison_sets_menu = self.sessions_menu
+        for menu in (self.images_menu, self.folders_menu, self.sessions_menu):
+            menu.setStyleSheet(menu_style())
+
+        self._install_runtime_observers()
+        self._install_recent_menus()
+        self.refresh_menu()
+
+    def _settings(self) -> QSettings:
+        settings = getattr(self.window, "settings", None)
+        return settings if isinstance(settings, QSettings) else QSettings()
+
+    def _install_runtime_observers(self) -> None:
+        register_inputs = getattr(self.window, "_register_inputs", None)
+        register_folders = getattr(self.window, "register_folders", None)
+        if not callable(register_inputs) or not callable(register_folders):
+            raise RuntimeError("Recent Entries requires the P3 registration APIs")
+
+        self._register_inputs_original: Callable[..., list[str]] = register_inputs
+        self._register_folders_original: Callable[..., Any] = register_folders
+
+        def observed_register_inputs(
+            inputs: tuple[ImageInput, ...],
+            *,
+            resolve_raw_profiles: bool,
+        ) -> list[str]:
+            document_ids = self._register_inputs_original(
+                inputs,
+                resolve_raw_profiles=resolve_raw_profiles,
+            )
+            if resolve_raw_profiles and document_ids:
+                paths = [
+                    document.source_path
+                    for document_id in document_ids
+                    if (document := self.window.documents.get(document_id)) is not None
+                    and document.source_path is not None
+                ]
+                if paths:
+                    self._observe_history(RecentEntryKind.IMAGE, paths)
+            return document_ids
+
+        def observed_register_folders(folders: Sequence[Path]) -> Any:
+            supplied = tuple(Path(folder).resolve(strict=False) for folder in folders)
+            result = self._register_folders_original(folders)
+            existing = tuple(folder for folder in supplied if folder.is_dir())
+            if existing:
+                self._observe_history(RecentEntryKind.FOLDER, existing)
+            return result
+
+        self.window._register_inputs = observed_register_inputs
+        self.window.register_folders = observed_register_folders
+
+    def _observe_history(
+        self,
+        kind: RecentEntryKind,
+        paths: Sequence[str | Path],
+    ) -> None:
+        try:
+            self.repository.record(kind, paths)
+            QTimer.singleShot(0, self.refresh_menu)
+        except Exception:  # noqa: BLE001 - optional history must not break runtime work
+            LOGGER.warning("Unable to update Recent %s history", kind.value, exc_info=True)
+
+    def _install_recent_menus(self) -> None:
+        save_action = self.session_controller.save_action
+        open_group_separator = self.session_controller.separator_action
+        self.file_menu.removeAction(save_action)
+        for menu in (self.images_menu, self.folders_menu, self.sessions_menu):
+            self.file_menu.insertMenu(open_group_separator, menu)
+
+        export_action = next(
+            (
+                action
+                for action in self.file_menu.actions()
+                if action.text().startswith("Export Statistics")
+            ),
+            None,
+        )
+        if export_action is None:
+            self.file_menu.addAction(save_action)
+            return
+        self.file_menu.insertAction(export_action, save_action)
+        separator = QAction(self.window)
+        separator.setSeparator(True)
+        self.file_menu.insertAction(export_action, separator)
+        self.save_group_separator = separator
+
+    def refresh_menu(self) -> None:
+        self._populate_menu(RecentEntryKind.IMAGE, self.images_menu, "Images")
+        self._populate_menu(RecentEntryKind.FOLDER, self.folders_menu, "Folders")
+        self._populate_menu(RecentEntryKind.SESSION, self.sessions_menu, "Sessions")
+
+    def _populate_menu(
+        self,
+        kind: RecentEntryKind,
+        menu: QMenu,
+        clear_label: str,
+    ) -> None:
+        menu.clear()
+        entries = self.repository.load(kind)
+        if not entries:
+            placeholder = menu.addAction("(None)")
+            placeholder.setEnabled(False)
+        else:
+            for path in entries:
+                action = menu.addAction(self._display_label(path))
+                action.setToolTip(str(path))
+                action.setStatusTip(str(path))
+                action.triggered.connect(  # type: ignore[attr-defined]
+                    lambda _checked=False, entry_kind=kind, entry_path=path: self.open_recent(
+                        entry_kind,
+                        entry_path,
+                    )
+                )
+        menu.addSeparator()
+        clear_action = menu.addAction(f"Clear Recent {clear_label}")
+        clear_action.setEnabled(bool(entries))
+        clear_action.triggered.connect(  # type: ignore[attr-defined]
+            lambda _checked=False, entry_kind=kind: self.clear_kind(entry_kind)
+        )
+
+    @staticmethod
+    def _display_label(path: Path) -> str:
+        leaf = path.name or str(path)
+        parent = path.parent.name
+        return f"{leaf} — {parent}" if parent and parent != leaf else leaf
+
+    def open_recent(self, kind: RecentEntryKind, path: Path) -> None:
+        path_state = self._recent_path_state(kind, path)
+        if path_state == "missing":
+            self._handle_missing_entry(kind, path)
+            return
+        if path_state == "wrong_type":
+            self._show_wrong_type(kind, path)
+            return
+        if kind is RecentEntryKind.IMAGE:
+            self._open_image_paths([path])
+            return
+        if kind is RecentEntryKind.FOLDER:
+            result = self.window.register_folders([path])
+            self._remember_directory(path)
+            if result.image_count > 0:
+                self.window.statusBar().showMessage(
+                    f"Registered {result.image_count} image(s) from recent folder",
+                    4000,
+                )
+            else:
+                self.window.statusBar().showMessage(
+                    "Recent folder contains no supported images",
+                    4000,
+                )
+            return
+        self._open_recent_session(path)
+
+    def _open_image_paths(self, paths: list[Path]) -> list[str]:
+        if not paths:
+            return []
+        self._remember_directory(paths[0].parent)
+        document_ids = list(
+            self.window._register_inputs(
+                discover_image_inputs(paths),
+                resolve_raw_profiles=True,
+            )
+        )
+        if document_ids:
+            self.window._select_document_ids(document_ids)
+            self.window.statusBar().showMessage(
+                f"Opened {len(document_ids)} image(s)",
+                4000,
+            )
+        else:
+            self.window.statusBar().showMessage("No supported images opened", 4000)
+        return document_ids
+
+    def _open_recent_session(self, path: Path) -> None:
+        try:
+            loaded, missing = self.session_controller.open_from_path(path)
+        except (OSError, ComparisonSetError) as exc:
+            QMessageBox.warning(self.window, "Cannot open Session", str(exc))
+            return
+        if loaded == 0:
+            return
+        self._remember_directory(path.parent)
+        self._observe_history(RecentEntryKind.SESSION, [path])
+        self.session_controller.show_open_feedback(path, loaded, missing)
+
+    @staticmethod
+    def _recent_path_state(kind: RecentEntryKind, path: Path) -> str:
+        try:
+            path_stat = path.stat()
+        except FileNotFoundError:
+            return "missing"
+        except OSError:
+            return "unknown"
+        if kind is RecentEntryKind.FOLDER:
+            return "usable" if stat.S_ISDIR(path_stat.st_mode) else "wrong_type"
+        return "usable" if stat.S_ISREG(path_stat.st_mode) else "wrong_type"
+
+    def _show_wrong_type(self, kind: RecentEntryKind, path: Path) -> None:
+        expected = "folder" if kind is RecentEntryKind.FOLDER else "file"
+        QMessageBox.warning(
+            self.window,
+            "Recent entry unavailable",
+            f"This Recent entry is no longer a {expected}. The history entry was kept.\n\n{path}",
+        )
+
+    def _handle_missing_entry(self, kind: RecentEntryKind, path: Path) -> None:
+        if not self._confirm_remove_missing(kind, path):
+            return
+        try:
+            self.repository.remove(kind, path)
+            QTimer.singleShot(0, self.refresh_menu)
+        except Exception:  # noqa: BLE001 - cleanup remains non-authoritative
+            LOGGER.warning(
+                "Unable to remove unavailable Recent %s entry",
+                kind.value,
+                exc_info=True,
+            )
+
+    def _confirm_remove_missing(self, kind: RecentEntryKind, path: Path) -> bool:
+        item_type = "folder" if kind is RecentEntryKind.FOLDER else "file"
+        dialog = QMessageBox(self.window)
+        dialog.setIcon(QMessageBox.Icon.Warning)
+        dialog.setWindowTitle("Recent entry unavailable")
+        dialog.setText(f"The {item_type} cannot be found. Remove it from Recent Entries?")
+        dialog.setInformativeText(str(path))
+        remove_button = dialog.addButton("Remove", QMessageBox.ButtonRole.DestructiveRole)
+        keep_button = dialog.addButton("Keep", QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(keep_button)
+        dialog.exec()
+        return dialog.clickedButton() is remove_button
+
+    def _record_session(self, path: Path) -> None:
+        self._observe_history(RecentEntryKind.SESSION, [path])
+
+    def clear_kind(self, kind: RecentEntryKind) -> None:
+        try:
+            self.repository.clear(kind)
+            QTimer.singleShot(0, self.refresh_menu)
+        except Exception as exc:  # noqa: BLE001 - report history-storage failure to user
+            QMessageBox.warning(self.window, "Cannot clear Recent Entries", str(exc))
+            return
+        label = (
+            "Images"
+            if kind is RecentEntryKind.IMAGE
+            else "Folders"
+            if kind is RecentEntryKind.FOLDER
+            else "Sessions"
+        )
+        self.window.statusBar().showMessage(f"Recent {label} cleared", 3000)
+
+    def _remember_directory(self, path: Path) -> None:
+        remember = getattr(self.window, "_remember_directory", None)
+        if callable(remember):
+            remember(path)
+
+
+def install_recent_entries(
+    window: Any,
+    repository: RecentEntriesRepository | None = None,
+) -> RecentEntriesController:
+    existing = getattr(window, "recent_entries_controller", None)
+    if isinstance(existing, RecentEntriesController):
+        return existing
+    controller = RecentEntriesController(window, repository)
+    window.recent_entries_controller = controller
+    return controller
