@@ -194,7 +194,7 @@ class SessionController:
             line=self.window._shared_line,
             display_gain=display_gain_state().gain,
             split_channels=bool(self.window._split_channels),
-            difference=self._capture_difference(),
+            difference=self._capture_difference(current_page_ids),
         )
         self.repository.save(path, session)
         return session
@@ -206,10 +206,12 @@ class SessionController:
             if document.source_path is not None
         ]
 
-    def _capture_difference(self) -> SessionDifference | None:
+    def _capture_difference(self, current_page_ids: set[str]) -> SessionDifference | None:
         if self.window._difference_document is None or self.window._difference_source_ids is None:
             return None
         a_id, b_id = self.window._difference_source_ids
+        if a_id not in current_page_ids or b_id not in current_page_ids:
+            return None
         a = self.window.documents.get(a_id)
         b = self.window.documents.get(b_id)
         if a is None or b is None or a.source_path is None or b.source_path is None:
