@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QTableWidgetItem
+from PySide6.QtWidgets import QApplication, QTableWidgetItem, QWidget
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -63,7 +63,7 @@ def _csv_rows(path: Path) -> list[list[str]]:
         return list(csv.reader(stream))
 
 
-def test_analysis_tables_use_clean_headings_and_csv_copy_buttons(qtbot: object) -> None:
+def test_analysis_tables_use_clean_headings_and_bordered_action_buttons(qtbot: object) -> None:
     window = _window(qtbot)
     controller = window.analysis_export_controller
     statistics = window.comparison_analysis_panel
@@ -71,14 +71,37 @@ def test_analysis_tables_use_clean_headings_and_csv_copy_buttons(qtbot: object) 
 
     assert statistics.region_group.title() == "Region"
     assert statistics.image_summary_group.title() == "Images"
-    assert statistics.statistics_group.title() == "Channel statistics"
+    assert "font-weight: bold" in statistics.region_group.styleSheet()
+    assert "font-weight: bold" in statistics.image_summary_group.styleSheet()
+
+    assert statistics.statistics_group.title() == ""
+    assert controller.statistics_heading_label.text() == "Channel statistics"
+    assert controller.statistics_heading_label.font().bold()
+    statistics_header_layout = controller.statistics_header.layout()
+    assert statistics_header_layout is not None
+    assert statistics_header_layout.indexOf(controller.statistics_heading_label) == 0
+    assert statistics_header_layout.indexOf(controller.statistics_copy_button) == 1
     assert controller.statistics_copy_button.toolTip() == "Copy Channel statistics as CSV"
 
     assert controller.difference_metrics_label.text() == "Difference metrics"
+    assert controller.difference_metrics_label.font().bold()
     assert difference.metric_scope.isHidden()
     assert difference.domain_status.isHidden()
     assert controller.difference_metrics_copy_button.toolTip() == "Copy Difference metrics as CSV"
     assert controller.difference_metrics_export_button.text() == "CSV"
+
+    for button in (
+        controller.statistics_copy_button,
+        controller.difference_metrics_export_button,
+        controller.difference_metrics_copy_button,
+    ):
+        assert not button.autoRaise()
+        assert "border: 1px solid" in button.styleSheet()
+        assert "padding:" in button.styleSheet()
+
+    _compose_main_window_presentation(window)
+    headers = statistics.statistics_group.findChildren(QWidget, "channelStatisticsHeader")
+    assert len(headers) == 1
 
     _seed_statistics_table(window)
     controller.refresh_actions()
