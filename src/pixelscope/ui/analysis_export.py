@@ -233,9 +233,13 @@ class AnalysisExportController(QObject):
             self.copy_difference_metrics_csv
         )
         for selector in (difference.a_selector, difference.b_selector):
-            selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
-                self._refresh_from_model
-            )
+            selector.currentIndexChanged.connect(self._refresh_from_model)
+        difference.channel.currentIndexChanged.connect(self._refresh_from_model)
+        difference.mode.currentIndexChanged.connect(self._refresh_from_model)
+        difference.gain.valueChanged.connect(self._refresh_from_model)
+        difference.threshold.valueChanged.connect(self._refresh_from_model)
+        difference.result_ready.connect(self._refresh_from_model)
+        difference.preview_updated.connect(self._refresh_from_model)
 
         self._observed_models = (
             statistics.table.model(),
@@ -347,9 +351,36 @@ class AnalysisExportController(QObject):
         pair_ids = (pair[0].document_id, pair[1].document_id)
         return frozenset(pair_ids) == frozenset(source_ids)
 
+    def _difference_presentation_is_current(self) -> bool:
+        panel = self.window.difference_panel
+        compatibility = panel._compatibility()
+        cache_key = panel._cache_key()
+        if (
+            compatibility is None
+            or not compatibility.compatible
+            or compatibility.domain is None
+            or cache_key is None
+            or panel._preview_key is None
+            or panel._preview_value is None
+        ):
+            return False
+        current_key = (
+            cache_key,
+            compatibility.domain,
+            panel.channel.currentText(),
+            panel.mode.currentText(),
+            panel.gain.value(),
+            panel._threshold_value(compatibility.domain),
+        )
+        return panel._preview_key == current_key
+
     def _difference_preview(self) -> NDArray[np.uint8] | None:
         document = getattr(self.window, "_difference_document", None)
-        if document is None or not self._difference_pair_matches_active():
+        if (
+            document is None
+            or not self._difference_pair_matches_active()
+            or not self._difference_presentation_is_current()
+        ):
             return None
         preview = getattr(document, "preview", None)
         if not isinstance(preview, np.ndarray) or preview.dtype != np.uint8:
