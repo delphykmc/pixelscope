@@ -126,21 +126,60 @@ For a valid Session, restore proceeds in this order:
 8. restore loadable Selected in saved order;
 9. reconstruct the saved Current Comparison Page from the saved page anchor and
    Selected order;
-10. restore layout, applicable Primary, and source Active independently within that
-    page;
-11. restore Display Gain and applicable Split state;
-12. foreground-load the Current Comparison Page through the existing MainWindow load
-    pipeline;
-13. wait for that page to reach a stable terminal source state before replaying
-    ROI/Line analysis intent;
-14. restore applicable ROI and Line state;
-15. if the saved Difference recipe remains applicable to the restored current page,
+10. restore the saved layout and retain applicable source Primary/Active as pending
+    final presentation intent;
+11. foreground-load the Current Comparison Page through the existing MainWindow load
+    pipeline and wait for the page to reach a stable terminal source state;
+12. apply Display Gain and applicable Split Channels state, then allow any required
+    Display Gain preview work for the presented page to settle;
+13. restore applicable ROI and Line state;
+14. if the saved Difference recipe remains applicable to the restored current page,
     bind its exact A/B/options through DifferencePanel and issue exactly one explicit
     **Calculate** request;
-16. let the merged PR #33 result-ready path alone establish active Difference
-    provenance/document/toolbar state.
+15. let the merged PR #33 result-ready path alone establish active Difference
+    provenance/document/toolbar state;
+16. as the final presentation commit, re-apply applicable saved source Primary and
+    source Active independently, in that order.
 
 The loader never eagerly decodes every Registered source.
+
+## Restore progress and interaction boundary
+
+Session Open exposes the asynchronous reconstruction explicitly instead of hiding it
+behind a top-level modal dialog. The progress UI is a **MainWindow-owned child
+overlay**, not a `QDialog`, not `ApplicationModal`, and never enters a nested event
+loop.
+
+The overlay always presents the same maximum eight-step procedure:
+
+1. **Reading Session**;
+2. **Restoring sources**;
+3. **Restoring workspace**;
+4. **Loading current page**;
+5. **Restoring display**;
+6. **Restoring analysis**;
+7. **Rebuilding Difference**;
+8. **Finalizing workspace**.
+
+The progress bar represents **procedure completion**, not elapsed-time or ETA
+prediction. A long-running step exposes concrete local detail where available, for
+example `3 / 6 images ready` during current-page loading or Display Gain preview
+completion state. Optional state such as Split Channels, ROI, Line, or Difference is
+not artificially delayed: an inapplicable step completes immediately and the
+procedure advances.
+
+While the overlay is visible it acts as a window-local input shield so toolbar/menu,
+selection, navigation, and analysis gestures cannot race the restore transaction.
+The Qt event loop, source workers, Display Gain workers, and Difference workers remain
+active. The overlay owns no source, selection, residency, worker, Difference, or
+presentation authority; it only observes and reports the canonical restore state.
+Progress-update failure must not turn an otherwise successful Session restore into a
+failure.
+
+There is no restore **Cancel** command in Session v1. Adding Cancel would require an
+explicit partial-restore rollback transaction and is outside the current contract.
+There is also no artificial completion delay: after Step 8 commits saved
+Primary/Active, the overlay may disappear on the normal event-loop progression.
 
 ## PR #32 / #33 authority
 
@@ -280,6 +319,9 @@ P4-C closure requires fresh validation on the #32/#33-based head for:
 - incompatible saved Difference pair/options skip rather than substitute;
 - real-worker four-source + ROI + Line + non-1× Gain + Difference reopen to final
   Difference presentation;
+- MainWindow-owned non-dialog restore overlay, fixed eight-step procedure, per-step
+  detail, fast optional-step completion, and clean overlay teardown after final
+  Primary/Active commit;
 - typed Recent MRU, migration, Remove/Keep, wrong-kind protection, restart
   persistence, per-type clear, and observer failure isolation;
 - inherited PR #32/#33 Difference/Display Gain lifecycle regressions.
