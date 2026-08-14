@@ -1,18 +1,18 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-14
-Current merged baseline / PR #31 merge commit:
-`436033a0d99513fe8db35f08305395127e430af2`
+Snapshot date: 2026-08-15
+Current merged baseline / PR #34 merge commit:
+`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`
 
-P4-B Comparison Set Persistence merged as PR #30 at
-`3a19589e6cbad5fa8c814c522df6a553f59ee340`. PR #32 runtime stabilization merged at
+P4-C **Session Persistence & Typed Recent** merged as PR #31 at
+`436033a0d99513fe8db35f08305395127e430af2`. PR #32 runtime stabilization merged at
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`. PR #33 source-curation / Difference
-semantics merged at `51a540c92c372d71e02fd849fb5e0d406d0e9327`. P4-C **Session Persistence & Typed
-Recent** then merged as PR #31 at the current `main` baseline above.
+semantics merged at `51a540c92c372d71e02fd849fb5e0d406d0e9327`. P4-E **Analysis Export
+Productivity** merged as PR #34 at the current `main` baseline above.
 
-P4-E **Analysis Export Productivity** is the active implementation phase. P4-D Saved
-ROI and Alpha Overlay are deferred by owner decision; P4-F Integration & Workflow
-Hardening is the next/final P4 closure phase.
+P4-F **Integration & Workflow Hardening** is the active/final P4 implementation phase.
+P4-D Saved ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle Line Profile are
+deferred and are not P4 completion blockers.
 
 ## Merge baseline
 
@@ -32,17 +32,19 @@ Hardening is the next/final P4 closure phase.
   `3486146494076e9b513843b90ec44e504043729e`.
 - P4-B Comparison Set Persistence merged as PR #30 at
   `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+- P4-C Session Persistence & Typed Recent merged as PR #31 at
+  `436033a0d99513fe8db35f08305395127e430af2`.
 - PR #32 Display Gain/Difference runtime stabilization merged at
   `e1ccf264f86e37b438c923faceae96c3ecb539b7`.
 - PR #33 Difference/source-curation lifecycle merged at
   `51a540c92c372d71e02fd849fb5e0d406d0e9327`.
-- P4-C Session Persistence & Typed Recent merged as PR #31 at
-  `436033a0d99513fe8db35f08305395127e430af2`, the current inherited `main` baseline
-  for P4-E.
+- P4-E Analysis Export Productivity merged as PR #34 at
+  `79ee74134f1ebef9dd13f82e49f8e34407bb78f4`, the current inherited `main` baseline
+  for P4-F.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-E Analysis Export Productivity is
-active; P4-F integration hardening follows and closes P4.
+P4 is **Workflow & Session Productivity**. P4-F integration hardening is active and
+closes P4 only after owner validation, independent review, and merge.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -285,6 +287,28 @@ current active ROI/Line intent; a named ROI manager still needs ownership/coordi
 semantics. Overlay/Flicker/Wipe UX has not demonstrated value beyond current Multi
 View, synchronized navigation, and Difference.
 
+## P4-F Integration & Workflow Hardening — Active
+
+P4-F adds no new broad workflow or numerical semantics. It closes cross-feature gaps
+between already-merged P4 subsystems while preserving the P2/P3 ownership hierarchy.
+The focused implementation currently hardens two discovered integration contracts:
+
+- Session Save writes the actual Current Comparison Page source anchor explicitly,
+  so page persistence remains independent of source Active/Primary fallback state;
+- production MainWindow close disarms that window's application-global Display Gain
+  subscriptions and cancels outstanding viewer-local Gain preview work, preventing a
+  later recreated window or Gain change from starting work in the closed window.
+
+Focused P4-F regression coverage also composes Keep Selection → Difference teardown →
+Session Save and Session restore → explicit Difference reconstruction → settled
+Difference PNG export without recalculation or cache/generation mutation. Existing
+P4-A/C/E and PR #32/#33 suites remain authoritative for subsystem semantics and are
+not duplicated.
+
+P4-F is not complete on this branch until owner Windows validation and independent
+review are complete. P4 remains Active until P4-F merges; closure status and plan
+archival are a docs-only follow-up after that merge.
+
 ## Unified input policy
 
 Supported image inputs are exactly:
@@ -482,7 +506,10 @@ display = anchor + gain * (source - anchor)
 
 PR #32 owns Display Gain worker/concurrency/presentation stabilization. P4-C persists
 only the scalar Display Gain intent and reuses that existing runtime path during
-restore.
+restore. P4-F adds only window-lifetime disarming: closing one production MainWindow
+unsubscribes its viewer/control callbacks from the application-global Display Gain
+state and cancels viewer-local Gain preview work; the gain numerical/worker authority
+is unchanged.
 
 ## Runtime/settings baseline
 
@@ -541,8 +568,8 @@ claimed here without separate observed evidence.
 3. P4-B — Comparison Set Persistence — Complete — PR #30
 4. P4-C — Session Persistence & Typed Recent — Complete — PR #31 — `436033a0d99513fe8db35f08305395127e430af2`
 5. P4-D — Saved ROI & Analysis Workspace Productivity — Deferred
-6. P4-E — Analysis Export Productivity — Active
-7. P4-F — Integration & Workflow Hardening — Next / P4 closure
+6. P4-E — Analysis Export Productivity — Complete — PR #34 — `79ee74134f1ebef9dd13f82e49f8e34407bb78f4`
+7. P4-F — Integration & Workflow Hardening — Active — owner validation/review pending
 
 P4 inherits the P2/P3 ownership and numerical contracts above. Temporary workflow
 state and export must not become source/cache/residency/analysis authority, and
