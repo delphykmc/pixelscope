@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import (
     QFrame,
     QLabel,
@@ -101,7 +101,9 @@ class SessionRestoreOverlay(QFrame):
         fraction = max(0.0, min(float(fraction), 1.0))
         overall = ((step - 1) + fraction) / len(self._steps)
         self.progress_bar.setValue(round(overall * self.progress_bar.maximum()))
-        self.step_label.setText(f"Step {step} of {len(self._steps)} · {self._steps[step - 1]}")
+        self.step_label.setText(
+            f"Step {step} of {len(self._steps)} · {self._steps[step - 1]}"
+        )
         self.detail_label.setText(detail)
         self._update_rows(step)
 
@@ -113,7 +115,7 @@ class SessionRestoreOverlay(QFrame):
     def abort(self) -> None:
         self.hide()
 
-    def eventFilter(self, watched: object, event: QEvent) -> bool:
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched is self.parentWidget() and event.type() in (
             QEvent.Type.Resize,
             QEvent.Type.Show,
@@ -140,7 +142,8 @@ class SessionRestoreOverlay(QFrame):
             self.setGeometry(parent.rect())
 
     def _update_rows(self, current_step: int) -> None:
-        for index, (row, title) in enumerate(zip(self.step_rows, self._steps, strict=True), start=1):
+        rows = zip(self.step_rows, self._steps, strict=True)
+        for index, (row, title) in enumerate(rows, start=1):
             if index < current_step:
                 state = "done"
                 prefix = "✓"
@@ -163,15 +166,19 @@ class SessionRestoreOverlay(QFrame):
             f"border: 1px solid {TOKENS.border}; border-radius: 6px; }}"
             f"QLabel#sessionRestoreTitle {{ color: {TOKENS.text_primary}; "
             "font-size: 18px; font-weight: 700; }}"
-            f"QLabel#sessionRestoreStep {{ color: {TOKENS.text_primary}; font-weight: 600; }}"
+            f"QLabel#sessionRestoreStep {{ color: {TOKENS.text_primary}; "
+            "font-weight: 600; }}"
             f"QLabel#sessionRestoreDetail {{ color: {TOKENS.text_secondary}; }}"
-            f"QLabel#sessionRestoreStepRow {{ color: {TOKENS.text_disabled}; padding: 1px 0; }}"
-            f"QLabel#sessionRestoreStepRow[restoreState=\"done\"] {{ color: {TOKENS.text_secondary}; }}"
-            f"QLabel#sessionRestoreStepRow[restoreState=\"current\"] {{ color: {TOKENS.accent}; "
-            "font-weight: 700; }}"
-            f"QProgressBar#sessionRestoreProgress {{ background: {TOKENS.workspace_background}; "
-            f"border: 1px solid {TOKENS.border}; border-radius: 3px; min-height: 8px; "
-            "max-height: 8px; }}"
-            f"QProgressBar#sessionRestoreProgress::chunk {{ background: {TOKENS.accent}; "
-            "border-radius: 2px; }}"
+            f"QLabel#sessionRestoreStepRow {{ color: {TOKENS.text_disabled}; "
+            "padding: 1px 0; }}"
+            "QLabel#sessionRestoreStepRow[restoreState=\"done\"] { "
+            f"color: {TOKENS.text_secondary}; }}"
+            "QLabel#sessionRestoreStepRow[restoreState=\"current\"] { "
+            f"color: {TOKENS.accent}; font-weight: 700; }}"
+            "QProgressBar#sessionRestoreProgress { "
+            f"background: {TOKENS.workspace_background}; "
+            f"border: 1px solid {TOKENS.border}; border-radius: 3px; "
+            "min-height: 8px; max-height: 8px; }"
+            "QProgressBar#sessionRestoreProgress::chunk { "
+            f"background: {TOKENS.accent}; border-radius: 2px; }}"
         )
