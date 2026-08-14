@@ -153,6 +153,17 @@ class AnalysisExportController(QObject):
         self.statistics_action.triggered.connect(  # type: ignore[attr-defined]
             self.export_statistics_csv
         )
+
+        statistics_toolbar_action = getattr(self.window, "export_toolbar_action", None)
+        if not isinstance(statistics_toolbar_action, QAction):
+            raise RuntimeError("Analysis export requires the Statistics toolbar action")
+        self.statistics_toolbar_action = statistics_toolbar_action
+        with suppress(RuntimeError, TypeError):
+            self.statistics_toolbar_action.triggered.disconnect()  # type: ignore[attr-defined]
+        self.statistics_toolbar_action.triggered.connect(  # type: ignore[attr-defined]
+            self.export_statistics_csv
+        )
+
         statistics_index = actions.index(statistics_action)
         before = actions[statistics_index + 1] if statistics_index + 1 < len(actions) else None
         for action in (
@@ -221,6 +232,10 @@ class AnalysisExportController(QObject):
         self.difference_metrics_copy_button.clicked.connect(  # type: ignore[attr-defined]
             self.copy_difference_metrics_csv
         )
+        for selector in (difference.a_selector, difference.b_selector):
+            selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
+                self._refresh_from_model
+            )
 
         self._observed_models = (
             statistics.table.model(),
@@ -269,6 +284,7 @@ class AnalysisExportController(QObject):
         statistics_ready = self._statistics_ready()
         difference_metrics_ready = self._difference_metrics_snapshot() is not None
         self.statistics_action.setEnabled(statistics_ready)
+        self.statistics_toolbar_action.setEnabled(statistics_ready)
         self.histogram_action.setEnabled(self._histogram_ready())
         self.line_profile_action.setEnabled(self._line_profile_ready())
         self.difference_action.setEnabled(
@@ -323,8 +339,7 @@ class AnalysisExportController(QObject):
 
     def _difference_preview(self) -> NDArray[np.uint8] | None:
         document = getattr(self.window, "_difference_document", None)
-        source_ids = getattr(self.window, "_difference_source_ids", None)
-        if document is None or source_ids is None:
+        if document is None or not self.window._difference_result_matches_current_pair():
             return None
         preview = getattr(document, "preview", None)
         if not isinstance(preview, np.ndarray) or preview.dtype != np.uint8:
