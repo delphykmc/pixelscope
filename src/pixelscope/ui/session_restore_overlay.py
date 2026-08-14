@@ -46,11 +46,11 @@ class SessionRestoreOverlay(QFrame):
 
         self.card = QFrame(self)
         self.card.setObjectName("sessionRestoreCard")
-        self.card.setMinimumWidth(440)
-        self.card.setMaximumWidth(560)
+        self.card.setMinimumWidth(400)
+        self.card.setMaximumWidth(520)
         card_layout = QVBoxLayout(self.card)
-        card_layout.setContentsMargins(24, 22, 24, 22)
-        card_layout.setSpacing(TOKENS.spacing_md)
+        card_layout.setContentsMargins(22, 20, 22, 20)
+        card_layout.setSpacing(TOKENS.spacing_sm)
 
         title = QLabel("Restoring Session", self.card)
         title.setObjectName("sessionRestoreTitle")
@@ -70,13 +70,6 @@ class SessionRestoreOverlay(QFrame):
         self.detail_label.setObjectName("sessionRestoreDetail")
         self.detail_label.setWordWrap(True)
         card_layout.addWidget(self.detail_label)
-
-        self.step_rows: list[QLabel] = []
-        for step in self._steps:
-            row = QLabel(step, self.card)
-            row.setObjectName("sessionRestoreStepRow")
-            self.step_rows.append(row)
-            card_layout.addWidget(row)
 
         outer.addWidget(self.card)
         parent.installEventFilter(self)
@@ -105,7 +98,6 @@ class SessionRestoreOverlay(QFrame):
             f"Step {step} of {len(self._steps)} · {self._steps[step - 1]}"
         )
         self.detail_label.setText(detail)
-        self._update_rows(step)
 
     def finish(self, detail: str = "Session restored") -> None:
         if self._steps:
@@ -141,23 +133,6 @@ class SessionRestoreOverlay(QFrame):
         if parent is not None:
             self.setGeometry(parent.rect())
 
-    def _update_rows(self, current_step: int) -> None:
-        rows = zip(self.step_rows, self._steps, strict=True)
-        for index, (row, title) in enumerate(rows, start=1):
-            if index < current_step:
-                state = "done"
-                prefix = "✓"
-            elif index == current_step:
-                state = "current"
-                prefix = "●"
-            else:
-                state = "pending"
-                prefix = "○"
-            row.setProperty("restoreState", state)
-            row.setText(f"{prefix}  {title}")
-            row.style().unpolish(row)
-            row.style().polish(row)
-
     @staticmethod
     def _style() -> str:
         return (
@@ -169,12 +144,6 @@ class SessionRestoreOverlay(QFrame):
             f"QLabel#sessionRestoreStep {{ color: {TOKENS.text_primary}; "
             "font-weight: 600; }"
             f"QLabel#sessionRestoreDetail {{ color: {TOKENS.text_secondary}; }}"
-            f"QLabel#sessionRestoreStepRow {{ color: {TOKENS.text_disabled}; "
-            "padding: 1px 0; }"
-            "QLabel#sessionRestoreStepRow[restoreState=\"done\"] { "
-            f"color: {TOKENS.text_secondary}; }}"
-            "QLabel#sessionRestoreStepRow[restoreState=\"current\"] { "
-            f"color: {TOKENS.accent}; font-weight: 700; }}"
             "QProgressBar#sessionRestoreProgress { "
             f"background: {TOKENS.workspace_background}; "
             f"border: 1px solid {TOKENS.border}; border-radius: 3px; "
