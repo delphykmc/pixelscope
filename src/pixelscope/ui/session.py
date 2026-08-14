@@ -208,6 +208,13 @@ class SessionController(_BaseSessionController):
         self._pending_difference = session.difference
         self._pending_path_to_id = path_to_id
 
+        # Primary/Active are durable workspace state, not deferred analysis state.
+        # Establish them before open_from_path() returns so the canonical P4-B
+        # synchronous contract remains intact. Async display/Difference work may
+        # transiently disturb presentation, so Step 8 re-applies them as the final
+        # presentation commit.
+        self._restore_saved_source_presentation()
+
         page_total = max(1, (len(selected_ids) + 5) // 6)
         page_number = self.window._page_start // 6 + 1 if selected_ids else 0
         page_detail = (
@@ -316,7 +323,10 @@ class SessionController(_BaseSessionController):
 
     def _display_preview_progress(self) -> tuple[bool, str, float]:
         gain = display_gain_state().gain
-        viewers = [self.window.viewer, *self.window.multi_compare_view.viewers]
+        if self.window.central_stack.currentWidget() is self.window.multi_compare_view:
+            viewers = self.window.multi_compare_view.occupied_viewers
+        else:
+            viewers = [self.window.viewer]
         applicable = []
         pending = 0
         for viewer in viewers:
@@ -483,7 +493,8 @@ class SessionController(_BaseSessionController):
         self._progress_update(7, 0.5, "Calculating saved Difference")
         # PR #33: Calculate, not Session restore, establishes active Difference binding.
         panel.calculate_difference()
-        self._schedule_restore(50)
+        if self._difference_restore_in_flight:
+            self._schedule_restore(50)
 
     def _current_page_ready_detail(self, ready: list[Any]) -> str:
         total = len(self.window.current_comparison_documents())
