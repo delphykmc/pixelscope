@@ -105,16 +105,22 @@ def test_analysis_tables_use_clean_headings_and_unified_command_buttons(
     )
     assert len({button.styleSheet() for button in analysis_buttons}) == 1
     command_style = analysis_buttons[0].styleSheet()
+    assert "background: transparent" in command_style
+    assert "border: 1px solid transparent" in command_style
     assert "hover:enabled" in command_style
     assert "pressed:enabled" in command_style
     assert ":disabled" in command_style
-    assert "border: 1px solid" in command_style
     assert "padding-top:" in command_style
     assert len({button.height() for button in analysis_buttons}) == 1
     assert all(not button.isEnabled() for button in analysis_buttons)
     for button in analysis_buttons:
         if isinstance(button, QToolButton):
             assert not button.autoRaise()
+
+    assert controller.statistics_copy_button.iconSize().width() == 18
+    assert controller.statistics_copy_button.iconSize().height() == 18
+    assert controller.difference_metrics_copy_button.iconSize().width() == 18
+    assert controller.difference_metrics_copy_button.iconSize().height() == 18
 
     _compose_main_window_presentation(window)
     headers = statistics.statistics_group.findChildren(QWidget, "channelStatisticsHeader")
