@@ -372,7 +372,7 @@ class AnalysisExportController(QObject):
             panel.gain.value(),
             panel._threshold_value(compatibility.domain),
         )
-        return panel._preview_key == current_key
+        return bool(panel._preview_key == current_key)
 
     def _difference_preview(self) -> NDArray[np.uint8] | None:
         document = getattr(self.window, "_difference_document", None)
