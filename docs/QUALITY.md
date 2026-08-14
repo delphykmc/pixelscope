@@ -105,11 +105,17 @@ Preserve deterministic fixtures and smoke paths for:
   analysis/Picks.
 - P4-E focused export: exact current Histogram and Line Profile series serialized in
   deterministic source/channel/sample/bin order; Gray/RGB/Bayer and Full image/ROI
-  context preserved; active Difference Absolute/Mask presentation PNG exact to the
-  current preview; no inactive/cached-only Difference promotion or recalculation;
-  configured Export directory reuse; Cancel/write failure no workspace mutation;
-  and no source generation, Selected/Active/Primary/Page, residency/preload, or
-  Difference-cache ownership change.
+  context preserved; Statistics File-menu/toolbar parity and timestamped defaults;
+  Difference metrics CSV plus Statistics/Difference table clipboard CSV; active
+  Difference PNG requiring both matching active A/B provenance and a presentation
+  key equal to the last settled preview key; stale A/B presentation re-entry staying
+  unavailable until the current controls actually settle; filename semantics and PNG
+  bytes describing that same presentation; no inactive/cached-only Difference
+  promotion or recalculation; configured Export directory reuse; Cancel/write
+  failure no workspace mutation; close/recreate safety for queued model callbacks
+  and a physically running PNG worker; and no source generation,
+  Selected/Active/Primary/Page, residency/preload, or Difference-cache ownership
+  change.
 - Repeated Single View number-key navigation across an unchanged selected set must
   not restart an identical Statistics/Histogram request, flash **Preparing
   analysis...**, cancel/recreate the same in-flight numerical worker, or rerender
@@ -313,19 +319,31 @@ analysis or source authority.
 
 Focused coverage must establish:
 
+- Statistics File-menu and toolbar Export entry points share the same timestamped
+  controller path, suffix/error handling, and successful last-directory behavior
+  while preserving Statistics CSV data semantics;
 - Histogram CSV uses the exact current rendered series while preserving raw native
   counts/bin edges, current display bin edges/unit mode, deterministic source/
   series/channel ordering, and Full image/Active ROI context for supported Gray,
   RGB, and Bayer behavior;
 - Line Profile CSV uses exact current rendered samples with deterministic
   line/source/series/channel/sample order and current X/Y mode semantics;
+- Difference metrics CSV preserves source A/B, region, channel, comparison domain,
+  effective source bit depths, metric identity, and deterministic numeric values;
+  Statistics and Difference metric tables expose full-table CSV clipboard copy with
+  headers without changing selected-cell Ctrl+C semantics;
 - Difference PNG is unavailable without an explicitly established active result,
-  encodes the exact current Absolute/Mask presentation including current threshold,
-  Difference gain, and compatible channel state, and never calls Calculate merely
-  for export;
-- a cached Difference numerical map is insufficient to make export active;
+  current panel A/B must match active provenance, and the current presentation key
+  `(pair/generation/domain/channel/mode/gain/threshold)` must match the last settled
+  preview key before export is enabled or a dialog can open;
+- `Calculate A/B → uncached C/D → change Mode/Gain/Threshold → return A/B` remains
+  non-exportable until the current cached A/B presentation actually settles; after
+  settlement the semantic filename and PNG bytes must describe the same preview;
+- a cached Difference numerical map is insufficient to make export active and export
+  never invokes Calculate merely to satisfy its own availability;
 - configured Export directory and last-directory behavior are reused without a new
-  Settings schema;
+  Settings schema; default analysis filenames include millisecond-resolution export
+  timestamps and user-edited filenames remain respected;
 - Cancel/no path and write failure leave the workspace unchanged and provide only
   compact feedback on failure;
 - successful export leaves Selected, Active, Primary, Current Comparison Page,
@@ -333,21 +351,34 @@ Focused coverage must establish:
   preload ownership, and residency semantics unchanged;
 - Difference PNG encoding/file I/O uses the existing bounded analysis worker pool
   and introduces no new pool; CSV serialization uses already-computed in-memory
-  series; and
-- production File-menu composition installs one stable set of export actions across
-  repeated composition and MainWindow teardown/recreation.
+  series;
+- production composition installs one stable set of export actions and local table
+  controls across repeated composition; teardown disarms late table callbacks; and
+- closing/recreating MainWindow while a Difference PNG worker is physically running
+  cannot let late completion mutate deleted UI.
 
 Run the focused P4-E suite before the standard repository contract:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
     tests\unit\test_analysis_export.py `
-    tests\ui\test_p4e_analysis_export.py
+    tests\unit\test_analysis_export_metrics.py `
+    tests\ui\test_p4e_analysis_export.py `
+    tests\ui\test_p4e_analysis_productivity.py `
+    tests\ui\test_p4e_analysis_export_lifecycle.py `
+    tests\ui\test_p4e_analysis_export_review_regressions.py
 ```
 
+The repository owner reports this requested focused validation and the requested
+post-fix static checks PASS on code/test head
+`d8fa4b0c0ffe0a3517d37c703c490ec399f8ccf9`. The reported static checks include
+`mypy src`, Ruff check, Ruff format check, and `git diff --check`. Any later
+merge-closure documentation commit is docs-only and does not extend that observed
+runtime/test PASS claim to unrun commands.
+
 Agent-side validation may record only commands actually observed. Owner/local
-Windows PySide6 validation remains required before merge when the agent environment
-does not contain the pinned Qt runtime.
+Windows PySide6 validation remains authoritative when the agent environment does not
+contain the pinned Qt runtime.
 
 ## P3-A deterministic Difference contract
 
