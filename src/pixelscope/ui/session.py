@@ -21,7 +21,10 @@ class SessionController(_BaseSessionController):
         # coalesces retries, and dies automatically with the MainWindow.
         self._restore_timer = QTimer(self.window)
         self._restore_timer.setSingleShot(True)
-        self._restore_timer.timeout.connect(self._try_restore_deferred_state)
+        self._restore_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._try_restore_deferred_state
+        )
+        self._pending_primary_id: str | None = None
         self._pending_active_id: str | None = None
         self._difference_restore_in_flight = False
         self.window.difference_panel.result_ready.connect(
@@ -39,6 +42,7 @@ class SessionController(_BaseSessionController):
 
     def _restore(self, session: Session) -> tuple[int, tuple[Path, ...]]:
         self._restore_timer.stop()
+        self._pending_primary_id = None
         self._pending_active_id = None
         self._difference_restore_in_flight = False
 
@@ -125,12 +129,15 @@ class SessionController(_BaseSessionController):
             for document in self.window.current_comparison_documents()
         }
         primary_id = self._saved_member_id(session.primary_path, path_to_id)
-        if (
-            primary_id is not None
+        self._pending_primary_id = (
+            primary_id
+            if primary_id is not None
             and primary_id in page_ids
             and self.window._layout_mode != "Single View"
-        ):
-            self.window._set_focus_document(primary_id)
+            else None
+        )
+        self._pending_active_id = active_id if active_id in page_ids else None
+        self._restore_saved_source_presentation()
 
         display_gain_state().set_gain(session.display_gain)
         split_enabled = session.split_channels and len(selected_ids) == 1
@@ -138,8 +145,6 @@ class SessionController(_BaseSessionController):
         if bool(self.window._split_channels) != split_enabled:
             self.window._set_split_channels(split_enabled)
 
-        self._pending_active_id = active_id if active_id in page_ids else None
-        self._restore_saved_active()
         self._pending_roi = session.roi
         self._pending_line = session.line
         self._pending_difference = session.difference
@@ -172,13 +177,26 @@ class SessionController(_BaseSessionController):
         if callable(sync):
             sync()
 
-    def _restore_saved_active(self) -> None:
-        document_id = self._pending_active_id
-        if document_id is None:
+    def _restore_saved_source_presentation(self) -> None:
+        primary_id = self._pending_primary_id
+        if primary_id is not None:
+            page_ids = {
+                document.document_id
+                for document in self.window.current_comparison_documents()
+            }
+            if primary_id in page_ids and self.window._layout_mode != "Single View":
+                self.window._set_focus_document(primary_id)
+
+        active_id = self._pending_active_id
+        if active_id is None:
             return
-        document = self.window.documents.get(document_id)
+        document = self.window.documents.get(active_id)
         if document is not None:
             self.window._set_active_document(document)
+
+    def _clear_pending_source_presentation(self) -> None:
+        self._pending_primary_id = None
+        self._pending_active_id = None
 
     def _foreground_page_settled(self) -> bool:
         settled = True
@@ -198,7 +216,7 @@ class SessionController(_BaseSessionController):
             self._pending_roi = None
             self._pending_line = None
             self._pending_difference = None
-            self._pending_active_id = None
+            self._clear_pending_source_presentation()
             self._difference_restore_in_flight = False
             return
         if not self._foreground_page_settled():
@@ -215,8 +233,8 @@ class SessionController(_BaseSessionController):
             )
             self._pending_roi = None
             self._pending_line = None
-            self._restore_saved_active()
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             if self._pending_difference is not None:
                 self._skip_difference(
                     "Saved analysis sources are unavailable on the restored page."
@@ -234,22 +252,24 @@ class SessionController(_BaseSessionController):
         if self._pending_line is not None:
             self.window._shared_line_changed(self._pending_line)
             self._pending_line = None
-        self._restore_saved_active()
+        self._restore_saved_source_presentation()
 
         recipe = self._pending_difference
         if recipe is None:
-            self._pending_active_id = None
+            self._clear_pending_source_presentation()
             return
         if recipe.region == "Active ROI" and self.window._shared_roi is None:
             self._skip_difference("Saved Active ROI is unavailable on the restored page.")
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
 
         a_id = self._pending_path_to_id.get(recipe.image_a_path.casefold())
         b_id = self._pending_path_to_id.get(recipe.image_b_path.casefold())
         if a_id is None or b_id is None:
             self._skip_difference("Saved Difference sources are unavailable.")
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
 
         page_ids = {document.document_id for document in current_page}
@@ -257,21 +277,24 @@ class SessionController(_BaseSessionController):
             self._skip_difference(
                 "Saved Difference pair is not part of the restored Comparison Page."
             )
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
 
         a = self.window.documents.get(a_id)
         b = self.window.documents.get(b_id)
         if a is None or b is None:
             self._skip_difference("Saved Difference sources are unavailable.")
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
         if a.source is None or b.source is None:
             if a.loading_state == "error" or b.loading_state == "error":
                 self._skip_difference("A saved Difference source failed to load.")
             else:
                 self._skip_difference("A saved Difference source is unavailable.")
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
 
         panel = self.window.difference_panel
@@ -280,7 +303,8 @@ class SessionController(_BaseSessionController):
         b_index = panel.b_selector.findData(b_id)
         if a_index < 0 or b_index < 0:
             self._skip_difference("Saved Difference pair is unavailable on the restored page.")
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
 
         channel_index = panel.channel.findText(recipe.channel)
@@ -290,13 +314,15 @@ class SessionController(_BaseSessionController):
             self._skip_difference(
                 "Saved Difference options are not available for this pair."
             )
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
         if not panel.threshold.minimum() <= recipe.threshold <= panel.threshold.maximum():
             self._skip_difference(
                 "Saved Difference threshold is invalid for this pair."
             )
-            self._pending_active_id = None
+            self._restore_saved_source_presentation()
+            self._clear_pending_source_presentation()
             return
 
         panel.a_selector.setCurrentIndex(a_index)
@@ -315,8 +341,8 @@ class SessionController(_BaseSessionController):
         if not self._difference_restore_in_flight:
             return
         self._difference_restore_in_flight = False
-        self._restore_saved_active()
-        self._pending_active_id = None
+        self._restore_saved_source_presentation()
+        self._clear_pending_source_presentation()
 
     def _skip_difference(self, message: str) -> None:
         self._pending_difference = None
