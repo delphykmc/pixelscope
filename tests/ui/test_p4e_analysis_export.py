@@ -33,6 +33,17 @@ def _csv_rows(path: Path) -> list[list[str]]:
         return list(csv.reader(stream))
 
 
+def _read_png_as_preview(path: Path) -> np.ndarray:
+    decoded = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    if decoded is None:
+        raise AssertionError(f"Failed to decode exported PNG: {path}")
+    if decoded.ndim == 3 and decoded.shape[2] == 3:
+        return cv2.cvtColor(decoded, cv2.COLOR_BGR2RGB)
+    if decoded.ndim == 3 and decoded.shape[2] == 4:
+        return cv2.cvtColor(decoded, cv2.COLOR_BGRA2RGBA)
+    return decoded
+
+
 def _seed_histogram(
     window: MainWindow,
     tmp_path: Path,
@@ -304,9 +315,7 @@ def test_difference_export_requires_explicit_active_result_and_reuses_current_pr
         lambda: controller._difference_worker is None, timeout=5000
     )
     assert _workspace_state(window) == before
-    decoded = cv2.imread(str(absolute_target), cv2.IMREAD_UNCHANGED)
-    assert decoded is not None
-    np.testing.assert_array_equal(decoded, expected_absolute)
+    np.testing.assert_array_equal(_read_png_as_preview(absolute_target), expected_absolute)
 
     panel.mode.setCurrentText("Mask")
     panel.threshold.setValue(5)
@@ -327,9 +336,7 @@ def test_difference_export_requires_explicit_active_result_and_reuses_current_pr
         lambda: controller._difference_worker is None, timeout=5000
     )
     assert _workspace_state(window) == before
-    decoded_mask = cv2.imread(str(mask_target), cv2.IMREAD_UNCHANGED)
-    assert decoded_mask is not None
-    np.testing.assert_array_equal(decoded_mask, expected_mask)
+    np.testing.assert_array_equal(_read_png_as_preview(mask_target), expected_mask)
 
 
 def test_cached_difference_without_active_binding_is_not_exportable(
