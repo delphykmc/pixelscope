@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
-from PySide6.QtCore import QObject, Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -112,6 +112,8 @@ class AnalysisExportController(QObject):
         self.window = window
         self._difference_worker: TaskWorker | None = None
         self._pool = analysis_thread_pool()
+        self._shutting_down = False
+        self._observed_models: tuple[QObject, ...] = ()
 
         self.histogram_action = QAction("Export Histogram CSV...", window)
         self.line_profile_action = QAction("Export Line Profile CSV...", window)
@@ -128,6 +130,8 @@ class AnalysisExportController(QObject):
         self.file_menu = self._file_menu()
         self._install_actions()
         self._install_table_productivity()
+        self.window.installEventFilter(self)
+        self.window.destroyed.connect(self._on_window_destroyed)  # type: ignore[attr-defined]
         self.file_menu.aboutToShow.connect(self.refresh_actions)  # type: ignore[attr-defined]
         self.refresh_actions()
 
@@ -218,21 +222,50 @@ class AnalysisExportController(QObject):
             self.copy_difference_metrics_csv
         )
 
-        for model in (statistics.table.model(), difference.metrics.model()):
-            model.dataChanged.connect(  # type: ignore[attr-defined]
-                lambda *_args: self.refresh_actions()
-            )
-            model.rowsInserted.connect(  # type: ignore[attr-defined]
-                lambda *_args: self.refresh_actions()
-            )
-            model.rowsRemoved.connect(  # type: ignore[attr-defined]
-                lambda *_args: self.refresh_actions()
-            )
-            model.modelReset.connect(  # type: ignore[attr-defined]
-                lambda *_args: self.refresh_actions()
-            )
+        self._observed_models = (
+            statistics.table.model(),
+            difference.metrics.model(),
+        )
+        for model in self._observed_models:
+            model.dataChanged.connect(self._refresh_from_model)  # type: ignore[attr-defined]
+            model.rowsInserted.connect(self._refresh_from_model)  # type: ignore[attr-defined]
+            model.rowsRemoved.connect(self._refresh_from_model)  # type: ignore[attr-defined]
+            model.modelReset.connect(self._refresh_from_model)  # type: ignore[attr-defined]
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if watched is self.window and event.type() == QEvent.Type.Close:
+            self.shutdown()
+        return super().eventFilter(watched, event)
+
+    def _on_window_destroyed(self, _object: object = None) -> None:
+        self.shutdown()
+
+    def _refresh_from_model(self, *_args: object) -> None:
+        self.refresh_actions()
+
+    def shutdown(self) -> None:
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        with suppress(RuntimeError, TypeError):
+            self.file_menu.aboutToShow.disconnect(self.refresh_actions)  # type: ignore[attr-defined]
+        for model in self._observed_models:
+            with suppress(RuntimeError, TypeError):
+                model.dataChanged.disconnect(self._refresh_from_model)  # type: ignore[attr-defined]
+            with suppress(RuntimeError, TypeError):
+                model.rowsInserted.disconnect(self._refresh_from_model)  # type: ignore[attr-defined]
+            with suppress(RuntimeError, TypeError):
+                model.rowsRemoved.disconnect(self._refresh_from_model)  # type: ignore[attr-defined]
+            with suppress(RuntimeError, TypeError):
+                model.modelReset.disconnect(self._refresh_from_model)  # type: ignore[attr-defined]
+        with suppress(RuntimeError):
+            self.window.removeEventFilter(self)
+        if self._difference_worker is not None:
+            self._difference_worker.cancel()
 
     def refresh_actions(self) -> None:
+        if self._shutting_down or bool(getattr(self.window, "_closing", False)):
+            return
         statistics_ready = self._statistics_ready()
         difference_metrics_ready = self._difference_metrics_snapshot() is not None
         self.statistics_action.setEnabled(statistics_ready)
@@ -619,7 +652,7 @@ class AnalysisExportController(QObject):
         _generation: int,
         result: object,
     ) -> None:
-        if not isinstance(result, Path):
+        if self._shutting_down or not isinstance(result, Path):
             return
         self._remember_success(result)
         self.window.statusBar().showMessage(f"Exported Difference · {result.name}", 4000)
@@ -631,12 +664,15 @@ class AnalysisExportController(QObject):
         _generation: int,
         error: TaskError,
     ) -> None:
+        if self._shutting_down:
+            return
         self.window.statusBar().showMessage(f"Difference export failed: {error.message}", 5000)
 
     def _difference_finished(self, task_id: str) -> None:
         if self._difference_worker is not None and self._difference_worker.task_id == task_id:
             self._difference_worker = None
-        self.refresh_actions()
+        if not self._shutting_down:
+            self.refresh_actions()
 
 
 def install_analysis_export(window: Any) -> AnalysisExportController:
