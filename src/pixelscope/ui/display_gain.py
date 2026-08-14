@@ -138,6 +138,10 @@ def _insert_before_stretch(layout: QHBoxLayout, widget: QWidget) -> None:
 def install_display_gain_control(window: Any) -> QComboBox:
     """Install Display Gain inline with the image-view command controls."""
 
+    existing = getattr(window, "_display_gain_control", None)
+    if isinstance(existing, _DisplayGainComboBox):
+        return existing
+
     state = display_gain_state()
     state.reset()
 
@@ -202,6 +206,7 @@ def install_display_gain_control(window: Any) -> QComboBox:
     else:
         window.main_toolbar.addSeparator()
         window.main_toolbar.addWidget(host)
+    window._display_gain_control = combo
     window._display_gain_window_lifetime = _DisplayGainWindowLifetime(window, state, combo)
     update_enabled()
     return combo
