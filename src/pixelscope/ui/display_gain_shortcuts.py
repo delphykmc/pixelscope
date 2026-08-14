@@ -18,6 +18,17 @@ def install_display_gain_shortcuts(
     tree keeps its native Qt key handling, including +/- expand/collapse.
     """
 
+    presentation_owner: Any = presentation_scope
+    existing = getattr(presentation_owner, "_display_gain_shortcuts", None)
+    existing_control = getattr(presentation_owner, "_display_gain_shortcut_control", None)
+    if (
+        existing_control is control
+        and isinstance(existing, tuple)
+        and len(existing) == 2
+        and all(isinstance(shortcut, QShortcut) for shortcut in existing)
+    ):
+        return existing
+
     control_alive = True
 
     increase = QShortcut(QKeySequence("+"), presentation_scope)
@@ -47,8 +58,8 @@ def install_display_gain_shortcuts(
 
     # Retain Python wrappers explicitly on the presentation owner in addition to
     # Qt parentage so the command lifetime follows the viewer presentation scope.
-    # QWidget intentionally has no static declaration for this private Python-only
-    # lifetime anchor, so keep the dynamic boundary local and explicit.
-    presentation_owner: Any = presentation_scope
+    # QWidget intentionally has no static declaration for these private Python-only
+    # lifetime anchors, so keep the dynamic boundary local and explicit.
     presentation_owner._display_gain_shortcuts = increase, decrease
+    presentation_owner._display_gain_shortcut_control = control
     return increase, decrease
