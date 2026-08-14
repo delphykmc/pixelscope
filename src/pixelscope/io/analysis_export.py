@@ -40,6 +40,20 @@ class LineProfileExportSeries:
     values: NDArray[np.float64]
 
 
+@dataclass(frozen=True)
+class DifferenceMetricsExport:
+    """Current Difference metrics plus the context required to interpret them."""
+
+    source_a: str
+    source_b: str
+    region: str
+    channel: str
+    domain: str
+    bit_depth_a: int
+    bit_depth_b: int
+    values: tuple[tuple[str, float], ...]
+
+
 def _format_float(value: float) -> str:
     return format(float(value), ".17g")
 
@@ -152,6 +166,43 @@ def write_line_profile_csv(path: Path, series: tuple[LineProfileExportSeries, ..
                         _format_float(value),
                     )
                 )
+    return path
+
+
+def write_difference_metrics_csv(path: Path, result: DifferenceMetricsExport) -> Path:
+    """Serialize the current Difference metrics without recalculating them."""
+
+    if not result.values:
+        raise ValueError("no Difference metrics to export")
+    with path.open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.writer(stream, lineterminator="\n")
+        writer.writerow(
+            (
+                "source_a",
+                "source_b",
+                "region",
+                "channel",
+                "domain",
+                "bit_depth_a",
+                "bit_depth_b",
+                "metric",
+                "value",
+            )
+        )
+        for metric, value in result.values:
+            writer.writerow(
+                (
+                    result.source_a,
+                    result.source_b,
+                    result.region,
+                    result.channel,
+                    result.domain,
+                    result.bit_depth_a,
+                    result.bit_depth_b,
+                    metric,
+                    _format_float(value),
+                )
+            )
     return path
 
 
