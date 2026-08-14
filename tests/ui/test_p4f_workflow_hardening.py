@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PySide6.QtCore import QSettings
+from PySide6.QtWidgets import QFrame, QWidget
 
 import pixelscope.ui.image_viewer as image_viewer_module
 from pixelscope.app.application import _compose_main_window_presentation
@@ -28,6 +29,32 @@ def _ready_gray(path: Path, value: int) -> ImageDocument:
     source = np.full((32, 32), value, dtype=np.uint8)
     assert cv2.imwrite(str(path), source)
     return ImageDocument.from_array(source, path.name, source_path=path)
+
+
+def test_production_presentation_composition_reuses_display_gain_installation(
+    qtbot: object,
+) -> None:
+    window = _window(qtbot)
+    first_control = window._display_gain_control
+    first_lifetime = window._display_gain_window_lifetime
+    first_shortcuts = window.central_stack._display_gain_shortcuts
+
+    display_gain_state().set_gain(4.0)
+    second_control = _compose_main_window_presentation(window)
+
+    assert second_control is first_control
+    assert window._display_gain_control is first_control
+    assert window._display_gain_window_lifetime is first_lifetime
+    assert display_gain_state().gain == 4.0
+    assert len(window.findChildren(QWidget, "DisplayGainControl")) == 1
+    assert len(window.findChildren(QFrame, "displayGainSeparator")) == 1
+    second_shortcuts = window.central_stack._display_gain_shortcuts
+    assert len(second_shortcuts) == 2
+    assert all(
+        second is first
+        for second, first in zip(second_shortcuts, first_shortcuts, strict=True)
+    )
+    window.close()
 
 
 def test_session_save_persists_page_anchor_independently_of_active_and_primary(
