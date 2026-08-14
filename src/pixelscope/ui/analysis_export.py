@@ -131,7 +131,7 @@ class AnalysisExportController(QObject):
         self._install_actions()
         self._install_table_productivity()
         self.window.installEventFilter(self)
-        self.window.destroyed.connect(self._on_window_destroyed)  # type: ignore[attr-defined]
+        self.window.destroyed.connect(self._on_window_destroyed)
         self.file_menu.aboutToShow.connect(self.refresh_actions)  # type: ignore[attr-defined]
         self.refresh_actions()
 
