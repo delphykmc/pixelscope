@@ -26,7 +26,8 @@ def _seed_statistics_table(window: MainWindow) -> None:
     for column, value in enumerate(("1", "sample.raw", "10-bit", "16")):
         panel.image_summary.setItem(0, column, QTableWidgetItem(value))
     panel.table.setRowCount(1)
-    for column, value in enumerate(("1", "Gray", "0", "15", "7.5", "2", "1", "8", "14")):
+    values = ("1", "Gray", "0", "15", "7.5", "2", "1", "8", "14")
+    for column, value in enumerate(values):
         panel.table.setItem(0, column, QTableWidgetItem(value))
 
 
@@ -74,8 +75,8 @@ def test_analysis_tables_use_clean_headings_and_csv_copy_buttons(qtbot: object) 
     assert controller.statistics_copy_button.toolTip() == "Copy Channel statistics as CSV"
 
     assert controller.difference_metrics_label.text() == "Difference metrics"
-    assert not difference.metric_scope.isVisible()
-    assert not difference.domain_status.isVisible()
+    assert difference.metric_scope.isHidden()
+    assert difference.domain_status.isHidden()
     assert controller.difference_metrics_copy_button.toolTip() == "Copy Difference metrics as CSV"
     assert controller.difference_metrics_export_button.text() == "CSV"
 
@@ -89,7 +90,7 @@ def test_analysis_tables_use_clean_headings_and_csv_copy_buttons(qtbot: object) 
     )
 
 
-def test_default_export_path_adds_timestamp_but_custom_name_is_respected(
+def test_default_export_path_is_timestamped_and_custom_name_is_respected(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: object,
@@ -105,27 +106,31 @@ def test_default_export_path_adds_timestamp_but_custom_name_is_respected(
         "_export_dialog_directory",
         lambda: str(tmp_path),
     )
+    observed: list[str] = []
 
-    def accept_default(
+    def capture_default(
         _parent: object,
         _title: str,
         initial: str,
         _filter: str,
     ) -> tuple[str, str]:
-        return initial, "CSV (*.csv)"
+        observed.append(initial)
+        return "", "CSV (*.csv)"
 
     monkeypatch.setattr(  # type: ignore[attr-defined]
         "pixelscope.ui.analysis_export.QFileDialog.getSaveFileName",
-        accept_default,
+        capture_default,
     )
-    target = controller._choose_path(
+    filename = controller._timestamped_filename("pixelscope_histogram", ".csv")
+    assert controller._choose_path(
         "Export Histogram",
-        "pixelscope_histogram.csv",
+        filename,
         "CSV (*.csv)",
         ".csv",
-        timestamp_default=True,
-    )
-    assert target == tmp_path / "pixelscope_histogram_20260814-221500-123.csv"
+    ) is None
+    assert observed == [
+        str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")
+    ]
 
     custom = tmp_path / "review.csv"
     monkeypatch.setattr(  # type: ignore[attr-defined]
@@ -134,10 +139,9 @@ def test_default_export_path_adds_timestamp_but_custom_name_is_respected(
     )
     assert controller._choose_path(
         "Export Histogram",
-        "pixelscope_histogram.csv",
+        filename,
         "CSV (*.csv)",
         ".csv",
-        timestamp_default=True,
     ) == custom
 
 
@@ -148,6 +152,10 @@ def test_difference_postfix_and_metrics_export_preserve_current_context(
 ) -> None:
     window = _window(qtbot)
     controller = window.analysis_export_controller
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export._export_timestamp",
+        lambda: "20260814-221500-123",
+    )
     _seed_difference(window, tmp_path)
     _calculate_difference(qtbot, window)
     panel = window.difference_panel
@@ -158,7 +166,7 @@ def test_difference_postfix_and_metrics_export_preserve_current_context(
         timeout=5000,
     )
     assert controller._difference_image_filename() == (
-        "pixelscope_difference_gray_absolute_gain-4x.png"
+        "pixelscope_difference_gray_absolute_gain-4x_20260814-221500-123.png"
     )
 
     panel.mode.setCurrentText("Mask")
@@ -168,7 +176,7 @@ def test_difference_postfix_and_metrics_export_preserve_current_context(
         timeout=5000,
     )
     assert controller._difference_image_filename() == (
-        "pixelscope_difference_gray_mask_thr-5code.png"
+        "pixelscope_difference_gray_mask_thr-5code_20260814-221500-123.png"
     )
 
     controller.copy_difference_metrics_csv()
@@ -186,15 +194,10 @@ def test_difference_postfix_and_metrics_export_preserve_current_context(
     ]
 
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        "pixelscope.ui.analysis_export._export_timestamp",
-        lambda: "20260814-221500-123",
-    )
-    monkeypatch.setattr(  # type: ignore[attr-defined]
         window,
         "_export_dialog_directory",
         lambda: str(tmp_path),
     )
-
     observed_initial: list[str] = []
 
     def accept_default(
@@ -212,13 +215,12 @@ def test_difference_postfix_and_metrics_export_preserve_current_context(
     )
     controller.export_difference_metrics_csv()
 
-    assert observed_initial == [
-        str(tmp_path / "pixelscope_difference_metrics_gray_full-image_native.csv")
-    ]
-    target = tmp_path / (
-        "pixelscope_difference_metrics_gray_full-image_native_20260814-221500-123.csv"
+    filename = (
+        "pixelscope_difference_metrics_gray_full-image_native_"
+        "20260814-221500-123.csv"
     )
-    rows = _csv_rows(target)
+    assert observed_initial == [str(tmp_path / filename)]
+    rows = _csv_rows(tmp_path / filename)
     assert rows[0] == [
         "source_a",
         "source_b",
