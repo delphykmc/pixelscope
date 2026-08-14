@@ -397,6 +397,10 @@ def test_export_dialog_reuses_configured_export_directory(
     controller = window.analysis_export_controller
     _seed_histogram(window, tmp_path, ("Gray",))
     monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export._export_timestamp",
+        lambda: "20260814-221500-123",
+    )
+    monkeypatch.setattr(  # type: ignore[attr-defined]
         window,
         "_export_dialog_directory",
         lambda: str(tmp_path),
@@ -414,5 +418,7 @@ def test_export_dialog_reuses_configured_export_directory(
     before = _workspace_state(window)
     controller.export_histogram_csv()
 
-    assert observed == [str(tmp_path / "pixelscope_histogram.csv")]
+    assert observed == [
+        str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")
+    ]
     assert _workspace_state(window) == before
