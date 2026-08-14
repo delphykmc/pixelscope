@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from threading import Event
 
+import cv2
 import numpy as np
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QTableWidgetItem
@@ -62,6 +63,16 @@ def _calculate_difference(qtbot: object, window: MainWindow) -> None:
     window.analysis_export_controller.refresh_actions()
 
 
+def _read_png_as_preview(path: Path) -> np.ndarray:
+    decoded = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    assert decoded is not None
+    if decoded.ndim == 3 and decoded.shape[2] == 3:
+        return cv2.cvtColor(decoded, cv2.COLOR_BGR2RGB)
+    if decoded.ndim == 3 and decoded.shape[2] == 4:
+        return cv2.cvtColor(decoded, cv2.COLOR_BGRA2RGBA)
+    return decoded
+
+
 def test_difference_export_disarms_when_panel_pair_diverges_from_active_result(
     qtbot: object,
     tmp_path: Path,
@@ -76,6 +87,8 @@ def test_difference_export_disarms_when_panel_pair_diverges_from_active_result(
     active_source_ids = window._difference_source_ids
     assert active_document is not None
     assert active_source_ids is not None
+    assert active_document.preview is not None
+    initial_preview = active_document.preview.copy()
     assert controller.difference_action.isEnabled()
 
     panel = window.difference_panel
@@ -106,6 +119,73 @@ def test_difference_export_disarms_when_panel_pair_diverges_from_active_result(
     assert window._difference_document is active_document
     assert window._difference_source_ids == active_source_ids
     assert "No current Difference image to export" in window.statusBar().currentMessage()
+
+    first_index = panel.a_selector.findData(documents[0].document_id)
+    second_index = panel.b_selector.findData(documents[1].document_id)
+    assert first_index >= 0
+    assert second_index >= 0
+    panel.a_selector.setCurrentIndex(first_index)
+    panel.b_selector.setCurrentIndex(second_index)
+    controller.refresh_actions()
+
+    # Returning to the active pair does not make an old presentation exportable.
+    # The active document still contains the original Absolute/gain-1 preview while
+    # the mutable controls now describe Mask/threshold-5.
+    assert np.array_equal(active_document.preview, initial_preview)
+    assert not controller.difference_action.isEnabled()
+    assert controller._difference_preview() is None
+    controller.export_difference_image()
+    assert "No current Difference image to export" in window.statusBar().currentMessage()
+
+    # A real display update over the already-cached A/B map settles the current
+    # presentation without invoking Difference Calculate. Export may then consume it.
+    panel.threshold.setValue(6)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not panel._display_timer.isActive() and panel._preview_worker is None,
+        timeout=5000,
+    )
+    controller.refresh_actions()
+    assert controller.difference_action.isEnabled()
+    assert active_document.preview is not None
+    settled_preview = active_document.preview.copy()
+    assert not np.array_equal(settled_preview, initial_preview)
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export._export_timestamp",
+        lambda: "20260815-004500-123",
+    )
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        window,
+        "_export_dialog_directory",
+        lambda: str(tmp_path),
+    )
+    observed: list[str] = []
+
+    def accept_default(
+        _parent: object,
+        _title: str,
+        initial: str,
+        _file_filter: str,
+    ) -> tuple[str, str]:
+        observed.append(initial)
+        return initial, "PNG (*.png)"
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.ui.analysis_export.QFileDialog.getSaveFileName",
+        accept_default,
+    )
+    controller.export_difference_image()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: controller._difference_worker is None and bool(observed),
+        timeout=5000,
+    )
+
+    target = Path(observed[0])
+    assert target.name == (
+        "pixelscope_difference_gray_mask_thr-6code_20260815-004500-123.png"
+    )
+    assert target.is_file()
+    np.testing.assert_array_equal(_read_png_as_preview(target), settled_preview)
 
 
 def test_statistics_toolbar_and_file_menu_share_timestamped_export_path(
