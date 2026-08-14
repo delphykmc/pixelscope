@@ -26,7 +26,8 @@ def _seed_statistics_table(window: MainWindow) -> None:
     for column, value in enumerate(("1", "sample.raw", "8-bit", "16")):
         panel.image_summary.setItem(0, column, QTableWidgetItem(value))
     panel.table.setRowCount(1)
-    for column, value in enumerate(("1", "Gray", "0", "15", "7.5", "2", "1", "8", "14")):
+    values = ("1", "Gray", "0", "15", "7.5", "2", "1", "8", "14")
+    for column, value in enumerate(values):
         panel.table.setItem(0, column, QTableWidgetItem(value))
 
 
