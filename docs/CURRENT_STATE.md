@@ -9,10 +9,10 @@ P4-B Comparison Set Persistence merged as PR #30 at
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`. PR #33 source-curation / Difference
 semantics then merged at the current `main` baseline above.
 
-P4-C **Session Persistence & Typed Recent** is implemented on draft PR #31. The
-repository owner reports the complete requested local validation set PASS on the
-code/test head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`; remaining merge-closure changes
-are durable documentation and PR metadata only.
+P4-C **Session Persistence & Typed Recent** is implemented on PR #31. The repository
+owner reports the complete requested local validation set PASS on the code/test head
+`b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`; remaining merge-closure changes are
+durable documentation and PR metadata only.
 
 ## Merge baseline
 
@@ -40,7 +40,7 @@ are durable documentation and PR metadata only.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
 P4 is **Workflow & Session Productivity**. P4-C Session persistence / typed Recent is
-implemented and owner-validated on draft PR #31, pending merge closure.
+implemented and owner-validated on PR #31, pending merge closure.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).

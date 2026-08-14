@@ -4,7 +4,7 @@ Status: P4-A Review Selection & Curation is Complete as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`. P4-B Comparison Set Persistence is
 Complete as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340` and remains the
 legacy `.pixelscope` read-compatibility format. P4-C Session Persistence & Typed
-Recent is implemented and owner-validated on draft PR #31, pending merge closure.
+Recent is implemented and owner-validated on PR #31, pending merge closure.
 PR #32/#33 runtime and Difference contracts are inherited rather than reimplemented.
 
 ## Current shell

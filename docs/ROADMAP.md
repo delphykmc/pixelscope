@@ -210,7 +210,7 @@ P4-B Comparison Set Persistence merged as PR #30 at
 PR #32 runtime stabilization merged at
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`, and PR #33 Difference/source-curation
 semantics merged at `51a540c92c372d71e02fd849fb5e0d406d0e9327`.
-P4-C Session persistence / typed Recent is implemented and owner-validated on draft
+P4-C Session persistence / typed Recent is implemented and owner-validated on
 PR #31, pending merge closure.
 
 Active plan:
