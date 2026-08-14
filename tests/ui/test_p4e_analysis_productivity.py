@@ -33,7 +33,7 @@ def _seed_statistics_table(window: MainWindow) -> None:
     panel.table.setRowCount(1)
     values = ("1", "Gray", "0", "15", "7.5", "2", "1", "8", "14")
     for column, value in enumerate(values):
-        panel.table.setItem(0, column, QTableWidgetItem(value))
+        panel.table.setItem(row=0, column=column, item=QTableWidgetItem(value))
 
 
 def _seed_difference(window: MainWindow, tmp_path: Path) -> None:
@@ -112,7 +112,16 @@ def test_analysis_tables_use_clean_headings_and_unified_command_buttons(
     assert ":disabled" in command_style
     assert "padding-top:" in command_style
     assert len({button.height() for button in analysis_buttons}) == 1
-    assert all(not button.isEnabled() for button in analysis_buttons)
+
+    # These controls share one visual command language, but their enablement
+    # authorities remain independent. Export availability belongs to this
+    # controller; Calculate availability belongs to DifferencePanel validation.
+    export_buttons = (
+        controller.statistics_copy_button,
+        controller.difference_metrics_export_button,
+        controller.difference_metrics_copy_button,
+    )
+    assert all(not button.isEnabled() for button in export_buttons)
     for button in analysis_buttons:
         if isinstance(button, QToolButton):
             assert not button.autoRaise()
