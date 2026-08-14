@@ -3,7 +3,16 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QToolButton, QWidget
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QComboBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.toolbar_icons import toolbar_icon
@@ -44,6 +53,85 @@ def _presentation_controls_style() -> str:
         "QWidget#presentationControls QToolButton#nextComparisonPage:disabled { "
         "background: transparent; border-color: transparent; }"
     )
+
+
+def _analysis_action_button_style() -> str:
+    """Make compact analysis actions read unmistakably as buttons."""
+
+    return (
+        f"QToolButton {{ background: {TOKENS.raised_background}; "
+        f"color: {TOKENS.text_primary}; border: 1px solid {TOKENS.border}; "
+        f"border-radius: 2px; padding: {TOKENS.spacing_xs}px {TOKENS.spacing_sm}px; }}"
+        f"QToolButton:hover {{ background: {TOKENS.panel_background}; "
+        f"border-color: {TOKENS.text_secondary}; }}"
+        f"QToolButton:pressed {{ background: {TOKENS.workspace_background}; "
+        f"border-color: {TOKENS.accent}; }}"
+        f"QToolButton:disabled {{ background: {TOKENS.panel_background}; "
+        f"color: {TOKENS.text_disabled}; border-color: {TOKENS.border}; }}"
+    )
+
+
+def _set_bold_label(label: QLabel) -> None:
+    font = label.font()
+    font.setWeight(QFont.Weight.Bold)
+    label.setFont(font)
+
+
+def _polish_analysis_export_controls(window: Any) -> None:
+    """Polish Statistics/Difference export affordances without changing ownership."""
+
+    controller = getattr(window, "analysis_export_controller", None)
+    statistics = getattr(window, "comparison_analysis_panel", None)
+    difference = getattr(window, "difference_panel", None)
+    if controller is None or statistics is None or difference is None:
+        return
+
+    for group in (statistics.region_group, statistics.image_summary_group):
+        if isinstance(group, QGroupBox):
+            group.setStyleSheet("QGroupBox::title { font-weight: bold; }")
+
+    statistics_group = statistics.statistics_group
+    statistics_layout = statistics_group.layout()
+    copy_button = getattr(controller, "statistics_copy_button", None)
+    if isinstance(statistics_group, QGroupBox) and isinstance(statistics_layout, QVBoxLayout):
+        statistics_group.setTitle("")
+        header = QWidget(statistics_group)
+        header.setObjectName("channelStatisticsHeader")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(TOKENS.spacing_sm)
+        label = QLabel("Channel statistics", header)
+        label.setObjectName("channelStatisticsHeading")
+        _set_bold_label(label)
+        header_layout.addWidget(label)
+        if isinstance(copy_button, QToolButton):
+            copy_button.setAutoRaise(False)
+            copy_button.setStyleSheet(_analysis_action_button_style())
+            copy_button.setFixedSize(TOKENS.control_height, TOKENS.control_height)
+            header_layout.addWidget(copy_button)
+        header_layout.addStretch(1)
+        statistics_layout.insertWidget(0, header)
+        controller.statistics_heading_label = label
+        controller.statistics_header = header
+
+    for button_name in (
+        "difference_metrics_export_button",
+        "difference_metrics_copy_button",
+    ):
+        button = getattr(controller, button_name, None)
+        if not isinstance(button, QToolButton):
+            continue
+        button.setAutoRaise(False)
+        button.setStyleSheet(_analysis_action_button_style())
+        button.setFixedHeight(TOKENS.control_height)
+        if button_name == "difference_metrics_copy_button":
+            button.setFixedWidth(TOKENS.control_height)
+        else:
+            button.setMinimumWidth(46)
+
+    difference_heading = getattr(controller, "difference_metrics_label", None)
+    if isinstance(difference_heading, QLabel):
+        _set_bold_label(difference_heading)
 
 
 def _replace_page_button(
@@ -142,6 +230,8 @@ def polish_presentation_controls(window: Any) -> None:
         "Next Comparison Page",
         window.next_comparison_page,
     )
+
+    _polish_analysis_export_controls(window)
 
     # The controls-state cache predates the widget replacement. Reset it once so
     # the new buttons receive the same endpoint state as actions and shortcuts.
