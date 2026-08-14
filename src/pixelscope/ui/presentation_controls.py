@@ -57,34 +57,49 @@ def _presentation_controls_style() -> str:
 
 
 def _analysis_action_button_style() -> str:
-    """Give all Analysis commands one tactile dark-button state model."""
+    """Give Analysis commands raised, hover, pressed, and recessed-disabled states."""
 
-    # Rest/hover/pressed follow the Windows control-elevation pattern: the rest
-    # surface is visibly raised from the panel, hover increases contrast, and
-    # pressed drops back toward the panel while gaining the accent contour.
-    rest_background = "#353a41"
-    hover_background = "#40464e"
-    pressed_background = "#202328"
-    rest_border = "#59616b"
-    hover_border = "#7a838e"
-    disabled_background = "#292c31"
-    disabled_border = "#363b42"
+    # The rendered Analysis pane is approximately #3f4349 under the current Fusion
+    # composition. Normal/hover therefore sit above that surface, while pressed and
+    # disabled deliberately move back toward or below it. Directional borders make
+    # the elevation change legible without introducing a heavy 3-D bevel.
+    rest_background = "#4b5058"
+    hover_background = "#565d66"
+    pressed_background = "#34383e"
+    disabled_background = "#3a3d42"
+    rest_border_high = "#6a737e"
+    rest_border_low = "#2f3338"
+    hover_border = "#89939e"
+    pressed_border_high = "#25282d"
+    pressed_border_low = "#59616b"
+    disabled_border_high = "#2f3236"
+    disabled_border_low = "#484c52"
+    disabled_text = "#666b72"
     return (
         "QPushButton, QToolButton { "
         f"background: {rest_background}; color: {TOKENS.text_primary}; "
-        f"border: 1px solid {rest_border}; border-radius: 3px; "
+        "border: 1px solid; border-radius: 3px; "
+        f"border-top-color: {rest_border_high}; border-left-color: {rest_border_high}; "
+        f"border-right-color: {rest_border_low}; border-bottom-color: {rest_border_low}; "
         f"padding: {TOKENS.spacing_xs}px {TOKENS.spacing_md}px; }}"
         "QPushButton:hover:enabled, QToolButton:hover:enabled { "
         f"background: {hover_background}; border-color: {hover_border}; }}"
         "QPushButton:pressed:enabled, QToolButton:pressed:enabled { "
-        f"background: {pressed_background}; border-color: {TOKENS.accent}; "
+        f"background: {pressed_background}; "
+        f"border-top-color: {pressed_border_high}; "
+        f"border-left-color: {pressed_border_high}; "
+        f"border-right-color: {pressed_border_low}; "
+        f"border-bottom-color: {pressed_border_low}; "
         f"padding-top: {TOKENS.spacing_xs + 1}px; "
         f"padding-bottom: {max(0, TOKENS.spacing_xs - 1)}px; }}"
         "QPushButton:focus:enabled, QToolButton:focus:enabled { "
         f"border-color: {TOKENS.accent}; }}"
         "QPushButton:disabled, QToolButton:disabled { "
-        f"background: {disabled_background}; color: {TOKENS.text_disabled}; "
-        f"border-color: {disabled_border}; }}"
+        f"background: {disabled_background}; color: {disabled_text}; "
+        f"border-top-color: {disabled_border_high}; "
+        f"border-left-color: {disabled_border_high}; "
+        f"border-right-color: {disabled_border_low}; "
+        f"border-bottom-color: {disabled_border_low}; }}"
     )
 
 
@@ -145,6 +160,7 @@ def _polish_analysis_export_controls(window: Any) -> None:
             continue
         if isinstance(button, QToolButton):
             button.setAutoRaise(False)
+        button.setProperty("etchedDisabledText", True)
         button.setStyleSheet(command_style)
         button.setFixedHeight(TOKENS.control_height)
 
