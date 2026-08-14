@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.comparison_set import Session, SessionSource
+from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.ui.session_restore_overlay import SESSION_RESTORE_STEPS
 
@@ -18,6 +20,15 @@ def _window(qtbot: object) -> MainWindow:
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     _compose_main_window_presentation(window)
     return window
+
+
+def _ready_document(path: Path, value: int) -> ImageDocument:
+    path.write_bytes(b"ready-session-source")
+    return ImageDocument.from_array(
+        np.full((8, 8), value, dtype=np.uint8),
+        path.name,
+        source_path=path,
+    )
 
 
 def test_restore_overlay_is_main_window_owned_non_dialog(qtbot: object) -> None:
@@ -85,4 +96,37 @@ def test_restore_overlay_reports_current_page_load_without_owning_it(
     assert len(set(requested)) == 2
 
     overlay.abort()
+    window.close()
+
+
+def test_restore_overlay_finishes_after_fast_path_session(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    paths = [tmp_path / "ready-a.png", tmp_path / "ready-b.png"]
+    documents = [
+        _ready_document(paths[0], 10),
+        _ready_document(paths[1], 20),
+    ]
+    target = tmp_path / "ready.pixelscope"
+    ComparisonSetRepository().save(
+        target,
+        Session(
+            registered_sources=tuple(SessionSource(str(path)) for path in paths),
+            selected_paths=tuple(str(path) for path in paths),
+        ),
+    )
+
+    window = _window(qtbot)
+    for document in documents:
+        window.add_document(document, select=False)
+
+    loaded, missing = window.session_controller.open_from_path(target)
+
+    assert loaded == 2
+    assert missing == ()
+    overlay = window.session_controller._restore_overlay
+    qtbot.waitUntil(overlay.isHidden, timeout=3000)  # type: ignore[attr-defined]
+    assert overlay.progress_bar.value() == overlay.progress_bar.maximum()
+    assert overlay.step_label.text() == "Step 8 of 8 · Finalizing workspace"
     window.close()
