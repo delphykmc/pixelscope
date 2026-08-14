@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import re
+from contextlib import suppress
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
@@ -143,10 +144,8 @@ class AnalysisExportController(QObject):
         if not isinstance(statistics_action, QAction) or statistics_action not in actions:
             raise RuntimeError("Analysis export requires Export Statistics CSV")
         self.statistics_action = statistics_action
-        try:
+        with suppress(RuntimeError, TypeError):
             self.statistics_action.triggered.disconnect()  # type: ignore[attr-defined]
-        except (RuntimeError, TypeError):
-            pass
         self.statistics_action.triggered.connect(  # type: ignore[attr-defined]
             self.export_statistics_csv
         )
