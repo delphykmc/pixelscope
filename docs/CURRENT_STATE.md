@@ -1,18 +1,18 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-14
-Current merged baseline / PR #33 merge commit:
-`51a540c92c372d71e02fd849fb5e0d406d0e9327`
+Current merged baseline / PR #31 merge commit:
+`436033a0d99513fe8db35f08305395127e430af2`
 
 P4-B Comparison Set Persistence merged as PR #30 at
 `3a19589e6cbad5fa8c814c522df6a553f59ee340`. PR #32 runtime stabilization merged at
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`. PR #33 source-curation / Difference
-semantics then merged at the current `main` baseline above.
+semantics merged at `51a540c92c372d71e02fd849fb5e0d406d0e9327`. P4-C **Session Persistence & Typed
+Recent** then merged as PR #31 at the current `main` baseline above.
 
-P4-C **Session Persistence & Typed Recent** is implemented on PR #31. The repository
-owner reports the complete requested local validation set PASS on the code/test head
-`b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`; remaining merge-closure changes are
-durable documentation and PR metadata only.
+P4-E **Analysis Export Productivity** is the active implementation phase. P4-D Saved
+ROI and Alpha Overlay are deferred by owner decision; P4-F Integration & Workflow
+Hardening is the next/final P4 closure phase.
 
 ## Merge baseline
 
@@ -35,12 +35,14 @@ durable documentation and PR metadata only.
 - PR #32 Display Gain/Difference runtime stabilization merged at
   `e1ccf264f86e37b438c923faceae96c3ecb539b7`.
 - PR #33 Difference/source-curation lifecycle merged at
-  `51a540c92c372d71e02fd849fb5e0d406d0e9327` and is the current inherited runtime
-  baseline for PR #31.
+  `51a540c92c372d71e02fd849fb5e0d406d0e9327`.
+- P4-C Session Persistence & Typed Recent merged as PR #31 at
+  `436033a0d99513fe8db35f08305395127e430af2`, the current inherited `main` baseline
+  for P4-E.
 
 The active plan is [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
-P4 is **Workflow & Session Productivity**. P4-C Session persistence / typed Recent is
-implemented and owner-validated on PR #31, pending merge closure.
+P4 is **Workflow & Session Productivity**. P4-E Analysis Export Productivity is
+active; P4-F integration hardening follows and closes P4.
 
 The completed P3 archive is
 [`exec-plans/completed/p3-image-semantics-raw-input.md`](exec-plans/completed/p3-image-semantics-raw-input.md).
@@ -254,6 +256,35 @@ outside ApplicationSettings schema v5 and Reset Settings and owns no source,
 selection, curation, residency, preload, Difference, analysis, or page state.
 Absolute paths may expose local filesystem layout.
 
+## P4-E Analysis Export Productivity
+
+P4-E consumes current result/presentation data without creating new numerical or
+source authority. File menu retains **Export Statistics CSV...** and adds:
+
+- **Export Histogram CSV...** for the exact current plotted Histogram series. Rows
+  identify Full image/Active ROI scope and bounds, absolute source/series/channel,
+  native bin edges/counts, current display edges, and current x/y modes. Ordering and
+  numeric formatting are deterministic and locale-independent.
+- **Export Line Profile CSV...** for the exact current plotted Line Profile series.
+  Rows identify line coordinates, source/series/channel, current x/y modes, sample
+  index/position, and current rendered value in deterministic order.
+- **Export Difference Image...** for an explicitly established active Difference
+  result only. PNG encodes the current Difference presentation preview, including
+  current Absolute/Mask, threshold, Difference gain, and compatible channel state.
+  It never screenshots UI chrome and never recalculates Difference.
+
+The existing configured Export directory is reused. CSV serialization is small and
+synchronous; Difference PNG encode/write reuses the existing bounded analysis worker
+pool. Export does not reload source, promote residency, preload, bump source
+validation generations, mutate Difference cache identity, or change
+Selected/Active/Primary/Page. Cancel is a no-op; write failures provide compact status
+feedback. Settings schema remains v5.
+
+Saved/named/multiple ROI and Alpha Overlay are deferred. Session v1 already persists
+current active ROI/Line intent; a named ROI manager still needs ownership/coordinate
+semantics. Overlay/Flicker/Wipe UX has not demonstrated value beyond current Multi
+View, synchronized navigation, and Difference.
+
 ## Unified input policy
 
 Supported image inputs are exactly:
@@ -459,7 +490,7 @@ Settings schema remains version 5. P4-A adds no Settings/QSettings key and does 
 persist the captured curation baseline or temporary Pick Set. Session is an explicit
 external `.pixelscope` artifact and does not bump Settings schema. Typed Recent uses
 separate QSettings path-history keys outside `SettingsRepository` ownership and Reset
-Settings.
+Settings. P4-E reuses the existing configured Export directory and adds no schema.
 
 Source residency remains exact native `source.nbytes` under P2 protected soft-budget
 LRU semantics, with the P3-D large-selection refinement that **Selected alone is not
@@ -471,10 +502,12 @@ therefore be evicted and normally reloaded when revisited.
 Difference cache remains independent. Keep Selection always resets the active
 Difference presentation/binding for the new Selected workspace but does not clear
 generation-keyed cache entries or change source generations. Session never serializes
-that cache or generated Difference result. Preload remains +1 Folder Position,
-max-one dedicated worker, with running-preload promotion as established by P2.
-Session adds no Comparison Page speculative preload or Registered-wide eager decode.
-Diagnostics remain deterministic, bounded, sanitized, and observation-only.
+that cache or generated Difference result. P4-E Difference export consumes only the
+current established presentation and does not touch numerical cache ownership.
+Preload remains +1 Folder Position, max-one dedicated worker, with running-preload
+promotion as established by P2. Session adds no Comparison Page speculative preload
+or Registered-wide eager decode. P4-E adds no preload/residency path. Diagnostics
+remain deterministic, bounded, sanitized, and observation-only.
 
 ## P3 sequence — Complete
 
@@ -506,14 +539,15 @@ claimed here without separate observed evidence.
 1. P4-0 — P3 Closure & P4 Program Setup — Complete — PR #28
 2. P4-A — Review Selection & Curation — Complete — PR #29
 3. P4-B — Comparison Set Persistence — Complete — PR #30
-4. P4-C — Session Persistence & Typed Recent — implemented; validation PASS; merge pending — PR #31
-5. P4-D — Saved ROI & Analysis Workspace Productivity — planned
-6. P4-E — Viewer Overlay & Export Productivity — planned
-7. P4-F — Integration & Workflow Hardening — planned
+4. P4-C — Session Persistence & Typed Recent — Complete — PR #31 — `436033a0d99513fe8db35f08305395127e430af2`
+5. P4-D — Saved ROI & Analysis Workspace Productivity — Deferred
+6. P4-E — Analysis Export Productivity — Active
+7. P4-F — Integration & Workflow Hardening — Next / P4 closure
 
 P4 inherits the P2/P3 ownership and numerical contracts above. Temporary workflow
-state must not become source/cache/residency/analysis authority, and Session
-persistence must remain durable intent rather than process/runtime serialization.
+state and export must not become source/cache/residency/analysis authority, and
+Session persistence remains durable intent rather than process/runtime serialization.
+P4-D Saved ROI and Alpha Overlay are not P4 completion blockers.
 
 Arbitrary-angle Line Profile is intentionally omitted from P4. Because Line Profile
 is an observation/sampling tool, a future arbitrary-angle version should define a

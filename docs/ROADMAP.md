@@ -207,18 +207,20 @@ P4-A Review Selection & Curation merged as PR #29 at
 `3486146494076e9b513843b90ec44e504043729e`.
 P4-B Comparison Set Persistence merged as PR #30 at
 `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
+P4-C Session Persistence & Typed Recent merged as PR #31 at
+`436033a0d99513fe8db35f08305395127e430af2`.
 PR #32 runtime stabilization merged at
 `e1ccf264f86e37b438c923faceae96c3ecb539b7`, and PR #33 Difference/source-curation
 semantics merged at `51a540c92c372d71e02fd849fb5e0d406d0e9327`.
-P4-C Session persistence / typed Recent is implemented and owner-validated on
-PR #31, pending merge closure.
 
 Active plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
 
-Recommended sequence:
+Revised execution sequence after the expanded P4-C scope:
 
-`P4-0 → P4-A → P4-B → P4-C → P4-D → P4-E → P4-F`
+`P4-0 → P4-A → P4-B → P4-C → P4-E → P4-F → P4 Complete`
+
+P4-D Saved ROI is deferred and is not a P4 completion blocker.
 
 ### P4-0 — P3 Closure & P4 Program Setup — Complete
 
@@ -301,8 +303,9 @@ temporary Picks. Settings schema remains v5.
 The repository owner reported the focused P4-B Windows suite PASS (`36 passed`)
 before PR #30 merged.
 
-### P4-C — Session Persistence & Typed Recent — implemented, validation PASS, merge pending
+### P4-C — Session Persistence & Typed Recent — Complete
 
+Merged as PR #31 at `436033a0d99513fe8db35f08305395127e430af2`.
 P4-C generalizes new `.pixelscope` writes to **PixelScope Session v1** while keeping
 legacy Comparison Set v1 read compatibility. The authoritative contract is
 [`docs/SESSION_CONTRACT.md`](SESSION_CONTRACT.md).
@@ -341,32 +344,63 @@ use Remove/Keep and legacy `recent/comparison_sets` is migration/read fallback o
 The repository owner reports the complete requested local validation set PASS on the
 code/test head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`, including the regression for
 `>6 Selected → page-1 Difference → hide → page 2 → Save/Open` writer/reader symmetry.
-Subsequent merge-closure changes are documentation/PR-metadata only.
+Subsequent merge-closure changes were documentation/PR-metadata only.
 
-### P4-D — Saved ROI & Analysis Workspace Productivity
+### P4-D — Saved ROI & Analysis Workspace Productivity — Deferred
 
-Separate saved ROI definitions from the current active ROI that feeds analysis.
-Define coordinate/dimension, naming, activation/deletion, and session ownership
-before implementation.
+Session v1 already persists and restores the current active ROI and Line selection,
+so the remaining P4-D value is primarily a named/multiple ROI manager rather than a
+persistence gap. That product needs explicit ownership semantics for session-global,
+source-specific, or scene-specific ROI definitions, plus mixed-dimension coordinate
+policy. No concrete workflow pain point currently justifies adding those semantics.
 
-### P4-E — Viewer Overlay & Export Productivity
+Saved/named/multiple ROI is therefore deferred for future productivity work and is
+not a P4 completion blocker.
 
-Alpha Overlay must remain presentation-only. Export should address concrete
-workflow pain points and define whether each artifact represents native data,
-normalized Difference, presentation, analysis output, or session metadata.
+### P4-E — Analysis Export Productivity — Active
 
-### P4-F — Integration & Workflow Hardening
+P4-E is a focused export slice for results PixelScope already calculates or presents:
 
-Harden P4-A through P4-E together against the inherited P2/P3 Current Comparison
-Page, source residency, preload, Difference, Display Gain, RAW profile resolution,
-request identity, and Qt lifetime contracts.
+- **Export Difference Image...** writes the current established Difference
+  presentation as PNG, including current Absolute/Mask, threshold, Difference gain,
+  and compatible channel presentation. It consumes the active Difference preview;
+  it does not screenshot UI chrome, recalculate Difference, or alter cache/source
+  generation authority.
+- **Export Histogram CSV...** serializes current plotted Histogram series together
+  with unambiguous source/channel, scope/ROI, native bin edges/counts, and current
+  display-axis/unit semantics in deterministic order.
+- **Export Line Profile CSV...** serializes current plotted samples with line
+  coordinates, source/channel/series identity, sample index/position/value, and
+  current x/y presentation modes in deterministic order.
+
+Existing **Export Statistics CSV...** remains unchanged. These exports consume
+current analysis/presentation results and do not become numerical, source,
+residency/preload, or Difference authorities. The existing configured Export
+directory is reused and Settings schema remains v5.
+
+**Alpha Overlay is deferred.** Multi View, synchronized navigation, and Difference
+already cover the primary comparison workflow, while Overlay/Flicker/Wipe utility has
+not been validated. P4-E does not add pairing/alpha/Gain/Split/Session semantics for
+an unproven overlay workflow.
+
+### P4-F — Integration & Workflow Hardening — Next / P4 closure
+
+P4-F is the final P4 phase. It adds no broad new feature; it stress/integration tests
+P4-A curation, P4-C Session/Recent, PR #32/#33 Display Gain/Difference lifecycle,
+and P4-E exports against the inherited P2/P3 Current Comparison Page, source
+residency, preload, RAW profile-resolution, request-identity, and Qt-lifetime
+contracts. After P4-F closure, P4 is Complete.
 
 ### Deferred from P4
 
-Arbitrary-angle Line Profile is intentionally omitted. Line Profile is an
-observation/sampling tool, so a future arbitrary-angle design should first define a
-discrete sampling/pixel-path and coordinate-display contract. Interpolation is not
-assumed, and the current utility does not justify that semantic/UI complexity.
+- Saved/named/multiple ROI management, pending explicit ownership/coordinate semantics
+  and demonstrated workflow need.
+- Alpha Overlay/Flicker/Wipe comparison, pending UX validation of the comparison mode
+  that provides material value beyond Multi View and Difference.
+- Arbitrary-angle Line Profile. Line Profile is an observation/sampling tool, so a
+  future arbitrary-angle design should first define a discrete sampling/pixel-path
+  and coordinate-display contract. Interpolation is not assumed, and the current
+  utility does not justify that semantic/UI complexity.
 
 ## P5 — Remote IQA Platform
 

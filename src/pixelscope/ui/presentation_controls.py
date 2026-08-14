@@ -2,8 +2,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QToolButton, QWidget
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QComboBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.toolbar_icons import toolbar_icon
@@ -44,6 +54,119 @@ def _presentation_controls_style() -> str:
         "QWidget#presentationControls QToolButton#nextComparisonPage:disabled { "
         "background: transparent; border-color: transparent; }"
     )
+
+
+def _analysis_action_button_style() -> str:
+    """Render Analysis actions as quiet commands that reveal button chrome on use."""
+
+    hover_background = "#4b5058"
+    hover_border = "#6a737e"
+    pressed_background = "#34383e"
+    pressed_border_high = "#25282d"
+    pressed_border_low = "#59616b"
+    disabled_text = "#666b72"
+    return (
+        "QPushButton, QToolButton { "
+        f"background: transparent; color: {TOKENS.text_primary}; "
+        "border: 1px solid transparent; border-radius: 3px; }"
+        f"QPushButton {{ padding: {TOKENS.spacing_xs}px {TOKENS.spacing_md}px; }}"
+        f"QToolButton {{ padding: 1px {TOKENS.spacing_xs}px; }}"
+        "QPushButton:hover:enabled, QToolButton:hover:enabled { "
+        f"background: {hover_background}; border-color: {hover_border}; }}"
+        "QPushButton:pressed:enabled, QToolButton:pressed:enabled { "
+        f"background: {pressed_background}; "
+        f"border-top-color: {pressed_border_high}; "
+        f"border-left-color: {pressed_border_high}; "
+        f"border-right-color: {pressed_border_low}; "
+        f"border-bottom-color: {pressed_border_low}; "
+        f"padding-top: {TOKENS.spacing_xs + 1}px; "
+        f"padding-bottom: {max(0, TOKENS.spacing_xs - 1)}px; }}"
+        "QPushButton:focus:enabled, QToolButton:focus:enabled { "
+        f"border-color: {TOKENS.accent}; }}"
+        "QPushButton:disabled, QToolButton:disabled { "
+        f"background: transparent; color: {disabled_text}; "
+        "border-color: transparent; }"
+    )
+
+
+def _set_bold_label(label: QLabel) -> None:
+    font = label.font()
+    font.setWeight(QFont.Weight.Bold)
+    label.setFont(font)
+
+
+def _polish_analysis_export_controls(window: Any) -> None:
+    """Polish Statistics/Difference export affordances without changing ownership."""
+
+    controller = getattr(window, "analysis_export_controller", None)
+    statistics = getattr(window, "comparison_analysis_panel", None)
+    difference = getattr(window, "difference_panel", None)
+    if controller is None or statistics is None or difference is None:
+        return
+
+    for group in (statistics.region_group, statistics.image_summary_group):
+        if isinstance(group, QGroupBox):
+            group.setStyleSheet("QGroupBox::title { font-weight: bold; }")
+
+    statistics_group = statistics.statistics_group
+    statistics_layout = statistics_group.layout()
+    copy_button = getattr(controller, "statistics_copy_button", None)
+    existing_header = getattr(controller, "statistics_header", None)
+    if (
+        isinstance(statistics_group, QGroupBox)
+        and isinstance(statistics_layout, QVBoxLayout)
+        and not isinstance(existing_header, QWidget)
+    ):
+        statistics_group.setTitle("")
+        header = QWidget(statistics_group)
+        header.setObjectName("channelStatisticsHeader")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(TOKENS.spacing_sm)
+        label = QLabel("Channel statistics", header)
+        label.setObjectName("channelStatisticsHeading")
+        _set_bold_label(label)
+        header_layout.addWidget(label)
+        if isinstance(copy_button, QToolButton):
+            header_layout.addWidget(copy_button)
+        header_layout.addStretch(1)
+        statistics_layout.insertWidget(0, header)
+        controller.statistics_heading_label = label
+        controller.statistics_header = header
+
+    command_style = _analysis_action_button_style()
+    analysis_buttons = (
+        getattr(controller, "statistics_copy_button", None),
+        getattr(difference, "calculate", None),
+        getattr(controller, "difference_metrics_export_button", None),
+        getattr(controller, "difference_metrics_copy_button", None),
+    )
+    for button in analysis_buttons:
+        if not isinstance(button, QAbstractButton):
+            continue
+        if isinstance(button, QToolButton):
+            button.setAutoRaise(False)
+        button.setProperty("etchedDisabledText", True)
+        button.setStyleSheet(command_style)
+        button.setFixedHeight(TOKENS.control_height)
+
+    if isinstance(copy_button, QAbstractButton):
+        copy_button.setFixedWidth(TOKENS.control_height + 2)
+        copy_button.setIconSize(QSize(18, 18))
+    difference_copy = getattr(controller, "difference_metrics_copy_button", None)
+    if isinstance(difference_copy, QAbstractButton):
+        difference_copy.setFixedWidth(TOKENS.control_height + 2)
+        difference_copy.setIconSize(QSize(18, 18))
+    difference_csv = getattr(controller, "difference_metrics_export_button", None)
+    if isinstance(difference_csv, QAbstractButton):
+        difference_csv.setMinimumWidth(46)
+    calculate = getattr(difference, "calculate", None)
+    if isinstance(calculate, QAbstractButton):
+        calculate.setMinimumWidth(92)
+
+    difference_heading = getattr(controller, "difference_metrics_label", None)
+    if isinstance(difference_heading, QLabel):
+        _set_bold_label(difference_heading)
 
 
 def _replace_page_button(
@@ -142,6 +265,8 @@ def polish_presentation_controls(window: Any) -> None:
         "Next Comparison Page",
         window.next_comparison_page,
     )
+
+    _polish_analysis_export_controls(window)
 
     # The controls-state cache predates the widget replacement. Reset it once so
     # the new buttons receive the same endpoint state as actions and shortcuts.

@@ -554,9 +554,70 @@ P4-B merged as PR #30 at
   analysis request/results, workers/tokens/generation, Split/Difference derived
   documents, transient view state, ROI/Line, or temporary Picks.
 - Comparison Sets are external user artifacts and do not change Settings schema v5.
-- P4-C / PR #31 is the separate owner-approved Session persistence / typed Recent
-  workstream. It may build on P4-B Comparison Set primitives without changing the
-  P4-B `.pixelscope` artifact contract; PR #33 does not implement P4-C behavior.
+- P4-C / PR #31 supersedes current writes/UI with Session v1 while retaining this
+  legacy Comparison Set v1 read-compatibility contract.
+
+## P4-C Session Persistence & Typed Recent decisions — Complete
+
+P4-C merged as PR #31 at
+`436033a0d99513fe8db35f08305395127e430af2`. The authoritative external-artifact
+contract is `docs/SESSION_CONTRACT.md`.
+
+- New `.pixelscope` writes use `kind = "pixelscope-session"`, schema v1. Legacy
+  `pixelscope-comparison-set` v1 remains read compatible.
+- Session persists durable workspace intent: Registered membership, exact ordered
+  Selected, a source-path page anchor, applicable source Active/Primary/layout, ROI,
+  Line, Display Gain, applicable Split, RAW reconstruction metadata, and only an
+  eligible regenerable current-page Difference recipe.
+- Runtime arrays, cache/residency/preload/worker state, generated Difference result,
+  calculated analysis results, and temporary P4-A Picks remain non-persistent.
+- Session Open validates/stages before destructive workspace replacement and
+  foreground-loads only the reconstructed bounded Current Comparison Page.
+- Session restore reuses existing source, Display Gain, ROI/Line, Split, and
+  Difference pipelines rather than creating a persistence-owned runtime path.
+- An eligible Difference recipe restores panel intent and issues one explicit
+  Calculate; Session does not pre-bind active Difference provenance.
+- Writer and reader share current-page Difference eligibility. Off-page hidden
+  provenance is omitted at Save and never creates off-page restore ownership.
+- Recent Images/Folders/Sessions are typed max-10 path-only MRUs and best-effort
+  observer metadata outside Settings schema v5. Image, Folder, and Session activation
+  delegate to their canonical workflows.
+- Settings schema remains v5.
+
+## P4-E Analysis Export Productivity decisions — Active
+
+- P4-D Saved/named/multiple ROI is deferred. Session v1 already persists the current
+  active ROI/Line, while a named ROI manager still lacks owner-approved
+  global/source/scene ownership and mixed-dimension coordinate semantics.
+- Alpha Overlay/Flicker/Wipe is deferred. Current Multi View, synchronized
+  navigation, and Difference cover the principal comparison workflow and no concrete
+  need justifies additional pairing/alpha/Gain/Split/Session semantics yet.
+- P4-E exports only current existing results: Difference presentation PNG, Histogram
+  CSV, and Line Profile CSV. Existing Statistics CSV remains unchanged.
+- Export follows `native source → existing analysis/result owner → current
+  result/presentation → export consumer`; export never becomes a numerical, source,
+  analysis-working-set, Difference, residency/preload, or generation authority.
+- Histogram CSV preserves raw native histogram counts/bin edges and identifies the
+  current plotted display edge/unit semantics, Full image/Active ROI bounds,
+  source/series/channel, and deterministic ordering.
+- Line Profile CSV serializes the current plotted samples and identifies the current
+  line coordinates, source/series/channel, x/y modes, sample index/position, and
+  current rendered value without changing sampling semantics.
+- Difference PNG requires an explicitly established active Difference result and
+  encodes the current Difference presentation preview, including current
+  Absolute/Mask, threshold, Difference gain, and channel presentation. A cached map
+  alone is not export authority.
+- Difference export does not screenshot UI chrome, call Calculate, change cache
+  identity, or bump source generation. PNG encoding/file I/O reuses the existing
+  bounded analysis worker pool; no new pool is introduced.
+- CSV artifacts are small and may be serialized synchronously from already-computed
+  in-memory result series.
+- File dialogs reuse the existing configured Export directory; no new export
+  setting/schema is added. Settings remains v5.
+- Missing/in-flight result actions are unavailable or safe no-ops. Cancel mutates
+  nothing; failed writes report compact status without workspace mutation.
+- P4-F follows P4-E as integration/hardening and closes P4. P4-D and Alpha Overlay
+  are not P4 completion blockers.
 
 ## Current resource policy
 
@@ -571,20 +632,19 @@ P4-B merged as PR #30 at
   pool max remains four.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Comparison Page navigation, Pick membership, and Comparison Set Save/Open introduce
-  no Selected-wide speculative preload/cache/residency owner.
+- Comparison Page navigation, Pick membership, Session Save/Open, and P4-E export
+  introduce no Selected-wide speculative preload/cache/residency owner.
 
 ## Validation and merge state
 
 P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28. P4-A is Complete
 as PR #29 at `3486146494076e9b513843b90ec44e504043729e`. P4-B is Complete as PR #30
-at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C Session persistence / typed
-Recent is active on draft PR #31. Display Gain/Difference presentation lifecycle
-stabilization merged as PR #32 at
-`e1ccf264f86e37b438c923faceae96c3ecb539b7`.
+at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C is Complete as PR #31 at
+`436033a0d99513fe8db35f08305395127e430af2`. PR #32 Display Gain/Difference runtime
+stabilization is merged at `e1ccf264f86e37b438c923faceae96c3ecb539b7`; PR #33
+Difference/source-curation lifecycle is merged at
+`51a540c92c372d71e02fd849fb5e0d406d0e9327`.
 
-The source-only Difference curation follow-up adds the owner-final Keep/Calculate/
-toolbar lifecycle and focused UI/integration regression coverage on top of merged PR
-#32. The repository owner reported the implementation validation suite passing and
-confirmed the program behavior matches the intended contract. Subsequent changes in
-this final cleanup are durable-documentation-only.
+P4-E Analysis Export Productivity is active. P4-D Saved ROI and Alpha Overlay are
+deferred by owner decision. P4-F is the next/final P4 integration-hardening phase.
+Only validation actually observed for P4-E may be recorded as PASS.

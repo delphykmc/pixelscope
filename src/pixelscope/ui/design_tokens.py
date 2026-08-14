@@ -38,7 +38,7 @@ TOKENS = DesignTokens()
 
 
 class EngineeringStyle(QProxyStyle):
-    """Keep disabled text flat instead of using the Windows etched effect."""
+    """Keep most disabled text flat while allowing explicit Windows-style etching."""
 
     def styleHint(
         self,
@@ -48,6 +48,8 @@ class EngineeringStyle(QProxyStyle):
         return_data: QStyleHintReturn | None = None,
     ) -> int:
         if hint == QStyle.StyleHint.SH_EtchDisabledText:
+            if widget is not None and bool(widget.property("etchedDisabledText")):
+                return 1
             return 0
         return super().styleHint(hint, option, widget, return_data)
 
