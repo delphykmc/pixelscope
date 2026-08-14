@@ -1,20 +1,21 @@
 # Execution plan: P4 — Workflow & Session Productivity
 
-Status: Active — P4-E implemented/owner-validated on PR #34; P4-F next
+Status: Active — P4-E merged as PR #34; P4-F implemented / owner validation and independent review pending
 Owner: repository owner + P4 orchestration agents
 Last updated: 2026-08-15
-Inherited merged baseline: PR #31 / main
-`436033a0d99513fe8db35f08305395127e430af2`
+Inherited merged baseline: PR #34 / main
+`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`
 
 ## Goal
 
 Complete the focused workflow-productivity program on top of the stabilized P2/P3
-image semantics and bounded Current Comparison Page architecture. P4-C now owns
-durable Session/Recent workflow intent. P4-E adds only focused export of current
-analysis/presentation results, and P4-F closes P4 through integration hardening.
+image semantics and bounded Current Comparison Page architecture. P4-C owns durable
+Session/Recent workflow intent. P4-E exports only current analysis/presentation
+results. P4-F closes P4 through cross-feature integration and lifetime hardening,
+without adding another broad product feature.
 
 P4 must improve workflow without creating a second source, analysis, cache,
-selection, or residency authority.
+selection, worker, preload, or residency authority.
 
 ## Inherited P2/P3 baseline
 
@@ -70,8 +71,8 @@ Inherited invariants:
 | 2 | P4-B Comparison Set Persistence | Complete — PR #30 |
 | 3 | P4-C Session Persistence & Typed Recent | Complete — PR #31 — `436033a0d99513fe8db35f08305395127e430af2` |
 | 4 | P4-D Saved ROI & Analysis Workspace Productivity | Deferred |
-| 5 | P4-E Analysis Export Productivity | Implemented / owner validation PASS — PR #34 merge pending |
-| 6 | P4-F Integration & Workflow Hardening | Next / P4 closure |
+| 5 | P4-E Analysis Export Productivity | Complete — PR #34 — `79ee74134f1ebef9dd13f82e49f8e34407bb78f4` |
+| 6 | P4-F Integration & Workflow Hardening | Active — implementation/test/docs prepared; owner validation/review pending |
 
 P4-D is intentionally skipped in the execution order. Session v1 already persists
 the current active ROI/Line; the remaining named/multiple ROI manager needs product
@@ -338,7 +339,9 @@ No sufficiently concrete workflow pain point currently justifies those semantics
 P4-D is deferred and is not a P4 completion blocker. The existing active ROI remains
 the sole ROI input to native analysis.
 
-## P4-E — Analysis Export Productivity — Implemented / owner validation PASS — PR #34 merge pending
+## P4-E — Analysis Export Productivity — Complete
+
+Merged as PR #34 at `79ee74134f1ebef9dd13f82e49f8e34407bb78f4`.
 
 ### Goal
 
@@ -431,7 +434,7 @@ workflow, so P4-E does not add unproven pairing/alpha/Gain/Split/Session semanti
 
 ### Focused validation
 
-Deterministic coverage now includes:
+Deterministic coverage includes:
 
 - exact current Difference Absolute/Mask presentation PNG export;
 - active A/B provenance and settled-presentation freshness, including
@@ -454,34 +457,140 @@ Deterministic coverage now includes:
 - late model callback shutdown safety; and
 - MainWindow close/recreate while a Difference PNG worker is physically running.
 
-The repository owner reports the requested focused Windows validation and post-fix
+The repository owner reported the requested focused Windows validation and post-fix
 static checks PASS on code/test head
-`d8fa4b0c0ffe0a3517d37c703c490ec399f8ccf9`. Subsequent merge-closure commits are
-documentation/PR-metadata only.
+`d8fa4b0c0ffe0a3517d37c703c490ec399f8ccf9`. Subsequent merge-closure commits were
+documentation/PR-metadata only. This evidence is historical P4-E evidence and is not
+P4-F-head validation.
 
-## P4-F — Integration & Workflow Hardening — Next / P4 closure
+## P4-F — Integration & Workflow Hardening — Active / P4 closure
 
-Close P4 with cross-feature integration rather than adding another broad feature.
-At minimum audit:
+P4-F closes P4 with cross-feature integration rather than another broad feature.
+Existing P4-A/P4-C/P4-E and PR #32/#33 suites remain authoritative for subsystem
+semantics; P4-F adds tests only for transition gaps between those suites.
 
-- P4-A curation with large Selected sets and page navigation;
-- legacy P4-B Comparison Set v1 read compatibility under Session;
-- P4-C Session round-trip with RAW profile resolution, missing paths, Current
-  Comparison Page, Difference, and P2 residency/preload reconstruction;
-- P4-C typed Recent Image/Folder/Session intent;
-- PR #32/#33 Display Gain/Difference presentation and active-result lifecycle;
-- P4-E exports against native-analysis, current-result, and Difference presentation
-  domains;
-- P2/P3 request identity, stale-result, source residency, Difference-cache, and
-  preload invariants;
-- Qt lifetime/focus/teardown at production composition boundaries;
-- durable docs, Windows owner characterization, and regression coverage.
+### Coverage inventory and integration audit
 
-P4-F does not reintroduce P4-D Saved ROI or Alpha Overlay as completion blockers.
-After P4-F closure, P4 is Complete.
+- **Large selection / curation:** inherited P4-A coverage already exercises
+  `1/2/6/7/15/50` Selected, cross-page Pick persistence, baseline-order Keep,
+  50-image bounded page loading/protection, and no Pick-owned preload. P4-F does not
+  duplicate those semantics.
+- **Curation × Difference:** PR #33 remains active Difference authority. P4-F adds a
+  production-composition path through Calculate → hide → Pick/Keep → Session Save,
+  proving Keep tears the established Difference down before Selected mutation and
+  the saved curated Session contains no stale old recipe.
+- **Display Gain × Difference/navigation:** PR #32 remains numerical/worker authority.
+  P4-F audits the application-global Gain subscription boundary and hardens closed
+  MainWindow lifetime without changing gain math or pool policy.
+- **Session round-trip:** P4-C remains authoritative for Registered/Selected/page,
+  ROI/Line/Gain/Split/RAW and explicit-Difference reconstruction. P4-F adds a writer
+  regression proving Current Comparison Page anchor persistence is independent from
+  Active/Primary fallback state.
+- **Later-page Session edge:** existing P4-C coverage remains authoritative for
+  `page 1 Difference → hide → page 2 → Save/Open`, including omission of off-page
+  Difference intent. The P4-F writer fix makes the saved page identity explicit.
+- **Session × RAW:** existing P3/P4-C tests cover resolved reconstruction metadata,
+  unresolved lazy RAW, foreground prompt terminal/cancel behavior, bounded current-
+  page loading, and no Session speculative preload. Audit found no new P4-F semantic
+  gap requiring a RAW code change.
+- **Typed Recent:** existing P4-C suites cover canonical Image selection intent,
+  Folder registration-only intent, Session controller delegation, missing Remove/Keep,
+  invalid-existing retention, max-10 per type, and observer-only ownership. Audit
+  found no new authority gap.
+- **Export:** P4-E remains authoritative for exact Statistics/Histogram/Line/Difference
+  current-result consumption. P4-F adds Session restore → explicit Difference
+  reconstruction → settled Difference PNG export and asserts export does not invoke
+  Calculate or mutate source generations/Difference cache.
+- **Qt lifetime:** P4-E already covers late export model callbacks and close/recreate
+  with a physically running PNG worker. P4-F adds application-global Display Gain
+  close disarming so a closed-but-not-yet-destroyed window cannot start new gained
+  preview work after another window changes/resets Gain.
 
-No wall-clock performance threshold should become a merge gate without a separate,
-evidence-backed performance requirement.
+### Bugs found and minimal fixes
+
+1. **Session writer page-anchor fallback gap**
+   - Contract: Session page identity is durable intent independently of Active.
+   - Root cause: the writer omitted `page_anchor_path`, allowing the model fallback
+     chain to derive it from Primary/Active/Difference/first Selected.
+   - Fix: save the first persistent source of the actual Current Comparison Page as
+     the explicit anchor. Schema and reader semantics are unchanged.
+   - Regression: later-page save with Active/Primary unavailable still persists the
+     correct page anchor.
+2. **Closed-window Display Gain subscription gap**
+   - Contract: application-global Gain state must not make a closed MainWindow a
+     future work owner.
+   - Root cause: each viewer/control remained directly connected to application-
+     global `DisplayGainState` until QObject destruction; `close()` can leave the
+     Python/Qt object alive long enough for a later Gain change to request another
+     full-frame preview.
+   - Fix: a MainWindow-owned lifetime guard disarms that window's Gain callbacks on
+     `QEvent.Close` and cancels viewer-local gain previews. No new worker pool or
+     numerical path is introduced.
+   - Regression: changing global Gain after close starts no preview worker in the
+     closed window.
+
+### Runtime/resource invariants
+
+P4-F does not change source residency accounting (`exact native source.nbytes`), the
+Current Comparison Page protection authority, Difference generation/cache identity,
+P2 `+1` Folder Position max-one preload, PR #32 worker pools, or PR #33 active
+Difference lifecycle. Off-page Selected/Picked remains evictable. Session remains
+metadata plus bounded foreground reconstruction; Export remains current-result
+consumption and starts no preload/analysis recalculation.
+
+### Focused P4-F tests
+
+`tests/ui/test_p4f_workflow_hardening.py` covers:
+
+- explicit later-page Session anchor independent from Active/Primary fallback;
+- active Difference → temporary Picks → Keep Selection → Difference teardown →
+  curated Session Save with no stale recipe;
+- MainWindow close → later application-global Gain change with no old-window gained
+  preview work; and
+- Session restore → explicit Difference reconstruction → settled Difference PNG
+  export with no export-triggered Calculate and no generation/cache mutation.
+
+### Owner Windows manual workflow matrix
+
+Before merge, owner characterization should cover:
+
+- **Input/navigation:** Open Images, Open Folder, direct/folder D&D, 7/15/50 Selected,
+  Comparison Page navigation, Selected-image navigation, Folder/Test Case position.
+- **Curation:** cross-page Pick, Clear Selection, Keep Selection, and Active/Primary
+  behavior after Keep.
+- **Analysis:** Statistics, Histogram, ROI, Line Profile, Difference Absolute/Mask,
+  Display Gain, Split Channels.
+- **Difference lifecycle:** explicit Calculate, hide/show, source navigation, Keep
+  teardown, and no stale document/provenance/toolbar/navigation result.
+- **Session/Recent:** Save/Open Session, later-page restore, ROI/Line/Gain/Split,
+  eligible Difference reconstruction, Recent Image/Folder/Session, missing entry
+  Remove/Keep.
+- **Export:** Statistics CSV, Histogram CSV, Line Profile CSV, Difference metrics
+  CSV/Copy, and settled active Difference PNG.
+- **Runtime:** small source-memory budget, eviction/revisit, preload enabled, Session
+  open, Difference/Gain activity, close/recreate, and close with physically pending
+  work where practical.
+- **RAW:** resolved RAW, unresolved/lazy RAW, sidecar, cancel/retry, and no off-page
+  eager prompt/decode.
+
+No wall-clock threshold is a merge gate; the deterministic merge gates are bounded
+ownership, request identity, no duplicate work, stale rejection, and teardown safety.
+
+### P4 closure plan
+
+P4 remains Active while this P4-F PR is unmerged. After owner validation,
+independent review, and merge:
+
+1. confirm latest `main` and the P4-F merge SHA;
+2. create a small docs-only closure branch/PR;
+3. mark P4-F = Complete and P4 = Complete;
+4. archive this active plan as
+   `docs/exec-plans/completed/p4-workflow-session-productivity.md`;
+5. update `CURRENT_STATE`, `ROADMAP`, and UI status to the final merged baseline;
+6. retain Saved/named/multiple ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle
+   Line Profile as future candidates, not incomplete P4 blockers.
+
+No P5 runtime implementation starts as part of P4-F or the closure docs PR.
 
 ## P4-A explicit exclusions
 
@@ -520,8 +629,16 @@ policy or PR #33 Difference lifecycle.
 
 Runtime/UI slices use owner/local Windows validation. Chat implementation agents do
 not bootstrap/search for a local Windows virtual environment or install dependencies.
+Earlier P4-E owner evidence is not reused as validation for the P4-F head.
 
-Before merge, the standard repository contract is:
+Run the focused P4-F integration slice first:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+    tests\ui\test_p4f_workflow_hardening.py
+```
+
+Then run the standard repository contract before merge:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -533,19 +650,5 @@ Before merge, the standard repository contract is:
 git diff --check
 ```
 
-For P4-E, run the focused export slice first:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_analysis_export.py `
-    tests\unit\test_analysis_export_metrics.py `
-    tests\ui\test_p4e_analysis_export.py `
-    tests\ui\test_p4e_analysis_productivity.py `
-    tests\ui\test_p4e_analysis_export_lifecycle.py `
-    tests\ui\test_p4e_analysis_export_review_regressions.py
-```
-
-The repository owner reports the requested focused P4-E validation and requested
-post-fix static checks PASS on code/test head
-`d8fa4b0c0ffe0a3517d37c703c490ec399f8ccf9`. Only observed results are recorded as
-PASS; the docs-only closure commits do not imply a new unobserved runtime run.
+P4-F owner Windows validation is currently pending. Only observed results may be
+recorded as PASS.

@@ -176,9 +176,13 @@ class SessionController:
         selected_paths = tuple(str(document.source_path) for document in selected)
         selected_ids = {document.document_id for document in selected}
         active_path = self._path_for_runtime_id(self.window._active_document_id, selected_ids)
-        current_page_ids = {
-            document.document_id for document in self.window.current_comparison_documents()
-        }
+        current_page = [
+            document
+            for document in self.window.current_comparison_documents()
+            if document.source_path is not None
+        ]
+        current_page_ids = {document.document_id for document in current_page}
+        page_anchor_path = str(current_page[0].source_path) if current_page else None
         primary_path = (
             self._path_for_runtime_id(self.window._focus_document_id, current_page_ids)
             if self.window._layout_mode != "Single View"
@@ -187,6 +191,7 @@ class SessionController:
         session = Session(
             registered_sources=tuple(registered_sources),
             selected_paths=selected_paths,
+            page_anchor_path=page_anchor_path,
             active_path=active_path,
             primary_path=primary_path,
             layout_mode=self.window._layout_mode,

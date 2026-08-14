@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
 
-from PySide6.QtCore import QObject, Qt, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QWidget
 
 from pixelscope.ui.design_tokens import TOKENS
@@ -75,6 +76,40 @@ class _DisplayGainComboBox(QComboBox):
             self.blockSignals(False)
 
 
+class _DisplayGainWindowLifetime(QObject):
+    """Disarm app-global Display Gain callbacks when one MainWindow closes."""
+
+    def __init__(self, window: Any, state: DisplayGainState, combo: _DisplayGainComboBox) -> None:
+        super().__init__(window)
+        self.window = window
+        self.state = state
+        self.combo = combo
+        self._shutting_down = False
+        window.installEventFilter(self)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if watched is self.window and event.type() == QEvent.Type.Close:
+            self.shutdown()
+        return super().eventFilter(watched, event)
+
+    def shutdown(self) -> None:
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        with suppress(RuntimeError):
+            self.window.removeEventFilter(self)
+        with suppress(RuntimeError, TypeError):
+            self.state.gain_changed.disconnect(self.combo._sync_gain)
+        for viewer in [self.window.viewer, *self.window.multi_compare_view.viewers]:
+            callback = getattr(viewer, "_display_gain_changed", None)
+            if callable(callback):
+                with suppress(RuntimeError, TypeError):
+                    self.state.gain_changed.disconnect(callback)
+            cancel = getattr(viewer, "_cancel_display_preview", None)
+            if callable(cancel):
+                cancel()
+
+
 def is_display_gain_capable(document: object) -> bool:
     """Return whether a document has a viewer presentation owned by Display Gain."""
 
@@ -102,6 +137,10 @@ def _insert_before_stretch(layout: QHBoxLayout, widget: QWidget) -> None:
 
 def install_display_gain_control(window: Any) -> QComboBox:
     """Install Display Gain inline with the image-view command controls."""
+
+    existing = getattr(window, "_display_gain_control", None)
+    if isinstance(existing, _DisplayGainComboBox):
+        return existing
 
     state = display_gain_state()
     state.reset()
@@ -167,5 +206,7 @@ def install_display_gain_control(window: Any) -> QComboBox:
     else:
         window.main_toolbar.addSeparator()
         window.main_toolbar.addWidget(host)
+    window._display_gain_control = combo
+    window._display_gain_window_lifetime = _DisplayGainWindowLifetime(window, state, combo)
     update_enabled()
     return combo

@@ -6,8 +6,9 @@ Complete as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340` and remains the
 legacy `.pixelscope` read-compatibility format. P4-C Session Persistence & Typed
 Recent is Complete as PR #31 at `436033a0d99513fe8db35f08305395127e430af2`.
 PR #32/#33 runtime and Difference contracts are inherited rather than reimplemented.
-P4-E Analysis Export Productivity is Active; P4-D Saved ROI and Alpha Overlay are
-deferred, and P4-F Integration & Workflow Hardening is next/final for P4.
+P4-E Analysis Export Productivity is Complete as PR #34 at
+`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`. P4-D Saved ROI and Alpha Overlay are
+deferred, and P4-F Integration & Workflow Hardening is Active/final for P4.
 
 ## Current shell
 
@@ -248,10 +249,11 @@ best-effort observer metadata and remains outside Settings schema v5.
 Legacy `recent/comparison_sets` is migration/read fallback only; `recent/sessions` is
 the current Session history key.
 
-## P4-E Analysis Export Productivity — Active
+## P4-E Analysis Export Productivity — Complete
 
-P4-E adds no new analysis algorithm. Its UI is a focused File-menu export surface
-for already-current results:
+P4-E merged as PR #34 at `79ee74134f1ebef9dd13f82e49f8e34407bb78f4` and adds no new
+analysis algorithm. Its UI is a focused File-menu export surface for already-current
+results:
 
 - **Export Statistics CSV...** remains unchanged.
 - **Export Histogram CSV...** is enabled for settled current Histogram data and
@@ -277,8 +279,24 @@ Difference PNG encoding/file I/O uses the existing bounded analysis worker pool;
 new worker pool or Settings schema is added.
 
 Saved/named/multiple ROI and Alpha Overlay are deferred by owner decision. They are
-not P4 completion blockers. P4-F Integration & Workflow Hardening follows P4-E and
-closes P4.
+not P4 completion blockers.
+
+## P4-F Integration & Workflow Hardening — Active
+
+P4-F adds no new product control. The production UI contracts above remain unchanged
+while integration tests exercise the assembled P4 workflow. Two narrow lifetime/
+persistence fixes are active on the P4-F branch:
+
+- Session Save persists the actual Current Comparison Page anchor directly, keeping
+  later-page restore independent from source Active/Primary fallback state;
+- MainWindow close disarms that window's Display Gain control/viewer subscriptions
+  from the application-global gain state and cancels outstanding viewer-local gain
+  preview work, so close/recreate cannot leave an old window doing new full-frame
+  presentation work.
+
+No new QAction, menu item, viewer mode, Session schema field, worker pool, preload
+policy, or residency owner is added. P4-F remains Active until owner Windows
+validation, independent review, and merge.
 
 ## RAW input UI
 
@@ -331,6 +349,8 @@ P3-C is complete as PR #25 at
   numerical analysis request identity are not changed by gain.
 - Session persists only the scalar Display Gain intent; PR #32 remains the runtime
   preview/concurrency authority during restore.
+- P4-F only hardens MainWindow lifetime by disconnecting a closed window from the
+  application-global gain state; numerical/presentation semantics are unchanged.
 
 ## Runtime/resource status
 
@@ -354,11 +374,11 @@ for an observation tool; interpolation is not assumed.
 
 ## Validation state
 
-P4-A / PR #29, P4-B / PR #30, P4-C / PR #31, PR #32, and PR #33 are merged into
-main. P4-C merged at `436033a0d99513fe8db35f08305395127e430af2` and provides the
-current inherited Session/Recent baseline for P4-E.
+P4-A / PR #29, P4-B / PR #30, P4-C / PR #31, PR #32, PR #33, and P4-E / PR #34
+are merged into main. The current merged baseline is PR #34 at
+`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`.
 
-For P4-E, owner Windows validation is pending. Agent-side focused serializer tests
-may be recorded only when actually observed; PySide6/UI/full repository checks must
-not be marked PASS unless their command output is observed on an appropriate
-environment.
+P4-F owner Windows validation and independent review are pending. Earlier P4-E
+validation evidence is historical and is not reused as P4-F-head validation. The
+focused P4-F integration suite is `tests/ui/test_p4f_workflow_hardening.py`; its
+result must be recorded only when actually observed on an appropriate environment.
