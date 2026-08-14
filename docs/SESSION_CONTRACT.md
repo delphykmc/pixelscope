@@ -126,31 +126,35 @@ For a valid Session, restore proceeds in this order:
 8. restore loadable Selected in saved order;
 9. reconstruct the saved Current Comparison Page from the saved page anchor and
    Selected order;
-10. restore the saved layout and retain applicable source Primary/Active as pending
-    final presentation intent;
+10. restore layout and establish applicable Primary/source Active for the reconstructed
+    workspace;
 11. foreground-load the Current Comparison Page through the existing MainWindow load
-    pipeline and wait for the page to reach a stable terminal source state;
-12. apply Display Gain and applicable Split Channels state, then allow any required
-    Display Gain preview work for the presented page to settle;
-13. restore applicable ROI and Line state;
-14. if the saved Difference recipe remains applicable to the restored current page,
+    pipeline;
+12. restore Display Gain and applicable Split state after the page reaches terminal
+    source state;
+13. wait for applicable Display Gain previews to settle;
+14. restore applicable ROI and Line state;
+15. if the saved Difference recipe remains applicable to the restored current page,
     bind its exact A/B/options through DifferencePanel and issue exactly one explicit
     **Calculate** request;
-15. let the merged PR #33 result-ready path alone establish active Difference
+16. let the merged PR #33 result-ready path alone establish active Difference
     provenance/document/toolbar state;
-16. as the final presentation commit, re-apply applicable saved source Primary and
-    source Active independently, in that order.
+17. re-apply saved source Primary and Active as the final presentation commit.
+
+Primary/Active are therefore established twice by design: once synchronously when the
+workspace is reconstructed so canonical P4-B open semantics remain immediately true,
+and once after asynchronous display/Difference work so transient presentation changes
+cannot become the final restored state.
 
 The loader never eagerly decodes every Registered source.
 
-## Restore progress and interaction boundary
+## Session restore progress UX
 
-Session Open exposes the asynchronous reconstruction explicitly instead of hiding it
-behind a top-level modal dialog. The progress UI is a **MainWindow-owned child
-overlay**, not a `QDialog`, not `ApplicationModal`, and never enters a nested event
-loop.
+Session Open exposes the asynchronous reconstruction transaction through a
+**MainWindow-owned child overlay**, not a `QDialog`, not `ApplicationModal`, and never
+enters a nested event loop.
 
-The overlay always presents the same maximum eight-step procedure:
+The restore state machine always follows the same maximum eight-step procedure:
 
 1. **Reading Session**;
 2. **Restoring sources**;
@@ -160,6 +164,11 @@ The overlay always presents the same maximum eight-step procedure:
 6. **Restoring analysis**;
 7. **Rebuilding Difference**;
 8. **Finalizing workspace**.
+
+The compact overlay does **not** list all eight rows simultaneously. It shows the
+procedure progress bar, the current `Step n of 8` title, and current-step detail only.
+This keeps the overlay small while still making background viewer reconstruction
+explicit to the user.
 
 The progress bar represents **procedure completion**, not elapsed-time or ETA
 prediction. A long-running step exposes concrete local detail where available, for
@@ -319,9 +328,7 @@ P4-C closure requires fresh validation on the #32/#33-based head for:
 - incompatible saved Difference pair/options skip rather than substitute;
 - real-worker four-source + ROI + Line + non-1× Gain + Difference reopen to final
   Difference presentation;
-- MainWindow-owned non-dialog restore overlay, fixed eight-step procedure, per-step
-  detail, fast optional-step completion, and clean overlay teardown after final
-  Primary/Active commit;
+- compact MainWindow-owned restore overlay through full eight-step reconstruction;
 - typed Recent MRU, migration, Remove/Keep, wrong-kind protection, restart
   persistence, per-type clear, and observer failure isolation;
 - inherited PR #32/#33 Difference/Display Gain lifecycle regressions.
