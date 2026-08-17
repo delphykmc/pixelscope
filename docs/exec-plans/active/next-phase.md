@@ -1,25 +1,38 @@
-# Execution plan: P4 — Workflow & Session Productivity
+# Execution plan: P5 — Remote IQA Platform
 
-Status: Active — P4-E merged as PR #34; P4-F implemented / owner validation and independent review pending
-Owner: repository owner + P4 orchestration agents
-Last updated: 2026-08-15
-Inherited merged baseline: PR #34 / main
-`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`
+Status: Active — P5-0 program setup
+Owner: repository owner + P5 orchestration agents
+Last updated: 2026-08-17
+Inherited merged baseline: PR #35 / main
+`d1d1fbe8fc7ee81855e5e037bcecc1278435e298`
+
+Authoritative remote IQA product/data contract:
+[`docs/REMOTE_IQA_CONTRACT.md`](../../REMOTE_IQA_CONTRACT.md).
+
+Completed P4 plan:
+[`docs/exec-plans/completed/p4-workflow-session-productivity.md`](../completed/p4-workflow-session-productivity.md).
 
 ## Goal
 
-Complete the focused workflow-productivity program on top of the stabilized P2/P3
-image semantics and bounded Current Comparison Page architecture. P4-C owns durable
-Session/Recent workflow intent. P4-E exports only current analysis/presentation
-results. P4-F closes P4 through cross-feature integration and lifetime hardening,
-without adding another broad product feature.
+P5 connects PixelScope to an external GPU Image Quality Assessment service without
+turning remote results into a second PixelScope source/runtime authority.
 
-P4 must improve workflow without creating a second source, analysis, cache,
-selection, worker, preload, or residency authority.
+The user workflow is deliberately two-speed:
 
-## Inherited P2/P3 baseline
+1. use existing PixelScope local comparison tools for fast image inspection;
+2. submit a current pair or a large folder-pair evaluation when remote IQA is useful;
+3. continue local work while the remote job runs;
+4. reopen durable results and drill down from dataset trend to attribute, scene, and
+   spatial block;
+5. explicitly inspect a selected scene in the existing PixelScope viewer.
 
-The following ownership hierarchy is authoritative:
+P5 is client/result-platform work in `delphykmc/pixelscope`. GPU model and server
+implementation remain in the external server repository, although P5 may define and
+request new versioned interfaces from that service.
+
+## Inherited P2/P3/P4 contracts
+
+The following PixelScope hierarchy remains authoritative:
 
 ```text
 Registered
@@ -33,614 +46,425 @@ Presented
 Resident when required
 ```
 
+`Analysis Working Set = Current Comparison Page`.
+
+P5 must preserve these invariants:
+
+- batch IQA membership is not Files registration or Selected membership;
+- remote result membership does not own decoded-source residency/protection;
+- IQA browsing starts no P2 folder preload or Comparison Page preload;
+- IQA state does not bump source generations or redefine native source identity;
+- existing Statistics/Histogram/Line Profile remain native local analysis of the
+  Current Comparison Page;
+- existing Difference numerical/cache/provenance rules remain unchanged;
+- Display Gain remains presentation-only and cannot alter IQA server result identity;
+- P4-A temporary Picks remain source-curation state and must not be silently
+  invalidated by passive IQA browsing;
+- Session v1 remains durable local workspace intent, not a container for remote
+  numeric arrays or running jobs;
+- P4 export remains a consumer of established local results and is not repurposed as
+  remote-result authority;
+- existing bounded application workers and stale-result/lifetime rules must not be
+  bypassed by remote UI callbacks.
+
+## P5 remote authority model
+
+P5 models remote IQA independently from the local image hierarchy:
+
 ```text
-Analysis Working Set = Current Comparison Page
+IQA Job
+    ↓
+Scene
+    ├─ Source A
+    ├─ Source B
+    ├─ future Source C ...
+    ├─ representative image
+    ├─ common Edge Map
+    ├─ common Texture Gate
+    └─ per-source attribute results
+          ↓
+     derived comparisons
 ```
 
-Inherited invariants:
+The P5 v1 UI supports two sources per Scene, but the durable result/request schema
+should use `sources[]` so future N-source evaluations do not require a format
+redesign. Source A is the default reference, not an intrinsic ground truth.
 
-- Selected alone is not decoded-source residency authority.
-- Current Comparison Page plus correctness dependencies remains the bounded generic
-  source-protection authority.
-- Comparison Page navigation creates no speculative preload.
-- P2 preload remains Folder Position `+1`, exactly one position ahead, max-one
-  speculative worker, with existing RUNNING promotion semantics.
-- Display Gain is presentation-only and never redefines native analysis/request
-  identity.
-- Difference remains native code-domain for equal effective depth and independently
-  normalized `[0,1]` for mixed effective depth.
-- RAW Black/White metadata and display transforms do not enter Difference domain
-  selection/normalization.
-- temporary workflow state must not become source/cache/residency/analysis authority.
-- Current Comparison Page remains derived runtime state; durable Session persistence
-  may store only a source-path page anchor needed to reconstruct the same page.
-- PR #32 owns generic Display Gain/Difference worker and presentation stability.
-- PR #33 owns active Difference establishment, provenance, visibility, teardown, and
-  cache lifecycle; only explicit successful Calculate establishes an active result.
-- export is a consumer of current canonical/result presentation and must not become
-  numerical, source, residency, preload, or Difference authority.
+The common Edge Map and Texture Gate are generated from a representative image for
+the Scene and are shared by all sources in that Scene. Server weighting may be soft
+or hard-gated and is server-profile authority; PixelScope must not infer an effective
+numerical weighting policy from the visualization maps.
+
+## Attributes and statistics
+
+P5 starts with ten attributes:
+
+| Attribute | Quality direction | Current default block |
+|---|---|---:|
+| Luma noise | lower is better | 32×32 px |
+| Luma detail | higher is better | 32×32 px |
+| Chroma noise | lower is better | 32×32 px |
+| Chroma detail | higher is better | 32×32 px |
+| Edge strength | higher is better | 32×32 px |
+| Luma contrast | higher is better | 128×128 px |
+| Luma bias | neutral / signed | 128×128 px |
+| Chroma contrast | higher is better | 128×128 px |
+| Chroma bias | neutral / signed | 128×128 px |
+| Colorfulness | higher is better | 128×128 px |
+
+Block sizes are server metadata, not PixelScope constants.
+
+The server exposes weighted mean and weighted population standard deviation, plus two
+official comparison summaries for power attributes:
+
+- ratio of weighted means;
+- mean of per-grid log ratios.
+
+P5 must preserve the distinction. Bias attributes are signed-value comparisons and
+must not be presented as ordinary dB power-ratio quality metrics.
+
+## Remote analysis geometry
+
+GPU analysis operates on an approximately 2K-downscaled domain for 4K-class RGB
+inputs. Structural maps, attribute maps, weights, and grid summaries are therefore
+remote-analysis-domain data.
+
+The result contract must carry original/analysis dimensions, valid rectangle,
+source-to-analysis transform, grid origin/dimensions, block size, and border-discard
+metadata. PixelScope must map remote grid coordinates back through this metadata to
+the original viewer; a fixed 0.5 scale is not a contract.
+
+Pair dimensions must match. Dimension mismatch fails evaluation rather than silently
+creating a client-side alignment/resize semantic.
+
+## Result strategy
+
+P5 uses tiered durable results:
+
+1. **Job summary** — small immutable manifest + summary statistics, loaded when a
+   result opens.
+2. **Compact scene spatial data** — source-local weighted block values/sufficient
+   statistics, loaded lazily for an inspected scene.
+3. **Optional 2K detail artifacts** — per-pixel attributes and structural maps,
+   loaded only when explicitly needed in a future/detailed workflow.
+
+Metadata is JSON-friendly. Numeric matrices should use NumPy-friendly binary
+artifacts instead of large nested JSON float arrays.
+
+Completed results are historical engineering artifacts and are expected to remain
+available until explicitly/admin deleted. P5 therefore treats result reopen/history
+as a product requirement, not an optimization.
+
+## Shared storage and transport
+
+Client and GPU server may mount the same SMB/network storage at different physical
+paths. P5 uses logical storage roots plus relative paths rather than embedding
+machine-local paths in the server API.
+
+Example:
+
+```text
+storage_root_id = iqadata
+relative_path = project42/A/0001.png
+
+client: iqadata → G:\IQA
+server: iqadata → /home/data/IQA
+```
+
+Local-only inputs may be staged into shared storage. Partial copies must never become
+server-visible as completed inputs; SHA-256/content-addressed reuse is preferred
+where practical.
+
+The external server currently has a blocking HTTP interface. P5 targets a job API
+with submit/status/result/cancel and polling as the initial progress mechanism.
+WebSocket progress is not a P5 v1 requirement.
+
+## UX direction
+
+P5 adds one non-modal **IQA workspace/dock** rather than making a large custom modal
+window the primary workflow.
+
+```text
+IQA
+├─ Setup
+│   ├─ Current Pair
+│   └─ Folder Pair
+├─ Jobs
+└─ Results
+```
+
+Native OS file/folder pickers may remain modal. Pair preparation, job progress, and
+result exploration remain non-modal so users can continue ordinary PixelScope work.
+
+### Current Pair
+
+When two eligible native sources already form the current comparison context, IQA
+Setup reuses them directly. The user should not browse for the same files again.
+
+### Folder Pair
+
+P5 v1 supports two-folder submission. PixelScope resolves and previews the same
+sorted-by-index pair list before submission. Count mismatch disables submission;
+semantic correctness of same-index matching remains the user's responsibility.
+
+Large batch inputs remain IQA feature-local references and are not eagerly
+Registered/Selected/decoded.
+
+### Results
+
+Result exploration follows:
+
+```text
+Job / dataset
+    ↓
+10-attribute overview
+    ↓
+selected attribute trend / outliers
+    ↓
+selected scene
+    ↓
+spatial grid comparison
+    ↓
+block inspector
+```
+
+The overview should support an Attribute × Scene matrix plus selected-attribute
+trend/outlier navigation. The two official aggregation methods must be explicitly
+selectable/labeled.
+
+Passive result browsing must not mutate the current PixelScope Selected workspace.
+An explicit **Inspect Pair** action loads only the chosen Scene pair through the
+existing canonical registration/selection path. IQA Reference is separate from
+PixelScope Primary. Inspection may keep a transient return point for the prior local
+workspace; it is not Session persistence.
 
 ## Program sequence
 
-`P4-0 → P4-A → P4-B → P4-C → P4-E → P4-F → P4 Complete`
+`P5-0 → P5-A → P5-B → P5-C → P5-D → P5-E → P5-F → P5 Complete`
 
 | Order | Slice | Status |
 |---|---|---|
-| 0 | P4-0 P3 Closure & P4 Program Setup | Complete — PR #28 |
-| 1 | P4-A Review Selection & Curation | Complete — PR #29 |
-| 2 | P4-B Comparison Set Persistence | Complete — PR #30 |
-| 3 | P4-C Session Persistence & Typed Recent | Complete — PR #31 — `436033a0d99513fe8db35f08305395127e430af2` |
-| 4 | P4-D Saved ROI & Analysis Workspace Productivity | Deferred |
-| 5 | P4-E Analysis Export Productivity | Complete — PR #34 — `79ee74134f1ebef9dd13f82e49f8e34407bb78f4` |
-| 6 | P4-F Integration & Workflow Hardening | Active — implementation/test/docs prepared; owner validation/review pending |
+| 0 | P5-0 P4 Closure & P5 Program Setup | Active |
+| 1 | P5-A Contract Fixtures & IQA Domain | Planned |
+| 2 | P5-B IQA Workspace & Local Result Exploration | Planned |
+| 3 | P5-C Submission & Shared Storage | Planned |
+| 4 | P5-D Viewer-linked Scene Inspection | Planned |
+| 5 | P5-E Historical Result Workflow | Planned |
+| 6 | P5-F Integration & Performance Hardening | Planned |
 
-P4-D is intentionally skipped in the execution order. Session v1 already persists
-the current active ROI/Line; the remaining named/multiple ROI manager needs product
-semantics for ownership, mixed dimensions, and coordinates that are not yet justified
-by a demonstrated workflow pain point.
-
-Alpha Overlay is also deferred. Multi View, synchronized navigation, and Difference
-already cover the principal comparison workflow; Overlay/Flicker/Wipe utility has not
-been validated sufficiently to add pairing/alpha/Gain/Split/Session semantics.
-
-Arbitrary-angle Line Profile is intentionally **not** a P4 slice. PixelScope's line
-profile is an observation/sampling tool, so a future arbitrary-angle implementation
-would require a deliberate discrete pixel-sampling/path and coordinate-display
-contract rather than casually introducing interpolation. The expected utility does
-not currently justify that semantic/UI cost.
-
-## P4-0 — P3 Closure & P4 Program Setup — Complete
-
-PR #28 merged at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
-The docs-only orchestration slice:
-
-- recorded P3-E / PR #27 as merged and P3 as Complete;
-- archived the completed P3 execution plan;
-- established this P4 program plan;
-- reconciled phase/status documentation;
-- added no P4 runtime/UI state and changed no Settings/persistence schema.
-
-## P4-A — Review Selection & Curation — Complete
+## P5-0 — P4 Closure & P5 Program Setup — Active
 
 ### Goal
 
-Allow a user to browse a large Selected set page by page, make temporary review
-picks, then explicitly reduce Selected to the picked native images without changing
-Files registration.
+Close P4 documentation against merged PR #35 and establish the implementation
+contract for P5 before runtime/UI work begins.
 
-Authoritative flow:
+### Deliverables
 
-```text
-Registered
-    ↓
-Selected
-    ↓
-Current Comparison Page
-    ↓
-direct temporary Pick Set
-    ↓ Keep Selection
-new Selected subset
-```
+- archive the completed P4 execution plan;
+- update ROADMAP/CURRENT_STATE/UI status to P4 Complete / P5 Active;
+- establish this P5 active execution plan;
+- establish the Remote IQA durable contract;
+- record the planned phase sequence and validation/review workflow;
+- add no runtime/UI behavior and change no Settings/Session schema.
 
-### Implemented contract
+### Validation
 
-P4-A merged as PR #29 at `3486146494076e9b513843b90ec44e504043729e`.
+P5-0 is docs-only. Run documentation/link validation and `git diff --check`; do not
+claim runtime pytest/Ruff/mypy PASS from unchanged code unless actually rerun.
 
-- There is **no explicit Review Select mode**. Eligible native source tiles in Multi
-  View expose **Pick** directly; normal tile activation and navigation retain their
-  inherited meanings.
-- The first checked Pick captures the current ordered Selected IDs as the temporary
-  baseline internally.
-- `ReviewSelectionState` stores only baseline Selected IDs, picked native source
-  IDs, and internal captured-baseline state. It stores no source/preview arrays,
-  workers, caches, residency state, RAW-profile copies, or Current Comparison Page
-  copy.
-- The Pick text remains `Pick`. Checked membership uses the depressed/checked button
-  state plus a bright-yellow tile-wide border; Active and Primary remain distinct.
-- Picks remain marked while navigating across Comparison Pages. Off-page picks do
-  not need to remain resident or protected.
-- The presentation row exposes
-  `Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
-  `Selected N` is the temporary Pick Set count, not the Files logical Selected count.
-- **Clear Selection** clears only temporary picks.
-- **Keep Selection** is disabled when the Pick Set is empty.
-- Applying Keep Selection preserves original baseline Selected ordering among picked
-  images rather than pick order.
-- Non-picked images remain Registered in Files.
-- Pick membership alone does not trigger decode, `_ensure_loaded()`, source LRU
-  touch/protection, preload, foreground promotion, gained-preview generation,
-  Difference calculation/cache changes, or analysis requests.
-- Split/Difference derived presentation documents are not independent pick
-  identities; picks refer to native registered/selected source document IDs.
-- Only Keep Selection mutates logical Selected. Pick/Unpick/Clear Selection do not.
-- There is no user-facing Cancel command.
-- a different logical Selected-membership mutation invalidates the captured
-  baseline/Pick Set before or with the existing normal selection mutation.
-- registration-only folder input preserves the temporary curation state because it
-  does not mutate Selected.
-- P4-A Pick Set is not persisted across Session restore.
-- Settings schema remains v5.
-
-### Implementation shape
-
-- `core.review_selection.ReviewSelectionState` is the Qt-free ID-only state model;
-  its `active` field is internal captured-baseline state rather than product mode.
-- `ui.review_selection.ReviewSelectionController` owns temporary direct-curation
-  orchestration and the `Selected N / Clear Selection / Keep Selection` controls.
-- `TileHeader` exposes the stable source-tile Pick affordance separately from its
-  existing Primary flag. The viewer `reviewPicked` property drives the tile-wide
-  yellow selected border independently from Active styling.
-- production application composition places Display Gain before the row stretch and
-  then inserts the curation controls, producing the owner-approved unwrapped order
-  without moving unrelated Main-toolbar commands.
-- `DocumentListWidget` pre/post selection/removal signals allow curation invalidation
-  without runtime PySide signal disconnect/reconnect rewiring; MainWindow retains
-  normal selection/removal mutation authority.
-- Keep Selection delegates the resulting ordered subset through the inherited
-  Selected mutation/render/source lifecycle rather than creating a
-  curation-specific source lifecycle.
-
-### Focused coverage
-
-Focused suites cover:
-
-- state capture/exit, Pick/Unpick, duplicate idempotence, Clear, zero-pick,
-  temporary lifetime, and baseline-order filtering;
-- direct first-Pick capture, stable Pick checked/depressed state, picked count, and
-  Active/Primary/Pick separation;
-- bright-yellow tile-wide Pick state and cross-page restoration;
-- `1 / 2 / 6 / 7 / 15 / 50` Selected cases;
-- cross-page picks for 7 and 15 images;
-- ordered Keep Selection result and non-picked registration retention;
-- exact Files-tree subset and first-result Active state after Keep Selection;
-- 50-image page-bounded loading/protection with no Pick-owned preload;
-- no Pick/Unpick/Clear `_ensure_loaded`, render, Statistics, Difference-input, or
-  Line Profile request churn and no source-generation/residency/Difference-cache
-  change;
-- pan / Ctrl+drag ROI / Shift+drag Line Profile gestures not toggling Pick;
-- Split/Difference derived identity rejection;
-- programmatic, production Files removal, direct signal fallback, and direct-Files
-  Selected replacement invalidation.
-
-## P4-B — Comparison Set Persistence — Complete
-
-### Historical artifact boundary
-
-P4-B merged as PR #30 at `3a19589e6cbad5fa8c814c522df6a553f59ee340`.
-It established the first external `.pixelscope` artifact with
-`kind = "pixelscope-comparison-set"` and `schema_version = 1`.
-
-The persisted source identity contract is a normalized **absolute local source
-path**. The v1 reader rejects blank/relative source, Active, and Primary paths before
-normalization. There is no relocation/fuzzy path resolution. Comparison Set v1 is
-therefore deterministic but path-layout dependent and may disclose local paths.
-
-Comparison Set v1 persists ordered logical Selected native-source references,
-optional selected Active, optional applicable Primary, stable layout mode, and
-minimum resolved RAW profile metadata needed to reconstruct a RAW source. It does
-not persist runtime arrays, residency/LRU/protection, preload, Difference/cache,
-Display Gain, ROI/Line, analysis results, workers/tokens/generations, or temporary
-P4-A Picks.
-
-P4-C supersedes **new writes/UI terminology** with Session v1 while preserving
-legacy Comparison Set v1 read compatibility.
-
-### Validation status
-
-The repository owner reported the focused P4-B Windows suite PASS (`36 passed`)
-before PR #30 merged.
-
-## P4-C — Session Persistence & Typed Recent — Complete
-
-### Goal and durable contract
-
-P4-C merged as PR #31 at `436033a0d99513fe8db35f08305395127e430af2`.
-P4-C generalizes the workflow artifact into **PixelScope Session v1**. New writes use
-`kind = "pixelscope-session"`, schema v1, and `.pixelscope`; legacy P4-B
-`pixelscope-comparison-set` v1 remains read-compatible.
-
-Authoritative contract:
-[`docs/SESSION_CONTRACT.md`](../../SESSION_CONTRACT.md).
-
-Persist durable workspace intent only:
-
-- Registered membership and resolved RAW reconstruction metadata;
-- exact ordered Selected paths;
-- a Selected source-path Current Comparison Page anchor;
-- applicable source Active and Primary;
-- stable layout mode;
-- ROI and Line;
-- Display Gain and applicable Split Channels state;
-- a regenerable Difference recipe only when its A/B are both members of the saved
-  Current Comparison Page.
-
-Registered order is non-semantic; Selected order is semantic. Temporary Picks,
-decoded arrays, previews, residency/LRU/protection state, preload/workers/tokens,
-Difference maps/cache/results/documents, calculated analysis results, and other
-derived buffers remain non-persistent.
-
-### Restore transaction and PR #32/#33 boundary
-
-Session Open is a single-read transaction. It validates first, probes paths without
-decoding, stages incoming registrations before removing unrelated current workspace
-members, and leaves the existing workspace/Picks intact if zero incoming sources
-actually register.
-
-After commit, restore clears stale P4-A curation, restores exact loadable Selected
-order and the saved Current Comparison Page from the page anchor, then uses the
-existing bounded foreground loader, Display Gain pipeline, ROI/Line state, and
-DifferencePanel. There is no Registered-wide eager decode.
-
-PR #32 remains the runtime/concurrency/presentation authority. PR #33 remains active
-Difference authority. Session never pre-binds `_difference_source_ids`; an eligible
-saved recipe restores exact compatible A/B/options on the reconstructed page and
-issues one explicit **Calculate** request. The normal PR #33 result-ready path alone
-establishes active Difference provenance/result/toolbar state.
-
-Writer and reader use the same page eligibility. If an active Difference binding from
-an earlier page remains after Diff is hidden and the user navigates elsewhere,
-Session Save omits that off-page recipe. Session does not create special off-page
-Difference loading/residency ownership or silently substitute another pair/page.
-
-Session restore progress is reported by a MainWindow-owned child overlay with a
-fixed eight-step procedure. It is an input shield/observer only: no `QDialog`, no
-application-modal nested event loop, no Cancel/partial rollback contract, and no new
-runtime authority.
-
-### Typed Recent/Open UX
-
-File UX is:
-
-```text
-Open Images...
-Open Folder...
-Open Session...
-Open Recent Images      >
-Open Recent Folders     >
-Open Recent Sessions    >
---------------------------
-Save Session...
-```
-
-Recent history is an independent max-10 MRU per type. Image activation reuses the P3
-selection-oriented path; Folder activation reuses registration-only behavior;
-Session activation delegates to the Session controller. Missing entries use explicit
-Remove/Keep. Wrong-kind or existing invalid artifacts remain history until explicitly
-removed. History is path-only best-effort observer metadata, owns no source/runtime
-state, and stays outside Settings schema v5. `recent/comparison_sets` is migration/read
-fallback only; `recent/sessions` is authoritative.
-
-### Validation status
-
-The repository owner reports the complete requested local validation set PASS on
-code/test head `b2865c37bd665b4a8a136aa3fe48c3c6a6fcc84b`. Coverage includes Session
-schema/legacy read compatibility, strict validation/no-mutation, single-read and
-registration commit boundaries, exact Selected/page/Primary/Active behavior,
-RAW/display/ROI/Line/Split restoration, terminal analysis skip, real-worker
-Difference reconstruction, restore-overlay lifetime, typed Recent persistence and
-observer isolation, inherited PR #32/#33 regressions, and the final
-`>6 Selected → page-1 Diff → hide → page 2 → Save/Open` writer/reader-symmetry case.
-
-Merge-closure changes after this validated head were documentation/PR-metadata only.
-
-## P4-D — Saved ROI & Analysis Workspace Productivity — Deferred
-
-Session v1 already persists/restores the current active ROI and Line selection. The
-remaining feature is effectively a saved/named/multiple ROI manager. Before such a
-feature can be implemented safely, product semantics are needed for:
-
-- session-global versus source-specific versus scene-specific ROI ownership;
-- coordinate representation, bounds/clipping, and mixed image dimensions;
-- naming/ordering/selection and activate/delete behavior;
-- persistence ownership if a future Session schema intentionally adds saved ROI
-  definitions.
-
-No sufficiently concrete workflow pain point currently justifies those semantics.
-P4-D is deferred and is not a P4 completion blocker. The existing active ROI remains
-the sole ROI input to native analysis.
-
-## P4-E — Analysis Export Productivity — Complete
-
-Merged as PR #34 at `79ee74134f1ebef9dd13f82e49f8e34407bb78f4`.
+## P5-A — Contract Fixtures & IQA Domain
 
 ### Goal
 
-Export only the analysis/presentation results PixelScope already owns so they can be
-reused in external engineering/reporting workflows. Do not add new numerical
-algorithms and do not create a generic “export everything” framework.
+Make the intended GPU contract executable and reviewable without a live server.
 
-Authoritative flow:
+### Required implementation
 
-```text
-native source
-→ existing analysis/result owner
-→ current result/presentation
-→ export consumer
-```
+- versioned Qt-free IQA domain schemas for Job/Scene/Source/Attribute/result metadata;
+- result manifest + summary + compact scene artifact parser;
+- deterministic mock server/result generator using the same production-shaped
+  contract;
+- local comparison/statistics utilities that reproduce fixture-authoritative values;
+- corruption/missing-artifact/error models without UI dependency.
 
-Export is never the numerical, Difference, source, analysis-working-set,
-residency/preload, or generation authority.
+### Deterministic sample
 
-### Implemented deliverables
+Generate roughly 10–12 scenes × 2 sources with all ten attributes. The fixture must
+be intentionally structured to include:
 
-1. **Export Difference Image...**
-   - requires an explicitly established active Difference result;
-   - current panel A/B must match active provenance;
-   - current presentation identity `(pair/generation/domain/channel/mode/gain/threshold)`
-     must match the last settled preview key, so returning to an active pair cannot
-     relabel an old presentation with newly changed controls;
-   - writes PNG from the same settled Difference presentation preview used by the
-     current semantic filename;
-   - reflects current Absolute/Mask, threshold, Difference display gain, and
-     compatible channel/presentation state;
-   - never screenshots toolbar/window chrome, never recalculates Difference, and
-     never promotes a cached-but-inactive map to active state;
-   - full-frame PNG encode/file I/O reuses the existing bounded analysis worker pool.
-2. **Export Histogram CSV...**
-   - serializes exact current plotted Histogram series;
-   - deterministic rows identify Full image/Active ROI scope and bounds,
-     source/series/channel, native bin edges and raw counts, current display bin
-     edges, and current x/y presentation modes;
-   - Gray/RGB/Bayer series follow current supported/rendered behavior with no new
-     histogram calculation.
-3. **Export Line Profile CSV...**
-   - serializes exact current plotted Line Profile series;
-   - deterministic rows identify current line coordinates, source/series/channel,
-     x/y presentation mode, sample index/position, and current rendered value;
-   - sampling/interpolation semantics are unchanged.
-4. **Statistics / metrics productivity**
-   - File-menu Statistics export and the main toolbar Export action share the same
-     timestamped P4-E controller path while preserving existing Statistics CSV data
-     semantics;
-   - Difference metrics can be exported locally as deterministic CSV with source A/B,
-     region, channel, comparison domain, effective bit depths, metric identity, and
-     value;
-   - Channel statistics and Difference metrics expose full-table CSV clipboard copy
-     controls with headers;
-   - all default analysis-export filenames include `YYYYMMDD-HHMMSS-mmm`; user-edited
-     filenames remain respected;
-   - Difference PNG default names encode channel/mode plus only the applicable gain
-     or threshold/domain unit.
-5. **Analysis presentation/lifecycle polish**
-   - Statistics headings are `Region`, `Images`, and `Channel statistics` with clear
-     title emphasis and the Channel statistics Copy control beside its heading;
-   - Difference metrics has a local heading, CSV, and Copy controls while redundant
-     native Scope/Domain helper rows are removed; normalized mixed-bit context remains
-     visible when semantically necessary;
-   - Statistics Copy, Difference Calculate, Difference metrics CSV, and Difference
-     metrics Copy share one subtle command interaction model: transparent normal
-     chrome, hover-revealed button chrome, recessed pressed feedback, keyboard-focus
-     accent, and low-contrast/etched disabled state; Copy glyphs use the larger
-     18 px presentation;
-   - controller shutdown disarms late table/model callbacks and running PNG worker
-     completion from touching deleted UI during MainWindow close/recreation.
+- visible dataset trends and spatial outliers;
+- positive/negative/near-zero directional results;
+- signed bias crossing negative/zero/positive;
+- a case where the two official aggregation methods differ;
+- local recomputation from compact source values/sufficient statistics matching the
+  fixture's official server statistics;
+- server-driven grid metadata including a non-default variant proving 32/128 are not
+  hard-coded;
+- non-zero grid origin, discarded border, and source→analysis transform;
+- soft-weight and hard-gate provenance variants;
+- identical-source, near-zero power, mismatch, missing/corrupt scene, and optional
+  detail-artifact cases.
 
-Exports reuse the existing configured Export directory and successful last-directory
-behavior. No new Export Settings schema is introduced. Missing/in-flight or stale
-results disable or safely no-op the corresponding export. Cancel mutates nothing;
-write failure gives compact status feedback.
+Large production-size 2K pixel arrays are not committed as fixtures.
 
-### Explicit exclusions
+### Acceptance
 
-P4-E does not add Saved/Named/Multiple ROI, Alpha Overlay, Flicker, Wipe, generic
-screenshot/viewer capture, raw-source export, Difference numerical-map interchange,
-Session export redesign, P4-A Pick export, arbitrary-angle Line Profile, new
-Difference/Histogram/Line algorithms, source residency/preload redesign, Display
-Gain/RAW redesign, Settings schema bump, remote IQA, or packaging/release work.
+With no GPU server and no network, tests can parse the mock result, select either
+official aggregation mode, derive scene/grid comparisons, and validate all geometry
+and edge cases deterministically.
 
-**Alpha Overlay is deferred by owner decision.** Overlay/Flicker/Wipe UX has not been
-validated against the current Multi View + synchronized navigation + Difference
-workflow, so P4-E does not add unproven pairing/alpha/Gain/Split/Session semantics.
+## P5-B — IQA Workspace & Local Result Exploration
 
-### Focused validation
+### Goal
 
-Deterministic coverage includes:
+Prove the result UX against deterministic fixtures before server submission is added.
 
-- exact current Difference Absolute/Mask presentation PNG export;
-- active A/B provenance and settled-presentation freshness, including
-  `A/B Calculate → uncached C/D → control change → A/B return` stale re-entry;
-- filename/PNG-byte agreement after the current presentation settles;
-- inactive/no Difference unavailable; explicit Calculate remains required;
-- export calls no Difference recalculation and changes no source generation/cache;
-- Histogram exact visible series with deterministic Gray/RGB/Bayer and ROI/full
-  scope identity;
-- Line Profile exact current rendered series/sample ordering;
-- Difference metrics CSV and Statistics/Difference table clipboard CSV;
-- timestamped default paths and custom-name preservation;
-- Statistics File-menu/toolbar export parity;
-- no-result safe action state/no-op;
-- configured Export directory reuse, cancel/no-path no mutation, compact write
-  failure;
-- Selected/Active/Primary/Page, normal/preload workers, and production File-menu
-  wiring remaining unchanged;
-- idempotent composition/teardown behavior without duplicate export actions/signals;
-- late model callback shutdown safety; and
-- MainWindow close/recreate while a Difference PNG worker is physically running.
+### Scope
 
-The repository owner reported the requested focused Windows validation and post-fix
-static checks PASS on code/test head
-`d8fa4b0c0ffe0a3517d37c703c490ec399f8ccf9`. Subsequent merge-closure commits were
-documentation/PR-metadata only. This evidence is historical P4-E evidence and is not
-P4-F-head validation.
+- non-modal IQA dock/workspace skeleton;
+- Open IQA Result... from a local/shared fixture artifact;
+- Job/dataset overview;
+- Attribute × Scene overview visualization;
+- selected-attribute trend and outlier navigation;
+- aggregation-mode selection;
+- no passive mutation of Files/Selected/local analysis state;
+- clean close/recreate lifecycle.
 
-## P4-F — Integration & Workflow Hardening — Active / P4 closure
+No live HTTP submission is required in P5-B.
 
-P4-F closes P4 with cross-feature integration rather than another broad feature.
-Existing P4-A/P4-C/P4-E and PR #32/#33 suites remain authoritative for subsystem
-semantics; P4-F adds tests only for transition gaps between those suites.
+## P5-C — Submission & Shared Storage
 
-### Coverage inventory and integration audit
+### Goal
 
-- **Large selection / curation:** inherited P4-A coverage already exercises
-  `1/2/6/7/15/50` Selected, cross-page Pick persistence, baseline-order Keep,
-  50-image bounded page loading/protection, and no Pick-owned preload. P4-F does not
-  duplicate those semantics.
-- **Curation × Difference:** PR #33 remains active Difference authority. P4-F adds a
-  production-composition path through Calculate → hide → Pick/Keep → Session Save,
-  proving Keep tears the established Difference down before Selected mutation and
-  the saved curated Session contains no stale old recipe.
-- **Display Gain × Difference/navigation:** PR #32 remains numerical/worker authority.
-  P4-F audits the application-global Gain subscription boundary and hardens closed
-  MainWindow lifetime without changing gain math or pool policy.
-- **Session round-trip:** P4-C remains authoritative for Registered/Selected/page,
-  ROI/Line/Gain/Split/RAW and explicit-Difference reconstruction. P4-F adds a writer
-  regression proving Current Comparison Page anchor persistence is independent from
-  Active/Primary fallback state.
-- **Later-page Session edge:** existing P4-C coverage remains authoritative for
-  `page 1 Difference → hide → page 2 → Save/Open`, including omission of off-page
-  Difference intent. The P4-F writer fix makes the saved page identity explicit.
-- **Session × RAW:** existing P3/P4-C tests cover resolved reconstruction metadata,
-  unresolved lazy RAW, foreground prompt terminal/cancel behavior, bounded current-
-  page loading, and no Session speculative preload. Audit found no new P4-F semantic
-  gap requiring a RAW code change.
-- **Typed Recent:** existing P4-C suites cover canonical Image selection intent,
-  Folder registration-only intent, Session controller delegation, missing Remove/Keep,
-  invalid-existing retention, max-10 per type, and observer-only ownership. Audit
-  found no new authority gap.
-- **Export:** P4-E remains authoritative for exact Statistics/Histogram/Line/Difference
-  current-result consumption. P4-F adds Session restore → explicit Difference
-  reconstruction → settled Difference PNG export and asserts export does not invoke
-  Calculate or mutate source generations/Difference cache.
-- **Qt lifetime:** P4-E already covers late export model callbacks and close/recreate
-  with a physically running PNG worker. P4-F adds application-global Display Gain
-  close disarming so a closed-but-not-yet-destroyed window cannot start new gained
-  preview work after another window changes/resets Gain.
+Connect the proven result model/UX to the external service.
 
-### Bugs found and minimal fixes
+### Scope
 
-1. **Session writer page-anchor fallback gap**
-   - Contract: Session page identity is durable intent independently of Active.
-   - Root cause: the writer omitted `page_anchor_path`, allowing the model fallback
-     chain to derive it from Primary/Active/Difference/first Selected.
-   - Fix: save the first persistent source of the actual Current Comparison Page as
-     the explicit anchor. Schema and reader semantics are unchanged.
-   - Regression: later-page save with Active/Primary unavailable still persists the
-     correct page anchor.
-2. **Closed-window Display Gain subscription gap**
-   - Contract: application-global Gain state must not make a closed MainWindow a
-     future work owner.
-   - Root cause: each viewer/control remained directly connected to application-
-     global `DisplayGainState` until QObject destruction; `close()` can leave the
-     Python/Qt object alive long enough for a later Gain change to request another
-     full-frame preview.
-   - Fix: a MainWindow-owned lifetime guard disarms that window's Gain callbacks on
-     `QEvent.Close` and cancels viewer-local gain previews. No new worker pool or
-     numerical path is introduced.
-   - Regression: changing global Gain after close starts no preview worker in the
-     closed window.
+- logical storage-root mapping;
+- safe shared staging where required;
+- Current Pair submission that reuses the current PixelScope pair;
+- two-folder Setup with deterministic Pair Preview and count-mismatch blocking;
+- explicit Scene manifest request;
+- HTTP job submit/status/result/cancel adapter;
+- polling progress with non-modal Jobs UI;
+- result handoff to the same P5-B repository/parser path;
+- retry/failure/cancel behavior without mutating the local image workspace.
 
-### Runtime/resource invariants
+The server implementation remains outside this repository.
 
-P4-F does not change source residency accounting (`exact native source.nbytes`), the
-Current Comparison Page protection authority, Difference generation/cache identity,
-P2 `+1` Folder Position max-one preload, PR #32 worker pools, or PR #33 active
-Difference lifecycle. Off-page Selected/Picked remains evictable. Session remains
-metadata plus bounded foreground reconstruction; Export remains current-result
-consumption and starts no preload/analysis recalculation.
+## P5-D — Viewer-linked Scene Inspection
 
-### Focused P4-F tests
+### Goal
 
-`tests/ui/test_p4f_workflow_hardening.py` covers:
+Connect result anomalies to actual source-image locations without creating a new image
+viewer or source authority.
 
-- explicit later-page Session anchor independent from Active/Primary fallback;
-- active Difference → temporary Picks → Keep Selection → Difference teardown →
-  curated Session Save with no stale recipe;
-- MainWindow close → later application-global Gain change with no old-window gained
-  preview work; and
-- Session restore → explicit Difference reconstruction → settled Difference PNG
-  export with no export-triggered Calculate and no generation/cache mutation.
+### Scope
 
-### Owner Windows manual workflow matrix
+- explicit Inspect Pair action;
+- canonical registration/selection of only the inspected pair;
+- transient Return-to-previous-workspace behavior;
+- IQA Reference state separate from Primary;
+- scene navigation linked to the existing viewer after Inspect begins;
+- remote-grid → analysis → source → viewer coordinate transform;
+- vector/grid overlay using compact spatial result data;
+- block inspector showing source values, raw comparison, semantic direction, and
+  geometry;
+- source mismatch/missing-source graceful degradation;
+- no interference with native Difference/ROI/Line/Gain semantics.
 
-Before merge, owner characterization should cover:
+P5-D must define safe behavior around an active P4-A temporary curation baseline;
+v1 should block conflicting Inspect entry rather than silently invalidating Picks.
 
-- **Input/navigation:** Open Images, Open Folder, direct/folder D&D, 7/15/50 Selected,
-  Comparison Page navigation, Selected-image navigation, Folder/Test Case position.
-- **Curation:** cross-page Pick, Clear Selection, Keep Selection, and Active/Primary
-  behavior after Keep.
-- **Analysis:** Statistics, Histogram, ROI, Line Profile, Difference Absolute/Mask,
-  Display Gain, Split Channels.
-- **Difference lifecycle:** explicit Calculate, hide/show, source navigation, Keep
-  teardown, and no stale document/provenance/toolbar/navigation result.
-- **Session/Recent:** Save/Open Session, later-page restore, ROI/Line/Gain/Split,
-  eligible Difference reconstruction, Recent Image/Folder/Session, missing entry
-  Remove/Keep.
-- **Export:** Statistics CSV, Histogram CSV, Line Profile CSV, Difference metrics
-  CSV/Copy, and settled active Difference PNG.
-- **Runtime:** small source-memory budget, eviction/revisit, preload enabled, Session
-  open, Difference/Gain activity, close/recreate, and close with physically pending
-  work where practical.
-- **RAW:** resolved RAW, unresolved/lazy RAW, sidecar, cancel/retry, and no off-page
-  eager prompt/decode.
+## P5-E — Historical Result Workflow
 
-No wall-clock threshold is a merge gate; the deterministic merge gates are bounded
-ownership, request identity, no duplicate work, stale rejection, and teardown safety.
+### Goal
 
-### P4 closure plan
+Make remote IQA results reusable engineering records rather than one-shot job output.
 
-P4 remains Active while this P4-F PR is unmerged. After owner validation,
-independent review, and merge:
+### Scope
 
-1. confirm latest `main` and the P4-F merge SHA;
-2. create a small docs-only closure branch/PR;
-3. mark P4-F = Complete and P4 = Complete;
-4. archive this active plan as
-   `docs/exec-plans/completed/p4-workflow-session-productivity.md`;
-5. update `CURRENT_STATE`, `ROADMAP`, and UI status to the final merged baseline;
-6. retain Saved/named/multiple ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle
-   Line Profile as future candidates, not incomplete P4 blockers.
+- Open IQA Result... durable workflow;
+- bounded Recent IQA Results history;
+- immutable result identity using job/result ID + logical path + source hashes;
+- result-only mode when original sources are unavailable;
+- source/hash mismatch diagnostics;
+- job/purpose/project provenance presentation where available;
+- evaluate whether Session should persist only a result reference + selected
+  attribute/scene intent; do not embed remote arrays into Session.
 
-No P5 runtime implementation starts as part of P4-F or the closure docs PR.
+Authentication/SSO/token/permission/admin operations remain P6.
 
-## P4-A explicit exclusions
+## P5-F — Integration & Performance Hardening
 
-P4-A does not add:
+### Goal
 
-- Session/Comparison Set serializer/loader or `.pixelscope` file format;
-- Recent Images/Folders/Sessions;
-- Pick Set persistence or Settings schema changes;
-- Saved ROI runtime/UI;
-- arbitrary-angle Line Profile or interpolation/sampling redesign;
-- Alpha Overlay or export behavior;
-- source residency or preload policy/concurrency changes;
-- Difference or Display Gain numerical changes;
-- RAW Profile Library/CRUD/favorites/search, demosaic, white balance, CCM, or tone
-  mapping;
-- remote IQA/authentication or packaging/signing/installer behavior;
-- broad MainWindow redesign.
+Validate the composed P5 workflow with the real server and large datasets while
+preserving all inherited resource/lifetime contracts.
 
-## P4-B historical exclusions
+### Scope
 
-P4-B itself did not add full Session persistence, Recent-entry history, Saved ROI,
-arbitrary-angle Line Profile, Alpha Overlay/export workflows, source residency or
-preload redesign, Difference/Display Gain numerical changes, RAW Profile Library or
-processing, remote IQA/authentication, or packaging/release work. P4-C intentionally
-extends the external artifact beyond that historical P4-B boundary.
+- real external server compatibility against the versioned contract;
+- large-result lazy loading and bounded local cache characterization;
+- SMB/network bandwidth behavior;
+- current-pair and large-folder submission stress;
+- cancellation, server failure, missing artifacts, and application close/recreate;
+- no eager loading of all scene/source data;
+- no accidental Files/Selected/source residency ownership from batch membership;
+- polling/task teardown and stale-result rejection;
+- optional detail-artifact path characterization without making 2K maps mandatory;
+- durable documentation and P5 closure.
 
-## P4-C explicit exclusions
+No fixed wall-clock latency is a correctness merge gate. Deterministic gates are
+bounded ownership, correct result identity, lazy loading, no duplicate submission or
+analysis work, stale callback rejection, and teardown safety.
 
-P4-C does not persist or own decoded source arrays, preview buffers,
-residency/LRU/protection state, preload plans/workers, Difference maps/cache/results,
-calculated analysis results, temporary P4-A Picks, request tokens/generations, or
-other runtime/process state. It does not change generic PR #32 worker/concurrency
-policy or PR #33 Difference lifecycle.
+## Review workflow
+
+Each P5 slice follows the established implementation/review loop:
+
+1. implementation agent reads latest `main`, this plan, the Remote IQA contract, and
+   relevant inherited durable docs;
+2. work is kept to the named slice and committed in intentional subunits;
+3. owner runs the required local Windows validation for runtime/UI work;
+4. a PR is opened with goals, implementation summary, contracts preserved,
+   validation evidence, and exclusions;
+5. an independent reviewer checks the full latest branch against ROADMAP/contract,
+   architecture/runtime integration, tests, resource ownership, and durable docs;
+6. implementation agent addresses actionable review comments with additional focused
+   commits;
+7. latest head is re-reviewed before merge when blockers were found.
+
+Reviewers should treat accidental changes to P2/P3/P4 source, selection, Difference,
+Session, worker, preload, or residency authority as merge blockers unless the active
+P5 slice explicitly and durably redesigns that contract.
 
 ## Validation policy
 
-Runtime/UI slices use owner/local Windows validation. Chat implementation agents do
-not bootstrap/search for a local Windows virtual environment or install dependencies.
-Earlier P4-E owner evidence is not reused as validation for the P4-F head.
+### Docs-only slices
 
-Run the focused P4-F integration slice first:
+Run:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q `
-    tests\ui\test_p4f_workflow_hardening.py
+.\.venv\Scripts\python.exe scripts\check_docs.py
+git diff --check
 ```
 
-Then run the standard repository contract before merge:
+`tests/unit/test_docs_contract.py` may also be run when convenient. Full runtime
+validation is not required solely because Markdown changed.
+
+### Runtime/UI slices
+
+Implementation agents should not waste time bootstrapping an unknown local virtual
+environment. The repository owner performs Windows validation using the existing
+`.venv`.
+
+Use focused tests for the changed slice first, then the repository-standard checks
+before merge as appropriate:
 
 ```powershell
+.\.venv\Scripts\python.exe -m pytest -q <focused tests>
 .\.venv\Scripts\python.exe scripts\check_docs.py
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m ruff check .
@@ -650,5 +474,17 @@ Then run the standard repository contract before merge:
 git diff --check
 ```
 
-P4-F owner Windows validation is currently pending. Only observed results may be
-recorded as PASS.
+Only observed results are recorded as PASS.
+
+## Explicit exclusions from P5
+
+P5 does not implement:
+
+- GPU IQA model/training/server internals in this repository;
+- P6 login/SSO/token/permission/admin lifecycle;
+- Saved/named/multiple ROI deferred from P4;
+- Alpha Overlay/Flicker/Wipe deferred from P4;
+- arbitrary-angle Line Profile;
+- RAW demosaic/WB/CCM/tone mapping;
+- source-residency/preload redesign unrelated to measured P5 needs;
+- packaging/signing/updater/release engineering owned by P7.
