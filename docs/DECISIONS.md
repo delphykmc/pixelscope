@@ -584,7 +584,10 @@ contract is `docs/SESSION_CONTRACT.md`.
   delegate to their canonical workflows.
 - Settings schema remains v5.
 
-## P4-E Analysis Export Productivity decisions — Active
+## P4-E Analysis Export Productivity decisions — Complete
+
+P4-E merged as PR #34 at
+`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`.
 
 - P4-D Saved/named/multiple ROI is deferred. Session v1 already persists the current
   active ROI/Line, while a named ROI manager still lacks owner-approved
@@ -616,8 +619,50 @@ contract is `docs/SESSION_CONTRACT.md`.
   setting/schema is added. Settings remains v5.
 - Missing/in-flight result actions are unavailable or safe no-ops. Cancel mutates
   nothing; failed writes report compact status without workspace mutation.
-- P4-F follows P4-E as integration/hardening and closes P4. P4-D and Alpha Overlay
-  are not P4 completion blockers.
+- P4-D Saved ROI and Alpha Overlay remain deferred and are not P4 completion
+  blockers.
+
+## P4-F Integration & Workflow Hardening decisions — Complete
+
+P4-F merged as PR #35; the P4-complete main baseline is
+`d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
+
+- P4-F added no new image-analysis numerical authority; it hardened the composed
+  P4 workflow and inherited P2/P3 lifetime/ownership contracts.
+- Session, curation, Difference, export, Display Gain, current-page loading, and
+  repeated close/recreate behavior compose without creating Selected-wide source
+  residency/preload authority.
+- P4-D Saved/named/multiple ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle
+  Line Profile remain deferred beyond P4.
+
+## P5-0 Remote IQA program decisions — Active
+
+P5-0 is a docs-only transition from completed P4 to the P5 Remote IQA program.
+The broad product/data contract is `docs/REMOTE_IQA_CONTRACT.md`; deterministic P5 v1
+math, identity, geometry, artifact, and parser rules are specialized by
+`docs/REMOTE_IQA_V1_SPEC.md`. These documents are authoritative for P5-A.
+
+- Remote IQA is feature-local state and does not replace
+  `Registered → Selected → Current Comparison Page → Presented → Resident` or
+  `Analysis Working Set = Current Comparison Page`.
+- Session v1 remains unchanged in P5-0. Remote numeric arrays, running jobs, and IQA
+  batch membership do not become Session/source/residency/preload/Difference
+  authority.
+- P5-A is fixture-first: deterministic production-shaped result artifacts and
+  Qt-free domain/parser/numerical/geometry tests precede live server coupling.
+- P5 v1 UI is two-source, while durable Scene/result identity is N-source-ready.
+- Remote submission v1 accepts RGB-family PNG/JPEG/BMP inputs only; RAW is not
+  silently converted for remote submission.
+- C1, logical shared-storage-root client configuration ownership, remains an
+  intentional owner decision gate before P5-C. P5-A/P5-B must not guess or create a
+  new machine-local settings authority for it.
+- C2 owner direction is **PARTIAL results are allowed**. A batch with scene-level
+  failures must be able to preserve successfully evaluated scene results rather than
+  automatically discard all successful work solely because another scene failed.
+  The exact request-level rejection policy, scene-failure record schema, PARTIAL
+  terminal-state identity, required published artifacts, and cancel-versus-publication
+  race semantics remain a mandatory P5-C decision gate before transport
+  implementation.
 
 ## Current resource policy
 
@@ -632,8 +677,9 @@ contract is `docs/SESSION_CONTRACT.md`.
   pool max remains four.
 - Display Gain derived previews are viewer-local presentation buffers and are not
   added to decoded-source residency or Difference cache ownership.
-- Comparison Page navigation, Pick membership, Session Save/Open, and P4-E export
-  introduce no Selected-wide speculative preload/cache/residency owner.
+- Comparison Page navigation, Pick membership, Session Save/Open, P4-E export, and
+  Remote IQA result membership introduce no Selected-wide speculative
+  preload/cache/residency owner.
 
 ## Validation and merge state
 
@@ -643,8 +689,9 @@ at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C is Complete as PR #31 at
 `436033a0d99513fe8db35f08305395127e430af2`. PR #32 Display Gain/Difference runtime
 stabilization is merged at `e1ccf264f86e37b438c923faceae96c3ecb539b7`; PR #33
 Difference/source-curation lifecycle is merged at
-`51a540c92c372d71e02fd849fb5e0d406d0e9327`.
+`51a540c92c372d71e02fd849fb5e0d406d0e9327`. P4-E is Complete as PR #34 at
+`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`. P4-F is Complete as PR #35; the
+P4-complete main baseline is `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
 
-P4-E Analysis Export Productivity is active. P4-D Saved ROI and Alpha Overlay are
-deferred by owner decision. P4-F is the next/final P4 integration-hardening phase.
-Only validation actually observed for P4-E may be recorded as PASS.
+P5 is Active in P5-0 program setup. P5 runtime/UI behavior is not yet implemented.
+Only validation actually observed for the current head may be recorded as PASS.
