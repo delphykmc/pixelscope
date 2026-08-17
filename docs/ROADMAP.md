@@ -299,7 +299,7 @@ IQA
 
 `P5-0 → P5-A → P5-B → P5-C → P5-D → P5-E → P5-F → P5 Complete`
 
-## P5-0 — P4 Closure & P5 Program Setup — Active
+## P5-0 — P4 Closure & P5 Program Setup — Complete
 
 Docs-only orchestration slice.
 
@@ -313,7 +313,7 @@ Goals:
 - reconcile CURRENT_STATE/UI status;
 - add no runtime/UI behavior and no Settings/Session schema change in this PR.
 
-## P5-A — Contract Fixtures & IQA Domain — Planned
+## P5-A — Contract Fixtures & IQA Domain — Active
 
 Build executable contract semantics before live server integration:
 
@@ -323,6 +323,11 @@ Build executable contract semantics before live server integration:
 - local weighted mean/std and comparison recomposition;
 - exact source→analysis geometry mapping;
 - safe corruption/unsupported-artifact handling.
+
+Implemented on the P5-A feature branch pending independent review: the schema-v1
+reader consumes immutable Tier-1/Tier-2 NPZ artifacts with bounded metadata-first
+validation, and the deterministic generator produces 11 Scenes covering the frozen
+math, geometry, safety, optional-detail, and N-source contracts without large 2K maps.
 
 The main fixture is approximately 10–12 two-source Scenes × all ten attributes and
 must cover explicit epsilon/near-zero golden values, A/B signs, signed bias,

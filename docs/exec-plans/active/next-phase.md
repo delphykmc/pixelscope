@@ -1,10 +1,9 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — P5-0 program setup / contract hardening
+Status: Active — P5-A implementation / independent review
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
-Last updated: 2026-08-17
-Inherited merged baseline: PR #35 / main
-`d1d1fbe8fc7ee81855e5e037bcecc1278435e298`
+Last updated: 2026-08-18
+Inherited merged baseline: PR #36 / main `ee7ca03`
 
 Authoritative P5 documents:
 
@@ -190,8 +189,8 @@ newer non-IQA Selected/workspace intent.
 
 | Order | Slice | Status |
 |---|---|---|
-| 0 | P5-0 P4 Closure & P5 Program Setup | Active — review follow-up |
-| 1 | P5-A Contract Fixtures & IQA Domain | Planned |
+| 0 | P5-0 P4 Closure & P5 Program Setup | Complete — PR #36 |
+| 1 | P5-A Contract Fixtures & IQA Domain | Active — implementation/review |
 | 2 | P5-B IQA Workspace & Local Result Exploration | Planned |
 | 3 | P5-C Submission & Shared Storage | Planned — C1 + detailed terminal gates pending; PARTIAL allowed |
 | 4 | P5-D Viewer-linked Scene Inspection | Planned |
@@ -279,6 +278,16 @@ Large real 2K maps are not committed.
 With no network/GPU service, P5-A tests can independently reproduce fixture-authority
 math and geometry from the versioned artifact and reject incompatible/unsafe data.
 No UI implementation is required.
+
+### Progress and evidence
+
+- Implemented Qt-free domain, exact schema-v1 manifest/Tier-1 reader, lazy safe
+  Tier-2 reader, compact-statistic recomposition, continuous affine/grid geometry,
+  and deterministic production-shaped fixture generation.
+- Focused fixture/parser/math/geometry/safety tests cover all P5-A acceptance cases,
+  including an 11-Scene corpus and a 3-source structural Scene.
+- Independent review remains pending. Validation evidence is recorded in the draft
+  PR and only after commands run on the latest committed head.
 
 ## P5-B — IQA Workspace & Local Result Exploration
 
