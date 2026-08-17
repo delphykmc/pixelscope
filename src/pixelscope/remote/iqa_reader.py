@@ -19,6 +19,7 @@ from pixelscope.remote.iqa_domain import (
     CompactSceneData,
     Comparison,
     ComparisonMode,
+    ComparisonOperator,
     GridGeometry,
     LoadStatus,
     QualityDirection,
@@ -36,6 +37,9 @@ MANIFEST_LIMIT = 4 * 1024 * 1024
 SUMMARY_LIMIT = 64 * 1024 * 1024
 SCENE_LIMIT = 64 * 1024 * 1024
 ARRAY_LIMIT = 32 * 1024 * 1024
+NPY_MEMBER_SIZE_LIMIT = ARRAY_LIMIT + 64 * 1024
+ARCHIVE_ON_DISK_LIMIT = 66 * 1024 * 1024
+NPZ_MEMBER_LIMIT = 128
 
 
 class _InvalidResult(ValueError):
@@ -183,6 +187,7 @@ def _parse_attribute(data: Any) -> AttributeSpec:
         raise _InvalidResult("attribute must be an object")
     try:
         value_kind = ValueKind(_string(data, "value_kind"))
+        operator = ComparisonOperator(_string(data, "comparison_operator"))
         direction = QualityDirection(_string(data, "quality_direction"))
     except ValueError as exc:
         raise _InvalidResult(f"invalid attribute enum: {exc}") from exc
@@ -192,10 +197,15 @@ def _parse_attribute(data: Any) -> AttributeSpec:
         raise _InvalidResult("power attribute requires non-negative finite epsilon")
     if value_kind is ValueKind.SIGNED and direction is not QualityDirection.NEUTRAL:
         raise _InvalidResult("signed attribute must have neutral quality direction")
+    if value_kind is ValueKind.POWER and operator is not ComparisonOperator.POWER_RATIO_A_OVER_B_DB:
+        raise _InvalidResult("power attribute requires power_ratio_a_over_b_db operator")
+    if value_kind is ValueKind.SIGNED and operator is not ComparisonOperator.SIGNED_A_MINUS_B:
+        raise _InvalidResult("signed attribute requires signed_a_minus_b operator")
     return AttributeSpec(
         attribute_id=_string(data, "attribute_id"),
         name=_string(data, "name"),
         value_kind=value_kind,
+        comparison_operator=operator,
         quality_direction=direction,
         unit=_string(data, "unit"),
         stabilization_epsilon=epsilon,
@@ -263,6 +273,21 @@ def _parse_scene(
                 reason = str(
                     summary["invalid_reasons"][comparison_index, attribute_offset, mode_index]
                 )
+                applicable = (
+                    attribute.value_kind is ValueKind.POWER
+                    and mode
+                    in {
+                        ComparisonMode.RATIO_OF_WEIGHTED_MEANS,
+                        ComparisonMode.MEAN_OF_GRID_LOG_RATIOS,
+                    }
+                ) or (
+                    attribute.value_kind is ValueKind.SIGNED and mode is ComparisonMode.SIGNED_DELTA
+                )
+                if not applicable and (valid or reason != "not_applicable"):
+                    raise _InvalidResult(
+                        f"summary mode {mode.value} is not applicable to "
+                        f"{attribute.value_kind.value}"
+                    )
                 if valid:
                     if not math.isfinite(value):
                         raise _InvalidResult("valid summary value must be finite")
@@ -328,6 +353,14 @@ def _parse_geometry(data: Any) -> SceneGeometry:
         source_to_analysis=typed_matrix,
         valid_rect=(valid_rect[0], valid_rect[1], valid_rect[2], valid_rect[3]),
     )
+    valid_x, valid_y, valid_width, valid_height = geometry.valid_rect
+    if (
+        valid_x < 0.0
+        or valid_y < 0.0
+        or valid_x + valid_width > geometry.analysis_width
+        or valid_y + valid_height > geometry.analysis_height
+    ):
+        raise _InvalidResult("valid_rect must be contained by the analysis image")
     try:
         source_to_analysis(geometry, np.asarray([[0.0, 0.0]], dtype=np.float64))
     except ValueError as exc:
@@ -405,14 +438,35 @@ def _load_npz(
     declared_size: int | None = None,
 ) -> dict[str, np.ndarray[Any, Any]]:
     try:
+        if path.stat().st_size > ARCHIVE_ON_DISK_LIMIT:
+            raise _CorruptResult(f"artifact {path.name} exceeds on-disk safety ceiling")
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
+            if len(infos) > NPZ_MEMBER_LIMIT:
+                raise _CorruptResult(f"artifact {path.name} has too many members")
+            filenames = [info.filename for info in infos]
+            if len(filenames) != len(set(filenames)):
+                raise _CorruptResult(f"artifact {path.name} has duplicate members")
             actual_total = sum(info.file_size for info in infos)
             if actual_total > total_limit:
                 raise _CorruptResult(f"artifact {path.name} exceeds uncompressed safety ceiling")
             if declared_size is not None and actual_total != declared_size:
                 raise _CorruptResult(f"artifact {path.name} declared/actual size mismatch")
-            names = {info.filename for info in infos}
+            for info in infos:
+                if info.flag_bits & 0x1:
+                    raise _CorruptResult(f"artifact {path.name} has encrypted members")
+                if info.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}:
+                    raise _CorruptResult(
+                        f"artifact {path.name} uses unsupported member compression"
+                    )
+                if (
+                    info.file_size > NPY_MEMBER_SIZE_LIMIT
+                    or info.compress_size > ARCHIVE_ON_DISK_LIMIT
+                ):
+                    raise _CorruptResult(
+                        f"artifact {path.name} member exceeds metadata safety ceiling"
+                    )
+            names = set(filenames)
             expected_names = {f"{key}.npy" for key in expected}
             if names != expected_names:
                 raise _CorruptResult(f"artifact {path.name} has unexpected array members")
@@ -433,13 +487,21 @@ def _load_npz(
                 if dtype != expected_dtype or shape != expected_shape:
                     raise _CorruptResult(f"array {key} dtype/rank/shape mismatch: {dtype} {shape}")
                 array_bytes = int(dtype.itemsize * math.prod(shape))
-                if array_bytes > ARRAY_LIMIT or info.file_size > ARRAY_LIMIT:
+                if array_bytes > ARRAY_LIMIT:
                     raise _CorruptResult(f"array {key} exceeds safety ceiling")
         with np.load(path, allow_pickle=False) as loaded:
             return {key: np.asarray(loaded[key]) for key in expected}
     except _CorruptResult:
         raise
-    except (OSError, ValueError, zipfile.BadZipFile, EOFError) as exc:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        NotImplementedError,
+        zipfile.BadZipFile,
+        zipfile.LargeZipFile,
+        EOFError,
+    ) as exc:
         raise _CorruptResult(f"artifact {path.name} is corrupt: {exc}") from exc
 
 

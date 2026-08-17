@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -56,6 +58,64 @@ def source_cell_polygon(
     source_height: int,
 ) -> NDArray[np.float64]:
     mapped = analysis_to_source(geometry, analysis_cell_polygon(grid, row, column))
-    mapped[:, 0] = np.clip(mapped[:, 0], 0.0, float(source_width))
-    mapped[:, 1] = np.clip(mapped[:, 1], 0.0, float(source_height))
-    return mapped
+    return _clip_to_source(mapped, float(source_width), float(source_height))
+
+
+Point = NDArray[np.float64]
+Inside = Callable[[Point], bool]
+Intersection = Callable[[Point, Point], Point]
+
+
+def _clip_edge(points: list[Point], inside: Inside, intersection: Intersection) -> list[Point]:
+    if not points:
+        return []
+    output: list[Point] = []
+    previous = points[-1]
+    previous_inside = inside(previous)
+    for current in points:
+        current_inside = inside(current)
+        if current_inside:
+            if not previous_inside:
+                output.append(intersection(previous, current))
+            output.append(current)
+        elif previous_inside:
+            output.append(intersection(previous, current))
+        previous = current
+        previous_inside = current_inside
+    return output
+
+
+def _vertical_intersection(a: Point, b: Point, x: float) -> Point:
+    factor = (x - a[0]) / (b[0] - a[0])
+    return np.asarray([x, a[1] + factor * (b[1] - a[1])], dtype=np.float64)
+
+
+def _horizontal_intersection(a: Point, b: Point, y: float) -> Point:
+    factor = (y - a[1]) / (b[1] - a[1])
+    return np.asarray([a[0] + factor * (b[0] - a[0]), y], dtype=np.float64)
+
+
+def _clip_to_source(polygon: NDArray[np.float64], width: float, height: float) -> Point:
+    """Sutherland-Hodgman clipping in continuous source pixel-edge coordinates."""
+    vertices = [np.asarray(point, dtype=np.float64) for point in polygon]
+    vertices = _clip_edge(
+        vertices,
+        lambda point: bool(point[0] >= 0.0),
+        lambda a, b: _vertical_intersection(a, b, 0.0),
+    )
+    vertices = _clip_edge(
+        vertices,
+        lambda point: bool(point[0] <= width),
+        lambda a, b: _vertical_intersection(a, b, width),
+    )
+    vertices = _clip_edge(
+        vertices,
+        lambda point: bool(point[1] >= 0.0),
+        lambda a, b: _horizontal_intersection(a, b, 0.0),
+    )
+    vertices = _clip_edge(
+        vertices,
+        lambda point: bool(point[1] <= height),
+        lambda a, b: _horizontal_intersection(a, b, height),
+    )
+    return np.vstack(vertices) if vertices else np.empty((0, 2), dtype=np.float64)

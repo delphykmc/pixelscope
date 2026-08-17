@@ -24,6 +24,11 @@ class ComparisonMode(str, Enum):
     SIGNED_DELTA = "signed_delta"
 
 
+class ComparisonOperator(str, Enum):
+    POWER_RATIO_A_OVER_B_DB = "power_ratio_a_over_b_db"
+    SIGNED_A_MINUS_B = "signed_a_minus_b"
+
+
 class LoadStatus(str, Enum):
     SUCCESS = "success"
     INVALID = "invalid"
@@ -47,6 +52,7 @@ class AttributeSpec:
     attribute_id: str
     name: str
     value_kind: ValueKind
+    comparison_operator: ComparisonOperator
     quality_direction: QualityDirection
     unit: str
     stabilization_epsilon: float | None

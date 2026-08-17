@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -13,13 +14,21 @@ import numpy as np
 from pixelscope.remote.iqa_domain import (
     AttributeSpec,
     CompactAttributeData,
+    ComparisonOperator,
     QualityDirection,
     ValueKind,
 )
-from pixelscope.remote.iqa_math import compare_sources
 
 ATTRIBUTE_ROWS = (
-    ("luma_noise", "Luma noise", "power", "lower_is_better", "linear-power", 1e-9, "flat-gate-v3"),
+    (
+        "luma_noise",
+        "Luma noise",
+        "power",
+        "lower_is_better",
+        "linear-power",
+        1e-9,
+        "soft-flat-gate-v3",
+    ),
     (
         "luma_detail",
         "Luma detail",
@@ -27,7 +36,7 @@ ATTRIBUTE_ROWS = (
         "higher_is_better",
         "linear-power",
         1e-9,
-        "texture-gate-v2",
+        "hard-texture-gate-v2",
     ),
     (
         "chroma_noise",
@@ -36,7 +45,7 @@ ATTRIBUTE_ROWS = (
         "lower_is_better",
         "linear-power",
         1e-9,
-        "flat-gate-v3",
+        "soft-flat-gate-v3",
     ),
     (
         "chroma_detail",
@@ -45,7 +54,7 @@ ATTRIBUTE_ROWS = (
         "higher_is_better",
         "linear-power",
         1e-9,
-        "texture-gate-v2",
+        "hard-texture-gate-v2",
     ),
     (
         "edge_strength",
@@ -54,7 +63,7 @@ ATTRIBUTE_ROWS = (
         "higher_is_better",
         "linear-power",
         1e-9,
-        "pidinet-edge-v1",
+        "soft-pidinet-edge-v1",
     ),
     (
         "luma_contrast",
@@ -161,19 +170,15 @@ def write_golden_result(root: Path, scene_count: int = 11) -> Path:
                 compact = compact_by_attribute[spec.attribute_id]
                 a = _source_data(compact, source_a_index)
                 b = _source_data(compact, source_b_index)
-                computed = compare_sources(spec, a, b)
+                computed = _fixture_oracle(spec, a, b)
                 if spec.value_kind is ValueKind.POWER:
-                    stats = [computed["raw"], computed["grid"], computed["quality"]]
-                    # The third summary slot is reserved for signed_delta and is invalid here.
-                    stats[2] = type(computed["raw"]).invalid("not_applicable")
+                    stats = [computed["raw"], computed["grid"], (None, False, "not_applicable")]
                 else:
-                    invalid = type(computed["raw"]).invalid("not_applicable")
+                    invalid = (None, False, "not_applicable")
                     stats = [invalid, invalid, computed["raw"]]
-                pair_values.append(
-                    [stat.value if stat.value is not None else 0.0 for stat in stats]
-                )
-                pair_valid.append([stat.valid for stat in stats])
-                pair_reasons.append([stat.invalid_reason or "" for stat in stats])
+                pair_values.append([stat[0] if stat[0] is not None else 0.0 for stat in stats])
+                pair_valid.append([stat[1] for stat in stats])
+                pair_reasons.append([stat[2] for stat in stats])
             summary_values.append(pair_values)
             summary_valid.append(pair_valid)
             summary_reasons.append(pair_reasons)
@@ -232,6 +237,9 @@ def _attribute_manifest(row: tuple[str, str, str, str, str, float | None, str]) 
         "attribute_id": attribute_id,
         "name": name,
         "value_kind": kind,
+        "comparison_operator": (
+            "power_ratio_a_over_b_db" if kind == "power" else "signed_a_minus_b"
+        ),
         "quality_direction": direction,
         "unit": unit,
         "stabilization_epsilon": epsilon,
@@ -245,6 +253,11 @@ def _attribute_spec(row: tuple[str, str, str, str, str, float | None, str]) -> A
         attribute_id,
         name,
         ValueKind(kind),
+        (
+            ComparisonOperator.POWER_RATIO_A_OVER_B_DB
+            if kind == "power"
+            else ComparisonOperator.SIGNED_A_MINUS_B
+        ),
         QualityDirection(direction),
         unit,
         epsilon,
@@ -253,7 +266,7 @@ def _attribute_spec(row: tuple[str, str, str, str, str, float | None, str]) -> A
 
 
 def _source_manifest(scene_index: int, source_index: int) -> dict[str, Any]:
-    identity = f"golden-source-{scene_index}-{source_index}"
+    identity = f"golden-source-{scene_index}-{0 if scene_index == 0 else source_index}"
     return {
         "source_id": f"source_{scene_index:06d}_{source_index}",
         "relative_path": f"dataset/source_{source_index}/{scene_index:06d}.png",
@@ -318,7 +331,7 @@ def _compact_arrays(
                 if spec.value_kind is ValueKind.SIGNED:
                     sign_pattern = (-0.06, 0.0, 0.08)[scene_index % 3]
                     mean = 0.2 + attribute_index * 0.01 + cell_index * 0.002
-                    if source_index == 0:
+                    if source_index == 0 and scene_index != 0:
                         mean += sign_pattern
                 else:
                     mean = 0.04 + attribute_index * 0.015 + scene_index * 0.004
@@ -360,3 +373,46 @@ def _source_data(data: CompactAttributeData, source_index: int) -> CompactAttrib
 def _npz_uncompressed_size(path: Path) -> int:
     with zipfile.ZipFile(path) as archive:
         return sum(item.file_size for item in archive.infolist())
+
+
+OracleStatistic = tuple[float | None, bool, str]
+
+
+def _fixture_oracle(
+    spec: AttributeSpec, a: CompactAttributeData, b: CompactAttributeData
+) -> dict[str, OracleStatistic]:
+    """Author Tier-1 goldens independently from production recomposition helpers."""
+    a_weight = np.asarray(a.weight_sum)
+    b_weight = np.asarray(b.weight_sum)
+    pair = (
+        np.asarray(a.valid_mask)
+        & np.asarray(b.valid_mask)
+        & (np.asarray(a.valid_count) > 0)
+        & (np.asarray(b.valid_count) > 0)
+        & (a_weight > 0.0)
+        & (b_weight > 0.0)
+    )
+    if not np.any(pair):
+        invalid = (None, False, "no_valid_blocks")
+        return {"raw": invalid, "quality": invalid, "grid": invalid}
+    a_sums = np.asarray(a.weighted_sum)
+    b_sums = np.asarray(b.weighted_sum)
+    mean_a = float(np.sum(a_sums[pair]) / np.sum(a_weight[pair]))
+    mean_b = float(np.sum(b_sums[pair]) / np.sum(b_weight[pair]))
+    if spec.value_kind is ValueKind.SIGNED:
+        raw = (mean_a - mean_b, True, "")
+        return {"raw": raw, "quality": (None, False, "neutral_attribute"), "grid": raw}
+    assert spec.stabilization_epsilon is not None
+    epsilon = spec.stabilization_epsilon
+    raw_value = 10.0 * math.log10((mean_a + epsilon) / (mean_b + epsilon))
+    cell_a = a_sums[pair] / a_weight[pair]
+    cell_b = b_sums[pair] / b_weight[pair]
+    grid_value = float(np.mean(10.0 * np.log10((cell_a + epsilon) / (cell_b + epsilon))))
+    quality_value = (
+        -raw_value if spec.quality_direction is QualityDirection.LOWER_IS_BETTER else raw_value
+    )
+    return {
+        "raw": (raw_value, True, ""),
+        "quality": (quality_value, True, ""),
+        "grid": (grid_value, True, ""),
+    }

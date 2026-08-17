@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import struct
 import zipfile
 from dataclasses import replace
 from pathlib import Path
@@ -10,11 +11,16 @@ from typing import Any
 import numpy as np
 import pytest
 
+from pixelscope.remote import iqa_reader as iqa_reader_module
 from pixelscope.remote.iqa_domain import (
+    AttributeSpec,
     CompactAttributeData,
     ComparisonMode,
+    ComparisonOperator,
+    GridGeometry,
     LoadStatus,
     QualityDirection,
+    SceneGeometry,
     ValueKind,
 )
 from pixelscope.remote.iqa_fixture import ATTRIBUTE_ROWS, write_golden_result
@@ -69,6 +75,45 @@ def _with_current_compact_size(result, scene_index: int, path: Path):
     return replace(result, scenes=tuple(scenes))
 
 
+def _rewrite_summary(root: Path, mutate: Any) -> None:
+    path = root / "summary.npz"
+    with np.load(path, allow_pickle=False) as loaded:
+        arrays = {key: loaded[key] for key in loaded.files}
+    mutate(arrays)
+    np.savez(path, **arrays)
+    manifest = _manifest(root)
+    manifest["summary_artifact"]["uncompressed_size"] = _npz_size(path)
+    _write_manifest(root, manifest)
+
+
+def _spec(
+    *,
+    kind: ValueKind = ValueKind.POWER,
+    direction: QualityDirection = QualityDirection.HIGHER_IS_BETTER,
+    epsilon: float | None = 1.0,
+) -> AttributeSpec:
+    operator = (
+        ComparisonOperator.POWER_RATIO_A_OVER_B_DB
+        if kind is ValueKind.POWER
+        else ComparisonOperator.SIGNED_A_MINUS_B
+    )
+    return AttributeSpec("test", "Test", kind, operator, direction, "unit", epsilon, "test")
+
+
+def _compact_from_means(
+    means: list[float], weights: list[float] | None = None
+) -> CompactAttributeData:
+    weight = np.asarray(weights or [1.0] * len(means), dtype=np.float64)
+    values = np.asarray(means, dtype=np.float64)
+    return CompactAttributeData(
+        weight,
+        weight * values,
+        weight * values * values,
+        np.ones(len(means), dtype=np.int32),
+        np.ones(len(means), dtype=np.bool_),
+    )
+
+
 def test_production_shaped_fixture_round_trip_and_structure(golden_root: Path) -> None:
     result = _loaded(golden_root)
     assert result.result_id == "golden-p5a-v1"
@@ -86,6 +131,60 @@ def test_production_shaped_fixture_round_trip_and_structure(golden_root: Path) -
     assert compact.status is LoadStatus.SUCCESS
     assert compact.data is not None
     assert set(compact.data.attributes) == {item.attribute_id for item in result.attributes}
+
+
+def test_identical_scene_covers_all_attributes_content_and_weighting_provenance(
+    golden_root: Path,
+) -> None:
+    result = _loaded(golden_root)
+    scene = result.scene("scene_000000")
+    assert scene.sources[0].source_id != scene.sources[1].source_id
+    assert scene.sources[0].sha256 == scene.sources[1].sha256
+    loaded = load_compact_scene(result, scene.scene_id)
+    assert loaded.data is not None
+    for attribute_id, compact in loaded.data.attributes.items():
+        for field in (
+            "weight_sum",
+            "weighted_sum",
+            "weighted_square_sum",
+            "valid_count",
+            "valid_mask",
+        ):
+            values = np.asarray(getattr(compact, field))
+            assert np.array_equal(values[0], values[1]), (attribute_id, field)
+    for comparison in scene.comparisons:
+        applicable = (
+            (ComparisonMode.SIGNED_DELTA,)
+            if result.attribute(comparison.attribute_id).value_kind is ValueKind.SIGNED
+            else (
+                ComparisonMode.RATIO_OF_WEIGHTED_MEANS,
+                ComparisonMode.MEAN_OF_GRID_LOG_RATIOS,
+            )
+        )
+        assert all(comparison.official[mode].value == pytest.approx(0.0) for mode in applicable)
+    provenance = {attribute.weighting_provenance for attribute in result.attributes}
+    assert any(value.startswith("soft-") for value in provenance)
+    assert any(value.startswith("hard-") for value in provenance)
+
+
+def test_hand_calculated_golden_math_is_independent_of_fixture_authoring() -> None:
+    a = _compact_from_means([1.0, 9.0], [1.0, 3.0])
+    b = _compact_from_means([1.0, 1.0], [1.0, 3.0])
+    higher = compare_sources(_spec(), a, b)
+    assert higher["raw"].value == pytest.approx(6.020599913279624)
+    assert higher["grid"].value == pytest.approx(3.494850021680094)
+    assert higher["quality"].value == pytest.approx(6.020599913279624)
+
+    noise = compare_sources(_spec(direction=QualityDirection.LOWER_IS_BETTER), a, b)
+    assert noise["raw"].value == pytest.approx(6.020599913279624)
+    assert noise["quality"].value == pytest.approx(-6.020599913279624)
+
+    bias = compare_sources(
+        _spec(kind=ValueKind.SIGNED, direction=QualityDirection.NEUTRAL, epsilon=None), a, b
+    )
+    assert bias["raw"].value == pytest.approx(6.0)
+    assert bias["quality"].value is None
+    assert bias["quality"].invalid_reason == "neutral_attribute"
 
 
 def test_recomposition_matches_tier1_authority_and_modes_differ(golden_root: Path) -> None:
@@ -159,7 +258,7 @@ def test_epsilon_orientation_noise_quality_and_identical_sources(golden_root: Pa
 def test_signed_bias_preserves_negative_zero_positive(golden_root: Path) -> None:
     result = _loaded(golden_root)
     deltas: list[float] = []
-    for scene_id in ("scene_000000", "scene_000001", "scene_000002"):
+    for scene_id in ("scene_000003", "scene_000001", "scene_000002"):
         loaded = load_compact_scene(result, scene_id)
         assert loaded.data is not None
         compact = loaded.data.attributes["luma_bias"]
@@ -193,6 +292,57 @@ def test_zero_weight_no_valid_and_nonfinite_are_explicit_invalid() -> None:
     assert mean.invalid_reason == "nonfinite_input"
 
 
+def test_power_edge_cases_return_explicit_invalid_statistics() -> None:
+    zero = _compact_from_means([0.0])
+    zero_ratio = compare_sources(_spec(epsilon=0.0), zero, zero)
+    assert zero_ratio["raw"].value is None
+    assert zero_ratio["raw"].invalid_reason == "undefined_ratio"
+
+    negative = compare_sources(
+        _spec(epsilon=0.0), _compact_from_means([-0.5, 2.0]), _compact_from_means([1.0, 1.0])
+    )
+    assert negative["raw"].valid
+    assert negative["grid"].value is None
+    assert negative["grid"].invalid_reason == "negative_power"
+
+    overflow = compare_sources(
+        _spec(epsilon=0.0), _compact_from_means([1.0]), _compact_from_means([1e-320])
+    )
+    assert overflow["raw"].value is None
+    assert overflow["raw"].invalid_reason == "nonfinite_result"
+
+    neutral = compare_sources(
+        _spec(direction=QualityDirection.NEUTRAL),
+        _compact_from_means([2.0]),
+        _compact_from_means([1.0]),
+    )
+    assert neutral["raw"].valid
+    assert neutral["quality"].value is None
+    assert neutral["quality"].invalid_reason == "neutral_attribute"
+
+
+def test_impossible_second_moment_is_invalid_but_roundoff_clamps() -> None:
+    impossible = CompactAttributeData(
+        np.asarray([1.0]),
+        np.asarray([2.0]),
+        np.asarray([1.0]),
+        np.asarray([1], dtype=np.int32),
+        np.asarray([True]),
+    )
+    mean, std = recompose_statistics(impossible)
+    assert mean.invalid_reason == "inconsistent_moments"
+    assert std.invalid_reason == "inconsistent_moments"
+
+    roundoff = replace(
+        impossible,
+        weighted_sum=np.asarray([1.0]),
+        weighted_square_sum=np.asarray([np.nextafter(1.0, 0.0)]),
+    )
+    mean, std = recompose_statistics(roundoff)
+    assert mean.value == pytest.approx(1.0)
+    assert std.value == pytest.approx(0.0)
+
+
 def test_noninteger_affine_inverse_cell_and_discarded_border(golden_root: Path) -> None:
     result = _loaded(golden_root)
     scene = result.scene("scene_000003")
@@ -214,6 +364,36 @@ def test_noninteger_affine_inverse_cell_and_discarded_border(golden_root: Path) 
     )
 
 
+def test_general_affine_cell_polygon_is_truly_clipped_at_all_source_boundaries() -> None:
+    angle = math.radians(30.0)
+    analysis_to_source_matrix = np.asarray(
+        [
+            [math.cos(angle), -math.sin(angle), -2.0],
+            [math.sin(angle), math.cos(angle), -5.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+    source_to_analysis_matrix = np.linalg.inv(analysis_to_source_matrix)
+    geometry = SceneGeometry(
+        20,
+        20,
+        tuple(tuple(float(value) for value in row) for row in source_to_analysis_matrix),
+        (0.0, 0.0, 20.0, 20.0),
+    )
+    grid = GridGeometry(1, 1, 14.0, 14.0, 0.0, 0.0, 6.0, 6.0)
+    clipped = source_cell_polygon(geometry, grid, 0, 0, 10, 10)
+    assert clipped.shape[0] >= 5
+    assert np.all(clipped[:, 0] >= 0.0) and np.all(clipped[:, 0] <= 10.0)
+    assert np.all(clipped[:, 1] >= 0.0) and np.all(clipped[:, 1] <= 10.0)
+    assert any(np.isclose(clipped[:, 0], boundary).any() for boundary in (0.0, 10.0))
+    assert any(np.isclose(clipped[:, 1], boundary).any() for boundary in (0.0, 10.0))
+    assert np.isclose(clipped[:, 0], 0.0).any()
+    assert np.isclose(clipped[:, 0], 10.0).any()
+    assert np.isclose(clipped[:, 1], 0.0).any()
+    assert np.isclose(clipped[:, 1], 10.0).any()
+
+
 @pytest.mark.parametrize(
     ("field", "value", "status"),
     [
@@ -232,6 +412,69 @@ def test_exact_manifest_identity_and_publication(
     outcome = load_result(golden_root)
     assert outcome.status is status
     assert outcome.result is None
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        (lambda attribute: attribute.pop("comparison_operator"), "comparison_operator"),
+        (lambda attribute: attribute.__setitem__("comparison_operator", "unknown"), "enum"),
+        (
+            lambda attribute: attribute.__setitem__("comparison_operator", "signed_a_minus_b"),
+            "power attribute",
+        ),
+    ],
+)
+def test_comparison_operator_is_required_versioned_and_applicable(
+    golden_root: Path, mutation: Any, expected: str
+) -> None:
+    manifest = _manifest(golden_root)
+    mutation(manifest["attributes"][0])
+    _write_manifest(golden_root, manifest)
+    outcome = load_result(golden_root)
+    assert outcome.status is LoadStatus.INVALID
+    assert outcome.reason is not None and expected in outcome.reason
+
+
+@pytest.mark.parametrize(
+    "valid_rect",
+    [
+        [-0.5, 1.0, 10.0, 10.0],
+        [1.0, -0.5, 10.0, 10.0],
+        [640.0, 1.0, 2.0, 10.0],
+        [1.0, 360.0, 10.0, 2.0],
+    ],
+)
+def test_valid_rect_must_be_contained_by_analysis_image(
+    golden_root: Path, valid_rect: list[float]
+) -> None:
+    manifest = _manifest(golden_root)
+    manifest["scenes"][0]["geometry"]["valid_rect"] = valid_rect
+    _write_manifest(golden_root, manifest)
+    outcome = load_result(golden_root)
+    assert outcome.status is LoadStatus.INVALID
+    assert outcome.reason is not None and "contained by the analysis image" in outcome.reason
+
+
+def test_official_mode_applicability_is_semantically_validated(golden_root: Path) -> None:
+    def make_power_signed_mode_valid(arrays: dict[str, np.ndarray[Any, Any]]) -> None:
+        arrays["valid"][0, 0, 2] = True
+        arrays["invalid_reasons"][0, 0, 2] = ""
+
+    _rewrite_summary(golden_root, make_power_signed_mode_valid)
+    outcome = load_result(golden_root)
+    assert outcome.status is LoadStatus.INVALID
+    assert outcome.reason is not None and "not applicable" in outcome.reason
+
+    second = write_golden_result(golden_root.parent / "signed-mode")
+
+    def give_signed_power_mode_wrong_reason(arrays: dict[str, np.ndarray[Any, Any]]) -> None:
+        arrays["invalid_reasons"][0, 6, 0] = "missing_data"
+
+    _rewrite_summary(second, give_signed_power_mode_wrong_reason)
+    outcome = load_result(second)
+    assert outcome.status is LoadStatus.INVALID
+    assert outcome.reason is not None and "not applicable" in outcome.reason
 
 
 def test_dimension_mismatch_is_explicit_invalid_model(golden_root: Path) -> None:
@@ -309,6 +552,88 @@ def test_object_array_is_rejected_without_pickle(golden_root: Path) -> None:
     assert outcome.reason is not None and "object/pickle" in outcome.reason
 
 
+def test_duplicate_and_excessive_zip_members_are_rejected_before_loading(
+    golden_root: Path,
+) -> None:
+    result = _loaded(golden_root)
+    scene = result.scenes[0]
+    path = golden_root / scene.compact_artifact
+    with (
+        pytest.warns(UserWarning, match="Duplicate name"),
+        zipfile.ZipFile(path, "w") as archive,
+    ):
+        archive.writestr("duplicate.npy", b"first")
+        archive.writestr("duplicate.npy", b"second")
+    duplicate = load_compact_scene(result, scene.scene_id)
+    assert duplicate.status is LoadStatus.CORRUPT
+    assert duplicate.reason is not None and "duplicate members" in duplicate.reason
+
+    many_root = write_golden_result(golden_root.parent / "many")
+    many_result = _loaded(many_root)
+    many_scene = many_result.scenes[0]
+    many_path = many_root / many_scene.compact_artifact
+    with zipfile.ZipFile(many_path, "w") as archive:
+        for index in range(iqa_reader_module.NPZ_MEMBER_LIMIT + 1):
+            archive.writestr(f"member-{index}.npy", b"x")
+    excessive = load_compact_scene(many_result, many_scene.scene_id)
+    assert excessive.status is LoadStatus.CORRUPT
+    assert excessive.reason is not None and "too many members" in excessive.reason
+
+
+@pytest.mark.parametrize("metadata", ["encrypted", "compression"])
+def test_zip_member_security_metadata_is_rejected_before_header_decompression(
+    golden_root: Path, metadata: str
+) -> None:
+    result = _loaded(golden_root)
+    scene = result.scenes[0]
+    path = golden_root / scene.compact_artifact
+    contents = bytearray(path.read_bytes())
+    local = contents.index(b"PK\x03\x04")
+    central = contents.index(b"PK\x01\x02")
+    if metadata == "encrypted":
+        local_flags = struct.unpack_from("<H", contents, local + 6)[0] | 0x1
+        central_flags = struct.unpack_from("<H", contents, central + 8)[0] | 0x1
+        struct.pack_into("<H", contents, local + 6, local_flags)
+        struct.pack_into("<H", contents, central + 8, central_flags)
+        expected = "encrypted"
+    else:
+        struct.pack_into("<H", contents, local + 8, 99)
+        struct.pack_into("<H", contents, central + 10, 99)
+        expected = "unsupported member compression"
+    path.write_bytes(contents)
+    outcome = load_compact_scene(result, scene.scene_id)
+    assert outcome.status is LoadStatus.CORRUPT
+    assert outcome.reason is not None and expected in outcome.reason
+
+
+def test_archive_disk_member_metadata_and_runtime_errors_are_bounded(
+    golden_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = _loaded(golden_root)
+    scene = result.scenes[0]
+    path = golden_root / scene.compact_artifact
+    monkeypatch.setattr(iqa_reader_module, "ARCHIVE_ON_DISK_LIMIT", 1)
+    on_disk = load_compact_scene(result, scene.scene_id)
+    assert on_disk.status is LoadStatus.CORRUPT
+    assert on_disk.reason is not None and "on-disk safety ceiling" in on_disk.reason
+    monkeypatch.undo()
+
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("oversized.npy", b"x" * (iqa_reader_module.NPY_MEMBER_SIZE_LIMIT + 1))
+    result = _with_current_compact_size(result, 0, path)
+    member = load_compact_scene(result, scene.scene_id)
+    assert member.status is LoadStatus.CORRUPT
+    assert member.reason is not None and "member exceeds metadata" in member.reason
+
+    def raise_runtime(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("malformed compression stream")
+
+    monkeypatch.setattr(iqa_reader_module.zipfile, "ZipFile", raise_runtime)
+    runtime = load_compact_scene(result, scene.scene_id)
+    assert runtime.status is LoadStatus.CORRUPT
+    assert runtime.reason is not None and "malformed compression stream" in runtime.reason
+
+
 @pytest.mark.parametrize(
     "replacement",
     [
@@ -359,6 +684,11 @@ def test_attribute_semantics_are_versioned_metadata(golden_root: Path) -> None:
     result = _loaded(golden_root)
     assert result.attribute("luma_noise").quality_direction is QualityDirection.LOWER_IS_BETTER
     assert result.attribute("luma_noise").value_kind is ValueKind.POWER
+    assert (
+        result.attribute("luma_noise").comparison_operator
+        is ComparisonOperator.POWER_RATIO_A_OVER_B_DB
+    )
     assert result.attribute("luma_noise").stabilization_epsilon == 1e-9
     assert result.attribute("luma_bias").quality_direction is QualityDirection.NEUTRAL
     assert result.attribute("luma_bias").value_kind is ValueKind.SIGNED
+    assert result.attribute("luma_bias").comparison_operator is ComparisonOperator.SIGNED_A_MINUS_B
