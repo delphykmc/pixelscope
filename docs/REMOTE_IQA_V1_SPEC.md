@@ -276,14 +276,18 @@ separate future lazy-detail policy.
 
 `manifest.json` is the publication commit marker. The external writer must:
 
-1. write/finalize every required Tier-1 and Tier-2 artifact;
-2. write `manifest.json.part` with `publication_state="complete"` only after required
-   artifacts are finalized;
+1. write/finalize every required Tier-1 and Tier-2 artifact for the publishable
+   result under the applicable terminal policy;
+2. write `manifest.json.part` with `publication_state="complete"` only after those
+   required artifacts are finalized;
 3. atomically rename/replace it as `manifest.json` on the same result storage;
-4. expose job `succeeded` and `/result` only after the final manifest exists.
+4. expose `/result` and any **result-bearing terminal state** only after the final
+   manifest exists.
 
-PixelScope refuses incomplete/unpublished manifests. Tier-3 detail may be absent as an
-optional capability. Published Tier-1/2 results are immutable to ordinary clients.
+PixelScope refuses incomplete/unpublished manifests. This rule applies to successful
+results and to the owner-approved PARTIAL-result direction once P5-C freezes its exact
+terminal/schema semantics. Tier-3 detail may be absent as an optional capability.
+Published Tier-1/2 results are immutable to ordinary clients.
 
 ## 12. Inspect Return safety
 
@@ -309,20 +313,29 @@ mode. P5-E must not create a second independent Open Result authority.
 P5 does not modify Session v1. Any future IQA-in-Session feature requires an explicit
 new Session schema/version decision.
 
-## 14. P5-C owner decision gates
+## 14. P5-C operational decision gates
 
-Two operational policies are intentionally not guessed in P5-0 and must be frozen
-before P5-C implementation:
+The owner has fixed the high-level batch-failure direction:
 
-1. **logical storage-root client configuration ownership** — typed ApplicationSettings
-   with an explicit settings-schema migration versus another already-authoritative
-   machine-local configuration mechanism. Result artifacts and Session cannot own
-   machine-specific path mappings.
-2. **batch failure granularity** — define request-level failure, per-Scene failure,
-   whether a durable `partial` terminal result exists, and cancel/completion race
-   semantics.
+- **durable PARTIAL results are allowed**;
+- one Scene failure must not by itself force otherwise valid successful Scene results
+  to be discarded;
+- P5-C must preserve successful Scene outputs when its final failure/publication
+  contract classifies the job as publishable partial output.
 
-An implementation agent must not invent either policy ad hoc.
+The following operational details remain mandatory gates before P5-C transport work:
+
+1. **C1 — logical storage-root client configuration ownership**: typed
+   ApplicationSettings with an explicit settings-schema migration versus another
+   already-authoritative machine-local configuration mechanism. Result artifacts and
+   Session cannot own machine-specific path mappings.
+2. **C2 detailed terminal contract**: request-level rejection, per-Scene failure
+   record schema, exact PARTIAL terminal-state identity, required artifacts for
+   successful versus failed Scenes, and cancel/completion/publication race semantics.
+
+C1 is intentionally deferred. C2's central policy is no longer undecided; only its
+transport/publication details remain to be frozen. An implementation agent must not
+invent either remaining gate ad hoc.
 
 ## 15. P5-A golden fixture additions
 
