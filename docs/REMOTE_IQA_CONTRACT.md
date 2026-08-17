@@ -4,26 +4,30 @@ Status: P5 planning contract
 Owner: PixelScope P5 program + external IQA server contract
 Established: P5-0
 
-This document defines the product/data boundary for PixelScope P5. The external GPU
-IQA implementation lives in a separate repository. PixelScope consumes a stable job
-and result contract; it does not reimplement the server's signal extraction models.
+This document defines the stable product/architecture boundary for PixelScope P5.
+The external GPU IQA implementation lives in a separate repository. PixelScope
+consumes a versioned job/result contract and does not reimplement the server's signal
+extraction models.
+
+**Normative P5 v1 numerical, identity, coordinate, parser, and publication semantics
+are defined in [`REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).** Where this broader
+contract leaves an implementation detail open, that v1 specification controls. P5-A
+implementation and golden tests must satisfy both documents.
 
 ## 1. Product goal
 
-P5 adds a workflow in which a user can:
+P5 lets a user:
 
-1. inspect images quickly with the existing PixelScope local comparison tools;
-2. submit the current pair or a large two-folder evaluation to a GPU IQA service;
+1. inspect images quickly with existing local PixelScope comparison tools;
+2. submit the current pair or a large two-folder evaluation to the GPU IQA service;
 3. continue normal PixelScope work while a remote job runs;
-4. reopen durable historical IQA results without rerunning the GPU job;
-5. explore results hierarchically from dataset trend to attribute, scene, and
-   spatial block;
-6. inspect selected IQA scenes in the existing PixelScope viewer without turning IQA
-   state into a second source/residency/selection authority.
+4. reopen durable historical results instead of rerunning the GPU job;
+5. explore `dataset → attribute → scene → spatial block`;
+6. explicitly inspect selected IQA scenes in the existing viewer.
 
 ## 2. Existing PixelScope authority remains unchanged
 
-P5 inherits this runtime hierarchy unchanged:
+P5 inherits the sole local image/runtime hierarchy:
 
 ```text
 Registered
@@ -38,30 +42,29 @@ Resident when required
 ```
 
 `Analysis Working Set = Current Comparison Page` remains authoritative for existing
-local Statistics, Histogram, Line Profile, Difference, source protection, and page
-loading.
+Statistics, Histogram, Line Profile, Difference, source protection, and page loading.
 
-Remote IQA is feature-local state. IQA result membership must not itself:
+Remote IQA batch/result membership is feature-local and must not itself:
 
-- register or decode every batch input;
-- protect source residency;
-- start PixelScope preload;
+- register/decode all batch inputs;
+- own source residency/protection or preload;
 - change source generations;
 - redefine Difference/cache identity;
 - redefine Display Gain/native analysis semantics;
-- persist runtime arrays into PixelScope Session v1.
+- persist remote arrays/running jobs into Session v1.
 
-## 3. Remote IQA authority model
+P5 does not change Session v1. Any future IQA-in-Session persistence requires a new
+explicit Session schema/version decision.
 
-The server-side conceptual hierarchy is:
+## 3. Scene-based remote authority
+
+The remote model is:
 
 ```text
 IQA Job
     ↓
 Scene
-    ├─ Source A
-    ├─ Source B
-    ├─ future Source C ...
+    ├─ Source 0 / Source 1 / future Source N
     ├─ representative image
     ├─ common Edge Map
     ├─ common Texture Gate
@@ -70,41 +73,19 @@ Scene
      derived comparisons
 ```
 
-A **Scene** is the unit that shares structural context. In P5 v1 UI, a Scene contains
-exactly two sources. The schema/result model should be N-source-ready so a future
-workflow can compare a reference plus multiple variants without redesigning the
-artifact format.
+A Scene is the unit sharing common structural context. P5 v1 UI is two-source, while
+the durable schema is N-source-ready with stable `scene_id`, `source_id`, ordered
+`sources[]`, and comparison operand IDs.
 
-The first source is the default comparison reference only. A/B are left/right roles,
-not an intrinsic reference/candidate truth.
+The common Edge Map is produced from the representative image using PiDiNet. The
+Texture Gate comes from the server texture network. Both are continuous 2K-analysis-
+domain maps and are scene-common. The server may use soft weights, hard gates, or
+thresholds. PixelScope must not reverse-engineer effective numerical weighting from
+these visualization maps.
 
-## 4. Common scene context
+## 4. Ten IQA attributes
 
-For multiple captures of the same scene, the GPU pipeline creates a representative
-image and derives common structural context from it:
-
-- a PiDiNet-derived continuous Edge Map;
-- a continuous Texture Gate from the server's texture network.
-
-Edge values near 1 indicate stronger edge structure and values near 0 indicate
-flatter regions. Texture Gate values near 1 indicate edge/texture structure and
-values near 0 indicate flatter structure. Both maps are used by the server because
-they encode complementary information.
-
-The structural maps are **scene-common**, not source-local and not comparison-local.
-
-The server may use soft weighting, hard gating, thresholds, or other versioned
-configuration. PixelScope must not infer the server's effective numerical weighting
-from Edge Map / Texture Gate values. The server's reported statistics and effective
-block statistics are the numerical authority. Structural maps are optional detail
-artifacts for inspection/provenance unless a future contract explicitly exposes a
-reproducible weighting formula.
-
-## 5. Attribute contract
-
-P5 starts with ten IQA attributes:
-
-| Attribute | Quality direction | Initial block size |
+| Attribute | Quality direction | Current default block |
 |---|---|---:|
 | Luma noise | lower is better | 32×32 px |
 | Luma detail | higher is better | 32×32 px |
@@ -117,160 +98,66 @@ P5 starts with ten IQA attributes:
 | Chroma bias | neutral / signed | 128×128 px |
 | Colorfulness | higher is better | 128×128 px |
 
-The block sizes above are current defaults, **not client constants**. Every result
-must carry attribute/grid metadata. Server algorithm/profile changes may change grid
-size without requiring PixelScope source-code changes.
+Block sizes are server metadata, not PixelScope constants. Attribute metadata must
+carry stable ID/name, value kind, comparison operator, quality direction, units,
+block/grid geometry, weighting provenance, and all numerical stabilization metadata
+required by the v1 spec.
 
-Attribute metadata must be sufficient to distinguish at least:
+Directional power attributes compare raw A/B power in dB. Raw sign and user-facing
+quality sign are distinct. Noise reverses quality interpretation; higher-is-better
+attributes do not. Luma/Chroma bias are signed neutral values and use signed delta,
+not power-ratio quality dB. Exact bias unit remains versioned server metadata.
 
-- stable attribute ID and display name;
-- value kind (`power` or `signed` initially);
-- comparison operator;
-- quality direction;
-- unit/normalization metadata;
-- block width/height in analysis-domain pixels;
-- grid origin, width, and height;
-- server weighting/profile metadata relevant to interpretation.
+## 5. Remote analysis domain and geometry
 
-### Directional power attributes
+The GPU service operates on RGB-family encoded image inputs. P5 v1 remote eligibility
+is deliberately narrower than local PixelScope discovery and is frozen by the v1
+spec; RAW has no implicit remote conversion path.
 
-For power-like directional attributes, the raw spatial comparison is normally a
-power ratio in dB:
+All sources in a Scene must have equal original dimensions. For performance, 4K-class
+inputs are normally downscaled to approximately 2K before structural/attribute maps
+and grid statistics are created.
 
-```text
-10 * log10((A + epsilon) / (B + epsilon))
-```
+The result must carry exact original/analysis geometry, source→analysis transform,
+valid analysis rectangle, grid origin/dimensions, block size, and border-discard
+metadata. PixelScope must never assume a fixed 0.5 scale.
 
-Raw mathematical sign and user-facing quality interpretation are separate. For
-noise, larger raw power is worse; for detail/edge/contrast/colorfulness, larger raw
-power is better.
+The v1 specification defines a single continuous pixel-edge coordinate convention,
+half-open cells/valid rectangles, affine direction, inverse mapping, clipping, and
+rounding boundary. P5-A must prove it with a non-integer scale/crop/origin fixture.
 
-The UI should therefore expose a normalized semantic direction where useful, such as
-`B better ← 0 → A better`, while retaining raw values in engineering detail views.
+## 6. Statistics and recomposition
 
-### Signed bias attributes
+The server uses weighted mean and weighted population standard deviation. Noise is
+weighted toward flat regions, detail toward texture, and Edge strength toward edges;
+contrast/bias do not have the same region-weight requirement. Exact soft/hard policy
+is server-profile provenance.
 
-Luma bias and Chroma bias are signed values derived in the server's normalized image
-analysis domain. They are not power-ratio attributes. Their primary comparison is a
-signed difference rather than a dB quality score. Exact server-side units/definition
-must remain versioned metadata because final GPU-side confirmation is still required.
+P5 v1 compact scene data carries mandatory linear-domain sufficient statistics so
+local recomposition is deterministic without full 2K maps. The normative field set,
+valid-block rule, zero-weight behavior, and invalid serialization are frozen in the
+v1 specification.
 
-## 6. Remote IQA analysis domain
+The server exposes two distinct official power comparisons:
 
-The GPU service analyzes RGB-family inputs such as PNG/JPEG/BMP. Pair dimensions
-must match; dimension mismatch is a failed evaluation rather than an implicit
-resize/alignment contract between the pair.
+1. ratio of aggregate weighted means;
+2. arithmetic mean of valid per-grid log ratios.
 
-For performance, a 4K-class input is downscaled to an approximately 2K analysis
-domain before the IQA feature maps are produced. Structural maps, attribute maps,
-weighting, and grid statistics are therefore defined in the remote analysis domain,
-not in the original PixelScope source coordinate system.
+Both remain explicitly labeled. PixelScope-derived values do not overwrite the
+identity of server-authored official statistics.
 
-The server must return enough preprocessing geometry to map results back to the
-original image:
+## 7. Tiered durable result
 
-- original source width/height;
-- analysis width/height;
-- source-to-analysis transform or equivalent resize/crop description;
-- valid analysis rectangle;
-- block/grid origin;
-- block dimensions;
-- grid width/height;
-- border-discard policy/version.
+P5 avoids eager full-map transfer:
 
-PixelScope must not assume a fixed `0.5` scale. Grid overlay mapping is:
+1. **Tier 1 — Job summary:** immutable manifest, source/scene/attribute inventory,
+   provenance, official summaries, and artifact references.
+2. **Tier 2 — Compact scene data:** mandatory block sufficient statistics and grid
+   validity/geometry, loaded lazily for inspected scenes.
+3. **Tier 3 — Optional detail:** per-pixel 2K attributes, common Edge Map, Texture
+   Gate, representative image, and debugging artifacts, loaded only when requested.
 
-```text
-remote grid cell
-→ remote analysis coordinate
-→ inverse preprocessing transform
-→ original source coordinate
-→ existing viewer transform
-→ screen
-```
-
-The server adjusts the block offset and discards incomplete boundary regions rather
-than defining partial edge blocks.
-
-## 7. Statistics and aggregation
-
-The server currently uses weighted mean and weighted standard deviation. Weighted
-population standard deviation follows:
-
-```text
-sqrt(sum(w * (x - mean)^2) / sum(w))
-```
-
-Noise receives stronger weighting in flat regions; detail receives stronger
-weighting in texture regions; Edge strength receives stronger edge weighting.
-Contrast and bias do not use the same region weighting requirement. Exact soft/hard
-weighting behavior belongs to the server profile/configuration and must be recorded
-as provenance.
-
-A compact block result should expose source-local weighted block statistics rather
-than only pairwise ratios. At minimum the current grid contract exposes weighted mean
-attribute values. Where the server/result writer can provide sufficient statistics,
-prefer:
-
-```text
-weight_sum
-weighted_sum
-weighted_square_sum
-valid_count
-```
-
-because adjacent blocks/ROIs can then be aggregated in linear space without averaging
-already-aggregated ratios.
-
-The server exposes two official comparison summaries for power attributes:
-
-1. **Ratio of weighted means** — compute source aggregate weighted means first, then
-   take the log ratio.
-2. **Mean of grid log-ratios** — compute the log ratio for each valid grid block,
-   then average those block comparisons.
-
-Both are valid but semantically different. The result artifact and UI must identify
-which aggregation is being displayed. PixelScope may recompute derived views from
-raw/compact data, but server-authored official statistics remain distinguishable from
-PixelScope-derived statistics.
-
-## 8. Result artifact tiers
-
-P5 uses a tiered result contract so large datasets do not require transferring every
-2K pixel map to every client.
-
-### Tier 1 — durable job summary
-
-Loaded immediately when a result is opened:
-
-- immutable job/result identity;
-- source/scene inventory;
-- attribute definitions;
-- algorithm/preprocessing/model versions;
-- weighting configuration/provenance;
-- source identity and hashes;
-- official per-scene/per-attribute summary statistics;
-- both official aggregation modes where applicable;
-- references to compact scene artifacts and optional detail artifacts.
-
-### Tier 2 — compact scene spatial data
-
-Loaded lazily when a scene/attribute is inspected:
-
-- source-local weighted block means or sufficient statistics;
-- signed block values for bias attributes;
-- validity/grid geometry;
-- enough metadata to derive A/B comparisons locally.
-
-This is the normal spatial-overlay input for P5 v1.
-
-### Tier 3 — optional 2K detail artifacts
-
-Large per-pixel attribute maps, common Edge Map, Texture Gate, representative image,
-or other debugging artifacts remain optional/lazy. They should not be required for
-the normal overview/trend/grid workflow and should not be downloaded eagerly.
-
-A practical storage shape is:
+Conceptual layout:
 
 ```text
 result/<job-id>/
@@ -278,122 +165,78 @@ result/<job-id>/
     summary.npz
     scenes/
         scene_000001.npz
-        scene_000002.npz
         ...
     detail/
-        ... optional large artifacts ...
+        ... optional ...
 ```
 
-JSON carries metadata; numeric matrices use NumPy-friendly binary artifacts rather
-than large JSON nested-float arrays.
+Top-level result kind/schema, safe relative-path resolution, safe NumPy loading,
+shape/dtype/size bounds, N-source structure, and immutable publication semantics are
+normative in the v1 specification.
 
-## 9. Immutable result and history
+Published results are historical engineering artifacts. Ordinary clients treat them
+as immutable and expect them to persist until explicit/administrative deletion.
+Authentication/identity/permission/admin lifecycle remains P6; P5 may display server-
+supplied provenance such as user/purpose/project.
 
-Completed IQA results are durable and are not deleted automatically under normal
-operation. Server-side administrative cleanup may occur for capacity/operations, but
-ordinary clients should treat a completed result artifact as immutable.
+## 8. Shared storage abstraction
 
-Result provenance should include, when available:
-
-- job/result ID;
-- creation time;
-- user/purpose/project metadata slots;
-- algorithm/preprocessing/model versions;
-- PiDiNet/texture model versions;
-- weighting/gating configuration;
-- source identities and SHA-256 hashes.
-
-Authentication, identity, permission, and administrator policy are P6 concerns. P5
-may carry optional provenance metadata but must not implement the P6 credential or
-access-control lifecycle.
-
-Historical result reopen is a first-class P5 workflow. PixelScope should eventually
-support `Open IQA Result...` and bounded recent IQA result history. If original source
-images are unavailable, result-only overview/trend data should remain usable while
-source inspection/overlay becomes unavailable.
-
-## 10. Shared storage abstraction
-
-Client and server can access the same Windows SMB/network storage but may see
-different physical paths. The API must not depend on a machine-local `G:\...` path or
-server `/home/data/...` path.
-
-Use a logical storage root plus relative path:
+Client and GPU server may mount the same SMB/network storage at different paths. The
+API uses logical root + relative path, never machine-local paths as portable identity:
 
 ```text
 storage_root_id = iqadata
 relative_path = project42/A/0001.png
+
+client: iqadata → G:\IQA
+server: iqadata → /home/data/IQA
 ```
 
-Example mappings:
+Local inputs may be staged safely; partial copies must not become visible as complete
+server inputs. Content-addressed SHA-256 reuse is preferred where practical.
 
-```text
-PixelScope client: iqadata → G:\IQA
-GPU server:        iqadata → /home/data/IQA
-```
+The machine-local configuration owner for logical-root→client-path mapping is an
+explicit **P5-C owner decision gate**. Result artifacts and Session cannot own it.
 
-UNC paths are a client-side mapping alternative. The result response should use the
-same logical root/reference abstraction.
+## 9. Submission pairing
 
-Local-only inputs may be staged into shared storage. Staging should avoid exposing a
-partially copied file to the server; content-addressed reuse by SHA-256 is preferred
-where operationally practical.
+P5 v1 supports:
 
-## 11. Submission pairing contract
-
-P5 v1 UI supports:
-
-- the current two-image PixelScope pair;
+- Current Pair from an already-open deterministic two-source page;
 - two-folder batch evaluation.
 
-For folder evaluation, the current server behavior pairs sorted folder contents by
-index and fails when counts differ. PixelScope should improve safety by resolving the
-same deterministic ordered pair list before submission and showing a Pair Preview.
-Count mismatch disables submission. Incorrect semantic matching remains the user's
-responsibility, but the actual ordered pairs must be visible.
+Current Pair A/B identity and the exact folder discovery/sort/pair algorithm are
+normative in the v1 specification and must not depend on Primary/Active/viewer reorder
+or on server re-sorting.
 
-The desired server request is an explicit Scene manifest rather than two opaque
-folders. This prevents client/server sorting drift and makes result identities
-stable. The v1 UI remains two-source, while the manifest schema uses `sources[]` so a
-future N-source Scene does not require a format redesign.
+Folder Pair shows the complete ordered Pair Preview and blocks count mismatch before
+submit. Incorrect semantic same-index matching remains the user's responsibility.
+The request is an explicit Scene manifest with `sources[]`; large batch references do
+not become Files/Selected/decoded source ownership.
 
-Batch IQA inputs are feature-local evaluation references. A large batch must not be
-implicitly registered/Selected/decoded in PixelScope.
+Batch failure granularity (whole-job failure versus durable partial Scene results and
+cancel/completion races) is an explicit **P5-C owner decision gate** and must be frozen
+before transport implementation.
 
-## 12. Job API target
+## 10. Job API target
 
-The existing server currently supports a blocking HTTP request that returns a result
-file location after completion. P5 targets an asynchronous job contract that can be
-added to the external server:
+The existing service has a blocking HTTP interface. P5 targets a separable async job
+adapter:
 
 ```text
-POST /v1/iqa/jobs
-    → job_id
-
-GET /v1/iqa/jobs/{job_id}
-    → queued / preparing / extracting / aggregating / writing /
-      succeeded / failed / cancelled
-    → completed_sources / total_sources where available
-
-GET /v1/iqa/jobs/{job_id}/result
-    → logical result artifact reference
-
+POST /v1/iqa/jobs              → job_id
+GET  /v1/iqa/jobs/{job_id}     → progress/state
+GET  /v1/iqa/jobs/{job_id}/result → logical result reference
 POST /v1/iqa/jobs/{job_id}/cancel
 ```
 
-Polling is the P5 v1 default. WebSocket progress is not required initially. The
-transport adapter must be separable from result parsing so existing/blocking server
-interfaces can be bridged without coupling UI/domain code to one endpoint shape.
+Polling is v1 default; WebSocket is not required. Typical 4K extraction is about two
+seconds per source, so batch work is non-modal and cancellable. A result is not
+`succeeded`/historically openable until the v1 publication contract is complete.
 
-Typical 4K-class source extraction is approximately two seconds per source, so batch
-jobs must be non-modal and cancellable while ordinary PixelScope work continues.
+## 11. UX contract
 
-## 13. UX contract
-
-P5 should add one non-modal **IQA workspace/dock** rather than making a large custom
-modal dialog the primary workflow.
-
-Conceptual dock states/tabs:
+P5 adds one non-modal IQA workspace/dock:
 
 ```text
 IQA
@@ -401,110 +244,74 @@ IQA
 │   ├─ Current Pair
 │   └─ Folder Pair
 ├─ Jobs
-│   ├─ Running
-│   ├─ Completed
-│   └─ Failed
 └─ Results
-    ├─ Overview
-    ├─ Attribute trend/outliers
-    └─ Scene inspection controls
 ```
 
-Native OS file/folder pickers may remain modal. Pair preview, job execution, and
-result exploration remain non-modal.
+Native OS file/folder pickers may remain modal; pairing, jobs, and result exploration
+remain non-modal.
 
-### Quick current-pair workflow
-
-When exactly two eligible native sources are the current comparison pair, IQA Setup
-can reuse them directly. The user should not have to browse to the same files again.
-
-### Batch workflow
-
-Folder A / Folder B are selected in IQA Setup, the deterministic ordered pair list is
-shown, and the batch is submitted without altering the user's current Files/Selected
-workspace.
-
-### Result hierarchy
-
-Results follow:
+Results drill down:
 
 ```text
 Job / dataset
     ↓
 10-attribute overview
     ↓
-selected attribute trend / outliers
+attribute trend / outliers
     ↓
-selected scene
+Scene
     ↓
 spatial grid comparison
     ↓
 block inspector
 ```
 
-The overview may use an Attribute × Scene matrix plus a selected-attribute trend.
-The two official aggregation modes must be selectable and clearly labeled.
+Passive result browsing never changes Selected. Explicit **Inspect Pair** loads only
+the chosen Scene pair through the canonical local registration/selection path. IQA
+Reference is independent from Primary.
 
-### Passive browsing versus inspection
+P5 v1 blocks Inspect while a P4-A temporary Pick baseline is active. Return-to-previous-
+workspace is transient, not Session persistence, and its invalidation behavior is
+normative in the v1 specification so it cannot overwrite newer non-IQA workspace
+intent.
 
-Selecting an IQA result row/scene should not mutate PixelScope Selected state.
-`Inspect Pair` (or an equivalent explicit command) registers/selects only the chosen
-scene's sources through the inherited canonical PixelScope path and links scene
-navigation to the viewer.
+## 12. Open Result ownership
 
-Inspection should keep IQA Reference separate from PixelScope Primary. A transient
-`Return to previous workspace` context may restore the pre-inspection comparison
-workspace; it is not Session persistence.
+P5-B establishes the one canonical `Open IQA Result...` parser/controller path against
+fixture/local artifacts. P5-E extends that same path with production logical-storage
+reopen, bounded Recent IQA Results, provenance, source/hash diagnostics, and result-
+only mode. P5-E does not create a second Open Result authority.
 
-Temporary P4-A Picks and IQA Inspect Selected mutation must not conflict silently.
-P5 v1 should prevent entering Inspect while an active temporary curation baseline
-would be invalidated, unless a later explicit policy is designed.
+If original images disappear, Tier-1 overview/trends remain usable while source-linked
+inspection/overlay is unavailable.
 
-## 14. Test/sample contract
+## 13. Fixture-first implementation
 
-P5 runtime development starts from a deterministic synthetic server/result fixture,
-not from the live GPU service.
+P5-A starts without a live GPU server. A deterministic production-shaped fixture must
+cover roughly 10–12 two-source Scenes × all ten attributes with intentional trends,
+outliers, signed bias, near-zero values, differing official aggregation modes, dynamic
+grid size, nontrivial geometry, weighting provenance, mismatch/corruption, and optional
+detail capabilities.
 
-The P5-A sample generator must create a small production-shaped result with roughly
-10–12 scenes × 2 sources and all ten attributes. Data is intentionally structured,
-not random-only, so tests can assert the complete drill-down workflow.
+The v1 specification additionally requires golden tests for epsilon, exact A/B signs,
+valid-grid intersection, mandatory sufficient-statistic recomposition, invalid/null
+behavior, non-integer coordinate inversion, unsafe artifact rejection, incomplete
+publication, and at least one small 3-source structural case.
 
-The fixture should include:
+Large real 2K arrays are not repository fixture requirements.
 
-- clear attribute trends and at least one spatial outlier;
-- positive, negative, and near-zero directional comparisons;
-- signed Luma/Chroma bias crossing negative/zero/positive values;
-- two official aggregation modes that intentionally produce different results in at
-  least one scene;
-- source-local weighted block means/sufficient statistics whose local recomputation
-  matches official fixture statistics;
-- default 32/128 block profiles plus a variant attribute/profile proving the client
-  does not hard-code those values;
-- non-zero grid origin and discarded border geometry;
-- source→analysis transform metadata;
-- soft-weight profile metadata and a hard-gate profile variant;
-- identical-source comparison case;
-- near-zero power handling;
-- dimension-mismatch rejection fixture;
-- missing/corrupt compact scene artifact behavior;
-- optional detail artifact absent/present cases.
-
-Large real 2K pixel arrays are not required in repository fixtures. Detail-map tests
-may use a smaller synthetic analysis domain while preserving production metadata and
-lazy-load semantics.
-
-## 15. Explicit P5 boundaries
+## 14. Explicit P5 boundaries
 
 P5 does not own:
 
-- external GPU model implementation/training code;
+- external GPU model implementation/training;
 - login/SSO/token/permission/admin lifecycle (P6);
 - arbitrary server retention administration;
-- local RAW demosaic/WB/CCM/tone-map processing;
-- source-residency or preload redesign;
+- local RAW demosaic/WB/CCM/tone-map conversion for remote submission;
+- source-residency/preload redesign;
 - Difference numerical redesign;
 - Saved ROI/Overlay deferred from P4;
 - packaging/signing/update strategy (P7).
 
-P5 may request new server interfaces and result writers, but those changes are
-implemented and versioned in the external IQA server repository.
+P5 may request new versioned server interfaces/result writers, implemented in the
+external IQA server repository.
