@@ -486,6 +486,13 @@ quality/bias orientation, W/S1/S2/count/valid recomposition, pairwise intersecti
 both official aggregation modes, invalid results, non-integer affine geometry, and
 publication/artifact safety.
 
+The Tier-1 fixture oracle is independent from production recomposition, with separate
+hand-calculated exact golden assertions. Review regressions also cover zero-epsilon
+undefined ratios, negative/non-finite power, neutral quality, inconsistent moments,
+general affine polygon clipping across every source boundary, required comparison
+operators, analysis-bounded valid rectangles, official-mode applicability, and
+adversarial archive/member metadata.
+
 Safety coverage includes incomplete publication, dimension mismatch, missing and
 corrupt compact data, traversal/absolute/NUL/symlink escape, object arrays, malformed
 dtype/rank/shape, and declared/actual safety-ceiling rejection before unrestricted

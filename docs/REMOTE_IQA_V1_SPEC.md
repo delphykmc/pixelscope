@@ -35,6 +35,11 @@ Every power AttributeSpec must carry a finite non-negative
 PixelScope must never hard-code a production epsilon. The external writer owns the
 value and the P5-A fixture owns a deterministic test value.
 
+Every AttributeSpec also carries an explicit versioned `comparison_operator`.
+Schema v1 uses `power_ratio_a_over_b_db` for power attributes and
+`signed_a_minus_b` for signed attributes. Missing, unknown, or value-kind-inapplicable
+operators are invalid; readers must not infer an omitted operator.
+
 For power attributes:
 
 ```text
@@ -259,6 +264,10 @@ NPY/NPZ reads are data-only:
 - rank and exact expected shape validated from manifest/grid/source metadata;
 - ZIP/NPY metadata inspected before materializing large arrays;
 - oversized/malformed data rejected before unbounded allocation/decompression.
+
+The P5-A reader additionally bounds archive bytes on disk and member count, rejects
+duplicate/encrypted/unsupported-compression members, and performs these metadata
+checks before opening a member for its NPY header.
 
 Initial v1 parser safety ceilings:
 

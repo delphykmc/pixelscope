@@ -657,6 +657,10 @@ math, identity, geometry, artifact, and parser rules are specialized by
 - Result opening returns explicit success, invalid, corrupt, or unsupported outcomes.
   Tier-2 compact Scene arrays remain lazy and are validated from ZIP/NPY metadata
   before NumPy materialization with `allow_pickle=False`.
+- Schema-v1 AttributeSpec records `power_ratio_a_over_b_db` or
+  `signed_a_minus_b` explicitly rather than inferring comparison orientation from
+  value kind. The reader also applies bounded on-disk archive and member-count
+  policy in addition to the normative uncompressed/array ceilings.
 - P5 v1 UI is two-source, while durable Scene/result identity is N-source-ready.
 - Remote submission v1 accepts RGB-family PNG/JPEG/BMP inputs only; RAW is not
   silently converted for remote submission.

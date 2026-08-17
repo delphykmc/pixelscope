@@ -1,6 +1,6 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — P5-A implementation / independent review
+Status: Active — P5-A review fixes / independent re-review
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
 Last updated: 2026-08-18
 Inherited merged baseline: PR #36 / main `ee7ca03`
@@ -286,18 +286,23 @@ No UI implementation is required.
   and deterministic production-shaped fixture generation.
 - Focused fixture/parser/math/geometry/safety tests cover all P5-A acceptance cases,
   including an 11-Scene corpus and a 3-source structural Scene.
+- The first independent review returned `CHANGES_REQUESTED`. Follow-up hardens
+  invalid numerical outcomes and moment consistency, separates fixture authority
+  from production recomposition with hand-calculated goldens, performs true affine
+  polygon clipping, bounds adversarial ZIP metadata, requires explicit comparison
+  operators, and validates analysis/official-mode semantics. Re-review is pending.
 - Observed Windows validation on 2026-08-18:
-  - focused remote tests: `28 passed in 7.57s`;
+  - focused remote tests: `45 passed in 9.72s`;
   - documentation contract: `Documentation contract passed.`;
-  - full pytest: `678 passed, 3 failed in 246.22s`; the three failures are existing
+  - full pytest: `695 passed, 3 failed in 215.20s`; the three failures are existing
     offscreen Qt geometry/hover assertions in `test_p1e_plots_workspace.py` and
-    `test_ui_smoke.py`, reproduce as `3 failed in 7.86s`, and do not overlap P5-A;
+    `test_ui_smoke.py`, reproduce as `3 failed in 7.67s`, and do not overlap P5-A;
   - full Ruff check, `mypy src` (`78 source files`), `pip check`, and
     `git diff --check`: passed;
   - changed-file Ruff format check: `11 files already formatted`;
   - repository-wide Ruff format check remains blocked by 25 unchanged pre-existing
     files; P5-A does not reformat unrelated runtime/UI/tests.
-- Independent review remains pending.
+- Independent re-review remains pending.
 
 ## P5-B — IQA Workspace & Local Result Exploration
 

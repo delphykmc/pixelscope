@@ -644,8 +644,9 @@ manifest.json publication marker
 
 `iqa_reader` validates Tier-1 summary data while opening the result, but Tier-2
 compact Scene arrays are loaded only when that Scene is requested. ZIP/NPY member
-metadata, declared and actual sizes, dtype, rank, exact shape, and object-array
-safety are checked before NumPy materialization. All artifact paths resolve beneath
+count/identity/compression/encryption metadata, bounded on-disk/declared/actual
+sizes, dtype, rank, exact shape, and object-array safety are checked before NumPy
+materialization. All artifact paths resolve beneath
 the immutable result root, and readers return explicit invalid, corrupt, or
 unsupported outcomes rather than mutating application state.
 
