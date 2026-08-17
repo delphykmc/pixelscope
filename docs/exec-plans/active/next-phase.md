@@ -143,7 +143,8 @@ P5 v1 UI is two-source; durable schema includes a 3-source structural test.
 - NumPy is `allow_pickle=False`, dtype/rank/shape/size validated;
 - compact artifact safety caps are specified in the v1 spec;
 - final complete manifest is the publication commit marker;
-- job cannot report `succeeded`/openable before required Tier-1/2 publication.
+- no result-bearing terminal state, including the owner-approved PARTIAL direction,
+  may be reported/openable before required Tier-1/2 publication.
 
 ## UX direction
 
@@ -192,7 +193,7 @@ newer non-IQA Selected/workspace intent.
 | 0 | P5-0 P4 Closure & P5 Program Setup | Active — review follow-up |
 | 1 | P5-A Contract Fixtures & IQA Domain | Planned |
 | 2 | P5-B IQA Workspace & Local Result Exploration | Planned |
-| 3 | P5-C Submission & Shared Storage | Planned — owner gates pending |
+| 3 | P5-C Submission & Shared Storage | Planned — C1 + detailed terminal gates pending; PARTIAL allowed |
 | 4 | P5-D Viewer-linked Scene Inspection | Planned |
 | 5 | P5-E Historical Result Workflow | Planned |
 | 6 | P5-F Integration & Performance Hardening | Planned |
@@ -309,7 +310,8 @@ Connect the proven P5-A/P5-B artifact/UX path to the external GPU service.
 
 #### Gate C1 — logical storage-root configuration ownership
 
-Choose and document one machine-local authority for:
+C1 remains intentionally deferred. Before P5-C starts, choose and document one
+machine-local authority for:
 
 ```text
 storage_root_id → client path / UNC path
@@ -320,17 +322,24 @@ migration if the model fits. A feature-local repository is acceptable only if it
 not create a competing settings authority and is durably justified. Result artifacts
 and Session are prohibited from becoming machine-local mapping authority.
 
-#### Gate C2 — batch failure granularity
+#### Gate C2 — PARTIAL allowed; detailed terminal contract pending
 
-Freeze:
+The owner has fixed the central policy: **durable PARTIAL results are allowed**.
+A Scene-level failure must not automatically discard otherwise valid successful Scene
+results. P5-C must preserve successful Scene outputs whenever the final terminal/
+publication policy classifies them as a publishable partial result.
 
-- request-level validation failure;
-- one Scene unreadable/dimension mismatch;
-- mixed successful/failed Scenes;
-- whether a durable `partial` terminal result exists;
-- cancel versus final publication race semantics.
+Before P5-C starts, freeze the remaining details:
 
-The implementation agent must not invent these policies.
+- request-level validation/rejection behavior;
+- per-Scene failure record schema and reason taxonomy;
+- exact PARTIAL terminal-state identity and API representation;
+- required Tier-1/Tier-2 artifacts for successful versus failed Scenes;
+- behavior when no Scene succeeds;
+- cancel versus completion/publication race semantics.
+
+The implementation agent must not re-decide whether PARTIAL is allowed and must not
+invent the remaining details.
 
 ### Scope after gates close
 
@@ -341,7 +350,7 @@ The implementation agent must not invent these policies.
 - HTTP submit/status/result/cancel adapter, polling first;
 - non-modal Jobs progress;
 - result handoff into the exact P5-B canonical Open Result/repository path;
-- retry/failure/cancel behavior under Gate C2;
+- retry/failure/cancel behavior under the finalized C2 terminal contract;
 - no local batch Files/Selected/residency authority.
 
 Server implementation remains outside this repository.
