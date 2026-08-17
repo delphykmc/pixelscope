@@ -253,7 +253,8 @@ P5 uses three result tiers:
 The result artifact has `kind = pixelscope-iqa-result`, schema v1, safe relative
 references, data-only NumPy artifacts, bounded dtype/shape/size validation, and an
 immutable publication boundary. `manifest.json` is the complete publication marker;
-a job cannot be `succeeded`/openable before required Tier-1/2 artifacts are finalized.
+no result-bearing terminal state, including PARTIAL, may be openable before required
+Tier-1/2 artifacts for that published result are finalized.
 
 Historical results are durable engineering records and should be reopenable without
 rerunning GPU analysis.
@@ -346,19 +347,22 @@ Prove the result UX entirely from deterministic P5-A artifacts before live serve
 
 ## P5-C — Submission & Shared Storage — Planned
 
-P5-C must not start until two owner/orchestrator gates are frozen.
+P5-C must not start until the remaining owner/orchestrator gates are frozen.
 
 **Gate C1 — machine-local logical storage-root configuration ownership**
 
-Choose whether `storage_root_id → client/UNC path` is typed `ApplicationSettings`
-(with explicit Settings schema migration) or another already-authoritative machine-
-local configuration mechanism. Result artifacts and Session cannot own this mapping.
+C1 remains intentionally deferred. Choose whether `storage_root_id → client/UNC path`
+is typed `ApplicationSettings` (with explicit Settings schema migration) or another
+already-authoritative machine-local configuration mechanism. Result artifacts and
+Session cannot own this mapping.
 
-**Gate C2 — batch failure granularity**
+**Gate C2 — PARTIAL allowed; detailed failure/terminal policy pending**
 
-Define request-level failure, per-Scene unreadable/dimension mismatch behavior,
-whether mixed results create a durable `partial` terminal state, and cancel versus
-final-publication race semantics.
+The owner has fixed the central direction: **durable PARTIAL results are allowed**.
+A failed Scene must not automatically discard otherwise valid successful Scene
+results. Before P5-C starts, freeze request-level rejection, per-Scene failure records,
+exact PARTIAL API/terminal identity, required artifacts for successful versus failed
+Scenes, no-success behavior, and cancel/completion/final-publication race semantics.
 
 After gates close, P5-C owns safe staging, deterministic Current Pair/Folder Pair
 submission, explicit Scene manifest, HTTP job lifecycle, polling Jobs UI, and handoff
