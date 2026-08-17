@@ -286,8 +286,18 @@ No UI implementation is required.
   and deterministic production-shaped fixture generation.
 - Focused fixture/parser/math/geometry/safety tests cover all P5-A acceptance cases,
   including an 11-Scene corpus and a 3-source structural Scene.
-- Independent review remains pending. Validation evidence is recorded in the draft
-  PR and only after commands run on the latest committed head.
+- Observed Windows validation on 2026-08-18:
+  - focused remote tests: `28 passed in 7.57s`;
+  - documentation contract: `Documentation contract passed.`;
+  - full pytest: `678 passed, 3 failed in 246.22s`; the three failures are existing
+    offscreen Qt geometry/hover assertions in `test_p1e_plots_workspace.py` and
+    `test_ui_smoke.py`, reproduce as `3 failed in 7.86s`, and do not overlap P5-A;
+  - full Ruff check, `mypy src` (`78 source files`), `pip check`, and
+    `git diff --check`: passed;
+  - changed-file Ruff format check: `11 files already formatted`;
+  - repository-wide Ruff format check remains blocked by 25 unchanged pre-existing
+    files; P5-A does not reformat unrelated runtime/UI/tests.
+- Independent review remains pending.
 
 ## P5-B — IQA Workspace & Local Result Exploration
 
