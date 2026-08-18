@@ -229,11 +229,31 @@ def test_epsilon_orientation_noise_quality_and_identical_sources(golden_root: Pa
     near_zero = load_compact_scene(result, "scene_000002")
     assert near_zero.data is not None
     compact = near_zero.data.attributes["luma_noise"]
+    # Independent hand calculation from the fixed fixture W/S1 values:
+    # A mean = 0 / 30, B mean = 210e-12 / 30 = 7e-12. Per-grid B means
+    # are the literal sequence 1e-12..12e-12 because each S1 is W*mean.
+    expected_aggregate_db = -0.030294705536180425
+    expected_grid_db = -0.02811224841153297
+    assert float(np.sum(np.asarray(compact.weight_sum)[0])) == pytest.approx(30.0)
+    assert float(np.sum(np.asarray(compact.weighted_sum)[0])) == pytest.approx(0.0)
+    assert float(np.sum(np.asarray(compact.weight_sum)[1])) == pytest.approx(30.0)
+    assert float(np.sum(np.asarray(compact.weighted_sum)[1])) == pytest.approx(210e-12)
+
+    scene = result.scene("scene_000002")
+    official = next(item for item in scene.comparisons if item.attribute_id == "luma_noise")
+    assert official.official[ComparisonMode.RATIO_OF_WEIGHTED_MEANS].value == pytest.approx(
+        expected_aggregate_db, abs=1e-15
+    )
+    assert official.official[ComparisonMode.MEAN_OF_GRID_LOG_RATIOS].value == pytest.approx(
+        expected_grid_db, abs=1e-15
+    )
+
     comparison = compare_sources(
         result.attribute("luma_noise"), _source_data(compact, 0), _source_data(compact, 1)
     )
-    assert comparison["raw"].value is not None and comparison["raw"].value < 0.0
-    assert comparison["quality"].value == pytest.approx(-comparison["raw"].value)
+    assert comparison["raw"].value == pytest.approx(expected_aggregate_db, abs=1e-15)
+    assert comparison["grid"].value == pytest.approx(expected_grid_db, abs=1e-15)
+    assert comparison["quality"].value == pytest.approx(0.030294705536180425, abs=1e-15)
     identical = load_compact_scene(result, "scene_000000")
     assert identical.data is not None
     compact = identical.data.attributes["colorfulness"]
