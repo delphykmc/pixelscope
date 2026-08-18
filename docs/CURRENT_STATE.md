@@ -1,11 +1,12 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-17
-Current merged baseline / PR #35 merge commit:
-`d1d1fbe8fc7ee81855e5e037bcecc1278435e298`
+Snapshot date: 2026-08-18
+Current merged baseline / PR #36 merge commit:
+`ee7ca03`
 
-P4 **Workflow & Session Productivity** is Complete. P5 **Remote IQA Platform** is
-Active in the P5-0 docs-only program-setup slice.
+P4 **Workflow & Session Productivity** and P5-0 **P4 Closure & P5 Program Setup**
+are Complete. P5 **Remote IQA Platform** is Active in the P5-A contract-fixture and
+Qt-free IQA-domain slice.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -36,10 +37,14 @@ Completed P4 plan:
   `51a540c92c372d71e02fd849fb5e0d406d0e9327`.
 - P4-E Analysis Export Productivity merged as PR #34 at
   `79ee74134f1ebef9dd13f82e49f8e34407bb78f4`.
-- P4-F Integration & Workflow Hardening merged as PR #35; current main is
+- P4-F Integration & Workflow Hardening merged as PR #35 at
   `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
+- P5-0 P4 Closure & P5 Program Setup merged as PR #36; current main is `ee7ca03`.
 
-No P5 runtime/UI implementation is present yet. P5-0 changes documentation only.
+P5-A adds a Qt-free published-result domain, schema-v1 manifest/Tier-1/Tier-2
+reader, deterministic recomposition and geometry utilities, and production-shaped
+fixture generation. P5 UI, live transport, shared-storage settings, and Session
+integration remain absent.
 
 ## Authoritative local workspace model
 
@@ -309,8 +314,8 @@ Execution sequence:
 
 `P5-0 → P5-A → P5-B → P5-C → P5-D → P5-E → P5-F`
 
-- **P5-0** — P4 closure + P5 plan/contract — Active.
-- **P5-A** — deterministic contract fixtures + Qt-free IQA domain — Planned.
+- **P5-0** — P4 closure + P5 plan/contract — Complete (PR #36).
+- **P5-A** — deterministic contract fixtures + Qt-free IQA domain — Active.
 - **P5-B** — IQA workspace + local fixture result exploration — Planned.
 - **P5-C** — shared storage + current/folder submission + HTTP jobs — Planned.
 - **P5-D** — viewer-linked Scene/grid inspection — Planned.
@@ -321,11 +326,12 @@ P5-A deliberately starts with synthetic production-shaped sample results so sche
 statistics, geometry, corruption handling, and future UI can be tested without a
 live GPU server.
 
-## P5-0 validation status
+## P5-A implementation status
 
-P5-0 changes documentation only. Runtime/UI source and tests are unchanged.
-Documentation/link checks and `git diff --check` are the relevant merge checks;
-unchanged runtime pytest/Ruff/mypy PASS must not be inferred without execution.
+P5-A is implemented on its feature branch pending independent review. It remains
+Qt-free and fixture-first: no network/GPU service, UI/controller, storage-root,
+Session, source-residency, preload, Difference, or packaging behavior changes.
+Only validation actually observed on the latest feature head is completion evidence.
 
 ## Deferred/future boundaries
 

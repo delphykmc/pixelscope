@@ -627,6 +627,34 @@ RAW display policy remains:
 Demosaic, white balance, CCM, tone mapping, processed-RAW analysis, optical-Black
 estimation, and profile suggestion remain outside the current boundary.
 
+## Remote IQA published-result boundary
+
+P5-A introduces a Qt-free, fixture-first result domain under
+`src/pixelscope/remote/` without connecting it to widgets, local source ownership,
+or the existing HTTP transport skeleton:
+
+```text
+manifest.json publication marker
+    → iqa_reader identity/publication/path/NPZ validation
+    → immutable Result / Scene / Source / Attribute / Comparison domain
+    → lazy compact Scene load
+        → iqa_math W/S1/S2/count/valid recomposition
+        → iqa_geometry continuous source ↔ analysis mapping
+```
+
+`iqa_reader` validates Tier-1 summary data while opening the result, but Tier-2
+compact Scene arrays are loaded only when that Scene is requested. ZIP/NPY member
+count/identity/compression/encryption metadata, bounded on-disk/declared/actual
+sizes, dtype, rank, exact shape, and object-array safety are checked before NumPy
+materialization. All artifact paths resolve beneath
+the immutable result root, and readers return explicit invalid, corrupt, or
+unsupported outcomes rather than mutating application state.
+
+This domain imports neither Qt nor UI/controller code. It owns no native image,
+Selected, Current Comparison Page, source residency/preload, Difference, Session,
+storage-root mapping, live job, or HTTP lifecycle state. The pre-P5 HTTP evaluation
+client remains separate until the later transport slice.
+
 ## Runtime diagnostics and release boundaries
 
 `RuntimeDiagnosticsSnapshot` is frozen, deterministic, bounded, sanitized, and

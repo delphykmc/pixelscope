@@ -1,10 +1,9 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — P5-0 program setup / contract hardening
+Status: Active — P5-A review fixes / independent re-review
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
-Last updated: 2026-08-17
-Inherited merged baseline: PR #35 / main
-`d1d1fbe8fc7ee81855e5e037bcecc1278435e298`
+Last updated: 2026-08-18
+Inherited merged baseline: PR #36 / main `ee7ca03`
 
 Authoritative P5 documents:
 
@@ -190,8 +189,8 @@ newer non-IQA Selected/workspace intent.
 
 | Order | Slice | Status |
 |---|---|---|
-| 0 | P5-0 P4 Closure & P5 Program Setup | Active — review follow-up |
-| 1 | P5-A Contract Fixtures & IQA Domain | Planned |
+| 0 | P5-0 P4 Closure & P5 Program Setup | Complete — PR #36 |
+| 1 | P5-A Contract Fixtures & IQA Domain | Active — implementation/review |
 | 2 | P5-B IQA Workspace & Local Result Exploration | Planned |
 | 3 | P5-C Submission & Shared Storage | Planned — C1 + detailed terminal gates pending; PARTIAL allowed |
 | 4 | P5-D Viewer-linked Scene Inspection | Planned |
@@ -279,6 +278,31 @@ Large real 2K maps are not committed.
 With no network/GPU service, P5-A tests can independently reproduce fixture-authority
 math and geometry from the versioned artifact and reject incompatible/unsafe data.
 No UI implementation is required.
+
+### Progress and evidence
+
+- Implemented Qt-free domain, exact schema-v1 manifest/Tier-1 reader, lazy safe
+  Tier-2 reader, compact-statistic recomposition, continuous affine/grid geometry,
+  and deterministic production-shaped fixture generation.
+- Focused fixture/parser/math/geometry/safety tests cover all P5-A acceptance cases,
+  including an 11-Scene corpus and a 3-source structural Scene.
+- The first independent review returned `CHANGES_REQUESTED`. Follow-up hardens
+  invalid numerical outcomes and moment consistency, separates fixture authority
+  from production recomposition with hand-calculated goldens, performs true affine
+  polygon clipping, bounds adversarial ZIP metadata, requires explicit comparison
+  operators, and validates analysis/official-mode semantics. Re-review is pending.
+- Observed Windows validation on 2026-08-18:
+  - focused remote tests: `45 passed in 9.72s`;
+  - documentation contract: `Documentation contract passed.`;
+  - full pytest: `695 passed, 3 failed in 215.20s`; the three failures are existing
+    offscreen Qt geometry/hover assertions in `test_p1e_plots_workspace.py` and
+    `test_ui_smoke.py`, reproduce as `3 failed in 7.67s`, and do not overlap P5-A;
+  - full Ruff check, `mypy src` (`78 source files`), `pip check`, and
+    `git diff --check`: passed;
+  - changed-file Ruff format check: `11 files already formatted`;
+  - repository-wide Ruff format check remains blocked by 25 unchanged pre-existing
+    files; P5-A does not reformat unrelated runtime/UI/tests.
+- Independent re-review remains pending.
 
 ## P5-B — IQA Workspace & Local Result Exploration
 

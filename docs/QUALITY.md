@@ -477,6 +477,34 @@ CI gate without first observing PySide6/pytest-qt/offscreen reliability and
 acceptable suite runtime/resource use on the target runner. Windows CI
 introduction is therefore deferred; packaging/installer CI remains P7.
 
+## P5-A deterministic Remote IQA result contract
+
+`tests/unit/test_remote_iqa_v1.py` generates and consumes an 11-Scene production-
+shaped result without network, GPU, or Qt UI. It verifies all ten attributes,
+two-source and 3-source identity, dynamic grids, optional detail, exact epsilon/A-B/
+quality/bias orientation, W/S1/S2/count/valid recomposition, pairwise intersections,
+both official aggregation modes, invalid results, non-integer affine geometry, and
+publication/artifact safety.
+
+The Tier-1 fixture oracle is independent from production recomposition, with separate
+hand-calculated exact golden assertions. Review regressions also cover zero-epsilon
+undefined ratios, negative/non-finite power, neutral quality, inconsistent moments,
+general affine polygon clipping across every source boundary, required comparison
+operators, analysis-bounded valid rectangles, official-mode applicability, and
+adversarial archive/member metadata.
+
+Safety coverage includes incomplete publication, dimension mismatch, missing and
+corrupt compact data, traversal/absolute/NUL/symlink escape, object arrays, malformed
+dtype/rank/shape, and declared/actual safety-ceiling rejection before unrestricted
+NumPy allocation or decompression. The focused command is:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_remote_iqa_v1.py tests\unit\test_remote.py
+```
+
+P5-A remains a runtime slice, so the complete Standard validation matrix above is
+also required before review.
+
 ## Completion evidence
 
 Every agent-assisted change reports:

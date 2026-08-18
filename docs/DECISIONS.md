@@ -635,7 +635,7 @@ P4-F merged as PR #35; the P4-complete main baseline is
 - P4-D Saved/named/multiple ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle
   Line Profile remain deferred beyond P4.
 
-## P5-0 Remote IQA program decisions — Active
+## P5 Remote IQA program decisions — Active in P5-A
 
 P5-0 is a docs-only transition from completed P4 to the P5 Remote IQA program.
 The broad product/data contract is `docs/REMOTE_IQA_CONTRACT.md`; deterministic P5 v1
@@ -650,6 +650,17 @@ math, identity, geometry, artifact, and parser rules are specialized by
   authority.
 - P5-A is fixture-first: deterministic production-shaped result artifacts and
   Qt-free domain/parser/numerical/geometry tests precede live server coupling.
+- P5-A keeps the pre-existing HTTP evaluation skeleton separate from published IQA
+  result parsing. `remote.iqa_reader` performs immutable bounded artifact reads,
+  `remote.iqa_math` performs deterministic compact-statistic recomposition, and
+  `remote.iqa_geometry` owns continuous source/analysis mapping without Qt imports.
+- Result opening returns explicit success, invalid, corrupt, or unsupported outcomes.
+  Tier-2 compact Scene arrays remain lazy and are validated from ZIP/NPY metadata
+  before NumPy materialization with `allow_pickle=False`.
+- Schema-v1 AttributeSpec records `power_ratio_a_over_b_db` or
+  `signed_a_minus_b` explicitly rather than inferring comparison orientation from
+  value kind. The reader also applies bounded on-disk archive and member-count
+  policy in addition to the normative uncompressed/array ceilings.
 - P5 v1 UI is two-source, while durable Scene/result identity is N-source-ready.
 - Remote submission v1 accepts RGB-family PNG/JPEG/BMP inputs only; RAW is not
   silently converted for remote submission.
@@ -693,5 +704,7 @@ Difference/source-curation lifecycle is merged at
 `79ee74134f1ebef9dd13f82e49f8e34407bb78f4`. P4-F is Complete as PR #35; the
 P4-complete main baseline is `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
 
-P5 is Active in P5-0 program setup. P5 runtime/UI behavior is not yet implemented.
+P5-0 is Complete as PR #36 at `ee7ca03`. P5 is Active in P5-A; the Qt-free published
+result domain is implemented on its feature branch pending independent review. P5
+UI and live-service behavior are not yet implemented.
 Only validation actually observed for the current head may be recorded as PASS.
