@@ -183,8 +183,13 @@ the geometry baseline unless a later explicit schema changes them.
 
 The current remote input baseline remains PNG/JPG/JPEG/BMP with no silent RAW
 conversion. Current Pair/folder formation remains deterministic and independent from
-Primary/Active/viewer reorder. P5-C may extend request shape for N-way variants only
-through explicit ordered Scene manifests.
+Primary/Active/viewer reorder.
+
+P5-C request/result identity remains N-way-capable through explicit ordered Scene
+manifests, but **the initial P5-C submission UI remains two-variant only**: Current
+Pair and deterministic two-folder Pair. Arbitrary three-or-more-variant submission UI
+is deferred and requires a later explicit owner decision. This does not limit P5-B
+N-way result exploration or Reference switching.
 
 ## UX direction
 
@@ -349,11 +354,21 @@ outputs must be preservable. Before transport implementation, freeze:
 - behavior when no Scene succeeds;
 - cancel/completion/publication races.
 
+### Submission cardinality — owner decision
+
+The schema/request identity is N-way-capable, but the initial P5-C user-facing submit
+workflow is deliberately limited to **two variants**:
+
+- Current Pair = exactly two variants;
+- batch = deterministic two-folder Pair;
+- arbitrary N-way submission UI is deferred to a later explicit owner decision;
+- P5-B remains N-way-capable for opening/exploring externally produced v2 results.
+
 ### Scope after gates close
 
 - logical storage-root mapping and safe shared staging;
-- deterministic Current Pair and batch/N-way submission;
-- explicit ordered Scene manifest request;
+- deterministic two-variant Current Pair and two-folder Pair submission;
+- explicit ordered Scene manifest request whose identity model remains N-way-capable;
 - HTTP submit/status/result/cancel adapter, polling first;
 - non-modal Jobs progress;
 - handoff into the exact P5-B canonical Open Result path;
@@ -416,7 +431,7 @@ local authority/lifecycle contracts.
 - v1 read-only historical compatibility;
 - bounded grid loading/cache characterization;
 - SMB/network bandwidth and local reference-switch latency;
-- current-pair/batch/N-way stress;
+- current-pair/two-folder submission stress plus N-way result/parser/Reference stress;
 - cancellation/failure/missing-artifact/application close-recreate;
 - no batch-driven Files/Selected/residency/preload authority;
 - polling/task teardown and stale-result rejection;
