@@ -180,6 +180,26 @@ race rules.
 
 `REMOTE_IQA_V1_SPEC.md` remains historical and is not rewritten.
 
+## P5-C submission cardinality owner decision
+
+Schema-v2 result identity remains N-way-capable, but that capability does not force the
+first submission UI to expose arbitrary N-way input.
+
+The current owner decision is:
+
+- P5-C request/result identity remains N-way-capable through explicit ordered Scene
+  manifests;
+- the **initial P5-C submission UI remains two-variant only**;
+- Current Pair submits exactly two variants;
+- batch submission remains the deterministic two-folder Pair workflow;
+- arbitrary three-or-more-variant submission UI is deferred and requires a later
+  explicit owner decision;
+- P5-B still supports N-way v2 result exploration and Reference switching regardless
+  of how the initial submission UI is scoped.
+
+This keeps schema capability separate from product/UI scope and prevents P5-C from
+silently expanding merely because schema v2 can represent more variants.
+
 ## Implementation-blocking versus later gates
 
 ### Must be frozen/implemented in the focused executable-v2 migration
@@ -201,6 +221,7 @@ These are not choices that the rebased P5-B agent may invent.
 
 - detailed PARTIAL/failure/cancel taxonomy: P5-C;
 - machine-local logical-root configuration ownership: P5-C;
+- arbitrary N-way submission UI: later owner-approved follow-up;
 - final cache/preload budget and wall-clock targets: P5-F.
 
 ## Required program sequence
@@ -267,5 +288,6 @@ PR #39 does not:
 - modify the external GPU server repository;
 - freeze the complete PARTIAL/failure transport taxonomy;
 - implement logical storage-root mapping or source hash inspection;
+- expose arbitrary N-way submission UI in the initial P5-C slice;
 - choose final grid cache/preload budgets;
 - merge/rebase P5-B.
