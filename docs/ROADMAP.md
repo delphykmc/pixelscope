@@ -262,8 +262,13 @@ explicitly extends it: PNG/JPG/JPEG/BMP families only, no silent RAW conversion.
 
 Current Pair remains bound to deterministic underlying Current Comparison Page source
 order rather than Primary/Active/view order. Folder pairing remains deterministic and
-explicit before submit. A future N-way request shape must preserve ordered explicit
-Scene manifests rather than relying on server re-sorting.
+explicit before submit.
+
+Schema-v2 request/result identity remains N-way-capable through explicit ordered Scene
+manifests, but **the initial P5-C submission UI remains two-variant only**: Current
+Pair and deterministic two-folder Pair. Arbitrary three-or-more-variant submission UI
+is deferred to a later explicit owner decision. This does not limit P5-B N-way result
+exploration or Reference switching.
 
 ## Result and bandwidth strategy — purpose-based artifacts
 
@@ -380,7 +385,8 @@ PR #39 freezes:
 - default relative Overview = arithmetic mean of valid Scene comparisons;
 - v1 read-only compatibility;
 - PARTIAL direction carry-forward;
-- separation of schema semantics from grid loading/cache policy.
+- separation of schema semantics from grid loading/cache policy;
+- P5-C request identity N-way-capable while initial submission UI remains two-variant.
 
 ### Stage 2 — focused executable-v2 migration
 
@@ -427,9 +433,19 @@ Scene outputs are preservable. P5-C must still freeze request rejection, per-Sce
 failure records, missing variants, exact PARTIAL API/terminal identity, required
 artifacts, no-success behavior, and cancel/completion/publication races.
 
-After gates close, P5-C owns safe staging, deterministic submission, explicit Scene
-manifests, HTTP job lifecycle, polling Jobs UI, and handoff into P5-B's canonical Open
-Result path.
+**Submission cardinality — owner decision**
+
+The request/result identity model is N-way-capable, but the initial user-facing P5-C
+submission workflow is deliberately limited to two variants:
+
+- Current Pair = exactly two variants;
+- batch = deterministic two-folder Pair;
+- arbitrary N-way submission UI is deferred to a later explicit owner decision;
+- P5-B continues to support N-way v2 result exploration/reference switching.
+
+After gates close, P5-C owns safe staging, deterministic two-variant Current Pair and
+two-folder Pair submission, explicit ordered Scene manifests, HTTP job lifecycle,
+polling Jobs UI, and handoff into P5-B's canonical Open Result path.
 
 GPU server implementation remains outside this repository.
 
@@ -471,7 +487,7 @@ Validate the composed workflow against the real server and realistic datasets:
 - bounded grid loading/cache behavior;
 - SMB/network bandwidth characterization;
 - local reference-switch calculation latency;
-- current-pair and large-folder/N-way stress;
+- current-pair/two-folder submission stress plus N-way result/parser/Reference stress;
 - cancellation/failure/missing artifacts;
 - stale callback and application close/recreate safety;
 - proof batch membership does not become local source/residency/preload authority;
