@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pyqtgraph as pg
 import pytest
 from PySide6.QtCore import QSettings, QRect, Qt, QThreadPool
 from PySide6.QtWidgets import QFileDialog, QLabel
@@ -17,6 +18,7 @@ from pixelscope.ui.iqa_workspace import (
     IQA_FLOATING_GEOMETRY_SETTING,
     IqaWorkspaceController,
     IqaWorkspaceWidget,
+    _overview_tick_label,
 )
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
@@ -44,6 +46,16 @@ def _loaded(root: Path):  # type annotation would obscure assertion narrowing
     return outcome.result
 
 
+def _overview_legend_labels(widget: IqaWorkspaceWidget) -> list[str]:
+    return [
+        label.text()
+        for label in widget.overview_legend.findChildren(
+            QLabel,
+            "iqaOverviewLegendLabel",
+        )
+    ]
+
+
 def test_workspace_defaults_to_absolute_nway_summary_view(
     qtbot: object,
     result_root: Path,
@@ -68,8 +80,28 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
     assert "Candidate Fast" in headers
     assert "Candidate Quality" in headers
     assert "pooled weighted mean" in widget.overview_plot.plotItem.titleLabel.text
+    assert _overview_legend_labels(widget) == [
+        "Baseline",
+        "Candidate Fast",
+        "Candidate Quality",
+    ]
+    assert sum(
+        isinstance(item, pg.BarGraphItem)
+        for item in widget.overview_plot.plotItem.items
+    ) == 3
+    assert widget.overview_chart_layout.indexOf(widget.overview_plot) == 0
+    assert widget.overview_chart_layout.indexOf(widget.overview_legend) == 1
     assert widget.model is not None
     assert not widget.model.reference_ready("baseline")
+
+
+def test_overview_tick_labels_wrap_crowded_multiword_names() -> None:
+    assert _overview_tick_label("Luma Noise", crowded=False) == "Luma Noise"
+    assert _overview_tick_label("Luma Noise", crowded=True) == "Luma\nNoise"
+    assert _overview_tick_label(
+        "VeryLongSingleTokenAttribute",
+        crowded=True,
+    ) == "VeryLongSingleTok…"
 
 
 def test_reference_selection_requests_lazy_grid_preparation(
@@ -121,6 +153,15 @@ def test_relative_model_preserves_reference_and_projects_all_targets(
     assert "Candidate Fast vs Baseline" in headers
     assert "Candidate Quality vs Baseline" in headers
     assert "equal-Scene mean" in widget.overview_plot.plotItem.titleLabel.text
+    assert _overview_legend_labels(widget) == [
+        "Candidate Fast",
+        "Candidate Quality",
+    ]
+    assert "Baseline" not in _overview_legend_labels(widget)
+    assert sum(
+        isinstance(item, pg.BarGraphItem)
+        for item in widget.overview_plot.plotItem.items
+    ) == 2
 
     widget.mode_combo.setCurrentIndex(
         widget.mode_combo.findData(
