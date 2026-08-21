@@ -148,7 +148,7 @@ class IqaWorkspaceWidget(QWidget):
         self.overview_chart_panel.setObjectName("iqaAttributeOverviewChartPanel")
         self.overview_chart_layout = QVBoxLayout(self.overview_chart_panel)
         self.overview_chart_layout.setContentsMargins(0, 0, 0, TOKENS.spacing_xs)
-        self.overview_chart_layout.setSpacing(TOKENS.spacing_xs)
+        self.overview_chart_layout.setSpacing(0)
 
         self.overview_plot = pg.PlotWidget(self.overview_chart_panel)
         self.overview_plot.setObjectName("iqaAttributeOverviewPlot")
@@ -158,15 +158,35 @@ class IqaWorkspaceWidget(QWidget):
         self.overview_plot.scene().sigMouseMoved.connect(self._overview_plot_hovered)
         self.overview_chart_layout.addWidget(self.overview_plot, 1)
 
-        self.overview_legend = QWidget(self.overview_chart_panel)
-        self.overview_legend.setObjectName("iqaAttributeOverviewLegend")
-        self.overview_legend_layout = QGridLayout(self.overview_legend)
-        self.overview_legend_layout.setContentsMargins(0, 0, 0, 0)
-        self.overview_legend_layout.setHorizontalSpacing(TOKENS.spacing_lg)
-        self.overview_legend_layout.setVerticalSpacing(TOKENS.spacing_xs)
-        self.overview_chart_layout.addWidget(self.overview_legend)
+        self.overview_legend = pg.LegendItem(
+            offset=None,
+            frame=False,
+            labelTextColor=TOKENS.text_secondary,
+            colCount=4,
+        )
+        self.overview_legend.setParentItem(self.overview_plot.plotItem)
+        self.overview_plot.plotItem.layout.addItem(self.overview_legend, 4, 1)
+        self.overview_plot.plotItem.layout.setRowSpacing(4, TOKENS.spacing_xs)
 
-        self.hierarchy = QTreeWidget(self.overview_splitter)
+        self.overview_detail_panel = QWidget(self.overview_splitter)
+        self.overview_detail_panel.setObjectName("iqaAttributeDetailPanel")
+        detail_layout = QVBoxLayout(self.overview_detail_panel)
+        detail_layout.setContentsMargins(0, TOKENS.spacing_sm, 0, 0)
+        detail_layout.setSpacing(TOKENS.spacing_xs)
+        self.overview_detail_heading = QLabel(
+            "Absolute Value Details",
+            self.overview_detail_panel,
+        )
+        self.overview_detail_heading.setObjectName("iqaAttributeDetailHeading")
+        heading_font = self.overview_detail_heading.font()
+        heading_font.setBold(True)
+        self.overview_detail_heading.setFont(heading_font)
+        self.overview_detail_heading.setStyleSheet(
+            f"color: {TOKENS.text_secondary};"
+        )
+        detail_layout.addWidget(self.overview_detail_heading)
+
+        self.hierarchy = QTreeWidget(self.overview_detail_panel)
         self.hierarchy.setObjectName("iqaAttributeSceneHierarchy")
         self.hierarchy.setAlternatingRowColors(True)
         self.hierarchy.setSelectionMode(
@@ -176,8 +196,10 @@ class IqaWorkspaceWidget(QWidget):
         self.hierarchy.currentItemChanged.connect(  # type: ignore[attr-defined]
             self._hierarchy_selection_changed
         )
+        detail_layout.addWidget(self.hierarchy, 1)
+
         self.overview_splitter.addWidget(self.overview_chart_panel)
-        self.overview_splitter.addWidget(self.hierarchy)
+        self.overview_splitter.addWidget(self.overview_detail_panel)
         self.overview_splitter.setStretchFactor(0, 2)
         self.overview_splitter.setStretchFactor(1, 3)
         self.overview_splitter.setSizes([280, 420])
@@ -419,14 +441,14 @@ class IqaWorkspaceWidget(QWidget):
             )
             for variant in self._model.variants:
                 self.reference_combo.addItem(
-                    f"{variant.label} — Reference",
+                    variant.label,
                     variant.variant_id,
                 )
             target = preferred or ABSOLUTE_REFERENCE_ID
         else:
             for variant in self._model.variants:
                 self.reference_combo.addItem(
-                    f"{variant.label} — Reference",
+                    variant.label,
                     variant.variant_id,
                 )
             target = preferred if preferred in {"A", "B"} else "A"
@@ -446,7 +468,7 @@ class IqaWorkspaceWidget(QWidget):
         self.attribute_filter.clear()
         self.hierarchy.clear()
         self.overview_plot.clear()
-        _clear_layout(self.overview_legend_layout)
+        self.overview_legend.clear()
         self.scene_trend_plot.clear()
         _clear_layout(self.preview_layout)
         self._set_controls_enabled(False)
@@ -484,11 +506,15 @@ class IqaWorkspaceWidget(QWidget):
 
     def _display_columns(self) -> tuple[tuple[str, str], ...]:
         assert self._model is not None
+        return tuple(
+            (item.variant_id, item.label) for item in self._model.variants
+        )
+
+    def _trend_columns(self) -> tuple[tuple[str, str], ...]:
+        assert self._model is not None
         reference = self.reference_variant_id
         if reference == ABSOLUTE_REFERENCE_ID:
-            return tuple(
-                (item.variant_id, item.label) for item in self._model.variants
-            )
+            return self._display_columns()
         reference_label = next(
             item.label
             for item in self._model.variants
@@ -498,6 +524,15 @@ class IqaWorkspaceWidget(QWidget):
             (item.variant_id, f"{item.label} vs {reference_label}")
             for item in self._model.variants
             if item.variant_id != reference
+        )
+
+    def _reference_label(self) -> str | None:
+        if self._model is None or self.reference_variant_id == ABSOLUTE_REFERENCE_ID:
+            return None
+        return next(
+            item.label
+            for item in self._model.variants
+            if item.variant_id == self.reference_variant_id
         )
 
     def _stat_for(
@@ -519,6 +554,8 @@ class IqaWorkspaceWidget(QWidget):
                 target_variant_id,
                 attribute_id,
             )
+        if target_variant_id == reference:
+            return ScalarStatistic(0.0, True)
         if scene_id is None:
             return self._model.relative_dataset_stat(
                 attribute_id,
@@ -543,6 +580,14 @@ class IqaWorkspaceWidget(QWidget):
         columns = self._display_columns()
         self.hierarchy.blockSignals(True)
         self.hierarchy.clear()
+        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
+        reference_label = self._reference_label()
+        if relative and reference_label is not None:
+            self.overview_detail_heading.setText(
+                f"Relative Value Details · Reference: {reference_label}"
+            )
+        else:
+            self.overview_detail_heading.setText("Absolute Value Details")
         headers = [
             "Attribute / Scene",
             *(label for _variant, label in columns),
@@ -561,7 +606,6 @@ class IqaWorkspaceWidget(QWidget):
             )
 
         selected_item: QTreeWidgetItem | None = None
-        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
         for attribute in self._model.result.attributes:
             parent = QTreeWidgetItem(self.hierarchy)
             parent.setData(
@@ -595,6 +639,8 @@ class IqaWorkspaceWidget(QWidget):
             outliers: set[str] = set()
             if relative:
                 for target_variant_id, _label in columns:
+                    if target_variant_id == self.reference_variant_id:
+                        continue
                     outliers.update(
                         self._model.outlier_scene_ids(
                             attribute.attribute_id,
@@ -651,6 +697,7 @@ class IqaWorkspaceWidget(QWidget):
             return
         plot = self.overview_plot
         plot.clear()
+        self.overview_legend.clear()
         attributes = [
             item
             for item in self._model.result.attributes
@@ -659,12 +706,11 @@ class IqaWorkspaceWidget(QWidget):
         self._overview_hover_texts = ()
         self._last_overview_hover_index = None
         if not attributes:
-            _clear_layout(self.overview_legend_layout)
             plot.setTitle("No power attributes")
             return
 
         columns = self._display_columns()
-        self._populate_overview_legend(columns)
+        self.overview_legend.setColumnCount(min(4, max(1, len(columns))))
         x = np.arange(len(attributes), dtype=np.float64)
         crowded_ticks = len(attributes) >= 6 or any(
             len(item.name) > 14 for item in attributes
@@ -685,6 +731,7 @@ class IqaWorkspaceWidget(QWidget):
         )
         width = 0.72 / max(1, len(columns))
         hover_lines = [[attribute.name] for attribute in attributes]
+        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
         for series_index, (variant_id, label) in enumerate(columns):
             offset = (series_index - (len(columns) - 1) / 2.0) * width
             values = np.asarray(
@@ -700,20 +747,29 @@ class IqaWorkspaceWidget(QWidget):
                 ],
                 dtype=np.float64,
             )
-            bar = pg.BarGraphItem(
-                x=x + offset,
-                height=values,
-                width=width * 0.9,
-                brush=_variant_color(series_index, len(columns)),
-            )
-            plot.addItem(bar)
+            color = _variant_color(series_index, len(columns))
+            if relative and variant_id == self.reference_variant_id:
+                series_item = pg.ScatterPlotItem(
+                    x=x + offset,
+                    y=values,
+                    symbol="o",
+                    size=6,
+                    pen=pg.mkPen(color),
+                    brush=pg.mkBrush(color),
+                )
+            else:
+                series_item = pg.BarGraphItem(
+                    x=x + offset,
+                    height=values,
+                    width=width * 0.9,
+                    brush=color,
+                )
+            plot.addItem(series_item)
+            self.overview_legend.addItem(series_item, label)
             for index, value in enumerate(values):
                 unit = self._model.display_unit(
                     attributes[index].attribute_id,
-                    relative=(
-                        self.reference_variant_id
-                        != ABSOLUTE_REFERENCE_ID
-                    ),
+                    relative=relative,
                 )
                 hover_lines[index].append(
                     f"{label}: {_display_value(value)} {unit}"
@@ -733,51 +789,13 @@ class IqaWorkspaceWidget(QWidget):
                     pen=pg.mkPen(TOKENS.text_secondary),
                 )
             )
+            reference_label = self._reference_label()
             plot.setTitle(
-                "Relative Dataset Overview · equal-Scene mean"
+                "Relative Dataset Overview · "
+                f"Reference: {reference_label} · equal-Scene mean"
             )
         plot.setLabel("left", "Value")
         plot.enableAutoRange()
-
-    def _populate_overview_legend(
-        self,
-        columns: tuple[tuple[str, str], ...],
-    ) -> None:
-        assert self._model is not None
-        _clear_layout(self.overview_legend_layout)
-        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
-        variant_labels = {
-            item.variant_id: item.label for item in self._model.variants
-        }
-        for series_index, (variant_id, comparison_label) in enumerate(columns):
-            entry = QWidget(self.overview_legend)
-            entry.setProperty("variantId", variant_id)
-            entry_layout = QHBoxLayout(entry)
-            entry_layout.setContentsMargins(0, 0, 0, 0)
-            entry_layout.setSpacing(TOKENS.spacing_xs)
-
-            swatch = QLabel(entry)
-            swatch.setObjectName("iqaOverviewLegendSwatch")
-            swatch.setFixedSize(10, 10)
-            swatch.setStyleSheet(
-                f"background: {_variant_color(series_index, len(columns)).name()}; "
-                "border-radius: 2px;"
-            )
-            entry_layout.addWidget(swatch)
-
-            label = QLabel(
-                variant_labels[variant_id] if relative else comparison_label,
-                entry,
-            )
-            label.setObjectName("iqaOverviewLegendLabel")
-            label.setStyleSheet(f"color: {TOKENS.text_secondary};")
-            entry_layout.addWidget(label)
-            self.overview_legend_layout.addWidget(
-                entry,
-                series_index // 4,
-                series_index % 4,
-            )
-        self.overview_legend.setVisible(bool(columns))
 
     def _populate_scene_trend(self) -> None:
         if self._model is None:
@@ -808,7 +826,7 @@ class IqaWorkspaceWidget(QWidget):
             plot.setTitle("No attributes selected")
             return
 
-        columns = self._display_columns()
+        columns = self._trend_columns()
         hover_lines = [[scene.scene_id] for scene in scenes]
         total_attributes = len(self._model.result.attributes)
         for attribute in attributes:
