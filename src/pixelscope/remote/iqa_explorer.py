@@ -20,7 +20,7 @@ from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.remote.iqa_v2_math import compare_v2_sources, reduce_relative_scene_values
 from pixelscope.remote.iqa_v2_reader import load_grid_scene
 
-ABSOLUTE_REFERENCE_ID = "__absolute__"
+ABSOLUTE_REFERENCE_ID: None = None
 
 
 @dataclass(frozen=True)
