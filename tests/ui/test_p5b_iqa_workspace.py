@@ -47,15 +47,7 @@ def _loaded(root: Path):  # type annotation would obscure assertion narrowing
 
 
 def _overview_legend_labels(widget: IqaWorkspaceWidget) -> list[str]:
-    labels: list[str] = []
-    for index in range(widget.overview_legend_layout.count()):
-        entry = widget.overview_legend_layout.itemAt(index).widget()
-        if entry is None:
-            continue
-        label = entry.findChild(QLabel, "iqaOverviewLegendLabel")
-        if label is not None:
-            labels.append(label.text())
-    return labels
+    return [label.text for _sample, label in widget.overview_legend.items]
 
 
 def test_workspace_defaults_to_absolute_nway_summary_view(
@@ -72,15 +64,23 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
     assert "3 variants" in widget.dataset_label.text()
     assert widget.reference_variant_id == ABSOLUTE_REFERENCE_ID
     assert widget.reference_combo.itemText(0) == "Absolute measurements"
+    assert widget.reference_combo.itemText(1) == "Baseline"
+    assert widget.reference_combo.itemText(2) == "Candidate Fast"
+    assert widget.reference_combo.itemText(3) == "Candidate Quality"
     assert widget.hierarchy.topLevelItemCount() == 10
     assert widget.hierarchy.columnCount() == 5
     headers = [
         widget.hierarchy.headerItem().text(index)
         for index in range(widget.hierarchy.columnCount())
     ]
-    assert "Baseline" in headers
-    assert "Candidate Fast" in headers
-    assert "Candidate Quality" in headers
+    assert headers == [
+        "Attribute / Scene",
+        "Baseline",
+        "Candidate Fast",
+        "Candidate Quality",
+        "Unit",
+    ]
+    assert widget.overview_detail_heading.text() == "Absolute Value Details"
     assert "pooled weighted mean" in widget.overview_plot.plotItem.titleLabel.text
     assert _overview_legend_labels(widget) == [
         "Baseline",
@@ -91,8 +91,7 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
         isinstance(item, pg.BarGraphItem)
         for item in widget.overview_plot.plotItem.items
     ) == 3
-    assert widget.overview_chart_layout.indexOf(widget.overview_plot) == 0
-    assert widget.overview_chart_layout.indexOf(widget.overview_legend) == 1
+    assert widget.overview_legend.parentItem() is widget.overview_plot.plotItem
     assert widget.model is not None
     assert not widget.model.reference_ready("baseline")
 
@@ -124,6 +123,7 @@ def test_reference_selection_requests_lazy_grid_preparation(
     widget.relative_requested.connect(requested.append)
 
     index = widget.reference_combo.findData("baseline")
+    assert widget.reference_combo.itemText(index) == "Baseline"
     widget.reference_combo.setCurrentIndex(index)
 
     assert requested == ["baseline"]
@@ -131,7 +131,7 @@ def test_reference_selection_requests_lazy_grid_preparation(
     assert not widget.reference_combo.isEnabled()
 
 
-def test_relative_model_preserves_reference_and_projects_all_targets(
+def test_relative_model_keeps_variant_columns_and_uses_reference_zero_anchor(
     qtbot: object,
     result_root: Path,
 ) -> None:
@@ -151,23 +151,44 @@ def test_relative_model_preserves_reference_and_projects_all_targets(
     assert widget.reference_variant_id == "baseline"
     assert widget.model is not None
     assert widget.model.reference_ready("baseline")
-    assert widget.hierarchy.columnCount() == 4
+    assert widget.hierarchy.columnCount() == 5
     headers = [
         widget.hierarchy.headerItem().text(index)
         for index in range(widget.hierarchy.columnCount())
     ]
-    assert "Candidate Fast vs Baseline" in headers
-    assert "Candidate Quality vs Baseline" in headers
-    assert "equal-Scene mean" in widget.overview_plot.plotItem.titleLabel.text
+    assert headers == [
+        "Attribute / Scene",
+        "Baseline",
+        "Candidate Fast",
+        "Candidate Quality",
+        "Unit",
+    ]
+    first_attribute = widget.hierarchy.topLevelItem(0)
+    assert first_attribute is not None
+    assert first_attribute.text(1) == "0.0000"
+    first_scene = first_attribute.child(0)
+    assert first_scene is not None
+    assert first_scene.text(1) == "0.0000"
+    assert (
+        widget.overview_detail_heading.text()
+        == "Relative Value Details · Reference: Baseline"
+    )
+    title = widget.overview_plot.plotItem.titleLabel.text
+    assert "Reference: Baseline" in title
+    assert "equal-Scene mean" in title
     assert _overview_legend_labels(widget) == [
+        "Baseline",
         "Candidate Fast",
         "Candidate Quality",
     ]
-    assert "Baseline" not in _overview_legend_labels(widget)
     assert sum(
         isinstance(item, pg.BarGraphItem)
         for item in widget.overview_plot.plotItem.items
     ) == 2
+    assert sum(
+        isinstance(item, pg.ScatterPlotItem)
+        for item in widget.overview_plot.plotItem.items
+    ) == 1
 
     widget.mode_combo.setCurrentIndex(
         widget.mode_combo.findData(
@@ -178,6 +199,7 @@ def test_relative_model_preserves_reference_and_projects_all_targets(
         widget.aggregation_mode
         is ComparisonMode.MEAN_OF_GRID_LOG_RATIOS
     )
+    assert first_attribute.text(1) == "0.0000"
 
 
 def test_switching_to_unprepared_reference_requests_only_that_reference(
