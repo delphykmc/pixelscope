@@ -221,13 +221,13 @@ def test_fixture_dataset_pooled_and_equal_scene_means_are_distinct(
     golden_root: Path,
 ) -> None:
     result = _loaded(golden_root)
-    summary = result.dataset_summary("baseline", "luma_noise")
+    summary = result.dataset_summary("baseline", "luma_detail")
     assert summary.pooled.valid
     assert summary.pooled.weighted_mean is not None
     assert summary.scene_mean.valid
     assert summary.scene_mean.value is not None
     scene_summaries = [
-        scene.source_for_variant("baseline").summary("luma_noise")
+        scene.source_for_variant("baseline").summary("luma_detail")
         for scene in result.scenes
     ]
     expected_pooled = math.fsum(
