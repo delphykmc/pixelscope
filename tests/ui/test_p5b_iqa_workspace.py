@@ -47,13 +47,15 @@ def _loaded(root: Path):  # type annotation would obscure assertion narrowing
 
 
 def _overview_legend_labels(widget: IqaWorkspaceWidget) -> list[str]:
-    return [
-        label.text()
-        for label in widget.overview_legend.findChildren(
-            QLabel,
-            "iqaOverviewLegendLabel",
-        )
-    ]
+    labels: list[str] = []
+    for index in range(widget.overview_legend_layout.count()):
+        entry = widget.overview_legend_layout.itemAt(index).widget()
+        if entry is None:
+            continue
+        label = entry.findChild(QLabel, "iqaOverviewLegendLabel")
+        if label is not None:
+            labels.append(label.text())
+    return labels
 
 
 def test_workspace_defaults_to_absolute_nway_summary_view(
@@ -97,7 +99,11 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
 
 def test_overview_tick_labels_wrap_crowded_multiword_names() -> None:
     assert _overview_tick_label("Luma Noise", crowded=False) == "Luma Noise"
-    assert _overview_tick_label("Luma Noise", crowded=True) == "Luma\nNoise"
+    assert _overview_tick_label("Luma Noise", crowded=True) == "Luma Noise"
+    assert _overview_tick_label(
+        "Chromatic Aberration",
+        crowded=True,
+    ) == "Chromatic\nAberration"
     assert _overview_tick_label(
         "VeryLongSingleTokenAttribute",
         crowded=True,
