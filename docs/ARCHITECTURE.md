@@ -165,7 +165,7 @@ For `Selected > 6`:
   from Selected ordering;
 - Previous/Next Comparison Page are separate coarse actions using
   `Ctrl+Left` / `Ctrl+Right` with non-wrapping endpoints; their application-wide
-  `QShortcut` is enabled only while that page direction is available, so unavailable
+  `QShortcut` is enabled only while movement in that direction is available, so unavailable
   Ctrl+Arrow input remains owned by the focused control;
 - the presentation-control row above the image workspace keeps Page status and the
   current Selected range visible even for a single page; previous/next arrows remain
@@ -627,33 +627,89 @@ RAW display policy remains:
 Demosaic, white balance, CCM, tone mapping, processed-RAW analysis, optical-Black
 estimation, and profile suggestion remain outside the current boundary.
 
-## Remote IQA published-result boundary
+## Historical P5-A schema-v1 published-result boundary
 
-P5-A introduces a Qt-free, fixture-first result domain under
-`src/pixelscope/remote/` without connecting it to widgets, local source ownership,
-or the existing HTTP transport skeleton:
+The following path remains supported only as explicit historical/read-only schema-v1
+compatibility:
 
 ```text
 manifest.json publication marker
-    → iqa_reader identity/publication/path/NPZ validation
+    → iqa_reader schema-v1 identity/publication/path/NPZ validation
     → immutable Result / Scene / Source / Attribute / Comparison domain
     → lazy compact Scene load
-        → iqa_math W/S1/S2/count/valid recomposition
+        → iqa_math historical W/S1/S2/count/valid recomposition/comparison
         → iqa_geometry continuous source ↔ analysis mapping
 ```
 
-`iqa_reader` validates Tier-1 summary data while opening the result, but Tier-2
-compact Scene arrays are loaded only when that Scene is requested. ZIP/NPY member
-count/identity/compression/encryption metadata, bounded on-disk/declared/actual
-sizes, dtype, rank, exact shape, and object-array safety are checked before NumPy
-materialization. All artifact paths resolve beneath
-the immutable result root, and readers return explicit invalid, corrupt, or
-unsupported outcomes rather than mutating application state.
+Its Tier-1/Tier-2 vocabulary and A/B-specific comparison behavior are not the current
+schema-v2 architecture and are not silently changed by P5-A2.
 
-This domain imports neither Qt nor UI/controller code. It owns no native image,
+## Current P5-A2 executable schema-v2 published-result boundary
+
+PR #40 establishes the current Qt-free result architecture under
+`src/pixelscope/remote/`:
+
+```text
+manifest.json
+    → iqa_result_reader.load_result() canonical version dispatch
+        ├─ schema_version 1 → iqa_reader historical read-only Result
+        └─ schema_version 2 → iqa_v2_reader.load_result_v2()
+                                 ↓
+                         manifest structure + summary.npz
+                                 ↓
+                              ResultV2
+                                 ↓ on explicit Scene demand
+                         load_grid_scene(scene_id)
+                                 ↓
+                         bounded Scene grid NPZ
+                                 ↓
+                         iqa_v2_math local
+                         target/reference comparison
+```
+
+Schema-v2 normal open is **summary-first**: it performs filesystem I/O for
+`manifest.json` and `summary.npz` only. Deferred Scene-grid and optional-detail paths
+receive cross-platform relative-path syntax validation without stat/resolve/open.
+`load_grid_scene()` is the boundary for resolved-root containment, file existence,
+archive/member/dtype/shape validation, materialization, and grid-level numerical
+consistency. Optional detail references remain opaque until a later typed consumer
+contract is introduced.
+
+The schema-v2 identity split is explicit:
+
+- `variant_id` is the ordered comparison/Reference slot identity;
+- `source_id` is stable concrete-image identity and may repeat in the same or
+  different Scenes when `relative_path`, SHA-256, width, and height match exactly;
+- `scene_id` is Scene identity;
+- `measurement_context_id` fingerprints ordered variant/source membership, geometry,
+  model/preprocessing/weighting, representative, and related measurement context.
+
+A repeated source does not authorize reuse of a weighted measurement across contexts.
+Each COMPLETE Scene binds every top-level variant exactly once. Cross-variant
+SceneGeometry and per-attribute GridGeometry are exactly equal; PixelScope does not
+align or resize incompatible result grids.
+
+Server-authored W/S1/S2/count/valid remain numerical authority. Scene absolute mean
+is `ΣS1/ΣW`; pooled and equal-Scene Dataset summaries remain separately named
+projections. Local v2 comparison owns:
+
+- pair-valid target/reference support;
+- power Mode 1 ratio of aggregate weighted means;
+- power Mode 2 unweighted arithmetic mean of **finite** pair-valid per-grid dB
+  ratios, skipping undefined/non-finite cell ratios and returning invalid only when
+  no finite ratio remains (negative power input remains invalid);
+- signed target-minus-reference;
+- centralized quality orientation for higher/lower/neutral attributes.
+
+The v2 parser uses bounded data-only JSON/NPZ input. The aggregate 1024 source-binding
+ceiling is an intentional result-acceptance envelope sized above the Stage-1 roughly
+300-source planning assumption; it is not source residency or a result-grid cache
+budget.
+
+This remote domain imports neither Qt nor UI/controller code and owns no native image,
 Selected, Current Comparison Page, source residency/preload, Difference, Session,
-storage-root mapping, live job, or HTTP lifecycle state. The pre-P5 HTTP evaluation
-client remains separate until the later transport slice.
+storage-root mapping, live job, or HTTP lifecycle state. P5-B consumes this result
+authority after Stage 2 merges rather than recreating schema/math rules in UI code.
 
 ## Runtime diagnostics and release boundaries
 
