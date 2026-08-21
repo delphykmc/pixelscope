@@ -362,12 +362,18 @@ def _parse_geometry(data: Any) -> SceneGeometry:
     affine = data.get("source_to_analysis")
     if not isinstance(affine, list) or len(affine) != 3:
         raise InvalidV2("source_to_analysis must be a 3x3 array")
-    if any(not isinstance(row, list) or len(row) != 3 for row in affine):
-        raise InvalidV2("source_to_analysis must be 3x3")
-    matrix = tuple(
-        tuple(finite_float(value, "source_to_analysis") for value in row)
-        for row in affine
-    )
+    matrix_rows: list[tuple[float, float, float]] = []
+    for row in affine:
+        if not isinstance(row, list) or len(row) != 3:
+            raise InvalidV2("source_to_analysis must be 3x3")
+        matrix_rows.append(
+            (
+                finite_float(row[0], "source_to_analysis"),
+                finite_float(row[1], "source_to_analysis"),
+                finite_float(row[2], "source_to_analysis"),
+            )
+        )
+    matrix = tuple(matrix_rows)
     raw_rect = data.get("valid_rect")
     if not isinstance(raw_rect, list) or len(raw_rect) != 4:
         raise InvalidV2("valid_rect must have four values")
@@ -377,7 +383,7 @@ def _parse_geometry(data: Any) -> SceneGeometry:
     geometry = SceneGeometry(
         analysis_width=positive_integer(data, "analysis_width"),
         analysis_height=positive_integer(data, "analysis_height"),
-        source_to_analysis=(matrix[0], matrix[1], matrix[2]),
+        source_to_analysis=matrix,
         valid_rect=(valid[0], valid[1], valid[2], valid[3]),
     )
     x, y, width, height = geometry.valid_rect
