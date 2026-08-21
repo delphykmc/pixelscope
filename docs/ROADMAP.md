@@ -18,10 +18,16 @@ Completed sequence:
 
 `P2-0 → P2-A1 → P2-A2 → P2-B → P2-C → P2-D → P2-E → P2-F`
 
-Delivered contracts include typed settings schema v5, independent Difference/source
-memory budgets, byte-budgeted decoded-source LRU residency, bounded Current Comparison
-Page protection, max-one speculative folder preload, RUNNING preload foreground
-promotion, deterministic diagnostics, and bounded application worker ownership.
+Delivered contracts include:
+
+- typed settings schema v5;
+- independent Difference/source memory budgets;
+- byte-budgeted decoded-source LRU residency;
+- bounded Current Comparison Page protection;
+- one-position-ahead, max-one speculative Folder Position preload;
+- RUNNING preload foreground promotion;
+- deterministic sanitized diagnostics;
+- bounded application worker ownership and lifecycle expectations.
 
 P2-F merged as PR #20 at
 `9c66629f6392971b8c52ac9dff27b16166cf9829`.
@@ -46,10 +52,15 @@ Resident when required
 
 `Analysis Working Set = Current Comparison Page`.
 
-P3 delivered Gray/mixed-bit Difference semantics, native RAW authority, presentation-
-only Display Gain, large logical Selected sets, six-image Current Comparison Pages,
-unified image/folder opening, lazy RAW profile resolution, and integration hardening
-without Selected-wide eager decode.
+Delivered work includes:
+
+- Gray and mixed-bit Difference semantics;
+- native RAW authority and Black-anchored presentation gain;
+- general Display Gain as presentation-only state;
+- large logical Selected sets with six-image Current Comparison Pages;
+- unified image/folder opening and lazy RAW profile resolution;
+- integration/presentation hardening without Selected-wide eager decode or
+  Comparison Page speculative preload.
 
 P3 completed with PR #27 at
 `835634a58609601605fd0fc18a3028b64225f535`.
@@ -58,18 +69,39 @@ Historical plan:
 
 ### P4 — Workflow & Session Productivity — Complete
 
-P4 delivered temporary Pick/Keep curation, Comparison Set/Session persistence, typed
-Recent entries, Difference/source-curation lifecycle alignment, focused analysis
-exports, and composed workflow hardening while preserving P2/P3 source ownership.
+Completed sequence:
 
-P4-F merged as PR #35; the P4-complete baseline is
+`P4-0 → P4-A → P4-B → P4-C → P4-E → P4-F`
+
+P4 delivered:
+
+- large-selection temporary Pick/Keep curation without new source ownership;
+- `.pixelscope` Comparison Set v1 compatibility followed by PixelScope Session v1;
+- typed Recent Images/Folders/Sessions;
+- explicit Difference/source-curation lifecycle alignment;
+- focused Statistics/Histogram/Line/Difference result export productivity;
+- Session page-anchor, Display Gain lifetime, and repeated-composition hardening.
+
+Important preserved contracts:
+
+- Picks are temporary source IDs and own no residency/preload/analysis work;
+- Session persists durable workspace intent, not process/cache/worker state;
+- only explicit successful Difference Calculate establishes active Difference state;
+- export consumes established results and never becomes numerical authority;
+- off-page Selected/Picked sources remain evictable;
+- P2 Folder Position preload remains unchanged.
+
+P4-F merged as PR #35; the P4-complete merged baseline is
 `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
 
 Completed P4 plan:
 [`docs/exec-plans/completed/p4-workflow-session-productivity.md`](exec-plans/completed/p4-workflow-session-productivity.md).
 
-Deferred from P4, not completion blockers: saved/named/multiple ROI, Alpha Overlay /
-Flicker / Wipe, and arbitrary-angle Line Profile with an explicit sampling contract.
+Deferred from P4, not completion blockers:
+
+- saved/named/multiple ROI management;
+- Alpha Overlay / Flicker / Wipe;
+- arbitrary-angle Line Profile with an explicit sampling contract.
 
 ## Forward sequence
 
@@ -77,28 +109,28 @@ Flicker / Wipe, and arbitrary-angle Line Profile with an explicit sampling contr
 → `P6 Identity, Access & Remote Operations`
 → `P7 Release Engineering & Distribution`
 
-P5 is the active program.
+P5 is now the active program.
 
-Active execution/orchestration plans:
+Active execution/orchestration plan:
+[`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
 
-- [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md)
-- [`docs/exec-plans/active/p5-schema-v2-revision.md`](exec-plans/active/p5-schema-v2-revision.md)
-
-Remote IQA product contract:
+Remote IQA product/architecture contract:
 [`docs/REMOTE_IQA_CONTRACT.md`](REMOTE_IQA_CONTRACT.md).
 
-Current executable P5 numerical/result target:
+Current P5 numerical/result target:
 [`docs/REMOTE_IQA_V2_SPEC.md`](REMOTE_IQA_V2_SPEC.md).
 
-Historical merged schema-v1 specification:
+Historical merged P5-A/schema-v1 specification:
 [`docs/REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
 
 # P5 — Remote IQA Platform — Active
 
 ## Product objective
 
-P5 connects the local PixelScope engineering workflow to an external GPU IQA service
-without turning remote jobs/results into local source ownership.
+P5 connects the local PixelScope engineering workflow to an external GPU Image
+Quality Assessment service.
+
+The intended experience is:
 
 ```text
 fast local PixelScope inspection
@@ -109,7 +141,7 @@ continue local work
         ↓
 open durable IQA result
         ↓
-absolute/relative Dataset Overview
+absolute/relative dataset overview
         ↓
 attribute Scene Trend / outliers
         ↓
@@ -118,155 +150,170 @@ Scene
 spatial block inspection in existing viewer
 ```
 
-Remote IQA is feature-local and does not replace
-`Registered → Selected → Current Comparison Page → Presented → Resident`.
+Remote IQA is a parallel feature-local result domain. It does not replace or extend
+`Registered → Selected → Current Comparison Page → Presented → Resident` as a source
+ownership hierarchy.
 
-## P5 numerical ownership — executable schema v2
+P5 is orchestrated as multiple reviewable PRs. The P5 orchestrator owns cross-slice
+contracts/ROADMAP/decision gates; implementation agents own only delegated slices;
+independent review agents inspect the latest branch without editing it. Missing
+cross-slice policy is resolved with the repository owner and documented before code
+that depends on it proceeds.
 
-The governing model is:
+## P5 numerical ownership model — schema v2 target
+
+The merged P5-A/schema-v1 implementation proved the artifact/parser mechanics but was
+pairwise-centered. P5-B review exposed that this is the wrong durable center for N-way
+Reference switching.
+
+The active target is therefore:
 
 > **Server owns measurement; PixelScope owns reference-dependent comparison,
 > reductions, and visualization.**
 
-The server owns source decoding, IQA extraction, Scene-context weighting/gating,
-validity, geometry, W/S1/S2/count/valid, absolute summary projections, and provenance.
-PixelScope selects `variant_id` Reference and derives target/reference values locally.
-It never recomputes IQA from source pixels, reverse-engineers weights, or aligns/
-resizes incompatible published grids.
-
-### Identity
-
-- `variant_id` identifies one comparison/configuration across Scenes.
-- `source_id` identifies one concrete source image.
-- `scene_id` identifies one evaluation Scene.
-- `measurement_context_id` identifies the Scene-context-specific weighted
-  measurement.
-
-The same `source_id` may recur in different Scenes when its immutable source metadata
-is identical. That reuse does not make the weighted measurements reusable across
-contexts. Duplicate `source_id` binding inside one complete Scene is invalid.
-
-`measurement_context_id` is executable as `mc2:<64 lowercase SHA-256 hex>` over
-canonical Scene/source/provenance/geometry JSON.
-
-### Complete result geometry/cardinality
-
-A normal complete Scene contains exactly one source per declared variant in exact
-variant order. All variants have equal original dimensions. Stage-2 schema v2 freezes
-exact equality of duplicated SceneGeometry and per-attribute GridGeometry across
-variants. PixelScope does not manufacture physical correspondence.
-
-### Numerical authority and summaries
-
-Per source/attribute/grid the server publishes:
-
 ```text
-weight_sum
-weighted_sum
-weighted_square_sum
-valid_count
-valid_mask
+IQA Result
+    ↓
+ordered variants[]                 # A/B/C/D comparison-group identity
+    ↓
+Scene / measurement context
+    ├─ exactly one source per variant for normal complete results
+    ├─ common representative / structural context
+    ├─ common Edge Map / Texture Gate
+    └─ per-source absolute measurements
+         ├─ fast Scene/dataset summaries
+         └─ grid W/S1/S2/count/valid
+                ↓ PixelScope
+           selected Reference
+                ↓
+           local target/reference comparison
+                ↓
+       Overview / Scene Trend / spatial view
 ```
 
-Canonical Scene mean is `ΣS1/ΣW`; weighted population std comes from W/S1/S2.
-Server-written mean/std values are projections only and must agree within the v2
-projection tolerance.
+`variant_id` is stable across Scenes; `source_id` identifies one concrete image.
+`measurement_context_id` scopes a weighted absolute measurement to the Scene context
+that produced its weighting/gating. The same source hash does not make a weighted
+measurement globally reusable across incompatible Scene contexts.
 
-Schema v2 publishes both pooled-weighted and equal-Scene absolute Dataset summaries.
-**Default absolute Dataset Overview = pooled weighted mean.**
+For a normal non-PARTIAL complete result, each Scene contains exactly one source for
+each declared variant. Comparable variants for a Scene/attribute share compatible
+physical grid topology; PixelScope never index-zips incompatible grids or aligns
+source images to manufacture a comparison.
 
-### Reference-neutral local comparison
+## IQA attributes and numerical semantics
 
-Schema-v2 serialized operators are:
+| Attribute | Direction | Current default block |
+|---|---|---:|
+| Luma noise | lower is better | 32×32 px |
+| Luma detail | higher is better | 32×32 px |
+| Chroma noise | lower is better | 32×32 px |
+| Chroma detail | higher is better | 32×32 px |
+| Edge strength | higher is better | 32×32 px |
+| Luma contrast | higher is better | 128×128 px |
+| Luma bias | signed / neutral | 128×128 px |
+| Chroma contrast | higher is better | 128×128 px |
+| Chroma bias | signed / neutral | 128×128 px |
+| Colorfulness | higher is better | 128×128 px |
 
-```text
-power_ratio_target_over_reference_db
-signed_target_minus_reference
-```
+Block sizes are result metadata, not PixelScope constants.
 
-The v1 A/B operator names remain historical v1 compatibility only.
+Schema v2 retains mandatory server-authored W/S1/S2/count/valid grid sufficient
+statistics. The canonical Scene absolute mean is `ΣS1/ΣW`; the server's weighting is
+not reconstructed locally.
 
-Pair-valid support is target-valid AND reference-valid on a validated common grid.
-Power mode 1 is ratio of pair-valid aggregate weighted means. Power mode 2 is the
-unweighted arithmetic mean of finite pair-valid grid log-ratios. Signed attributes use
-pair-valid weighted target mean minus reference mean.
+Small server-authored summary metadata contains deterministic projections of the
+normative accumulators. Projection mismatch beyond the schema tolerance is corrupt;
+there is no dual numerical authority.
 
-One Qt-free executable helper owns user-facing quality orientation for both power
-modes:
+Dataset absolute summary exposes both pooled-weighted and equal-Scene reductions.
+**The owner-selected default absolute Dataset Overview is `pooled_weighted_mean`.**
 
-- higher-is-better: quality = raw;
-- lower-is-better: quality = -raw;
-- signed/neutral: quality N/A.
+Reference-dependent local comparison uses target/reference pair-valid grid
+intersection. Power attributes retain two labeled modes:
 
-**Default relative Dataset Overview = arithmetic mean of valid per-Scene selected
-comparison values.**
+1. ratio of pair-valid aggregate weighted means;
+2. arithmetic mean of pair-valid grid log-ratios.
 
-## Remote analysis domain and spatial convention
+Signed attributes use pair-valid weighted target mean minus pair-valid weighted
+reference mean.
 
-Remote 4K-class RGB inputs may be analyzed in an approximately 2K domain. No fixed
-resize factor is assumed. Result geometry carries explicit source-to-analysis affine,
-valid rectangle, grid origin/block size, and discarded borders. Continuous pixel-edge,
-half-open, row-major affine geometry from the v1 contract remains the baseline.
+For relative Dataset Overview, **the owner-selected default is arithmetic mean of the
+selected comparison value computed independently for each valid Scene**. Thus the
+relative Overview is the equal-Scene reduction of Scene Trend. Any future pooled
+relative mode must be separately named.
 
-Stage 2 deliberately requires exact cross-variant geometry metadata equality for a
-complete v2 Scene; P5-D uses the published mapping rather than inventing alignment.
+## Remote analysis domain and exact spatial convention
+
+4K-class RGB input is processed in an approximately 2K remote analysis domain.
+Structural maps, attribute maps, weights, and grids carry explicit geometry.
+
+The continuous pixel-edge coordinate convention, half-open cells/valid rectangles,
+row-major source→analysis affine, and continuous inverse mapping established by the
+merged schema-v1 contract remain the geometry baseline unless a future schema
+explicitly changes them.
+
+A fixed resize factor is never assumed.
 
 ## Remote input and deterministic submission baseline
 
-Current remote submission policy remains PNG/JPG/JPEG/BMP with no silent RAW
-conversion until P5-C explicitly changes it.
+The merged v1 remote input policy remains the current submission baseline until P5-C
+explicitly extends it: PNG/JPG/JPEG/BMP families only, no silent RAW conversion.
 
-The v2 request/result identity model is N-way-capable, while the first P5-C
-user-facing submission workflow remains exactly two variants: Current Pair and
-deterministic two-folder Pair. Arbitrary N-way submission UI is deferred. This does
-not limit P5-B from opening externally produced N-way v2 results.
+Current Pair remains bound to deterministic underlying Current Comparison Page source
+order rather than Primary/Active/view order. Folder pairing remains deterministic and
+explicit before submit.
 
-## Result and bandwidth strategy
+Schema-v2 request/result identity remains N-way-capable through explicit ordered Scene
+manifests, but **the initial P5-C submission UI remains two-variant only**: Current
+Pair and deterministic two-folder Pair. Arbitrary three-or-more-variant submission UI
+is deferred to a later explicit owner decision. This does not limit P5-B N-way result
+exploration or Reference switching.
 
-Executable schema v2 uses:
+## Result and bandwidth strategy — purpose-based artifacts
 
-```text
-result/
-    manifest.json
-    summary.npz
-    scenes/<scene_id>.npz
-    detail/... optional opaque references
-```
+Schema v2 removes the old numerical rule that compact Scene data is only an
+inspected-Scene lazy Tier.
 
-Purpose-based artifact categories are:
+The result categories are:
 
-1. summary metadata for fast absolute Dataset/Scene exploration;
-2. Scene grid measurements for local relative and spatial work;
-3. optional detail artifacts whose typed decode schema is deferred to P5-D.
+1. **Summary metadata** — small open-time absolute Dataset/Scene summaries and
+   provenance.
+2. **Grid measurement artifacts** — compact per-source grid W/S1/S2/count/valid used
+   for exact local relative calculations and spatial views.
+3. **Optional detail artifacts** — large per-pixel 2K/debug/structural maps.
 
-Ordinary v2 open performs filesystem I/O only for manifest + summary. Deferred grid/
-detail references receive host-independent syntactic path validation at open; actual
-existence/resolution/content checks occur when requested. This avoids an O(Scene)
-filesystem metadata sweep on SMB during initial overview.
+Loading policy is separate from schema semantics. PixelScope may read grids by Scene,
+bounded batch, background request, or bounded cache. All policies remain bounded,
+stale-safe, and non-blocking for network storage.
 
-Loading/cache/preload behavior remains a bounded, stale-safe performance policy, not a
-numerical schema rule. P5-F owns measured SMB/cache policy.
+The v2 result keeps `kind = pixelscope-iqa-result`, targets `schema_version = 2`, uses
+safe relative artifacts/data-only NumPy, and retains immutable publication.
 
-Schema v1 remains explicit read-only compatibility. There is no synthetic v1-to-v2
-upgrade.
+Schema v1 remains explicit read-only compatibility for historical two-source results;
+there is no synthetic v1→v2 upgrade that invents absolute measurements.
 
 ## Shared storage and HTTP direction
 
-Client/server may mount shared storage differently. P5 uses logical storage-root ID +
-relative path rather than machine-local paths in durable transport/result identity.
-Machine-local root mapping ownership remains a P5-C gate.
+Client and GPU server may see the same SMB/network storage through different physical
+paths. P5 uses a logical storage-root ID + relative path instead of embedding local
+Windows or server Linux paths in the API.
 
-The external server currently has blocking HTTP behavior. P5-C targets async
-submit/status/result/cancel with polling first; WebSocket progress remains optional.
+The existing external server has a blocking HTTP interface. P5 targets an async
+submit/status/result/cancel job API with polling as the initial progress mechanism.
+WebSocket progress is optional future work.
 
 ## PARTIAL/failure direction
 
-Durable PARTIAL results remain owner-approved so successful Scene work can be
-preserved. The concrete PARTIAL manifest/failure taxonomy remains P5-C work.
+The owner has already fixed the central policy: **durable PARTIAL results are allowed
+and successful Scene work must be preservable when another Scene fails**.
 
-Stage-2 executable behavior is intentionally `UNSUPPORTED` for
-`publication_state=partial`; P5-B must not invent a parser. Unevaluable/incompatible
-cohorts are rejected/excluded by server evaluation rather than repaired locally.
+Schema v2 carries that decision forward. P5-C still owns detailed request rejection,
+per-Scene failure records, missing-variant rules, exact PARTIAL terminal identity,
+required artifacts, no-success behavior, and cancel/publication races.
+
+Unevaluable source cohorts, including incompatible original dimensions, are rejected
+or excluded by server evaluation; PixelScope does not align/resize them locally.
 
 ## UX direction
 
@@ -279,111 +326,248 @@ IQA
 └─ Results
 ```
 
-- batch references are not eagerly Registered/Selected/decoded;
-- jobs do not forcibly replace local workspace;
+- large batch references are not eagerly Registered/Selected/decoded;
+- jobs do not forcibly replace the current local workspace;
 - passive results do not mutate Selected;
-- summary metadata provides initial absolute Overview/Scene Trend;
-- IQA Reference uses `variant_id` and is independent from Primary;
-- relative views derive locally from v2 source measurements;
-- grid I/O/calculation is asynchronous/stale-safe;
-- explicit Inspect later loads only chosen Scene sources through canonical local
-  authority;
-- result navigation drills down Dataset → attribute → Scene → block.
+- summary metadata provides immediate absolute Overview/Scene Trend;
+- IQA Reference uses `variant_id` and remains independent from Primary;
+- relative views are locally derived from accepted source measurements;
+- required grid I/O/calculation runs asynchronously and may expose Loading/Calculating;
+- explicit Inspect loads only chosen Scene sources through canonical local authority;
+- temporary P4-A Picks block conflicting Inspect entry;
+- transient Return-to-previous-workspace never overwrites newer non-IQA intent;
+- result navigation drills down dataset → attribute → Scene → block.
 
 # P5 execution sequence
+
+Current sequence with the schema correction is:
 
 `P5-0 → P5-A(v1) → P5-A2(schema-v2 migration) → P5-B → P5-C → P5-D → P5-E → P5-F → P5 Complete`
 
 ## P5-0 — P4 Closure & P5 Program Setup — Complete
 
-Docs-only orchestration slice that closed P4 and established the original P5 program.
-Merged as PR #36.
+Docs-only orchestration slice that closed P4 and established the original P5 contracts.
 
 ## P5-A — Contract Fixtures & IQA Domain / schema v1 — Complete
 
-Merged as PR #37 at
-`fceb16f6e43c48ec65fbf7ebbcc103b56716b686`. It remains the historical executable
-schema-v1 baseline and read-only compatibility implementation.
+P5-A merged as PR #37 at
+`fceb16f6e43c48ec65fbf7ebbcc103b56716b686`.
+
+It delivered:
+
+- Qt-free versioned Result/Scene/Source/Attribute/comparison models;
+- schema-v1 manifest/summary/compact-scene parser;
+- deterministic production-shaped fixtures including an N-source structural case;
+- W/S1/S2/count/valid recomposition and two pairwise power modes;
+- exact source→analysis geometry mapping;
+- bounded safe artifact parsing/corruption handling.
+
+P5-A is now the **historical executable schema-v1 baseline**, not the current
+numerical target.
 
 ## P5-A2 — Schema v2 source-measurement migration — Active
 
-### Stage 1 — durable contract revision — Complete
+P5-A2 exists because P5-B review exposed that pairwise server summaries do not scale
+cleanly to N-way Reference switching.
 
-PR #39 merged at `4f2d58f36152cbebd1110a2aed09afacc6f09596` and froze the server-measurement /
-client-comparison ownership model, N-way identity, Scene-context semantics, absolute
-and relative reduction hierarchy, v1 compatibility, and PARTIAL direction.
+### Stage 1 — durable contract revision / PR #39
 
-### Stage 2 — focused executable-v2 migration — Active / Draft PR #40
+PR #39 freezes:
 
-Branch: `feature/p5-a2-executable-schema-v2`.
+- `variant_id` vs `source_id` identity;
+- Scene-context-scoped absolute source measurements;
+- complete-result variant cardinality and grid correspondence;
+- server W/S1/S2/count/valid numerical authority;
+- canonical Scene absolute reduction;
+- pooled + equal-Scene absolute dataset summaries;
+- default absolute Overview = pooled weighted mean;
+- local target/reference power/signed comparisons;
+- default relative Overview = arithmetic mean of valid Scene comparisons;
+- v1 read-only compatibility;
+- PARTIAL direction carry-forward;
+- separation of schema semantics from grid loading/cache policy;
+- P5-C request identity N-way-capable while initial submission UI remains two-variant.
 
-Stage 2 implements/finalizes:
+### Stage 2 — focused executable-v2 migration
 
-- versioned v2 Qt-free domain and canonical v1/v2 dispatch;
-- deterministic N-way v2 fixture writer;
-- concrete manifest/summary/Scene-grid field placement;
-- dtype/rank/shape and parser safety ceilings;
-- deterministic `measurement_context_id`;
-- cross-Scene concrete-source reuse policy;
-- exact complete-result cardinality and geometry/grid correspondence;
-- W/S1/S2 Scene and Dataset projection verification;
-- reference-neutral target/reference operators;
-- centralized raw/quality direction semantics for both power modes;
-- summary-first deferred-grid filesystem boundary;
-- repository-native v2 numerical/corruption/safety goldens plus real v1 dispatch
-  regression;
-- durable executable schema documentation.
+After PR #39 merges, a separate focused implementation PR must update the domain,
+fixture, reader/writer shape, and golden tests before P5-B resumes. It must freeze and
+test concrete field/array placement, dtype/shape rules, v2 safety ceilings,
+`measurement_context_id` construction, summary consistency, grid correspondence,
+N-way identity, and v1 compatibility dispatch.
 
-PR #40 remains Draft until independent re-review and repository-pinned validation are
-observed. It must not be merged merely from reduced-harness evidence.
+P5-B must not implement these parser/schema decisions itself.
 
 ## P5-B — IQA Workspace & Local Result Exploration — Paused / schema-dependent
 
-PR #38 remains untouched while Stage 2 is active. After PR #40 merges, P5-B rebases
-onto executable v2 and adapts behavior to:
+PR #38 contains work in progress but is intentionally paused until **P5-A2 Stage 2
+executable v2** is merged to `main`.
 
-- N-way `variant_id` Reference selection;
-- summary-first absolute Dataset/Scene views;
-- pooled absolute default;
-- locally derived target/reference relative values;
-- centralized quality orientation;
-- equal-Scene relative Dataset default;
-- non-blocking stale-safe Scene-grid work;
-- passive local-workspace independence.
+After that baseline exists, P5-B rebases and is revised to:
+
+- use the canonical Open IQA Result path against v2;
+- support N-way `variant_id` Reference selection;
+- show absolute summary-based initial Overview and Scene Trend;
+- default absolute Dataset Overview to `pooled_weighted_mean`;
+- derive reference-dependent comparisons locally;
+- default relative Overview to arithmetic mean of valid Scene comparison values;
+- keep grid I/O/calculation off the UI thread with stale-result rejection;
+- preserve passive Files/Selected/native-analysis state;
+- preserve lifecycle/close-recreate safety.
 
 ## P5-C — Submission & Shared Storage — Planned
 
-P5-C owns logical-root client configuration, safe staging, deterministic two-variant
-Current Pair/two-folder Pair submission, HTTP job lifecycle, polling Jobs UI, and the
-detailed PARTIAL/failure/cancel/publication contract.
+P5-C must not start until remaining owner/orchestrator gates are frozen.
+
+**Gate C1 — machine-local logical storage-root configuration ownership**
+
+C1 remains intentionally deferred. Choose whether `storage_root_id → client/UNC path`
+is typed `ApplicationSettings` with explicit migration or another already-authoritative
+machine-local configuration mechanism. Result artifacts and Session cannot own this
+mapping.
+
+**Gate C2 — PARTIAL allowed; detailed failure/terminal policy pending**
+
+The central direction is fixed: durable PARTIAL results are allowed and successful
+Scene outputs are preservable. P5-C must still freeze request rejection, per-Scene
+failure records, missing variants, exact PARTIAL API/terminal identity, required
+artifacts, no-success behavior, and cancel/completion/publication races.
+
+**Submission cardinality — owner decision**
+
+The request/result identity model is N-way-capable, but the initial user-facing P5-C
+submission workflow is deliberately limited to two variants:
+
+- Current Pair = exactly two variants;
+- batch = deterministic two-folder Pair;
+- arbitrary N-way submission UI is deferred to a later explicit owner decision;
+- P5-B continues to support N-way v2 result exploration/reference switching.
+
+After gates close, P5-C owns safe staging, deterministic two-variant Current Pair and
+two-folder Pair submission, explicit ordered Scene manifests, HTTP job lifecycle,
+polling Jobs UI, and handoff into P5-B's canonical Open Result path.
+
+GPU server implementation remains outside this repository.
 
 ## P5-D — Viewer-linked Scene Inspection — Planned
 
-P5-D connects selected Scene/grid anomalies to the existing viewer using the exact
-published geometry. Before consuming optional detail maps it must define a typed,
-versioned detail sub-schema; Stage-2 bare detail references are intentionally opaque.
+Connect IQA anomalies to source locations:
+
+- explicit Inspect and Pick-state guard;
+- canonical loading of only inspected Scene sources;
+- transient return snapshot with stale-intent invalidation;
+- IQA Reference independent from Primary;
+- linked Scene navigation;
+- exact analysis-grid → source → viewer mapping;
+- vector/block overlay and block inspector from v2 absolute/relative grids;
+- safe interaction with Difference/Gain/ROI/Line.
 
 ## P5-E — Historical Result Workflow — Planned
 
-P5-E adds bounded Recent IQA Results, production logical-root reopen, immutable
-result/source-hash identity, result-only mode when sources are unavailable, provenance,
-and v1 read-only historical handling. Session v1 remains unchanged.
+Make completed results reusable by extending, not replacing, P5-B's canonical result
+open path:
+
+- bounded Recent IQA Results;
+- production logical-root reopen;
+- immutable result/source-hash identity;
+- result-only mode when source images are unavailable;
+- source/hash mismatch diagnostics;
+- provenance display;
+- explicit v1 read-only historical result handling where applicable.
+
+P5 does **not** modify Session v1. A future IQA reference inside Session requires a
+new explicit Session schema/version decision. P6 remains responsible for auth/SSO,
+credentials, permission, audit administration, and access policy.
 
 ## P5-F — Integration & Performance Hardening — Planned
 
-P5-F validates real schema-v2 server compatibility, realistic result sizes, SMB/network
-latency, grid cache/preload policy, local reference-switch latency, cancellation,
-missing/corrupt artifacts, stale callbacks, teardown, and proof that remote membership
-does not become local source ownership.
+Validate the composed workflow against the real server and realistic datasets:
 
-No fixed wall-clock latency is a schema correctness gate.
+- real schema-v2 API/result compatibility plus v1 read-only history;
+- bounded grid loading/cache behavior;
+- SMB/network bandwidth characterization;
+- local reference-switch calculation latency;
+- current-pair/two-folder submission stress plus N-way result/parser/Reference stress;
+- cancellation/failure/missing artifacts;
+- stale callback and application close/recreate safety;
+- proof batch membership does not become local source/residency/preload authority;
+- optional detail characterization;
+- P5 closure documentation.
+
+No fixed wall-clock latency is a correctness merge gate. Correctness gates are stable
+versioned identity/math/geometry, bounded ownership, no duplicate work, stale-result
+rejection, and teardown safety.
 
 # P6 — Identity, Access & Remote Operations
 
-Planned after P5: Login/SSO, token/credential lifecycle, permission/access policy,
-audit integration, and controlled operational administration.
+Planned after P5:
+
+- Login / SSO;
+- token and credential lifecycle;
+- permission/access policy;
+- user/project/purpose audit integration;
+- operational administration and controlled result cleanup.
+
+P5 result schemas may reserve provenance metadata fields but do not implement these
+security/administrative authorities.
 
 # P7 — Release Engineering & Distribution
 
-Planned after P6: exactly PyInstaller 5.7 `onedir`, portable ZIP, Inno Setup,
-packaging/signing/update/release validation, and distribution hardening.
+Planned after P6:
+
+- exactly PyInstaller 5.7 `onedir`;
+- portable ZIP;
+- Inno Setup;
+- clean-PC smoke testing;
+- signing;
+- update strategy;
+- repeatable release process.
+
+## Deferred optimization outside the phase sequence
+
+Schedule only when profiling/user-visible latency demonstrates need:
+
+- broader source preload concurrency/direction changes;
+- CPU/I/O aggressiveness controls;
+- broader resource-policy Settings exposure;
+- process-level profiler telemetry;
+- native/SIMD display-gain optimization;
+- eager/full download of 2K IQA maps;
+- WebSocket job progress when polling proves insufficient.
+
+## P5-A2 Stage-2 executable update — PR #40
+
+This addendum supersedes the interim Stage-1/Stage-2 status wording above without
+removing historical planning detail.
+
+- P5-A2 Stage 1 / PR #39 is **Complete** at
+  `4f2d58f36152cbebd1110a2aed09afacc6f09596`.
+- P5-A2 Stage 2 is **Active** in Draft PR #40 on
+  `feature/p5-a2-executable-schema-v2`.
+- P5-B / PR #38 remains schema-dependent, paused, and untouched until Stage 2 is
+  reviewed, validated, and merged.
+
+Stage 2 freezes the concrete executable-v2 contract before P5-B resumes:
+
+- canonical v1/v2 dispatch with v1 read-only compatibility and no synthetic upgrade;
+- N-way `variant_id` identity separate from reusable concrete `source_id`;
+- cross-Scene `source_id` reuse only with identical immutable source metadata, while
+  duplicate source binding inside one complete Scene remains invalid;
+- deterministic `measurement_context_id = mc2:<sha256>` over canonical
+  Scene/source/provenance/geometry JSON;
+- exact complete-result variant cardinality and exact cross-variant duplicated
+  Scene/Grid geometry equality;
+- reference-neutral v2 operators
+  `power_ratio_target_over_reference_db` / `signed_target_minus_reference`;
+- one Qt-free raw/quality-direction authority for both power modes;
+- summary-first ordinary open limited to `manifest.json` + `summary.npz` filesystem
+  I/O, with Scene-grid/detail filesystem access deferred until requested;
+- optional detail references intentionally opaque until a typed P5-D detail schema;
+- Stage-2 `PARTIAL` explicitly `UNSUPPORTED` until P5-C freezes its representation;
+- repository-native v2 numerical/corruption/safety tests plus real v1 dispatcher
+  regression.
+
+The exact executable field placement, dtype/shape rules, safety ceilings, numerical
+tolerance, and fingerprint construction are normative in
+`docs/REMOTE_IQA_V2_SPEC.md`. PR #40 remains Draft until independent re-review and
+repository-pinned validation are observed.
