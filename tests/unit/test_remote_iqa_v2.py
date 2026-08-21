@@ -5,7 +5,7 @@ import json
 import math
 import struct
 import zipfile
-from dataclasses import replace
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +20,7 @@ from pixelscope.remote.iqa_domain import (
     GridGeometry,
     LoadStatus,
     QualityDirection,
+    ScalarStatistic,
     SceneGeometry,
     Source,
     ValueKind,
@@ -32,7 +33,11 @@ from pixelscope.remote.iqa_v2_domain import (
     SourceMeasurementV2,
     build_measurement_context_id,
 )
-from pixelscope.remote.iqa_v2_fixture import V2_ATTRIBUTE_ROWS, V2_VARIANTS, write_golden_result_v2
+from pixelscope.remote.iqa_v2_fixture import (
+    V2_ATTRIBUTE_ROWS,
+    V2_VARIANTS,
+    write_golden_result_v2,
+)
 from pixelscope.remote.iqa_v2_manifest import parse_complete_manifest
 from pixelscope.remote.iqa_v2_math import (
     compare_v2_sources,
@@ -47,6 +52,8 @@ from pixelscope.remote.iqa_v2_support import (
     load_npz,
     validate_artifact_reference,
 )
+
+ArrayMap = dict[str, np.ndarray[Any, Any]]
 
 
 @pytest.fixture()
@@ -69,7 +76,7 @@ def _npz_size(path: Path) -> int:
         return sum(item.file_size for item in archive.infolist())
 
 
-def _rewrite_npz(path: Path, mutate: Any) -> None:
+def _rewrite_npz(path: Path, mutate: Callable[[ArrayMap], None]) -> None:
     with np.load(path, allow_pickle=False) as loaded:
         arrays = {key: loaded[key] for key in loaded.files}
     mutate(arrays)
@@ -124,14 +131,22 @@ def _compact(
     )
 
 
+def _stat(value: float) -> ScalarStatistic:
+    return ScalarStatistic(value, True)
+
+
 def test_v2_fixture_round_trip_freezes_n_way_identity_and_operator_names(
     golden_root: Path,
 ) -> None:
     result = _loaded(golden_root)
     assert result.result_id == "golden-p5a2-v2"
-    assert [item.variant_id for item in result.variants] == [row[0] for row in V2_VARIANTS]
+    assert [item.variant_id for item in result.variants] == [
+        row[0] for row in V2_VARIANTS
+    ]
     assert [item.label for item in result.variants] == [row[1] for row in V2_VARIANTS]
-    assert [item.attribute_id for item in result.attributes] == [row[0] for row in V2_ATTRIBUTE_ROWS]
+    assert [item.attribute_id for item in result.attributes] == [
+        row[0] for row in V2_ATTRIBUTE_ROWS
+    ]
     assert len(result.scenes) == 4
     assert all(len(scene.sources) == 3 for scene in result.scenes)
     assert all(
@@ -141,7 +156,8 @@ def test_v2_fixture_round_trip_freezes_n_way_identity_and_operator_names(
         if attribute.value_kind is ValueKind.POWER
     )
     assert all(
-        attribute.comparison_operator is ComparisonOperator.SIGNED_TARGET_MINUS_REFERENCE
+        attribute.comparison_operator
+        is ComparisonOperator.SIGNED_TARGET_MINUS_REFERENCE
         for attribute in result.attributes
         if attribute.value_kind is ValueKind.SIGNED
     )
@@ -161,7 +177,9 @@ def test_context_fingerprint_is_deterministic_golden(golden_root: Path) -> None:
     )
 
 
-def test_summary_first_open_does_not_require_scene_or_detail_files(golden_root: Path) -> None:
+def test_summary_first_open_does_not_require_scene_or_detail_files(
+    golden_root: Path,
+) -> None:
     manifest = _manifest(golden_root)
     scene_path = golden_root / manifest["scenes"][0]["grid_artifact"]["path"]
     detail_path = golden_root / manifest["scenes"][0]["detail_artifacts"][0]
@@ -181,7 +199,8 @@ def test_grid_load_preserves_n_way_variant_source_identity(golden_root: Path) ->
     assert outcome.data is not None
     assert outcome.data.variant_ids == tuple(row[0] for row in V2_VARIANTS)
     scene = result.scene("scene_000000")
-    assert outcome.data.source_ids == tuple(item.source.source_id for item in scene.sources)
+    expected_sources = tuple(item.source.source_id for item in scene.sources)
+    assert outcome.data.source_ids == expected_sources
     baseline = outcome.data.attribute_for_variant("baseline", "luma_noise")
     quality = outcome.data.attribute_for_variant("candidate_quality", "luma_noise")
     assert np.asarray(baseline.valid_mask).shape == np.asarray(quality.valid_mask).shape
@@ -198,7 +217,9 @@ def test_scene_recomposition_is_sum_s1_over_sum_w_not_equal_grid_mean() -> None:
     assert summary.weighted_std == pytest.approx(math.sqrt(0.75))
 
 
-def test_fixture_dataset_pooled_and_equal_scene_means_are_distinct(golden_root: Path) -> None:
+def test_fixture_dataset_pooled_and_equal_scene_means_are_distinct(
+    golden_root: Path,
+) -> None:
     result = _loaded(golden_root)
     summary = result.dataset_summary("baseline", "luma_noise")
     assert summary.pooled.valid
@@ -209,15 +230,22 @@ def test_fixture_dataset_pooled_and_equal_scene_means_are_distinct(golden_root: 
         scene.source_for_variant("baseline").summary("luma_noise")
         for scene in result.scenes
     ]
-    expected_pooled = math.fsum(item.weighted_sum for item in scene_summaries) / math.fsum(
-        item.weight_sum for item in scene_summaries
-    )
+    expected_pooled = math.fsum(
+        item.weighted_sum for item in scene_summaries
+    ) / math.fsum(item.weight_sum for item in scene_summaries)
     expected_equal = math.fsum(
-        float(item.weighted_mean) for item in scene_summaries if item.weighted_mean is not None
+        float(item.weighted_mean)
+        for item in scene_summaries
+        if item.weighted_mean is not None
     ) / len(scene_summaries)
     assert summary.pooled.weighted_mean == pytest.approx(expected_pooled)
     assert summary.scene_mean.value == pytest.approx(expected_equal)
-    assert not math.isclose(expected_pooled, expected_equal, rel_tol=0.0, abs_tol=1e-12)
+    assert not math.isclose(
+        expected_pooled,
+        expected_equal,
+        rel_tol=0.0,
+        abs_tol=1e-12,
+    )
 
 
 def test_power_modes_diverge_and_quality_direction_is_centralized() -> None:
@@ -279,25 +307,13 @@ def test_pair_valid_intersection_controls_relative_comparison() -> None:
 
 def test_relative_dataset_reduction_is_equal_scene_arithmetic_mean() -> None:
     values = [
-        replace(_stat(1.0), value=1.0),
-        replace(_stat(3.0), value=3.0),
-        _invalid_stat("no_valid_blocks"),
+        _stat(1.0),
+        _stat(3.0),
+        ScalarStatistic.invalid("no_valid_blocks"),
     ]
     reduced = reduce_relative_scene_values(values)
     assert reduced.valid
     assert reduced.value == pytest.approx(2.0)
-
-
-def _stat(value: float):
-    from pixelscope.remote.iqa_domain import ScalarStatistic
-
-    return ScalarStatistic(value, True)
-
-
-def _invalid_stat(reason: str):
-    from pixelscope.remote.iqa_domain import ScalarStatistic
-
-    return ScalarStatistic.invalid(reason)
 
 
 @pytest.mark.parametrize(
@@ -341,7 +357,7 @@ def test_projection_tolerance_has_deterministic_boundary() -> None:
 def test_summary_projection_mismatch_is_corrupt(golden_root: Path) -> None:
     summary_path = golden_root / "summary.npz"
 
-    def mutate(arrays: dict[str, np.ndarray[Any, Any]]) -> None:
+    def mutate(arrays: ArrayMap) -> None:
         arrays["scene_weighted_mean"] = arrays["scene_weighted_mean"].copy()
         arrays["scene_weighted_mean"][0, 0, 0] += 0.01
 
@@ -370,16 +386,21 @@ def test_complete_result_rejects_missing_variant_binding(golden_root: Path) -> N
     assert load_result_v2(golden_root).status is LoadStatus.INVALID
 
 
-def test_complete_result_rejects_cross_variant_geometry_mismatch(golden_root: Path) -> None:
+def test_complete_result_rejects_cross_variant_geometry_mismatch(
+    golden_root: Path,
+) -> None:
     manifest = _manifest(golden_root)
-    manifest["scenes"][0]["sources"][1]["geometry"]["source_to_analysis"][0][2] += 0.001
+    affine = manifest["scenes"][0]["sources"][1]["geometry"]["source_to_analysis"]
+    affine[0][2] += 0.001
     _write_manifest(golden_root, manifest)
     outcome = load_result_v2(golden_root)
     assert outcome.status is LoadStatus.INVALID
     assert "geometry mismatch" in (outcome.reason or "")
 
 
-def test_complete_result_rejects_cross_variant_grid_mismatch(golden_root: Path) -> None:
+def test_complete_result_rejects_cross_variant_grid_mismatch(
+    golden_root: Path,
+) -> None:
     manifest = _manifest(golden_root)
     grid = manifest["scenes"][0]["sources"][1]["grids"]["luma_noise"]
     grid["origin_x"] += 0.25
@@ -403,11 +424,17 @@ def _minimal_manifest(
     geometry = SceneGeometry(
         analysis_width=64,
         analysis_height=64,
-        source_to_analysis=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+        source_to_analysis=(
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+        ),
         valid_rect=(0.0, 0.0, 64.0, 64.0),
     )
     grid = GridGeometry(2, 2, 16.0, 16.0, 0.0, 0.0, 32.0, 32.0)
-    provenance = MeasurementContextProvenance("rep", "pre", "model", "weight", "geom")
+    provenance = MeasurementContextProvenance(
+        "rep", "pre", "model", "weight", "geom"
+    )
     shared = Source("shared", "dataset/shared.png", "1" * 64, 100, 100)
 
     def source(scene_index: int, variant_index: int) -> Source:
@@ -415,7 +442,13 @@ def _minimal_manifest(
             return shared
         if reuse_across_scenes and variant_index == 0:
             if scene_index == 1 and source_metadata_mismatch:
-                return Source("shared", "dataset/changed.png", "2" * 64, 100, 100)
+                return Source(
+                    "shared",
+                    "dataset/changed.png",
+                    "2" * 64,
+                    100,
+                    100,
+                )
             return shared
         return Source(
             f"s{scene_index}-v{variant_index}",
@@ -452,8 +485,13 @@ def _minimal_manifest(
                     "weighting_id": "weight",
                     "geometry_id": "geom",
                 },
-                "sources": [_measurement_manifest(item) for item in measurements],
-                "grid_artifact": {"path": f"scenes/{scene_id}.npz", "uncompressed_size": 1},
+                "sources": [
+                    _measurement_manifest(item) for item in measurements
+                ],
+                "grid_artifact": {
+                    "path": f"scenes/{scene_id}.npz",
+                    "uncompressed_size": 1,
+                },
                 "detail_artifacts": [],
             }
         )
@@ -478,7 +516,10 @@ def _minimal_manifest(
                 "weighting_provenance": "test-weighting",
             }
         ],
-        "summary_artifact": {"path": "summary.npz", "uncompressed_size": 1},
+        "summary_artifact": {
+            "path": "summary.npz",
+            "uncompressed_size": 1,
+        },
         "scenes": scenes,
     }
 
@@ -497,7 +538,9 @@ def _measurement_manifest(measurement: SourceMeasurementV2) -> dict[str, Any]:
         "geometry": {
             "analysis_width": geometry.analysis_width,
             "analysis_height": geometry.analysis_height,
-            "source_to_analysis": [list(row) for row in geometry.source_to_analysis],
+            "source_to_analysis": [
+                list(row) for row in geometry.source_to_analysis
+            ],
             "valid_rect": list(geometry.valid_rect),
         },
         "grids": {
@@ -523,7 +566,10 @@ def test_source_id_may_recur_across_measurement_contexts_with_same_identity(
     parsed = parse_complete_manifest(root, manifest)
     assert parsed.scenes[0].sources[0].source.source_id == "shared"
     assert parsed.scenes[1].sources[0].source.source_id == "shared"
-    assert parsed.scenes[0].measurement_context_id != parsed.scenes[1].measurement_context_id
+    assert (
+        parsed.scenes[0].measurement_context_id
+        != parsed.scenes[1].measurement_context_id
+    )
 
 
 def test_source_id_reuse_requires_identical_immutable_metadata(tmp_path: Path) -> None:
@@ -594,29 +640,48 @@ def test_npz_duplicate_members_are_rejected(tmp_path: Path) -> None:
         archive.writestr("x.npy", payload)
         archive.writestr("x.npy", payload)
     with pytest.raises(CorruptV2, match="duplicate members"):
-        load_npz(path, total_limit=1024 * 1024, expected={"x": (np.dtype("float64"), (1,))})
+        load_npz(
+            path,
+            total_limit=1024 * 1024,
+            expected={"x": (np.dtype("float64"), (1,))},
+        )
 
 
 def test_npz_object_array_is_rejected_before_materialization(tmp_path: Path) -> None:
     path = tmp_path / "object.npz"
     np.savez(path, x=np.asarray([{"unsafe": True}], dtype=object))
     with pytest.raises(CorruptV2, match="object/pickle"):
-        load_npz(path, total_limit=1024 * 1024, expected={"x": (np.dtype("O"), (1,))})
+        load_npz(
+            path,
+            total_limit=1024 * 1024,
+            expected={"x": (np.dtype("O"), (1,))},
+        )
 
 
 def test_npz_wrong_dtype_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "dtype.npz"
     np.savez(path, x=np.asarray([1.0], dtype=np.float32))
     with pytest.raises(CorruptV2, match="dtype/rank/shape mismatch"):
-        load_npz(path, total_limit=1024 * 1024, expected={"x": (np.dtype("float64"), (1,))})
+        load_npz(
+            path,
+            total_limit=1024 * 1024,
+            expected={"x": (np.dtype("float64"), (1,))},
+        )
 
 
 def test_npz_unsupported_compression_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "bzip2.npz"
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_BZIP2) as archive:
-        archive.writestr("x.npy", _npy_bytes(np.asarray([1.0], dtype=np.float64)))
+        archive.writestr(
+            "x.npy",
+            _npy_bytes(np.asarray([1.0], dtype=np.float64)),
+        )
     with pytest.raises(CorruptV2, match="unsupported member compression"):
-        load_npz(path, total_limit=1024 * 1024, expected={"x": (np.dtype("float64"), (1,))})
+        load_npz(
+            path,
+            total_limit=1024 * 1024,
+            expected={"x": (np.dtype("float64"), (1,))},
+        )
 
 
 def test_npz_encrypted_flag_is_rejected(tmp_path: Path) -> None:
@@ -632,11 +697,16 @@ def test_npz_encrypted_flag_is_rejected(tmp_path: Path) -> None:
     struct.pack_into("<H", payload, central + 8, central_flags)
     path.write_bytes(payload)
     with pytest.raises(CorruptV2, match="encrypted members"):
-        load_npz(path, total_limit=1024 * 1024, expected={"x": (np.dtype("float64"), (1,))})
+        load_npz(
+            path,
+            total_limit=1024 * 1024,
+            expected={"x": (np.dtype("float64"), (1,))},
+        )
 
 
 def test_npz_member_and_array_safety_ceilings_are_enforced(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from pixelscope.remote import iqa_v2_support as support
 
@@ -675,12 +745,15 @@ def test_grid_numerical_corruption_is_detected_lazily(golden_root: Path) -> None
     manifest = _manifest(golden_root)
     grid_path = golden_root / manifest["scenes"][0]["grid_artifact"]["path"]
 
-    def mutate(arrays: dict[str, np.ndarray[Any, Any]]) -> None:
-        arrays["luma_noise__weight_sum"] = arrays["luma_noise__weight_sum"].copy()
+    def mutate(arrays: ArrayMap) -> None:
+        arrays["luma_noise__weight_sum"] = arrays[
+            "luma_noise__weight_sum"
+        ].copy()
         arrays["luma_noise__weight_sum"][0, 0, 0] = -1.0
 
     _rewrite_npz(grid_path, mutate)
-    manifest["scenes"][0]["grid_artifact"]["uncompressed_size"] = _npz_size(grid_path)
+    grid_ref = manifest["scenes"][0]["grid_artifact"]
+    grid_ref["uncompressed_size"] = _npz_size(grid_path)
     _write_manifest(golden_root, manifest)
     result = _loaded(golden_root)
     outcome = load_grid_scene(result, "scene_000000")
@@ -705,7 +778,9 @@ def test_future_schema_version_is_unsupported(golden_root: Path) -> None:
     assert outcome.status is LoadStatus.UNSUPPORTED
 
 
-def test_real_schema_v1_fixture_uses_read_only_dispatch_without_upgrade(tmp_path: Path) -> None:
+def test_real_schema_v1_fixture_uses_read_only_dispatch_without_upgrade(
+    tmp_path: Path,
+) -> None:
     root = write_golden_result(tmp_path / "golden-v1")
     outcome = load_versioned_result(root)
     assert outcome.status is LoadStatus.SUCCESS, outcome.reason
