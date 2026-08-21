@@ -214,7 +214,7 @@ P5 result export is not implicitly provided by these actions. Future remote-IQA 
 must consume the remote result repository without changing local numerical/source
 authority.
 
-## P5 current result architecture — schema v2 target
+## P5 current result architecture — executable schema v2 target
 
 The active target is:
 
@@ -227,10 +227,10 @@ IQA Result
 ordered variants[]
     ↓
 Scene / measurement context
-    ├─ exactly one source per variant for normal complete results
+    ├─ exactly one binding per variant for normal complete results
     ├─ representative image / common structural context
     ├─ PiDiNet Edge Map / Texture Gate
-    └─ per-source absolute measurements
+    └─ per-variant source measurement
          ├─ fast absolute Scene/dataset summaries
          └─ grid W/S1/S2/count/valid
                 ↓ PixelScope
@@ -243,19 +243,25 @@ Scene / measurement context
 
 ### Identity
 
-- `variant_id` identifies one comparison group/configuration across Scenes.
+- `variant_id` identifies one comparison group/configuration and Reference slot across
+  Scenes.
 - `source_id` identifies one concrete source image.
 - `scene_id` identifies the Scene.
 - `measurement_context_id` scopes the published weighted measurement to the Scene
   context that produced its representative/structural/weighting state.
 
+A concrete `source_id` may recur across different Scenes or multiple variant slots in
+the same Scene when its `relative_path`, SHA-256, width, and height are identical.
+Every complete Scene still binds each declared `variant_id` exactly once. The repeated
+source does not collapse variant identity or authorize reuse of weighted measurements.
+
 An absolute source measurement is reference-independent within that Scene context; it
 is not globally context-free. The same source hash evaluated under another incompatible
 cohort/context is not automatically the same published weighted measurement.
 
-For a normal non-PARTIAL complete result, every Scene has exactly one source for each
-declared variant. Comparable variants for one Scene/attribute share compatible
-physical grid topology/geometry. PixelScope does not index-zip incompatible grids.
+Comparable variants for one Scene/attribute carry exactly equal physical
+SceneGeometry/GridGeometry. PixelScope does not index-zip, align, or resize
+incompatible grids.
 
 ### Ten initial attributes
 
@@ -305,12 +311,19 @@ Schema v2 publishes both:
 Reference selection targets `variant_id`. Pair-valid support is target-valid ∩
 reference-valid on a validated common grid.
 
-Power modes remain:
+Power modes are:
 
-- ratio of pair-valid aggregate weighted means;
-- arithmetic mean of finite pair-valid grid log-ratios.
+1. ratio of pair-valid aggregate weighted means;
+2. unweighted arithmetic mean of **finite** pair-valid grid log-ratios.
 
-Signed attributes use pair-valid weighted target mean minus reference mean.
+For mode 2, an undefined/non-finite individual grid ratio such as epsilon-zero `0/0`
+is omitted if another pair-valid grid ratio is finite. If no finite ratio remains,
+Mode 2 is invalid. Negative power-domain input remains invalid and is not skipped.
+
+Signed attributes use pair-valid weighted target mean minus reference mean. One
+Qt-free comparison authority also maps raw values to quality direction: higher-is-
+better keeps raw, lower-is-better negates raw for both power modes, and signed/neutral
+quality is N/A.
 
 **Current owner default for relative Dataset Overview:** compute the selected
 comparison independently per valid Scene, then arithmetic-mean the valid Scene
@@ -325,23 +338,33 @@ The continuous pixel-edge/half-open geometry contract proven in P5-A remains act
 
 ### Result artifact categories
 
-1. small summary metadata for immediate absolute Dataset/Scene views;
-2. compact absolute grid measurement artifacts for local relative/spatial work;
-3. optional large per-pixel/2K detail/debug artifacts.
+1. small `manifest.json` + `summary.npz` metadata for immediate absolute Dataset/Scene
+   views;
+2. compact absolute Scene-grid measurement NPZ artifacts for local relative/spatial
+   work;
+3. optional opaque detail/debug references whose typed decode contract is deferred.
 
-Grid measurement artifacts are not numerically defined as inspected-Scene-only lazy
-data. Actual loading/batching/cache behavior is a bounded, non-blocking performance
-policy and may be measured/optimized later.
+Ordinary v2 open performs filesystem I/O for manifest + summary only. Scene grid and
+detail references receive syntax validation at open; actual Scene-grid filesystem/
+archive/array validation occurs on `load_grid_scene()`.
 
-Historical result reopen remains first-class because rerunning GPU evaluation is
-unnecessary and undesirable.
+Grid loading/cache behavior remains a bounded, non-blocking performance policy and may
+be measured/optimized later. Historical result reopen remains first-class because
+rerunning GPU evaluation is unnecessary and undesirable.
+
+### Safety envelope
+
+V2 freezes bounded manifest/NPZ/cardinality parsing. The aggregate `1024` Scene-source-
+binding ceiling is deliberate rather than a cache budget: Stage-1 planning assumed
+roughly 300 compared source images, so it supplies >3x headroom while permitting all
+512 Scenes for the initial two-variant P5-C workflow. A future larger requirement
+needs coordinated schema/safety review rather than a silent override.
 
 ### v1 compatibility
 
 P5-A/schema v1 remains explicit read-only compatibility for historical two-source
-results/fixtures. New writer/fixture work targets v2 after the executable migration.
-PixelScope never silently synthesizes v2 absolute source measurements from v1 pairwise
-summaries.
+results/fixtures. New writer/fixture work targets v2. PixelScope never silently
+synthesizes v2 absolute source measurements from v1 pairwise summaries.
 
 ### Shared storage
 
@@ -352,32 +375,31 @@ ownership remains a P5-C decision gate.
 ### PARTIAL direction
 
 Durable PARTIAL results are owner-approved and successful Scene work must be
-preservable. Detailed missing-variant/per-Scene failure/API/publication/cancel rules
-remain P5-C work. Unevaluable dimension-mismatched cohorts are rejected/excluded by
-server evaluation rather than repaired locally.
+preservable. Stage 2 intentionally reports v2 PARTIAL as `UNSUPPORTED` until P5-C
+freezes detailed missing-variant/per-Scene failure/API/publication/cancel rules.
+Unevaluable dimension-mismatched cohorts are rejected/excluded by server evaluation
+rather than repaired locally.
 
 ### P5-A2 Stage-2 executable additions
 
 PR #40 freezes the Stage-1 target into the executable v2 representation:
 
-- the same `source_id` may recur across different Scenes only when immutable source
-  metadata is identical; the weighted measurement remains context-scoped, and a
-  duplicate `source_id` binding inside one complete Scene is invalid;
+- same concrete source identity may recur within/across Scenes when immutable metadata
+  is identical; `variant_id` remains comparison-slot identity;
 - v2 operator names are reference-neutral:
   `power_ratio_target_over_reference_db` and `signed_target_minus_reference`;
+- Mode 2 averages only finite pair-valid per-grid dB values rather than inheriting
+  schema-v1 fail-fast behavior for an individual undefined grid ratio;
 - one Qt-free comparison authority exposes raw target/reference engineering values
-  and quality-oriented values; higher-is-better uses raw, lower-is-better negates raw
-  for both power modes, and signed/neutral quality is N/A;
+  and quality-oriented values;
 - complete v2 requires exact equality of duplicated SceneGeometry and per-attribute
   GridGeometry across variants;
-- ordinary result open performs filesystem I/O only for `manifest.json` and
-  `summary.npz`; deferred Scene-grid/detail references receive syntax-only path
-  validation until requested;
+- normal open is summary-first with deferred grid filesystem access;
 - optional detail references are opaque in Stage 2 and are not a frozen P5-D decode
   schema;
 - `publication_state=partial` is explicitly `UNSUPPORTED` until P5-C defines its
   concrete representation;
-- exact array names/dtypes/shapes, safety ceilings, fingerprint construction, and
+- exact arrays/dtypes/shapes, safety ceilings, fingerprint construction, and
   validation behavior are normative in `REMOTE_IQA_V2_SPEC.md`.
 
 ## P5 UX plan
@@ -429,16 +451,16 @@ Before P5-B resumes, the focused v2 migration must implement/test:
 - concrete v2 manifest/summary/grid fields and JSON/NPZ placement;
 - dtype/rank/shape constraints and justified v2 safety ceilings;
 - `measurement_context_id` construction;
-- N-way variant/cardinality validation;
-- cross-variant grid-correspondence validation;
+- N-way variant/cardinality and concrete-source reuse validation;
+- exact cross-variant grid-correspondence validation;
 - summary projection consistency tolerance;
-- canonical absolute and relative reductions;
-- deterministic v2 fixture/golden coverage;
+- canonical absolute and relative reductions, including finite-only Mode 2;
+- deterministic v2 fixture/golden/review-regression coverage;
 - explicit v1 read-only compatibility dispatch.
 
 PR #40 now contains repository-native v2 tests for these contracts, but it remains
-Draft until independent re-review and repository-pinned validation are observed.
-P5-B may not invent these semantics in UI code.
+Draft until independent latest-head re-review and repository-pinned validation are
+observed. P5-B may not invent these semantics in UI code.
 
 ## Deferred/future boundaries
 
