@@ -51,11 +51,12 @@ Schema v2 separates four identities:
 Display labels are metadata. They are not durable identity and need not be unique.
 Reference selection always uses `variant_id`.
 
-### 2.1 `source_id` reuse across Scenes
+### 2.1 `source_id` reuse across bindings
 
-A concrete source may legitimately participate in more than one Scene/context. The
-same `source_id` therefore **may recur across different Scenes** in one result, but all
-occurrences must carry identical immutable source identity metadata:
+A concrete source may legitimately participate in more than one Scene/context or in
+more than one variant slot of the same Scene. The same `source_id` therefore **may
+recur anywhere in one result**, but all occurrences must carry identical immutable
+source identity metadata:
 
 ```text
 source_id
@@ -70,15 +71,15 @@ manifest invalid.
 
 The reuse rule does **not** authorize weighted-measurement reuse. The same concrete
 source evaluated in a different Scene/cohort may have different effective weights,
-validity, and summaries; that measurement is identified by the Scene's distinct
-`measurement_context_id`.
+validity, and summaries; that measurement remains scoped by the Scene's
+`measurement_context_id` and the source/attribute binding in that context.
 
-Within one complete Scene, duplicate concrete-source binding is intentionally
-forbidden: each declared variant binds exactly one source and the `source_id` values
-inside that Scene are unique. An intentional identical-image A/B comparison must use
-distinct concrete source bindings if it occupies two variant slots. This is an
-explicit PixelScope schema-v2 constraint rather than an accidental consequence of
-global uniqueness.
+Inside one complete Scene, `variant_id` is the comparison-slot identity. Every
+declared variant is bound exactly once, but two or more variant slots may
+intentionally reference the same concrete `source_id`. This permits identical-source
+sanity comparisons without inventing a second image identity. Ordered
+`(variant_id, source_id, ...)` membership remains part of the context fingerprint, so
+this does not make variant bindings ambiguous.
 
 ## 3. Complete-result structural invariants
 
@@ -89,8 +90,7 @@ For `publication_state = "complete"`:
 - `scene_id` values are unique;
 - every Scene contains exactly one binding for every top-level variant;
 - Scene source bindings are serialized in the exact top-level variant order;
-- one Scene cannot contain duplicate `source_id` bindings;
-- repeated `source_id` values across Scenes must satisfy section 2.1;
+- repeated `source_id` values in the same or different Scenes satisfy section 2.1;
 - all variants in one Scene have equal original source dimensions;
 - all variants in one Scene carry exactly equal `SceneGeometry` values;
 - for each attribute, all variants in one Scene carry exactly equal `GridGeometry`
@@ -288,7 +288,7 @@ raw_db = 10 * log10((mean_target + epsilon) / (mean_ref + epsilon))
 `epsilon` is mandatory, finite, non-negative server-authored metadata in the same
 linear power domain.
 
-### 10.3 Power mode 2 — mean of grid log-ratios
+### 10.3 Power mode 2 — mean of finite grid log-ratios
 
 For each pair-valid cell:
 
@@ -298,8 +298,15 @@ P_ref[g]    = S1_ref[g]    / W_ref[g]
 grid_db[g]  = 10 * log10((P_target[g] + epsilon) / (P_ref[g] + epsilon))
 ```
 
-The Scene value is the **unweighted arithmetic mean** of finite `grid_db[g]` values.
-It is intentionally not a weighted mean of dB cells and need not equal mode 1.
+The Scene value is the **unweighted arithmetic mean of the finite `grid_db[g]`
+values only**. A pair-valid cell whose ratio is undefined/non-finite, for example
+`0/0` when `epsilon == 0`, contributes no Mode-2 sample; another pair-valid cell with
+a finite ratio still contributes normally. If no finite grid dB value remains, Mode
+2 is invalid with explicit no-finite-grid-ratio semantics. Negative power-domain
+cell means are invalid input rather than values to skip.
+
+Mode 2 is intentionally not a weighted mean of dB cells and need not equal mode 1.
+Historical schema-v1 behavior is not changed by this v2 rule.
 
 ### 10.4 Signed attributes
 
@@ -395,6 +402,7 @@ detail_artifacts[]      optional opaque relative-path strings
 
 Each source binding contains `variant_id`, immutable source metadata, one complete
 `geometry` record, and a `grids` object containing exactly every declared attribute.
+Repeated concrete `source_id` values are permitted as described in section 2.1.
 
 `detail_artifacts[]` is intentionally **opaque in schema v2 Stage 2**. A bare path is
 only a bounded reference and is not a permanent P5-D decode contract. P5-D may define
@@ -500,6 +508,17 @@ The executable v2 parser uses safety ceilings rather than runtime cache budgets:
 | source relative path | 2,048 characters |
 | artifact reference | 1,024 characters |
 
+The `1024` aggregate source-binding ceiling is a deliberate result-acceptance safety
+envelope, not a cache budget. P5 Stage-1 planning targeted roughly 300 compared source
+images, so 1024 provides more than 3x headroom for that production assumption while
+also bounding manifest/summary cardinality before allocation. It permits the full 512
+Scenes for the initial two-variant P5-C workflow, about 341 complete Scenes for a
+three-variant externally produced result, and 256 for four variants. P5-B may explore
+N-way results inside this envelope. A future production requirement beyond it must
+trigger an explicit schema/safety review and coordinated server/client change rather
+than a silent local override. The independent byte ceilings above remain additional
+bounds, not substitutes for this cardinality guard.
+
 NPZ input must be data-only. The reader rejects malformed ZIP/NPY structures,
 duplicate members, encrypted members, unsupported compression, unexpected members,
 object/pickle dtype, wrong dtype/rank/shape, oversized arrays/members/archives, and
@@ -546,12 +565,14 @@ Ready for Review, repository-native tests must cover:
 - hand-calculated weighted Scene reduction and comparison constants;
 - pooled versus equal-Scene Dataset summaries;
 - both power modes and their deliberate divergence;
+- Mode-2 mixed finite/undefined grid-ratio reduction and no-finite-ratio behavior;
 - signed target/reference delta and reference reversal;
 - centralized higher/lower/neutral quality-direction semantics;
 - pair-valid intersection and equal-Scene relative Dataset reduction;
 - projection tolerance and corrupted projections;
 - context fingerprint determinism/tampering;
-- complete cardinality, exact geometry/grid correspondence, and source-reuse policy;
+- complete cardinality, exact geometry/grid correspondence, cross-Scene source reuse,
+  and identical-source multi-variant binding;
 - negative/non-finite/zero power and epsilon behavior;
 - POSIX/Windows path escapes;
 - malformed/duplicate/encrypted/unsupported/object/wrong-shape/wrong-dtype/oversized NPZ;
