@@ -641,9 +641,10 @@ def _npy_bytes(array: np.ndarray[Any, Any]) -> bytes:
 def test_npz_duplicate_members_are_rejected(tmp_path: Path) -> None:
     path = tmp_path / "duplicate.npz"
     payload = _npy_bytes(np.asarray([1.0], dtype=np.float64))
-    with zipfile.ZipFile(path, "w") as archive:
-        archive.writestr("x.npy", payload)
-        archive.writestr("x.npy", payload)
+    with pytest.warns(UserWarning, match=r"Duplicate name: 'x\.npy'"):
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("x.npy", payload)
+            archive.writestr("x.npy", payload)
     with pytest.raises(CorruptV2, match="duplicate members"):
         load_npz(
             path,
