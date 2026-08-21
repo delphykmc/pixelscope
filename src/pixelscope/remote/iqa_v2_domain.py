@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
 from pixelscope.remote.iqa_domain import (
     AttributeSpec,
     CompactAttributeData,
@@ -129,11 +131,11 @@ class GridSceneDataV2:
         index = self.variant_ids.index(variant_id)
         data = self.attributes[attribute_id]
         return CompactAttributeData(
-            weight_sum=data.weight_sum[index],
-            weighted_sum=data.weighted_sum[index],
-            weighted_square_sum=data.weighted_square_sum[index],
-            valid_count=data.valid_count[index],
-            valid_mask=data.valid_mask[index],
+            weight_sum=np.asarray(data.weight_sum)[index],
+            weighted_sum=np.asarray(data.weighted_sum)[index],
+            weighted_square_sum=np.asarray(data.weighted_square_sum)[index],
+            valid_count=np.asarray(data.valid_count)[index],
+            valid_mask=np.asarray(data.valid_mask)[index],
         )
 
 
