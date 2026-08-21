@@ -343,9 +343,7 @@ class IqaWorkspaceWidget(QWidget):
             self.reference_variant_id if preserve_reference else None
         )
         self._model = model
-        attribute_ids = {
-            item.attribute_id for item in model.result.attributes
-        }
+        attribute_ids = {item.attribute_id for item in model.result.attributes}
         if previous_attribute not in attribute_ids:
             self._selected_attribute_id = model.result.attributes[0].attribute_id
         scene_ids = {scene.scene_id for scene in model.result.scenes}
@@ -379,9 +377,7 @@ class IqaWorkspaceWidget(QWidget):
             if model.is_v2
             else "schema v1 · read-only compatibility"
         )
-        self.result_label.setText(
-            f"Job/result {result.result_id} · {mode}"
-        )
+        self.result_label.setText(f"Job/result {result.result_id} · {mode}")
         self.dataset_label.setText(
             f"{len(result.scenes)} Scenes · {source_count} Scene sources · "
             f"{len(result.attributes)} attributes · {len(model.variants)} variants"
@@ -475,8 +471,7 @@ class IqaWorkspaceWidget(QWidget):
         reference = self.reference_variant_id
         if reference == ABSOLUTE_REFERENCE_ID:
             return tuple(
-                (item.variant_id, item.label)
-                for item in self._model.variants
+                (item.variant_id, item.label) for item in self._model.variants
             )
         reference_label = next(
             item.label
@@ -664,9 +659,7 @@ class IqaWorkspaceWidget(QWidget):
         width = 0.72 / max(1, len(columns))
         hover_lines = [[attribute.name] for attribute in attributes]
         for series_index, (variant_id, label) in enumerate(columns):
-            offset = (
-                series_index - (len(columns) - 1) / 2.0
-            ) * width
+            offset = (series_index - (len(columns) - 1) / 2.0) * width
             values = np.asarray(
                 [
                     _stat_plot_value(
@@ -918,7 +911,7 @@ class IqaWorkspaceWidget(QWidget):
         reference = self.reference_variant_id
         if (
             reference != ABSOLUTE_REFERENCE_ID
-            and not self._model.relative_ready
+            and not self._model.reference_ready(reference)
         ):
             self.show_relative_loading(reference)
             self.relative_requested.emit(reference)
@@ -1090,15 +1083,20 @@ class IqaWorkspaceController(QObject):
         return generation
 
     @Slot(str)
-    def prepare_relative(self, _reference_variant_id: str) -> None:
+    def prepare_relative(self, reference_variant_id: str) -> None:
         model = self.workspace.model
-        if not self._active or model is None or model.relative_ready:
+        if (
+            not self._active
+            or model is None
+            or model.reference_ready(reference_variant_id)
+        ):
             return
         if self._relative_worker is not None:
             return
         worker = TaskWorker(
-            _prepare_relative_model,
+            _prepare_reference_model,
             model,
+            reference_variant_id,
             generation=self._generation,
         )
         worker.signals.succeeded.connect(self._relative_loaded)  # type: ignore[attr-defined]
@@ -1269,8 +1267,11 @@ def _load_workspace_result(root: Path | str) -> _WorkspaceLoadPayload:
     return _WorkspaceLoadPayload(outcome, model)
 
 
-def _prepare_relative_model(model: IqaExplorerModel) -> IqaExplorerModel:
-    return model.prepare_relative()
+def _prepare_reference_model(
+    model: IqaExplorerModel,
+    reference_variant_id: str,
+) -> IqaExplorerModel:
+    return model.prepare_reference(reference_variant_id)
 
 
 def _stat_text(statistic: ScalarStatistic) -> str:
