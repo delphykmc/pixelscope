@@ -5,7 +5,6 @@ from PySide6.QtCore import (
     QEvent,
     QObject,
     QPointF,
-    QRect,
     QRectF,
     QSettings,
     QSize,
@@ -97,17 +96,12 @@ class PlotsDockTitleBar(QWidget):
         self.register_geometry_setting(geometry_setting)
         self._restore_to_docked = False
         self._restore_area = Qt.DockWidgetArea.BottomDockWidgetArea
-        window = self._main_window()
-        owner_settings = getattr(window, "settings", None) if window is not None else None
-        self._settings = owner_settings if isinstance(owner_settings, QSettings) else QSettings()
+        self._settings = QSettings()
         stored_geometry = self._settings.value(self._geometry_setting)
         self._floating_geometry = (
             QByteArray(stored_geometry)
             if isinstance(stored_geometry, QByteArray | bytes)
             else QByteArray()
-        )
-        self._floating_rect = (
-            QRect(stored_geometry) if isinstance(stored_geometry, QRect) else QRect()
         )
         self._restoring_floating_geometry = False
         self.title = QLabel(title)
@@ -152,8 +146,14 @@ class PlotsDockTitleBar(QWidget):
         if (
             watched is self._dock
             and event.type() in (QEvent.Type.Move, QEvent.Type.Resize)
+            and self._dock.isFloating()
+            and not self._dock.isMaximized()
+            and not self._restoring_floating_geometry
         ):
-            self._save_floating_geometry()
+            geometry = self._dock.saveGeometry()
+            if not geometry.isEmpty():
+                self._floating_geometry = geometry
+                self._settings.setValue(self._geometry_setting, geometry)
         return super().eventFilter(watched, event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
@@ -195,44 +195,19 @@ class PlotsDockTitleBar(QWidget):
 
     def _floating_changed(self, floating: bool) -> None:
         self.sync(floating)
-        if not floating:
-            return
-        if self._floating_geometry.isEmpty() and not self._floating_rect.isValid():
-            self._save_floating_geometry()
-            QTimer.singleShot(0, self._save_floating_geometry)
+        if not floating or self._floating_geometry.isEmpty():
             return
         self._restoring_floating_geometry = True
-        if not self._floating_geometry.isEmpty():
-            self._dock.restoreGeometry(self._floating_geometry)
-        else:
-            self._dock.setGeometry(self._floating_rect)
+        self._dock.restoreGeometry(self._floating_geometry)
         QTimer.singleShot(0, self._finish_geometry_restore)
 
     def _finish_geometry_restore(self) -> None:
         self._restoring_floating_geometry = False
-        self._save_floating_geometry()
-
-    def _save_floating_geometry(self) -> None:
-        if (
-            not self._dock.isFloating()
-            or self._dock.isMaximized()
-            or self._restoring_floating_geometry
-        ):
-            return
-        geometry = self._dock.saveGeometry()
-        if not geometry.isEmpty():
-            self._floating_geometry = geometry
-            self._floating_rect = QRect()
-            self._settings.setValue(self._geometry_setting, geometry)
-            self._settings.sync()
-            return
-        rect = QRect(self._dock.geometry())
-        if not rect.isValid() or rect.width() <= 0 or rect.height() <= 0:
-            return
-        self._floating_geometry = QByteArray()
-        self._floating_rect = rect
-        self._settings.setValue(self._geometry_setting, rect)
-        self._settings.sync()
+        if self._dock.isFloating() and not self._dock.isMaximized():
+            geometry = self._dock.saveGeometry()
+            if not geometry.isEmpty():
+                self._floating_geometry = geometry
+                self._settings.setValue(self._geometry_setting, geometry)
 
     def clear_persisted_geometry(self) -> None:
         """Clear registered workspace dock geometry and normalize managed floating docks."""
@@ -242,19 +217,14 @@ class PlotsDockTitleBar(QWidget):
         window = self._main_window()
         if window is None:
             self._floating_geometry = QByteArray()
-            self._floating_rect = QRect()
             return
         for dock in window.findChildren(QDockWidget):
             title_bar = dock.titleBarWidget()
-            managed = (
-                isinstance(title_bar, PlotsDockTitleBar)
-                or dock.objectName() == "iqaWorkspaceDock"
-            )
+            managed = isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() == "iqaWorkspaceDock"
             if not managed:
                 continue
             if isinstance(title_bar, PlotsDockTitleBar):
                 title_bar._floating_geometry = QByteArray()
-                title_bar._floating_rect = QRect()
                 title_bar._settings.remove(title_bar._geometry_setting)
                 title_bar._remember_dock_area()
             if not dock.isFloating():
