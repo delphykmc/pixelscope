@@ -145,7 +145,9 @@ def compare_v2_sources(
     reference: CompactAttributeData,
 ) -> dict[ComparisonMode, RelativeStatisticV2]:
     """Compare target/reference using v2-neutral operators and one quality authority."""
-    input_reason = _comparison_input_reason(target) or _comparison_input_reason(reference)
+    input_reason = _comparison_input_reason(target) or _comparison_input_reason(
+        reference
+    )
     if input_reason is not None:
         return _invalid_relative_result(spec.value_kind, input_reason)
 
