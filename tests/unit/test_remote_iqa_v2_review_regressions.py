@@ -104,7 +104,9 @@ def test_same_concrete_source_may_bind_multiple_variants_in_one_scene(
 
     parsed = parse_complete_manifest(root, manifest)
     parsed_scene = parsed.scenes[0]
-    assert parsed_scene.sources[0].source.source_id == parsed_scene.sources[1].source.source_id
+    first_source_id = parsed_scene.sources[0].source.source_id
+    second_source_id = parsed_scene.sources[1].source.source_id
+    assert first_source_id == second_source_id
 
     same_data = _compact([1.0, 2.0])
     comparison = compare_v2_sources(_power_spec(), same_data, same_data)
