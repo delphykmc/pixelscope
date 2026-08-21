@@ -534,3 +534,40 @@ Schedule only when profiling/user-visible latency demonstrates need:
 - native/SIMD display-gain optimization;
 - eager/full download of 2K IQA maps;
 - WebSocket job progress when polling proves insufficient.
+
+## P5-A2 Stage-2 executable update — PR #40
+
+This addendum supersedes the interim Stage-1/Stage-2 status wording above without
+removing historical planning detail.
+
+- P5-A2 Stage 1 / PR #39 is **Complete** at
+  `4f2d58f36152cbebd1110a2aed09afacc6f09596`.
+- P5-A2 Stage 2 is **Active** in Draft PR #40 on
+  `feature/p5-a2-executable-schema-v2`.
+- P5-B / PR #38 remains schema-dependent, paused, and untouched until Stage 2 is
+  reviewed, validated, and merged.
+
+Stage 2 freezes the concrete executable-v2 contract before P5-B resumes:
+
+- canonical v1/v2 dispatch with v1 read-only compatibility and no synthetic upgrade;
+- N-way `variant_id` identity separate from reusable concrete `source_id`;
+- repeated `source_id` occurrences are allowed across Scenes and across variant slots
+  in one Scene only when immutable concrete-source metadata is identical;
+- deterministic `measurement_context_id = mc2:<sha256>` over canonical
+  Scene/source/provenance/geometry JSON;
+- exact complete-result variant cardinality and exact cross-variant duplicated
+  Scene/Grid geometry equality;
+- reference-neutral v2 operators
+  `power_ratio_target_over_reference_db` / `signed_target_minus_reference`;
+- one Qt-free raw/quality-direction authority for both power modes;
+- summary-first ordinary open limited to `manifest.json` + `summary.npz` filesystem
+  I/O, with Scene-grid/detail filesystem access deferred until requested;
+- optional detail references intentionally opaque until a typed P5-D detail schema;
+- Stage-2 `PARTIAL` explicitly `UNSUPPORTED` until P5-C freezes its representation;
+- repository-native v2 numerical/corruption/safety tests plus real v1 dispatcher
+  regression.
+
+The exact executable field placement, dtype/shape rules, safety ceilings, numerical
+tolerance, and fingerprint construction are normative in
+`docs/REMOTE_IQA_V2_SPEC.md`. PR #40 remains Draft until independent re-review and
+repository-pinned validation are observed.

@@ -1,10 +1,10 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — P5-A2 schema-v2 migration; P5-B schema-dependent/paused
+Status: Active — P5-A2 Stage 2 executable-v2 migration / PR #40; P5-B schema-dependent/paused
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
 Last updated: 2026-08-21
-Inherited merged baseline: P5-A / PR #37 / main
-`fceb16f6e43c48ec65fbf7ebbcc103b56716b686`
+Inherited merged baseline: P5-A2 Stage 1 / PR #39 / main
+`4f2d58f36152cbebd1110a2aed09afacc6f09596`
 
 Authoritative P5 documents:
 
@@ -38,8 +38,9 @@ P5 is run as an orchestrated multi-PR program.
 
 When implementation exposes a missing cross-slice decision, it stops at the existing
 contract boundary. The orchestrator/owner updates durable docs before dependent code
-continues. PR #39 is an example of this governance rule: P5-B exposed a schema issue,
-so the schema is being corrected on `main` rather than implicitly inside P5-B.
+continues. PR #39 demonstrated this governance rule: P5-B exposed a schema issue, so
+the schema contract was corrected on `main` before the executable Stage-2 migration
+and before P5-B resumes.
 
 ## Goal
 
@@ -83,29 +84,37 @@ P5 must not create another authority for Files/Selected/Current Comparison Page,
 source residency/protection/preload/generation, Difference/cache, Display Gain, or
 Session v1. Remote batch membership and passive result browsing remain feature-local.
 
-## Current schema-v2 target
+## Current executable schema-v2 target
 
-The merged P5-A/schema-v1 implementation is historical executable compatibility. The
-current target follows:
+The merged P5-A/schema-v1 implementation is historical executable compatibility. PR
+#39 is the merged durable schema-v2 contract. PR #40 is the active executable Stage-2
+migration.
 
 > **Server owns measurement; PixelScope owns reference-dependent comparison,
 > reductions, and visualization.**
 
 ### Identity
 
-- `variant_id` = stable comparison-group/configuration across Scenes;
-- `source_id` = concrete image identity;
+- `variant_id` = stable comparison-group/configuration across Scenes and the local
+  Reference/target slot identity;
+- `source_id` = stable concrete-image identity;
 - `scene_id` = evaluation Scene;
 - `measurement_context_id` = Scene evaluation context governing the published
   weighted measurement.
 
-For a normal non-PARTIAL complete result, each Scene contains exactly one source for
-each declared variant. Comparable variants in one Scene/attribute share compatible
-physical grid topology. Equal original dimensions/no client alignment remain required.
+For a normal non-PARTIAL complete result, each Scene contains exactly one binding for
+each declared variant in top-level variant order. One concrete `source_id` may appear
+in multiple Scenes or multiple variant slots when the immutable concrete-source
+metadata is identical. Variant identity remains `variant_id`; repeated source identity
+does not imply reuse of weighted measurements.
+
+Comparable variants in one Scene/attribute carry **exactly equal** source-to-analysis
+and grid geometry metadata. Equal original dimensions/no client alignment remain
+required.
 
 "Absolute" means reference-independent inside the published Scene context. A weighted
 measurement is not globally reusable across incompatible Scene contexts solely because
-a source hash matches.
+a source ID or hash matches.
 
 ### Server measurement authority
 
@@ -143,23 +152,45 @@ physical grid topology.
 Power modes:
 
 1. ratio of pair-valid aggregate weighted means;
-2. arithmetic mean of finite pair-valid grid log-ratios.
+2. unweighted arithmetic mean of **finite** pair-valid grid log-ratios.
+
+For mode 2, an undefined/non-finite per-cell ratio such as epsilon-zero `0/0` does not
+invalidate a Scene when another pair-valid cell has a finite dB value; only finite
+cell dB values enter the arithmetic mean. If none remain, the mode is invalid.
+Negative power-domain input remains invalid rather than skippable.
 
 Signed mode: pair-valid weighted target mean minus pair-valid weighted reference mean.
+
+The Qt-free v2 comparison layer also owns quality orientation for both power modes:
+higher-is-better keeps raw sign, lower-is-better negates raw sign, and signed/neutral
+attributes expose no quality delta.
 
 **Owner-selected default relative Dataset Overview:** compute the selected comparison
 independently for each valid Scene, then arithmetic-mean the valid Scene comparison
 values. This rule applies to both power modes and signed deltas.
 
-### Artifact purpose vs loading policy
+### Artifact purpose and summary-first filesystem boundary
 
 1. **Summary metadata** — small open-time absolute Dataset/Scene summaries.
 2. **Grid measurement artifacts** — primary analytical data for local reference
    comparisons and spatial views.
-3. **Optional detail artifacts** — larger per-pixel/2K/debug data.
+3. **Optional detail artifacts** — opaque bounded references in Stage 2; typed detail
+   decode semantics are deferred.
 
-The schema does not require grid data to be always eager or inspected-Scene-only lazy.
-Actual loading/batching/cache is a bounded, non-blocking client policy.
+Ordinary schema-v2 open performs filesystem I/O for `manifest.json` and `summary.npz`
+only. Scene-grid/detail path syntax is validated without touching those files. Scene
+grid existence/containment/archive/array validation occurs on `load_grid_scene()`.
+Actual grid loading/batching/cache remains a bounded, non-blocking client policy for
+P5-B/P5-F.
+
+### Safety envelope
+
+The Stage-2 executable parser freezes bounded manifest/NPZ/cardinality input. The
+aggregate `1024` Scene-source-binding ceiling is deliberate: Stage-1 planning assumed
+roughly 300 compared source images, so it provides more than 3x headroom and still
+permits all 512 Scenes for the initial two-variant P5-C workflow. It is an acceptance
+safety envelope, not a cache budget. Larger production requirements require an
+explicit coordinated schema/safety review rather than a silent local override.
 
 ### v1 compatibility
 
@@ -172,8 +203,8 @@ Actual loading/batching/cache is a bounded, non-blocking client policy.
 ### PARTIAL direction
 
 Durable PARTIAL results remain owner-approved and successful Scene work must be
-preservable. P5-C owns detailed missing-variant/failure/terminal/publication/cancel
-semantics; it does not re-decide whether PARTIAL is allowed.
+preservable. Stage 2 explicitly returns `UNSUPPORTED` for v2 PARTIAL because P5-C
+owns the detailed missing-variant/failure/terminal/publication/cancel semantics.
 
 ## Geometry/input baseline carried forward
 
@@ -232,7 +263,7 @@ intent.
 |---|---|---|
 | 0 | P5-0 P4 Closure & P5 Program Setup | Complete — PR #36 |
 | 1 | P5-A Contract Fixtures & IQA Domain / schema v1 | Complete — PR #37 |
-| 2 | P5-A2 Schema v2 migration | Active — Stage 1 PR #39, Stage 2 executable migration follows |
+| 2 | P5-A2 Schema v2 migration | **Active — Stage 1 PR #39 merged; Stage 2 executable migration PR #40 Draft** |
 | 3 | P5-B IQA Workspace & Local Result Exploration | Paused — schema-dependent until P5-A2 Stage 2 merges |
 | 4 | P5-C Submission & Shared Storage | Planned — C1 + detailed C2 gates pending; PARTIAL allowed |
 | 5 | P5-D Viewer-linked Scene Inspection | Planned |
@@ -257,12 +288,9 @@ but its server-authored pairwise result model is no longer the current target.
 
 ## P5-A2 — Schema v2 migration — Active
 
-### Stage 1 — docs/schema contract revision / PR #39
+### Stage 1 — durable contract revision / PR #39 — Complete
 
-Goal: replace pairwise-centered numerical ownership with source-measurement authority
-before more P5-B implementation depends on the old shape.
-
-PR #39 must freeze and durably reconcile:
+PR #39 merged at `4f2d58f36152cbebd1110a2aed09afacc6f09596` and froze:
 
 - Scene-context meaning of absolute measurement;
 - `variant_id` / `source_id` / `measurement_context_id` identities;
@@ -279,26 +307,32 @@ PR #39 must freeze and durably reconcile:
 - separation of artifact purpose from loading/cache policy;
 - P5 durable system-of-record docs.
 
-PR #39 is docs-only and does not modify P5-B runtime/UI code.
+PR #39 was docs/schema-contract-only and did not modify P5-B runtime/UI code.
 
-### Stage 2 — focused executable-v2 domain/fixture/parser migration
+### Stage 2 — focused executable-v2 domain/fixture/parser migration — Active / PR #40
 
 This must land on `main` **before P5-B resumes**.
 
-Required implementation gates:
+PR #40 implements and freezes:
 
 - versioned v2 domain/manifest/summary/grid models;
 - concrete JSON/NPZ field placement and dtype/shape constraints;
-- justified v2 safety ceilings;
+- bounded and justified v2 safety ceilings;
 - `measurement_context_id` construction/fingerprint rules;
-- complete-result variant/cardinality/grid-correspondence validation;
+- complete-result variant/cardinality/exact-grid-correspondence validation;
+- reusable concrete `source_id` with immutable metadata equality, including
+  identical-source multi-variant bindings;
 - summary projection consistency tolerance validation;
-- local v2 reduction helpers and deterministic goldens;
-- N-way fixture coverage;
+- v2-owned finite-grid Mode-2 reduction, Mode-1, signed, and quality-orientation
+  helpers;
+- deterministic N-way and hand-calculated goldens plus corruption/limit regressions;
 - explicit v1 read-only compatibility dispatch;
-- safe corruption/future-version behavior.
+- safe corruption/future-version behavior;
+- summary-first filesystem boundary and opaque detail references;
+- explicit Stage-2 `UNSUPPORTED` handling for PARTIAL.
 
-No P5-B UI policy is introduced in this stage.
+Current remaining closure gates are repository-pinned validation and fresh independent
+latest-head review. No P5-B UI policy is introduced in this stage.
 
 ## P5-B — IQA Workspace & Local Result Exploration — Paused
 
@@ -310,9 +344,10 @@ After P5-A2 Stage 2 merges:
 1. rebase P5-B onto latest `main`;
 2. consume the executable v2 Open Result/domain path;
 3. support N-way `variant_id` Reference selection;
-4. show fast absolute summary-based Overview/Scene Trend;
+4. show fast absolute summary-based Overview and Scene Trend;
 5. default absolute Dataset Overview to `pooled_weighted_mean`;
-6. derive requested target/reference values locally from grid measurements;
+6. derive requested target/reference values locally from grid measurements using the
+   canonical raw/quality comparison helpers;
 7. default relative Overview to arithmetic mean of valid Scene comparisons;
 8. keep grid I/O/numerical work outside the Qt UI thread;
 9. expose bounded Loading/Calculating state and reject stale callbacks;
@@ -458,33 +493,3 @@ rejection, and teardown safety.
    dependent code continues;
 9. latest head is re-reviewed when blockers were found;
 10. only then does the orchestrator recommend merge and prepare the next slice.
-
-## Validation policy
-
-### Docs-only slices
-
-```powershell
-.\.venv\Scripts\python.exe scripts\check_docs.py
-.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_docs_contract.py
-git diff --check
-```
-
-### Runtime/UI slices
-
-The repository owner uses the existing Windows `.venv`; implementation agents do not
-spend work trying to bootstrap/search an unknown local environment.
-
-Run focused tests first, then repository-standard checks before merge as appropriate:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q <focused tests>
-.\.venv\Scripts\python.exe scripts\check_docs.py
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
-.\.venv\Scripts\python.exe -m ruff format --check .
-.\.venv\Scripts\python.exe -m mypy src
-.\.venv\Scripts\python.exe -m pip check
-git diff --check
-```
-
-Only observed validation is recorded as PASS.

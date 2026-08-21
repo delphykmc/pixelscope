@@ -477,14 +477,14 @@ CI gate without first observing PySide6/pytest-qt/offscreen reliability and
 acceptable suite runtime/resource use on the target runner. Windows CI
 introduction is therefore deferred; packaging/installer CI remains P7.
 
-## P5-A deterministic Remote IQA result contract
+## P5-A deterministic Remote IQA result contract — historical schema v1
 
 `tests/unit/test_remote_iqa_v1.py` generates and consumes an 11-Scene production-
-shaped result without network, GPU, or Qt UI. It verifies all ten attributes,
-two-source and 3-source identity, dynamic grids, optional detail, exact epsilon/A-B/
-quality/bias orientation, W/S1/S2/count/valid recomposition, pairwise intersections,
-both official aggregation modes, invalid results, non-integer affine geometry, and
-publication/artifact safety.
+shaped schema-v1 result without network, GPU, or Qt UI. It verifies all ten
+attributes, two-source and 3-source identity, dynamic grids, optional detail, exact
+epsilon/A-B/quality/bias orientation, W/S1/S2/count/valid recomposition, pairwise
+intersections, both official aggregation modes, invalid results, non-integer affine
+geometry, and publication/artifact safety.
 
 The Tier-1 fixture oracle is independent from production recomposition, with separate
 hand-calculated exact golden assertions. Review regressions also cover zero-epsilon
@@ -496,14 +496,76 @@ adversarial archive/member metadata.
 Safety coverage includes incomplete publication, dimension mismatch, missing and
 corrupt compact data, traversal/absolute/NUL/symlink escape, object arrays, malformed
 dtype/rank/shape, and declared/actual safety-ceiling rejection before unrestricted
-NumPy allocation or decompression. The focused command is:
+NumPy allocation or decompression. The historical focused command is:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q tests\unit\test_remote_iqa_v1.py tests\unit\test_remote.py
 ```
 
-P5-A remains a runtime slice, so the complete Standard validation matrix above is
-also required before review.
+Schema v1 remains read-only compatibility after P5-A2; its historical aggregation
+behavior is not silently changed to match v2.
+
+## P5-A2 Stage 2 deterministic executable-v2 contract
+
+PR #40 must be validated as the executable schema-v2 authority, not only as a parser
+round-trip. The focused files are:
+
+```text
+tests/unit/test_remote_iqa_v2.py
+tests/unit/test_remote_iqa_v2_limits.py
+tests/unit/test_remote_iqa_v2_review_regressions.py
+```
+
+The v2 golden/safety matrix must establish at minimum:
+
+- canonical dispatch: real schema-v1 golden remains read-only while schema-v2 uses
+  the native v2 reader and future versions are unsupported;
+- deterministic N-way `variant_id`/source/context identity and exact variant order;
+- repeated `source_id` acceptance within/across Scenes only when immutable concrete
+  metadata matches, including an identical-source multi-variant zero-delta sanity case;
+- deterministic `measurement_context_id` and tamper rejection;
+- canonical Scene `ΣS1/ΣW`, pooled Dataset, and equal-Scene Dataset statistics using
+  hand-calculated cases that distinguish the reductions;
+- Mode 1 ratio-of-weighted-means and Mode 2 unweighted mean of **finite** per-grid
+  log-ratios, including a mixed `0/0` + finite-cell case and a no-finite-ratio case;
+- reference reversal, signed target-minus-reference, and centralized higher/lower/
+  neutral quality orientation;
+- pair-valid support, negative/non-finite/zero power, epsilon behavior, inconsistent
+  moments, and projection-tolerance corruption;
+- COMPLETE cardinality, exact cross-variant geometry/grid correspondence, and no
+  client alignment/imputation;
+- summary-first open proving Scene grid/detail files are not touched until the
+  explicit grid-load boundary;
+- POSIX/Windows path traversal/absolute/UNC rejection and deferred containment;
+- malformed, duplicate, encrypted, unsupported-compression, object/pickle,
+  wrong-dtype/rank/shape, declared-size and bounded archive/member/array failures;
+- explicit parser ceilings for variants, Scenes, attributes, aggregate source
+  bindings, grid cells, detail references, manifest, summary, Scene artifact,
+  archive, member, and ndarray size;
+- v2 PARTIAL remaining `UNSUPPORTED` until P5-C freezes its detailed shape.
+
+The aggregate `1024` source-binding ceiling is an acceptance safety envelope rather
+than a cache budget. Its merge rationale is Stage-1's approximately 300-source
+production planning assumption with >3x headroom; future larger requirements require
+explicit schema/safety review.
+
+Run the focused compatibility/v2 suite before the standard repository contract:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_remote_iqa_v1.py `
+    tests\unit\test_remote_iqa_v2.py `
+    tests\unit\test_remote_iqa_v2_limits.py `
+    tests\unit\test_remote_iqa_v2_review_regressions.py `
+    tests\unit\test_remote.py
+```
+
+Because PR #40 changes `src/`, `tests/`, and durable docs, the full Standard
+validation matrix at the top of this document and the broader applicable pytest
+regression suite remain required before merge. A reduced/pre-review harness result
+must not be promoted into a latest-head PASS claim. At the time this Stage-2 quality
+contract was written, repository-pinned latest-head pytest/Ruff/mypy/docs/pip/diff
+validation had not yet been observed.
 
 ## Completion evidence
 
