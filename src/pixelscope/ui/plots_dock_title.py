@@ -146,14 +146,8 @@ class PlotsDockTitleBar(QWidget):
         if (
             watched is self._dock
             and event.type() in (QEvent.Type.Move, QEvent.Type.Resize)
-            and self._dock.isFloating()
-            and not self._dock.isMaximized()
-            and not self._restoring_floating_geometry
         ):
-            geometry = self._dock.saveGeometry()
-            if not geometry.isEmpty():
-                self._floating_geometry = geometry
-                self._settings.setValue(self._geometry_setting, geometry)
+            self._save_floating_geometry()
         return super().eventFilter(watched, event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
@@ -195,7 +189,10 @@ class PlotsDockTitleBar(QWidget):
 
     def _floating_changed(self, floating: bool) -> None:
         self.sync(floating)
-        if not floating or self._floating_geometry.isEmpty():
+        if not floating:
+            return
+        if self._floating_geometry.isEmpty():
+            QTimer.singleShot(0, self._save_floating_geometry)
             return
         self._restoring_floating_geometry = True
         self._dock.restoreGeometry(self._floating_geometry)
@@ -203,11 +200,20 @@ class PlotsDockTitleBar(QWidget):
 
     def _finish_geometry_restore(self) -> None:
         self._restoring_floating_geometry = False
-        if self._dock.isFloating() and not self._dock.isMaximized():
-            geometry = self._dock.saveGeometry()
-            if not geometry.isEmpty():
-                self._floating_geometry = geometry
-                self._settings.setValue(self._geometry_setting, geometry)
+        self._save_floating_geometry()
+
+    def _save_floating_geometry(self) -> None:
+        if (
+            not self._dock.isFloating()
+            or self._dock.isMaximized()
+            or self._restoring_floating_geometry
+        ):
+            return
+        geometry = self._dock.saveGeometry()
+        if geometry.isEmpty():
+            return
+        self._floating_geometry = geometry
+        self._settings.setValue(self._geometry_setting, geometry)
 
     def clear_persisted_geometry(self) -> None:
         """Clear registered workspace dock geometry and normalize managed floating docks."""
