@@ -192,6 +192,58 @@ production contracts. Keep cross-platform fixtures, Qt lifetime ownership, and
 runtime-identity types explicit so focused validation reaches the behavior it is
 supposed to test.
 
+### Qt settings and persistence harness lessons from P5-B
+
+P5-B exposed a test-environment failure that initially looked like a Windows Qt
+floating-dock regression. The production dock geometry path was working, but the
+new `pytest-qt` test constructed `MainWindow` under the QApplication created by
+the test harness instead of going through PixelScope's normal application setup.
+That difference changed the effective `QSettings` environment and caused several
+rounds of unnecessary production-side geometry workarounds before the harness
+mismatch was isolated.
+
+Use these rules for later Qt persistence tests:
+
+- **Reproduce the application's QSettings identity or isolate QSettings
+  explicitly.** PixelScope production startup establishes the application and
+  organization identity before constructing settings-backed UI. A test that
+  directly constructs `MainWindow` under `pytest-qt` may bypass that setup.
+  Settings-sensitive tests should either exercise the real application setup or,
+  preferably for deterministic unit/UI coverage, set an isolated temporary
+  `QSettings` format/path and clear it before each test. Reuse the established
+  P1-E fixture pattern instead of depending on the developer machine's registry
+  or process-global Qt defaults.
+- **Compare a failing new test with the nearest already-passing analogue before
+  modifying production.** In this case the existing Plots floating-geometry test
+  passed on the same Windows machine because it already isolated `QSettings`,
+  while the new IQA test did not. A side-by-side harness comparison would have
+  identified the missing setup much earlier than changing timers, resize-event
+  handling, geometry representations, or settings ownership.
+- **Separate production-composition evidence from harness evidence.** When a
+  focused pytest case fails, run the smallest production-like diagnostic using
+  the actual application initialization and print/inspect the relevant branch
+  predicates (`isFloating`, restore flags, `saveGeometry().isEmpty()`, settings
+  identity, and persisted-key presence). If production composition succeeds but
+  pytest fails, investigate fixture/application initialization first. Do not add
+  fallback behavior to production merely to satisfy an artificial test state.
+- **Remove diagnostic workarounds after the root cause is known.** Temporary
+  instrumentation or defensive changes can be useful while narrowing a Qt
+  lifecycle problem, but the final patch should return to the smallest production
+  contract that the evidence supports. P5-B reverted the timer/geometry fallback
+  experiments once the QSettings harness mismatch was proven.
+- **Expected warnings are assertions, not validation noise.** If a safety test
+  intentionally triggers a library warning while constructing malformed input,
+  capture it narrowly with `pytest.warns(..., match=...)` (or an equally scoped
+  mechanism) instead of leaving a warning summary or adding a broad global
+  suppression. This keeps clean validation output while detecting unexpected
+  changes in the fixture-construction behavior.
+
+The practical diagnostic order is: verify the actual branch/head, compare with a
+known-good analogous test, reproduce through production-like application setup,
+inspect the smallest runtime predicates, then change code only at the layer the
+evidence identifies. This reduces the chance that a harness defect turns into a
+production regression.
+
 ### Durable-document preservation lessons from P4-B
 
 P4-B also exposed a documentation failure mode with a much larger review cost than
