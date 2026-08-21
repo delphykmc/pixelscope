@@ -6,7 +6,7 @@ import json
 import math
 import zipfile
 from collections.abc import Callable
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 import numpy as np
@@ -61,13 +61,32 @@ def read_manifest(root: Path) -> dict[str, Any]:
     return value
 
 
-def safe_artifact(root: Path, reference: str) -> Path:
+def validate_artifact_reference(reference: str) -> Path:
+    """Validate path syntax without touching the filesystem.
+
+    This is the ordinary-open boundary for deferred Scene/detail artifacts. Both
+    POSIX and Windows traversal/absolute semantics are rejected independent of the
+    host OS; existence and containment are checked only when an artifact is opened.
+    """
     if "\x00" in reference:
         raise CorruptV2("artifact path contains NUL")
+    posix = PurePosixPath(reference)
     windows = PureWindowsPath(reference)
-    path = Path(reference)
-    if path.is_absolute() or windows.is_absolute() or windows.drive or ".." in path.parts:
+    if (
+        posix.is_absolute()
+        or windows.is_absolute()
+        or windows.drive
+        or ".." in posix.parts
+        or ".." in windows.parts
+    ):
         raise CorruptV2("artifact path must be a relative path beneath result root")
+    if not posix.parts or str(posix) in {"", "."}:
+        raise CorruptV2("artifact path must name a file beneath result root")
+    return Path(*posix.parts)
+
+
+def safe_artifact(root: Path, reference: str) -> Path:
+    path = validate_artifact_reference(reference)
     try:
         resolved_root = root.resolve(strict=True)
         resolved = (root / path).resolve(strict=True)
