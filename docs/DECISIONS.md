@@ -635,13 +635,16 @@ P4-F merged as PR #35; the P4-complete main baseline is
 - P4-D Saved/named/multiple ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle
   Line Profile remain deferred beyond P4.
 
-## P5 Remote IQA program decisions — executable schema v2 Stage 2 active
+## P5 Remote IQA program decisions — executable schema v2 / P5-B active
 
 P5-0 remains the docs-only transition from completed P4. P5-A / PR #37 merged schema
 v1 at `fceb16f6e43c48ec65fbf7ebbcc103b56716b686` and is the **historical executable
 read-only result baseline**. P5-A2 Stage 1 / PR #39 merged at
 `4f2d58f36152cbebd1110a2aed09afacc6f09596` and froze the durable schema-v2
-ownership contract. P5-A2 Stage 2 / PR #40 is the active executable migration.
+ownership contract. P5-A2 Stage 2 / PR #40 merged at
+`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6` and is the executable-v2 authority.
+P5-B / PR #38 is now Active / merge candidate on that baseline; P5-C is the next
+planned slice after P5-B closes.
 
 `docs/REMOTE_IQA_V2_SPEC.md` is the normative current result/math/artifact contract.
 `REMOTE_IQA_V1_SPEC.md` remains historical and is not rewritten.
@@ -686,6 +689,10 @@ ownership contract. P5-A2 Stage 2 / PR #40 is the active executable migration.
   representative/preprocessing/model/weighting provenance. Source equality never
   authorizes weighted-measurement reuse across incompatible contexts.
 - Display labels are non-identity metadata and need not be unique.
+- **Absolute presentation mode is client-local state, not a `variant_id`.** P5-B must
+  not reserve a hidden string inside the server-owned `variant_id` namespace. Every
+  schema-valid server variant ID, including a literal `__absolute__`, remains a real
+  selectable variant.
 
 ### Numerical and presentation decisions
 
@@ -712,6 +719,31 @@ ownership contract. P5-A2 Stage 2 / PR #40 is the active executable migration.
   quality delta.
 - Default relative Dataset Overview is the arithmetic mean of valid Scene comparison
   values for the selected mode.
+- P5-B keeps all declared variants in stable table/chart order across Absolute and
+  Relative presentation. In Relative mode the selected Reference is shown as a
+  presentation-only zero anchor; other values remain canonical target/reference raw
+  engineering values. Quality orientation is used where a quality-oriented hint is
+  explicitly required rather than silently changing the engineering-value sign.
+
+### P5-B loading, rollback, and source-boundary decisions
+
+- Summary-first v2 open does not load Scene-grid artifacts.
+- Selecting an unprepared Reference runs grid I/O and canonical comparison work off
+  the Qt thread. P5-B holds one Scene grid at a time, derives all requested
+  target/attribute scalar results, releases the grid, and retains only the derived
+  scalar cache for that prepared Reference.
+- A different unprepared Reference performs another bounded pass; P5-F owns final
+  cooperative cancellation/cache/preload tuning.
+- Failed or corrupt deferred Reference preparation is transactional at the UI level:
+  the Reference control returns to the last successfully presented mode/reference,
+  and the previously valid hierarchy/plots remain authoritative.
+- Scene cards are metadata-only. They display published variant/source/path/hash
+  identity but do not treat `relative_path` as an openable local-source authority.
+  Logical-root mapping, hash verification, native source opening, and viewer-linked
+  Inspect remain P5-D.
+- IQA dock float/dock/maximize/reset behavior reuses the Plots title-bar workspace
+  lifecycle and its separate workspace-geometry persistence rather than Settings
+  schema ownership.
 
 ### Bounded-input decisions
 
@@ -729,12 +761,13 @@ ownership contract. P5-A2 Stage 2 / PR #40 is the active executable migration.
 - Durable PARTIAL results remain an approved future direction, but Stage 2 returns
   `UNSUPPORTED` for v2 PARTIAL because P5-C still owns the detailed failure/missing-
   variant/terminal/publication/cancel schema.
-- P5-B / PR #38 remains paused and unmodified. It may not invent result/math semantics.
-  After PR #40 merges, P5-B rebases and consumes executable v2, including N-way
-  Reference, summary-first absolute views and centralized raw/quality comparison.
-- P5-C retains logical storage-root and detailed PARTIAL owner gates; its initial
-  user-facing submission workflow remains exactly two variants while the result
-  reader remains N-way-capable inside the v2 safety envelope.
+- P5-B / PR #38 consumes executable v2 and may not invent parser/result/math
+  semantics. It is Active / merge candidate pending latest reviewer-fix validation
+  and independent re-review.
+- P5-C is next after P5-B closes. It retains logical storage-root and detailed
+  PARTIAL owner gates; its initial user-facing submission workflow remains exactly
+  two variants while the result reader remains N-way-capable inside the v2 safety
+  envelope.
 
 ## Current resource policy
 
@@ -752,9 +785,9 @@ ownership contract. P5-A2 Stage 2 / PR #40 is the active executable migration.
 - Comparison Page navigation, Pick membership, Session Save/Open, P4-E export, and
   Remote IQA result membership introduce no Selected-wide speculative
   preload/cache/residency owner.
-- Future schema-v2 result-grid caching is feature-local and does not alter decoded
-  source residency ownership; final cache/preload policy remains a P5-F measurement
-  decision.
+- P5-B Reference-grid preparation is feature-local and does not alter decoded source
+  residency ownership; final cache/preload/cancellation policy remains a P5-F
+  measurement decision.
 
 ## Validation and merge state
 
@@ -770,7 +803,16 @@ P4-complete main baseline is `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
 
 P5-0 is Complete as PR #36 at `ee7ca03`. P5-A/schema v1 is Complete as PR #37 at
 `fceb16f6e43c48ec65fbf7ebbcc103b56716b686`. P5-A2 Stage 1 / PR #39 is merged at
-`4f2d58f36152cbebd1110a2aed09afacc6f09596`. P5 is Active in P5-A2 Stage 2 / PR #40.
-P5-B / PR #38 remains schema-dependent and paused until Stage 2 merges.
+`4f2d58f36152cbebd1110a2aed09afacc6f09596`; P5-A2 Stage 2 / PR #40 is merged at
+`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`. P5-B / PR #38 is Active / merge
+candidate. P5-C is the next planned implementation slice after P5-B closes.
 
-Only validation actually observed for the current head may be recorded as PASS.
+The repository owner reported full/focused Windows pytest and requested static
+validation PASS on P5-B head `c77169d7db19ac7dd308c5f772d704c305761ba9`.
+Narrow reviewer-requested changes after that head—collision-proof Absolute display
+mode, failed deferred-Reference control restoration, regression tests, and durable-doc
+reconciliation—require fresh focused/static/docs validation and latest-head review
+before merge. Repository-wide Ruff formatting drift is deferred to a separate
+formatting-only PR by owner decision.
+
+Only validation actually observed for a named head may be recorded as PASS.
