@@ -718,7 +718,9 @@ class IqaWorkspaceWidget(QWidget):
         bottom_axis = plot.getAxis("bottom")
         bottom_axis.setStyle(
             autoExpandTextSpace=True,
+            autoReduceTextSpace=not crowded_ticks,
             hideOverlappingLabels=False,
+            tickTextHeight=40 if crowded_ticks else 18,
         )
         bottom_axis.setTicks(
             [[
