@@ -145,6 +145,10 @@ def compare_v2_sources(
     reference: CompactAttributeData,
 ) -> dict[ComparisonMode, RelativeStatisticV2]:
     """Compare target/reference using v2-neutral operators and one quality authority."""
+    input_reason = _comparison_input_reason(target) or _comparison_input_reason(reference)
+    if input_reason is not None:
+        return _invalid_relative_result(spec.value_kind, input_reason)
+
     legacy_operator = (
         ComparisonOperator.SIGNED_A_MINUS_B
         if spec.value_kind is ValueKind.SIGNED
@@ -204,6 +208,38 @@ def reduce_relative_scene_values(values: Iterable[ScalarStatistic]) -> ScalarSta
     if not math.isfinite(value):
         return ScalarStatistic.invalid("nonfinite_result")
     return ScalarStatistic(value, True)
+
+
+def _comparison_input_reason(data: CompactAttributeData) -> str | None:
+    weight = np.asarray(data.weight_sum)
+    weighted = np.asarray(data.weighted_sum)
+    squared = np.asarray(data.weighted_square_sum)
+    count = np.asarray(data.valid_count)
+    mask = np.asarray(data.valid_mask, dtype=np.bool_)
+    if not (
+        weight.shape == weighted.shape == squared.shape == count.shape == mask.shape
+    ):
+        return "shape_mismatch"
+    if (
+        np.any(mask & ~np.isfinite(weight))
+        or np.any(mask & ~np.isfinite(weighted))
+        or np.any(mask & ~np.isfinite(squared))
+    ):
+        return "nonfinite_input"
+    return None
+
+
+def _invalid_relative_result(
+    value_kind: ValueKind, reason: str
+) -> dict[ComparisonMode, RelativeStatisticV2]:
+    raw = ScalarStatistic.invalid(reason)
+    relative = RelativeStatisticV2(raw=raw, quality=ScalarStatistic.invalid(reason))
+    if value_kind is ValueKind.SIGNED:
+        return {ComparisonMode.SIGNED_DELTA: relative}
+    return {
+        ComparisonMode.RATIO_OF_WEIGHTED_MEANS: relative,
+        ComparisonMode.MEAN_OF_GRID_LOG_RATIOS: relative,
+    }
 
 
 def _variance(
