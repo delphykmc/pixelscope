@@ -96,7 +96,9 @@ class PlotsDockTitleBar(QWidget):
         self.register_geometry_setting(geometry_setting)
         self._restore_to_docked = False
         self._restore_area = Qt.DockWidgetArea.BottomDockWidgetArea
-        self._settings = QSettings()
+        window = self._main_window()
+        owner_settings = getattr(window, "settings", None) if window is not None else None
+        self._settings = owner_settings if isinstance(owner_settings, QSettings) else QSettings()
         stored_geometry = self._settings.value(self._geometry_setting)
         self._floating_geometry = (
             QByteArray(stored_geometry)
@@ -226,7 +228,10 @@ class PlotsDockTitleBar(QWidget):
             return
         for dock in window.findChildren(QDockWidget):
             title_bar = dock.titleBarWidget()
-            managed = isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() == "iqaWorkspaceDock"
+            managed = (
+                isinstance(title_bar, PlotsDockTitleBar)
+                or dock.objectName() == "iqaWorkspaceDock"
+            )
             if not managed:
                 continue
             if isinstance(title_bar, PlotsDockTitleBar):
