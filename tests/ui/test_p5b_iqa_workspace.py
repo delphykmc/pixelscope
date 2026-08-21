@@ -92,6 +92,9 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
         for item in widget.overview_plot.plotItem.items
     ) == 3
     assert widget.overview_legend.parentItem() is widget.overview_plot.plotItem
+    bottom_axis = widget.overview_plot.plotItem.getAxis("bottom")
+    assert bottom_axis.style["tickTextHeight"] == 40
+    assert bottom_axis.style["autoReduceTextSpace"] is False
     assert widget.model is not None
     assert not widget.model.reference_ready("baseline")
 
