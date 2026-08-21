@@ -383,7 +383,7 @@ class IqaWorkspaceWidget(QWidget):
         attribute_ids = {item.attribute_id for item in model.result.attributes}
         if previous_attribute not in attribute_ids:
             self._selected_attribute_id = model.result.attributes[0].attribute_id
-        scene_ids = {scene.scene_id for scene in model.result.scenes}
+        scene_ids = set(model.scene_ids)
         if previous_scene not in scene_ids:
             self._selected_scene_id = None
         self._relative_loading = False
@@ -649,21 +649,21 @@ class IqaWorkspaceWidget(QWidget):
                             target_variant_id,
                         )
                     )
-            for scene in self._model.result.scenes:
+            for scene_id in self._model.scene_ids:
                 child = QTreeWidgetItem(parent)
                 child.setData(
                     0,
                     Qt.ItemDataRole.UserRole,
-                    (attribute.attribute_id, scene.scene_id),
+                    (attribute.attribute_id, scene_id),
                 )
-                child.setText(0, scene.scene_id)
+                child.setText(0, scene_id)
                 for column_index, (variant_id, _label) in enumerate(
                     columns,
                     start=1,
                 ):
                     stat = self._stat_for(
                         attribute.attribute_id,
-                        scene.scene_id,
+                        scene_id,
                         variant_id,
                     )
                     child.setText(column_index, _stat_text(stat))
@@ -675,7 +675,7 @@ class IqaWorkspaceWidget(QWidget):
                         relative=relative,
                     ),
                 )
-                if scene.scene_id in outliers:
+                if scene_id in outliers:
                     _set_row_bold(child)
                     child.setToolTip(
                         0,
@@ -810,12 +810,12 @@ class IqaWorkspaceWidget(QWidget):
         self._scene_hover_texts = ()
         self._last_scene_hover_index = None
 
-        scenes = self._model.result.scenes
-        x = np.arange(len(scenes), dtype=np.float64)
+        scene_ids = self._model.scene_ids
+        x = np.arange(len(scene_ids), dtype=np.float64)
         plot.getAxis("bottom").setTicks(
             [[
-                (float(index), scene.scene_id)
-                for index, scene in enumerate(scenes)
+                (float(index), scene_id)
+                for index, scene_id in enumerate(scene_ids)
             ]]
         )
         enabled = set(self.enabled_attribute_ids)
@@ -830,7 +830,7 @@ class IqaWorkspaceWidget(QWidget):
             return
 
         columns = self._trend_columns()
-        hover_lines = [[scene.scene_id] for scene in scenes]
+        hover_lines = [[scene_id] for scene_id in scene_ids]
         total_attributes = len(self._model.result.attributes)
         for attribute in attributes:
             attribute_index = next(
@@ -845,11 +845,11 @@ class IqaWorkspaceWidget(QWidget):
                         _stat_plot_value(
                             self._stat_for(
                                 attribute.attribute_id,
-                                scene.scene_id,
+                                scene_id,
                                 variant_id,
                             )
                         )
-                        for scene in scenes
+                        for scene_id in scene_ids
                     ],
                     dtype=np.float64,
                 )
@@ -1110,12 +1110,12 @@ class IqaWorkspaceWidget(QWidget):
         self._select_scene_index(index)
 
     def _select_scene_index(self, scene_index: int) -> None:
-        if (
-            self._model is None
-            or not 0 <= scene_index < len(self._model.result.scenes)
-        ):
+        if self._model is None:
             return
-        scene_id = self._model.result.scenes[scene_index].scene_id
+        scene_ids = self._model.scene_ids
+        if not 0 <= scene_index < len(scene_ids):
+            return
+        scene_id = scene_ids[scene_index]
         if scene_id == self._selected_scene_id:
             return
         self._selected_scene_id = scene_id
@@ -1126,8 +1126,8 @@ class IqaWorkspaceWidget(QWidget):
     def _scene_index(self, scene_id: str | None) -> int | None:
         if self._model is None or scene_id is None:
             return None
-        for index, scene in enumerate(self._model.result.scenes):
-            if scene.scene_id == scene_id:
+        for index, candidate_scene_id in enumerate(self._model.scene_ids):
+            if candidate_scene_id == scene_id:
                 return index
         return None
 
@@ -1153,7 +1153,7 @@ class IqaWorkspaceController(QObject):
         self._active = True
         self._worker: TaskWorker | None = None
         self._relative_worker: TaskWorker | None = None
-        workspace.relative_requested.connect(self.prepare_relative)  # type: ignore[attr-defined]
+        workspace.relative_requested.connect(self.prepare_relative)
 
     def open_result(self, root: Path | str) -> int:
         path = Path(root)
@@ -1162,9 +1162,9 @@ class IqaWorkspaceController(QObject):
         self._cancel_workers()
         self.workspace.show_loading(path)
         worker = TaskWorker(self._loader, path, generation=generation)
-        worker.signals.succeeded.connect(self._result_loaded)  # type: ignore[attr-defined]
-        worker.signals.failed.connect(self._load_failed)  # type: ignore[attr-defined]
-        worker.signals.finished.connect(self._worker_finished)  # type: ignore[attr-defined]
+        worker.signals.succeeded.connect(self._result_loaded)
+        worker.signals.failed.connect(self._load_failed)
+        worker.signals.finished.connect(self._worker_finished)
         self._worker = worker
         self._pool.start(worker)
         return generation
@@ -1186,11 +1186,9 @@ class IqaWorkspaceController(QObject):
             reference_variant_id,
             generation=self._generation,
         )
-        worker.signals.succeeded.connect(self._relative_loaded)  # type: ignore[attr-defined]
-        worker.signals.failed.connect(self._relative_failed)  # type: ignore[attr-defined]
-        worker.signals.finished.connect(  # type: ignore[attr-defined]
-            self._relative_worker_finished
-        )
+        worker.signals.succeeded.connect(self._relative_loaded)
+        worker.signals.failed.connect(self._relative_failed)
+        worker.signals.finished.connect(self._relative_worker_finished)
         self._relative_worker = worker
         self._pool.start(worker)
 
