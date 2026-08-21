@@ -6,6 +6,7 @@ import math
 from collections.abc import Iterable
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pixelscope.remote.iqa_domain import (
     AttributeSpec,
@@ -262,7 +263,7 @@ def _comparison_input_reason(data: CompactAttributeData) -> str | None:
 def _mean_finite_grid_log_ratios(
     target: CompactAttributeData,
     reference: CompactAttributeData,
-    pair_mask: np.ndarray[object, object],
+    pair_mask: NDArray[np.bool_],
     epsilon: float,
 ) -> ScalarStatistic:
     target_weight = np.asarray(target.weight_sum)[pair_mask]
@@ -286,7 +287,7 @@ def _mean_finite_grid_log_ratios(
             finite_values.append(cell.value)
         elif cell.invalid_reason == "negative_power":
             return cell
-        # undefined 0/0 and non-finite ratios contribute no finite grid dB value.
+        # Undefined 0/0 and non-finite ratios contribute no finite grid dB value.
     if not finite_values:
         return ScalarStatistic.invalid("no_finite_grid_ratios")
     value = math.fsum(finite_values) / len(finite_values)
