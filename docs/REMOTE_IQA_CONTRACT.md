@@ -279,11 +279,19 @@ explicit P5-C decision gate. Result artifacts and Session cannot own it.
 
 ## 10. Submission pairing and failure direction
 
-The current submission baseline supports Current Pair from an already-open
-deterministic two-source page and deterministic folder-based batch formation. P5-C may
-extend the request shape for N-way variants, but must preserve explicit ordered Scene
-manifests and must not make server re-sorting or local Primary/Active/view reorder
-identity authority.
+Request/result/Scene-manifest identity remains N-way-capable, but the **initial P5-C
+user-facing submission workflow is exactly two variants**:
+
+- Current Pair submits exactly two variants from the deterministic underlying
+  Current Comparison Page source order;
+- batch submission uses the deterministic two-folder Pair workflow;
+- arbitrary three-or-more-variant submission UI/API workflow is deferred to a later
+  explicit owner decision;
+- P5-B remains capable of opening and exploring externally produced N-way schema-v2
+  results and switching IQA Reference across their variants.
+
+Submission requests still use explicit ordered Scene manifests and must not make
+server re-sorting or local Primary/Active/view reorder identity authority.
 
 Large batch references do not become Files/Selected/decoded source ownership.
 
