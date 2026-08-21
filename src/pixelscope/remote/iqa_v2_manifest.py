@@ -203,9 +203,6 @@ def _parse_scene(
             f"complete Scene {scene_id} source order/bindings must exactly match "
             "top-level variants"
         )
-    local_ids = tuple(item.source.source_id for item in sources)
-    if len(set(local_ids)) != len(local_ids):
-        raise InvalidV2(f"Scene {scene_id} contains duplicate source_id")
     for measurement in sources:
         source = measurement.source
         registered = source_registry.get(source.source_id)
@@ -213,7 +210,7 @@ def _parse_scene(
             source_registry[source.source_id] = source
         elif registered != source:
             raise InvalidV2(
-                f"source_id {source.source_id} immutable metadata mismatch across Scenes"
+                f"source_id {source.source_id} immutable metadata mismatch across bindings"
             )
     if len({(item.source.width, item.source.height) for item in sources}) != 1:
         raise InvalidV2(f"Scene {scene_id} has dimension_mismatch")
@@ -368,10 +365,7 @@ def _parse_geometry(data: Any) -> SceneGeometry:
     if any(not isinstance(row, list) or len(row) != 3 for row in affine):
         raise InvalidV2("source_to_analysis must be 3x3")
     matrix = tuple(
-        tuple(
-            finite_float(value, "source_to_analysis")
-            for value in row
-        )
+        tuple(finite_float(value, "source_to_analysis") for value in row)
         for row in affine
     )
     raw_rect = data.get("valid_rect")
