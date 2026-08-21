@@ -1,4 +1,4 @@
-"""Qt-free Tier-1 projections for browsing a published IQA result."""
+"""Qt-free projections for browsing published Remote IQA results."""
 
 from __future__ import annotations
 
@@ -8,108 +8,155 @@ from dataclasses import dataclass
 import numpy as np
 
 from pixelscope.remote.iqa_domain import (
-    AttributeSpec,
     Comparison,
     ComparisonMode,
-    QualityDirection,
     Result,
     ScalarStatistic,
+    Source,
     ValueKind,
 )
+from pixelscope.remote.iqa_v2_domain import GridSceneDataV2, ResultV2
+from pixelscope.remote.iqa_v2_math import compare_v2_sources, reduce_relative_scene_values
+from pixelscope.remote.iqa_v2_reader import load_grid_scene
+
+ABSOLUTE_REFERENCE_ID = "__absolute__"
 
 
 @dataclass(frozen=True)
-class TrendPoint:
-    """One Scene comparison for its ordered first/second-source pair."""
+class ExplorerVariant:
+    """One stable result-level comparison slot exposed by the workspace."""
 
-    scene_id: str
-    source_a_id: str
-    source_b_id: str
-    raw: ScalarStatistic
-    quality: ScalarStatistic
+    variant_id: str
+    label: str
 
 
 @dataclass(frozen=True)
 class RelativeTrendPoint:
-    """Target-versus-reference value for one Scene."""
+    """One target-versus-reference Scene comparison."""
 
     scene_id: str
-    reference_source_id: str
-    target_source_id: str
-    value: ScalarStatistic
+    reference_variant_id: str
+    target_variant_id: str
+    raw: ScalarStatistic
+    quality: ScalarStatistic
 
 
 class UnsupportedIqaExplorerResult(ValueError):
-    """A valid published result that the two-source P5-B explorer cannot present."""
+    """A valid published result that the P5-B explorer cannot present."""
 
 
 class IqaExplorerModel:
-    """Feature-local projection of published Tier-1 comparisons only."""
+    """Feature-local projection over schema-v2 or legacy schema-v1 results."""
 
-    def __init__(self, result: Result) -> None:
+    def __init__(
+        self,
+        result: Result | ResultV2,
+        *,
+        grids: dict[str, GridSceneDataV2] | None = None,
+    ) -> None:
         self.result = result
-        self._comparisons = _canonical_comparisons(result)
-
-    def trend(self, attribute_id: str, mode: ComparisonMode) -> tuple[TrendPoint, ...]:
-        """Return the published A-versus-B comparison in canonical Scene order."""
-
-        spec = self.result.attribute(attribute_id)
-        official_mode = _applicable_mode(spec, mode)
-        points: list[TrendPoint] = []
-        for scene in self.result.scenes:
-            comparison = self._comparisons[(scene.scene_id, attribute_id)]
-            raw = comparison.official[official_mode]
-            points.append(
-                TrendPoint(
-                    scene.scene_id,
-                    comparison.source_a_id,
-                    comparison.source_b_id,
-                    raw,
-                    _quality_value(spec, raw),
-                )
+        self._grids = dict(grids or {})
+        self._legacy_comparisons: dict[tuple[str, str], Comparison] = {}
+        if isinstance(result, ResultV2):
+            self._variants = tuple(
+                ExplorerVariant(item.variant_id, item.label) for item in result.variants
             )
-        return tuple(points)
+        else:
+            self._variants = (
+                ExplorerVariant("A", "A — first source"),
+                ExplorerVariant("B", "B — second source"),
+            )
+            self._legacy_comparisons = _canonical_v1_comparisons(result)
+
+    @property
+    def is_v2(self) -> bool:
+        return isinstance(self.result, ResultV2)
+
+    @property
+    def variants(self) -> tuple[ExplorerVariant, ...]:
+        return self._variants
+
+    @property
+    def relative_ready(self) -> bool:
+        return not self.is_v2 or len(self._grids) == len(self.result.scenes)
+
+    def prepare_relative(self) -> IqaExplorerModel:
+        """Load v2 Scene grids sequentially for later target/reference comparisons."""
+        if not isinstance(self.result, ResultV2) or self.relative_ready:
+            return self
+        grids: dict[str, GridSceneDataV2] = dict(self._grids)
+        for scene in self.result.scenes:
+            outcome = load_grid_scene(self.result, scene.scene_id)
+            if not outcome.succeeded or outcome.data is None:
+                reason = outcome.reason or "unable to load Scene grid artifact"
+                raise ValueError(f"{scene.scene_id}: {reason}")
+            grids[scene.scene_id] = outcome.data
+        return IqaExplorerModel(self.result, grids=grids)
+
+    def absolute_dataset_stat(self, variant_id: str, attribute_id: str) -> ScalarStatistic:
+        """Return the canonical absolute Dataset Overview statistic."""
+        if not isinstance(self.result, ResultV2):
+            return ScalarStatistic.invalid("legacy_v1_has_no_absolute_measurement")
+        summary = self.result.dataset_summary(variant_id, attribute_id).pooled
+        return _measurement_mean(summary.valid, summary.weighted_mean)
+
+    def absolute_scene_stat(
+        self, scene_id: str, variant_id: str, attribute_id: str
+    ) -> ScalarStatistic:
+        if not isinstance(self.result, ResultV2):
+            return ScalarStatistic.invalid("legacy_v1_has_no_absolute_measurement")
+        summary = self.result.scene(scene_id).source_for_variant(variant_id).summary(attribute_id)
+        return _measurement_mean(summary.valid, summary.weighted_mean)
 
     def relative_trend(
         self,
         attribute_id: str,
         mode: ComparisonMode,
-        reference_index: int,
+        reference_variant_id: str,
+        target_variant_id: str,
     ) -> tuple[RelativeTrendPoint, ...]:
-        """Return target-versus-reference values for reference slot A(0) or B(1)."""
-
-        if reference_index not in (0, 1):
-            raise ValueError("reference_index must be 0 (A) or 1 (B)")
-        relative: list[RelativeTrendPoint] = []
-        for point in self.trend(attribute_id, mode):
-            if reference_index == 0:
-                reference_source_id = point.source_a_id
-                target_source_id = point.source_b_id
-                value = _negated(point.raw)
-            else:
-                reference_source_id = point.source_b_id
-                target_source_id = point.source_a_id
-                value = point.raw
-            relative.append(
-                RelativeTrendPoint(
-                    point.scene_id,
-                    reference_source_id,
-                    target_source_id,
-                    value,
+        if reference_variant_id == target_variant_id:
+            raise ValueError("reference and target variant must differ")
+        if isinstance(self.result, ResultV2):
+            if not self.relative_ready:
+                raise RuntimeError("relative grids are not loaded")
+            spec = self.result.attribute(attribute_id)
+            selected_mode = _applicable_mode(spec.value_kind, mode)
+            points: list[RelativeTrendPoint] = []
+            for scene in self.result.scenes:
+                grid = self._grids[scene.scene_id]
+                target = grid.attribute_for_variant(target_variant_id, attribute_id)
+                reference = grid.attribute_for_variant(reference_variant_id, attribute_id)
+                relative = compare_v2_sources(spec, target, reference)[selected_mode]
+                points.append(
+                    RelativeTrendPoint(
+                        scene.scene_id,
+                        reference_variant_id,
+                        target_variant_id,
+                        relative.raw,
+                        relative.quality,
+                    )
                 )
-            )
-        return tuple(relative)
+            return tuple(points)
+        return self._legacy_relative_trend(
+            attribute_id, mode, reference_variant_id, target_variant_id
+        )
 
-    def relative_attribute_mean(
+    def relative_dataset_stat(
         self,
         attribute_id: str,
         mode: ComparisonMode,
-        reference_index: int,
+        reference_variant_id: str,
+        target_variant_id: str,
     ) -> ScalarStatistic:
-        return _mean_statistic(
-            tuple(
-                point.value
-                for point in self.relative_trend(attribute_id, mode, reference_index)
+        """Equal-Scene reduction of valid Scene comparison values."""
+        return reduce_relative_scene_values(
+            point.raw
+            for point in self.relative_trend(
+                attribute_id,
+                mode,
+                reference_variant_id,
+                target_variant_id,
             )
         )
 
@@ -117,26 +164,28 @@ class IqaExplorerModel:
         self,
         attribute_id: str,
         mode: ComparisonMode,
-        reference_index: int = 1,
+        reference_variant_id: str,
+        target_variant_id: str,
     ) -> tuple[str, ...]:
-        """Return only conservative robust outliers; this is a visual hint, not selection."""
-
+        """Return conservative quality-oriented visual hints, never logical selection."""
+        points = self.relative_trend(
+            attribute_id, mode, reference_variant_id, target_variant_id
+        )
         valid = [
             point
-            for point in self.relative_trend(attribute_id, mode, reference_index)
-            if point.value.valid
-            and point.value.value is not None
-            and math.isfinite(point.value.value)
+            for point in points
+            if point.quality.valid
+            and point.quality.value is not None
+            and math.isfinite(point.quality.value)
         ]
         if len(valid) < 4:
             return ()
-        values = np.asarray([point.value.value for point in valid], dtype=np.float64)
+        values = np.asarray([point.quality.value for point in valid], dtype=np.float64)
         median = float(np.median(values))
         deviations = np.abs(values - median)
         mad = float(np.median(deviations))
         if mad > 0.0 and math.isfinite(mad):
-            modified_z = 0.6744897501960817 * deviations / mad
-            flagged = modified_z > 3.5
+            flagged = 0.6744897501960817 * deviations / mad > 3.5
         else:
             q1, q3 = np.percentile(values, (25.0, 75.0))
             iqr = float(q3 - q1)
@@ -149,14 +198,64 @@ class IqaExplorerModel:
             if is_flagged
         )
 
-    def display_unit(self, attribute_id: str) -> str:
+    def display_unit(self, attribute_id: str, *, relative: bool) -> str:
         spec = self.result.attribute(attribute_id)
-        if spec.value_kind is ValueKind.POWER:
+        if relative and spec.value_kind is ValueKind.POWER:
             return "dB"
         return spec.unit
 
+    def scene_sources(self, scene_id: str) -> tuple[tuple[str, str, Source], ...]:
+        if isinstance(self.result, ResultV2):
+            scene = self.result.scene(scene_id)
+            return tuple(
+                (
+                    measurement.variant_id,
+                    self.result.variant(measurement.variant_id).label,
+                    measurement.source,
+                )
+                for measurement in scene.sources
+            )
+        scene = self.result.scene(scene_id)
+        if len(scene.sources) < 2:
+            raise UnsupportedIqaExplorerResult(
+                f"Scene {scene.scene_id} has fewer than two ordered sources"
+            )
+        return (
+            ("A", "A — first source", scene.sources[0]),
+            ("B", "B — second source", scene.sources[1]),
+        )
 
-def _canonical_comparisons(result: Result) -> dict[tuple[str, str], Comparison]:
+    def _legacy_relative_trend(
+        self,
+        attribute_id: str,
+        mode: ComparisonMode,
+        reference_variant_id: str,
+        target_variant_id: str,
+    ) -> tuple[RelativeTrendPoint, ...]:
+        if {reference_variant_id, target_variant_id} != {"A", "B"}:
+            raise ValueError("legacy v1 supports only A/B Reference slots")
+        spec = self.result.attribute(attribute_id)
+        selected_mode = _applicable_mode(spec.value_kind, mode)
+        points: list[RelativeTrendPoint] = []
+        for scene in self.result.scenes:
+            comparison = self._legacy_comparisons[(scene.scene_id, attribute_id)]
+            raw = comparison.official[selected_mode]
+            if reference_variant_id == "A":
+                raw = _negated(raw)
+            quality = _legacy_quality(spec.quality_direction.value, raw)
+            points.append(
+                RelativeTrendPoint(
+                    scene.scene_id,
+                    reference_variant_id,
+                    target_variant_id,
+                    raw,
+                    quality,
+                )
+            )
+        return tuple(points)
+
+
+def _canonical_v1_comparisons(result: Result) -> dict[tuple[str, str], Comparison]:
     comparisons: dict[tuple[str, str], Comparison] = {}
     for scene in result.scenes:
         if len(scene.sources) < 2:
@@ -179,14 +278,14 @@ def _canonical_comparisons(result: Result) -> dict[tuple[str, str], Comparison]:
             if match is None:
                 raise UnsupportedIqaExplorerResult(
                     f"Scene {scene.scene_id} does not publish the ordered "
-                    f"{source_a_id}/{source_b_id} comparison required by P5-B"
+                    f"{source_a_id}/{source_b_id} comparison required by legacy v1"
                 )
             comparisons[(scene.scene_id, attribute.attribute_id)] = match
     return comparisons
 
 
-def _applicable_mode(spec: AttributeSpec, mode: ComparisonMode) -> ComparisonMode:
-    if spec.value_kind is ValueKind.SIGNED:
+def _applicable_mode(value_kind: ValueKind, mode: ComparisonMode) -> ComparisonMode:
+    if value_kind is ValueKind.SIGNED:
         return ComparisonMode.SIGNED_DELTA
     if mode not in (
         ComparisonMode.RATIO_OF_WEIGHTED_MEANS,
@@ -196,15 +295,10 @@ def _applicable_mode(spec: AttributeSpec, mode: ComparisonMode) -> ComparisonMod
     return mode
 
 
-def _quality_value(spec: AttributeSpec, raw: ScalarStatistic) -> ScalarStatistic:
-    if not raw.valid or raw.value is None:
-        return raw
-    if spec.quality_direction is QualityDirection.NEUTRAL:
-        return ScalarStatistic.invalid("neutral_attribute")
-    value = raw.value
-    if spec.quality_direction is QualityDirection.LOWER_IS_BETTER:
-        value = -value
-    return ScalarStatistic(value, True)
+def _measurement_mean(valid: bool, value: float | None) -> ScalarStatistic:
+    if not valid or value is None or not math.isfinite(value):
+        return ScalarStatistic.invalid("missing_data")
+    return ScalarStatistic(float(value), True)
 
 
 def _negated(statistic: ScalarStatistic) -> ScalarStatistic:
@@ -213,17 +307,12 @@ def _negated(statistic: ScalarStatistic) -> ScalarStatistic:
     return ScalarStatistic(-statistic.value, True)
 
 
-def _mean_statistic(statistics: tuple[ScalarStatistic, ...]) -> ScalarStatistic:
-    values = [
-        statistic.value
-        for statistic in statistics
-        if statistic.valid
-        and statistic.value is not None
-        and math.isfinite(statistic.value)
-    ]
-    if not values:
-        return ScalarStatistic.invalid("no_valid_scenes")
-    value = float(np.mean(np.asarray(values, dtype=np.float64)))
-    if not math.isfinite(value):
-        return ScalarStatistic.invalid("nonfinite_result")
+def _legacy_quality(direction: str, raw: ScalarStatistic) -> ScalarStatistic:
+    if not raw.valid or raw.value is None:
+        return ScalarStatistic.invalid(raw.invalid_reason or "missing_data")
+    if direction == "neutral":
+        return ScalarStatistic.invalid("neutral_attribute")
+    value = raw.value
+    if direction == "lower_is_better":
+        value = -value
     return ScalarStatistic(value, True)
