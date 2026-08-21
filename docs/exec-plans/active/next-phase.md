@@ -1,10 +1,10 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — P5-A2 Stage 2 executable-v2 migration / PR #40; P5-B schema-dependent/paused
+Status: Active — P5-B IQA Workspace & Local Result Exploration / PR #38 merge candidate; P5-C next planned
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
-Last updated: 2026-08-21
-Inherited merged baseline: P5-A2 Stage 1 / PR #39 / main
-`4f2d58f36152cbebd1110a2aed09afacc6f09596`
+Last updated: 2026-08-22
+Inherited merged baseline: P5-A2 Stage 2 / PR #40 / main
+`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`
 
 Authoritative P5 documents:
 
@@ -14,7 +14,7 @@ Authoritative P5 documents:
   [`docs/REMOTE_IQA_V2_SPEC.md`](../../REMOTE_IQA_V2_SPEC.md)
 - historical merged schema-v1 baseline:
   [`docs/REMOTE_IQA_V1_SPEC.md`](../../REMOTE_IQA_V1_SPEC.md)
-- active schema-v2 revision note:
+- schema-v2 revision history:
   [`docs/exec-plans/active/p5-schema-v2-revision.md`](p5-schema-v2-revision.md)
 - completed P4 plan:
   [`docs/exec-plans/completed/p4-workflow-session-productivity.md`](../completed/p4-workflow-session-productivity.md)
@@ -38,9 +38,9 @@ P5 is run as an orchestrated multi-PR program.
 
 When implementation exposes a missing cross-slice decision, it stops at the existing
 contract boundary. The orchestrator/owner updates durable docs before dependent code
-continues. PR #39 demonstrated this governance rule: P5-B exposed a schema issue, so
-the schema contract was corrected on `main` before the executable Stage-2 migration
-and before P5-B resumes.
+continues. P5-B exposed the pairwise schema-v1 limitation, so PR #39 revised the
+durable schema-v2 contract and PR #40 completed the executable-v2 migration on
+`main` before P5-B resumed.
 
 ## Goal
 
@@ -87,8 +87,8 @@ Session v1. Remote batch membership and passive result browsing remain feature-l
 ## Current executable schema-v2 target
 
 The merged P5-A/schema-v1 implementation is historical executable compatibility. PR
-#39 is the merged durable schema-v2 contract. PR #40 is the active executable Stage-2
-migration.
+#39 is the merged durable schema-v2 contract and PR #40 is the merged executable
+Stage-2 authority at `main@5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`.
 
 > **Server owns measurement; PixelScope owns reference-dependent comparison,
 > reductions, and visualization.**
@@ -194,11 +194,11 @@ explicit coordinated schema/safety review rather than a silent local override.
 
 ### v1 compatibility
 
-- v2 becomes current/default after executable migration;
+- v2 is the current/default result representation;
 - v1 stays explicit read-only historical compatibility;
 - no silent v1→v2 upgrade invents absolute source measurements;
 - v1 UI remains limited to data actually available in v1;
-- new writers/fixtures target v2 after migration.
+- new writers/fixtures target v2.
 
 ### PARTIAL direction
 
@@ -224,36 +224,39 @@ N-way result exploration or Reference switching.
 
 ## UX direction
 
-P5 adds one non-modal IQA workspace/dock:
+P5-B implements the result-exploration part of one non-modal IQA workspace/dock.
+Later slices add submission/jobs and viewer-linked spatial inspection.
+
+Current P5-B browse path:
 
 ```text
-IQA
-├─ Setup
-├─ Jobs
-└─ Results
+published result
+    ↓
+summary-first Absolute Dataset Overview + Attribute/Scene table
+    ↓ optional Reference selection
+bounded Scene-grid preparation
+    ↓
+relative Dataset Overview / Scene Trend
+    ↓
+Scene source identity metadata
 ```
 
-Results browse:
-
-```text
-Job / dataset
-    ↓
-absolute/relative attribute overview
-    ↓
-attribute Scene Trend / outliers
-    ↓
-Scene
-    ↓
-spatial grid comparison
-    ↓
-block inspector
-```
-
-Passive browsing never mutates Selected. Explicit Inspect uses canonical local
-registration/selection only for chosen Scene sources. IQA Reference is separate from
-Primary. P4-A temporary Picks block conflicting Inspect entry. Return-to-previous-
-workspace remains transient and invalidates rather than overwriting newer non-IQA
-intent.
+- passive result browsing never mutates Selected or native local analysis;
+- v2 defaults to Absolute and uses published summary metadata immediately;
+- all N-way `variant_id` columns retain stable order/color across Absolute/Relative;
+- in Relative presentation the selected Reference is a local zero anchor while
+  target values come from canonical target/reference math;
+- the local Absolute display-mode tag is not encoded in the server-owned
+  `variant_id` string namespace, so every valid server ID remains selectable;
+- selecting an unprepared Reference runs grid I/O/math off the Qt thread, holds one
+  Scene grid at a time, retains only derived scalar results, and releases the grid
+  before advancing;
+- failed deferred Reference preparation restores the last successfully presented
+  Reference/mode so controls and visible values remain coherent;
+- Scene cards expose published variant/source/path/hash metadata only; native source
+  opening, logical-root mapping, and hash verification remain P5-D;
+- IQA Reference is feature-local and separate from Primary;
+- P4-A Picks continue to block later conflicting P5-D Inspect entry.
 
 ## Program sequence
 
@@ -263,9 +266,9 @@ intent.
 |---|---|---|
 | 0 | P5-0 P4 Closure & P5 Program Setup | Complete — PR #36 |
 | 1 | P5-A Contract Fixtures & IQA Domain / schema v1 | Complete — PR #37 |
-| 2 | P5-A2 Schema v2 migration | **Active — Stage 1 PR #39 merged; Stage 2 executable migration PR #40 Draft** |
-| 3 | P5-B IQA Workspace & Local Result Exploration | Paused — schema-dependent until P5-A2 Stage 2 merges |
-| 4 | P5-C Submission & Shared Storage | Planned — C1 + detailed C2 gates pending; PARTIAL allowed |
+| 2 | P5-A2 Schema v2 migration | **Complete — Stage 1 PR #39 + Stage 2 PR #40 merged** |
+| 3 | P5-B IQA Workspace & Local Result Exploration | **Active — PR #38 merge candidate; latest reviewer-fix validation/re-review pending** |
+| 4 | P5-C Submission & Shared Storage | Planned — next slice; C1 + detailed C2 gates pending, PARTIAL allowed |
 | 5 | P5-D Viewer-linked Scene Inspection | Planned |
 | 6 | P5-E Historical Result Workflow | Planned |
 | 7 | P5-F Integration & Performance Hardening | Planned |
@@ -286,7 +289,7 @@ invalid/corrupt/unsupported results, safe bounded NumPy parsing, and exact conti
 source/analysis geometry. It remains valuable historical executable compatibility,
 but its server-authored pairwise result model is no longer the current target.
 
-## P5-A2 — Schema v2 migration — Active
+## P5-A2 — Schema v2 migration — Complete
 
 ### Stage 1 — durable contract revision / PR #39 — Complete
 
@@ -307,13 +310,10 @@ PR #39 merged at `4f2d58f36152cbebd1110a2aed09afacc6f09596` and froze:
 - separation of artifact purpose from loading/cache policy;
 - P5 durable system-of-record docs.
 
-PR #39 was docs/schema-contract-only and did not modify P5-B runtime/UI code.
+### Stage 2 — focused executable-v2 domain/fixture/parser migration / PR #40 — Complete
 
-### Stage 2 — focused executable-v2 domain/fixture/parser migration — Active / PR #40
-
-This must land on `main` **before P5-B resumes**.
-
-PR #40 implements and freezes:
+PR #40 merged at `main@5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6` and
+implements/freezes:
 
 - versioned v2 domain/manifest/summary/grid models;
 - concrete JSON/NPZ field placement and dtype/shape constraints;
@@ -331,37 +331,45 @@ PR #40 implements and freezes:
 - summary-first filesystem boundary and opaque detail references;
 - explicit Stage-2 `UNSUPPORTED` handling for PARTIAL.
 
-Current remaining closure gates are repository-pinned validation and fresh independent
-latest-head review. No P5-B UI policy is introduced in this stage.
+P5-B consumes these executable authorities rather than redefining parser/schema/math
+semantics in the UI layer.
 
-## P5-B — IQA Workspace & Local Result Exploration — Paused
+## P5-B — IQA Workspace & Local Result Exploration — Active / PR #38
 
-PR #38 is schema-dependent work in progress. It must not be merged/review-closed on the
-old schema after PR #39 establishes v2.
+PR #38 is rebased on merged executable-v2 `main@5fcea48...` and implements:
 
-After P5-A2 Stage 2 merges:
+1. canonical version-dispatch Open IQA Result;
+2. summary-first v2 Absolute default without opening Scene grids;
+3. N-way `variant_id` Reference selection with collision-proof local Absolute mode;
+4. stable Absolute/Relative variant columns, Relative Reference zero anchor, and
+   pooled-weighted Absolute Dataset Overview;
+5. local target/reference values through canonical `compare_v2_sources()` and
+   `reduce_relative_scene_values()` authorities;
+6. equal-Scene reduction for relative Dataset Overview;
+7. bounded deferred Reference preparation off the Qt thread, one Scene grid at a
+   time with scalar-only retained cache;
+8. stale/superseded callback rejection and last-valid presentation rollback,
+   including control restoration after deferred-grid failure;
+9. metadata-only Scene source cards with P5-D logical-root/hash/native Inspect
+   authority preserved;
+10. IQA dock float/dock/maximize/reset behavior reused from the Plots workspace;
+11. passive browsing that preserves Files/Selected/Current Page/Primary/Difference,
+    source residency, native analysis, and Session authority;
+12. explicit v1 A/B read-only compatibility.
 
-1. rebase P5-B onto latest `main`;
-2. consume the executable v2 Open Result/domain path;
-3. support N-way `variant_id` Reference selection;
-4. show fast absolute summary-based Overview and Scene Trend;
-5. default absolute Dataset Overview to `pooled_weighted_mean`;
-6. derive requested target/reference values locally from grid measurements using the
-   canonical raw/quality comparison helpers;
-7. default relative Overview to arithmetic mean of valid Scene comparisons;
-8. keep grid I/O/numerical work outside the Qt UI thread;
-9. expose bounded Loading/Calculating state and reject stale callbacks;
-10. preserve Files/Selected/native-analysis state during passive browsing;
-11. retain close/recreate safety.
-
-P5-B does not open historical source pixels directly and does not create another
-source/path authority.
+The repository owner reported the requested Windows focused/full validation and static
+checks PASS on pre-review-fix head `c77169d7db19ac7dd308c5f772d704c305761ba9`.
+The narrow collision/failed-reference/docs fixes that follow that head require fresh
+focused/static/docs validation and an independent latest-head re-review before merge.
+Global repository-wide Ruff formatter drift is explicitly deferred by owner decision
+to a separate formatting-only PR rather than creating unrelated P5-B churn.
 
 ## P5-C — Submission & Shared Storage — Planned
 
 ### Goal
 
-Connect the proven v2 artifact/result path to the external GPU service.
+Connect the proven v2 artifact/result path to the external GPU service after P5-B
+closes.
 
 ### Owner-decision gates
 
@@ -485,7 +493,7 @@ rejection, and teardown safety.
 4. owner runs requested focused Windows validation;
 5. implementation agent opens/updates the PR with goals, contract preservation, test
    evidence, exclusions, and ChatGPT co-author attribution where agent-generated;
-6. independent reviewer checks latest full head against ROADMAP/P5 specs/inherited
+6. independent reviewer checks latest full PR head against ROADMAP/P5 specs/inherited
    architecture, tests, resource/lifetime behavior, and docs;
 7. orchestrator classifies findings as implementation defect, missing contract, or
    owner-decision request;
