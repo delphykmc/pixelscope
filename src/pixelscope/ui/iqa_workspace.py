@@ -74,6 +74,7 @@ class IqaWorkspaceWidget(QWidget):
         self._selected_attribute_id: str | None = None
         self._selected_scene_id: str | None = None
         self._relative_loading = False
+        self._presented_reference_variant_id: str | None = ABSOLUTE_REFERENCE_ID
         self._selected_scene_line: pg.InfiniteLine | None = None
         self._hover_scene_line: pg.InfiniteLine | None = None
         self._overview_hover_texts: tuple[str, ...] = ()
@@ -315,7 +316,7 @@ class IqaWorkspaceWidget(QWidget):
             return ComparisonMode.RATIO_OF_WEIGHTED_MEANS
 
     @property
-    def reference_variant_id(self) -> str:
+    def reference_variant_id(self) -> str | None:
         value = self.reference_combo.currentData()
         return str(value) if value is not None else ABSOLUTE_REFERENCE_ID
 
@@ -367,6 +368,14 @@ class IqaWorkspaceWidget(QWidget):
         self._relative_loading = False
         self._set_controls_enabled(self._model is not None)
 
+    def show_relative_error(self, status: LoadStatus, reason: str) -> None:
+        """Restore the last successfully presented mode after deferred work fails."""
+        self._relative_loading = False
+        if self._model is not None:
+            self._populate_reference_combo(self._presented_reference_variant_id)
+        self.status_label.setText(f"{status.value.upper()}: {reason}")
+        self._set_controls_enabled(self._model is not None)
+
     def set_model(
         self,
         model: IqaExplorerModel,
@@ -376,6 +385,7 @@ class IqaWorkspaceWidget(QWidget):
         previous_model = self._model
         previous_attribute = self._selected_attribute_id
         previous_scene = self._selected_scene_id
+        rollback_reference = self._presented_reference_variant_id
         previous_reference = (
             self.reference_variant_id if preserve_reference else None
         )
@@ -396,7 +406,7 @@ class IqaWorkspaceWidget(QWidget):
             self._selected_scene_id = previous_scene
             if previous_model is not None:
                 try:
-                    self._populate_reference_combo(previous_reference)
+                    self._populate_reference_combo(rollback_reference)
                     self._refresh_model_views()
                 except Exception:  # noqa: BLE001 - best-effort rollback
                     pass
@@ -420,6 +430,7 @@ class IqaWorkspaceWidget(QWidget):
             f"{len(result.attributes)} attributes · {len(model.variants)} variants"
         )
         self.status_label.setText(f"Opened {result.root.name}")
+        self._presented_reference_variant_id = self.reference_variant_id
         self._set_controls_enabled(True)
         return VersionedResultLoadOutcome(LoadStatus.SUCCESS, result=result)
 
@@ -444,7 +455,7 @@ class IqaWorkspaceWidget(QWidget):
                     variant.label,
                     variant.variant_id,
                 )
-            target = preferred or ABSOLUTE_REFERENCE_ID
+            index = 0 if preferred is None else self.reference_combo.findData(preferred)
         else:
             for variant in self._model.variants:
                 self.reference_combo.addItem(
@@ -452,7 +463,7 @@ class IqaWorkspaceWidget(QWidget):
                     variant.variant_id,
                 )
             target = preferred if preferred in {"A", "B"} else "A"
-        index = self.reference_combo.findData(target)
+            index = self.reference_combo.findData(target)
         self.reference_combo.setCurrentIndex(max(0, index))
         self.reference_combo.blockSignals(False)
 
@@ -513,7 +524,7 @@ class IqaWorkspaceWidget(QWidget):
     def _trend_columns(self) -> tuple[tuple[str, str], ...]:
         assert self._model is not None
         reference = self.reference_variant_id
-        if reference == ABSOLUTE_REFERENCE_ID:
+        if reference is ABSOLUTE_REFERENCE_ID:
             return self._display_columns()
         reference_label = next(
             item.label
@@ -527,12 +538,15 @@ class IqaWorkspaceWidget(QWidget):
         )
 
     def _reference_label(self) -> str | None:
-        if self._model is None or self.reference_variant_id == ABSOLUTE_REFERENCE_ID:
+        if self._model is None:
+            return None
+        reference = self.reference_variant_id
+        if reference is ABSOLUTE_REFERENCE_ID:
             return None
         return next(
             item.label
             for item in self._model.variants
-            if item.variant_id == self.reference_variant_id
+            if item.variant_id == reference
         )
 
     def _stat_for(
@@ -543,7 +557,7 @@ class IqaWorkspaceWidget(QWidget):
     ) -> ScalarStatistic:
         assert self._model is not None
         reference = self.reference_variant_id
-        if reference == ABSOLUTE_REFERENCE_ID:
+        if reference is ABSOLUTE_REFERENCE_ID:
             if scene_id is None:
                 return self._model.absolute_dataset_stat(
                     target_variant_id,
@@ -578,9 +592,10 @@ class IqaWorkspaceWidget(QWidget):
         if self._model is None:
             return
         columns = self._display_columns()
+        reference = self.reference_variant_id
+        relative = reference is not ABSOLUTE_REFERENCE_ID
         self.hierarchy.blockSignals(True)
         self.hierarchy.clear()
-        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
         reference_label = self._reference_label()
         if relative and reference_label is not None:
             self.overview_detail_heading.setText(
@@ -637,15 +652,15 @@ class IqaWorkspaceWidget(QWidget):
             )
 
             outliers: set[str] = set()
-            if relative:
+            if reference is not ABSOLUTE_REFERENCE_ID:
                 for target_variant_id, _label in columns:
-                    if target_variant_id == self.reference_variant_id:
+                    if target_variant_id == reference:
                         continue
                     outliers.update(
                         self._model.outlier_scene_ids(
                             attribute.attribute_id,
                             self.aggregation_mode,
-                            self.reference_variant_id,
+                            reference,
                             target_variant_id,
                         )
                     )
@@ -734,7 +749,8 @@ class IqaWorkspaceWidget(QWidget):
         )
         width = 0.72 / max(1, len(columns))
         hover_lines = [[attribute.name] for attribute in attributes]
-        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
+        reference = self.reference_variant_id
+        relative = reference is not ABSOLUTE_REFERENCE_ID
         for series_index, (variant_id, label) in enumerate(columns):
             offset = (series_index - (len(columns) - 1) / 2.0) * width
             values = np.asarray(
@@ -751,7 +767,7 @@ class IqaWorkspaceWidget(QWidget):
                 dtype=np.float64,
             )
             color = _variant_color(series_index, len(columns))
-            if relative and variant_id == self.reference_variant_id:
+            if relative and variant_id == reference:
                 series_item = pg.ScatterPlotItem(
                     x=x + offset,
                     y=values,
@@ -780,7 +796,7 @@ class IqaWorkspaceWidget(QWidget):
         self._overview_hover_texts = tuple(
             "\n".join(lines) for lines in hover_lines
         )
-        if self.reference_variant_id == ABSOLUTE_REFERENCE_ID:
+        if reference is ABSOLUTE_REFERENCE_ID:
             plot.setTitle(
                 "Absolute Dataset Overview · pooled weighted mean"
             )
@@ -832,6 +848,8 @@ class IqaWorkspaceWidget(QWidget):
         columns = self._trend_columns()
         hover_lines = [[scene_id] for scene_id in scene_ids]
         total_attributes = len(self._model.result.attributes)
+        reference = self.reference_variant_id
+        relative = reference is not ABSOLUTE_REFERENCE_ID
         for attribute in attributes:
             attribute_index = next(
                 index
@@ -867,10 +885,7 @@ class IqaWorkspaceWidget(QWidget):
                 )
                 unit = self._model.display_unit(
                     attribute.attribute_id,
-                    relative=(
-                        self.reference_variant_id
-                        != ABSOLUTE_REFERENCE_ID
-                    ),
+                    relative=relative,
                 )
                 for scene_index, value in enumerate(values):
                     hover_lines[scene_index].append(
@@ -881,7 +896,6 @@ class IqaWorkspaceWidget(QWidget):
         self._scene_hover_texts = tuple(
             "\n".join(lines) for lines in hover_lines
         )
-        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
         mode_label = "Relative" if relative else "Absolute"
         self.trend_label.setText(
             f"{mode_label} Scene trend · {len(attributes)} / "
@@ -996,9 +1010,8 @@ class IqaWorkspaceWidget(QWidget):
         if self._model is None or self._relative_loading:
             return
         reference = self.reference_variant_id
-        if (
-            reference != ABSOLUTE_REFERENCE_ID
-            and not self._model.reference_ready(reference)
+        if reference is not ABSOLUTE_REFERENCE_ID and not self._model.reference_ready(
+            reference
         ):
             self.show_relative_loading(reference)
             self.relative_requested.emit(reference)
@@ -1006,6 +1019,7 @@ class IqaWorkspaceWidget(QWidget):
         self._populate_hierarchy()
         self._populate_overview_plot()
         self._populate_scene_trend()
+        self._presented_reference_variant_id = reference
 
     @Slot(QListWidgetItem)
     def _attribute_filter_changed(self, _item: QListWidgetItem) -> None:
@@ -1264,7 +1278,7 @@ class IqaWorkspaceController(QObject):
                 LoadStatus.CORRUPT,
                 reason="relative worker returned no explorer model",
             )
-            self.workspace.show_open_error(
+            self.workspace.show_relative_error(
                 outcome.status,
                 outcome.reason or "relative presentation failed",
             )
@@ -1272,7 +1286,7 @@ class IqaWorkspaceController(QObject):
             return
         outcome = self.workspace.set_relative_model(value)
         if outcome.status is not LoadStatus.SUCCESS:
-            self.workspace.show_open_error(
+            self.workspace.show_relative_error(
                 outcome.status,
                 outcome.reason or "relative presentation failed",
             )
@@ -1319,7 +1333,7 @@ class IqaWorkspaceController(QObject):
             LoadStatus.CORRUPT,
             reason=reason,
         )
-        self.workspace.show_open_error(outcome.status, reason)
+        self.workspace.show_relative_error(outcome.status, reason)
         self.outcome_ready.emit(outcome)
 
     @Slot(str)
