@@ -25,8 +25,12 @@ class ComparisonMode(str, Enum):
 
 
 class ComparisonOperator(str, Enum):
+    # Schema-v1 historical/read-only names. Keep these for v1 compatibility.
     POWER_RATIO_A_OVER_B_DB = "power_ratio_a_over_b_db"
     SIGNED_A_MINUS_B = "signed_a_minus_b"
+    # Schema-v2 canonical names. Operands are selected locally at runtime.
+    POWER_RATIO_TARGET_OVER_REFERENCE_DB = "power_ratio_target_over_reference_db"
+    SIGNED_TARGET_MINUS_REFERENCE = "signed_target_minus_reference"
 
 
 class LoadStatus(str, Enum):
