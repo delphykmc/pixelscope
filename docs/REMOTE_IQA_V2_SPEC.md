@@ -1,342 +1,273 @@
 # Remote IQA schema v2 source-measurement specification
 
-Status: Current P5 numerical target proposed for merge in PR #39
+Status: Executable Stage-2 candidate in PR #40
 Owner: PixelScope P5 program + external IQA server contract
 Historical executable baseline: P5-A / PR #37 / schema v1
+Durable schema-v2 contract baseline: P5-A2 Stage 1 / PR #39
 Target schema identity: `kind = "pixelscope-iqa-result"`, `schema_version = 2`
 
-This document defines the P5 schema-v2 numerical/result target that replaces the
-pairwise-centered numerical ownership model of the merged P5-A schema-v1 baseline.
-The governing principle is:
+This document is the normative contract for PixelScope Remote IQA schema v2. The
+governing rule is:
 
 > **The server owns measurement. PixelScope owns reference-dependent comparison,
-> aggregation views, and visualization.**
+> reductions, and visualization.**
 
-The GPU service remains authoritative for source decoding, IQA signal extraction,
-Scene-context weighting/gating, validity, analysis/grid geometry, and sufficient
-statistics. PixelScope does not run the IQA models and does not reconstruct weighting
-from visualization maps. It consumes immutable server-authored source measurements and
-locally derives the comparison requested by the user.
+The GPU service owns source decoding, IQA extraction, Scene-context weighting/gating,
+validity, physical analysis/grid geometry, W/S1/S2/count/valid sufficient statistics,
+absolute summaries, and measurement provenance. PixelScope does not recompute IQA
+from source pixels, reconstruct server weighting from visualization maps, or resize/
+align incompatible result grids. It selects a reference `variant_id` and derives
+reference-dependent values from the immutable server-authored measurements.
 
-The durable model is N-way. A/B remains a convenient two-variant presentation, but
-the result contract must support A/B/C/D-style comparison groups and arbitrary IQA
-Reference switching without requiring the server to serialize every pairwise
-combination.
+Schema v2 is N-way. A/B is only a two-variant presentation; the stored contract must
+support A/B/C/D-style groups without serializing every pairwise combination.
 
-## 1. Relationship to schema v1 and compatibility policy
+## 1. Versioning and schema-v1 compatibility
 
 `REMOTE_IQA_V1_SPEC.md` remains the historical normative record for the merged P5-A
-schema-v1 implementation and fixtures. It is not rewritten by schema v2.
+schema-v1 implementation. Schema v2 does not rewrite v1 artifacts.
 
-Schema v2 changes the active numerical ownership contract:
+The canonical result dispatcher follows this exact policy:
 
-- server-authored pairwise comparison records are no longer the primary numerical
-  source of truth;
-- the durable source of truth is the server-authored measurement for each Scene
-  source/variant;
-- `variant_id` provides stable comparison-group identity across Scenes;
-- small absolute Scene/dataset summaries provide the fast open-time path;
-- absolute grid sufficient statistics are the common analytical input for local
-  relative statistics and spatial visualization;
-- the old rule that compact Scene grids are an inspected-Scene-only lazy tier is not
-  numerical schema semantics;
-- actual grid loading, batching, preload, and caching are bounded client performance
-  policy.
+1. `schema_version == 2` -> schema-v2 reader;
+2. `schema_version == 1` -> existing schema-v1 read-only reader;
+3. any other version -> `UNSUPPORTED`;
+4. no v1 result is silently upgraded by inventing v2 absolute measurements from
+   pairwise v1 summaries.
 
-Compatibility is frozen as follows:
+The v1 A/B-specific operator strings remain valid only for historical v1 parsing.
+New schema-v2 writers use the reference-neutral operator names defined in section 10.
 
-1. schema v2 becomes the current/default writer and result model after the executable
-   v2 migration lands;
-2. schema v1 remains explicit **read-only compatibility** for historical two-source
-   results and repository fixtures;
-3. PixelScope must not silently "upgrade" v1 by inventing v2 absolute source
-   measurements from pairwise v1 summaries;
-4. v1 UI capability may remain limited to information actually present in v1;
-5. new production writers and new golden fixtures target v2 after the migration
-   slice;
-6. unsupported future versions are rejected without best-effort guessing.
+## 2. Identity model
 
-The active P5-B branch is schema-dependent and must remain paused until the executable
-v2 domain/fixture/parser migration has landed on `main`, then rebase and adapt to this
-contract.
+Schema v2 separates four identities:
 
-## 2. Scene evaluation context: what "absolute" means
+- `variant_id`: stable comparison/configuration identity across Scenes;
+- `source_id`: stable identity of one concrete source image;
+- `scene_id`: one evaluation Scene/cohort identity;
+- `measurement_context_id`: deterministic identity of the weighted measurement
+  context in which the Scene measurements were produced.
 
-An **absolute source measurement** is reference-independent **inside one published
-Scene evaluation context**. It is not necessarily context-free or globally reusable.
+Display labels are metadata. They are not durable identity and need not be unique.
+Reference selection always uses `variant_id`.
 
-A Scene owns common structural context. The representative image, PiDiNet Edge Map,
-Texture Gate, preprocessing profile, and effective weighting/gating may depend on the
-Scene cohort. Therefore the same source image evaluated in another Scene/job/cohort
-may legitimately receive a different weighted published measurement even though its
-file hash is unchanged.
+### 2.1 `source_id` reuse across Scenes
 
-Schema v2 therefore requires a stable opaque `measurement_context_id` (or equivalent
-fingerprint) for each published Scene evaluation context. Its provenance must bind at
-least the information capable of changing a published weighted measurement:
-
-- Scene/cohort identity and ordered variant/source membership;
-- source content identities/hashes;
-- representative-image identity or deterministic representative derivation policy;
-- analysis preprocessing/profile version;
-- IQA model/attribute version;
-- weighting/gating configuration and structural-model provenance;
-- geometry/profile metadata required to interpret the measurement.
-
-The exact fingerprint encoding is a writer implementation detail, but incompatible
-contexts must not share an identity.
-
-A server may cache and reuse lower-level source features when that reuse is
-mathematically valid. It must **not** transplant a published weighted source
-measurement across incompatible Scene contexts merely because `source_id`, path, or
-SHA-256 matches.
-
-## 3. Result, variant, Scene, and source identity
-
-Schema v2 separates comparison-group identity from concrete-image identity.
-
-- `variant_id` identifies one comparison group/configuration across the result.
-- `source_id` identifies one concrete image in the result.
-- `scene_id` identifies one evaluation Scene.
-- every Scene source records both `variant_id` and `source_id`;
-- top-level ordered `variants[]` provides stable reference/display ordering;
-- display label/name is metadata and is not the durable `variant_id`;
-- source paths/hashes remain historical source identity, not directly openable
-  machine-local paths.
-
-Conceptually:
+A concrete source may legitimately participate in more than one Scene/context. The
+same `source_id` therefore **may recur across different Scenes** in one result, but all
+occurrences must carry identical immutable source identity metadata:
 
 ```text
-Result variants: A, B, C, D
-
-Scene 0001 / context X
-├─ source A-0001 -> variant A
-├─ source B-0001 -> variant B
-├─ source C-0001 -> variant C
-└─ source D-0001 -> variant D
-
-Scene 0002 / context Y
-├─ source A-0002 -> variant A
-├─ source B-0002 -> variant B
-├─ source C-0002 -> variant C
-└─ source D-0002 -> variant D
+source_id
+relative_path
+sha256
+width
+height
 ```
 
-### 3.1 Complete-result structural invariants
+A repeated `source_id` with different immutable source metadata makes a complete v2
+manifest invalid.
 
-For a normal non-PARTIAL complete result:
+The reuse rule does **not** authorize weighted-measurement reuse. The same concrete
+source evaluated in a different Scene/cohort may have different effective weights,
+validity, and summaries; that measurement is identified by the Scene's distinct
+`measurement_context_id`.
 
-- top-level `variant_id` values are unique and stable;
-- `source_id` values are unique concrete-image identities within the result;
-- every published Scene contains **exactly one source for every declared variant**;
-- one Scene cannot bind two concrete sources to the same `variant_id`;
-- reference selection of a `variant_id` therefore resolves to exactly one source in
-  that Scene;
-- all variants in a Scene have equal original dimensions;
-- PixelScope never resizes, aligns, or imputes incompatible source images to create a
-  comparison.
+Within one complete Scene, duplicate concrete-source binding is intentionally
+forbidden: each declared variant binds exactly one source and the `source_id` values
+inside that Scene are unique. An intentional identical-image A/B comparison must use
+distinct concrete source bindings if it occupies two variant slots. This is an
+explicit PixelScope schema-v2 constraint rather than an accidental consequence of
+global uniqueness.
 
-Missing variants in a PARTIAL result are governed by the later detailed PARTIAL
-contract. They are not permitted as an ambiguous shape for a normal complete result.
+## 3. Complete-result structural invariants
 
-## 4. Server numerical authority
+For `publication_state = "complete"`:
 
-For each valid `Scene × source × attribute`, the GPU server owns:
+- top-level `variant_id` values are unique;
+- `attribute_id` values are unique;
+- `scene_id` values are unique;
+- every Scene contains exactly one binding for every top-level variant;
+- Scene source bindings are serialized in the exact top-level variant order;
+- one Scene cannot contain duplicate `source_id` bindings;
+- repeated `source_id` values across Scenes must satisfy section 2.1;
+- all variants in one Scene have equal original source dimensions;
+- all variants in one Scene carry exactly equal `SceneGeometry` values;
+- for each attribute, all variants in one Scene carry exactly equal `GridGeometry`
+  values;
+- PixelScope never constructs an implicit resize, alignment, imputation, or grid
+  correspondence when these invariants fail.
+
+Stage 1 described physical geometry as compatible/equivalent. Stage 2 deliberately
+freezes a stricter writer contract: **the duplicated geometry metadata must compare
+exactly equal across variants after JSON parsing**. The server writer must canonicalize
+its shared Scene/grid geometry before publishing the per-source copies. A future
+schema version may move geometry into shared records or define a tolerance; v2 does
+not.
+
+Missing variants belong to the future detailed PARTIAL contract and are not accepted
+as a complete-result shape.
+
+## 4. Scene measurement context and deterministic fingerprint
+
+An absolute source measurement is reference-independent **inside one published Scene
+measurement context**. It is not globally context-free.
+
+The executable v2 context identity is:
+
+```text
+mc2:<64 lowercase SHA-256 hexadecimal characters>
+```
+
+The digest is SHA-256 over UTF-8 canonical JSON with sorted keys, compact separators,
+`ensure_ascii=False`, and `allow_nan=False`. Floating geometry tokens are serialized
+with Python `float.hex()` before hashing.
+
+The canonical payload binds:
+
+- schema token `pixelscope-iqa-measurement-context-v2`;
+- `scene_id`;
+- ordered Scene source membership;
+- each source's `variant_id`, `source_id`, SHA-256, width, and height;
+- analysis width/height, 3x3 source-to-analysis affine, and valid rectangle;
+- per-attribute grid rows/columns, block size, origin, and discarded borders;
+- attribute identity, value kind, and weighting provenance;
+- representative identity/policy;
+- preprocessing/profile identity;
+- model identity;
+- weighting/gating identity;
+- geometry-profile identity.
+
+Display labels and reference choice do not participate because they do not change the
+published absolute measurement. Comparison operator, quality direction, and epsilon
+also do not change the server-authored W/S1/S2 measurement and therefore are not part
+of this measurement-context fingerprint.
+
+A manifest whose supplied `measurement_context_id` does not exactly match the
+recomputed fingerprint is invalid.
+
+## 5. Server numerical authority
+
+For each valid `Scene x source x attribute`, the server owns:
 
 1. source decoding and analysis-domain preparation;
-2. attribute signal extraction;
-3. attribute-specific weighting/gating;
-4. source/grid validity decisions;
+2. IQA attribute extraction;
+3. Scene-context weighting/gating;
+4. grid/source validity decisions;
 5. analysis and grid geometry;
-6. weighted sufficient statistics;
-7. canonical source-local summary statistics;
-8. measurement-context and model/profile provenance.
+6. W/S1/S2/count/valid sufficient statistics;
+7. absolute Scene and Dataset summary projections;
+8. context/model/profile provenance.
 
-PixelScope must not derive IQA attributes from original image pixels and must not
-reverse-engineer effective weights from Edge Map/Texture Gate visualization artifacts.
+PixelScope consumes these measurements. It must not recompute the IQA signal from
+source pixels or derive effective weights from Edge Map/Texture Gate detail data.
 
-## 5. Required grid-level absolute measurements
+## 6. Grid sufficient statistics
 
-For every `Scene × source × attribute × grid cell`, the server publishes the compact
-sufficient statistics in the attribute's native numerical domain:
+For every `Scene x variant/source x attribute x grid cell`, the server publishes:
 
 ```text
-weight_sum
-weighted_sum
-weighted_square_sum
-valid_count
-valid_mask
+weight_sum              W   float64
+weighted_sum            S1  float64
+weighted_square_sum     S2  float64
+valid_count                  int32
+valid_mask                   bool
 ```
 
-The schema-v1 W/S1/S2/count/valid representation is retained because it preserves the
-server's weighting while remaining sufficient for deterministic local reductions.
-
-For one valid source-local cell:
+For an explicit-valid cell:
 
 ```text
-W  = weight_sum
-S1 = weighted_sum
-S2 = weighted_square_sum
 mean = S1 / W
-variance = max(0, S2/W - mean*mean)
+variance = max(0, S2 / W - mean * mean)
 std = sqrt(variance)
 ```
 
-A cell is invalid if its explicit validity is false, count/weight is non-positive,
-required values are non-finite, or its declared identity/geometry is invalid.
-Unweighted attributes use unit weights rather than omitting the sufficient-statistic
-fields.
+Explicit-valid cells require finite W/S1/S2, positive W, positive count, and
+non-negative S2. Power-domain S1/mean must be non-negative. A tiny negative variance
+caused by floating roundoff may be clamped to zero using the executable numerical
+tolerance; a materially negative variance is corrupt.
 
-The client may materialize `grid_mean = S1/W`. A writer may also serialize convenience
-grid means, but W/S1/S2/count/valid remain normative.
+Cells with `valid_mask == false` do not contribute to reductions. Invalid Scene
+summaries use zero W/S1/S2/count and false validity.
 
-## 6. Cross-variant grid correspondence is mandatory
+## 7. Canonical absolute Scene reduction
 
-Local `pair_valid[g]` is meaningful only when target cell `g` and reference cell `g`
-represent the same physical analysis region.
-
-For every comparable `Scene × attribute`, all participating variants must therefore
-share one compatible grid topology/geometry:
-
-- equal grid rows/columns and cell indexing;
-- equal block width/height;
-- equal grid origin;
-- compatible/equal analysis valid rectangle;
-- compatible source-to-analysis geometry so the same grid index denotes the same
-  physical analysis region;
-- the same attribute/grid identity required for indexwise comparison.
-
-A writer may encode this as one shared Scene/attribute grid-geometry object or as
-per-source metadata that validates equal. The representation is not important; the
-**physical-cell correspondence invariant is normative**.
-
-If this invariant is not satisfied, the server must reject/mark the cohort
-incompatible according to the applicable failure policy. PixelScope must never zip
-mismatched arrays by index or create an implicit alignment.
-
-## 7. Canonical Scene-level absolute reduction
-
-For a published `Scene × source × attribute`, the canonical absolute Scene scalar
-uses all valid source-local grid cells and the sufficient statistics:
+The canonical Scene scalar uses all explicit-valid source-local cells:
 
 ```text
-scene_W  = Σ W[g]
-scene_S1 = Σ S1[g]
-scene_S2 = Σ S2[g]
+scene_W  = sum(W[g])
+scene_S1 = sum(S1[g])
+scene_S2 = sum(S2[g])
 
 weighted_mean = scene_S1 / scene_W
-weighted_variance = max(0, scene_S2/scene_W - weighted_mean²)
+weighted_variance = max(0, scene_S2 / scene_W - weighted_mean**2)
 weighted_std = sqrt(weighted_variance)
 ```
 
-This `ΣS1/ΣW` weighted mean is the canonical Scene mean. The arithmetic mean of valid
-`S1[g]/W[g]` cells is **not** another value called `mean`; if an equal-grid statistic
-is useful later it must be separately named as a derived statistic.
+`sum(S1) / sum(W)` is the only canonical Scene mean. Arithmetic mean of cell means is
+not interchangeable with it.
 
-## 8. Fast summary metadata and single numerical authority
+## 8. Dataset absolute summaries
 
-Ordinary result open must not require opening every grid artifact. The server therefore
-publishes small absolute summary metadata.
+For every `variant x attribute`, v2 publishes two separately named reductions.
 
-### 8.1 Scene-source-attribute summary
-
-For every published `Scene × source/variant × attribute`, summary metadata includes at
-least:
+### 8.1 Pooled measurement summary
 
 ```text
-weight_sum
-weighted_sum
-weighted_square_sum
-valid_count
-valid
-weighted_mean
-weighted_std
+pooled_W  = sum(valid scene_W)
+pooled_S1 = sum(valid scene_S1)
+pooled_S2 = sum(valid scene_S2)
 ```
 
-W/S1/S2/count/valid and the formulas in this specification are the **normative
-measurement authority**. Serialized `weighted_mean`/`weighted_std` are server-authored
-fast projections, not a competing numerical authority.
+Mean/std are recomposed from those pooled accumulators. The default absolute Dataset
+Overview is `pooled_weighted_mean`.
 
-A projection must agree with deterministic recomposition from its accumulators.
-For finite floating values `a` and `b`, schema-v2 projection consistency uses:
+### 8.2 Equal-Scene summary
+
+Let `m[s]` be each valid canonical Scene `weighted_mean`:
+
+```text
+scene_mean  = arithmetic_mean(m[s])
+scene_std   = population_std(m[s])
+scene_count = number of valid Scene means
+```
+
+This is a different statistic; each valid Scene contributes one sample regardless of
+its effective support.
+
+## 9. Serialized projections and numerical consistency
+
+W/S1/S2/count/valid plus this specification's formulas are the numerical authority.
+Serialized mean/std values are fast projections only.
+
+For finite floating values `a` and `b`, projection consistency is:
 
 ```text
 abs(a - b) <= max(1e-12, 1e-9 * max(abs(a), abs(b)))
 ```
 
-Integer counts and boolean validity must agree exactly. A finite projection outside
-this tolerance is invalid/corrupt; readers do not choose whichever value is more
+Counts and validity agree exactly. Dataset pooled accumulators must equal the sums of
+contributing Scene accumulators under the same floating projection rule. Equal-Scene
+mean/std/count must match deterministic reduction of the published valid Scene means.
+A disagreement is corrupt; the client never chooses whichever representation is more
 convenient.
 
-### 8.2 Dataset-variant-attribute summary
+## 10. Reference-neutral comparison operators
 
-For every `variant × attribute`, the server publishes **both** of these inexpensive,
-explicitly named absolute reductions across valid published Scenes.
-
-#### A. Pooled measurement statistics
+Schema-v2 AttributeSpec serializes one of these reference-neutral operators:
 
 ```text
-pooled_W  = Σ scene_W
-pooled_S1 = Σ scene_S1
-pooled_S2 = Σ scene_S2
-
-pooled_weighted_mean = pooled_S1 / pooled_W
-pooled_weighted_variance = max(0, pooled_S2/pooled_W - pooled_weighted_mean²)
-pooled_weighted_std = sqrt(pooled_weighted_variance)
+power_ratio_target_over_reference_db
+signed_target_minus_reference
 ```
 
-**Owner-selected default for the absolute Dataset Overview: `pooled_weighted_mean`.**
-This answers the database-wide measurement-support question and lets Scenes with more
-effective valid weight contribute proportionally more.
-
-#### B. Equal-Scene statistics
-
-Let `m[s]` be the canonical valid Scene `weighted_mean` for the variant/attribute:
-
-```text
-scene_mean = arithmetic_mean(m[s])
-scene_std  = population_std(m[s])
-scene_count = number of valid Scene means
-```
-
-These are retained as secondary statistics because they answer a different question:
-each Scene contributes one evaluation sample regardless of effective support.
-
-Dataset pooled accumulators and their serialized projections must be consistent with
-the contributing Scene accumulators using the same projection tolerance above.
-`scene_mean`/`scene_std` must similarly agree with deterministic reduction of the
-published valid Scene canonical means.
-
-## 9. Removal of authoritative pairwise records
-
-Schema v2 does not require the server to serialize every possible pairwise comparison.
-For N variants, such output scales as O(N²) per attribute/mode and embeds a reference
-choice into the stored result even though the source measurements are already
-sufficient.
-
-Pairwise values may be emitted as optional diagnostics or independent server-side
-verification, but they are explicitly derived metadata. PixelScope must not require
-such records for its normal v2 comparison path and must not treat them as a second
-numerical authority.
-
-## 10. Local reference-dependent comparison
-
-PixelScope selects `reference_variant_id` and derives each target/reference comparison
-locally from immutable server measurements.
-
-For reference B in A/B/C/D:
-
-```text
-A vs B
-C vs B
-D vs B
-```
-
-Switching reference to C produces A/C, B/C, and D/C without another server evaluation.
+The historical v1 names `power_ratio_a_over_b_db` and `signed_a_minus_b` are not valid
+v2 writer values. The words target/reference denote the operands selected locally at
+runtime and are never fixed top-level A/B variant identities.
 
 ### 10.1 Pair-valid support
 
-For each Scene/attribute and a topology already proven compatible:
+For a Scene/attribute whose cross-variant geometry is already validated:
 
 ```text
 pair_valid[g] = valid_target[g] AND valid_reference[g]
@@ -344,253 +275,295 @@ pair_valid[g] = valid_target[g] AND valid_reference[g]
 
 There is no union, imputation, resize, alignment, or client-generated weighting.
 
-### 10.2 Power — ratio of weighted means
+### 10.2 Power mode 1 — ratio of weighted means
 
-For the pair-valid set K:
+For pair-valid set K:
 
 ```text
-mean_target = Σ(K) S1_target[g] / Σ(K) W_target[g]
-mean_ref    = Σ(K) S1_ref[g]    / Σ(K) W_ref[g]
-
+mean_target = sum(K, S1_target) / sum(K, W_target)
+mean_ref    = sum(K, S1_ref)    / sum(K, W_ref)
 raw_db = 10 * log10((mean_target + epsilon) / (mean_ref + epsilon))
 ```
 
-`epsilon` remains mandatory server-authored AttributeSpec metadata in the same linear
-power domain.
+`epsilon` is mandatory, finite, non-negative server-authored metadata in the same
+linear power domain.
 
-### 10.3 Power — mean of grid log-ratios
+### 10.3 Power mode 2 — mean of grid log-ratios
 
-For each pair-valid grid cell:
+For each pair-valid cell:
 
 ```text
 P_target[g] = S1_target[g] / W_target[g]
 P_ref[g]    = S1_ref[g]    / W_ref[g]
-
-grid_db[g] = 10 * log10((P_target[g] + epsilon) / (P_ref[g] + epsilon))
+grid_db[g]  = 10 * log10((P_target[g] + epsilon) / (P_ref[g] + epsilon))
 ```
 
-The Scene comparison is the **unweighted arithmetic mean** of finite valid `grid_db`
-values, preserving the accepted schema-v1 meaning of this distinct comparison mode.
-It must not be silently replaced by a weighted mean of dB cells.
+The Scene value is the **unweighted arithmetic mean** of finite `grid_db[g]` values.
+It is intentionally not a weighted mean of dB cells and need not equal mode 1.
 
 ### 10.4 Signed attributes
 
-For signed attributes, use the same pair-valid cell intersection, recompute each
-source's canonical weighted mean over that common support, then derive:
+For signed attributes, each source mean is recomputed over the common pair-valid
+support and:
 
 ```text
-signed_delta(target, reference) = mean_target - mean_reference
+raw_delta = mean_target - mean_reference
 ```
 
-Signed values are not converted to power-ratio dB. Quality-direction presentation may
-interpret a derived value, but it does not mutate the stored absolute measurement.
+Signed attributes use `quality_direction = neutral` and do not emit a quality delta.
 
-## 11. Dataset relative Overview default
+## 11. Central quality-direction semantics
 
-Scene Trend retains the Scene axis. For each valid Scene, PixelScope first computes
-the selected target/reference comparison using the selected comparison mode exactly as
-specified above.
-
-**Owner-selected default relative Dataset Overview reduction:**
+The Qt-free v2 comparison layer is the single authority for both engineering-oriented
+raw values and user-facing quality orientation:
 
 ```text
-1. compute one selected comparison value independently for each valid Scene;
-2. Dataset Overview = arithmetic mean of those valid Scene comparison values.
+raw relative value      # target/reference engineering orientation
+quality relative value  # positive means target quality is better
 ```
 
-This applies to:
+For both power modes:
 
-- ratio-of-weighted-means Scene dB values;
-- mean-of-grid-log-ratios Scene dB values;
-- signed Scene deltas.
+- `higher_is_better`: `quality = raw`;
+- `lower_is_better`: `quality = -raw`;
+- `neutral`: quality is explicitly not applicable.
 
-Thus the relative Overview is the equal-Scene reduction of the visible Scene Trend.
-A future explicitly named pooled-across-Scenes relative mode may be added, but it is
-not the schema-v2 default and must not be substituted silently.
+Signed attributes are neutral and therefore expose only their raw signed delta. P5-B
+plots/tables must consume this authority rather than implementing their own sign rule.
+Reversing target/reference reverses the raw value and, for non-neutral power
+attributes, reverses the quality value as well.
 
-This relative default intentionally differs from the absolute Overview default:
-absolute Overview defaults to database-wide pooled measurement support, while relative
-Overview defaults to equal-Scene aggregation of already formed comparisons. Both are
-explicitly labeled semantics rather than two values both called "mean".
+## 12. Relative Dataset reduction
 
-## 12. One hierarchy: absolute, relative, and spatial views
+For a selected reference and comparison mode, PixelScope first computes one local
+comparison independently for each valid Scene. The default relative Dataset Overview
+is then the arithmetic mean of those valid Scene comparison values.
 
-The same server-authored measurement model feeds all normal result exploration:
+This equal-Scene reduction applies to mode-1 power dB, mode-2 power dB, and signed
+Scene deltas. A future pooled-across-Scenes relative statistic must have a distinct
+name and cannot silently replace this default.
 
-```text
-summary metadata
-    ├─ pooled absolute Dataset Overview
-    └─ absolute Scene Trend
+## 13. Concrete artifact layout
 
-grid sufficient statistics
-    ├─ selected-reference Scene comparisons
-    │       ├─ Scene Trend
-    │       └─ equal-Scene relative Dataset Overview
-    └─ grid-retained absolute/relative values
-            └─ spatial visualization / P5-D
-```
-
-Reference/mode changes may require grid artifacts. The UI may show `Loading...` or
-`Calculating...` while bounded asynchronous I/O/numerical work completes.
-
-## 13. Result artifact categories and loading policy
-
-Conceptual layout remains:
+The executable v2 layout is:
 
 ```text
-result/<job-id>/
+result/
     manifest.json
     summary.npz
     scenes/
+        scene_000000.npz
         scene_000001.npz
-        scene_000002.npz
         ...
     detail/
-        ... optional per-pixel/debug artifacts ...
+        ... optional opaque artifacts ...
 ```
 
-Artifact categories are defined by purpose:
+`manifest.json` is the immutable publication commit marker and is written last.
 
-1. **Summary metadata** — small normal open-time absolute Dataset + Scene summaries.
-2. **Grid measurement artifacts** — primary analytical data for exact relative
-   calculations and spatial/grid views.
-3. **Optional detail artifacts** — larger per-pixel/2K/debug material.
+### 13.1 Manifest JSON
 
-Schema v2 does **not** prescribe "always eager" or "inspected Scene only" for grid
-arrays. PixelScope may load them by Scene, bounded batch, background request, or cache
-according to measured runtime needs. That policy must remain bounded, stale-safe, and
-non-blocking, especially for SMB/network storage.
-
-The expected present workload is up to roughly 300 compared source images. That makes
-local vectorized reference switching plausible, but wall-clock latency is not a schema
-correctness promise. P5-F owns real size/I/O/cache characterization.
-
-## 14. Spatial visualization
-
-The server does not need to render a heatmap for every target/reference pair.
-
-Absolute spatial view:
+Required complete-result top-level fields are:
 
 ```text
-absolute grid value -> local display normalization/colormap -> overlay
+kind                    "pixelscope-iqa-result"
+schema_version          2
+publication_state       "complete"
+result_id               string
+variants[]              ordered {variant_id, label}
+attributes[]            ordered AttributeSpec records
+summary_artifact        {path, uncompressed_size}
+scenes[]                ordered Scene records
 ```
 
-Relative spatial view:
+Each complete Scene contains:
 
 ```text
-target absolute grid
-+ reference absolute grid
-+ pair-valid intersection
-        ↓
-local relative grid
-        ↓
-local display normalization/colormap
-        ↓
-viewer/grid visualization
+scene_id
+measurement_context_id
+context_provenance {
+    representative_id,
+    preprocessing_id,
+    model_id,
+    weighting_id,
+    geometry_id
+}
+sources[]               exact top-level variant order
+grid_artifact           {path, uncompressed_size}
+detail_artifacts[]      optional opaque relative-path strings
 ```
 
-Geometry mapping still follows the explicit source/analysis coordinate contract;
-PixelScope never treats grid index as source pixel position without that mapping.
+Each source binding contains `variant_id`, immutable source metadata, one complete
+`geometry` record, and a `grids` object containing exactly every declared attribute.
 
-## 15. Publication, PARTIAL direction, and immutability
+`detail_artifacts[]` is intentionally **opaque in schema v2 Stage 2**. A bare path is
+only a bounded reference and is not a permanent P5-D decode contract. P5-D may define
+a separately versioned typed detail sub-schema containing kind/dtype/shape/size/
+geometry metadata before consuming such data. Stage 2 never infers detail dtype or
+meaning from the path.
 
-The owner-approved P5 direction remains:
+### 13.2 `summary.npz`
 
-> **Durable PARTIAL results are allowed, and successful Scene work must be
-> preservable when another Scene fails.**
+For `S = scene_count`, `V = variant_count`, `A = attribute_count`:
 
-Schema v2 does not reopen that decision. What remains deferred to the dedicated P5-C
-failure/publication contract is the exact taxonomy and terminal behavior for:
+| Array | dtype | shape |
+| --- | --- | --- |
+| `scene_ids` | `<U128` | `(S,)` |
+| `variant_ids` | `<U128` | `(V,)` |
+| `attribute_ids` | `<U64` | `(A,)` |
+| `source_ids` | `<U128` | `(S,V)` |
+| `measurement_context_ids` | `<U68` | `(S,)` |
+| `scene_weight_sum` | `float64` | `(S,V,A)` |
+| `scene_weighted_sum` | `float64` | `(S,V,A)` |
+| `scene_weighted_square_sum` | `float64` | `(S,V,A)` |
+| `scene_valid_count` | `int64` | `(S,V,A)` |
+| `scene_valid` | `bool` | `(S,V,A)` |
+| `scene_weighted_mean` | `float64` | `(S,V,A)` |
+| `scene_weighted_std` | `float64` | `(S,V,A)` |
+| `pooled_weight_sum` | `float64` | `(V,A)` |
+| `pooled_weighted_sum` | `float64` | `(V,A)` |
+| `pooled_weighted_square_sum` | `float64` | `(V,A)` |
+| `pooled_valid_count` | `int64` | `(V,A)` |
+| `pooled_valid` | `bool` | `(V,A)` |
+| `pooled_weighted_mean` | `float64` | `(V,A)` |
+| `pooled_weighted_std` | `float64` | `(V,A)` |
+| `scene_mean` | `float64` | `(V,A)` |
+| `scene_std` | `float64` | `(V,A)` |
+| `scene_count` | `int32` | `(V,A)` |
+| `equal_scene_valid` | `bool` | `(V,A)` |
 
-- request-level rejection;
-- one bad source/variant inside an N-way Scene;
-- missing variants in a PARTIAL Scene;
-- per-Scene failure record fields/reasons;
-- no-success jobs;
-- exact PARTIAL terminal/API identity;
-- required artifacts for successful versus failed Scenes;
-- cancel/completion/final-publication races.
+Invalid summary projection slots are serialized as zero while their validity flag is
+false; the domain representation exposes their mean/std as absent rather than as
+numerical zero.
 
-Incompatible original dimensions or otherwise unevaluable cohorts are rejected or
-excluded by server evaluation according to that policy. PixelScope does not repair
-them locally.
+### 13.3 Scene grid NPZ
 
-`manifest.json` remains the immutable publication commit marker unless a later
-explicit contract changes it. A result-bearing terminal state is not openable until
-all artifacts required for its published successful content are finalized.
+Every Scene grid artifact contains:
 
-Artifact safety remains data-only: path containment, `allow_pickle=False`, declared
-dtype/rank/shape, archive/member/array bounds, and no best-effort schema guessing.
+```text
+variant_ids                <U128  (V,)
+source_ids                 <U128  (V,)
+measurement_context_id     <U68   (1,)
+```
 
-## 16. Source inspection remains separate
+For each attribute `<id>` with rows R and columns C:
 
-The measurement schema does not make `source.relative_path` directly openable client
-authority. Passive result browsing may display source/variant metadata but must not
-interpret a result-relative path as a machine-local file path.
+```text
+<id>__weight_sum               float64  (V,R,C)
+<id>__weighted_sum             float64  (V,R,C)
+<id>__weighted_square_sum      float64  (V,R,C)
+<id>__valid_count              int32    (V,R,C)
+<id>__valid_mask               bool     (V,R,C)
+```
 
-Actual source inspection remains owned by logical storage-root mapping, source
-identity/hash validation, and the canonical local registration/selection path in the
-later P5 viewer/history slices. Passive browsing does not mutate Files, Selected,
-Primary, decoded residency, native Statistics, or Difference.
+Member names, dtype, rank, shape, variant order, source order, and context identity
+match exactly. Object/pickle arrays are rejected.
 
-## 17. Executable-v2 implementation gates
+## 14. Summary-first filesystem boundary
 
-The docs/schema PR freezes the numerical and identity decisions above. Before the
-focused executable-v2 domain/fixture/parser slice is considered complete, that slice
-must additionally freeze and test:
+Ordinary `load_result_v2()` performs filesystem I/O only for `manifest.json` and the
+referenced `summary.npz`. Scene-grid and optional-detail references are validated
+syntactically during manifest parsing, including POSIX and Windows absolute/traversal
+semantics, but their existence, symlink-resolved containment, file type, archive
+metadata, and array contents are deferred.
 
-- exact JSON-versus-NPZ field placement;
-- schema-v2 safety ceilings justified by the new summary/grid shape;
-- concrete manifest/array names and dtype/shape constraints;
-- `measurement_context_id` encoding/fingerprint construction;
-- complete/PARTIAL parser discrimination needed by the implemented reader;
-- v1 read-only compatibility dispatch;
-- golden tests for summary-projection tolerance, grid correspondence, N-way variant
-  identity, absolute reductions, and all local comparison modes.
+`load_grid_scene()` is the boundary that resolves and opens one requested Scene grid.
+Therefore ordinary result open does not perform O(Scene) stat/resolve operations over
+SMB merely to establish the overview. P5-F still owns measured cache/preload and
+network-I/O policy.
 
-These are **implementation-blocking gates for the executable-v2 migration**, not
-choices that P5-B may invent.
+A missing/corrupt deferred grid does not prevent the absolute summary-first result
+from opening; requesting that Scene grid returns a corrupt grid-load outcome.
 
-The following remain later-phase decisions and do not block this docs/schema PR:
+## 15. Artifact/path safety ceilings
 
-- detailed PARTIAL/failure/cancel taxonomy: P5-C;
-- logical-root client configuration ownership: P5-C;
-- final grid cache/preload budgets and wall-clock performance targets: P5-F.
+The executable v2 parser uses safety ceilings rather than runtime cache budgets:
 
-## 18. Migration impact on P5 slices
+| Limit | Value |
+| --- | ---: |
+| manifest JSON | 8 MiB |
+| summary NPZ uncompressed | 128 MiB |
+| one Scene NPZ uncompressed | 128 MiB |
+| one ndarray payload | 32 MiB |
+| one NPY member metadata/file size | 32 MiB + 64 KiB |
+| one archive on disk | 130 MiB |
+| NPZ members per artifact | 192 |
+| variants | 32 |
+| Scenes | 512 |
+| attributes | 32 |
+| total Scene source bindings | 1024 |
+| grid cells per attribute | 65,536 |
+| detail references per Scene | 64 |
+| generic ID length | 128 characters |
+| display label | 256 characters |
+| provenance string | 512 characters |
+| source relative path | 2,048 characters |
+| artifact reference | 1,024 characters |
 
-### Historical P5-A / schema v1
+NPZ input must be data-only. The reader rejects malformed ZIP/NPY structures,
+duplicate members, encrypted members, unsupported compression, unexpected members,
+object/pickle dtype, wrong dtype/rank/shape, oversized arrays/members/archives, and
+declared/actual uncompressed-size mismatch. `np.load(..., allow_pickle=False)` remains
+mandatory.
 
-PR #37 at `fceb16f6e43c48ec65fbf7ebbcc103b56716b686` remains the merged executable
-historical baseline. Its v1 reader/fixtures stay as explicit compatibility coverage.
+Artifact references reject NUL, POSIX absolute paths, Windows absolute/drive paths,
+UNC paths, and `..` traversal under both POSIX and Windows path semantics. Deferred
+artifact containment is rechecked against the resolved result root when the artifact
+is actually opened.
 
-### Focused executable-v2 migration
+## 16. Publication state and PARTIAL boundary
 
-After this contract PR merges, a focused domain/fixture/parser migration must land on
-`main` before P5-B resumes schema-dependent implementation. It updates versioned
-models, reader/writer fixture shape, golden recomposition, N-way identity, summary
-verification, and v1 compatibility dispatch without introducing P5-B UI policy.
+P5 retains the durable decision that successful Scene work may eventually survive a
+PARTIAL job. However, PR #39 deliberately deferred the exact PARTIAL manifest/failure
+shape to P5-C.
 
-### P5-B
+Stage-2 executable behavior is therefore explicit:
 
-After the executable-v2 migration merges, the existing P5-B branch must rebase and
-reconcile behavior rather than merely resolve Git conflicts:
+- `publication_state = "complete"` -> parse the complete v2 shape;
+- `publication_state = "partial"` -> `UNSUPPORTED` in the Stage-2 reader;
+- any other state -> invalid;
+- P5-B must not reinterpret PARTIAL as complete or invent a partial parser.
 
-- use `variant_id` for N-way Reference selection;
-- show fast absolute summary views without opening all grids;
-- default absolute Dataset Overview to `pooled_weighted_mean`;
-- derive selected target/reference comparisons locally;
-- default relative Dataset Overview to arithmetic mean of valid Scene comparisons;
-- perform required grid I/O/calculation off the UI thread with stale-result rejection;
-- preserve passive browsing independence from local source/workspace authority.
+P5-C owns exact request rejection, Scene/variant failure records, no-success behavior,
+cancel/publication races, and the terminal API taxonomy.
 
-### P5-D
+## 17. Source inspection remains separate
 
-P5-D consumes the same absolute grid measurements and derives reference-relative grids
-locally before applying the existing exact analysis→source→viewer geometry mapping.
+`source.relative_path` is historical/logical source metadata, not direct machine-local
+open authority. Passive result browsing must not mutate Files, Selected, Primary,
+decoded residency, Statistics, Difference, or the current comparison workspace.
 
-### P5-F
+Actual source inspection remains governed by later logical storage-root mapping,
+source identity/hash verification, and canonical local registration/selection paths.
 
-P5-F characterizes realistic result sizes, local numerical latency, SMB/network I/O,
-cache/preload policy, and memory bounds. It does not redefine the schema's numerical
-meaning to satisfy a timing target.
+## 18. Stage-2 executable acceptance gates
+
+PR #40 is not merge-ready merely because the schema classes parse. Before it is marked
+Ready for Review, repository-native tests must cover:
+
+- deterministic v2 N-way fixture round-trip and identity ordering;
+- the real existing schema-v1 fixture through canonical version dispatch;
+- hand-calculated weighted Scene reduction and comparison constants;
+- pooled versus equal-Scene Dataset summaries;
+- both power modes and their deliberate divergence;
+- signed target/reference delta and reference reversal;
+- centralized higher/lower/neutral quality-direction semantics;
+- pair-valid intersection and equal-Scene relative Dataset reduction;
+- projection tolerance and corrupted projections;
+- context fingerprint determinism/tampering;
+- complete cardinality, exact geometry/grid correspondence, and source-reuse policy;
+- negative/non-finite/zero power and epsilon behavior;
+- POSIX/Windows path escapes;
+- malformed/duplicate/encrypted/unsupported/object/wrong-shape/wrong-dtype/oversized NPZ;
+- summary-first deferred-grid behavior;
+- future-version and Stage-2 PARTIAL rejection.
+
+Observed validation must be recorded separately from planned commands. Repository
+standard checks for changed `src/`, `tests/`, and docs remain the merge gate: focused
+v1+v2 pytest, broader applicable pytest, Ruff, mypy, docs checks, `pip check`, and
+`git diff --check`.
+
+After Stage 2 merges, P5-B / PR #38 rebases onto this executable authority and adapts
+its UI/controller to N-way `variant_id`, summary-first absolute views, local
+reference-dependent comparisons, and the centralized quality semantics. P5-B does
+not redefine the schema.
