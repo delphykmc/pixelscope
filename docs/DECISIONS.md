@@ -733,6 +733,14 @@ Schema v2 publishes both pooled-weighted and equal-Scene absolute statistics.
 
 - Current remote submission baseline accepts RGB-family PNG/JPEG/BMP inputs; RAW is
   not silently converted.
+- Request/result/Scene-manifest identity remains N-way-capable, but the initial
+  P5-C user-facing submission workflow is exactly two variants: Current Pair submits
+  exactly two variants and batch submission uses the deterministic two-folder Pair
+  workflow.
+- Arbitrary three-or-more-variant submission UI/API workflow is deferred to a later
+  explicit owner decision.
+- P5-B remains capable of opening/exploring externally produced N-way schema-v2
+  results and switching IQA Reference across their variants.
 - C1 logical shared-storage-root client configuration remains a P5-C owner gate.
 - Durable PARTIAL results remain owner-approved: Scene-level failures must not force
   valid successful Scene work to be discarded.
