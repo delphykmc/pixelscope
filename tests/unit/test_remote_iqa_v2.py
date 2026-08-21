@@ -583,11 +583,16 @@ def test_source_id_reuse_requires_identical_immutable_metadata(tmp_path: Path) -
         parse_complete_manifest(root, manifest)
 
 
-def test_duplicate_source_binding_inside_one_scene_is_rejected(tmp_path: Path) -> None:
+def test_same_source_id_may_bind_multiple_variants_inside_one_scene(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "same-scene-duplicate"
     manifest = _minimal_manifest(root, duplicate_inside_scene=True)
-    with pytest.raises(InvalidV2, match="duplicate source_id"):
-        parse_complete_manifest(root, manifest)
+    parsed = parse_complete_manifest(root, manifest)
+    scene = parsed.scenes[0]
+    assert scene.sources[0].source.source_id == "shared"
+    assert scene.sources[1].source.source_id == "shared"
+    assert scene.sources[0].variant_id != scene.sources[1].variant_id
 
 
 def test_display_labels_are_not_variant_identity(tmp_path: Path) -> None:
