@@ -551,8 +551,8 @@ Stage 2 freezes the concrete executable-v2 contract before P5-B resumes:
 
 - canonical v1/v2 dispatch with v1 read-only compatibility and no synthetic upgrade;
 - N-way `variant_id` identity separate from reusable concrete `source_id`;
-- cross-Scene `source_id` reuse only with identical immutable source metadata, while
-  duplicate source binding inside one complete Scene remains invalid;
+- repeated `source_id` occurrences are allowed across Scenes and across variant slots
+  in one Scene only when immutable concrete-source metadata is identical;
 - deterministic `measurement_context_id = mc2:<sha256>` over canonical
   Scene/source/provenance/geometry JSON;
 - exact complete-result variant cardinality and exact cross-variant duplicated
