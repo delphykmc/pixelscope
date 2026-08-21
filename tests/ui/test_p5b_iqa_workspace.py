@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pyqtgraph as pg
 import pytest
-from PySide6.QtCore import QSettings, QRect, Qt, QThreadPool
+from PySide6.QtCore import QRect, QSettings, Qt, QThreadPool
 from PySide6.QtWidgets import QFileDialog, QLabel
 
 from pixelscope.app.application import _compose_main_window_presentation
