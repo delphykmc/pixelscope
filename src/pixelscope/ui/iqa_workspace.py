@@ -722,6 +722,7 @@ class IqaWorkspaceWidget(QWidget):
             hideOverlappingLabels=False,
             tickTextHeight=40 if crowded_ticks else 18,
         )
+        bottom_axis.setHeight(44 if crowded_ticks else None)
         bottom_axis.setTicks(
             [[
                 (
