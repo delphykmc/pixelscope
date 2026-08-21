@@ -86,6 +86,13 @@ class IqaExplorerModel:
         return self._variants
 
     @property
+    def scene_ids(self) -> tuple[str, ...]:
+        """Return schema-independent ordered Scene identities."""
+        if isinstance(self.result, ResultV2):
+            return tuple(scene.scene_id for scene in self.result.scenes)
+        return tuple(scene.scene_id for scene in self.result.scenes)
+
+    @property
     def relative_ready(self) -> bool:
         """Compatibility shorthand: any v2 Reference has been prepared."""
         return not self.is_v2 or bool(self._prepared_references)
@@ -115,7 +122,14 @@ class IqaExplorerModel:
                 if target_variant_id == reference_variant_id:
                     continue
                 for mode in modes:
-                    rows[(attribute.attribute_id, mode, reference_variant_id, target_variant_id)] = []
+                    rows[
+                        (
+                            attribute.attribute_id,
+                            mode,
+                            reference_variant_id,
+                            target_variant_id,
+                        )
+                    ] = []
 
         for scene in result.scenes:
             outcome = load_grid_scene(result, scene.scene_id)
@@ -314,24 +328,24 @@ class IqaExplorerModel:
 
     def scene_sources(self, scene_id: str) -> tuple[tuple[str, str, Source], ...]:
         if isinstance(self.result, ResultV2):
-            scene = self.result.scene(scene_id)
+            v2_scene = self.result.scene(scene_id)
             return tuple(
                 (
                     measurement.variant_id,
                     self.result.variant(measurement.variant_id).label,
                     measurement.source,
                 )
-                for measurement in scene.sources
+                for measurement in v2_scene.sources
             )
-        legacy = cast(Result, self.result)
-        scene = legacy.scene(scene_id)
-        if len(scene.sources) < 2:
+        legacy = self.result
+        legacy_scene = legacy.scene(scene_id)
+        if len(legacy_scene.sources) < 2:
             raise UnsupportedIqaExplorerResult(
-                f"Scene {scene.scene_id} has fewer than two ordered sources"
+                f"Scene {legacy_scene.scene_id} has fewer than two ordered sources"
             )
         return (
-            ("A", "A — first source", scene.sources[0]),
-            ("B", "B — second source", scene.sources[1]),
+            ("A", "A — first source", legacy_scene.sources[0]),
+            ("B", "B — second source", legacy_scene.sources[1]),
         )
 
     def _legacy_relative_trend(
