@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -57,6 +58,12 @@ class IqaExplorerModel:
         self.result = result
         self._grids = dict(grids or {})
         self._legacy_comparisons: dict[tuple[str, str], Comparison] = {}
+        self._relative_cache: dict[
+            tuple[str, ComparisonMode, str, str], tuple[RelativeTrendPoint, ...]
+        ] = {}
+        self._dataset_cache: dict[
+            tuple[str, ComparisonMode, str, str], ScalarStatistic
+        ] = {}
         if isinstance(result, ResultV2):
             self._variants = tuple(
                 ExplorerVariant(item.variant_id, item.label) for item in result.variants
@@ -105,7 +112,11 @@ class IqaExplorerModel:
     ) -> ScalarStatistic:
         if not isinstance(self.result, ResultV2):
             return ScalarStatistic.invalid("legacy_v1_has_no_absolute_measurement")
-        summary = self.result.scene(scene_id).source_for_variant(variant_id).summary(attribute_id)
+        summary = (
+            self.result.scene(scene_id)
+            .source_for_variant(variant_id)
+            .summary(attribute_id)
+        )
         return _measurement_mean(summary.valid, summary.weighted_mean)
 
     def relative_trend(
@@ -117,30 +128,20 @@ class IqaExplorerModel:
     ) -> tuple[RelativeTrendPoint, ...]:
         if reference_variant_id == target_variant_id:
             raise ValueError("reference and target variant must differ")
+        key = (attribute_id, mode, reference_variant_id, target_variant_id)
+        cached = self._relative_cache.get(key)
+        if cached is not None:
+            return cached
         if isinstance(self.result, ResultV2):
-            if not self.relative_ready:
-                raise RuntimeError("relative grids are not loaded")
-            spec = self.result.attribute(attribute_id)
-            selected_mode = _applicable_mode(spec.value_kind, mode)
-            points: list[RelativeTrendPoint] = []
-            for scene in self.result.scenes:
-                grid = self._grids[scene.scene_id]
-                target = grid.attribute_for_variant(target_variant_id, attribute_id)
-                reference = grid.attribute_for_variant(reference_variant_id, attribute_id)
-                relative = compare_v2_sources(spec, target, reference)[selected_mode]
-                points.append(
-                    RelativeTrendPoint(
-                        scene.scene_id,
-                        reference_variant_id,
-                        target_variant_id,
-                        relative.raw,
-                        relative.quality,
-                    )
-                )
-            return tuple(points)
-        return self._legacy_relative_trend(
-            attribute_id, mode, reference_variant_id, target_variant_id
-        )
+            points = self._v2_relative_trend(
+                attribute_id, mode, reference_variant_id, target_variant_id
+            )
+        else:
+            points = self._legacy_relative_trend(
+                attribute_id, mode, reference_variant_id, target_variant_id
+            )
+        self._relative_cache[key] = points
+        return points
 
     def relative_dataset_stat(
         self,
@@ -150,7 +151,11 @@ class IqaExplorerModel:
         target_variant_id: str,
     ) -> ScalarStatistic:
         """Equal-Scene reduction of valid Scene comparison values."""
-        return reduce_relative_scene_values(
+        key = (attribute_id, mode, reference_variant_id, target_variant_id)
+        cached = self._dataset_cache.get(key)
+        if cached is not None:
+            return cached
+        reduced = reduce_relative_scene_values(
             point.raw
             for point in self.relative_trend(
                 attribute_id,
@@ -159,6 +164,8 @@ class IqaExplorerModel:
                 target_variant_id,
             )
         )
+        self._dataset_cache[key] = reduced
+        return reduced
 
     def outlier_scene_ids(
         self,
@@ -215,7 +222,8 @@ class IqaExplorerModel:
                 )
                 for measurement in scene.sources
             )
-        scene = self.result.scene(scene_id)
+        legacy = cast(Result, self.result)
+        scene = legacy.scene(scene_id)
         if len(scene.sources) < 2:
             raise UnsupportedIqaExplorerResult(
                 f"Scene {scene.scene_id} has fewer than two ordered sources"
@@ -224,6 +232,35 @@ class IqaExplorerModel:
             ("A", "A — first source", scene.sources[0]),
             ("B", "B — second source", scene.sources[1]),
         )
+
+    def _v2_relative_trend(
+        self,
+        attribute_id: str,
+        mode: ComparisonMode,
+        reference_variant_id: str,
+        target_variant_id: str,
+    ) -> tuple[RelativeTrendPoint, ...]:
+        result = cast(ResultV2, self.result)
+        if not self.relative_ready:
+            raise RuntimeError("relative grids are not loaded")
+        spec = result.attribute(attribute_id)
+        selected_mode = _applicable_mode(spec.value_kind, mode)
+        points: list[RelativeTrendPoint] = []
+        for scene in result.scenes:
+            grid = self._grids[scene.scene_id]
+            target = grid.attribute_for_variant(target_variant_id, attribute_id)
+            reference = grid.attribute_for_variant(reference_variant_id, attribute_id)
+            relative = compare_v2_sources(spec, target, reference)[selected_mode]
+            points.append(
+                RelativeTrendPoint(
+                    scene.scene_id,
+                    reference_variant_id,
+                    target_variant_id,
+                    relative.raw,
+                    relative.quality,
+                )
+            )
+        return tuple(points)
 
     def _legacy_relative_trend(
         self,
@@ -234,10 +271,11 @@ class IqaExplorerModel:
     ) -> tuple[RelativeTrendPoint, ...]:
         if {reference_variant_id, target_variant_id} != {"A", "B"}:
             raise ValueError("legacy v1 supports only A/B Reference slots")
-        spec = self.result.attribute(attribute_id)
+        legacy = cast(Result, self.result)
+        spec = legacy.attribute(attribute_id)
         selected_mode = _applicable_mode(spec.value_kind, mode)
         points: list[RelativeTrendPoint] = []
-        for scene in self.result.scenes:
+        for scene in legacy.scenes:
             comparison = self._legacy_comparisons[(scene.scene_id, attribute_id)]
             raw = comparison.official[selected_mode]
             if reference_variant_id == "A":
