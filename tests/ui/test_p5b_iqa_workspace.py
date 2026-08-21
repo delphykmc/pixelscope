@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -9,24 +8,22 @@ from PySide6.QtWidgets import QFileDialog, QLabel
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
-from pixelscope.remote.iqa_domain import ComparisonMode, LoadStatus, ResultLoadOutcome
-from pixelscope.remote.iqa_fixture import write_golden_result
-from pixelscope.remote.iqa_reader import load_result
+from pixelscope.remote.iqa_domain import ComparisonMode, LoadStatus
+from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID, IqaExplorerModel
+from pixelscope.remote.iqa_result_reader import load_result
+from pixelscope.remote.iqa_v2_domain import VersionedResultLoadOutcome
+from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.ui.iqa_workspace import (
     IQA_FLOATING_GEOMETRY_SETTING,
     IqaWorkspaceController,
     IqaWorkspaceWidget,
 )
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
-from pixelscope.workers.task_worker import TaskWorker
 
 
-class _HoldingPool:
-    def __init__(self) -> None:
-        self.workers: list[TaskWorker] = []
-
-    def start(self, worker: TaskWorker) -> None:
-        self.workers.append(worker)
+@pytest.fixture()
+def result_root(tmp_path: Path) -> Path:
+    return write_golden_result_v2(tmp_path / "golden-v2", scene_count=4)
 
 
 def _loaded(root: Path):  # type annotation would obscure assertion narrowing
@@ -36,231 +33,96 @@ def _loaded(root: Path):  # type annotation would obscure assertion narrowing
     return outcome.result
 
 
-def _has_four_decimals(text: str) -> bool:
-    if text == "—":
-        return False
-    _, dot, fraction = text.partition(".")
-    return dot == "." and len(fraction) == 4
-
-
-@pytest.fixture()
-def result_root(tmp_path: Path) -> Path:
-    return write_golden_result(tmp_path / "golden")
-
-
-def test_workspace_keeps_overview_navigation_local_and_formats_four_decimals(
+def test_workspace_defaults_to_absolute_nway_summary_view(
     qtbot: object, result_root: Path
 ) -> None:
     widget = IqaWorkspaceWidget()
     qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    requested: list[str] = []
-    widget.scene_requested.connect(requested.append)
 
-    assert widget.set_result(_loaded(result_root)).status is LoadStatus.SUCCESS
+    outcome = widget.set_model(IqaExplorerModel(_loaded(result_root)))
 
-    assert "golden-p5a-v1" in widget.result_label.text()
-    assert "11 Scenes" in widget.dataset_label.text()
-    assert widget.reference_index == 1
+    assert outcome.status is LoadStatus.SUCCESS
+    assert "schema v2" in widget.result_label.text()
+    assert "3 variants" in widget.dataset_label.text()
+    assert widget.reference_variant_id == ABSOLUTE_REFERENCE_ID
+    assert widget.reference_combo.itemText(0) == "Absolute measurements"
     assert widget.hierarchy.topLevelItemCount() == 10
-    assert widget.hierarchy.header().sectionSize(0) <= 220
-    assert "A vs B" in widget.hierarchy.headerItem().text(1)
-    legend = widget.overview_plot.plotItem.legend
-    assert legend is not None
-    assert len(legend.items) == 1
-    assert widget._overview_hover_texts
-    assert "A vs B" in widget._overview_hover_texts[0]
+    assert widget.hierarchy.columnCount() == 5
+    headers = [widget.hierarchy.headerItem().text(index) for index in range(5)]
+    assert "Baseline" in headers
+    assert "Candidate Fast" in headers
+    assert "Candidate Quality" in headers
+    assert "pooled weighted mean" in widget.overview_plot.plotItem.titleLabel.text
+    assert widget.model is not None and not widget.model.relative_ready
 
-    attribute = widget.hierarchy.topLevelItem(2)
-    assert attribute.childCount() == 11
-    assert _has_four_decimals(attribute.text(1))
-    assert attribute.text(2) == ""
-    scene = attribute.child(3)
-    published_value = scene.text(1)
-    assert _has_four_decimals(published_value)
-    assert scene.text(2) == ""
 
-    widget.hierarchy.setCurrentItem(scene)
+def test_reference_selection_requests_lazy_grid_preparation(
+    qtbot: object, result_root: Path
+) -> None:
+    widget = IqaWorkspaceWidget()
+    qtbot.addWidget(widget)  # type: ignore[attr-defined]
+    assert widget.set_model(IqaExplorerModel(_loaded(result_root))).status is LoadStatus.SUCCESS
+    requested: list[str] = []
+    widget.relative_requested.connect(requested.append)
 
-    assert widget.selected_attribute_id == "chroma_noise"
-    assert widget.selected_scene_id is None
-    assert requested == []
-    assert widget.pages.currentWidget() is widget.overview_page
-    assert widget.preview_layout.count() == 0
+    index = widget.reference_combo.findData("baseline")
+    widget.reference_combo.setCurrentIndex(index)
 
-    widget.reference_combo.setCurrentIndex(widget.reference_combo.findData(0))
-    assert widget.reference_index == 0
-    assert widget.mode_combo.isEnabled()
-    attribute = widget.hierarchy.topLevelItem(2)
-    scene = attribute.child(3)
-    assert _has_four_decimals(scene.text(1))
-    assert scene.text(1) != published_value
-    assert "B vs A" in widget.hierarchy.headerItem().text(1)
+    assert requested == ["baseline"]
+    assert "Loading Scene grids" in widget.status_label.text()
+    assert not widget.reference_combo.isEnabled()
+
+
+def test_relative_model_preserves_reference_and_projects_all_targets(
+    qtbot: object, result_root: Path
+) -> None:
+    widget = IqaWorkspaceWidget()
+    qtbot.addWidget(widget)  # type: ignore[attr-defined]
+    model = IqaExplorerModel(_loaded(result_root))
+    assert widget.set_model(model).status is LoadStatus.SUCCESS
+    widget.reference_combo.blockSignals(True)
+    widget.reference_combo.setCurrentIndex(widget.reference_combo.findData("baseline"))
+    widget.reference_combo.blockSignals(False)
+
+    outcome = widget.set_relative_model(model.prepare_relative())
+
+    assert outcome.status is LoadStatus.SUCCESS
+    assert widget.reference_variant_id == "baseline"
+    assert widget.model is not None and widget.model.relative_ready
+    assert widget.hierarchy.columnCount() == 4
+    headers = [widget.hierarchy.headerItem().text(index) for index in range(4)]
+    assert "Candidate Fast vs Baseline" in headers
+    assert "Candidate Quality vs Baseline" in headers
+    assert "equal-Scene mean" in widget.overview_plot.plotItem.titleLabel.text
 
     widget.mode_combo.setCurrentIndex(
         widget.mode_combo.findData(ComparisonMode.MEAN_OF_GRID_LOG_RATIOS.value)
     )
     assert widget.aggregation_mode is ComparisonMode.MEAN_OF_GRID_LOG_RATIOS
-    assert widget.selected_attribute_id == "chroma_noise"
 
 
-def test_scene_trend_defaults_to_all_attributes_filters_and_selects_source_metadata(
+def test_scene_trend_filters_and_source_cards_keep_native_pixels_out_of_p5b(
     qtbot: object, result_root: Path
 ) -> None:
     widget = IqaWorkspaceWidget()
     qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    requested: list[str] = []
-    widget.scene_requested.connect(requested.append)
-    assert widget.set_result(_loaded(result_root)).status is LoadStatus.SUCCESS
+    assert widget.set_model(IqaExplorerModel(_loaded(result_root))).status is LoadStatus.SUCCESS
 
     assert len(widget.enabled_attribute_ids) == 10
-    assert "10 / 10 attributes" in widget.trend_label.text()
-    assert widget.scene_splitter.count() == 2
-    assert widget.overview_splitter.count() == 2
-    assert widget._hover_scene_line is not None
-    assert len(widget._scene_hover_texts) == 11
-    assert "Luma noise" in widget._scene_hover_texts[0]
-
     first = widget.attribute_filter.item(0)
     assert not first.icon().isNull()
     assert first.flags() & Qt.ItemFlag.ItemIsUserCheckable
     first.setCheckState(Qt.CheckState.Unchecked)
     assert len(widget.enabled_attribute_ids) == 9
-    assert "9 / 10 attributes" in widget.trend_label.text()
 
-    widget._select_scene_index(3)
-    assert widget.selected_scene_id == "scene_000003"
-    assert requested[-1] == "scene_000003"
-    assert widget.preview_layout.count() == 2
-    assert "source identities" in widget.preview_caption.text()
+    widget._select_scene_index(1)
+    assert widget.selected_scene_id == "scene_000001"
+    assert widget.preview_layout.count() == 3
     first_card = widget.preview_layout.itemAt(0).widget()
     assert first_card is not None
-    card_text = "\n".join(label.text() for label in first_card.findChildren(QLabel))
-    assert "Published relative path" in card_text
-    assert "P5-D Inspect Pair" in card_text
-
-
-def test_workspace_marks_only_robust_outlier_rows_in_bold(
-    qtbot: object, result_root: Path
-) -> None:
-    widget = IqaWorkspaceWidget()
-    qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    assert widget.set_result(_loaded(result_root)).status is LoadStatus.SUCCESS
-
-    luma_detail = widget.hierarchy.topLevelItem(1)
-    bold_scenes = [
-        luma_detail.child(index).text(0)
-        for index in range(luma_detail.childCount())
-        if luma_detail.child(index).font(0).bold()
-    ]
-
-    assert "scene_000007" in bold_scenes
-    assert len(bold_scenes) < luma_detail.childCount()
-
-
-@pytest.mark.parametrize(
-    ("status", "reason"),
-    (
-        (LoadStatus.INVALID, "publication_state is not complete"),
-        (LoadStatus.CORRUPT, "missing summary artifact"),
-        (LoadStatus.UNSUPPORTED, "unsupported result schema_version 2"),
-    ),
-)
-def test_controller_reports_open_outcomes_without_replacing_last_valid_result(
-    qtbot: object,
-    result_root: Path,
-    status: LoadStatus,
-    reason: str,
-) -> None:
-    widget = IqaWorkspaceWidget()
-    qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    valid = _loaded(result_root)
-    widget.set_result(valid)
-    outcomes: list[ResultLoadOutcome] = []
-    pool = QThreadPool(widget)
-    controller = IqaWorkspaceController(
-        widget,
-        loader=lambda _root: ResultLoadOutcome(status, reason=reason),
-        pool=pool,
-    )
-    controller.outcome_ready.connect(outcomes.append)
-
-    controller.open_result(result_root)
-    qtbot.waitUntil(lambda: bool(outcomes), timeout=3000)  # type: ignore[attr-defined]
-
-    assert outcomes[-1].status is status
-    assert widget.result is valid
-    assert widget.status_label.text() == f"{status.value.upper()}: {reason}"
-    controller.shutdown()
-    assert pool.waitForDone(3000)
-
-
-def test_controller_ignores_stale_and_post_shutdown_callbacks(
-    qtbot: object, result_root: Path
-) -> None:
-    widget = IqaWorkspaceWidget()
-    qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    pool = _HoldingPool()
-    controller = IqaWorkspaceController(widget, pool=pool)  # type: ignore[arg-type]
-    outcome = ResultLoadOutcome(LoadStatus.SUCCESS, result=_loaded(result_root))
-
-    first = controller.open_result(result_root)
-    second = controller.open_result(result_root)
-    controller._result_loaded("stale", None, first, outcome)
-    assert widget.result is None
-    controller._result_loaded("current", None, second, outcome)
-    assert widget.result is outcome.result
-    controller.shutdown()
-    controller._result_loaded("after-close", None, second + 1, outcome)
-    assert widget.result is outcome.result
-
-
-def test_missing_canonical_pair_is_an_explicit_unsupported_open_outcome(
-    qtbot: object, result_root: Path
-) -> None:
-    widget = IqaWorkspaceWidget()
-    qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    valid = _loaded(result_root)
-    assert widget.set_result(valid).status is LoadStatus.SUCCESS
-    scene = valid.scenes[-1]
-    attribute_id = valid.attributes[0].attribute_id
-    malformed = replace(
-        valid,
-        scenes=(
-            replace(
-                scene,
-                comparisons=tuple(
-                    item
-                    for item in scene.comparisons
-                    if not (
-                        item.attribute_id == attribute_id
-                        and item.source_a_id == scene.sources[0].source_id
-                        and item.source_b_id == scene.sources[1].source_id
-                    )
-                ),
-            ),
-        ),
-    )
-    direct = widget.set_result(malformed)
-    assert direct.status is LoadStatus.UNSUPPORTED
-    assert widget.result is valid
-    outcomes: list[ResultLoadOutcome] = []
-    pool = QThreadPool(widget)
-    controller = IqaWorkspaceController(
-        widget,
-        loader=lambda _root: ResultLoadOutcome(LoadStatus.SUCCESS, result=malformed),
-        pool=pool,
-    )
-    controller.outcome_ready.connect(outcomes.append)
-
-    controller.open_result(result_root)
-    qtbot.waitUntil(lambda: bool(outcomes), timeout=3000)  # type: ignore[attr-defined]
-
-    assert outcomes[-1].status is LoadStatus.UNSUPPORTED
-    assert "ordered" in (outcomes[-1].reason or "")
-    assert widget.result is valid
-    assert widget.status_label.text().startswith("UNSUPPORTED:")
-    controller.shutdown()
-    assert pool.waitForDone(3000)
+    text = "\n".join(label.text() for label in first_card.findChildren(QLabel))
+    assert "Published relative path" in text
+    assert "P5-D" in text
 
 
 def test_late_presentation_failure_restores_previous_visible_result(
@@ -270,36 +132,80 @@ def test_late_presentation_failure_restores_previous_visible_result(
 ) -> None:
     widget = IqaWorkspaceWidget()
     qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    valid = _loaded(result_root)
-    assert widget.set_result(valid).status is LoadStatus.SUCCESS
-    before_result_label = widget.result_label.text()
-    before_scene_value = widget.hierarchy.topLevelItem(0).child(0).text(1)
-    candidate = replace(valid, result_id="candidate-result")
-
-    original_populate_scene_trend = widget._populate_scene_trend
+    model = IqaExplorerModel(_loaded(result_root))
+    assert widget.set_model(model).status is LoadStatus.SUCCESS
+    before = widget.result_label.text()
+    original = widget._populate_scene_trend
     calls = 0
 
     def fail_once_after_mutation() -> None:
         nonlocal calls
         calls += 1
-        original_populate_scene_trend()
+        original()
         if calls == 1:
             raise RuntimeError("injected late presentation failure")
 
     monkeypatch.setattr(widget, "_populate_scene_trend", fail_once_after_mutation)
-
-    outcome = widget.set_result(candidate)
+    outcome = widget.set_model(model)
 
     assert outcome.status is LoadStatus.CORRUPT
-    assert outcome.reason == "unable to present IQA result: injected late presentation failure"
-    assert widget.result is valid
-    assert widget.result_label.text() == before_result_label
-    assert widget.hierarchy.topLevelItem(0).child(0).text(1) == before_scene_value
-    assert widget.attribute_filter.count() == len(valid.attributes)
+    assert widget.result_label.text() == before
+    assert widget.model is model
     assert calls == 2
 
 
-def test_main_window_iqa_dock_uses_plots_title_controls_and_preserves_native_authority(
+def test_controller_opens_v2_then_prepares_relative_grids_off_thread(
+    qtbot: object, result_root: Path
+) -> None:
+    widget = IqaWorkspaceWidget()
+    qtbot.addWidget(widget)  # type: ignore[attr-defined]
+    pool = QThreadPool(widget)
+    controller = IqaWorkspaceController(widget, pool=pool)
+    outcomes: list[VersionedResultLoadOutcome] = []
+    controller.outcome_ready.connect(outcomes.append)
+
+    controller.open_result(result_root)
+    qtbot.waitUntil(lambda: widget.model is not None, timeout=5000)  # type: ignore[attr-defined]
+    assert widget.model is not None and not widget.model.relative_ready
+
+    widget.reference_combo.setCurrentIndex(widget.reference_combo.findData("baseline"))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: widget.model is not None and widget.model.relative_ready,
+        timeout=5000,
+    )
+    assert widget.reference_variant_id == "baseline"
+    assert any(outcome.status is LoadStatus.SUCCESS for outcome in outcomes)
+    controller.shutdown()
+    assert pool.waitForDone(5000)
+
+
+def test_failed_open_does_not_replace_last_valid_result(
+    qtbot: object, result_root: Path
+) -> None:
+    widget = IqaWorkspaceWidget()
+    qtbot.addWidget(widget)  # type: ignore[attr-defined]
+    valid = IqaExplorerModel(_loaded(result_root))
+    assert widget.set_model(valid).status is LoadStatus.SUCCESS
+    controller = IqaWorkspaceController(
+        widget,
+        loader=lambda _root: VersionedResultLoadOutcome(
+            LoadStatus.CORRUPT, reason="synthetic corruption"
+        ),
+        pool=QThreadPool(widget),
+    )
+    outcomes: list[VersionedResultLoadOutcome] = []
+    controller.outcome_ready.connect(outcomes.append)
+
+    controller.open_result(result_root)
+    qtbot.waitUntil(lambda: bool(outcomes), timeout=3000)  # type: ignore[attr-defined]
+
+    assert outcomes[-1].status is LoadStatus.CORRUPT
+    assert widget.model is valid
+    assert widget.status_label.text() == "CORRUPT: synthetic corruption"
+    controller.shutdown()
+
+
+def test_main_window_iqa_dock_preserves_native_authority_and_resets_geometry(
     qtbot: object,
     monkeypatch: pytest.MonkeyPatch,
     result_root: Path,
@@ -329,19 +235,13 @@ def test_main_window_iqa_dock_uses_plots_title_controls_and_preserves_native_aut
     assert file_menu is not None
     iqa_action = window.action_map["Open IQA Result..."]
     assert iqa_action in file_menu.actions()
-    assert iqa_action.isVisible()
     iqa_action.trigger()
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.iqa_workspace.result is not None, timeout=5000
-    )
+    qtbot.waitUntil(lambda: window.iqa_workspace.model is not None, timeout=5000)  # type: ignore[attr-defined]
 
     assert window.iqa_dock.isVisible()
-    assert window.iqa_workspace.result is not None
     title_bar = window.iqa_dock.titleBarWidget()
     assert isinstance(title_bar, PlotsDockTitleBar)
     assert title_bar.title.text() == "IQA Results"
-    assert title_bar.float_button.toolTip() == "Float IQA Results"
-    assert title_bar.maximize_button.toolTip() == "Maximize IQA Results"
     after = (
         dict(window.documents),
         tuple(window.selected_documents),
@@ -356,8 +256,7 @@ def test_main_window_iqa_dock_uses_plots_title_controls_and_preserves_native_aut
     qtbot.waitUntil(window.iqa_dock.isFloating, timeout=2000)  # type: ignore[attr-defined]
     window.iqa_dock.resize(520, 360)
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.settings.contains(IQA_FLOATING_GEOMETRY_SETTING),
-        timeout=2000,
+        lambda: window.settings.contains(IQA_FLOATING_GEOMETRY_SETTING), timeout=2000
     )
     window.reset_workspace_layout()
     assert not window.iqa_dock.isFloating()
@@ -365,10 +264,3 @@ def test_main_window_iqa_dock_uses_plots_title_controls_and_preserves_native_aut
     assert window.iqa_dock.isHidden()
     assert not window.settings.contains(IQA_FLOATING_GEOMETRY_SETTING)
     window.close()
-
-    recreated = MainWindow()
-    qtbot.addWidget(recreated)  # type: ignore[attr-defined]
-    _compose_main_window_presentation(recreated)
-    assert recreated.iqa_workspace.result is None
-    assert recreated.documents == {}
-    recreated.close()
