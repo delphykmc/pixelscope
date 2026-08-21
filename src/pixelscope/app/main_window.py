@@ -88,6 +88,7 @@ from pixelscope.ui.difference_panel import DifferencePanel
 from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
 from pixelscope.ui.image_viewer import ImageViewer
+from pixelscope.ui.iqa_workspace import IqaWorkspaceController, IqaWorkspaceWidget
 from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.multi_compare_view import MultiCompareView, MultiCompareViewState
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
@@ -229,6 +230,8 @@ class MainWindow(QMainWindow):
         self.analysis_tabs = QTabWidget()
         self.analysis_tabs.addTab(self.comparison_analysis_panel, "Statistics")
         self.analysis_tabs.addTab(self.difference_panel, "Difference")
+        self.iqa_workspace = IqaWorkspaceWidget()
+        self.iqa_controller = IqaWorkspaceController(self.iqa_workspace, self)
         self._build_layout()
 
         self.viewer.cursor_moved.connect(self._inspect_pixel)
@@ -335,6 +338,20 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.main_splitter)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.bottom_dock)
 
+        self.iqa_dock = QDockWidget("IQA", self)
+        self.iqa_dock.setObjectName("iqaWorkspaceDock")
+        self.iqa_dock.setWidget(self.iqa_workspace)
+        self.iqa_dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea
+        )
+        self.iqa_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.iqa_dock)
+        self.iqa_dock.hide()
+
     def _create_actions(self) -> None:
         self.action_map: dict[str, QAction] = {}
 
@@ -365,6 +382,7 @@ class MainWindow(QMainWindow):
             menu.setStyleSheet(menu_style())
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")
         add_action("File", "Open Folder...", self.open_folders, "Ctrl+Shift+O")
+        add_action("File", "Open IQA Result...", self.open_iqa_result)
         menus["File"].addSeparator()
         add_action("File", "Export Statistics CSV...", self.export_statistics)
         menus["File"].addSeparator()
@@ -447,6 +465,11 @@ class MainWindow(QMainWindow):
         self.redock_plots_action.setToolTip("Dock the floating Plots panel")
         self.redock_plots_action.setStatusTip(self.redock_plots_action.toolTip())
         self.redock_plots_action.setEnabled(False)
+        self.iqa_workspace_action = add_action("View", "Show IQA Workspace", self._toggle_iqa)
+        self.iqa_workspace_action.setCheckable(True)
+        self.iqa_dock.visibilityChanged.connect(  # type: ignore[attr-defined]
+            self.iqa_workspace_action.setChecked
+        )
         add_action("View", "Reset Workspace Layout", self.reset_workspace_layout)
         add_action("Help", "Copy Diagnostics", self.copy_diagnostics)
         self._update_action_states()
@@ -658,6 +681,11 @@ class MainWindow(QMainWindow):
 
     def _toggle_plots(self) -> None:
         self._set_plots_visible(self.plots_action.isChecked())
+
+    def _toggle_iqa(self) -> None:
+        self.iqa_dock.setVisible(self.iqa_workspace_action.isChecked())
+        if self.iqa_workspace_action.isChecked():
+            self.iqa_dock.raise_()
 
     def _set_plots_visible(self, visible: bool) -> None:
         if visible:
@@ -1059,6 +1087,19 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Opened {len(document_ids)} image(s)", 4000)
         else:
             self.statusBar().showMessage("No supported images opened", 4000)
+
+    def open_iqa_result(self) -> None:
+        root = QFileDialog.getExistingDirectory(
+            self,
+            "Open IQA Result",
+            self._open_dialog_directory(),
+        )
+        if not root:
+            return
+        self.iqa_dock.show()
+        self.iqa_dock.raise_()
+        self.iqa_controller.open_result(Path(root))
+        self.statusBar().showMessage(f"Opening IQA result · {Path(root).name}")
 
     def open_folders(self) -> None:
         path = QFileDialog.getExistingDirectory(
@@ -3614,6 +3655,7 @@ class MainWindow(QMainWindow):
         self.sidebar_splitter.setSizes([330, 500])
         self._redock_plots()
         self.bottom_dock.hide()
+        self.iqa_dock.hide()
         self.set_layout_mode("Auto")
         self.statusBar().showMessage("Workspace layout reset", 3000)
 
@@ -3623,6 +3665,7 @@ class MainWindow(QMainWindow):
         self.comparison_analysis_panel.shutdown()
         self.line_profile_panel.shutdown()
         self.difference_panel.shutdown()
+        self.iqa_controller.shutdown()
         for worker in tuple(self._workers.values()):
             worker.cancel()
         self._invalidate_preload_plan(include_promoted=True)
