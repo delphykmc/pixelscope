@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pyqtgraph as pg
@@ -12,7 +13,11 @@ from pixelscope.app.main_window import MainWindow
 from pixelscope.remote.iqa_domain import ComparisonMode, LoadStatus
 from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID, IqaExplorerModel
 from pixelscope.remote.iqa_result_reader import load_result
-from pixelscope.remote.iqa_v2_domain import VersionedResultLoadOutcome
+from pixelscope.remote.iqa_v2_domain import (
+    ResultV2,
+    VersionedResultLoadOutcome,
+    build_measurement_context_id,
+)
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.ui.iqa_workspace import (
     IQA_FLOATING_GEOMETRY_SETTING,
@@ -46,6 +51,58 @@ def _loaded(root: Path):  # type annotation would obscure assertion narrowing
     return outcome.result
 
 
+def _loaded_v2(root: Path) -> ResultV2:
+    result = _loaded(root)
+    assert isinstance(result, ResultV2)
+    return result
+
+
+def _renamed_variant_result(
+    result: ResultV2,
+    old_variant_id: str,
+    new_variant_id: str,
+) -> ResultV2:
+    variants = tuple(
+        replace(variant, variant_id=new_variant_id)
+        if variant.variant_id == old_variant_id
+        else variant
+        for variant in result.variants
+    )
+    scenes = []
+    for scene in result.scenes:
+        sources = tuple(
+            replace(measurement, variant_id=new_variant_id)
+            if measurement.variant_id == old_variant_id
+            else measurement
+            for measurement in scene.sources
+        )
+        scenes.append(
+            replace(
+                scene,
+                sources=sources,
+                measurement_context_id=build_measurement_context_id(
+                    scene.scene_id,
+                    sources,
+                    result.attributes,
+                    scene.context_provenance,
+                ),
+            )
+        )
+    dataset_summaries = {
+        (
+            new_variant_id if variant_id == old_variant_id else variant_id,
+            attribute_id,
+        ): summary
+        for (variant_id, attribute_id), summary in result.dataset_summaries.items()
+    }
+    return replace(
+        result,
+        variants=variants,
+        scenes=tuple(scenes),
+        dataset_summaries=dataset_summaries,
+    )
+
+
 def _overview_legend_labels(widget: IqaWorkspaceWidget) -> list[str]:
     return [label.text for _sample, label in widget.overview_legend.items]
 
@@ -62,7 +119,7 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
     assert outcome.status is LoadStatus.SUCCESS
     assert "schema v2" in widget.result_label.text()
     assert "3 variants" in widget.dataset_label.text()
-    assert widget.reference_variant_id == ABSOLUTE_REFERENCE_ID
+    assert widget.reference_variant_id is ABSOLUTE_REFERENCE_ID
     assert widget.reference_combo.itemText(0) == "Absolute measurements"
     assert widget.reference_combo.itemText(1) == "Baseline"
     assert widget.reference_combo.itemText(2) == "Candidate Fast"
@@ -97,6 +154,32 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
     assert bottom_axis.style["autoReduceTextSpace"] is False
     assert widget.model is not None
     assert not widget.model.reference_ready("baseline")
+
+
+def test_real_absolute_named_variant_does_not_collide_with_display_mode(
+    qtbot: object,
+    result_root: Path,
+) -> None:
+    result = _renamed_variant_result(
+        _loaded_v2(result_root),
+        "baseline",
+        "__absolute__",
+    )
+    widget = IqaWorkspaceWidget()
+    qtbot.addWidget(widget)  # type: ignore[attr-defined]
+
+    outcome = widget.set_model(IqaExplorerModel(result))
+
+    assert outcome.status is LoadStatus.SUCCESS
+    assert widget.reference_variant_id is ABSOLUTE_REFERENCE_ID
+    assert widget.reference_combo.itemText(0) == "Absolute measurements"
+    real_variant_index = widget.reference_combo.findData("__absolute__")
+    assert real_variant_index > 0
+    widget.reference_combo.blockSignals(True)
+    widget.reference_combo.setCurrentIndex(real_variant_index)
+    widget.reference_combo.blockSignals(False)
+    assert widget.reference_variant_id == "__absolute__"
+    assert widget.reference_variant_id is not ABSOLUTE_REFERENCE_ID
 
 
 def test_overview_tick_labels_wrap_crowded_multiword_names() -> None:
@@ -225,6 +308,49 @@ def test_switching_to_unprepared_reference_requests_only_that_reference(
     assert requested == ["candidate_fast"]
     assert model.reference_ready("baseline")
     assert not model.reference_ready("candidate_fast")
+
+
+def test_failed_deferred_reference_restores_last_presented_mode(
+    qtbot: object,
+    result_root: Path,
+) -> None:
+    widget = IqaWorkspaceWidget()
+    qtbot.addWidget(widget)  # type: ignore[attr-defined]
+    pool = QThreadPool(widget)
+    controller = IqaWorkspaceController(widget, pool=pool)
+    outcomes: list[VersionedResultLoadOutcome] = []
+    controller.outcome_ready.connect(outcomes.append)
+
+    controller.open_result(result_root)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: widget.model is not None,
+        timeout=5000,
+    )
+    assert widget.model is not None
+    assert isinstance(widget.model.result, ResultV2)
+    assert widget.reference_variant_id is ABSOLUTE_REFERENCE_ID
+    assert "Absolute Dataset Overview" in widget.overview_plot.plotItem.titleLabel.text
+
+    scene = widget.model.result.scenes[0]
+    (widget.model.result.root / scene.grid_artifact).unlink()
+    outcomes.clear()
+    widget.reference_combo.setCurrentIndex(
+        widget.reference_combo.findData("baseline")
+    )
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: bool(outcomes) and outcomes[-1].status is LoadStatus.CORRUPT,
+        timeout=5000,
+    )
+
+    assert widget.reference_variant_id is ABSOLUTE_REFERENCE_ID
+    assert widget.reference_combo.currentText() == "Absolute measurements"
+    assert widget.overview_detail_heading.text() == "Absolute Value Details"
+    assert "Absolute Dataset Overview" in widget.overview_plot.plotItem.titleLabel.text
+    assert widget.reference_combo.isEnabled()
+    assert widget.model is not None
+    assert not widget.model.reference_ready("baseline")
+    controller.shutdown()
+    assert pool.waitForDone(5000)
 
 
 def test_scene_trend_filters_and_source_cards_keep_native_pixels_out_of_p5b(
