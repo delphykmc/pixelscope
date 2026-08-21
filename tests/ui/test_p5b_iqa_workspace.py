@@ -199,7 +199,9 @@ def test_relative_model_keeps_variant_columns_and_uses_reference_zero_anchor(
         widget.aggregation_mode
         is ComparisonMode.MEAN_OF_GRID_LOG_RATIOS
     )
-    assert first_attribute.text(1) == "0.0000"
+    refreshed_first_attribute = widget.hierarchy.topLevelItem(0)
+    assert refreshed_first_attribute is not None
+    assert refreshed_first_attribute.text(1) == "0.0000"
 
 
 def test_switching_to_unprepared_reference_requests_only_that_reference(
