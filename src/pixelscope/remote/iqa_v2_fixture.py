@@ -219,14 +219,18 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
                 if summary is None:
                     continue
                 weight, weighted, squared, count, mean, std = summary
-                index = (scene_index, variant_index, attribute_index)
-                scene_weight[index] = weight
-                scene_weighted[index] = weighted
-                scene_squared[index] = squared
-                scene_count_values[index] = count
-                scene_valid[index] = True
-                scene_mean[index] = mean
-                scene_std[index] = std
+                scene_stat_index = (
+                    scene_index,
+                    variant_index,
+                    attribute_index,
+                )
+                scene_weight[scene_stat_index] = weight
+                scene_weighted[scene_stat_index] = weighted
+                scene_squared[scene_stat_index] = squared
+                scene_count_values[scene_stat_index] = count
+                scene_valid[scene_stat_index] = True
+                scene_mean[scene_stat_index] = mean
+                scene_std[scene_stat_index] = std
 
         arrays["variant_ids"] = np.asarray(
             [row[0] for row in V2_VARIANTS], dtype="<U128"
@@ -287,14 +291,14 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
             count = sum(int(value) for value in counts.tolist())
             mean = weighted / weight
             std = _std(weight, weighted, squared)
-            index = (variant_index, attribute_index)
-            pooled_weight[index] = weight
-            pooled_weighted[index] = weighted
-            pooled_squared[index] = squared
-            pooled_count[index] = count
-            pooled_valid[index] = True
-            pooled_mean[index] = mean
-            pooled_std[index] = std
+            dataset_stat_index = (variant_index, attribute_index)
+            pooled_weight[dataset_stat_index] = weight
+            pooled_weighted[dataset_stat_index] = weighted
+            pooled_squared[dataset_stat_index] = squared
+            pooled_count[dataset_stat_index] = count
+            pooled_valid[dataset_stat_index] = True
+            pooled_mean[dataset_stat_index] = mean
+            pooled_std[dataset_stat_index] = std
             means = [
                 float(value)
                 for value in scene_mean[
@@ -306,10 +310,10 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
                 math.fsum((value - mean_of_scenes) ** 2 for value in means)
                 / len(means)
             )
-            equal_mean[index] = mean_of_scenes
-            equal_std[index] = math.sqrt(max(0.0, variance))
-            equal_count[index] = len(means)
-            equal_valid[index] = True
+            equal_mean[dataset_stat_index] = mean_of_scenes
+            equal_std[dataset_stat_index] = math.sqrt(max(0.0, variance))
+            equal_count[dataset_stat_index] = len(means)
+            equal_valid[dataset_stat_index] = True
 
     summary_path = root / "summary.npz"
     np.savez(
