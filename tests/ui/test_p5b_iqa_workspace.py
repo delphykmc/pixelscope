@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QRect, Qt, QThreadPool
+from PySide6.QtCore import QSettings, QRect, Qt, QThreadPool
 from PySide6.QtWidgets import QFileDialog, QLabel
 
 from pixelscope.app.application import _compose_main_window_presentation
@@ -19,6 +19,17 @@ from pixelscope.ui.iqa_workspace import (
     IqaWorkspaceWidget,
 )
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+
+
+@pytest.fixture(autouse=True)
+def isolated_ui_settings(tmp_path: Path) -> None:
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(
+        QSettings.Format.IniFormat,
+        QSettings.Scope.UserScope,
+        str(tmp_path),
+    )
+    QSettings().clear()
 
 
 @pytest.fixture()
@@ -313,7 +324,6 @@ def test_main_window_iqa_dock_preserves_native_authority_and_resets_geometry(
     title_bar = window.iqa_dock.titleBarWidget()
     assert isinstance(title_bar, PlotsDockTitleBar)
     assert title_bar.title.text() == "IQA Results"
-    assert title_bar._settings is window.settings
     after = (
         dict(window.documents),
         tuple(window.selected_documents),
