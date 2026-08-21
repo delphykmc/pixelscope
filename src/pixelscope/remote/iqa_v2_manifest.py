@@ -28,8 +28,6 @@ from pixelscope.remote.iqa_v2_domain import (
     build_measurement_context_id,
 )
 from pixelscope.remote.iqa_v2_support import (
-    CorruptV2,
-    InvalidV2,
     V2_MAX_ARTIFACT_PATH_LENGTH,
     V2_MAX_ATTRIBUTES,
     V2_MAX_DETAIL_ARTIFACTS,
@@ -43,6 +41,8 @@ from pixelscope.remote.iqa_v2_support import (
     V2_MAX_VARIANTS,
     V2_SCENE_LIMIT,
     V2_SUMMARY_LIMIT,
+    CorruptV2,
+    InvalidV2,
     safe_artifact,
     validate_artifact_reference,
 )
