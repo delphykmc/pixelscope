@@ -371,7 +371,9 @@ def _attribute_manifest(
         "name": name,
         "value_kind": kind,
         "comparison_operator": (
-            "power_ratio_a_over_b_db" if kind == "power" else "signed_a_minus_b"
+            "power_ratio_target_over_reference_db"
+            if kind == "power"
+            else "signed_target_minus_reference"
         ),
         "quality_direction": direction,
         "unit": unit,
@@ -389,9 +391,9 @@ def _attribute_spec(
         name=name,
         value_kind=ValueKind(kind),
         comparison_operator=(
-            ComparisonOperator.POWER_RATIO_A_OVER_B_DB
+            ComparisonOperator.POWER_RATIO_TARGET_OVER_REFERENCE_DB
             if kind == "power"
-            else ComparisonOperator.SIGNED_A_MINUS_B
+            else ComparisonOperator.SIGNED_TARGET_MINUS_REFERENCE
         ),
         quality_direction=QualityDirection(direction),
         unit=unit,
