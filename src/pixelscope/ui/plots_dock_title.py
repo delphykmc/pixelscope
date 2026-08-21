@@ -194,6 +194,7 @@ class PlotsDockTitleBar(QWidget):
         if not floating:
             return
         if self._floating_geometry.isEmpty():
+            self._save_floating_geometry()
             QTimer.singleShot(0, self._save_floating_geometry)
             return
         self._restoring_floating_geometry = True
@@ -216,6 +217,7 @@ class PlotsDockTitleBar(QWidget):
             return
         self._floating_geometry = geometry
         self._settings.setValue(self._geometry_setting, geometry)
+        self._settings.sync()
 
     def clear_persisted_geometry(self) -> None:
         """Clear registered workspace dock geometry and normalize managed floating docks."""
