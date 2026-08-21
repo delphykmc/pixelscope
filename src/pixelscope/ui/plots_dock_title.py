@@ -5,6 +5,7 @@ from PySide6.QtCore import (
     QEvent,
     QObject,
     QPointF,
+    QRect,
     QRectF,
     QSettings,
     QSize,
@@ -105,6 +106,9 @@ class PlotsDockTitleBar(QWidget):
             if isinstance(stored_geometry, QByteArray | bytes)
             else QByteArray()
         )
+        self._floating_rect = (
+            QRect(stored_geometry) if isinstance(stored_geometry, QRect) else QRect()
+        )
         self._restoring_floating_geometry = False
         self.title = QLabel(title)
         self.float_button = self._button("float")
@@ -193,12 +197,15 @@ class PlotsDockTitleBar(QWidget):
         self.sync(floating)
         if not floating:
             return
-        if self._floating_geometry.isEmpty():
+        if self._floating_geometry.isEmpty() and not self._floating_rect.isValid():
             self._save_floating_geometry()
             QTimer.singleShot(0, self._save_floating_geometry)
             return
         self._restoring_floating_geometry = True
-        self._dock.restoreGeometry(self._floating_geometry)
+        if not self._floating_geometry.isEmpty():
+            self._dock.restoreGeometry(self._floating_geometry)
+        else:
+            self._dock.setGeometry(self._floating_rect)
         QTimer.singleShot(0, self._finish_geometry_restore)
 
     def _finish_geometry_restore(self) -> None:
@@ -213,10 +220,18 @@ class PlotsDockTitleBar(QWidget):
         ):
             return
         geometry = self._dock.saveGeometry()
-        if geometry.isEmpty():
+        if not geometry.isEmpty():
+            self._floating_geometry = geometry
+            self._floating_rect = QRect()
+            self._settings.setValue(self._geometry_setting, geometry)
+            self._settings.sync()
             return
-        self._floating_geometry = geometry
-        self._settings.setValue(self._geometry_setting, geometry)
+        rect = QRect(self._dock.geometry())
+        if not rect.isValid() or rect.width() <= 0 or rect.height() <= 0:
+            return
+        self._floating_geometry = QByteArray()
+        self._floating_rect = rect
+        self._settings.setValue(self._geometry_setting, rect)
         self._settings.sync()
 
     def clear_persisted_geometry(self) -> None:
@@ -227,6 +242,7 @@ class PlotsDockTitleBar(QWidget):
         window = self._main_window()
         if window is None:
             self._floating_geometry = QByteArray()
+            self._floating_rect = QRect()
             return
         for dock in window.findChildren(QDockWidget):
             title_bar = dock.titleBarWidget()
@@ -238,6 +254,7 @@ class PlotsDockTitleBar(QWidget):
                 continue
             if isinstance(title_bar, PlotsDockTitleBar):
                 title_bar._floating_geometry = QByteArray()
+                title_bar._floating_rect = QRect()
                 title_bar._settings.remove(title_bar._geometry_setting)
                 title_bar._remember_dock_area()
             if not dock.isFloating():
