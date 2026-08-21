@@ -43,15 +43,16 @@ The current branch makes the following concrete v2 choices normative:
   `UNSUPPORTED`;
 - no synthetic v1-to-v2 upgrade;
 - N-way top-level ordered `variant_id` identity separated from concrete `source_id`;
-- `source_id` may recur across different Scenes only when immutable source metadata is
-  identical;
-- duplicate `source_id` binding inside one complete Scene is forbidden;
+- `source_id` may recur across different Scenes **or multiple variant slots in the
+  same Scene** when immutable source metadata is identical;
+- each COMPLETE Scene still binds every declared `variant_id` exactly once in exact
+  top-level variant order;
+- a repeated `source_id` with different `relative_path`, SHA-256, width, or height is
+  invalid anywhere in the result;
 - weighted measurement identity remains Scene-context scoped by deterministic
   `measurement_context_id`;
 - context format is `mc2:<sha256>` over canonical JSON with `float.hex()` geometry
-  tokens;
-- complete Scenes contain exactly one source per declared variant in exact variant
-  order;
+  tokens and ordered `(variant_id, source_id, ...)` membership;
 - original dimensions match across Scene variants;
 - duplicated SceneGeometry and per-attribute GridGeometry are required to compare
   exactly equal across Scene variants;
@@ -61,13 +62,20 @@ The current branch makes the following concrete v2 choices normative:
   user-facing quality orientation;
 - higher-is-better power uses `quality = raw`, lower-is-better uses `quality = -raw`
   for both power modes, and signed/neutral quality is N/A;
+- power Mode 2 is v2-owned and averages only **finite** pair-valid per-grid dB ratios;
+  undefined/non-finite cells such as epsilon-zero `0/0` are skipped if other finite
+  cells remain, while no finite value yields an explicit invalid Mode-2 result;
 - ordinary result open touches only `manifest.json` and `summary.npz`; deferred grid/
   detail references receive syntax-only path validation at open and filesystem access
   is deferred to the requested artifact;
 - optional `detail_artifacts` are opaque bounded references in Stage 2, not a frozen
   P5-D decode schema;
 - `publication_state=partial` is explicitly `UNSUPPORTED` until P5-C freezes its
-  concrete representation.
+  concrete representation;
+- the aggregate 1024 Scene-source-binding ceiling is a deliberate parser acceptance
+  envelope: Stage-1 planning assumed roughly 300 compared source images, so the cap
+  gives >3x headroom and still permits all 512 Scenes for the initial two-variant
+  workflow.
 
 The detailed field/dtype/shape/safety contract is maintained in
 `REMOTE_IQA_V2_SPEC.md` and must stay synchronized with implementation/tests.
@@ -102,8 +110,12 @@ Default absolute Dataset Overview remains pooled weighted mean.
 Pair-valid support is target-valid AND reference-valid on a validated common grid.
 
 - power mode 1: ratio of pair-valid aggregate weighted means;
-- power mode 2: unweighted arithmetic mean of finite pair-valid grid log-ratios;
+- power mode 2: unweighted arithmetic mean of **finite** pair-valid grid log-ratios;
 - signed: pair-valid weighted target mean minus reference mean.
+
+For mode 2, an undefined/non-finite individual grid ratio contributes no sample when
+other finite ratios exist. If no finite grid ratio remains the Mode-2 result is
+invalid. Negative power-domain values are invalid input rather than skippable data.
 
 ### Relative Dataset
 
@@ -127,28 +139,37 @@ arrays plus per-attribute W/S1/S2/count/valid arrays with axes `(variant, row, c
 Exact array names, dtypes, shapes, invalid projection encoding, path rules, and safety
 ceilings are normative in `REMOTE_IQA_V2_SPEC.md`.
 
-## Review findings being addressed
+## Latest review findings addressed
 
-PR #40 first independent/orchestrator review accepted the architecture and requested
-Stage-2 completion work. The implementation response is:
+The first independent/orchestrator pass accepted the architecture and requested
+source-reuse, quality-direction, repository-test, summary-first and durable-doc
+completion. Those findings were implemented. The next meticulous pass identified four
+additional closure issues, now addressed in the branch:
 
-- **source reuse:** global source uniqueness removed; cross-Scene reuse with immutable
-  metadata equality is supported; same-Scene duplicate binding remains explicitly
-  invalid;
-- **quality direction:** centralized Qt-free raw/quality conversion added for both
-  power modes and reference reversal;
-- **operator naming:** v2 switched from inherited A/B strings to target/reference
-  strings while v1 names remain historical compatibility;
-- **summary-first SMB boundary:** per-Scene filesystem stat/resolve removed from normal
-  open; actual deferred artifact validation occurs on demand;
-- **geometry:** exact equality is deliberately frozen and documented;
-- **detail artifacts:** declared opaque/deferred rather than a permanent bare-path
-  decode contract;
-- **tests:** repository-native `tests/unit/test_remote_iqa_v2.py` added with hand-
-  calculated numerical constants, source/context/cardinality/geometry/path/NPZ safety,
-  PARTIAL/future-version, and real v1-dispatch coverage;
-- **docs:** executable field placement/dtype/shape/safety/context rules are being
-  reconciled in durable documentation.
+1. **Mode-2 finite reduction:** v2 no longer inherits v1's fail-fast per-cell ratio
+   behavior. Mixed undefined/finite pair-valid cells keep the finite samples, with
+   dedicated review regression coverage.
+2. **Same-Scene concrete-source reuse:** the hybrid uniqueness rule was removed.
+   `variant_id` is the slot identity and the same concrete `source_id` may occupy
+   multiple variant slots when immutable metadata is identical. An identical-source
+   zero-delta sanity case is covered.
+3. **Durable system-of-record drift:** `ARCHITECTURE.md`, `DECISIONS.md`, `QUALITY.md`,
+   `next-phase.md`, this execution note, and the v2 spec now describe the executable
+   v2 authority rather than leaving Stage-1/v1 wording as current state.
+4. **1024 source-binding rationale:** the cap is explicitly documented as a deliberate
+   result-acceptance envelope relative to the roughly 300-source Stage-1 production
+   assumption, not as an unexplained cache or arbitrary product limit.
+
+Repository-native Stage-2 tests are distributed across:
+
+```text
+tests/unit/test_remote_iqa_v2.py
+tests/unit/test_remote_iqa_v2_limits.py
+tests/unit/test_remote_iqa_v2_review_regressions.py
+```
+
+The real schema-v1 golden remains exercised through canonical dispatch rather than
+being synthesized or rewritten.
 
 ## Repository-native Stage-2 validation gates
 
@@ -156,8 +177,11 @@ Before PR #40 leaves Draft, observe and record the focused suite first:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_remote_iqa_v1.py `
     tests\unit\test_remote_iqa_v2.py `
-    tests\unit\test_remote_iqa_v1.py
+    tests\unit\test_remote_iqa_v2_limits.py `
+    tests\unit\test_remote_iqa_v2_review_regressions.py `
+    tests\unit\test_remote.py
 ```
 
 Then run the applicable repository checks because this PR changes `src/`, `tests/`,
@@ -175,8 +199,8 @@ git diff --check
 ```
 
 Only commands actually observed may be recorded as PASS. The earlier reconstructed
-reduced-harness `32 passed, 1 deselected` result remains implementation evidence only;
-it is not repository merge evidence.
+reduced-harness `32 passed, 1 deselected` result remains pre-review implementation
+evidence only; it is not latest-head repository merge evidence.
 
 ## Later gates intentionally not solved here
 
@@ -191,7 +215,9 @@ P5-D owns typed spatial/detail consumption. It must define a versioned typed det
 sub-schema before interpreting optional detail data.
 
 P5-F owns measured result-size, SMB latency, cache/preload budgets, and wall-clock
-performance policy.
+performance policy. If real production cardinality exceeds the Stage-2 1024-binding
+acceptance envelope, P5-F evidence must feed a deliberate schema/safety revision rather
+than bypassing the parser cap.
 
 ## Required sequence
 
@@ -202,7 +228,7 @@ P5-A2 Stage 1 durable v2 contract merged (#39)
         ↓
 P5-A2 Stage 2 executable v2 migration (#40, current)
         ↓
-independent review + owner validation
+repository-pinned validation + independent latest-head review
         ↓
 merge #40 to main
         ↓
