@@ -144,12 +144,27 @@ class IqaWorkspaceWidget(QWidget):
         )
         self.overview_splitter.setObjectName("iqaOverviewSplitter")
 
-        self.overview_plot = pg.PlotWidget(self.overview_splitter)
+        self.overview_chart_panel = QWidget(self.overview_splitter)
+        self.overview_chart_panel.setObjectName("iqaAttributeOverviewChartPanel")
+        self.overview_chart_layout = QVBoxLayout(self.overview_chart_panel)
+        self.overview_chart_layout.setContentsMargins(0, 0, 0, TOKENS.spacing_xs)
+        self.overview_chart_layout.setSpacing(TOKENS.spacing_xs)
+
+        self.overview_plot = pg.PlotWidget(self.overview_chart_panel)
         self.overview_plot.setObjectName("iqaAttributeOverviewPlot")
         self.overview_plot.setMinimumHeight(130)
         self.overview_plot.setBackground(TOKENS.workspace_background)
         self.overview_plot.showGrid(x=False, y=True, alpha=0.2)
         self.overview_plot.scene().sigMouseMoved.connect(self._overview_plot_hovered)
+        self.overview_chart_layout.addWidget(self.overview_plot, 1)
+
+        self.overview_legend = QWidget(self.overview_chart_panel)
+        self.overview_legend.setObjectName("iqaAttributeOverviewLegend")
+        self.overview_legend_layout = QGridLayout(self.overview_legend)
+        self.overview_legend_layout.setContentsMargins(0, 0, 0, 0)
+        self.overview_legend_layout.setHorizontalSpacing(TOKENS.spacing_lg)
+        self.overview_legend_layout.setVerticalSpacing(TOKENS.spacing_xs)
+        self.overview_chart_layout.addWidget(self.overview_legend)
 
         self.hierarchy = QTreeWidget(self.overview_splitter)
         self.hierarchy.setObjectName("iqaAttributeSceneHierarchy")
@@ -161,7 +176,7 @@ class IqaWorkspaceWidget(QWidget):
         self.hierarchy.currentItemChanged.connect(  # type: ignore[attr-defined]
             self._hierarchy_selection_changed
         )
-        self.overview_splitter.addWidget(self.overview_plot)
+        self.overview_splitter.addWidget(self.overview_chart_panel)
         self.overview_splitter.addWidget(self.hierarchy)
         self.overview_splitter.setStretchFactor(0, 2)
         self.overview_splitter.setStretchFactor(1, 3)
@@ -431,6 +446,7 @@ class IqaWorkspaceWidget(QWidget):
         self.attribute_filter.clear()
         self.hierarchy.clear()
         self.overview_plot.clear()
+        _clear_layout(self.overview_legend_layout)
         self.scene_trend_plot.clear()
         _clear_layout(self.preview_layout)
         self._set_controls_enabled(False)
@@ -635,8 +651,6 @@ class IqaWorkspaceWidget(QWidget):
             return
         plot = self.overview_plot
         plot.clear()
-        legend = plot.addLegend(offset=(8, 8))
-        legend.clear()
         attributes = [
             item
             for item in self._model.result.attributes
@@ -645,14 +659,27 @@ class IqaWorkspaceWidget(QWidget):
         self._overview_hover_texts = ()
         self._last_overview_hover_index = None
         if not attributes:
+            _clear_layout(self.overview_legend_layout)
             plot.setTitle("No power attributes")
             return
 
         columns = self._display_columns()
+        self._populate_overview_legend(columns)
         x = np.arange(len(attributes), dtype=np.float64)
-        plot.getAxis("bottom").setTicks(
+        crowded_ticks = len(attributes) >= 6 or any(
+            len(item.name) > 14 for item in attributes
+        )
+        bottom_axis = plot.getAxis("bottom")
+        bottom_axis.setStyle(
+            autoExpandTextSpace=True,
+            hideOverlappingLabels=False,
+        )
+        bottom_axis.setTicks(
             [[
-                (float(index), item.name)
+                (
+                    float(index),
+                    _overview_tick_label(item.name, crowded=crowded_ticks),
+                )
                 for index, item in enumerate(attributes)
             ]]
         )
@@ -680,7 +707,6 @@ class IqaWorkspaceWidget(QWidget):
                 brush=_variant_color(series_index, len(columns)),
             )
             plot.addItem(bar)
-            legend.addItem(bar, label)
             for index, value in enumerate(values):
                 unit = self._model.display_unit(
                     attributes[index].attribute_id,
@@ -712,6 +738,46 @@ class IqaWorkspaceWidget(QWidget):
             )
         plot.setLabel("left", "Value")
         plot.enableAutoRange()
+
+    def _populate_overview_legend(
+        self,
+        columns: tuple[tuple[str, str], ...],
+    ) -> None:
+        assert self._model is not None
+        _clear_layout(self.overview_legend_layout)
+        relative = self.reference_variant_id != ABSOLUTE_REFERENCE_ID
+        variant_labels = {
+            item.variant_id: item.label for item in self._model.variants
+        }
+        for series_index, (variant_id, comparison_label) in enumerate(columns):
+            entry = QWidget(self.overview_legend)
+            entry.setProperty("variantId", variant_id)
+            entry_layout = QHBoxLayout(entry)
+            entry_layout.setContentsMargins(0, 0, 0, 0)
+            entry_layout.setSpacing(TOKENS.spacing_xs)
+
+            swatch = QLabel(entry)
+            swatch.setObjectName("iqaOverviewLegendSwatch")
+            swatch.setFixedSize(10, 10)
+            swatch.setStyleSheet(
+                f"background: {_variant_color(series_index, len(columns)).name()}; "
+                "border-radius: 2px;"
+            )
+            entry_layout.addWidget(swatch)
+
+            label = QLabel(
+                variant_labels[variant_id] if relative else comparison_label,
+                entry,
+            )
+            label.setObjectName("iqaOverviewLegendLabel")
+            label.setStyleSheet(f"color: {TOKENS.text_secondary};")
+            entry_layout.addWidget(label)
+            self.overview_legend_layout.addWidget(
+                entry,
+                series_index // 4,
+                series_index % 4,
+            )
+        self.overview_legend.setVisible(bool(columns))
 
     def _populate_scene_trend(self) -> None:
         if self._model is None:
@@ -1292,6 +1358,23 @@ def _stat_plot_value(statistic: ScalarStatistic) -> float:
 
 def _display_value(value: float) -> str:
     return f"{value:.4f}" if np.isfinite(value) else "—"
+
+
+def _overview_tick_label(name: str, *, crowded: bool) -> str:
+    clean = " ".join(name.split())
+    if not crowded or len(clean) <= 12:
+        return clean
+    words = clean.split()
+    if len(words) == 1:
+        return clean if len(clean) <= 18 else f"{clean[:17]}…"
+    best_split = min(
+        range(1, len(words)),
+        key=lambda index: max(
+            len(" ".join(words[:index])),
+            len(" ".join(words[index:])),
+        ),
+    )
+    return f"{' '.join(words[:best_split])}\n{' '.join(words[best_split:])}"
 
 
 def _set_stat_tooltip(
