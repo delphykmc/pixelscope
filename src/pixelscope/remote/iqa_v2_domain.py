@@ -63,6 +63,14 @@ class DatasetSummaryV2:
 
 
 @dataclass(frozen=True)
+class RelativeStatisticV2:
+    """One local target/reference statistic in engineering and quality orientation."""
+
+    raw: ScalarStatistic
+    quality: ScalarStatistic
+
+
+@dataclass(frozen=True)
 class SourceMeasurementV2:
     variant_id: str
     source: Source
