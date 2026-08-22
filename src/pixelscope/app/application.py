@@ -25,6 +25,7 @@ from pixelscope.ui.iqa_replay_debug import install_remote_iqa_replay_debug
 from pixelscope.ui.iqa_request_debug import install_remote_iqa_request_debug
 from pixelscope.ui.iqa_result_mapping import install_remote_iqa_result_mapping
 from pixelscope.ui.iqa_result_retry import install_remote_iqa_result_retry
+from pixelscope.ui.iqa_scene_inspection import install_iqa_scene_inspection
 from pixelscope.ui.iqa_setup_presentation import polish_remote_iqa_setup
 from pixelscope.ui.iqa_submission import install_remote_iqa
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
@@ -107,6 +108,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     polish_remote_iqa_setup(remote_iqa_controller.workspace)
     install_remote_iqa_request_debug(window)
     install_remote_iqa_replay_debug(window)
+    install_iqa_scene_inspection(window)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     return gain_control
