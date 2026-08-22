@@ -180,8 +180,8 @@ def test_schema_v6_remote_iqa_round_trip_and_reset() -> None:
     remote = RemoteIqaSettings(
         server_base_url="https://iqa.example.test",
         storage_roots=(
-            RemoteIqaStorageRoot("shared", r"Z:\\shared"),
-            RemoteIqaStorageRoot("staging", r"\\server\\iqa-staging"),
+            RemoteIqaStorageRoot("shared", r"Z:\shared"),
+            RemoteIqaStorageRoot("staging", r"\\server\iqa-staging"),
         ),
         staging_root_id="staging",
     )
