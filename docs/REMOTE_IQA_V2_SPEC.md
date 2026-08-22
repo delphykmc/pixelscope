@@ -1,9 +1,10 @@
 # Remote IQA schema v2 source-measurement specification
 
-Status: Executable Stage-2 candidate in PR #40
+Status: Executable schema-v2 authority; P5-C PARTIAL extension active in PR #42
 Owner: PixelScope P5 program + external IQA server contract
 Historical executable baseline: P5-A / PR #37 / schema v1
 Durable schema-v2 contract baseline: P5-A2 Stage 1 / PR #39
+Executable schema-v2 baseline: P5-A2 Stage 2 / PR #40
 Target schema identity: `kind = "pixelscope-iqa-result"`, `schema_version = 2`
 
 This document is the normative contract for PixelScope Remote IQA schema v2. The
@@ -74,21 +75,22 @@ source evaluated in a different Scene/cohort may have different effective weight
 validity, and summaries; that measurement remains scoped by the Scene's
 `measurement_context_id` and the source/attribute binding in that context.
 
-Inside one complete Scene, `variant_id` is the comparison-slot identity. Every
-declared variant is bound exactly once, but two or more variant slots may
+Inside one published successful Scene, `variant_id` is the comparison-slot identity.
+Every declared variant is bound exactly once, but two or more variant slots may
 intentionally reference the same concrete `source_id`. This permits identical-source
 sanity comparisons without inventing a second image identity. Ordered
 `(variant_id, source_id, ...)` membership remains part of the context fingerprint, so
 this does not make variant bindings ambiguous.
 
-## 3. Complete-result structural invariants
+## 3. Published-success Scene structural invariants
 
-For `publication_state = "complete"`:
+For `publication_state = "complete"`, and for every successful Scene retained by a
+valid `publication_state = "partial"` result:
 
 - top-level `variant_id` values are unique;
 - `attribute_id` values are unique;
-- `scene_id` values are unique;
-- every Scene contains exactly one binding for every top-level variant;
+- published `scene_id` values are unique;
+- every published Scene contains exactly one binding for every top-level variant;
 - Scene source bindings are serialized in the exact top-level variant order;
 - repeated `source_id` values in the same or different Scenes satisfy section 2.1;
 - all variants in one Scene have equal original source dimensions;
@@ -105,8 +107,9 @@ its shared Scene/grid geometry before publishing the per-source copies. A future
 schema version may move geometry into shared records or define a tolerance; v2 does
 not.
 
-Missing variants belong to the future detailed PARTIAL contract and are not accepted
-as a complete-result shape.
+P5-C does not encode a missing variant by publishing a structurally incomplete Scene.
+A requested Scene whose cohort cannot produce the complete published shape is instead
+represented by a failed/cancelled `scene_outcome` and is absent from `scenes[]`.
 
 ## 4. Scene measurement context and deterministic fingerprint
 
@@ -235,6 +238,10 @@ scene_count = number of valid Scene means
 This is a different statistic; each valid Scene contributes one sample regardless of
 its effective support.
 
+For PARTIAL, Dataset summaries are defined only over the published successful
+`scenes[]`; failed/cancelled requested Scenes contribute no synthetic zero or imputed
+measurement.
+
 ## 9. Serialized projections and numerical consistency
 
 W/S1/S2/count/valid plus this specification's formulas are the numerical authority.
@@ -343,8 +350,8 @@ attributes, reverses the quality value as well.
 ## 12. Relative Dataset reduction
 
 For a selected reference and comparison mode, PixelScope first computes one local
-comparison independently for each valid Scene. The default relative Dataset Overview
-is then the arithmetic mean of those valid Scene comparison values.
+comparison independently for each valid published Scene. The default relative Dataset
+Overview is then the arithmetic mean of those valid Scene comparison values.
 
 This equal-Scene reduction applies to mode-1 power dB, mode-2 power dB, and signed
 Scene deltas. A future pooled-across-Scenes relative statistic must have a distinct
@@ -370,20 +377,23 @@ result/
 
 ### 13.1 Manifest JSON
 
-Required complete-result top-level fields are:
+Required common top-level fields are:
 
 ```text
 kind                    "pixelscope-iqa-result"
 schema_version          2
-publication_state       "complete"
+publication_state       "complete" | "partial"
 result_id               string
 variants[]              ordered {variant_id, label}
 attributes[]            ordered AttributeSpec records
 summary_artifact        {path, uncompressed_size}
-scenes[]                ordered Scene records
+scenes[]                ordered published successful Scene records
 ```
 
-Each complete Scene contains:
+A PARTIAL manifest additionally requires `scene_outcomes[]` as defined in section 16.
+A COMPLETE manifest is the all-success shape and does not require partial diagnostics.
+
+Each published successful Scene contains:
 
 ```text
 scene_id
@@ -404,15 +414,15 @@ Each source binding contains `variant_id`, immutable source metadata, one comple
 `geometry` record, and a `grids` object containing exactly every declared attribute.
 Repeated concrete `source_id` values are permitted as described in section 2.1.
 
-`detail_artifacts[]` is intentionally **opaque in schema v2 Stage 2**. A bare path is
-only a bounded reference and is not a permanent P5-D decode contract. P5-D may define
-a separately versioned typed detail sub-schema containing kind/dtype/shape/size/
-geometry metadata before consuming such data. Stage 2 never infers detail dtype or
-meaning from the path.
+`detail_artifacts[]` is intentionally **opaque in schema v2 Stage 2/P5-C**. A bare path
+is only a bounded reference and is not a permanent P5-D decode contract. P5-D may
+define a separately versioned typed detail sub-schema containing kind/dtype/shape/
+size/geometry metadata before consuming such data. Current readers never infer detail
+dtype or meaning from the path.
 
 ### 13.2 `summary.npz`
 
-For `S = scene_count`, `V = variant_count`, `A = attribute_count`:
+For `S = published successful scene_count`, `V = variant_count`, `A = attribute_count`:
 
 | Array | dtype | shape |
 | --- | --- | --- |
@@ -446,7 +456,7 @@ numerical zero.
 
 ### 13.3 Scene grid NPZ
 
-Every Scene grid artifact contains:
+Every published Scene grid artifact contains:
 
 ```text
 variant_ids                <U128  (V,)
@@ -475,10 +485,10 @@ syntactically during manifest parsing, including POSIX and Windows absolute/trav
 semantics, but their existence, symlink-resolved containment, file type, archive
 metadata, and array contents are deferred.
 
-`load_grid_scene()` is the boundary that resolves and opens one requested Scene grid.
-Therefore ordinary result open does not perform O(Scene) stat/resolve operations over
-SMB merely to establish the overview. P5-F still owns measured cache/preload and
-network-I/O policy.
+`load_grid_scene()` is the boundary that resolves and opens one requested published
+Scene grid. Therefore ordinary result open does not perform O(Scene) stat/resolve
+operations over SMB merely to establish the overview. P5-F still owns measured
+cache/preload and network-I/O policy.
 
 A missing/corrupt deferred grid does not prevent the absolute summary-first result
 from opening; requesting that Scene grid returns a corrupt grid-load outcome.
@@ -497,9 +507,10 @@ The executable v2 parser uses safety ceilings rather than runtime cache budgets:
 | one archive on disk | 130 MiB |
 | NPZ members per artifact | 192 |
 | variants | 32 |
-| Scenes | 512 |
+| requested/PARTIAL outcomes Scenes | 512 |
+| published successful Scenes | 512 |
 | attributes | 32 |
-| total Scene source bindings | 1024 |
+| total published Scene source bindings | 1024 |
 | grid cells per attribute | 65,536 |
 | detail references per Scene | 64 |
 | generic ID length | 128 characters |
@@ -508,16 +519,16 @@ The executable v2 parser uses safety ceilings rather than runtime cache budgets:
 | source relative path | 2,048 characters |
 | artifact reference | 1,024 characters |
 
-The `1024` aggregate source-binding ceiling is a deliberate result-acceptance safety
-envelope, not a cache budget. P5 Stage-1 planning targeted roughly 300 compared source
-images, so 1024 provides more than 3x headroom for that production assumption while
-also bounding manifest/summary cardinality before allocation. It permits the full 512
-Scenes for the initial two-variant P5-C workflow, about 341 complete Scenes for a
-three-variant externally produced result, and 256 for four variants. P5-B may explore
-N-way results inside this envelope. A future production requirement beyond it must
-trigger an explicit schema/safety review and coordinated server/client change rather
-than a silent local override. The independent byte ceilings above remain additional
-bounds, not substitutes for this cardinality guard.
+The `1024` aggregate published source-binding ceiling is a deliberate result-acceptance
+safety envelope, not a cache budget. P5 Stage-1 planning targeted roughly 300 compared
+source images, so 1024 provides more than 3x headroom for that production assumption
+while also bounding manifest/summary cardinality before allocation. It permits the
+full 512 Scenes for the initial two-variant P5-C workflow, about 341 complete Scenes
+for a three-variant externally produced result, and 256 for four variants. P5-B may
+explore N-way results inside this envelope. A future production requirement beyond it
+must trigger an explicit schema/safety review and coordinated server/client change
+rather than a silent local override. The independent byte ceilings above remain
+additional bounds, not substitutes for this cardinality guard.
 
 NPZ input must be data-only. The reader rejects malformed ZIP/NPY structures,
 duplicate members, encrypted members, unsupported compression, unexpected members,
@@ -530,21 +541,50 @@ UNC paths, and `..` traversal under both POSIX and Windows path semantics. Defer
 artifact containment is rechecked against the resolved result root when the artifact
 is actually opened.
 
-## 16. Publication state and PARTIAL boundary
+## 16. Publication state and executable PARTIAL contract
 
-P5 retains the durable decision that successful Scene work may eventually survive a
-PARTIAL job. However, PR #39 deliberately deferred the exact PARTIAL manifest/failure
-shape to P5-C.
+Schema v2 supports exactly two published artifact states:
 
-Stage-2 executable behavior is therefore explicit:
+- `publication_state = "complete"` -> all requested Scenes succeeded;
+- `publication_state = "partial"` -> at least one requested Scene succeeded and at
+  least one requested Scene failed or was cancelled.
 
-- `publication_state = "complete"` -> parse the complete v2 shape;
-- `publication_state = "partial"` -> `UNSUPPORTED` in the Stage-2 reader;
-- any other state -> invalid;
-- P5-B must not reinterpret PARTIAL as complete or invent a partial parser.
+Any other artifact publication state is invalid.
 
-P5-C owns exact request rejection, Scene/variant failure records, no-success behavior,
-cancel/publication races, and the terminal API taxonomy.
+A valid PARTIAL manifest requires ordered `scene_outcomes[]`. It is a bounded list of
+all requested Scene terminal outcomes in original request order. Each entry contains:
+
+```text
+scene_id
+status                  "succeeded" | "failed" | "cancelled"
+error {                 required only for failed/cancelled
+    code                non-empty bounded string, max 128 chars
+    message             non-empty bounded string, max 512 chars
+    retryable           optional boolean
+}
+```
+
+Rules:
+
+- `scene_outcomes` contains 2..512 unique `scene_id` values;
+- `succeeded` entries must not contain `error`;
+- `failed`/`cancelled` entries require bounded error diagnostics;
+- PARTIAL requires at least one `succeeded` outcome;
+- PARTIAL requires at least one `failed` or `cancelled` outcome;
+- the ordered IDs of all `succeeded` outcomes must exactly equal the ordered
+  `scenes[].scene_id` values;
+- `scenes[]`, `summary.npz`, and Scene-grid artifacts contain only successful fully
+  published Scenes;
+- every successful PARTIAL Scene is parsed by the same complete-Scene structural,
+  numerical, context, geometry, projection, and artifact rules as COMPLETE;
+- failed/cancelled requested Scenes do not contribute fabricated zeros, placeholders,
+  source bindings, summaries, or grids;
+- zero-success terminal work is not a PARTIAL artifact; the job terminates `failed`
+  or `cancelled` and exposes no published result reference;
+- all-success terminal work is `succeeded` with a COMPLETE artifact.
+
+This representation intentionally preserves successful Scene work without creating a
+second numerical authority or a relaxed incomplete-Scene schema.
 
 ## 17. Source inspection remains separate
 
@@ -552,13 +592,14 @@ cancel/publication races, and the terminal API taxonomy.
 open authority. Passive result browsing must not mutate Files, Selected, Primary,
 decoded residency, Statistics, Difference, or the current comparison workspace.
 
-Actual source inspection remains governed by later logical storage-root mapping,
-source identity/hash verification, and canonical local registration/selection paths.
+P5-C logical result resolution uses configured `storage_root_id + relative_path` for
+the result artifact itself. Native source Inspect still belongs to the later P5-D
+contract and requires explicit source logical-root/hash verification before canonical
+local registration/selection.
 
-## 18. Stage-2 executable acceptance gates
+## 18. Executable acceptance and compatibility gates
 
-PR #40 is not merge-ready merely because the schema classes parse. Before it is marked
-Ready for Review, repository-native tests must cover:
+The merged P5-A2 Stage-2 coverage establishes the complete-result schema-v2 baseline:
 
 - deterministic v2 N-way fixture round-trip and identity ordering;
 - the real existing schema-v1 fixture through canonical version dispatch;
@@ -577,14 +618,16 @@ Ready for Review, repository-native tests must cover:
 - POSIX/Windows path escapes;
 - malformed/duplicate/encrypted/unsupported/object/wrong-shape/wrong-dtype/oversized NPZ;
 - summary-first deferred-grid behavior;
-- future-version and Stage-2 PARTIAL rejection.
+- future-version handling.
 
-Observed validation must be recorded separately from planned commands. Repository
-standard checks for changed `src/`, `tests/`, and docs remain the merge gate: focused
-v1+v2 pytest, broader applicable pytest, Ruff, mypy, docs checks, `pip check`, and
-`git diff --check`.
+P5-C adds executable PARTIAL coverage for ordered Scene outcomes, success/failure/
+cancelled diagnostics, zero-success/all-success rejection, successful-Scene ordering,
+and COMPLETE/PARTIAL canonical loader compatibility. P5-C debug fixtures must reuse
+the canonical v2 fixture/result-loader path rather than defining independent result
+math.
 
-After Stage 2 merges, P5-B / PR #38 rebases onto this executable authority and adapts
-its UI/controller to N-way `variant_id`, summary-first absolute views, local
-reference-dependent comparisons, and the centralized quality semantics. P5-B does
-not redefine the schema.
+Observed validation is recorded separately from planned commands. Repository standard
+checks for changed `src/`, `tests/`, and docs remain the merge gate: focused/full
+pytest, Ruff, mypy, docs checks, `pip check`, and `git diff --check`.
+
+No silent v1→v2 numerical upgrade is allowed.
