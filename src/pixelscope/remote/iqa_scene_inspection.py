@@ -11,9 +11,9 @@ from pixelscope.io.path_discovery import ORDINARY_IMAGE_SUFFIXES
 from pixelscope.remote.iqa_domain import Source
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_storage import (
+    ResolvedSource,
     StorageResolutionError,
     resolve_existing_source,
-    sha256_file,
     validate_relative_path,
 )
 from pixelscope.remote.iqa_v2_domain import ResultV2
@@ -112,7 +112,8 @@ def verify_scene_sources(
         cancellation_checkpoint()
         source = measurement.source
         try:
-            local_path = _resolve_published_source(source, settings)
+            resolved = _resolve_published_source(source, settings)
+            local_path = resolved.local_path
             canonical = local_path.resolve(strict=True)
             if canonical in resolved_paths:
                 return SceneVerificationOutcome(
@@ -129,7 +130,7 @@ def verify_scene_sources(
                     failed_source_id=source.source_id,
                 )
             cancellation_checkpoint()
-            if sha256_file(local_path) != source.sha256:
+            if resolved.sha256 != source.sha256:
                 return SceneVerificationOutcome(
                     scene_id=scene_id,
                     reason="Source hash changed",
@@ -158,7 +159,7 @@ def verify_scene_sources(
     return SceneVerificationOutcome(scene_id=scene_id, sources=tuple(verified))
 
 
-def _resolve_published_source(source: Source, settings: RemoteIqaSettings) -> Path:
+def _resolve_published_source(source: Source, settings: RemoteIqaSettings) -> ResolvedSource:
     root_id = source.storage_root_id
     if root_id is None:
         raise StorageResolutionError("published source location is unavailable")
@@ -178,7 +179,7 @@ def _resolve_published_source(source: Source, settings: RemoteIqaSettings) -> Pa
         raise StorageResolutionError("published logical source locator does not match")
     if resolved.local_path.suffix.lower() not in ORDINARY_IMAGE_SUFFIXES:
         raise StorageResolutionError("published source type is not supported for native Inspect")
-    return resolved.local_path
+    return resolved
 
 
 def probe_image_dimensions(path: Path) -> tuple[int, int]:
