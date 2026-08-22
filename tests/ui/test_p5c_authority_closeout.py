@@ -35,13 +35,17 @@ def isolated_ui_settings(tmp_path: Path) -> None:
 
 
 def _documents(tmp_path: Path, count: int = 2) -> list[ImageDocument]:
-    return [
-        ImageDocument.from_array(
-            np.full((12, 18, 3), index * 20, dtype=np.uint8),
-            str(tmp_path / f"page-{index}.png"),
+    documents: list[ImageDocument] = []
+    for index in range(count):
+        path = tmp_path / f"page-{index}.png"
+        documents.append(
+            ImageDocument.from_array(
+                np.full((12, 18, 3), index * 20, dtype=np.uint8),
+                path.name,
+                source_path=path,
+            )
         )
-        for index in range(count)
-    ]
+    return documents
 
 
 def _write_probe_bmp(path: Path, width: int = 8, height: int = 6) -> None:
