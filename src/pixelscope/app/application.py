@@ -20,6 +20,7 @@ from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
+from pixelscope.ui.iqa_preview_lifecycle import install_remote_iqa_preview_lifecycle
 from pixelscope.ui.iqa_replay_debug import install_remote_iqa_replay_debug
 from pixelscope.ui.iqa_request_debug import install_remote_iqa_request_debug
 from pixelscope.ui.iqa_result_mapping import install_remote_iqa_result_mapping
@@ -99,6 +100,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_recent_entries(window)
     install_analysis_export(window)
     remote_iqa_controller = install_remote_iqa(window)
+    install_remote_iqa_preview_lifecycle(window)
     install_remote_iqa_submission_lifecycle(window)
     install_remote_iqa_result_mapping(window)
     install_remote_iqa_result_retry(window)
