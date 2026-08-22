@@ -9,9 +9,14 @@ from enum import Enum
 import numpy as np
 from numpy.typing import NDArray
 
-from pixelscope.remote.iqa_domain import CompactAttributeData, GridGeometry, SceneGeometry, ValueKind
+from pixelscope.remote.iqa_domain import (
+    CompactAttributeData,
+    GridGeometry,
+    SceneGeometry,
+    ValueKind,
+)
 from pixelscope.remote.iqa_geometry import source_cell_polygon, source_point_to_grid_cell
-from pixelscope.remote.iqa_v2_domain import GridSceneDataV2, ResultV2, SourceMeasurementV2
+from pixelscope.remote.iqa_v2_domain import GridSceneDataV2, ResultV2
 from pixelscope.remote.iqa_v2_math import power_log_ratio
 
 
@@ -158,10 +163,11 @@ def derive_spatial_scene(
         mode = SpatialMode.RELATIVE
 
     scale_min, scale_max = _shared_scale(fields, spec.value_kind, mode)
+    relative_power = mode is SpatialMode.RELATIVE and spec.value_kind is ValueKind.POWER
     return SpatialSceneField(
         scene_id=scene_id,
         attribute_id=attribute_id,
-        unit=("dB" if mode is SpatialMode.RELATIVE and spec.value_kind is ValueKind.POWER else spec.unit),
+        unit="dB" if relative_power else spec.unit,
         mode=mode,
         reference_variant_id=reference_variant_id,
         geometry=scene.geometry,
@@ -249,20 +255,20 @@ def hit_test_spatial_cell(
     source_x: float,
     source_y: float,
 ) -> tuple[int, int] | None:
-    """Hit-test through the exact source->analysis->grid transform used by drawing."""
+    """Return the geometric grid cell even when the published cell is invalid.
 
-    cell = source_point_to_grid_cell(
+    Overlay drawing filters invalid/pair-invalid cells, while the inspector still
+    needs the same geometric hit test so it can report that a published cell is
+    invalid rather than pretending that no grid cell exists.
+    """
+
+    field.variant(variant_id)
+    return source_point_to_grid_cell(
         field.geometry,
         field.grid,
         source_x,
         source_y,
     )
-    if cell is None:
-        return None
-    row, column = cell
-    if not bool(field.variant(variant_id).valid_mask[row, column]):
-        return None
-    return cell
 
 
 def source_polygons_for_variant(
