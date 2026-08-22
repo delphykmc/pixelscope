@@ -96,8 +96,12 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         self.remote_roots = QTableWidget(0, 2, page)
         self.remote_roots.setObjectName("remoteIqaStorageRoots")
         self.remote_roots.setHorizontalHeaderLabels(("Root ID", "Client path"))
-        self.remote_roots.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.remote_roots.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.remote_roots.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.remote_roots.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
         self.remote_roots.verticalHeader().setVisible(False)
         header = self.remote_roots.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -120,7 +124,8 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         layout.addWidget(self.remote_staging_root)
         staging_help = QLabel(
             "Sources outside all configured roots require a staging root. PixelScope "
-            "publishes them as staging/<sha256>/<basename> without changing Files or Selected.",
+            "publishes them as staging/<sha256>/<basename> without changing Files or "
+            "Selected.",
             page,
         )
         staging_help.setWordWrap(True)
@@ -135,9 +140,15 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setWidget(page)
 
-        self.add_remote_root.clicked.connect(self._add_root_row)  # type: ignore[attr-defined]
-        self.remove_remote_root.clicked.connect(self._remove_root_row)  # type: ignore[attr-defined]
-        self.remote_roots.itemChanged.connect(self._roots_changed)  # type: ignore[attr-defined]
+        self.add_remote_root.clicked.connect(  # type: ignore[attr-defined]
+            self._add_root_row
+        )
+        self.remove_remote_root.clicked.connect(  # type: ignore[attr-defined]
+            self._remove_root_row
+        )
+        self.remote_roots.itemChanged.connect(  # type: ignore[attr-defined]
+            self._roots_changed
+        )
         return scroll
 
     def settings(self) -> ApplicationSettings:
@@ -178,7 +189,11 @@ class RemoteIqaSettingsDialog(SettingsDialog):
             client_path = "" if path_item is None else path_item.text().strip()
             roots.append(RemoteIqaStorageRoot(root_id, client_path))
         staging_data = self.remote_staging_root.currentData()
-        staging = str(staging_data) if isinstance(staging_data, str) and staging_data else None
+        staging = (
+            str(staging_data)
+            if isinstance(staging_data, str) and staging_data
+            else None
+        )
         return RemoteIqaSettings(
             server_base_url=self.remote_server_url.text().strip(),
             storage_roots=tuple(roots),

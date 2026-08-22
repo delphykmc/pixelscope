@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, BinaryIO
@@ -48,11 +49,14 @@ def validate_relative_path(value: str) -> None:
         or any(part in {"", ".", ".."} for part in posix.parts)
         or "\\" in value
     ):
-        raise StorageResolutionError("relative_path must be a contained portable POSIX path")
+        raise StorageResolutionError(
+            "relative_path must be a contained portable POSIX path"
+        )
 
 
 def sha256_file(path: Path, *, chunk_size: int = HASH_CHUNK_BYTES) -> str:
     """Hash a file without materializing it in memory."""
+
     digest = hashlib.sha256()
     try:
         with path.open("rb") as stream:
@@ -70,11 +74,17 @@ def _update_hash(digest: Any, stream: BinaryIO, chunk_size: int) -> None:
         digest.update(chunk)
 
 
-def resolve_existing_source(source: Path | str, settings: RemoteIqaSettings) -> ResolvedSource | None:
+def resolve_existing_source(
+    source: Path | str,
+    settings: RemoteIqaSettings,
+) -> ResolvedSource | None:
     """Resolve a source already under a configured root; longest match wins."""
+
     source_path = Path(source)
     if not source_path.is_file():
-        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
+        raise StorageResolutionError(
+            f"source is missing or not a regular file: {source_path.name}"
+        )
     candidate = _longest_matching_root(str(source_path), settings.storage_roots)
     if candidate is None:
         return None
@@ -87,11 +97,18 @@ def resolve_existing_source(source: Path | str, settings: RemoteIqaSettings) -> 
     )
 
 
-def stage_source(source: Path | str, staging_root: Path | str, storage_root_id: str) -> ResolvedSource:
-    """Publish one source as staging/<sha256>/<basename> using a .part and atomic replace."""
+def stage_source(
+    source: Path | str,
+    staging_root: Path | str,
+    storage_root_id: str,
+) -> ResolvedSource:
+    """Publish one source using content-addressed staging and atomic replacement."""
+
     source_path = Path(source)
     if not source_path.is_file() or source_path.is_symlink():
-        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
+        raise StorageResolutionError(
+            f"source is missing or not a regular file: {source_path.name}"
+        )
     digest = sha256_file(source_path)
     root = Path(staging_root)
     final = root / "staging" / digest / source_path.name
@@ -102,9 +119,14 @@ def stage_source(source: Path | str, staging_root: Path | str, storage_root_id: 
         if not final.is_file() or final.is_symlink():
             raise StorageResolutionError("existing staged target is not a regular file")
         if sha256_file(final) != digest:
-            raise StorageResolutionError("existing staged target failed SHA-256 identity verification")
+            raise StorageResolutionError(
+                "existing staged target failed SHA-256 identity verification"
+            )
         return ResolvedSource(
-            LogicalStoragePath(storage_root_id, _portable_staged_path(digest, source_path.name)),
+            LogicalStoragePath(
+                storage_root_id,
+                _portable_staged_path(digest, source_path.name),
+            ),
             digest,
             final,
             True,
@@ -119,21 +141,26 @@ def stage_source(source: Path | str, staging_root: Path | str, storage_root_id: 
             raise StorageResolutionError("staging copy failed SHA-256 verification")
         os.replace(part, final)
     except Exception:
-        try:
+        with suppress(OSError):
             part.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise
     return ResolvedSource(
-        LogicalStoragePath(storage_root_id, _portable_staged_path(digest, source_path.name)),
+        LogicalStoragePath(
+            storage_root_id,
+            _portable_staged_path(digest, source_path.name),
+        ),
         digest,
         final,
         True,
     )
 
 
-def resolve_or_stage_source(source: Path | str, settings: RemoteIqaSettings) -> ResolvedSource:
+def resolve_or_stage_source(
+    source: Path | str,
+    settings: RemoteIqaSettings,
+) -> ResolvedSource:
     """Resolve a configured source or safely stage it under the selected staging root."""
+
     existing = resolve_existing_source(source, settings)
     if existing is not None:
         return existing
@@ -150,12 +177,19 @@ def resolve_or_stage_source(source: Path | str, settings: RemoteIqaSettings) -> 
     return stage_source(source, root_path, staging.storage_root_id)
 
 
-def resolve_result_reference(storage_root_id: str, relative_path: str, settings: RemoteIqaSettings) -> Path:
+def resolve_result_reference(
+    storage_root_id: str,
+    relative_path: str,
+    settings: RemoteIqaSettings,
+) -> Path:
     """Resolve a server logical result reference using the current settings snapshot."""
+
     validate_relative_path(relative_path)
     root = settings.root(storage_root_id)
     if root is None:
-        raise StorageResolutionError(f"storage root '{storage_root_id}' is not configured")
+        raise StorageResolutionError(
+            f"storage root '{storage_root_id}' is not configured"
+        )
     root_path = Path(root.client_path)
     if not root_path.is_dir():
         raise StorageResolutionError(f"storage root '{storage_root_id}' is unavailable")
@@ -166,8 +200,12 @@ def resolve_result_reference(storage_root_id: str, relative_path: str, settings:
     return target
 
 
-def _longest_matching_root(source: str, roots: tuple[RemoteIqaStorageRoot, ...]) -> RemoteIqaStorageRoot | None:
+def _longest_matching_root(
+    source: str,
+    roots: tuple[RemoteIqaStorageRoot, ...],
+) -> RemoteIqaStorageRoot | None:
     """Compare Windows paths case-insensitively without requiring the share to be online."""
+
     source_path = PureWindowsPath(source)
     matches: list[tuple[int, RemoteIqaStorageRoot]] = []
     for root in roots:
@@ -199,7 +237,9 @@ def _windows_relative(source: str, root: str) -> str:
         if tuple(part.casefold() for part in source_parts[: len(root_parts)]) != tuple(
             part.casefold() for part in root_parts
         ):
-            raise StorageResolutionError("source is not contained by configured root")
+            raise StorageResolutionError(
+                "source is not contained by configured root"
+            ) from None
         relative = PureWindowsPath(*source_parts[len(root_parts) :])
     value = PurePosixPath(*relative.parts).as_posix()
     validate_relative_path(value)

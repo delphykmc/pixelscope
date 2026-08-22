@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
-from uuid import uuid4
+from typing import Any
 
 from PySide6.QtCore import QEvent, QObject, QThreadPool, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import (
@@ -103,7 +103,11 @@ class RemoteIqaWorkspace(QWidget):
     open_result_requested = Signal(str)
     settings_requested = Signal()
 
-    def __init__(self, results_workspace: IqaWorkspaceWidget, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        results_workspace: IqaWorkspaceWidget,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("remoteIqaWorkspace")
         self._jobs: dict[str, RemoteJobRecord] = {}
@@ -133,11 +137,16 @@ class RemoteIqaWorkspace(QWidget):
         layout.setContentsMargins(0, 6, 0, 0)
         layout.setSpacing(8)
         settings_row = QHBoxLayout()
-        self.configuration_label = QLabel("Remote IQA is not configured.", self.setup_page)
+        self.configuration_label = QLabel(
+            "Remote IQA is not configured.",
+            self.setup_page,
+        )
         self.configuration_label.setObjectName("remoteIqaConfigurationStatus")
         self.configure_button = QPushButton("Settings...", self.setup_page)
         self.configure_button.setObjectName("remoteIqaSettings")
-        self.configure_button.clicked.connect(self.settings_requested.emit)  # type: ignore[attr-defined]
+        self.configure_button.clicked.connect(  # type: ignore[attr-defined]
+            self.settings_requested.emit
+        )
         settings_row.addWidget(self.configuration_label, 1)
         settings_row.addWidget(self.configure_button)
         layout.addLayout(settings_row)
@@ -147,13 +156,18 @@ class RemoteIqaWorkspace(QWidget):
         current_font.setBold(True)
         current_heading.setFont(current_font)
         layout.addWidget(current_heading)
-        self.current_pair_label = QLabel("Current Comparison Page is not an eligible pair.", self.setup_page)
+        self.current_pair_label = QLabel(
+            "Current Comparison Page is not an eligible pair.",
+            self.setup_page,
+        )
         self.current_pair_label.setObjectName("remoteIqaCurrentPairSummary")
         self.current_pair_label.setWordWrap(True)
         layout.addWidget(self.current_pair_label)
         self.current_submit = QPushButton("Submit Current Pair", self.setup_page)
         self.current_submit.setObjectName("remoteIqaSubmitCurrentPair")
-        self.current_submit.clicked.connect(self.current_submit_requested.emit)  # type: ignore[attr-defined]
+        self.current_submit.clicked.connect(  # type: ignore[attr-defined]
+            self.current_submit_requested.emit
+        )
         layout.addWidget(self.current_submit)
 
         folder_heading = QLabel("Folder Pair", self.setup_page)
@@ -179,33 +193,51 @@ class RemoteIqaWorkspace(QWidget):
             layout.addLayout(row)
             button.clicked.connect(  # type: ignore[attr-defined]
                 lambda _checked=False, target=editor, caption=title: self._browse_folder(
-                    target, caption
+                    target,
+                    caption,
                 )
             )
-        self.folder_a.textChanged.connect(self._folder_inputs_changed)  # type: ignore[attr-defined]
-        self.folder_b.textChanged.connect(self._folder_inputs_changed)  # type: ignore[attr-defined]
+        self.folder_a.textChanged.connect(  # type: ignore[attr-defined]
+            self._folder_inputs_changed
+        )
+        self.folder_b.textChanged.connect(  # type: ignore[attr-defined]
+            self._folder_inputs_changed
+        )
 
         folder_actions = QHBoxLayout()
         self.preview_button = QPushButton("Validate / Preview", self.setup_page)
         self.preview_button.setObjectName("remoteIqaPreviewFolderPair")
         self.folder_submit = QPushButton("Submit Folder Pair", self.setup_page)
         self.folder_submit.setObjectName("remoteIqaSubmitFolderPair")
-        self.preview_button.clicked.connect(self._request_preview)  # type: ignore[attr-defined]
-        self.folder_submit.clicked.connect(self._request_folder_submit)  # type: ignore[attr-defined]
+        self.preview_button.clicked.connect(  # type: ignore[attr-defined]
+            self._request_preview
+        )
+        self.folder_submit.clicked.connect(  # type: ignore[attr-defined]
+            self._request_folder_submit
+        )
         folder_actions.addWidget(self.preview_button)
         folder_actions.addWidget(self.folder_submit)
         folder_actions.addStretch(1)
         layout.addLayout(folder_actions)
 
-        self.preview_status = QLabel("Choose Folder A and Folder B, then validate the full pair.", self.setup_page)
+        self.preview_status = QLabel(
+            "Choose Folder A and Folder B, then validate the full pair.",
+            self.setup_page,
+        )
         self.preview_status.setObjectName("remoteIqaPairPreviewStatus")
         self.preview_status.setWordWrap(True)
         layout.addWidget(self.preview_status)
         self.preview_table = QTableWidget(0, 5, self.setup_page)
         self.preview_table.setObjectName("remoteIqaPairPreview")
-        self.preview_table.setHorizontalHeaderLabels(("Scene", "A", "B", "Width", "Height"))
-        self.preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.preview_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.preview_table.setHorizontalHeaderLabels(
+            ("Scene", "A", "B", "Width", "Height")
+        )
+        self.preview_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self.preview_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         self.preview_table.verticalHeader().setVisible(False)
         header = self.preview_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -224,10 +256,16 @@ class RemoteIqaWorkspace(QWidget):
         self.jobs_tree = QTreeWidget(self.jobs_page)
         self.jobs_tree.setObjectName("remoteIqaJobs")
         self.jobs_tree.setColumnCount(5)
-        self.jobs_tree.setHeaderLabels(("Job ID", "Kind", "State", "Progress", "Message"))
+        self.jobs_tree.setHeaderLabels(
+            ("Job ID", "Kind", "State", "Progress", "Message")
+        )
         self.jobs_tree.setRootIsDecorated(False)
-        self.jobs_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.jobs_tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.jobs_tree.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.jobs_tree.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         header = self.jobs_tree.header()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -242,14 +280,23 @@ class RemoteIqaWorkspace(QWidget):
         self.open_button.setObjectName("remoteIqaOpenResult")
         self.cancel_button.setEnabled(False)
         self.open_button.setEnabled(False)
-        self.cancel_button.clicked.connect(self._cancel_selected)  # type: ignore[attr-defined]
-        self.open_button.clicked.connect(self._open_selected)  # type: ignore[attr-defined]
-        self.jobs_tree.itemSelectionChanged.connect(self._job_selection_changed)  # type: ignore[attr-defined]
+        self.cancel_button.clicked.connect(  # type: ignore[attr-defined]
+            self._cancel_selected
+        )
+        self.open_button.clicked.connect(  # type: ignore[attr-defined]
+            self._open_selected
+        )
+        self.jobs_tree.itemSelectionChanged.connect(  # type: ignore[attr-defined]
+            self._job_selection_changed
+        )
         buttons.addWidget(self.cancel_button)
         buttons.addWidget(self.open_button)
         buttons.addStretch(1)
         layout.addLayout(buttons)
-        self.jobs_status = QLabel("No Remote IQA jobs in this PixelScope process.", self.jobs_page)
+        self.jobs_status = QLabel(
+            "No Remote IQA jobs in this PixelScope process.",
+            self.jobs_page,
+        )
         self.jobs_status.setObjectName("remoteIqaJobsStatus")
         self.jobs_status.setWordWrap(True)
         layout.addWidget(self.jobs_status)
@@ -266,7 +313,9 @@ class RemoteIqaWorkspace(QWidget):
         self.partial_diagnostics = QTreeWidget(self.results_page)
         self.partial_diagnostics.setObjectName("remoteIqaPartialDiagnostics")
         self.partial_diagnostics.setColumnCount(5)
-        self.partial_diagnostics.setHeaderLabels(("Scene", "Status", "Code", "Retryable", "Message"))
+        self.partial_diagnostics.setHeaderLabels(
+            ("Scene", "Status", "Code", "Retryable", "Message")
+        )
         self.partial_diagnostics.setRootIsDecorated(False)
         self.partial_diagnostics.setMaximumHeight(160)
         self.partial_diagnostics.hide()
@@ -277,18 +326,27 @@ class RemoteIqaWorkspace(QWidget):
         if settings.submission_configured:
             staging = settings.staging_root_id or "none"
             self.configuration_label.setText(
-                f"Configured · {len(settings.storage_roots)} storage root(s) · staging: {staging}"
+                f"Configured · {len(settings.storage_roots)} storage root(s) · "
+                f"staging: {staging}"
             )
         else:
             self.configuration_label.setText(
-                "Remote IQA submission unavailable · configure server URL and storage roots."
+                "Remote IQA submission unavailable · configure server URL and "
+                "storage roots."
             )
         self.folder_submit.setEnabled(
             settings.submission_configured and self._preview_identity is not None
         )
 
-    def set_current_pair_state(self, summary: str, eligible: bool, reason: str | None) -> None:
-        self.current_pair_label.setText(summary if eligible else f"Unavailable · {reason or summary}")
+    def set_current_pair_state(
+        self,
+        summary: str,
+        eligible: bool,
+        reason: str | None,
+    ) -> None:
+        self.current_pair_label.setText(
+            summary if eligible else f"Unavailable · {reason or summary}"
+        )
         self.current_pair_label.setToolTip("" if eligible else (reason or summary))
         self.current_submit.setEnabled(eligible)
 
@@ -311,7 +369,9 @@ class RemoteIqaWorkspace(QWidget):
             )
             for column, value in enumerate(values):
                 self.preview_table.setItem(row, column, QTableWidgetItem(value))
-        self.preview_status.setText(f"Validated full Pair Preview · {len(payload.entries)} Scenes")
+        self.preview_status.setText(
+            f"Validated full Pair Preview · {len(payload.entries)} Scenes"
+        )
         self.preview_button.setEnabled(True)
 
     def show_preview_error(self, message: str) -> None:
@@ -347,7 +407,10 @@ class RemoteIqaWorkspace(QWidget):
         item.setText(4, message)
         if self.jobs_tree.currentItem() is None:
             self.jobs_tree.setCurrentItem(item)
-        self.jobs_status.setText(f"{len(self._jobs)} job(s) tracked locally · remote jobs remain durable on close")
+        self.jobs_status.setText(
+            f"{len(self._jobs)} job(s) tracked locally · remote jobs remain durable "
+            "on close"
+        )
         self._job_selection_changed()
 
     def show_submission_error(self, message: str) -> None:
@@ -375,9 +438,14 @@ class RemoteIqaWorkspace(QWidget):
                 item.setText(0, scene.scene_id)
                 item.setText(1, scene.status)
                 item.setText(2, scene.error_code or "")
-                item.setText(3, "—" if scene.retryable is None else str(scene.retryable).lower())
+                retryable = (
+                    "—" if scene.retryable is None else str(scene.retryable).lower()
+                )
+                item.setText(3, retryable)
                 item.setText(4, scene.error_message or "")
-            self.partial_diagnostics.setVisible(bool(result.unsuccessful_scene_outcomes))
+            self.partial_diagnostics.setVisible(
+                bool(result.unsuccessful_scene_outcomes)
+            )
         else:
             self.partial_status.hide()
             self.partial_diagnostics.hide()
@@ -390,7 +458,9 @@ class RemoteIqaWorkspace(QWidget):
             self._preview_identity = None
             self._preview_entries = ()
             self.preview_table.setRowCount(0)
-            self.preview_status.setText("Folder inputs changed · validate the full pair again.")
+            self.preview_status.setText(
+                "Folder inputs changed · validate the full pair again."
+            )
             self.folder_submit.setEnabled(False)
 
     def _request_preview(self) -> None:
@@ -409,7 +479,11 @@ class RemoteIqaWorkspace(QWidget):
         self.folder_submit_requested.emit(*identity)
 
     def _browse_folder(self, target: QLineEdit, caption: str) -> None:
-        selected = QFileDialog.getExistingDirectory(self, caption, target.text().strip())
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            caption,
+            target.text().strip(),
+        )
         if selected:
             target.setText(selected)
 
@@ -474,11 +548,15 @@ class RemoteIqaController(QObject):
 
         self._poll_timer = QTimer(self)
         self._poll_timer.setInterval(POLL_INTERVAL_MS)
-        self._poll_timer.timeout.connect(self._poll_due)  # type: ignore[attr-defined]
+        self._poll_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._poll_due
+        )
         self._poll_timer.start()
         self._state_timer = QTimer(self)
         self._state_timer.setInterval(400)
-        self._state_timer.timeout.connect(self.refresh_setup_state)  # type: ignore[attr-defined]
+        self._state_timer.timeout.connect(  # type: ignore[attr-defined]
+            self.refresh_setup_state
+        )
         self._state_timer.start()
 
         workspace.preview_requested.connect(self.preview_folders)
@@ -495,7 +573,10 @@ class RemoteIqaController(QObject):
             return
         self.refresh_setup_state()
         for job in self._jobs.values():
-            if job.result_reference is not None and job.state in {JobState.SUCCEEDED, JobState.PARTIAL}:
+            if job.result_reference is not None and job.state in {
+                JobState.SUCCEEDED,
+                JobState.PARTIAL,
+            }:
                 self._resolve_result_path(job)
 
     def refresh_setup_state(self) -> None:
@@ -534,8 +615,16 @@ class RemoteIqaController(QObject):
                 )
                 return
             if not is_remote_eligible_path(path):
-                reason = "RAW is not eligible for Remote IQA" if path.suffix.casefold() == ".raw" else "unsupported Remote IQA extension"
-                self.workspace.set_current_pair_state("Current Pair is not eligible.", False, reason)
+                reason = (
+                    "RAW is not eligible for Remote IQA"
+                    if path.suffix.casefold() == ".raw"
+                    else "unsupported Remote IQA extension"
+                )
+                self.workspace.set_current_pair_state(
+                    "Current Pair is not eligible.",
+                    False,
+                    reason,
+                )
                 return
             paths.append(path)
         self.workspace.set_current_pair_state(
@@ -551,15 +640,20 @@ class RemoteIqaController(QObject):
         settings = self.window.application_settings.remote_iqa
         documents = list(self.window.current_comparison_documents())
         if len(documents) != 2:
-            self.workspace.show_submission_error("Current Comparison Page is no longer exactly two images")
+            self.workspace.show_submission_error(
+                "Current Comparison Page is no longer exactly two images"
+            )
             return
-        paths = tuple(getattr(item, "source_path", None) for item in documents)
-        if not all(isinstance(path, Path) for path in paths):
-            self.workspace.show_submission_error("Current Pair is not two native source paths")
+        path_a = getattr(documents[0], "source_path", None)
+        path_b = getattr(documents[1], "source_path", None)
+        if not isinstance(path_a, Path) or not isinstance(path_b, Path):
+            self.workspace.show_submission_error(
+                "Current Pair is not two native source paths"
+            )
             return
         self._start_submission(
             "current_pair",
-            lambda: pair_current_paths(paths[0], paths[1]),
+            lambda: pair_current_paths(path_a, path_b),
             settings,
         )
 
@@ -569,7 +663,11 @@ class RemoteIqaController(QObject):
             return
         self.workspace.show_preview_loading()
         worker = TaskWorker(
-            lambda: _FolderPreviewPayload(folder_a, folder_b, pair_folders(folder_a, folder_b)),
+            lambda: _FolderPreviewPayload(
+                folder_a,
+                folder_b,
+                pair_folders(folder_a, folder_b),
+            ),
             generation=self._generation,
         )
         worker.signals.succeeded.connect(self._preview_ready)
@@ -583,14 +681,18 @@ class RemoteIqaController(QObject):
         preview = self.workspace.preview_entries
         preview_identity = self.workspace.preview_identity
         if preview_identity != (folder_a, folder_b) or not preview:
-            self.workspace.show_submission_error("validate the full Folder Pair before submit")
+            self.workspace.show_submission_error(
+                "validate the full Folder Pair before submit"
+            )
             return
         settings = self.window.application_settings.remote_iqa
 
         def entries() -> tuple[FolderPairEntry, ...]:
             current = pair_folders(folder_a, folder_b)
             if _preview_signature(current) != _preview_signature(preview):
-                raise PreflightError("Folder Pair changed after preview; validate again before submit")
+                raise PreflightError(
+                    "Folder Pair changed after preview; validate again before submit"
+                )
             return current
 
         self._start_submission("folder_pair", entries, settings)
@@ -608,20 +710,40 @@ class RemoteIqaController(QObject):
 
         def prepare_create() -> _SubmissionPayload:
             entries = entries_factory()
-            request = build_request(entries, settings, submission_kind=submission_kind)
+            request = build_request(
+                entries,
+                settings,
+                submission_kind=submission_kind,
+            )
             created = _create_job(self._client_factory(server_url), request)
-            return _SubmissionPayload(created, submission_kind, server_url, len(entries))
+            return _SubmissionPayload(
+                created,
+                submission_kind,
+                server_url,
+                len(entries),
+            )
 
         worker = TaskWorker(prepare_create, generation=self._generation)
         worker.signals.succeeded.connect(self._submission_ready)
         worker.signals.failed.connect(self._submission_failed)
         self._track_worker(worker)
-        self.workspace.jobs_status.setText("Preparing/staging and submitting Remote IQA job...")
+        self.workspace.jobs_status.setText(
+            "Preparing/staging and submitting Remote IQA job..."
+        )
         self.workspace.tabs.setCurrentWidget(self.workspace.jobs_page)
 
     @Slot(str, object, int, object)
-    def _submission_ready(self, _task_id: str, _document_id: object, generation: int, value: object) -> None:
-        if not self._accept_generation(generation) or not isinstance(value, _SubmissionPayload):
+    def _submission_ready(
+        self,
+        _task_id: str,
+        _document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
+        if not self._accept_generation(generation) or not isinstance(
+            value,
+            _SubmissionPayload,
+        ):
             return
         created = value.created
         job = RemoteJobRecord(
@@ -638,23 +760,49 @@ class RemoteIqaController(QObject):
         self.workspace.tabs.setCurrentWidget(self.workspace.jobs_page)
 
     @Slot(str, object, int, object)
-    def _submission_failed(self, _task_id: str, _document_id: object, generation: int, value: object) -> None:
+    def _submission_failed(
+        self,
+        _task_id: str,
+        _document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
         if not self._accept_generation(generation):
             return
         self.workspace.show_submission_error(_task_error_message(value))
 
     @Slot(str, object, int, object)
-    def _preview_ready(self, _task_id: str, _document_id: object, generation: int, value: object) -> None:
-        if not self._accept_generation(generation) or not isinstance(value, _FolderPreviewPayload):
+    def _preview_ready(
+        self,
+        _task_id: str,
+        _document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
+        if not self._accept_generation(generation) or not isinstance(
+            value,
+            _FolderPreviewPayload,
+        ):
             return
-        current_identity = (self.workspace.folder_a.text().strip(), self.workspace.folder_b.text().strip())
+        current_identity = (
+            self.workspace.folder_a.text().strip(),
+            self.workspace.folder_b.text().strip(),
+        )
         if current_identity != (value.folder_a, value.folder_b):
             return
         self.workspace.set_folder_preview(value)
-        self.workspace.set_configuration_state(self.window.application_settings.remote_iqa)
+        self.workspace.set_configuration_state(
+            self.window.application_settings.remote_iqa
+        )
 
     @Slot(str, object, int, object)
-    def _preview_failed(self, _task_id: str, _document_id: object, generation: int, value: object) -> None:
+    def _preview_failed(
+        self,
+        _task_id: str,
+        _document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
         if self._accept_generation(generation):
             self.workspace.show_preview_error(_task_error_message(value))
 
@@ -679,8 +827,18 @@ class RemoteIqaController(QObject):
             self._track_worker(worker)
 
     @Slot(str, object, int, object)
-    def _status_ready(self, _task_id: str, document_id: object, generation: int, value: object) -> None:
-        if not self._accept_generation(generation) or not isinstance(document_id, str) or not isinstance(value, IqaJobStatus):
+    def _status_ready(
+        self,
+        _task_id: str,
+        document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
+        if (
+            not self._accept_generation(generation)
+            or not isinstance(document_id, str)
+            or not isinstance(value, IqaJobStatus)
+        ):
             return
         job = self._jobs.get(document_id)
         if job is None or job.state.terminal:
@@ -694,9 +852,18 @@ class RemoteIqaController(QObject):
             self._fetch_result_reference(job)
 
     @Slot(str, object, int, object)
-    def _status_failed(self, _task_id: str, document_id: object, generation: int, value: object) -> None:
+    def _status_failed(
+        self,
+        _task_id: str,
+        document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
         if self._accept_generation(generation) and isinstance(document_id, str):
-            self.workspace.show_job_operation_error(document_id, f"status unavailable · {_task_error_message(value)}")
+            self.workspace.show_job_operation_error(
+                document_id,
+                f"status unavailable · {_task_error_message(value)}",
+            )
 
     @Slot(str)
     def _poll_finished(self, task_id: str) -> None:
@@ -721,15 +888,30 @@ class RemoteIqaController(QObject):
         self._track_worker(worker)
 
     @Slot(str, object, int, object)
-    def _result_reference_ready(self, _task_id: str, document_id: object, generation: int, value: object) -> None:
-        if not self._accept_generation(generation) or not isinstance(document_id, str) or not isinstance(value, IqaResultReference):
+    def _result_reference_ready(
+        self,
+        _task_id: str,
+        document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
+        if (
+            not self._accept_generation(generation)
+            or not isinstance(document_id, str)
+            or not isinstance(value, IqaResultReference)
+        ):
             return
         job = self._jobs.get(document_id)
         if job is None or job.state not in {JobState.SUCCEEDED, JobState.PARTIAL}:
             return
-        expected_state = "complete" if job.state is JobState.SUCCEEDED else "partial"
+        expected_state = (
+            "complete" if job.state is JobState.SUCCEEDED else "partial"
+        )
         if value.publication_state != expected_state:
-            self.workspace.show_job_operation_error(job.job_id, "terminal state/result publication mismatch")
+            self.workspace.show_job_operation_error(
+                job.job_id,
+                "terminal state/result publication mismatch",
+            )
             return
         job.result_reference = value
         job.message = "result published"
@@ -737,9 +919,18 @@ class RemoteIqaController(QObject):
         self._resolve_result_path(job)
 
     @Slot(str, object, int, object)
-    def _result_reference_failed(self, _task_id: str, document_id: object, generation: int, value: object) -> None:
+    def _result_reference_failed(
+        self,
+        _task_id: str,
+        document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
         if self._accept_generation(generation) and isinstance(document_id, str):
-            self.workspace.show_job_operation_error(document_id, f"result reference unavailable · {_task_error_message(value)}")
+            self.workspace.show_job_operation_error(
+                document_id,
+                f"result reference unavailable · {_task_error_message(value)}",
+            )
 
     @Slot(str)
     def _result_fetch_finished(self, task_id: str) -> None:
@@ -756,7 +947,11 @@ class RemoteIqaController(QObject):
 
         def resolve() -> _ResultResolutionPayload:
             try:
-                path = resolve_result_reference(reference.storage_root_id, reference.relative_path, settings)
+                path = resolve_result_reference(
+                    reference.storage_root_id,
+                    reference.relative_path,
+                    settings,
+                )
             except StorageResolutionError as exc:
                 return _ResultResolutionPayload(job.job_id, None, str(exc))
             return _ResultResolutionPayload(job.job_id, path, None)
@@ -771,8 +966,18 @@ class RemoteIqaController(QObject):
         self._track_worker(worker)
 
     @Slot(str, object, int, object)
-    def _result_path_ready(self, _task_id: str, document_id: object, generation: int, value: object) -> None:
-        if not self._accept_generation(generation) or not isinstance(document_id, str) or not isinstance(value, _ResultResolutionPayload):
+    def _result_path_ready(
+        self,
+        _task_id: str,
+        document_id: object,
+        generation: int,
+        value: object,
+    ) -> None:
+        if (
+            not self._accept_generation(generation)
+            or not isinstance(document_id, str)
+            or not isinstance(value, _ResultResolutionPayload)
+        ):
             return
         job = self._jobs.get(document_id)
         if job is None:
@@ -811,7 +1016,8 @@ class RemoteIqaController(QObject):
         if job.result_path is None:
             self.workspace.show_job_operation_error(
                 job_id,
-                job.result_resolution_error or "result root is not resolvable with current settings",
+                job.result_resolution_error
+                or "result root is not resolvable with current settings",
             )
             return
         self.result_controller.open_result(job.result_path)
@@ -820,7 +1026,10 @@ class RemoteIqaController(QObject):
     @Slot()
     def open_settings(self) -> None:
         dialog = self.window.create_settings_dialog()
-        matches = dialog.category_list.findItems("Remote IQA", Qt.MatchFlag.MatchExactly)
+        matches = dialog.category_list.findItems(
+            "Remote IQA",
+            Qt.MatchFlag.MatchExactly,
+        )
         if matches:
             dialog.category_list.setCurrentItem(matches[0])
         dialog.exec()
@@ -873,7 +1082,7 @@ def install_remote_iqa(
     *,
     client_factory: Callable[[str], IqaJobClient] | None = None,
 ) -> RemoteIqaController:
-    """Extend the existing one IQA dock; never create a second result controller/parser path."""
+    """Extend the one IQA dock; never create a second result parser/controller path."""
 
     install_remote_iqa_settings_dialog(window)
     existing_results = window.iqa_workspace
@@ -893,7 +1102,9 @@ def install_remote_iqa(
     return controller
 
 
-def _preview_signature(entries: tuple[FolderPairEntry, ...]) -> tuple[tuple[object, ...], ...]:
+def _preview_signature(
+    entries: tuple[FolderPairEntry, ...],
+) -> tuple[tuple[object, ...], ...]:
     return tuple(
         (
             item.scene_id,

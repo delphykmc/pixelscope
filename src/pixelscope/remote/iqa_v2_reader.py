@@ -120,20 +120,29 @@ def load_result_v2(root: Path | str) -> VersionedResultLoadOutcome:
         _validate_summary_identity(arrays, parsed.scenes, parsed.variants, parsed.attributes)
         scenes = _populate_scene_summaries(parsed.scenes, parsed.attributes, arrays)
         dataset = _parse_dataset_summaries(scenes, parsed.variants, parsed.attributes, arrays)
-        common = dict(
-            root=result_root.resolve(),
-            result_id=parsed.result_id,
-            schema_version=2,
-            variants=parsed.variants,
-            attributes=parsed.attributes,
-            scenes=scenes,
-            dataset_summaries=dataset,
-            summary_artifact=parsed.summary_artifact,
-        )
         if outcomes is not None:
-            result: ResultV2 = PartialResultV2(**common, scene_outcomes=outcomes)
+            result: ResultV2 = PartialResultV2(
+                root=result_root.resolve(),
+                result_id=parsed.result_id,
+                schema_version=2,
+                variants=parsed.variants,
+                attributes=parsed.attributes,
+                scenes=scenes,
+                dataset_summaries=dataset,
+                summary_artifact=parsed.summary_artifact,
+                scene_outcomes=outcomes,
+            )
         else:
-            result = ResultV2(**common)
+            result = ResultV2(
+                root=result_root.resolve(),
+                result_id=parsed.result_id,
+                schema_version=2,
+                variants=parsed.variants,
+                attributes=parsed.attributes,
+                scenes=scenes,
+                dataset_summaries=dataset,
+                summary_artifact=parsed.summary_artifact,
+            )
         return VersionedResultLoadOutcome(LoadStatus.SUCCESS, result=result)
     except UnsupportedV2 as exc:
         return VersionedResultLoadOutcome(LoadStatus.UNSUPPORTED, reason=str(exc))

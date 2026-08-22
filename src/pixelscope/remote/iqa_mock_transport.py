@@ -78,9 +78,17 @@ class MockIqaService:
                 return httpx.Response(404, json={"detail": "unknown job"})
             if len(parts) == 4 and request.method == "GET":
                 return self._status(job_id, job)
-            if len(parts) == 5 and parts[4] == "result" and request.method == "GET":
+            if (
+                len(parts) == 5
+                and parts[4] == "result"
+                and request.method == "GET"
+            ):
                 return self._result(job_id, job)
-            if len(parts) == 5 and parts[4] == "cancel" and request.method == "POST":
+            if (
+                len(parts) == 5
+                and parts[4] == "cancel"
+                and request.method == "POST"
+            ):
                 return self._cancel(job_id, job)
             return httpx.Response(405, json={"detail": "method not allowed"})
 
@@ -96,7 +104,10 @@ class MockIqaService:
             return httpx.Response(400, json={"detail": "invalid request"})
         self.created_requests.append(payload)
         if script.create_status_code >= 400:
-            return httpx.Response(script.create_status_code, json={"detail": "scripted create error"})
+            return httpx.Response(
+                script.create_status_code,
+                json={"detail": "scripted create error"},
+            )
         job_id = f"job_{self._next_job:06d}"
         self._next_job += 1
         job = _MockJob(script)

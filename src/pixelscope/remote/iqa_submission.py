@@ -34,7 +34,12 @@ class JobState(str, Enum):
 
     @property
     def terminal(self) -> bool:
-        return self in {JobState.SUCCEEDED, JobState.PARTIAL, JobState.FAILED, JobState.CANCELLED}
+        return self in {
+            JobState.SUCCEEDED,
+            JobState.PARTIAL,
+            JobState.FAILED,
+            JobState.CANCELLED,
+        }
 
 
 @dataclass(frozen=True)
@@ -77,7 +82,10 @@ class SceneRequest:
     def to_json(self) -> dict[str, object]:
         return {
             "scene_id": self.scene_id,
-            "sources": [{"variant_id": variant_id, **source.to_json()} for variant_id, source in self.sources],
+            "sources": [
+                {"variant_id": variant_id, **source.to_json()}
+                for variant_id, source in self.sources
+            ],
         }
 
 
@@ -141,6 +149,7 @@ def is_remote_eligible_path(path: Path | str) -> bool:
 
 def probe_image(path: Path | str) -> ImageProbe:
     """Read only format headers/markers required for original dimensions."""
+
     image_path = Path(path)
     if not image_path.is_file() or image_path.is_symlink():
         raise PreflightError(f"missing source: {image_path.name}")
@@ -164,19 +173,28 @@ def probe_image(path: Path | str) -> ImageProbe:
     return ImageProbe(image_path, width, height)
 
 
-def pair_current_paths(path_a: Path | str, path_b: Path | str) -> tuple[FolderPairEntry, ...]:
+def pair_current_paths(
+    path_a: Path | str,
+    path_b: Path | str,
+) -> tuple[FolderPairEntry, ...]:
     a = probe_image(path_a)
     b = probe_image(path_b)
     _require_same_dimensions(a, b, "Current Pair")
     return (FolderPairEntry("scene_000000", a, b),)
 
 
-def pair_folders(folder_a: Path | str, folder_b: Path | str) -> tuple[FolderPairEntry, ...]:
+def pair_folders(
+    folder_a: Path | str,
+    folder_b: Path | str,
+) -> tuple[FolderPairEntry, ...]:
     """Apply the durable P5 lexical two-folder Pair algorithm."""
+
     a_paths = _folder_eligible_paths(Path(folder_a))
     b_paths = _folder_eligible_paths(Path(folder_b))
     if len(a_paths) != len(b_paths):
-        raise PreflightError(f"Folder Pair count mismatch: A={len(a_paths)}, B={len(b_paths)}")
+        raise PreflightError(
+            f"Folder Pair count mismatch: A={len(a_paths)}, B={len(b_paths)}"
+        )
     if not a_paths:
         raise PreflightError("Folder Pair contains no eligible images")
     if len(a_paths) > MAX_SCENES:
@@ -191,8 +209,14 @@ def pair_folders(folder_a: Path | str, folder_b: Path | str) -> tuple[FolderPair
     return tuple(entries)
 
 
-def build_request(entries: tuple[FolderPairEntry, ...], settings: RemoteIqaSettings, *, submission_kind: str) -> IqaJobRequest:
+def build_request(
+    entries: tuple[FolderPairEntry, ...],
+    settings: RemoteIqaSettings,
+    *,
+    submission_kind: str,
+) -> IqaJobRequest:
     """Resolve/hash/stage sequentially and build the explicit ordered Scene manifest."""
+
     if not settings.server_base_url:
         raise PreflightError("Remote IQA server URL is not configured")
     if not settings.storage_roots:
@@ -210,13 +234,18 @@ def build_request(entries: tuple[FolderPairEntry, ...], settings: RemoteIqaSetti
                 except ValueError as exc:
                     raise PreflightError(str(exc)) from exc
                 cache[key] = resolved
-            pair.append((variant_id, PortableSourceRequest(
-                resolved.logical_path.storage_root_id,
-                resolved.logical_path.relative_path,
-                resolved.sha256,
-                probe.width,
-                probe.height,
-            )))
+            pair.append(
+                (
+                    variant_id,
+                    PortableSourceRequest(
+                        resolved.logical_path.storage_root_id,
+                        resolved.logical_path.relative_path,
+                        resolved.sha256,
+                        probe.width,
+                        probe.height,
+                    ),
+                )
+            )
         scenes.append(SceneRequest(entry.scene_id, tuple(pair)))
     return IqaJobRequest(submission_kind, VARIANT_IDS, tuple(scenes))
 
@@ -241,12 +270,19 @@ def _folder_eligible_paths(folder: Path) -> tuple[Path, ...]:
 
 def _require_same_dimensions(a: ImageProbe, b: ImageProbe, context: str) -> None:
     if (a.width, a.height) != (b.width, b.height):
-        raise PreflightError(f"{context} dimension mismatch: A={a.width}x{a.height}, B={b.width}x{b.height}")
+        raise PreflightError(
+            f"{context} dimension mismatch: "
+            f"A={a.width}x{a.height}, B={b.width}x{b.height}"
+        )
 
 
 def _probe_png(stream: BinaryIO) -> tuple[int, int]:
     header = stream.read(24)
-    if len(header) != 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+    if (
+        len(header) != 24
+        or header[:8] != b"\x89PNG\r\n\x1a\n"
+        or header[12:16] != b"IHDR"
+    ):
         raise PreflightError("unreadable PNG header")
     return struct.unpack(">II", header[16:24])
 
@@ -269,7 +305,21 @@ def _probe_bmp(stream: BinaryIO) -> tuple[int, int]:
 def _probe_jpeg(stream: BinaryIO) -> tuple[int, int]:
     if stream.read(2) != b"\xff\xd8":
         raise PreflightError("unreadable JPEG header")
-    sof_markers = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+    sof_markers = {
+        0xC0,
+        0xC1,
+        0xC2,
+        0xC3,
+        0xC5,
+        0xC6,
+        0xC7,
+        0xC9,
+        0xCA,
+        0xCB,
+        0xCD,
+        0xCE,
+        0xCF,
+    }
     scanned = 2
     while scanned < 16 * 1024 * 1024:
         byte = stream.read(1)
