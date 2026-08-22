@@ -13,9 +13,7 @@ LEGACY_COMPARISON_SET_KIND = "pixelscope-comparison-set"
 SESSION_SCHEMA_VERSION = 1
 SESSION_LAYOUTS = frozenset({"Auto", "Single View", "Multi View"})
 SESSION_DISPLAY_GAINS = frozenset({1.0, 2.0, 4.0, 8.0, 16.0})
-SESSION_DIFFERENCE_CHANNELS = frozenset(
-    {"All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb"}
-)
+SESSION_DIFFERENCE_CHANNELS = frozenset({"All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb"})
 SESSION_DIFFERENCE_MODES = frozenset({"Absolute", "Mask"})
 SESSION_DIFFERENCE_REGIONS = frozenset({"Full image", "Active ROI"})
 SESSION_DIFFERENCE_MAX_THRESHOLD = 65535.0
@@ -122,9 +120,7 @@ class Session:
             or isinstance(self.schema_version, bool)
             or self.schema_version != SESSION_SCHEMA_VERSION
         ):
-            raise ComparisonSetError(
-                f"unsupported session schema version: {self.schema_version!r}"
-            )
+            raise ComparisonSetError(f"unsupported session schema version: {self.schema_version!r}")
         if not self.registered_sources:
             raise ComparisonSetError("session must contain at least one registered source")
         if self.layout_mode not in SESSION_LAYOUTS:
@@ -162,16 +158,12 @@ class Session:
                 self.difference.image_b_path,
             ):
                 if path.casefold() not in selected_set:
-                    raise ComparisonSetError(
-                        "Difference source is not a Selected session member"
-                    )
+                    raise ComparisonSetError("Difference source is not a Selected session member")
             if self.difference.region == "Active ROI" and self.roi is None:
                 raise ComparisonSetError("Active ROI Difference requires a saved ROI")
 
         page_anchor = (
-            normalize_source_path(self.page_anchor_path)
-            if self.page_anchor_path
-            else None
+            normalize_source_path(self.page_anchor_path) if self.page_anchor_path else None
         )
         if page_anchor is None:
             if primary is not None:

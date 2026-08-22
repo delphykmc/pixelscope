@@ -121,8 +121,7 @@ def test_display_gain_control_preserves_raw_semantics_and_is_session_only(
     combo.setCurrentIndex(combo.findData(4.0))
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: all(
-            viewer._displayed_gain == 4.0
-            for viewer in window.multi_compare_view.occupied_viewers
+            viewer._displayed_gain == 4.0 for viewer in window.multi_compare_view.occupied_viewers
         )
     )
 
@@ -205,8 +204,7 @@ def test_hidden_multi_viewers_release_gained_preview_and_regenerate_when_shown(
         )
     )
     assert all(
-        viewer.document is not None
-        and viewer._displayed_preview is not viewer.document.preview
+        viewer.document is not None and viewer._displayed_preview is not viewer.document.preview
         for viewer in view.viewers
     )
 
@@ -231,8 +229,7 @@ def test_hidden_multi_viewers_release_gained_preview_and_regenerate_when_shown(
         )
     )
     assert all(
-        viewer.document is not None
-        and viewer._displayed_preview is not viewer.document.preview
+        viewer.document is not None and viewer._displayed_preview is not viewer.document.preview
         for viewer in view.viewers
     )
 

@@ -124,16 +124,12 @@ def load_npz(
                 if info.flag_bits & 0x1:
                     raise CorruptV2(f"artifact {path.name} has encrypted members")
                 if info.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}:
-                    raise CorruptV2(
-                        f"artifact {path.name} uses unsupported member compression"
-                    )
+                    raise CorruptV2(f"artifact {path.name} uses unsupported member compression")
                 if (
                     info.file_size > V2_NPY_MEMBER_SIZE_LIMIT
                     or info.compress_size > V2_ARCHIVE_ON_DISK_LIMIT
                 ):
-                    raise CorruptV2(
-                        f"artifact {path.name} member exceeds metadata safety ceiling"
-                    )
+                    raise CorruptV2(f"artifact {path.name} member exceeds metadata safety ceiling")
             names = set(filenames)
             expected_names = {f"{key}.npy" for key in expected}
             if names != expected_names:
@@ -142,9 +138,7 @@ def load_npz(
                 info = archive.getinfo(f"{key}.npy")
                 with archive.open(info) as stream:
                     version = npy_format.read_magic(stream)  # type: ignore[no-untyped-call]
-                    header_reader: Callable[
-                        ..., tuple[tuple[int, ...], bool, np.dtype[Any]]
-                    ]
+                    header_reader: Callable[..., tuple[tuple[int, ...], bool, np.dtype[Any]]]
                     if version == (1, 0):
                         header_reader = npy_format.read_array_header_1_0
                     elif version in {(2, 0), (3, 0)}:
@@ -157,9 +151,7 @@ def load_npz(
                 if dtype.hasobject:
                     raise CorruptV2(f"object/pickle array rejected: {key}")
                 if dtype != expected_dtype or shape != expected_shape:
-                    raise CorruptV2(
-                        f"array {key} dtype/rank/shape mismatch: {dtype} {shape}"
-                    )
+                    raise CorruptV2(f"array {key} dtype/rank/shape mismatch: {dtype} {shape}")
                 if int(dtype.itemsize * math.prod(shape)) > V2_ARRAY_LIMIT:
                     raise CorruptV2(f"array {key} exceeds safety ceiling")
         with np.load(path, allow_pickle=False) as loaded:

@@ -221,8 +221,7 @@ class PlotsDockTitleBar(QWidget):
         for dock in window.findChildren(QDockWidget):
             title_bar = dock.titleBarWidget()
             managed = (
-                isinstance(title_bar, PlotsDockTitleBar)
-                or dock.objectName() == "iqaWorkspaceDock"
+                isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() == "iqaWorkspaceDock"
             )
             if not managed:
                 continue

@@ -102,9 +102,7 @@ def load_result_v2(root: Path | str) -> VersionedResultLoadOutcome:
         )
         _validate_summary_identity(arrays, parsed.scenes, parsed.variants, parsed.attributes)
         scenes = _populate_scene_summaries(parsed.scenes, parsed.attributes, arrays)
-        dataset = _parse_dataset_summaries(
-            scenes, parsed.variants, parsed.attributes, arrays
-        )
+        dataset = _parse_dataset_summaries(scenes, parsed.variants, parsed.attributes, arrays)
         return VersionedResultLoadOutcome(
             LoadStatus.SUCCESS,
             result=ResultV2(
@@ -275,8 +273,7 @@ def _validate_summary_identity(
     ):
         raise CorruptV2("summary measurement_context_id identity/order mismatch")
     expected_sources = tuple(
-        tuple(measurement.source.source_id for measurement in scene.sources)
-        for scene in scenes
+        tuple(measurement.source.source_id for measurement in scene.sources) for scene in scenes
     )
     actual_sources = tuple(
         tuple(str(value) for value in row) for row in arrays["source_ids"].tolist()
@@ -320,9 +317,7 @@ def _parse_dataset_summaries(
         for attribute_index, attribute in enumerate(attributes):
             index = (variant_index, attribute_index)
             identity = f"dataset/{variant.variant_id}/{attribute.attribute_id}"
-            pooled = _published_summary(
-                arrays, index, attribute.value_kind, "pooled_", identity
-            )
+            pooled = _published_summary(arrays, index, attribute.value_kind, "pooled_", identity)
             scene_summaries = [
                 scene.source_for_variant(variant.variant_id).summary(attribute.attribute_id)
                 for scene in scenes
@@ -339,13 +334,11 @@ def _parse_dataset_summaries(
                 continue
             _validate_pooled(pooled, contributing, identity)
             means = [
-                float(item.weighted_mean)
-                for item in contributing
-                if item.weighted_mean is not None
+                float(item.weighted_mean) for item in contributing if item.weighted_mean is not None
             ]
             expected_mean = math.fsum(means) / len(means)
-            expected_variance = (
-                math.fsum((value - expected_mean) ** 2 for value in means) / len(means)
+            expected_variance = math.fsum((value - expected_mean) ** 2 for value in means) / len(
+                means
             )
             expected_std = math.sqrt(max(0.0, expected_variance))
             count = int(arrays["scene_count"][index])
@@ -431,10 +424,7 @@ def _validate_empty_dataset(
         raise CorruptV2(f"{identity} pooled validity mismatch")
     if bool(arrays["equal_scene_valid"][index]) or int(arrays["scene_count"][index]) != 0:
         raise CorruptV2(f"{identity} equal-Scene validity/count mismatch")
-    if (
-        float(arrays["scene_mean"][index]) != 0.0
-        or float(arrays["scene_std"][index]) != 0.0
-    ):
+    if float(arrays["scene_mean"][index]) != 0.0 or float(arrays["scene_std"][index]) != 0.0:
         raise CorruptV2(f"{identity} invalid equal-Scene projections must be zero")
 
 

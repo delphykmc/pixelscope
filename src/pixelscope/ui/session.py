@@ -35,9 +35,7 @@ class SessionController(_BaseSessionController):
         self._pending_split_channels: bool | None = None
         self._display_restore_applied = False
         self._difference_restore_in_flight = False
-        self.window.difference_panel.result_ready.connect(
-            self._difference_restore_completed
-        )
+        self.window.difference_panel.result_ready.connect(self._difference_restore_completed)
 
     def _schedule_restore(self, delay_ms: int) -> None:
         if getattr(self.window, "_closing", False):
@@ -188,10 +186,7 @@ class SessionController(_BaseSessionController):
         if session.layout_mode != self.window._layout_mode:
             self.window.set_layout_mode(session.layout_mode)
 
-        page_ids = {
-            document.document_id
-            for document in self.window.current_comparison_documents()
-        }
+        page_ids = {document.document_id for document in self.window.current_comparison_documents()}
         primary_id = self._saved_member_id(session.primary_path, path_to_id)
         self._pending_primary_id = (
             primary_id
@@ -261,8 +256,7 @@ class SessionController(_BaseSessionController):
         primary_id = self._pending_primary_id
         if primary_id is not None:
             page_ids = {
-                document.document_id
-                for document in self.window.current_comparison_documents()
+                document.document_id for document in self.window.current_comparison_documents()
             }
             if primary_id in page_ids and self.window._layout_mode != "Single View":
                 self.window._set_focus_document(primary_id)
@@ -471,14 +465,10 @@ class SessionController(_BaseSessionController):
         mode_index = panel.mode.findText(recipe.mode)
         region_index = panel.region.findText(recipe.region)
         if channel_index < 0 or mode_index < 0 or region_index < 0:
-            self._skip_difference(
-                "Saved Difference options are not available for this pair."
-            )
+            self._skip_difference("Saved Difference options are not available for this pair.")
             return
         if not panel.threshold.minimum() <= recipe.threshold <= panel.threshold.maximum():
-            self._skip_difference(
-                "Saved Difference threshold is invalid for this pair."
-            )
+            self._skip_difference("Saved Difference threshold is invalid for this pair.")
             return
 
         panel.a_selector.setCurrentIndex(a_index)

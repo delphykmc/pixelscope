@@ -23,9 +23,7 @@ def _manifest(root: Path) -> dict[str, Any]:
 
 
 def _write_manifest(root: Path, manifest: dict[str, Any]) -> None:
-    (root / "manifest.json").write_text(
-        json.dumps(manifest, allow_nan=False), encoding="utf-8"
-    )
+    (root / "manifest.json").write_text(json.dumps(manifest, allow_nan=False), encoding="utf-8")
 
 
 def test_manifest_size_ceiling_is_enforced(
@@ -74,9 +72,7 @@ def test_total_source_binding_ceiling_is_enforced(
     assert "source-binding safety ceiling" in (outcome.reason or "")
 
 
-def test_grid_cell_ceiling_is_enforced(
-    golden_root: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_grid_cell_ceiling_is_enforced(golden_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from pixelscope.remote import iqa_v2_manifest as manifest_module
 
     monkeypatch.setattr(manifest_module, "V2_MAX_GRID_CELLS", 1)
@@ -89,9 +85,9 @@ def test_detail_reference_count_ceiling_is_enforced(golden_root: Path) -> None:
     from pixelscope.remote.iqa_v2_support import V2_MAX_DETAIL_ARTIFACTS
 
     manifest = _manifest(golden_root)
-    manifest["scenes"][0]["detail_artifacts"] = [
-        "detail/opaque.bin"
-    ] * (V2_MAX_DETAIL_ARTIFACTS + 1)
+    manifest["scenes"][0]["detail_artifacts"] = ["detail/opaque.bin"] * (
+        V2_MAX_DETAIL_ARTIFACTS + 1
+    )
     _write_manifest(golden_root, manifest)
     outcome = load_result_v2(golden_root)
     assert outcome.status is LoadStatus.INVALID
@@ -142,9 +138,7 @@ def test_wrong_npz_shape_is_rejected(tmp_path: Path) -> None:
         )
 
 
-def test_npz_on_disk_ceiling_is_enforced(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_npz_on_disk_ceiling_is_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from pixelscope.remote import iqa_v2_support as support
 
     path = tmp_path / "archive-limit.npz"

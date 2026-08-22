@@ -51,8 +51,7 @@ def test_production_presentation_composition_reuses_display_gain_installation(
     second_shortcuts = window.central_stack._display_gain_shortcuts
     assert len(second_shortcuts) == 2
     assert all(
-        second is first
-        for second, first in zip(second_shortcuts, first_shortcuts, strict=True)
+        second is first for second, first in zip(second_shortcuts, first_shortcuts, strict=True)
     )
     window.close()
 
@@ -62,19 +61,16 @@ def test_session_save_persists_page_anchor_independently_of_active_and_primary(
     tmp_path: Path,
 ) -> None:
     window = _window(qtbot)
-    documents = [
-        _ready_gray(tmp_path / f"page-{index:02d}.png", 10 + index)
-        for index in range(12)
-    ]
+    documents = [_ready_gray(tmp_path / f"page-{index:02d}.png", 10 + index) for index in range(12)]
     for document in documents:
         window.add_document(document, select=False)
     window._select_document_ids([document.document_id for document in documents])
     window.set_layout_mode("Multi View")
     window.next_comparison_page()
 
-    assert [
-        document.source_path for document in window.current_comparison_documents()
-    ] == [document.source_path for document in documents[6:12]]
+    assert [document.source_path for document in window.current_comparison_documents()] == [
+        document.source_path for document in documents[6:12]
+    ]
 
     # Session page identity is durable workspace intent in its own right. Saving the
     # page must not depend on source Active/Primary fallback being available.
@@ -95,8 +91,7 @@ def test_keep_selection_clears_active_difference_before_session_save(
 ) -> None:
     window = _window(qtbot)
     documents = [
-        _ready_gray(tmp_path / f"keep-{index:02d}.png", 20 + index * 5)
-        for index in range(7)
+        _ready_gray(tmp_path / f"keep-{index:02d}.png", 20 + index * 5) for index in range(7)
     ]
     for document in documents:
         window.add_document(document, select=False)

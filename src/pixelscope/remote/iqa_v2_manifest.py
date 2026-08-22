@@ -76,9 +76,7 @@ def parse_complete_manifest(root: Path, data: dict[str, Any]) -> ParsedManifestV
     attributes = tuple(_parse_attribute(item) for item in attributes_data)
     if len({item.attribute_id for item in attributes}) != len(attributes):
         raise InvalidV2("attribute_id values must be unique")
-    summary_path, summary_size = artifact_ref(
-        data, "summary_artifact", V2_SUMMARY_LIMIT
-    )
+    summary_path, summary_size = artifact_ref(data, "summary_artifact", V2_SUMMARY_LIMIT)
     safe_artifact(root, summary_path)
     scenes: list[SceneV2] = []
     source_registry: dict[str, Source] = {}
@@ -126,20 +124,12 @@ def _parse_attribute(data: Any) -> AttributeSpec:
         raise InvalidV2("attribute_id must be lowercase ASCII snake_case")
     try:
         value_kind = ValueKind(bounded_string(data, "value_kind", 32))
-        operator = ComparisonOperator(
-            bounded_string(data, "comparison_operator", 64)
-        )
-        direction = QualityDirection(
-            bounded_string(data, "quality_direction", 32)
-        )
+        operator = ComparisonOperator(bounded_string(data, "comparison_operator", 64))
+        direction = QualityDirection(bounded_string(data, "quality_direction", 32))
     except ValueError as exc:
         raise InvalidV2(f"invalid attribute enum: {exc}") from exc
     raw_epsilon = data.get("stabilization_epsilon")
-    epsilon = (
-        None
-        if raw_epsilon is None
-        else finite_float(raw_epsilon, "stabilization_epsilon")
-    )
+    epsilon = None if raw_epsilon is None else finite_float(raw_epsilon, "stabilization_epsilon")
     if value_kind is ValueKind.POWER and (epsilon is None or epsilon < 0.0):
         raise InvalidV2("power attribute requires non-negative finite epsilon")
     if value_kind is ValueKind.SIGNED and epsilon is not None:
@@ -148,19 +138,14 @@ def _parse_attribute(data: Any) -> AttributeSpec:
         raise InvalidV2("signed attribute must have neutral quality direction")
     if (
         value_kind is ValueKind.POWER
-        and operator
-        is not ComparisonOperator.POWER_RATIO_TARGET_OVER_REFERENCE_DB
+        and operator is not ComparisonOperator.POWER_RATIO_TARGET_OVER_REFERENCE_DB
     ):
-        raise InvalidV2(
-            "power attribute requires power_ratio_target_over_reference_db operator"
-        )
+        raise InvalidV2("power attribute requires power_ratio_target_over_reference_db operator")
     if (
         value_kind is ValueKind.SIGNED
         and operator is not ComparisonOperator.SIGNED_TARGET_MINUS_REFERENCE
     ):
-        raise InvalidV2(
-            "signed attribute requires signed_target_minus_reference operator"
-        )
+        raise InvalidV2("signed attribute requires signed_target_minus_reference operator")
     return AttributeSpec(
         attribute_id=attribute_id,
         name=bounded_string(data, "name", V2_MAX_LABEL_LENGTH),
@@ -191,12 +176,8 @@ def _parse_scene(
     provenance = _parse_context_provenance(data.get("context_provenance"))
     source_items = bounded_list(data, "sources", V2_MAX_VARIANTS)
     if len(source_items) != len(variants):
-        raise InvalidV2(
-            f"complete Scene {scene_id} must bind exactly one source per variant"
-        )
-    sources = tuple(
-        _parse_source_measurement(item, attributes) for item in source_items
-    )
+        raise InvalidV2(f"complete Scene {scene_id} must bind exactly one source per variant")
+    sources = tuple(_parse_source_measurement(item, attributes) for item in source_items)
     expected_variants = tuple(item.variant_id for item in variants)
     if tuple(item.variant_id for item in sources) != expected_variants:
         raise InvalidV2(
@@ -217,9 +198,7 @@ def _parse_scene(
     first = sources[0]
     for item in sources[1:]:
         if item.geometry != first.geometry:
-            raise InvalidV2(
-                f"Scene {scene_id} has source-to-analysis geometry mismatch"
-            )
+            raise InvalidV2(f"Scene {scene_id} has source-to-analysis geometry mismatch")
         for attribute in attributes:
             if item.grids[attribute.attribute_id] != first.grids[attribute.attribute_id]:
                 raise InvalidV2(
@@ -232,9 +211,7 @@ def _parse_scene(
         attributes,
         provenance,
     ):
-        raise InvalidV2(
-            f"Scene {scene_id} measurement_context_id fingerprint mismatch"
-        )
+        raise InvalidV2(f"Scene {scene_id} measurement_context_id fingerprint mismatch")
     grid_path, grid_size = artifact_ref(data, "grid_artifact", V2_SCENE_LIMIT)
     # Ordinary result open validates deferred artifact path syntax only. Existence,
     # containment after symlink resolution, and NPZ contents are checked on demand.
@@ -244,11 +221,7 @@ def _parse_scene(
         raise InvalidV2("detail_artifacts must be a bounded array")
     detail_paths: list[str] = []
     for value in details:
-        if (
-            not isinstance(value, str)
-            or not value
-            or len(value) > V2_MAX_ARTIFACT_PATH_LENGTH
-        ):
+        if not isinstance(value, str) or not value or len(value) > V2_MAX_ARTIFACT_PATH_LENGTH:
             raise InvalidV2("detail_artifact path is invalid")
         validate_artifact_reference(value)
         detail_paths.append(value)
@@ -270,12 +243,8 @@ def _parse_source_measurement(
     if not isinstance(data, dict):
         raise InvalidV2("Scene source binding must be an object")
     sha256 = bounded_string(data, "sha256", 64)
-    if len(sha256) != 64 or any(
-        char not in "0123456789abcdef" for char in sha256
-    ):
-        raise InvalidV2(
-            "source sha256 must be 64 lowercase hexadecimal characters"
-        )
+    if len(sha256) != 64 or any(char not in "0123456789abcdef" for char in sha256):
+        raise InvalidV2("source sha256 must be 64 lowercase hexadecimal characters")
     source = Source(
         source_id=bounded_string(data, "source_id", V2_MAX_ID_LENGTH),
         relative_path=bounded_string(
@@ -293,9 +262,7 @@ def _parse_source_measurement(
         raise InvalidV2("source grids must be an object")
     expected = {attribute.attribute_id for attribute in attributes}
     if set(grids_data) != expected:
-        raise InvalidV2(
-            "source grids must contain exactly the declared attribute IDs"
-        )
+        raise InvalidV2("source grids must contain exactly the declared attribute IDs")
     grids = {
         attribute.attribute_id: _parse_grid(
             grids_data[attribute.attribute_id],
@@ -324,9 +291,7 @@ def _parse_context_provenance(data: Any) -> MeasurementContextProvenance:
         "geometry_id",
     }
     if set(data) != expected:
-        raise InvalidV2(
-            "context_provenance must contain the exact schema-v2 provenance keys"
-        )
+        raise InvalidV2("context_provenance must contain the exact schema-v2 provenance keys")
     return MeasurementContextProvenance(
         representative_id=bounded_string(
             data,
@@ -422,9 +387,7 @@ def _parse_grid(
         discarded_bottom=nonnegative_float(data, "discarded_bottom"),
     )
     if grid.rows * grid.columns > V2_MAX_GRID_CELLS:
-        raise InvalidV2(
-            f"grid {attribute_id} exceeds schema-v2 cell safety ceiling"
-        )
+        raise InvalidV2(f"grid {attribute_id} exceeds schema-v2 cell safety ceiling")
     valid_x, valid_y, valid_width, valid_height = geometry.valid_rect
     right = grid.origin_x + grid.columns * grid.block_width
     bottom = grid.origin_y + grid.rows * grid.block_height
@@ -447,9 +410,7 @@ def _parse_grid(
         grid.discarded_bottom,
         abs_tol=tolerance,
     ):
-        raise InvalidV2(
-            f"grid {attribute_id} discarded border metadata mismatch"
-        )
+        raise InvalidV2(f"grid {attribute_id} discarded border metadata mismatch")
     return grid
 
 
@@ -464,9 +425,7 @@ def artifact_ref(
     path = bounded_string(item, "path", V2_MAX_ARTIFACT_PATH_LENGTH)
     declared = positive_integer(item, "uncompressed_size")
     if declared > limit:
-        raise CorruptV2(
-            f"{key} declared size exceeds schema-v2 safety ceiling"
-        )
+        raise CorruptV2(f"{key} declared size exceeds schema-v2 safety ceiling")
     return path, declared
 
 

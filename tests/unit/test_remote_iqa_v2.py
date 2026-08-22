@@ -66,9 +66,7 @@ def _manifest(root: Path) -> dict[str, Any]:
 
 
 def _write_manifest(root: Path, manifest: dict[str, Any]) -> None:
-    (root / "manifest.json").write_text(
-        json.dumps(manifest, allow_nan=False), encoding="utf-8"
-    )
+    (root / "manifest.json").write_text(json.dumps(manifest, allow_nan=False), encoding="utf-8")
 
 
 def _npz_size(path: Path) -> int:
@@ -140,9 +138,7 @@ def test_v2_fixture_round_trip_freezes_n_way_identity_and_operator_names(
 ) -> None:
     result = _loaded(golden_root)
     assert result.result_id == "golden-p5a2-v2"
-    assert [item.variant_id for item in result.variants] == [
-        row[0] for row in V2_VARIANTS
-    ]
+    assert [item.variant_id for item in result.variants] == [row[0] for row in V2_VARIANTS]
     assert [item.label for item in result.variants] == [row[1] for row in V2_VARIANTS]
     assert [item.attribute_id for item in result.attributes] == [
         row[0] for row in V2_ATTRIBUTE_ROWS
@@ -150,14 +146,12 @@ def test_v2_fixture_round_trip_freezes_n_way_identity_and_operator_names(
     assert len(result.scenes) == 4
     assert all(len(scene.sources) == 3 for scene in result.scenes)
     assert all(
-        attribute.comparison_operator
-        is ComparisonOperator.POWER_RATIO_TARGET_OVER_REFERENCE_DB
+        attribute.comparison_operator is ComparisonOperator.POWER_RATIO_TARGET_OVER_REFERENCE_DB
         for attribute in result.attributes
         if attribute.value_kind is ValueKind.POWER
     )
     assert all(
-        attribute.comparison_operator
-        is ComparisonOperator.SIGNED_TARGET_MINUS_REFERENCE
+        attribute.comparison_operator is ComparisonOperator.SIGNED_TARGET_MINUS_REFERENCE
         for attribute in result.attributes
         if attribute.value_kind is ValueKind.SIGNED
     )
@@ -227,16 +221,13 @@ def test_fixture_dataset_pooled_and_equal_scene_means_are_distinct(
     assert summary.scene_mean.valid
     assert summary.scene_mean.value is not None
     scene_summaries = [
-        scene.source_for_variant("baseline").summary("luma_detail")
-        for scene in result.scenes
+        scene.source_for_variant("baseline").summary("luma_detail") for scene in result.scenes
     ]
-    expected_pooled = math.fsum(
-        item.weighted_sum for item in scene_summaries
-    ) / math.fsum(item.weight_sum for item in scene_summaries)
+    expected_pooled = math.fsum(item.weighted_sum for item in scene_summaries) / math.fsum(
+        item.weight_sum for item in scene_summaries
+    )
     expected_equal = math.fsum(
-        float(item.weighted_mean)
-        for item in scene_summaries
-        if item.weighted_mean is not None
+        float(item.weighted_mean) for item in scene_summaries if item.weighted_mean is not None
     ) / len(scene_summaries)
     assert summary.pooled.weighted_mean == pytest.approx(expected_pooled)
     assert summary.scene_mean.value == pytest.approx(expected_equal)
@@ -330,17 +321,13 @@ def test_power_comparison_rejects_invalid_domains(
     epsilon: float,
     reason: str,
 ) -> None:
-    result = compare_v2_sources(
-        _spec(epsilon=epsilon), _compact(target), _compact(reference)
-    )
+    result = compare_v2_sources(_spec(epsilon=epsilon), _compact(target), _compact(reference))
     assert all(not item.raw.valid for item in result.values())
     assert any(item.raw.invalid_reason == reason for item in result.values())
 
 
 def test_positive_epsilon_stabilizes_zero_power_ratio() -> None:
-    result = compare_v2_sources(
-        _spec(epsilon=1e-9), _compact([0.0]), _compact([0.0])
-    )
+    result = compare_v2_sources(_spec(epsilon=1e-9), _compact([0.0]), _compact([0.0]))
     for item in result.values():
         assert item.raw.valid
         assert item.raw.value == pytest.approx(0.0)
@@ -432,9 +419,7 @@ def _minimal_manifest(
         valid_rect=(0.0, 0.0, 64.0, 64.0),
     )
     grid = GridGeometry(2, 2, 16.0, 16.0, 0.0, 0.0, 32.0, 32.0)
-    provenance = MeasurementContextProvenance(
-        "rep", "pre", "model", "weight", "geom"
-    )
+    provenance = MeasurementContextProvenance("rep", "pre", "model", "weight", "geom")
     shared = Source("shared", "dataset/shared.png", "1" * 64, 100, 100)
 
     def source(scene_index: int, variant_index: int) -> Source:
@@ -471,9 +456,7 @@ def _minimal_manifest(
             )
             for variant_index in range(2)
         )
-        context_id = build_measurement_context_id(
-            scene_id, measurements, (spec,), provenance
-        )
+        context_id = build_measurement_context_id(scene_id, measurements, (spec,), provenance)
         scenes.append(
             {
                 "scene_id": scene_id,
@@ -485,9 +468,7 @@ def _minimal_manifest(
                     "weighting_id": "weight",
                     "geometry_id": "geom",
                 },
-                "sources": [
-                    _measurement_manifest(item) for item in measurements
-                ],
+                "sources": [_measurement_manifest(item) for item in measurements],
                 "grid_artifact": {
                     "path": f"scenes/{scene_id}.npz",
                     "uncompressed_size": 1,
@@ -538,9 +519,7 @@ def _measurement_manifest(measurement: SourceMeasurementV2) -> dict[str, Any]:
         "geometry": {
             "analysis_width": geometry.analysis_width,
             "analysis_height": geometry.analysis_height,
-            "source_to_analysis": [
-                list(row) for row in geometry.source_to_analysis
-            ],
+            "source_to_analysis": [list(row) for row in geometry.source_to_analysis],
             "valid_rect": list(geometry.valid_rect),
         },
         "grids": {
@@ -566,10 +545,7 @@ def test_source_id_may_recur_across_measurement_contexts_with_same_identity(
     parsed = parse_complete_manifest(root, manifest)
     assert parsed.scenes[0].sources[0].source.source_id == "shared"
     assert parsed.scenes[1].sources[0].source.source_id == "shared"
-    assert (
-        parsed.scenes[0].measurement_context_id
-        != parsed.scenes[1].measurement_context_id
-    )
+    assert parsed.scenes[0].measurement_context_id != parsed.scenes[1].measurement_context_id
 
 
 def test_source_id_reuse_requires_identical_immutable_metadata(tmp_path: Path) -> None:
@@ -754,9 +730,7 @@ def test_grid_numerical_corruption_is_detected_lazily(golden_root: Path) -> None
     grid_path = golden_root / manifest["scenes"][0]["grid_artifact"]["path"]
 
     def mutate(arrays: ArrayMap) -> None:
-        arrays["luma_noise__weight_sum"] = arrays[
-            "luma_noise__weight_sum"
-        ].copy()
+        arrays["luma_noise__weight_sum"] = arrays["luma_noise__weight_sum"].copy()
         arrays["luma_noise__weight_sum"][0, 0, 0] = -1.0
 
     _rewrite_npz(grid_path, mutate)

@@ -12,9 +12,7 @@ from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 
 
 def _v2_model(tmp_path: Path) -> IqaExplorerModel:
-    outcome = load_result(
-        write_golden_result_v2(tmp_path / "v2", scene_count=4)
-    )
+    outcome = load_result(write_golden_result_v2(tmp_path / "v2", scene_count=4))
     assert outcome.status is LoadStatus.SUCCESS
     assert outcome.result is not None
     return IqaExplorerModel(outcome.result)
@@ -98,11 +96,7 @@ def test_v2_relative_dataset_value_is_equal_scene_reduction(
         "candidate_quality",
     )
 
-    valid = [
-        point.raw.value
-        for point in points
-        if point.raw.valid and point.raw.value is not None
-    ]
+    valid = [point.raw.value for point in points if point.raw.valid and point.raw.value is not None]
     assert overview.valid and overview.value is not None
     assert overview.value == pytest.approx(sum(valid) / len(valid))
     assert model.display_unit("luma_detail", relative=True) == "dB"

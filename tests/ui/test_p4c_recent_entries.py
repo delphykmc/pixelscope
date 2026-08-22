@@ -59,10 +59,7 @@ def test_file_menu_groups_open_recent_then_save_session(qtbot: object) -> None:
     assert indices == sorted(indices)
     save_index = texts.index("Save Session...")
     assert indices[-1] < save_index
-    assert any(
-        action.isSeparator()
-        for action in file_menu.actions()[indices[-1] + 1 : save_index]
-    )
+    assert any(action.isSeparator() for action in file_menu.actions()[indices[-1] + 1 : save_index])
     assert controller.images_menu.title() == "Open Recent Images"
     assert controller.folders_menu.title() == "Open Recent Folders"
     assert controller.sessions_menu.title() == "Open Recent Sessions"
@@ -87,9 +84,7 @@ def test_direct_image_registration_is_observed_without_selection_authority(
     )
 
     assert result == [document.document_id]
-    assert controller.repository.load(RecentEntryKind.IMAGE) == (
-        document.source_path.resolve(),
-    )
+    assert controller.repository.load(RecentEntryKind.IMAGE) == (document.source_path.resolve(),)
     assert window.selected_documents == []
     window.close()
 
@@ -115,9 +110,7 @@ def test_file_open_images_succeeds_when_recent_observer_fails(
 
     window.action_map["Open Images..."].trigger()
 
-    assert [item.document_id for item in window.selected_documents] == [
-        document.document_id
-    ]
+    assert [item.document_id for item in window.selected_documents] == [document.document_id]
     assert window._active_document_id == document.document_id
     assert window.statusBar().currentMessage() == "Opened 1 image(s)"
     window.close()
@@ -140,17 +133,13 @@ def test_folder_history_is_registration_only_and_history_failure_is_non_authorit
     result = window.register_folders([folder])
     assert result.folder_count == 1
     assert controller.repository.load(RecentEntryKind.FOLDER) == (folder.resolve(),)
-    assert [item.document_id for item in window.selected_documents] == [
-        selected.document_id
-    ]
+    assert [item.document_id for item in window.selected_documents] == [selected.document_id]
 
     second = tmp_path / "dataset2"
     second.mkdir()
     monkeypatch.setattr(controller.repository, "record", _raise_recent_failure)
     window.register_folders([second])
-    assert [item.document_id for item in window.selected_documents] == [
-        selected.document_id
-    ]
+    assert [item.document_id for item in window.selected_documents] == [selected.document_id]
     window.close()
 
 
@@ -164,9 +153,7 @@ def test_recent_image_reuses_direct_open_selection_path(
     recent = _ready_document(tmp_path / "recent.png", 2)
     _register(window, existing, recent)
     window._select_document_ids([existing.document_id])
-    controller._register_inputs_original = lambda inputs, resolve_raw_profiles: [
-        recent.document_id
-    ]
+    controller._register_inputs_original = lambda inputs, resolve_raw_profiles: [recent.document_id]
 
     controller.open_recent(RecentEntryKind.IMAGE, recent.source_path)
 
@@ -286,9 +273,7 @@ def test_missing_recent_entry_remove_and_keep_preserve_workspace(
     missing = tmp_path / (
         "missing-folder" if kind is RecentEntryKind.FOLDER else f"missing{suffix}"
     )
-    other = tmp_path / (
-        "other-folder" if kind is RecentEntryKind.FOLDER else f"other{suffix}"
-    )
+    other = tmp_path / ("other-folder" if kind is RecentEntryKind.FOLDER else f"other{suffix}")
     controller.repository.record(kind, [missing, other])
     before_selected = tuple(item.document_id for item in window.selected_documents)
     before_pick = set(review.state.picked_ids)
@@ -348,9 +333,7 @@ def test_typed_clear_removes_only_the_selected_recent_history(
     action = controller.images_menu.actions()[0]
     assert action.text() == "frame.png — private"
     assert action.toolTip() == str(image)
-    assert "Clear Recent Images" in [
-        item.text() for item in controller.images_menu.actions()
-    ]
+    assert "Clear Recent Images" in [item.text() for item in controller.images_menu.actions()]
 
     controller.clear_kind(RecentEntryKind.IMAGE)
     assert controller.repository.load(RecentEntryKind.IMAGE) == ()

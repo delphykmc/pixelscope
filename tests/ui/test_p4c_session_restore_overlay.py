@@ -137,10 +137,7 @@ def test_full_restore_hides_overlay_after_difference_and_final_primary(
     tmp_path: Path,
 ) -> None:
     paths = [tmp_path / f"full-{index}.png" for index in range(5)]
-    documents = [
-        _ready_document(path, 20 + index * 10)
-        for index, path in enumerate(paths)
-    ]
+    documents = [_ready_document(path, 20 + index * 10) for index, path in enumerate(paths)]
     target = tmp_path / "full.pixelscope"
     ComparisonSetRepository().save(
         target,

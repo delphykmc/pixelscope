@@ -62,9 +62,7 @@ def test_save_uses_logical_selected_not_temporary_pick_set(
     tmp_path: Path,
 ) -> None:
     QSettings().clear()
-    documents = [
-        _ready_document(tmp_path / f"image{i}.png", i) for i in range(3)
-    ]
+    documents = [_ready_document(tmp_path / f"image{i}.png", i) for i in range(3)]
     window = _production_window(qtbot)
     _register(window, documents)
     window._select_document_ids([document.document_id for document in documents])
@@ -89,9 +87,7 @@ def test_keep_selection_result_is_the_saved_comparison_set(
     tmp_path: Path,
 ) -> None:
     QSettings().clear()
-    documents = [
-        _ready_document(tmp_path / f"image{i}.png", i) for i in range(4)
-    ]
+    documents = [_ready_document(tmp_path / f"image{i}.png", i) for i in range(4)]
     window = _production_window(qtbot)
     _register(window, documents)
     window._select_document_ids([document.document_id for document in documents])
@@ -101,9 +97,7 @@ def test_keep_selection_result_is_the_saved_comparison_set(
     review.state.set_picked(documents[3].document_id, True)
     assert review.keep_picked()
 
-    saved = window.comparison_set_controller.save_to_path(
-        tmp_path / "curated.pixelscope"
-    )
+    saved = window.comparison_set_controller.save_to_path(tmp_path / "curated.pixelscope")
 
     assert [Path(source.path).name for source in saved.sources] == [
         "image1.png",
@@ -118,9 +112,7 @@ def test_large_pending_save_does_not_acquire_loading_or_residency_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     QSettings().clear()
-    documents = [
-        _pending_document(tmp_path / f"image{i:02d}.png") for i in range(20)
-    ]
+    documents = [_pending_document(tmp_path / f"image{i:02d}.png") for i in range(20)]
     window = _production_window(qtbot)
     _register(window, documents)
     load_requests: list[str] = []
@@ -137,9 +129,7 @@ def test_large_pending_save_does_not_acquire_loading_or_residency_authority(
     before_protected = set(window._residency_protected_document_ids())
     before_sources = [document.source for document in documents]
 
-    saved = window.comparison_set_controller.save_to_path(
-        tmp_path / "large-save.pixelscope"
-    )
+    saved = window.comparison_set_controller.save_to_path(tmp_path / "large-save.pixelscope")
 
     assert len(saved.sources) == 20
     assert load_requests == []
@@ -155,9 +145,7 @@ def test_open_restores_order_active_primary_layout_and_keeps_other_registered(
     tmp_path: Path,
 ) -> None:
     QSettings().clear()
-    documents = [
-        _ready_document(tmp_path / f"image{i}.png", i) for i in range(4)
-    ]
+    documents = [_ready_document(tmp_path / f"image{i}.png", i) for i in range(4)]
     extra = _ready_document(tmp_path / "extra.png", 9)
     window = _production_window(qtbot)
     _register(window, [*documents, extra])
@@ -197,15 +185,11 @@ def test_open_derives_later_page_from_saved_active_before_restoring_primary(
     tmp_path: Path,
 ) -> None:
     QSettings().clear()
-    documents = [
-        _ready_document(tmp_path / f"image{i:02d}.png", i) for i in range(15)
-    ]
+    documents = [_ready_document(tmp_path / f"image{i:02d}.png", i) for i in range(15)]
     window = _production_window(qtbot)
     _register(window, documents)
     artifact = ComparisonSet(
-        sources=tuple(
-            ComparisonSetSource(str(document.source_path)) for document in documents
-        ),
+        sources=tuple(ComparisonSetSource(str(document.source_path)) for document in documents),
         active_path=str(documents[8].source_path),
         primary_path=str(documents[10].source_path),
         layout_mode="Multi View",
@@ -218,9 +202,9 @@ def test_open_derives_later_page_from_saved_active_before_restoring_primary(
     assert loaded == 15
     assert missing == ()
     assert window._page_start == 6
-    assert [
-        document.document_id for document in window.current_comparison_documents()
-    ] == [document.document_id for document in documents[6:12]]
+    assert [document.document_id for document in window.current_comparison_documents()] == [
+        document.document_id for document in documents[6:12]
+    ]
     assert window._active_document_id == documents[8].document_id
     assert window._focus_document_id == documents[10].document_id
     window.close()
@@ -252,9 +236,7 @@ def test_open_partial_missing_loads_valid_subset_and_invalidates_curation(
 
     assert loaded == 1
     assert missing == ((tmp_path / "missing.png").resolve(),)
-    assert [document.document_id for document in window.selected_documents] == [
-        second.document_id
-    ]
+    assert [document.document_id for document in window.selected_documents] == [second.document_id]
     assert not review.active
     window.close()
 
@@ -383,9 +365,7 @@ def test_corrupt_or_zero_loadable_set_leaves_workspace_unchanged(
     unavailable = tmp_path / "unavailable.pixelscope"
     window.comparison_set_controller.repository.save(
         unavailable,
-        ComparisonSet(
-            sources=(ComparisonSetSource(str(tmp_path / "gone.png")),)
-        ),
+        ComparisonSet(sources=(ComparisonSetSource(str(tmp_path / "gone.png")),)),
     )
     monkeypatch.setattr(
         "pixelscope.ui.comparison_set.QMessageBox.warning",
@@ -404,17 +384,13 @@ def test_large_open_keeps_foreground_work_bounded_to_active_comparison_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     QSettings().clear()
-    documents = [
-        _pending_document(tmp_path / f"image{i:02d}.png") for i in range(50)
-    ]
+    documents = [_pending_document(tmp_path / f"image{i:02d}.png") for i in range(50)]
     window = _production_window(qtbot)
     _register(window, documents)
     target = tmp_path / "large.pixelscope"
     active_index = 49
     artifact = ComparisonSet(
-        sources=tuple(
-            ComparisonSetSource(str(document.source_path)) for document in documents
-        ),
+        sources=tuple(ComparisonSetSource(str(document.source_path)) for document in documents),
         active_path=str(documents[active_index].source_path),
         layout_mode="Multi View",
     )
@@ -431,9 +407,7 @@ def test_large_open_keeps_foreground_work_bounded_to_active_comparison_page(
     assert loaded == 50
     assert missing == ()
     assert window._page_start == 48
-    assert [
-        document.document_id for document in window.current_comparison_documents()
-    ] == [
+    assert [document.document_id for document in window.current_comparison_documents()] == [
         documents[48].document_id,
         documents[49].document_id,
     ]
@@ -442,9 +416,9 @@ def test_large_open_keeps_foreground_work_bounded_to_active_comparison_page(
         documents[49].document_id,
     }
     assert len(requested) <= COMPARISON_PAGE_SIZE
-    assert not {
-        document.document_id for document in documents[:48]
-    }.intersection(window._residency_protected_document_ids())
+    assert not {document.document_id for document in documents[:48]}.intersection(
+        window._residency_protected_document_ids()
+    )
     window.close()
 
 

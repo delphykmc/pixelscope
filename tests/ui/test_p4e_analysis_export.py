@@ -58,8 +58,7 @@ def _seed_histogram(
         source_path=tmp_path / "source.raw",
     )
     counts = tuple(
-        np.asarray([index + 1, index + 2], dtype=np.int64)
-        for index in range(len(channels))
+        np.asarray([index + 1, index + 2], dtype=np.int64) for index in range(len(channels))
     )
     histogram = HistogramResult(counts, np.asarray([0.0, 1.0, 2.0]), channels)
     bounds = RoiBounds(1, 2, 3, 4) if scope == "Active ROI" else RoiBounds(0, 0, 8, 8)
@@ -98,9 +97,7 @@ def _seed_line_profile(window: MainWindow, tmp_path: Path) -> None:
     panel._documents = [document]
     panel._selection = LineSelection(0, 1, 2, 1)
     panel._worker = None
-    panel.last_results = (
-        SimpleNamespace(channel_names=("R", "G", "B")),
-    )
+    panel.last_results = (SimpleNamespace(channel_names=("R", "G", "B")),)
     panel._profile_series = [[] for _index in range(6)]
     panel._profile_series[0] = [
         (
@@ -418,7 +415,5 @@ def test_export_dialog_reuses_configured_export_directory(
     before = _workspace_state(window)
     controller.export_histogram_csv()
 
-    assert observed == [
-        str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")
-    ]
+    assert observed == [str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")]
     assert _workspace_state(window) == before

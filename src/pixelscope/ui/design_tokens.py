@@ -50,9 +50,7 @@ class EngineeringStyle(QProxyStyle):
     ) -> int:
         style_widget = _style_hint_widget(widget)
         if hint == QStyle.StyleHint.SH_EtchDisabledText:
-            if style_widget is not None and bool(
-                style_widget.property("etchedDisabledText")
-            ):
+            if style_widget is not None and bool(style_widget.property("etchedDisabledText")):
                 return 1
             return 0
         return super().styleHint(hint, option, style_widget, return_data)

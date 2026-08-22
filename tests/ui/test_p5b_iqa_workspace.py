@@ -127,8 +127,7 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
     assert widget.hierarchy.topLevelItemCount() == 10
     assert widget.hierarchy.columnCount() == 5
     headers = [
-        widget.hierarchy.headerItem().text(index)
-        for index in range(widget.hierarchy.columnCount())
+        widget.hierarchy.headerItem().text(index) for index in range(widget.hierarchy.columnCount())
     ]
     assert headers == [
         "Attribute / Scene",
@@ -144,10 +143,9 @@ def test_workspace_defaults_to_absolute_nway_summary_view(
         "Candidate Fast",
         "Candidate Quality",
     ]
-    assert sum(
-        isinstance(item, pg.BarGraphItem)
-        for item in widget.overview_plot.plotItem.items
-    ) == 3
+    assert (
+        sum(isinstance(item, pg.BarGraphItem) for item in widget.overview_plot.plotItem.items) == 3
+    )
     assert widget.overview_legend.parentItem() is widget.overview_plot.plotItem
     bottom_axis = widget.overview_plot.plotItem.getAxis("bottom")
     assert bottom_axis.style["tickTextHeight"] == 40
@@ -185,14 +183,20 @@ def test_real_absolute_named_variant_does_not_collide_with_display_mode(
 def test_overview_tick_labels_wrap_crowded_multiword_names() -> None:
     assert _overview_tick_label("Luma Noise", crowded=False) == "Luma Noise"
     assert _overview_tick_label("Luma Noise", crowded=True) == "Luma Noise"
-    assert _overview_tick_label(
-        "Chromatic Aberration",
-        crowded=True,
-    ) == "Chromatic\nAberration"
-    assert _overview_tick_label(
-        "VeryLongSingleTokenAttribute",
-        crowded=True,
-    ) == "VeryLongSingleTok…"
+    assert (
+        _overview_tick_label(
+            "Chromatic Aberration",
+            crowded=True,
+        )
+        == "Chromatic\nAberration"
+    )
+    assert (
+        _overview_tick_label(
+            "VeryLongSingleTokenAttribute",
+            crowded=True,
+        )
+        == "VeryLongSingleTok…"
+    )
 
 
 def test_reference_selection_requests_lazy_grid_preparation(
@@ -201,10 +205,7 @@ def test_reference_selection_requests_lazy_grid_preparation(
 ) -> None:
     widget = IqaWorkspaceWidget()
     qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    assert (
-        widget.set_model(IqaExplorerModel(_loaded(result_root))).status
-        is LoadStatus.SUCCESS
-    )
+    assert widget.set_model(IqaExplorerModel(_loaded(result_root))).status is LoadStatus.SUCCESS
     requested: list[str] = []
     widget.relative_requested.connect(requested.append)
 
@@ -226,9 +227,7 @@ def test_relative_model_keeps_variant_columns_and_uses_reference_zero_anchor(
     model = IqaExplorerModel(_loaded(result_root))
     assert widget.set_model(model).status is LoadStatus.SUCCESS
     widget.reference_combo.blockSignals(True)
-    widget.reference_combo.setCurrentIndex(
-        widget.reference_combo.findData("baseline")
-    )
+    widget.reference_combo.setCurrentIndex(widget.reference_combo.findData("baseline"))
     widget.reference_combo.blockSignals(False)
 
     outcome = widget.set_relative_model(model.prepare_reference("baseline"))
@@ -239,8 +238,7 @@ def test_relative_model_keeps_variant_columns_and_uses_reference_zero_anchor(
     assert widget.model.reference_ready("baseline")
     assert widget.hierarchy.columnCount() == 5
     headers = [
-        widget.hierarchy.headerItem().text(index)
-        for index in range(widget.hierarchy.columnCount())
+        widget.hierarchy.headerItem().text(index) for index in range(widget.hierarchy.columnCount())
     ]
     assert headers == [
         "Attribute / Scene",
@@ -255,10 +253,7 @@ def test_relative_model_keeps_variant_columns_and_uses_reference_zero_anchor(
     first_scene = first_attribute.child(0)
     assert first_scene is not None
     assert first_scene.text(1) == "0.0000"
-    assert (
-        widget.overview_detail_heading.text()
-        == "Relative Value Details · Reference: Baseline"
-    )
+    assert widget.overview_detail_heading.text() == "Relative Value Details · Reference: Baseline"
     title = widget.overview_plot.plotItem.titleLabel.text
     assert "Reference: Baseline" in title
     assert "equal-Scene mean" in title
@@ -267,24 +262,18 @@ def test_relative_model_keeps_variant_columns_and_uses_reference_zero_anchor(
         "Candidate Fast",
         "Candidate Quality",
     ]
-    assert sum(
-        isinstance(item, pg.BarGraphItem)
-        for item in widget.overview_plot.plotItem.items
-    ) == 2
-    assert sum(
-        isinstance(item, pg.ScatterPlotItem)
-        for item in widget.overview_plot.plotItem.items
-    ) == 1
-
-    widget.mode_combo.setCurrentIndex(
-        widget.mode_combo.findData(
-            ComparisonMode.MEAN_OF_GRID_LOG_RATIOS.value
-        )
+    assert (
+        sum(isinstance(item, pg.BarGraphItem) for item in widget.overview_plot.plotItem.items) == 2
     )
     assert (
-        widget.aggregation_mode
-        is ComparisonMode.MEAN_OF_GRID_LOG_RATIOS
+        sum(isinstance(item, pg.ScatterPlotItem) for item in widget.overview_plot.plotItem.items)
+        == 1
     )
+
+    widget.mode_combo.setCurrentIndex(
+        widget.mode_combo.findData(ComparisonMode.MEAN_OF_GRID_LOG_RATIOS.value)
+    )
+    assert widget.aggregation_mode is ComparisonMode.MEAN_OF_GRID_LOG_RATIOS
     refreshed_first_attribute = widget.hierarchy.topLevelItem(0)
     assert refreshed_first_attribute is not None
     assert refreshed_first_attribute.text(1) == "0.0000"
@@ -301,9 +290,7 @@ def test_switching_to_unprepared_reference_requests_only_that_reference(
     requested: list[str] = []
     widget.relative_requested.connect(requested.append)
 
-    widget.reference_combo.setCurrentIndex(
-        widget.reference_combo.findData("candidate_fast")
-    )
+    widget.reference_combo.setCurrentIndex(widget.reference_combo.findData("candidate_fast"))
 
     assert requested == ["candidate_fast"]
     assert model.reference_ready("baseline")
@@ -334,9 +321,7 @@ def test_failed_deferred_reference_restores_last_presented_mode(
     scene = widget.model.result.scenes[0]
     (widget.model.result.root / scene.grid_artifact).unlink()
     outcomes.clear()
-    widget.reference_combo.setCurrentIndex(
-        widget.reference_combo.findData("baseline")
-    )
+    widget.reference_combo.setCurrentIndex(widget.reference_combo.findData("baseline"))
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: bool(outcomes) and outcomes[-1].status is LoadStatus.CORRUPT,
         timeout=5000,
@@ -359,10 +344,7 @@ def test_scene_trend_filters_and_source_cards_keep_native_pixels_out_of_p5b(
 ) -> None:
     widget = IqaWorkspaceWidget()
     qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    assert (
-        widget.set_model(IqaExplorerModel(_loaded(result_root))).status
-        is LoadStatus.SUCCESS
-    )
+    assert widget.set_model(IqaExplorerModel(_loaded(result_root))).status is LoadStatus.SUCCESS
 
     assert len(widget.enabled_attribute_ids) == 10
     first = widget.attribute_filter.item(0)
@@ -376,9 +358,7 @@ def test_scene_trend_filters_and_source_cards_keep_native_pixels_out_of_p5b(
     assert widget.preview_layout.count() == 3
     first_card = widget.preview_layout.itemAt(0).widget()
     assert first_card is not None
-    text = "\n".join(
-        label.text() for label in first_card.findChildren(QLabel)
-    )
+    text = "\n".join(label.text() for label in first_card.findChildren(QLabel))
     assert "Published relative path" in text
     assert "P5-D" in text
 
@@ -435,20 +415,13 @@ def test_controller_opens_v2_then_prepares_reference_off_thread(
     assert widget.model is not None
     assert not widget.model.reference_ready("baseline")
 
-    widget.reference_combo.setCurrentIndex(
-        widget.reference_combo.findData("baseline")
-    )
+    widget.reference_combo.setCurrentIndex(widget.reference_combo.findData("baseline"))
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: (
-            widget.model is not None
-            and widget.model.reference_ready("baseline")
-        ),
+        lambda: (widget.model is not None and widget.model.reference_ready("baseline")),
         timeout=5000,
     )
     assert widget.reference_variant_id == "baseline"
-    assert any(
-        outcome.status is LoadStatus.SUCCESS for outcome in outcomes
-    )
+    assert any(outcome.status is LoadStatus.SUCCESS for outcome in outcomes)
     controller.shutdown()
     assert pool.waitForDone(5000)
 
@@ -547,10 +520,7 @@ def test_main_window_iqa_dock_preserves_native_authority_and_resets_geometry(
     qtbot.wait(50)  # type: ignore[attr-defined]
     window.reset_workspace_layout()
     assert not window.iqa_dock.isFloating()
-    assert (
-        window.dockWidgetArea(window.iqa_dock)
-        == Qt.DockWidgetArea.RightDockWidgetArea
-    )
+    assert window.dockWidgetArea(window.iqa_dock) == Qt.DockWidgetArea.RightDockWidgetArea
     assert window.iqa_dock.isHidden()
     assert not window.settings.contains(IQA_FLOATING_GEOMETRY_SETTING)
     window.close()

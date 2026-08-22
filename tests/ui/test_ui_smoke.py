@@ -1432,8 +1432,7 @@ def test_folder_position_navigation_recalculates_enabled_difference_and_keeps_fo
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     window.register_folders(folders)
     first_ids = [
-        window._document_id_by_path[window._path_key(folder / "frame-0.png")]
-        for folder in folders
+        window._document_id_by_path[window._path_key(folder / "frame-0.png")] for folder in folders
     ]
     window._select_document_ids(first_ids)
     qtbot.waitUntil(  # type: ignore[attr-defined]
@@ -1485,9 +1484,7 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
             )
             assert cv2.imwrite(str(folder / f"chart-{image_index:02d}.jpg"), image)
         window.register_folders([folder])
-        first_ids.append(
-            window._document_id_by_path[window._path_key(folder / "chart-00.jpg")]
-        )
+        first_ids.append(window._document_id_by_path[window._path_key(folder / "chart-00.jpg")])
 
     window._select_document_ids(first_ids)
     for _index in range(5):
@@ -1527,9 +1524,7 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
     window.close()
 
 
-def test_direct_file_drop_replaces_active_folder_selection(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_direct_file_drop_replaces_active_folder_selection(qtbot: object, tmp_path: Path) -> None:
     folders = [tmp_path / name for name in ("a", "b", "c")]
     for folder_index, folder in enumerate(folders):
         folder.mkdir()
