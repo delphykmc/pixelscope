@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Any
 
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Slot
 from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
@@ -113,7 +114,7 @@ class _SpatialOverlayItem(QGraphicsItem):
         return self._bounds
 
     def clear(self) -> None:
-        if not self._cells:
+        if not self._cells and not self.isVisible():
             return
         self.prepareGeometryChange()
         self._cells = ()
@@ -129,17 +130,21 @@ class _SpatialOverlayItem(QGraphicsItem):
     ) -> None:
         values = field.variant(variant_id).values
         cells: list[tuple[tuple[QPointF, ...], float]] = []
-        bounds: QRectF | None = None
+        xs: list[float] = []
+        ys: list[float] = []
         for row, column, polygon in source_polygons_for_variant(result, field, variant_id):
             points = tuple(QPointF(x, y) for x, y in polygon)
             value = float(values[row, column])
             cells.append((points, value))
-            for point in points:
-                point_rect = QRectF(point, point)
-                bounds = point_rect if bounds is None else bounds.united(point_rect)
+            xs.extend(point.x() for point in points)
+            ys.extend(point.y() for point in points)
         self.prepareGeometryChange()
         self._cells = tuple(cells)
-        self._bounds = bounds or QRectF()
+        self._bounds = (
+            QRectF(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+            if xs and ys
+            else QRectF()
+        )
         self._scale = (field.scale_min, field.scale_max)
         self.setVisible(bool(cells))
         self.update()
@@ -154,14 +159,13 @@ class _SpatialOverlayItem(QGraphicsItem):
             pen_color.setAlpha(190)
             painter.setPen(QPen(pen_color, 0.0))
             painter.setBrush(color)
-            painter.drawPolygon(QPolygonF(points))
+            painter.drawPolygon(QPolygonF(list(points)))
 
 
 def _overlay_color(value: float, minimum: float, maximum: float) -> QColor:
     span = maximum - minimum
     normalized = 0.5 if span <= 0.0 else max(0.0, min(1.0, (value - minimum) / span))
-    color = QColor.fromHsvF((1.0 - normalized) * 0.66, 0.78, 0.98, 0.34)
-    return color
+    return QColor.fromHsvF((1.0 - normalized) * 0.66, 0.78, 0.98, 0.34)
 
 
 class IqaSceneInspectionController(QObject):
@@ -174,10 +178,12 @@ class IqaSceneInspectionController(QObject):
         self.result_controller = window.iqa_controller
         self._pool = analysis_thread_pool()
         self._active = True
+        self._result_opening = False
         self._inspect_generation = 0
         self._spatial_generation = 0
         self._inspect_worker: TaskWorker | None = None
         self._spatial_worker: TaskWorker | None = None
+        self._inspect_result_identity: tuple[str, int] | None = None
         self._inspect_scene_id: str | None = None
         self._inspected_result: ResultV2 | None = None
         self._inspected_document_variants: dict[str, str] = {}
@@ -189,6 +195,8 @@ class IqaSceneInspectionController(QObject):
         self._overlay_items: dict[ImageViewer, _SpatialOverlayItem] = {}
         self._original_select_document_ids = window._select_document_ids
         self._original_remove_document_ids = window._remove_document_ids
+        self._original_set_layout_mode = window.set_layout_mode
+        self._original_set_focus_document = window._set_focus_document
         self._original_open_result = self.result_controller.open_result
         self._original_shutdown = self.result_controller.shutdown
         self._build_controls()
@@ -206,7 +214,7 @@ class IqaSceneInspectionController(QObject):
         return self._inspect_scene_id
 
     def inspect_selected_scene(self) -> None:
-        if not self._active:
+        if not self._active or self._result_opening:
             return
         scene_id = self.workspace.selected_scene_id
         result = self.workspace.result
@@ -248,15 +256,20 @@ class IqaSceneInspectionController(QObject):
                 anchor_index = snapshot.selected_ids.index(snapshot.page_anchor_id)
                 self.window._page_start = (anchor_index // 6) * 6
                 self.window._current_index = anchor_index
+            else:
+                self.window._page_start = 0
+                self.window._current_index = 0
+            self._original_set_layout_mode(snapshot.layout_mode)
             page_ids = {
                 document.document_id for document in self.window.current_comparison_documents()
             }
-            self.window._focus_document_id = (
-                snapshot.primary_id if snapshot.primary_id in page_ids else None
-            )
-            self.window.set_layout_mode(snapshot.layout_mode)
+            if snapshot.primary_id in page_ids:
+                self._original_set_focus_document(self.window.documents[snapshot.primary_id])
+            else:
+                self.window._focus_document_id = None
             if snapshot.active_id in page_ids:
                 self.window._set_active_document(self.window.documents[snapshot.active_id])
+        self._inspect_result_identity = None
         self._inspect_scene_id = None
         self._inspected_result = None
         self._inspected_document_variants.clear()
@@ -315,7 +328,7 @@ class IqaSceneInspectionController(QObject):
         self.legend_label.setWordWrap(True)
         self.legend_label.setStyleSheet(f"color: {TOKENS.text_secondary};")
         outer.addWidget(self.legend_label)
-        self.block_label = QLabel("Block inspector: hover or click an overlaid source cell.", panel)
+        self.block_label = QLabel("Block inspector: hover or click a Scene grid cell.", panel)
         self.block_label.setObjectName("iqaBlockInspector")
         self.block_label.setWordWrap(True)
         self.block_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -348,13 +361,32 @@ class IqaSceneInspectionController(QObject):
                 captured = set(self._return_snapshot.selected_ids)
                 if captured.intersection(str(item) for item in document_ids):
                     self._invalidate_return("Return invalidated because a captured source was removed")
-                elif self._inspect_scene_id is not None:
+                else:
                     self._invalidate_return("Return invalidated by a newer local Files change")
             return self._original_remove_document_ids(document_ids, *args, **kwargs)
 
+        def set_layout_mode(mode: str) -> None:
+            if (
+                self._owned_mutation_depth == 0
+                and self._return_snapshot is not None
+                and mode != self.window._layout_mode
+            ):
+                self._invalidate_return("Return invalidated by a newer local layout choice")
+            self._original_set_layout_mode(mode)
+
+        def set_focus_document(document: object) -> None:
+            if self._owned_mutation_depth == 0 and self._return_snapshot is not None:
+                self._invalidate_return("Return invalidated by a newer local Primary choice")
+            self._original_set_focus_document(document)
+
         def open_result(root: object) -> int:
             self._new_result_opening()
-            return self._original_open_result(root)
+            try:
+                return self._original_open_result(root)
+            except Exception:
+                self._result_opening = False
+                self._sync_controls()
+                raise
 
         def shutdown() -> None:
             self.shutdown()
@@ -362,6 +394,8 @@ class IqaSceneInspectionController(QObject):
 
         self.window._select_document_ids = select_document_ids
         self.window._remove_document_ids = remove_document_ids
+        self.window.set_layout_mode = set_layout_mode
+        self.window._set_focus_document = set_focus_document
         self.result_controller.open_result = open_result
         self.result_controller.shutdown = shutdown
         self.window.document_list.selection_changing.connect(self._files_selection_changing)
@@ -402,7 +436,7 @@ class IqaSceneInspectionController(QObject):
     @Slot(str)
     def _scene_requested(self, scene_id: str) -> None:
         self._sync_controls()
-        if self._inspect_scene_id is None:
+        if self._inspect_scene_id is None or self._result_opening:
             return
         result = self.workspace.result
         if not isinstance(result, ResultV2):
@@ -411,6 +445,9 @@ class IqaSceneInspectionController(QObject):
 
     @Slot(object)
     def _result_outcome(self, _outcome: object) -> None:
+        if self._result_opening:
+            self._result_opening = False
+            self._inspect_result_identity = None
         self._populate_attribute_combo()
         self._sync_controls()
 
@@ -445,6 +482,7 @@ class IqaSceneInspectionController(QObject):
         self._cancel_inspect_worker()
         self._inspect_generation += 1
         generation = self._inspect_generation
+        self._inspect_result_identity = (result.result_id, id(result))
         self._set_status(f"Verifying published sources for {scene_id}…")
         worker = TaskWorker(
             verify_scene_sources,
@@ -468,7 +506,7 @@ class IqaSceneInspectionController(QObject):
         generation: int,
         value: object,
     ) -> None:
-        if not self._active or generation != self._inspect_generation:
+        if not self._active or self._result_opening or generation != self._inspect_generation:
             return
         if not isinstance(value, SceneVerificationOutcome):
             self._set_status("Source verification returned no Scene outcome")
@@ -479,7 +517,9 @@ class IqaSceneInspectionController(QObject):
             self._sync_controls()
             return
         result = self.workspace.result
-        if not isinstance(result, ResultV2) or result.result_id != self.workspace.result.result_id:
+        if not isinstance(result, ResultV2):
+            return
+        if self._inspect_result_identity != (result.result_id, id(result)):
             return
         if self.workspace.selected_scene_id != value.scene_id:
             return
@@ -497,7 +537,7 @@ class IqaSceneInspectionController(QObject):
         generation: int,
         error: object,
     ) -> None:
-        if not self._active or generation != self._inspect_generation:
+        if not self._active or self._result_opening or generation != self._inspect_generation:
             return
         message = error.message if isinstance(error, TaskError) else str(error)
         self._set_status(f"Source verification failed · {message}")
@@ -513,14 +553,25 @@ class IqaSceneInspectionController(QObject):
         result: ResultV2,
         outcome: SceneVerificationOutcome,
     ) -> None:
-        if self._return_snapshot is None:
+        captured_now = self._return_snapshot is None
+        if captured_now:
             self._return_snapshot = self._capture_return_snapshot()
             self._return_valid = True
         inputs = tuple(ImageInput(item.local_path) for item in outcome.sources)
+        before_ids = set(self.window.documents)
         with self._owned_mutation():
             document_ids = self.window._register_inputs(inputs, resolve_raw_profiles=False)
             if len(document_ids) != len(outcome.sources):
-                self._set_status("Scene registration failed; Selected was not changed")
+                newly_registered = [
+                    document_id for document_id in self.window.documents if document_id not in before_ids
+                ]
+                if newly_registered:
+                    self._original_remove_document_ids(newly_registered)
+                if captured_now:
+                    self._return_snapshot = None
+                    self._return_valid = False
+                self._set_status("Scene registration failed; local workspace was preserved")
+                self._sync_controls()
                 return
             self.window._select_document_ids(document_ids)
         self._inspect_scene_id = outcome.scene_id
@@ -561,9 +612,7 @@ class IqaSceneInspectionController(QObject):
         if result is None or scene_id is None or not isinstance(attribute_id, str):
             return
         reference = self.workspace.reference_variant_id
-        reference_variant_id = (
-            None if reference == ABSOLUTE_REFERENCE_ID else reference
-        )
+        reference_variant_id = None if reference == ABSOLUTE_REFERENCE_ID else reference
         request = _SpatialRequest(
             result_identity=(result.result_id, id(result)),
             scene_id=scene_id,
@@ -648,7 +697,8 @@ class IqaSceneInspectionController(QObject):
         self.legend_label.setText(
             f"{spec.name} · {field.unit} · {mode}{reference_text} · "
             f"scale [{field.scale_min:.5g}, {field.scale_max:.5g}] · "
-            f"per-cell raw field; Scene scalar '{self.workspace.mode_combo.currentText()}' is a reduction"
+            f"per-cell raw field; Scene scalar '{self.workspace.mode_combo.currentText()}' "
+            "is a reduction"
         )
 
     def _sync_all_overlays(self) -> None:
@@ -710,10 +760,12 @@ class IqaSceneInspectionController(QObject):
         mean = "—" if detail.cell_mean is None else f"{detail.cell_mean:.7g}"
         valid = "valid" if detail.valid else "invalid"
         lines = [
-            f"Scene {detail.scene_id} · {detail.attribute_id} · {detail.variant_id} / {detail.source_id}",
+            f"Scene {detail.scene_id} · {detail.attribute_id} · "
+            f"{detail.variant_id} / {detail.source_id}",
             f"cell [{detail.row}, {detail.column}] · {valid}",
             f"W={detail.weight_sum:.7g} · S1={detail.weighted_sum:.7g} · "
-            f"S2={detail.weighted_square_sum:.7g} · valid_count={detail.valid_count} · mean={mean}",
+            f"S2={detail.weighted_square_sum:.7g} · valid_count={detail.valid_count} · "
+            f"mean={mean}",
         ]
         if detail.reference_variant_id is not None:
             relative = "—" if detail.relative_value is None else f"{detail.relative_value:.7g}"
@@ -722,8 +774,8 @@ class IqaSceneInspectionController(QObject):
             )
             lines.append(
                 f"Reference {detail.reference_variant_id} / {detail.reference_source_id} · "
-                f"pair_valid={detail.pair_valid} · target={mean} · reference={reference_mean} · "
-                f"raw relative={relative}"
+                f"pair_valid={detail.pair_valid} · target={mean} · "
+                f"reference={reference_mean} · raw relative={relative}"
             )
         x, y, width, height = detail.analysis_bounds
         lines.append(
@@ -733,9 +785,11 @@ class IqaSceneInspectionController(QObject):
         self.block_label.setText("\n".join(lines))
 
     def _new_result_opening(self) -> None:
+        self._result_opening = True
         self._cancel_inspect_worker()
         self._cancel_spatial_worker()
         self._clear_spatial_overlay()
+        self._inspect_result_identity = None
         self._inspect_scene_id = None
         self._inspected_result = None
         self._inspected_document_variants.clear()
@@ -745,15 +799,15 @@ class IqaSceneInspectionController(QObject):
         self._sync_controls()
 
     def _files_selection_changing(self) -> None:
-        if self._owned_mutation_depth == 0 and self._inspect_scene_id is not None:
+        if self._owned_mutation_depth == 0 and self._return_snapshot is not None:
             self._invalidate_return("Return invalidated by a newer local Selected change")
 
     def _files_selection_changed(self) -> None:
-        if self._owned_mutation_depth != 0 or self._inspect_scene_id is None:
+        if self._owned_mutation_depth != 0 or self._return_snapshot is None:
             return
         current = tuple(document.document_id for document in self.window.selected_documents)
         expected = tuple(self._inspected_document_variants)
-        if current != expected:
+        if not expected or current != expected:
             self._invalidate_return("Return invalidated by a newer local Selected change")
 
     def _files_remove_changing(self, document_ids: object) -> None:
@@ -774,10 +828,12 @@ class IqaSceneInspectionController(QObject):
         self._cancel_inspect_worker()
         self._cancel_spatial_worker()
         self._clear_spatial_overlay()
+        self._inspect_result_identity = None
         self._inspect_scene_id = None
         self._inspected_result = None
         self._inspected_document_variants.clear()
         self._field = None
+        self._spatial_request = None
         self._set_status(reason)
         self._sync_controls()
 
@@ -804,7 +860,7 @@ class IqaSceneInspectionController(QObject):
     def _clear_spatial_overlay(self) -> None:
         for item in self._overlay_items.values():
             item.clear()
-        self.block_label.setText("Block inspector: hover or click an overlaid source cell.")
+        self.block_label.setText("Block inspector: hover or click a Scene grid cell.")
         self.legend_label.setText("Spatial overlay inactive")
 
     def _sync_controls(self) -> None:
@@ -823,6 +879,7 @@ class IqaSceneInspectionController(QObject):
             reason = "Native Inspect requires a schema-v2 result"
         enabled = (
             self._active
+            and not self._result_opening
             and self._inspect_worker is None
             and isinstance(result, ResultV2)
             and scene_id is not None
@@ -831,8 +888,10 @@ class IqaSceneInspectionController(QObject):
         )
         self.inspect_button.setEnabled(enabled)
         self.return_button.setEnabled(self.return_valid)
-        self.attribute_combo.setEnabled(isinstance(result, ResultV2))
-        if picks_active:
+        self.attribute_combo.setEnabled(isinstance(result, ResultV2) and not self._result_opening)
+        if self._result_opening:
+            self.inspect_button.setToolTip("Wait for the new IQA result to finish opening")
+        elif picks_active:
             self.inspect_button.setToolTip("Commit or clear temporary Picks before Inspect")
         elif reason is not None:
             self.inspect_button.setToolTip(reason)
