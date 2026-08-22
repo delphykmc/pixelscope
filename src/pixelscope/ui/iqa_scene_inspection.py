@@ -259,7 +259,19 @@ class IqaSceneInspectionController(QObject):
             else:
                 self.window._page_start = 0
                 self.window._current_index = 0
+
+            page_ids = {
+                document.document_id for document in self.window.current_comparison_documents()
+            }
+            if snapshot.layout_mode == "Single View" and snapshot.active_id in page_ids:
+                self.window._current_index = snapshot.selected_ids.index(snapshot.active_id)
+
+            # Selection mutation renders page 1 before the snapshot page is restored.
+            # Commit the restored page explicitly; set_layout_mode may otherwise
+            # short-circuit when the layout mode itself did not change.
             self._original_set_layout_mode(snapshot.layout_mode)
+            self.window._render_selection(preserve_view=False)
+
             page_ids = {
                 document.document_id for document in self.window.current_comparison_documents()
             }
@@ -268,7 +280,10 @@ class IqaSceneInspectionController(QObject):
             else:
                 self.window._focus_document_id = None
             if snapshot.active_id in page_ids:
-                self.window._set_active_document(self.window.documents[snapshot.active_id])
+                if snapshot.layout_mode == "Single View":
+                    self.window._navigate_single_view(snapshot.active_id)
+                elif not self.window._activate_multi_document(snapshot.active_id):
+                    self.window._set_active_document(self.window.documents[snapshot.active_id])
         self._inspect_result_identity = None
         self._inspect_scene_id = None
         self._inspected_result = None
