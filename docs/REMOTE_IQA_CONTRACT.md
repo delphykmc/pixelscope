@@ -292,10 +292,10 @@ own these mappings.
 Existing sources under a configured root are represented by the most-specific matching
 logical root plus portable POSIX relative path. Sources outside configured roots may be
 staged under the configured staging root using content-addressed SHA-256 identity.
-Staging uses `.part` publication and atomic final replacement/reuse verification.
-
-P5-C still has pre-merge hardening work for cross-process staging concurrency and
-symlink/junction containment; those implementation blockers do not change the logical
+Staging uses independently named same-directory `.part` files, resolved containment
+before mutation, atomic final publication, and SHA-256 winner/reuse verification.
+Cross-process concurrent publication and source/result symlink or junction escapes are
+covered by the P5-C implementation and regression suite without changing the logical
 identity contract above.
 
 ## 10. Submission pairing and PARTIAL contract — P5-C frozen

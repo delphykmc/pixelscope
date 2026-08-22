@@ -722,10 +722,10 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
 - Portable source/result location is always `storage_root_id + relative_path`.
 - Existing sources under configured roots are referenced through the most-specific
   matching root. Outside sources may be staged content-addressed by SHA-256.
-- `.part` + atomic final publication/reuse verification is the current staging model.
-- Cross-process staging concurrency and symlink/junction containment are **not yet
-  closed** and remain P5-C merge blockers; the logical identity decision is already
-  frozen.
+- Staging uses independently named same-directory temp files, resolved containment
+  before mutation, atomic final publication, and SHA-256 verified winner/reuse.
+- Cross-process publication and source/result symlink or junction escape handling are
+  implemented and covered by P5-C regressions; they are no longer open merge blockers.
 
 ### P5-C submission decisions
 
@@ -741,7 +741,10 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
 - Requests send logical root/path, SHA-256, width, and height; local physical paths
   are not serialized.
 - Folder Pair preparation does not imply Files registration/Selected membership or
-  batch-wide source residency.
+  batch-wide source residency/preload.
+- Folder Pair preview validation owns a latest-request revision; stale callbacks cannot
+  publish over a newer request or permanently strand the Validate action after an
+  in-flight input edit.
 
 ### P5-C PARTIAL decisions
 
@@ -771,8 +774,10 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
 - Client diagnostics are classified into configuration, connection, timeout, HTTP,
   protocol, and storage-resolution categories.
 - Returned server job IDs are validated before entering the local job model.
-- Duplicate in-flight create prevention and explicit ambiguous-create recovery/UX are
-  still P5-C merge blockers. The durable decision is **no blind create retry**.
+- One in-flight local create owner prevents duplicate in-process submission. Ambiguous
+  create outcomes block further submission in that process rather than inviting a
+  duplicate manual/automatic POST retry. The durable decision remains **no blind
+  create retry**.
 
 ### P5-C workspace/debug decisions
 
@@ -787,15 +792,23 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
   only. It returns references to deterministic fake results and performs no IQA
   computation.
 
-### P5-C lifecycle decisions still awaiting implementation closeout
+### P5-C lifecycle decisions — implemented; closeout validation/review pending
 
-- Running preflight/hash/staging needs cooperative cancellation checkpoints and an
-  explicit cancellation check before create POST.
-- Once create POST is in flight, local cancellation cannot pretend to revoke remote
-  acceptance; ambiguous-create policy must govern the outcome.
-- Settings changes during result-path resolution must guarantee newest mapping wins;
-  an in-flight old-settings resolver cannot permanently overwrite the new mapping.
-- These blockers must be resolved before PR #42 merges and before P5-D starts.
+- Cooperative cancellation reaches running preflight/hash/staging work and checks
+  again immediately before create POST.
+- Once create POST is in flight, local cancellation does not pretend to revoke remote
+  acceptance; explicit ambiguous-create blocking governs unknown outcomes and no
+  blind POST retry is issued.
+- Storage-root mapping changes use revision + pending re-resolution so stale
+  old-settings result-path callbacks cannot overwrite the newest mapping.
+- Latest Folder Pair preview ownership rejects stale validation callbacks and restores
+  Validate after the latest worker completes even when inputs changed in flight.
+- Production-composition regressions assert Current Pair A/B remains underlying page
+  order across Primary/Active presentation changes and Folder Pair preparation does
+  not mutate Files/Selected/current page/residency/preload.
+- These implementation decisions are complete. PR #42 still requires current-head
+  focused/static validation, independent closeout re-review, final full validation,
+  and owner merge approval before P5-D starts.
 
 ## Current resource policy
 
@@ -829,16 +842,23 @@ Observed P5-C evidence includes:
 
 - historical full-suite checkpoint at `04f8c08...`: 809 pytest PASS plus Ruff/mypy/
   diff PASS, before later P5-C stages;
+- owner full requested validation on durable-doc head `f7728b2...`: PASS;
 - Setup UX + Request Inspector focused/static PASS;
 - Replay JSON + deterministic COMPLETE result manual Open Result PASS;
 - Stage-4 focused localhost/result-retry/submission/UI suite: 26 PASS;
-- Stage-4 mypy: 102 source files, no issues;
 - normal real-socket localhost submit/poll/result-reference manual PASS;
 - transient terminal `/result` HTTP 500 followed by automatic successful retry with
-  no resubmit, manually reproduced on a second newly-created job.
+  no resubmit, manually reproduced on a second newly-created job;
+- staging hardening focused/static PASS and lifecycle/storage hardening PASS after
+  the Windows concurrent-publication repair;
+- result-remap focused tests, Ruff check, mypy, and `git diff --check` PASS on
+  `86cc871...`; `177078f...` is the subsequent formatter-only repair.
 
-Latest-head full/static/docs PASS is not yet claimed. Remaining storage/lifecycle
-blockers, final owner validation, and independent whole-PR re-review are required
-before merge.
+Independent whole-PR review at `177078f...` confirmed the earlier architecture
+blockers closed and requested only narrow preview-lifecycle, authority-regression,
+and stale-status-doc closeout. The code/test part is implemented by `70b7b6d...`;
+current-head PASS is not yet claimed. Required next steps are focused/static owner
+validation, independent closeout re-review, final full repository validation, and the
+owner merge decision.
 
 Only validation actually observed for a named head may be recorded as PASS.

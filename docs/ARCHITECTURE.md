@@ -413,7 +413,8 @@ Folder Position +1.
 
 `RawProfile` JSON migration remains the durable compatibility boundary. P4-A adds
 no profile-library persistence, profile schema version, last-profile reuse,
-size-only/fuzzy matching, sensor inference, or automatic Black/White estimation.
+size-only/fuzzy matching, sensor inference, Bayer-pattern inference, or automatic
+Black/White estimation.
 
 ## Workspace and Folder Position
 
@@ -759,9 +760,11 @@ root. Sources outside configured roots may be staged using SHA-256 content ident
 Machine-local Windows/UNC roots are never request/result identity and server physical
 paths are never persisted by PixelScope.
 
-Current staging publishes via `.part` + atomic final replacement/reuse verification.
-Cross-process staging concurrency and symlink/junction containment remain explicit
-P5-C pre-merge hardening work; they do not change the logical identity model.
+Staging uses independently named same-directory temporary files, resolves containment
+before child mutation, rejects source/result symlink or junction escapes outside the
+configured logical root, and atomically publishes/reuses the final file only after
+SHA-256 verification. Concurrent publishers, including the Windows `os.replace()`
+loser case, converge on the verified final identity rather than sharing one temp name.
 
 ### Deterministic request builder
 
@@ -795,15 +798,29 @@ POST /v1/iqa/jobs/{job_id}/cancel
 The UI/controller owns worker scheduling, local tracked-job records, polling cadence,
 and stale callback rejection. The remote durable job remains server-owned.
 
-Create POST is deliberately never auto-retried. Terminal succeeded/partial result
-reference acquisition is an idempotent GET and has bounded 1s/2s/4s/8s recovery after
-the initial attempt. Completion never auto-opens Results; explicit `Open Result`
-resolves the logical result reference through current settings and delegates to the
-P5-B controller.
+Create POST is deliberately never auto-retried. One local preparation/create owner
+prevents duplicate in-process submissions; ambiguous create outcomes block further
+submission in that process rather than inviting a blind retry. Cooperative
+cancellation reaches preflight/hash/staging and checks again immediately before the
+create POST. Terminal succeeded/partial result-reference acquisition is an idempotent
+GET with bounded 1s/2s/4s/8s recovery after the initial attempt. Completion never
+auto-opens Results; explicit `Open Result` resolves the logical result reference
+through current settings and delegates to the P5-B controller.
 
 Client errors are classified as configuration, connection, timeout, HTTP, protocol,
 or storage-resolution failures. Result-path resolution is a separate machine-local
-storage operation after the server has returned portable result identity.
+storage operation after the server has returned portable result identity. Live
+storage-root changes use revision + pending re-resolution so stale old-mapping
+callbacks cannot overwrite the newest mapping.
+
+### Folder Pair preview lifecycle
+
+Folder Pair validation has feature-local latest-request ownership. Editing Folder A/B
+while an older validation is running invalidates the old preview; stale callbacks do
+not publish results, and completion of the latest in-flight validation restores the
+`Validate / Preview` action. A stale older worker cannot re-enable controls over a
+newer validation. This preview lifecycle does not acquire Files/Selected/current-page,
+source-residency, or preload authority.
 
 ### Single IQA workspace composition
 
@@ -840,22 +857,24 @@ server architecture:
 A future real GPU server plugs into the same REST/logical-storage contract rather than
 requiring a separate PixelScope transport architecture.
 
-## P5-C lifetime boundaries still under hardening
+## P5-C lifetime boundaries — implemented; closeout validation/review pending
 
-PR #42 is Draft because several lifecycle/resource details remain implementation
-blockers:
+PR #42 now implements the lifecycle/resource hardening that was previously tracked as
+merge-blocking:
 
-- staging temp publication must be safe across concurrent processes and resolved
-  containment must precede filesystem mutation;
-- running preflight/hash/staging must gain cooperative shutdown cancellation and a
-  final pre-POST cancellation boundary;
-- duplicate in-flight create must be prevented and ambiguous create-after-acceptance
-  must have explicit non-blind recovery semantics;
-- a settings change during result-path resolution must guarantee the newest mapping
-  wins after an in-flight resolver completes.
+- concurrent staging and resolved containment before filesystem mutation;
+- cooperative preflight/hash/staging cancellation plus a final pre-create checkpoint;
+- one in-flight local create owner and explicit ambiguous-create/no-blind-retry policy;
+- settings mapping revision + pending re-resolution so newest result-path mapping wins;
+- latest Folder Pair preview ownership so input edits cannot permanently disable
+  validation;
+- production-composition regressions for Current Pair A/B page-order authority and
+  Folder Pair isolation from Files/Selected/current page/residency/preload.
 
-These are P5-C closeout requirements. They do not authorize redesign of P2 source
-residency/preload or P5-A2/P5-B numerical/result ownership.
+These guards remain feature-local and do not redesign P2 source residency/preload or
+P5-A2/P5-B numerical/result ownership. Remaining P5-C work is current-head focused
+validation, independent closeout re-review, final full repository validation, and the
+owner merge decision.
 
 ## Runtime diagnostics and release boundaries
 
