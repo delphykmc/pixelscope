@@ -195,9 +195,7 @@ def test_folder_pair_preparation_does_not_mutate_local_image_authorities(
     preview = pair_folders(folder_a, folder_b)
     workspace.folder_a.setText(str(folder_a))
     workspace.folder_b.setText(str(folder_b))
-    workspace.set_folder_preview(
-        _FolderPreviewPayload(str(folder_a), str(folder_b), preview)
-    )
+    workspace.set_folder_preview(_FolderPreviewPayload(str(folder_a), str(folder_b), preview))
     assert _authority_snapshot(window) == before
 
     prepared: list[FolderPairEntry] = []
