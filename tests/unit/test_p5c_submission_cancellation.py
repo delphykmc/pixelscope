@@ -37,10 +37,7 @@ def _request() -> IqaJobRequest:
 
 def _png(path: Path) -> None:
     path.write_bytes(
-        b"\x89PNG\r\n\x1a\n"
-        + struct.pack(">I", 13)
-        + b"IHDR"
-        + struct.pack(">II", 8, 6)
+        b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", 8, 6)
     )
 
 
