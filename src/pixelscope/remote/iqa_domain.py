@@ -70,6 +70,7 @@ class Source:
     sha256: str
     width: int
     height: int
+    storage_root_id: str | None = None
 
 
 @dataclass(frozen=True)
