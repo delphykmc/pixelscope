@@ -81,9 +81,7 @@ def resolve_existing_source(
 
     source_path = Path(source)
     if not source_path.is_file():
-        raise StorageResolutionError(
-            f"source is missing or not a regular file: {source_path.name}"
-        )
+        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
     candidate = _longest_matching_root(source_path, settings.storage_roots)
     if candidate is None:
         return None
@@ -105,23 +103,14 @@ def stage_source(
 
     source_path = Path(source)
     if not source_path.is_file() or source_path.is_symlink():
-        raise StorageResolutionError(
-            f"source is missing or not a regular file: {source_path.name}"
-        )
+        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
     digest = sha256_file(source_path)
     relative_path = _portable_staged_path(digest, source_path.name)
     root = Path(staging_root)
     root_resolved = _resolve_existing_directory(root, "staging root")
-    final_parent = _ensure_contained_directory(
-        root,
-        root_resolved,
-        ("staging", digest),
-    )
+    final_parent = _ensure_contained_directory(root, root_resolved, ("staging", digest))
     final = final_parent / source_path.name
-    _assert_resolved_contained(
-        root_resolved,
-        _resolve_for_containment(final, strict=False),
-    )
+    _assert_resolved_contained(root_resolved, _resolve_for_containment(final, strict=False))
 
     if _existing_staged_target_is_valid(final, digest):
         return _staged_source(storage_root_id, relative_path, digest, final)
@@ -130,9 +119,7 @@ def stage_source(
     fd = -1
     try:
         fd, part_name = tempfile.mkstemp(
-            prefix=".pixelscope-iqa-",
-            suffix=".part",
-            dir=final_parent,
+            prefix=".pixelscope-iqa-", suffix=".part", dir=final_parent
         )
         part = Path(part_name)
         output = os.fdopen(fd, "wb")
@@ -203,14 +190,9 @@ def resolve_result_reference(
     validate_relative_path(relative_path)
     root = settings.root(storage_root_id)
     if root is None:
-        raise StorageResolutionError(
-            f"storage root '{storage_root_id}' is not configured"
-        )
+        raise StorageResolutionError(f"storage root '{storage_root_id}' is not configured")
     root_path = Path(root.client_path)
-    root_resolved = _resolve_existing_directory(
-        root_path,
-        f"storage root '{storage_root_id}'",
-    )
+    root_resolved = _resolve_existing_directory(root_path, f"storage root '{storage_root_id}'")
     target = root_path.joinpath(*PurePosixPath(relative_path).parts)
     target_resolved = _resolve_for_containment(target, strict=True)
     _assert_resolved_contained(root_resolved, target_resolved)
@@ -237,17 +219,12 @@ def _longest_matching_root(
             root_parts = tuple(part.casefold() for part in root_windows.parts)
             if source_parts[: len(root_parts)] != root_parts:
                 continue
-            relative = PureWindowsPath(
-                *source_windows.parts[len(root_windows.parts) :]
-            )
+            relative = PureWindowsPath(*source_windows.parts[len(root_windows.parts) :])
         if not relative.parts:
             continue
 
         try:
-            root_resolved = _resolve_for_containment(
-                Path(root.client_path),
-                strict=True,
-            )
+            root_resolved = _resolve_for_containment(Path(root.client_path), strict=True)
         except StorageResolutionError:
             continue
         if not _resolved_is_within(root_resolved, source_resolved):
@@ -269,9 +246,7 @@ def _windows_relative(source: str, root: str) -> str:
         if tuple(part.casefold() for part in source_parts[: len(root_parts)]) != tuple(
             part.casefold() for part in root_parts
         ):
-            raise StorageResolutionError(
-                "source is not contained by configured root"
-            ) from None
+            raise StorageResolutionError("source is not contained by configured root") from None
         relative = PureWindowsPath(*source_parts[len(root_parts) :])
     value = PurePosixPath(*relative.parts).as_posix()
     validate_relative_path(value)
@@ -362,9 +337,7 @@ def _assert_resolved_contained(root_resolved: Path, target_resolved: Path) -> No
 
 def _resolved_is_within(root_resolved: Path, target_resolved: Path) -> bool:
     try:
-        common = os.path.commonpath(
-            (os.fspath(root_resolved), os.fspath(target_resolved))
-        )
+        common = os.path.commonpath((os.fspath(root_resolved), os.fspath(target_resolved)))
     except ValueError:
         return False
     return os.path.normcase(common) == os.path.normcase(os.fspath(root_resolved))

@@ -57,10 +57,7 @@ def test_concurrent_staging_uses_unique_temps_and_one_verified_target(
     monkeypatch.setattr(iqa_storage.shutil, "copyfileobj", synchronized_copy)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        futures = [
-            pool.submit(stage_source, source, staging, "shared")
-            for _ in range(2)
-        ]
+        futures = [pool.submit(stage_source, source, staging, "shared") for _ in range(2)]
         results = [future.result(timeout=10) for future in futures]
 
     expected_digest = hashlib.sha256(payload).hexdigest()
