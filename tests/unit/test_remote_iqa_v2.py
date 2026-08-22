@@ -743,13 +743,13 @@ def test_grid_numerical_corruption_is_detected_lazily(golden_root: Path) -> None
     assert "numerical safety failure" in (outcome.reason or "")
 
 
-def test_partial_v2_is_explicitly_unsupported_for_stage2(golden_root: Path) -> None:
+def test_partial_v2_requires_scene_outcomes(golden_root: Path) -> None:
     manifest = _manifest(golden_root)
     manifest["publication_state"] = "partial"
     _write_manifest(golden_root, manifest)
     outcome = load_versioned_result(golden_root)
-    assert outcome.status is LoadStatus.UNSUPPORTED
-    assert "PARTIAL" in (outcome.reason or "")
+    assert outcome.status is LoadStatus.INVALID
+    assert "scene_outcomes" in (outcome.reason or "")
 
 
 def test_future_schema_version_is_unsupported(golden_root: Path) -> None:
