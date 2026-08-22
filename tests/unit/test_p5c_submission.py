@@ -35,6 +35,9 @@ from pixelscope.remote.iqa_submission import (
 
 
 def _png(path: Path, width: int, height: int) -> None:
+    if path.suffix.casefold() == ".bmp":
+        path.write_bytes(b"BM" + b"\x00" * 12 + struct.pack("<Iii", 40, width, height))
+        return
     path.write_bytes(
         b"\x89PNG\r\n\x1a\n"
         + struct.pack(">I", 13)
