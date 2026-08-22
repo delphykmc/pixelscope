@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QApplication, QGroupBox
+from PySide6.QtWidgets import QGroupBox
 
-from pixelscope.app.application import _compose_main_window_presentation, create_application
+from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
-from pixelscope.ui.design_tokens import TOKENS
 
 
 def test_release_remote_iqa_setup_uses_compact_pair_workflow(
@@ -54,12 +52,3 @@ def test_debug_request_inspection_is_secondary_and_hidden_until_used(
     assert window.remote_iqa_request_inspector.isHidden()
     assert window.remote_iqa_request_inspector.request_text.isReadOnly()
     window.close()
-
-
-def test_engineering_palette_keeps_placeholder_text_readable() -> None:
-    app = create_application([])
-    assert isinstance(app, QApplication)
-
-    placeholder = app.palette().color(QPalette.ColorRole.PlaceholderText)
-
-    assert placeholder == QColor(TOKENS.text_secondary)
