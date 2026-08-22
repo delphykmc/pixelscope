@@ -119,7 +119,9 @@ def stage_source(
     fd = -1
     try:
         fd, part_name = tempfile.mkstemp(
-            prefix=".pixelscope-iqa-", suffix=".part", dir=final_parent
+            prefix=".pixelscope-iqa-",
+            suffix=".part",
+            dir=final_parent,
         )
         part = Path(part_name)
         output = os.fdopen(fd, "wb")
