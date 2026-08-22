@@ -15,10 +15,7 @@ RESULT_MAPPING_REFRESH_MESSAGE = "storage mapping changed · resolving result pa
 
 
 def _mapping_identity(settings: RemoteIqaSettings) -> tuple[tuple[str, str], ...]:
-    return tuple(
-        (root.storage_root_id, root.client_path)
-        for root in settings.storage_roots
-    )
+    return tuple((root.storage_root_id, root.client_path) for root in settings.storage_roots)
 
 
 class RemoteIqaResultMappingGuard(QObject):
@@ -34,6 +31,7 @@ class RemoteIqaResultMappingGuard(QObject):
         )
         self._pending_jobs: set[str] = set()
         self._task_revisions: dict[str, int] = {}
+        self._task_jobs: dict[str, str] = {}
         self._starting_resolution: tuple[str, int] | None = None
 
         self._original_settings_changed = controller.settings_changed
@@ -130,6 +128,7 @@ class RemoteIqaResultMappingGuard(QObject):
             job_id, revision = self._starting_resolution
             if worker.document_id == job_id:
                 self._task_revisions[worker.task_id] = revision
+                self._task_jobs[worker.task_id] = job_id
         self._original_track_worker(worker)
 
     def _result_path_ready(
@@ -150,12 +149,11 @@ class RemoteIqaResultMappingGuard(QObject):
         )
 
     def _result_resolve_finished(self, task_id: str) -> None:
-        worker = self.controller._workers.get(task_id)
-        job_id = worker.document_id if worker is not None else None
+        job_id = self._task_jobs.pop(task_id, None)
         revision = self._task_revisions.pop(task_id, None)
         self._original_result_resolve_finished(task_id)
 
-        if not isinstance(job_id, str):
+        if job_id is None:
             return
         should_reresolve = job_id in self._pending_jobs or (
             revision is not None and revision != self._revision
