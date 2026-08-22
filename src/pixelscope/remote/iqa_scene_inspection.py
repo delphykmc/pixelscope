@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from pixelscope.core.cancellation import cancellation_checkpoint
+from pixelscope.io.path_discovery import ORDINARY_IMAGE_SUFFIXES
 from pixelscope.remote.iqa_domain import Source
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_storage import (
@@ -17,7 +18,6 @@ from pixelscope.remote.iqa_storage import (
 )
 from pixelscope.remote.iqa_v2_domain import ResultV2
 
-_NATIVE_IMAGE_SUFFIXES = frozenset({".bmp", ".jpeg", ".jpg", ".png"})
 _JPEG_SOF_MARKERS = frozenset(
     {
         0xC0,
@@ -35,6 +35,7 @@ _JPEG_SOF_MARKERS = frozenset(
         0xCF,
     }
 )
+_JPEG_STANDALONE_MARKERS = frozenset({0x01, *range(0xD0, 0xD9)})
 _MAX_JPEG_PROBE_BYTES = 1024 * 1024
 
 
@@ -127,6 +128,7 @@ def verify_scene_sources(
                     reason="Source dimensions changed",
                     failed_source_id=source.source_id,
                 )
+            cancellation_checkpoint()
             if sha256_file(local_path) != source.sha256:
                 return SceneVerificationOutcome(
                     scene_id=scene_id,
@@ -174,7 +176,7 @@ def _resolve_published_source(source: Source, settings: RemoteIqaSettings) -> Pa
         or resolved.logical_path.relative_path != source.relative_path
     ):
         raise StorageResolutionError("published logical source locator does not match")
-    if resolved.local_path.suffix.lower() not in _NATIVE_IMAGE_SUFFIXES:
+    if resolved.local_path.suffix.lower() not in ORDINARY_IMAGE_SUFFIXES:
         raise StorageResolutionError("published source type is not supported for native Inspect")
     return resolved.local_path
 
@@ -237,7 +239,7 @@ def _probe_jpeg(path: Path) -> tuple[int, int]:
             if not marker_byte:
                 break
             marker = marker_byte[0]
-            if marker in {0x01, *range(0xD0, 0xD9)}:
+            if marker in _JPEG_STANDALONE_MARKERS:
                 continue
             length_bytes = stream.read(2)
             scanned += 2
