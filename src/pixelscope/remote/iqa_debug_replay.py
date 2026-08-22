@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from pixelscope.remote.iqa_storage import StorageResolutionError, validate_relative_path
-from pixelscope.remote.iqa_submission import IqaResultReference, JobState, MAX_SCENES
+from pixelscope.remote.iqa_submission import MAX_SCENES, IqaResultReference, JobState
 
 DEBUG_REPLAY_FORMAT = "pixelscope-iqa-replay-v1"
 MAX_REPLAY_BYTES = 64 * 1024

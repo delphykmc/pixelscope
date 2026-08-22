@@ -91,9 +91,7 @@ def write_debug_result_bundle(
     manifest = _read_manifest(manifest_path)
     manifest["result_id"] = job_id
     if mode is not DebugResultMode.COMPLETE:
-        failed_status = (
-            "failed" if mode is DebugResultMode.PARTIAL_FAILED else "cancelled"
-        )
+        failed_status = "failed" if mode is DebugResultMode.PARTIAL_FAILED else "cancelled"
         manifest["publication_state"] = publication_state
         manifest["scene_outcomes"] = [
             {"scene_id": scene["scene_id"], "status": "succeeded"}
@@ -122,9 +120,7 @@ def write_debug_result_bundle(
     return DebugResultBundle(result_root, output_replay, replay)
 
 
-def _mode_state(
-    mode: DebugResultMode,
-) -> tuple[JobState, str, int, int, str]:
+def _mode_state(mode: DebugResultMode) -> tuple[JobState, str, int, int, str]:
     if mode is DebugResultMode.COMPLETE:
         return (
             JobState.SUCCEEDED,

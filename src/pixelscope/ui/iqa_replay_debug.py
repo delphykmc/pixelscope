@@ -50,9 +50,7 @@ class RemoteIqaReplayDebugController(QObject):
         except (OSError, ReplayValidationError, RuntimeError, ValueError) as exc:
             self.status.setText(f"DEBUG replay blocked · {_bounded(str(exc))}")
             return None
-        self.status.setText(
-            f"DEBUG replay loaded · {job.job_id} · use Open Result explicitly"
-        )
+        self.status.setText(f"DEBUG replay loaded · {job.job_id} · use Open Result explicitly")
         return job
 
 
@@ -85,9 +83,7 @@ def register_replay_record(window: Any, replay: IqaReplayRecord) -> RemoteJobRec
     return job
 
 
-def install_remote_iqa_replay_debug(
-    window: Any,
-) -> RemoteIqaReplayDebugController | None:
+def install_remote_iqa_replay_debug(window: Any) -> RemoteIqaReplayDebugController | None:
     """Install a Jobs-tab replay action only when the shared P5-C debug opt-in is active."""
 
     if not request_debug_enabled():
