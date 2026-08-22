@@ -35,6 +35,7 @@ class RemoteIqaPreviewLifecycle(QObject):
             return
         self._revision += 1
         revision = self._revision
+        revision_id = str(revision)
         self._active_revision = revision
         self.workspace.show_preview_loading()
         worker = TaskWorker(
@@ -43,7 +44,7 @@ class RemoteIqaPreviewLifecycle(QObject):
                 folder_b,
                 pair_folders(folder_a, folder_b),
             ),
-            document_id=revision,
+            document_id=revision_id,
             generation=self.controller._generation,
         )
         self._workers[worker.task_id] = (revision, folder_a, folder_b)
@@ -64,7 +65,7 @@ class RemoteIqaPreviewLifecycle(QObject):
         if ownership is None:
             return
         revision, folder_a, folder_b = ownership
-        if revision != self._active_revision or document_id != revision:
+        if revision != self._active_revision or document_id != str(revision):
             return
         current_identity = (
             self.workspace.folder_a.text().strip(),
@@ -91,7 +92,7 @@ class RemoteIqaPreviewLifecycle(QObject):
         if ownership is None:
             return
         revision, folder_a, folder_b = ownership
-        if revision != self._active_revision or document_id != revision:
+        if revision != self._active_revision or document_id != str(revision):
             return
         current_identity = (
             self.workspace.folder_a.text().strip(),

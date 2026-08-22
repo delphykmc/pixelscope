@@ -163,9 +163,7 @@ def test_current_pair_submission_keeps_page_order_after_primary_and_active_reord
 
     controller.submit_current_pair()
 
-    assert captured_paths == [
-        (documents[0].source_path, documents[1].source_path)
-    ]
+    assert captured_paths == [(documents[0].source_path, documents[1].source_path)]
     assert window.current_comparison_documents() == documents
     window.close()
 
