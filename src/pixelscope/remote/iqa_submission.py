@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import BinaryIO
 
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_storage import ResolvedSource, resolve_or_stage_source
 
@@ -150,6 +151,7 @@ def is_remote_eligible_path(path: Path | str) -> bool:
 def probe_image(path: Path | str) -> ImageProbe:
     """Read only format headers/markers required for original dimensions."""
 
+    cancellation_checkpoint()
     image_path = Path(path)
     if not image_path.is_file() or image_path.is_symlink():
         raise PreflightError(f"missing source: {image_path.name}")
@@ -160,6 +162,7 @@ def probe_image(path: Path | str) -> ImageProbe:
         raise PreflightError(f"unsupported Remote IQA input: {image_path.name}")
     try:
         with image_path.open("rb") as stream:
+            cancellation_checkpoint()
             if suffix == ".png":
                 width, height = _probe_png(stream)
             elif suffix == ".bmp":
@@ -168,6 +171,7 @@ def probe_image(path: Path | str) -> ImageProbe:
                 width, height = _probe_jpeg(stream)
     except OSError as exc:
         raise PreflightError(f"unreadable image: {image_path.name}") from exc
+    cancellation_checkpoint()
     if width <= 0 or height <= 0:
         raise PreflightError(f"invalid image dimensions: {image_path.name}")
     return ImageProbe(image_path, width, height)
@@ -177,7 +181,9 @@ def pair_current_paths(
     path_a: Path | str,
     path_b: Path | str,
 ) -> tuple[FolderPairEntry, ...]:
+    cancellation_checkpoint()
     a = probe_image(path_a)
+    cancellation_checkpoint()
     b = probe_image(path_b)
     _require_same_dimensions(a, b, "Current Pair")
     return (FolderPairEntry("scene_000000", a, b),)
@@ -189,7 +195,9 @@ def pair_folders(
 ) -> tuple[FolderPairEntry, ...]:
     """Apply the durable P5 lexical two-folder Pair algorithm."""
 
+    cancellation_checkpoint()
     a_paths = _folder_eligible_paths(Path(folder_a))
+    cancellation_checkpoint()
     b_paths = _folder_eligible_paths(Path(folder_b))
     if len(a_paths) != len(b_paths):
         raise PreflightError(f"Folder Pair count mismatch: A={len(a_paths)}, B={len(b_paths)}")
@@ -199,11 +207,14 @@ def pair_folders(
         raise PreflightError(f"Folder Pair exceeds {MAX_SCENES} Scene safety limit")
     entries: list[FolderPairEntry] = []
     for index, (path_a, path_b) in enumerate(zip(a_paths, b_paths, strict=True)):
+        cancellation_checkpoint()
         probe_a = probe_image(path_a)
+        cancellation_checkpoint()
         probe_b = probe_image(path_b)
         scene_id = f"scene_{index:06d}"
         _require_same_dimensions(probe_a, probe_b, scene_id)
         entries.append(FolderPairEntry(scene_id, probe_a, probe_b))
+    cancellation_checkpoint()
     return tuple(entries)
 
 
@@ -215,6 +226,7 @@ def build_request(
 ) -> IqaJobRequest:
     """Resolve/hash/stage sequentially and build the explicit ordered Scene manifest."""
 
+    cancellation_checkpoint()
     if not settings.server_base_url:
         raise PreflightError("Remote IQA server URL is not configured")
     if not settings.storage_roots:
@@ -222,8 +234,10 @@ def build_request(
     cache: dict[Path, ResolvedSource] = {}
     scenes: list[SceneRequest] = []
     for entry in entries:
+        cancellation_checkpoint()
         pair: list[tuple[str, PortableSourceRequest]] = []
         for variant_id, probe in (("A", entry.source_a), ("B", entry.source_b)):
+            cancellation_checkpoint()
             key = probe.path.resolve(strict=False)
             resolved = cache.get(key)
             if resolved is None:
@@ -232,6 +246,7 @@ def build_request(
                 except ValueError as exc:
                     raise PreflightError(str(exc)) from exc
                 cache[key] = resolved
+            cancellation_checkpoint()
             pair.append(
                 (
                     variant_id,
@@ -245,15 +260,18 @@ def build_request(
                 )
             )
         scenes.append(SceneRequest(entry.scene_id, tuple(pair)))
+    cancellation_checkpoint()
     return IqaJobRequest(submission_kind, VARIANT_IDS, tuple(scenes))
 
 
 def _folder_eligible_paths(folder: Path) -> tuple[Path, ...]:
+    cancellation_checkpoint()
     if not folder.is_dir():
         raise PreflightError(f"folder is unavailable: {folder}")
     candidates: list[tuple[str, str, Path]] = []
     try:
         for item in folder.iterdir():
+            cancellation_checkpoint()
             if item.is_symlink() or not item.is_file():
                 continue
             if item.suffix.casefold() not in SUPPORTED_REMOTE_SUFFIXES:
@@ -274,6 +292,7 @@ def _require_same_dimensions(a: ImageProbe, b: ImageProbe, context: str) -> None
 
 
 def _probe_png(stream: BinaryIO) -> tuple[int, int]:
+    cancellation_checkpoint()
     header = stream.read(24)
     if len(header) != 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
         raise PreflightError("unreadable PNG header")
@@ -281,6 +300,7 @@ def _probe_png(stream: BinaryIO) -> tuple[int, int]:
 
 
 def _probe_bmp(stream: BinaryIO) -> tuple[int, int]:
+    cancellation_checkpoint()
     header = stream.read(26)
     if len(header) != 26 or header[:2] != b"BM":
         raise PreflightError("unreadable BMP header")
@@ -296,6 +316,7 @@ def _probe_bmp(stream: BinaryIO) -> tuple[int, int]:
 
 
 def _probe_jpeg(stream: BinaryIO) -> tuple[int, int]:
+    cancellation_checkpoint()
     if stream.read(2) != b"\xff\xd8":
         raise PreflightError("unreadable JPEG header")
     sof_markers = {
@@ -315,6 +336,7 @@ def _probe_jpeg(stream: BinaryIO) -> tuple[int, int]:
     }
     scanned = 2
     while scanned < 16 * 1024 * 1024:
+        cancellation_checkpoint()
         byte = stream.read(1)
         scanned += 1
         if not byte:
@@ -322,6 +344,7 @@ def _probe_jpeg(stream: BinaryIO) -> tuple[int, int]:
         if byte != b"\xff":
             continue
         while True:
+            cancellation_checkpoint()
             marker_byte = stream.read(1)
             scanned += 1
             if not marker_byte:

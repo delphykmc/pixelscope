@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.remote.iqa_submission import (
     IqaJobCreated,
     IqaJobRequest,
@@ -31,10 +32,21 @@ class IqaClientErrorKind(str, Enum):
 class IqaClientError(RuntimeError):
     """Bounded classified client error suitable for Jobs UI display."""
 
-    def __init__(self, kind: IqaClientErrorKind, message: str) -> None:
+    def __init__(
+        self,
+        kind: IqaClientErrorKind,
+        message: str,
+        *,
+        status_code: int | None = None,
+    ) -> None:
         self.kind = kind
         self.detail = _bounded_text(message)
+        self.status_code = status_code
         super().__init__(f"{kind.value}: {self.detail}")
+
+
+class IqaCreateOutcomeUnknown(IqaClientError):
+    """The create POST may have reached the server, but no durable job ID was confirmed."""
 
 
 class IqaJobClient(ABC):
@@ -92,12 +104,24 @@ class HttpIqaJobClient(IqaJobClient):
         self._client.close()
 
     def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
-        data = self._request_json("POST", "/v1/iqa/jobs", json=request.to_json())
-        job_id = _job_id(_required_string(data, "job_id"))
-        state = _job_state(data.get("state", JobState.QUEUED.value))
-        if state.terminal:
-            raise _protocol_error("create-job response unexpectedly reported a terminal state")
-        return IqaJobCreated(job_id, state)
+        # Final cooperative checkpoint before the non-idempotent create POST.
+        cancellation_checkpoint()
+        try:
+            data = self._request_json("POST", "/v1/iqa/jobs", json=request.to_json())
+            job_id = _job_id(_required_string(data, "job_id"))
+            state = _job_state(data.get("state", JobState.QUEUED.value))
+            if state.terminal:
+                raise _protocol_error("create-job response unexpectedly reported a terminal state")
+            return IqaJobCreated(job_id, state)
+        except IqaClientError as exc:
+            if _create_outcome_is_ambiguous(exc):
+                raise IqaCreateOutcomeUnknown(
+                    exc.kind,
+                    "create outcome unknown; server may have accepted the job; "
+                    f"do not blindly resubmit · {exc.detail}",
+                    status_code=exc.status_code,
+                ) from exc
+            raise
 
     def get_status(self, job_id: str) -> IqaJobStatus:
         data = self._request_json("GET", f"/v1/iqa/jobs/{_job_id(job_id)}")
@@ -171,6 +195,7 @@ class HttpIqaJobClient(IqaJobClient):
             raise IqaClientError(
                 IqaClientErrorKind.HTTP,
                 f"HTTP {status} for {method} {path}",
+                status_code=status,
             ) from exc
         try:
             data = response.json()
@@ -182,6 +207,20 @@ class HttpIqaJobClient(IqaJobClient):
         if not isinstance(data, dict):
             raise _protocol_error("server response must be a JSON object")
         return data
+
+
+def _create_outcome_is_ambiguous(error: IqaClientError) -> bool:
+    if error.kind in {
+        IqaClientErrorKind.CONNECT,
+        IqaClientErrorKind.TIMEOUT,
+        IqaClientErrorKind.PROTOCOL,
+    }:
+        return True
+    return (
+        error.kind is IqaClientErrorKind.HTTP
+        and error.status_code is not None
+        and error.status_code >= 500
+    )
 
 
 def _job_state(value: object) -> JobState:

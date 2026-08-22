@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, BinaryIO
 
+from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 
 HASH_CHUNK_BYTES = 1024 * 1024
@@ -38,6 +39,15 @@ class ResolvedSource:
     staged: bool
 
 
+class _CheckpointReader:
+    def __init__(self, stream: BinaryIO) -> None:
+        self._stream = stream
+
+    def read(self, size: int = -1) -> bytes:
+        cancellation_checkpoint()
+        return self._stream.read(size)
+
+
 def validate_relative_path(value: str) -> None:
     if not value or "\x00" in value or len(value) > 2048:
         raise StorageResolutionError("relative_path must be a non-empty bounded path")
@@ -56,17 +66,20 @@ def validate_relative_path(value: str) -> None:
 def sha256_file(path: Path, *, chunk_size: int = HASH_CHUNK_BYTES) -> str:
     """Hash a file without materializing it in memory."""
 
+    cancellation_checkpoint()
     digest = hashlib.sha256()
     try:
         with path.open("rb") as stream:
             _update_hash(digest, stream, chunk_size)
     except OSError as exc:
         raise StorageResolutionError(f"unable to read source: {path.name}") from exc
+    cancellation_checkpoint()
     return digest.hexdigest()
 
 
 def _update_hash(digest: Any, stream: BinaryIO, chunk_size: int) -> None:
     while True:
+        cancellation_checkpoint()
         chunk = stream.read(chunk_size)
         if not chunk:
             return
@@ -79,6 +92,7 @@ def resolve_existing_source(
 ) -> ResolvedSource | None:
     """Resolve a source already under a configured root; longest safe match wins."""
 
+    cancellation_checkpoint()
     source_path = Path(source)
     if not source_path.is_file():
         raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
@@ -101,6 +115,7 @@ def stage_source(
 ) -> ResolvedSource:
     """Publish one source using content-addressed staging and atomic replacement."""
 
+    cancellation_checkpoint()
     source_path = Path(source)
     if not source_path.is_file() or source_path.is_symlink():
         raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
@@ -115,6 +130,7 @@ def stage_source(
     if _existing_staged_target_is_valid(final, digest):
         return _staged_source(storage_root_id, relative_path, digest, final)
 
+    cancellation_checkpoint()
     part: Path | None = None
     fd = -1
     try:
@@ -127,24 +143,25 @@ def stage_source(
         output = os.fdopen(fd, "wb")
         fd = -1
         with source_path.open("rb") as src, output as dst:
-            shutil.copyfileobj(src, dst, length=COPY_CHUNK_BYTES)
+            shutil.copyfileobj(
+                _CheckpointReader(src),
+                dst,
+                length=COPY_CHUNK_BYTES,
+            )
+            cancellation_checkpoint()
             dst.flush()
             os.fsync(dst.fileno())
         if sha256_file(part) != digest:
             raise StorageResolutionError("staging copy failed SHA-256 verification")
 
-        # Another PixelScope process may have published the same content-addressed
-        # target while this process was copying. Reuse only after identity
-        # verification; otherwise publish our independently named temporary file.
         if _existing_staged_target_is_valid(final, digest):
             return _staged_source(storage_root_id, relative_path, digest, final)
 
+        cancellation_checkpoint()
         os.replace(part, final)
         part = None
         if not _existing_staged_target_is_valid(final, digest):
-            raise StorageResolutionError(
-                "published staged target failed SHA-256 identity verification"
-            )
+            raise StorageResolutionError("published staged target failed SHA-256 identity verification")
     except StorageResolutionError:
         raise
     except OSError as exc:
@@ -166,6 +183,7 @@ def resolve_or_stage_source(
 ) -> ResolvedSource:
     """Resolve a configured source or safely stage it under the selected staging root."""
 
+    cancellation_checkpoint()
     existing = resolve_existing_source(source, settings)
     if existing is not None:
         return existing
@@ -179,6 +197,7 @@ def resolve_or_stage_source(
     root_path = Path(staging.client_path)
     if not root_path.is_dir():
         raise StorageResolutionError("staging root is unavailable")
+    cancellation_checkpoint()
     return stage_source(source, root_path, staging.storage_root_id)
 
 
@@ -209,10 +228,12 @@ def _longest_matching_root(
 ) -> RemoteIqaStorageRoot | None:
     """Choose the longest lexical Windows root whose resolved path contains source."""
 
+    cancellation_checkpoint()
     source_windows = PureWindowsPath(str(source))
     source_resolved = _resolve_for_containment(source, strict=True)
     matches: list[tuple[int, RemoteIqaStorageRoot]] = []
     for root in roots:
+        cancellation_checkpoint()
         root_windows = PureWindowsPath(root.client_path)
         try:
             relative = source_windows.relative_to(root_windows)
@@ -276,6 +297,7 @@ def _staged_source(
 
 
 def _existing_staged_target_is_valid(final: Path, digest: str) -> bool:
+    cancellation_checkpoint()
     if final.is_symlink():
         raise StorageResolutionError("existing staged target is not a regular file")
     if not final.exists():
@@ -297,6 +319,7 @@ def _ensure_contained_directory(
     current = root
     current_resolved = root_resolved
     for part in relative_parts:
+        cancellation_checkpoint()
         _assert_resolved_contained(root_resolved, current_resolved)
         candidate = current / part
         try:
