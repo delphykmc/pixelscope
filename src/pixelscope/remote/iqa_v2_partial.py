@@ -1,29 +1,13 @@
-"""Executable schema-v2 PARTIAL result support owned by P5-C."""
+"""Schema-v2 PARTIAL domain and scene-outcome structural validation."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
-from pixelscope.remote.iqa_domain import LoadStatus
-from pixelscope.remote.iqa_v2_domain import ResultV2, VersionedResultLoadOutcome
-from pixelscope.remote.iqa_v2_manifest import bounded_list, bounded_string, integer, parse_complete_manifest
-from pixelscope.remote.iqa_v2_reader import (
-    _load_summary,
-    _parse_dataset_summaries,
-    _populate_scene_summaries,
-    _validate_summary_identity,
-)
-from pixelscope.remote.iqa_v2_support import (
-    V2_MAX_ID_LENGTH,
-    V2_MAX_SCENES,
-    CorruptV2,
-    InvalidV2,
-    UnsupportedV2,
-    read_manifest,
-    safe_artifact,
-)
+from pixelscope.remote.iqa_v2_domain import ResultV2
+from pixelscope.remote.iqa_v2_manifest import bounded_list, bounded_string
+from pixelscope.remote.iqa_v2_support import V2_MAX_ID_LENGTH, V2_MAX_SCENES, InvalidV2
 
 MAX_SCENE_ERROR_CODE_LENGTH = 128
 MAX_SCENE_ERROR_MESSAGE_LENGTH = 512
@@ -61,67 +45,9 @@ class PartialResultV2(ResultV2):
         return tuple(item for item in self.scene_outcomes if item.status != "succeeded")
 
 
-def load_partial_result_v2(root: Path | str) -> VersionedResultLoadOutcome:
-    """Load a v2 PARTIAL publication without weakening complete Scene invariants."""
+def parse_scene_outcomes(data: dict[str, Any]) -> tuple[SceneOutcomeV2, ...]:
+    """Parse bounded outcomes while preserving unknown future error-code strings."""
 
-    result_root = Path(root)
-    try:
-        manifest = read_manifest(result_root)
-        if manifest.get("kind") != "pixelscope-iqa-result":
-            raise InvalidV2("manifest kind must be pixelscope-iqa-result")
-        version = integer(manifest, "schema_version")
-        if version != 2:
-            raise UnsupportedV2(f"schema-v2 PARTIAL reader cannot read schema_version {version}")
-        if manifest.get("publication_state") != "partial":
-            raise InvalidV2("PARTIAL reader requires publication_state=partial")
-
-        outcomes = _parse_scene_outcomes(manifest)
-        parsed = parse_complete_manifest(result_root, manifest)
-        successful_ids = tuple(item.scene_id for item in outcomes if item.status == "succeeded")
-        scene_ids = tuple(scene.scene_id for scene in parsed.scenes)
-        if successful_ids != scene_ids:
-            raise InvalidV2(
-                "successful scene_outcomes must correspond exactly to scenes[] in request order"
-            )
-        if not successful_ids:
-            raise InvalidV2("PARTIAL result requires at least one successful Scene")
-        if len(successful_ids) == len(outcomes):
-            raise InvalidV2("PARTIAL result requires at least one failed or cancelled Scene")
-
-        summary_path = safe_artifact(result_root, parsed.summary_artifact)
-        arrays = _load_summary(
-            summary_path,
-            parsed.summary_uncompressed_size,
-            len(parsed.scenes),
-            len(parsed.variants),
-            len(parsed.attributes),
-        )
-        _validate_summary_identity(arrays, parsed.scenes, parsed.variants, parsed.attributes)
-        scenes = _populate_scene_summaries(parsed.scenes, parsed.attributes, arrays)
-        dataset = _parse_dataset_summaries(scenes, parsed.variants, parsed.attributes, arrays)
-        return VersionedResultLoadOutcome(
-            LoadStatus.SUCCESS,
-            result=PartialResultV2(
-                root=result_root.resolve(),
-                result_id=parsed.result_id,
-                schema_version=2,
-                variants=parsed.variants,
-                attributes=parsed.attributes,
-                scenes=scenes,
-                dataset_summaries=dataset,
-                summary_artifact=parsed.summary_artifact,
-                scene_outcomes=outcomes,
-            ),
-        )
-    except UnsupportedV2 as exc:
-        return VersionedResultLoadOutcome(LoadStatus.UNSUPPORTED, reason=str(exc))
-    except InvalidV2 as exc:
-        return VersionedResultLoadOutcome(LoadStatus.INVALID, reason=str(exc))
-    except CorruptV2 as exc:
-        return VersionedResultLoadOutcome(LoadStatus.CORRUPT, reason=str(exc))
-
-
-def _parse_scene_outcomes(data: dict[str, Any]) -> tuple[SceneOutcomeV2, ...]:
     raw_outcomes = bounded_list(data, "scene_outcomes", V2_MAX_SCENES)
     if len(raw_outcomes) < 2:
         raise InvalidV2("PARTIAL result requires success plus failed/cancelled Scene outcomes")

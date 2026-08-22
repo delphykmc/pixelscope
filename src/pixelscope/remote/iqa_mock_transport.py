@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from dataclasses import dataclass
 from threading import Lock
@@ -88,8 +89,8 @@ class MockIqaService:
             return httpx.Response(503, json={"detail": "no scripted job"})
         script = self._scripts.pop(0)
         try:
-            payload = request.json()
-        except ValueError:
+            payload = json.loads(request.content.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError):
             return httpx.Response(400, json={"detail": "invalid json"})
         if not isinstance(payload, dict):
             return httpx.Response(400, json={"detail": "invalid request"})
@@ -161,7 +162,10 @@ class MockIqaService:
     @staticmethod
     def _cancelled_payload(job_id: str, job: _MockJob) -> dict[str, object]:
         step = job.step
-        payload: dict[str, object] = {"job_id": job_id, "state": JobState.CANCELLED.value}
+        payload: dict[str, object] = {
+            "job_id": job_id,
+            "state": JobState.CANCELLED.value,
+        }
         if step.completed_scenes is not None:
             payload["completed_scenes"] = step.completed_scenes
         if step.total_scenes is not None:

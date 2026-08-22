@@ -9,7 +9,6 @@ from typing import Any
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_reader import load_result as load_result_v1
 from pixelscope.remote.iqa_v2_domain import VersionedResultLoadOutcome
-from pixelscope.remote.iqa_v2_partial import load_partial_result_v2
 from pixelscope.remote.iqa_v2_reader import V2_MANIFEST_LIMIT, load_result_v2
 
 
@@ -35,8 +34,6 @@ def load_result(root: Path | str) -> VersionedResultLoadOutcome:
             LoadStatus.INVALID, reason="schema_version must be an integer"
         )
     if version == 2:
-        if manifest.get("publication_state") == "partial":
-            return load_partial_result_v2(result_root)
         return load_result_v2(result_root)
     if version == 1:
         legacy = load_result_v1(result_root)
