@@ -74,9 +74,9 @@ class HttpIqaJobClient(IqaJobClient):
             raise ValueError("timeout_seconds must be positive")
         try:
             parsed = httpx.URL(base_url)
-        except (TypeError, ValueError) as exc:
+        except (httpx.InvalidURL, TypeError, ValueError) as exc:
             raise IqaClientError(IqaClientErrorKind.CONFIG, "server base URL is invalid") from exc
-        if parsed.scheme not in {"http", "https"} or parsed.host is None:
+        if parsed.scheme not in {"http", "https"} or not parsed.host:
             raise IqaClientError(
                 IqaClientErrorKind.CONFIG,
                 "server base URL must use http or https and include a host",
