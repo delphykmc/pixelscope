@@ -419,7 +419,7 @@ P2 worker/residency identity remain unchanged.
 
 - User-facing buttons are **Load Profile...** and **Save Profile...**; JSON remains
   the compatible profile format.
-- Settings schema remains v5.
+- Settings schema remains v5 at the P3-D boundary.
 - RawProfile gains no artificial version field solely for this slice.
 - No global profile database/library, Settings-owned profile collection,
   favorites, rename/duplicate/delete manager, search UI, size-only/fuzzy profile
@@ -503,7 +503,8 @@ P4-A merged as PR #29 at
   baseline/Pick Set before or with the ordinary mutation.
 - Registration-only folder input does not invalidate captured curation state because
   it does not mutate Selected.
-- Temporary curation state is not persisted. Settings schema remains v5.
+- Temporary curation state is not persisted. Settings schema remains v5 at the P4-A
+  boundary.
 - Comparison Page navigation creates no speculative preload for picked sources. P2
   preload remains Folder Position +1, one position, max-one worker.
 - Difference numerical semantics, Display Gain, RAW Black/White/native-source
@@ -553,7 +554,8 @@ P4-B merged as PR #30 at
   residency/LRU/protection, preload/promotion, Difference maps/cache, Display Gain,
   analysis request/results, workers/tokens/generation, Split/Difference derived
   documents, transient view state, ROI/Line, or temporary Picks.
-- Comparison Sets are external user artifacts and do not change Settings schema v5.
+- Comparison Sets are external user artifacts and do not change Settings schema v5
+  at the P4-B boundary.
 - P4-C / PR #31 supersedes current writes/UI with Session v1 while retaining this
   legacy Comparison Set v1 read-compatibility contract.
 
@@ -582,7 +584,7 @@ contract is `docs/SESSION_CONTRACT.md`.
 - Recent Images/Folders/Sessions are typed max-10 path-only MRUs and best-effort
   observer metadata outside Settings schema v5. Image, Folder, and Session activation
   delegate to their canonical workflows.
-- Settings schema remains v5.
+- Settings schema remains v5 at the P4-C boundary.
 
 ## P4-E Analysis Export Productivity decisions — Complete
 
@@ -616,7 +618,7 @@ P4-E merged as PR #34 at
 - CSV artifacts are small and may be serialized synchronously from already-computed
   in-memory result series.
 - File dialogs reuse the existing configured Export directory; no new export
-  setting/schema is added. Settings remains v5.
+  setting/schema is added at the P4-E boundary.
 - Missing/in-flight result actions are unavailable or safe no-ops. Cancel mutates
   nothing; failed writes report compact status without workspace mutation.
 - P4-D Saved ROI and Alpha Overlay remain deferred and are not P4 completion
@@ -635,139 +637,165 @@ P4-F merged as PR #35; the P4-complete main baseline is
 - P4-D Saved/named/multiple ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle
   Line Profile remain deferred beyond P4.
 
-## P5 Remote IQA program decisions — executable schema v2 / P5-B active
+## P5 Remote IQA decisions — executable schema v2 / P5-C active
 
-P5-0 remains the docs-only transition from completed P4. P5-A / PR #37 merged schema
-v1 at `fceb16f6e43c48ec65fbf7ebbcc103b56716b686` and is the **historical executable
-read-only result baseline**. P5-A2 Stage 1 / PR #39 merged at
-`4f2d58f36152cbebd1110a2aed09afacc6f09596` and froze the durable schema-v2
-ownership contract. P5-A2 Stage 2 / PR #40 merged at
-`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6` and is the executable-v2 authority.
-P5-B / PR #38 is now Active / merge candidate on that baseline; P5-C is the next
-planned slice after P5-B closes.
+P5-0 / PR #36 established the program. P5-A / PR #37 is the historical executable
+schema-v1 baseline. P5-A2 Stage 1 / PR #39 established the durable schema-v2 model;
+Stage 2 / PR #40 is the executable schema-v2 authority. P5-B / PR #38 is merged at
+`a44978db783ebcecb0d55f8abb52b583e0fdc47c` and owns the canonical local Results
+workspace. P5-C / PR #42 is the active submission/shared-storage slice.
 
-`docs/REMOTE_IQA_V2_SPEC.md` is the normative current result/math/artifact contract.
-`REMOTE_IQA_V1_SPEC.md` remains historical and is not rewritten.
+`docs/REMOTE_IQA_CONTRACT.md` is the product/transport ownership authority.
+`docs/REMOTE_IQA_V2_SPEC.md` is the current numerical/artifact authority.
+`docs/REMOTE_IQA_V1_SPEC.md` remains historical and unchanged.
 
 ### Preserved local authority
 
 - Remote IQA remains feature-local and does not replace
   `Registered → Selected → Current Comparison Page → Presented → Resident` or
   `Analysis Working Set = Current Comparison Page`.
-- Session v1 remains unchanged. Remote numeric arrays, running jobs, and batch
-  membership do not become Session/source/residency/preload/Difference authority.
+- Session v1 remains unchanged. Remote numeric arrays, running jobs, batch
+  membership, and machine-local root mappings do not become Session/source/
+  residency/preload/Difference authority.
 - Passive IQA result browsing does not mutate Files/Selected/Primary/native analysis.
-- Actual historical source opening remains under logical-root/hash/canonical local
-  registration authority rather than direct use of result-relative paths.
+- Native source Inspect remains a later P5-D logical-root/hash/canonical-registration
+  action rather than direct use of result `relative_path`.
 
-### Executable version and artifact authority
+### Executable version/result decisions
 
 - Canonical `iqa_result_reader.load_result()` dispatches schema v2 to the native v2
-  reader, schema v1 to the existing read-only reader, and other versions to
+  reader, schema v1 to historical read-only compatibility, and other versions to
   `UNSUPPORTED`; there is no synthesized v1→v2 measurement upgrade.
-- Normal v2 open is summary-first and performs filesystem I/O for `manifest.json` and
-  `summary.npz` only. Deferred grid/detail references receive path-syntax validation;
-  `load_grid_scene()` owns resolved containment, existence, NPZ and array validation.
-- Optional detail references remain opaque in Stage 2; typed detail-map semantics are
-  deferred rather than inferred from filenames.
-- COMPLETE cross-variant SceneGeometry and per-attribute GridGeometry are exactly
-  equal after parsing. PixelScope never aligns/resizes/index-zips incompatible grids.
+- Normal v2 open is summary-first: manifest + summary only. `load_grid_scene()` owns
+  deferred grid filesystem/materialization/numerical validation.
+- Optional detail references remain opaque until P5-D defines a typed consumer.
+- Every published successful Scene, whether COMPLETE or PARTIAL, binds every declared
+  `variant_id` once in top-level order and obeys the same exact geometry/numerical
+  rules. Failed/cancelled requested Scenes are not represented by incomplete
+  published Scenes.
 
 ### Identity decisions
 
-- `variant_id` is stable comparison-slot/Reference identity across Scenes.
-- `source_id` is stable concrete-image identity. It may repeat across Scenes **and
-  across multiple variant slots in the same Scene** when `relative_path`, SHA-256,
-  width, and height are identical.
-- Each COMPLETE Scene still binds every declared `variant_id` exactly once in
-  top-level variant order; repeated concrete source identity does not collapse
-  variant slots.
-- A repeated `source_id` with different immutable metadata is invalid anywhere in
-  the result.
-- `measurement_context_id` scopes weighted measurements to the Scene context and
-  fingerprints ordered `(variant_id, source_id, ...)` membership plus geometry and
-  representative/preprocessing/model/weighting provenance. Source equality never
-  authorizes weighted-measurement reuse across incompatible contexts.
-- Display labels are non-identity metadata and need not be unique.
-- **Absolute presentation mode is client-local state, not a `variant_id`.** P5-B must
-  not reserve a hidden string inside the server-owned `variant_id` namespace. Every
-  schema-valid server variant ID, including a literal `__absolute__`, remains a real
-  selectable variant.
+- `variant_id` is stable comparison-slot/Reference identity.
+- `source_id` is concrete image identity and may recur with identical immutable
+  metadata.
+- `measurement_context_id` scopes the weighted measurement to its Scene context.
+- Display labels are non-identity metadata.
+- Absolute presentation mode is client-local state, never a reserved `variant_id`.
 
-### Numerical and presentation decisions
+### Numerical/presentation decisions
 
 - **Server owns measurement; PixelScope owns reference-dependent comparison,
   reductions, and visualization.**
-- Server-authored W/S1/S2/count/valid plus normative formulas are numerical authority.
-- Canonical Scene absolute mean is `ΣS1/ΣW`; weighted population std comes from the
-  same sufficient statistics.
-- Pooled measurement and equal-Scene absolute Dataset summaries remain separately
-  named; default absolute Overview is `pooled_weighted_mean`.
-- Serialized Scene/Dataset mean/std are projections and mismatch beyond the v2
-  tolerance is corrupt.
-- V2 operator vocabulary is reference-neutral:
-  `power_ratio_target_over_reference_db` and `signed_target_minus_reference`.
+- W/S1/S2/count/valid plus normative formulas are numerical authority.
+- Canonical Scene absolute mean is `ΣS1/ΣW`.
+- Default absolute Dataset Overview is `pooled_weighted_mean`.
 - Pair-valid support is target-valid ∩ reference-valid.
-- Power Mode 1 is ratio of pair-valid aggregate weighted means.
-- Power Mode 2 is the **unweighted arithmetic mean of finite pair-valid per-grid dB
-  ratios**. Undefined/non-finite per-cell ratios such as epsilon-zero `0/0` are
-  omitted from Mode-2 sampling if other finite cells remain; no finite remaining
-  makes Mode 2 invalid. Negative power input is invalid and is not skipped.
-- Signed mode is pair-valid target weighted mean minus reference weighted mean.
-- One Qt-free quality conversion is authoritative for both power modes:
-  higher-is-better keeps raw sign, lower-is-better negates it, neutral/signed has no
-  quality delta.
-- Default relative Dataset Overview is the arithmetic mean of valid Scene comparison
-  values for the selected mode.
-- P5-B keeps all declared variants in stable table/chart order across Absolute and
-  Relative presentation. In Relative mode the selected Reference is shown as a
-  presentation-only zero anchor; other values remain canonical target/reference raw
-  engineering values. Quality orientation is used where a quality-oriented hint is
-  explicitly required rather than silently changing the engineering-value sign.
+- Power Mode 1 = ratio of pair-valid aggregate weighted means.
+- Power Mode 2 = unweighted mean of finite pair-valid per-grid dB ratios.
+- Signed mode = pair-valid target weighted mean minus reference weighted mean.
+- Central quality direction applies consistently; neutral/signed has no quality
+  delta.
+- Default relative Dataset Overview = arithmetic mean of valid Scene comparison
+  values.
+- P5-B keeps declared variants stable across Absolute/Relative presentation and uses
+  the selected Reference only as a local zero anchor where applicable.
 
-### P5-B loading, rollback, and source-boundary decisions
+### P5-B result-workspace decisions — Complete
 
-- Summary-first v2 open does not load Scene-grid artifacts.
-- Selecting an unprepared Reference runs grid I/O and canonical comparison work off
-  the Qt thread. P5-B holds one Scene grid at a time, derives all requested
-  target/attribute scalar results, releases the grid, and retains only the derived
-  scalar cache for that prepared Reference.
-- A different unprepared Reference performs another bounded pass; P5-F owns final
-  cooperative cancellation/cache/preload tuning.
-- Failed or corrupt deferred Reference preparation is transactional at the UI level:
-  the Reference control returns to the last successfully presented mode/reference,
-  and the previously valid hierarchy/plots remain authoritative.
-- Scene cards are metadata-only. They display published variant/source/path/hash
-  identity but do not treat `relative_path` as an openable local-source authority.
-  Logical-root mapping, hash verification, native source opening, and viewer-linked
-  Inspect remain P5-D.
-- IQA dock float/dock/maximize/reset behavior reuses the Plots title-bar workspace
-  lifecycle and its separate workspace-geometry persistence rather than Settings
-  schema ownership.
+- P5-B is the sole local IQA result workspace/controller reused by Remote Open Result.
+- Summary-first Absolute presentation is the default.
+- Unprepared Reference work is off-thread, one Scene grid at a time, and retains only
+  derived scalar results.
+- Deferred Reference failure restores last-valid presentation/control state.
+- Scene cards are metadata-only and do not open native source directly.
+- IQA dock float/dock/maximize/reset follows the Plots workspace lifecycle.
 
-### Bounded-input decisions
+### P5-C settings/storage decisions
 
-- V2 uses bounded data-only JSON/NPZ parsing with exact member, dtype, rank, shape,
-  identity/order, archive metadata and object/pickle safety checks.
-- Parser limits are acceptance-safety envelopes, not runtime cache/residency budgets.
-- The aggregate `1024` Scene-source-binding ceiling is deliberate: Stage-1 planning
-  assumed roughly 300 compared source images, so it provides >3x headroom while
-  bounding manifest/summary cardinality. It permits all 512 Scenes for the initial
-  two-variant P5-C workflow. Larger production requirements require explicit
-  coordinated schema/safety review rather than a silent client override.
+- P5-C migrates `ApplicationSettings` schema v5→v6.
+- `RemoteIqaSettings` owns `server_base_url`, logical `storage_roots[]`, and
+  `staging_root_id`.
+- Each storage root maps portable `storage_root_id` to a machine-local client path.
+- Client paths, server physical paths, and credentials are not portable result/request
+  identity.
+- Portable source/result location is always `storage_root_id + relative_path`.
+- Existing sources under configured roots are referenced through the most-specific
+  matching root. Outside sources may be staged content-addressed by SHA-256.
+- `.part` + atomic final publication/reuse verification is the current staging model.
+- Cross-process staging concurrency and symlink/junction containment are **not yet
+  closed** and remain P5-C merge blockers; the logical identity decision is already
+  frozen.
 
-### Publication and sequencing decisions
+### P5-C submission decisions
 
-- Durable PARTIAL results remain an approved future direction, but Stage 2 returns
-  `UNSUPPORTED` for v2 PARTIAL because P5-C still owns the detailed failure/missing-
-  variant/terminal/publication/cancel schema.
-- P5-B / PR #38 consumes executable v2 and may not invent parser/result/math
-  semantics. It is Active / merge candidate pending latest reviewer-fix validation
-  and independent re-review.
-- P5-C is next after P5-B closes. It retains logical storage-root and detailed
-  PARTIAL owner gates; its initial user-facing submission workflow remains exactly
-  two variants while the result reader remains N-way-capable inside the v2 safety
-  envelope.
+- Initial user-facing submission is exactly two variants `A/B`; result schema remains
+  N-way-capable.
+- Current Pair is the A/B pair of **underlying Current Comparison Page documents**,
+  not Primary/Active/presented order.
+- Folder Pair is immediate-files only, non-recursive, non-symlink, NFC lexical,
+  equal-count, pair-by-index, and equal-dimension.
+- Remote input is PNG/JPG/JPEG/BMP only; no silent RAW conversion.
+- Max submitted Scenes = 512.
+- Scene IDs are deterministic `scene_000000...`; each Scene serializes A then B.
+- Requests send logical root/path, SHA-256, width, and height; local physical paths
+  are not serialized.
+- Folder Pair preparation does not imply Files registration/Selected membership or
+  batch-wide source residency.
+
+### P5-C PARTIAL decisions
+
+- Durable PARTIAL is now executable schema v2, not `UNSUPPORTED`.
+- `publication_state = "partial"` requires ordered `scene_outcomes[]` covering every
+  requested Scene.
+- Outcome status is succeeded/failed/cancelled.
+- Successful outcome has no error diagnostics. Failed/cancelled requires bounded
+  error code/message and may include boolean `retryable`.
+- PARTIAL requires at least one success and at least one failed/cancelled Scene.
+- Published `scenes[]` equals successful outcomes in the same request order and each
+  published Scene satisfies normal v2 invariants.
+- Zero-success terminal work is FAILED/CANCELLED with no result reference.
+- All-success terminal work is SUCCEEDED/COMPLETE.
+
+### P5-C job/retry decisions
+
+- REST boundary is create/status/result/cancel with polling; WebSocket is not required.
+- Terminal states are succeeded/partial/failed/cancelled; only succeeded/partial may
+  resolve a result reference.
+- Result completion never auto-opens Results; user explicitly selects Open Result.
+- Create `POST /jobs` is **never automatically retried** because timeout after possible
+  server acceptance is ambiguous.
+- Terminal result-reference acquisition is an idempotent GET. After the existing
+  initial attempt, transient failure uses bounded 1s/2s/4s/8s retry backoff.
+- Retry exhaustion leaves the job terminal/visible and never causes resubmission.
+- Client diagnostics are classified into configuration, connection, timeout, HTTP,
+  protocol, and storage-resolution categories.
+- Returned server job IDs are validated before entering the local job model.
+- Duplicate in-flight create prevention and explicit ambiguous-create recovery/UX are
+  still P5-C merge blockers. The durable decision is **no blind create retry**.
+
+### P5-C workspace/debug decisions
+
+- One IQA dock contains Setup / Jobs / Results; Results is the P5-B workspace.
+- Debug tools are gated by `PIXELSCOPE_REMOTE_IQA_DEBUG` and do not define production
+  server architecture.
+- Request Inspector runs production request preparation but stops before POST.
+- Replay JSON carries logical terminal job/result identity only and still requires
+  explicit Open Result.
+- Deterministic fake result generation reuses the canonical v2 fixture writer/loader.
+- The localhost `ThreadingHTTPServer` is a real-socket client-contract/fault harness
+  only. It returns references to deterministic fake results and performs no IQA
+  computation.
+
+### P5-C lifecycle decisions still awaiting implementation closeout
+
+- Running preflight/hash/staging needs cooperative cancellation checkpoints and an
+  explicit cancellation check before create POST.
+- Once create POST is in flight, local cancellation cannot pretend to revoke remote
+  acceptance; ambiguous-create policy must govern the outcome.
+- Settings changes during result-path resolution must guarantee newest mapping wins;
+  an in-flight old-settings resolver cannot permanently overwrite the new mapping.
+- These blockers must be resolved before PR #42 merges and before P5-D starts.
 
 ## Current resource policy
 
@@ -785,34 +813,32 @@ planned slice after P5-B closes.
 - Comparison Page navigation, Pick membership, Session Save/Open, P4-E export, and
   Remote IQA result membership introduce no Selected-wide speculative
   preload/cache/residency owner.
-- P5-B Reference-grid preparation is feature-local and does not alter decoded source
-  residency ownership; final cache/preload/cancellation policy remains a P5-F
-  measurement decision.
+- P5-B Reference-grid preparation and P5-C transport/staging workers are feature-local
+  and do not alter decoded source residency ownership. Final result-grid/network
+  cache/preload tuning remains P5-F.
 
 ## Validation and merge state
 
-P3 is Complete through P3-E / PR #27. P4-0 is Complete as PR #28. P4-A is Complete
-as PR #29 at `3486146494076e9b513843b90ec44e504043729e`. P4-B is Complete as PR #30
-at `3a19589e6cbad5fa8c814c522df6a553f59ee340`. P4-C is Complete as PR #31 at
-`436033a0d99513fe8db35f08305395127e430af2`. PR #32 Display Gain/Difference runtime
-stabilization is merged at `e1ccf264f86e37b438c923faceae96c3ecb539b7`; PR #33
-Difference/source-curation lifecycle is merged at
-`51a540c92c372d71e02fd849fb5e0d406d0e9327`. P4-E is Complete as PR #34 at
-`79ee74134f1ebef9dd13f82e49f8e34407bb78f4`. P4-F is Complete as PR #35; the
-P4-complete main baseline is `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
+P3 is Complete through PR #27. P4 is Complete through PR #35. P5-0 / PR #36,
+P5-A / PR #37, P5-A2 / PR #39/#40, and P5-B / PR #38 are merged. Current main is
+`ad3721e28b759e75d8e0f4a28b003a4dd22f0f4a` after PR #41 formatting baseline.
 
-P5-0 is Complete as PR #36 at `ee7ca03`. P5-A/schema v1 is Complete as PR #37 at
-`fceb16f6e43c48ec65fbf7ebbcc103b56716b686`. P5-A2 Stage 1 / PR #39 is merged at
-`4f2d58f36152cbebd1110a2aed09afacc6f09596`; P5-A2 Stage 2 / PR #40 is merged at
-`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`. P5-B / PR #38 is Active / merge
-candidate. P5-C is the next planned implementation slice after P5-B closes.
+P5-C / PR #42 remains Draft.
 
-The repository owner reported full/focused Windows pytest and requested static
-validation PASS on P5-B head `c77169d7db19ac7dd308c5f772d704c305761ba9`.
-Narrow reviewer-requested changes after that head—collision-proof Absolute display
-mode, failed deferred-Reference control restoration, regression tests, and durable-doc
-reconciliation—require fresh focused/static/docs validation and latest-head review
-before merge. Repository-wide Ruff formatting drift is deferred to a separate
-formatting-only PR by owner decision.
+Observed P5-C evidence includes:
+
+- historical full-suite checkpoint at `04f8c08...`: 809 pytest PASS plus Ruff/mypy/
+  diff PASS, before later P5-C stages;
+- Setup UX + Request Inspector focused/static PASS;
+- Replay JSON + deterministic COMPLETE result manual Open Result PASS;
+- Stage-4 focused localhost/result-retry/submission/UI suite: 26 PASS;
+- Stage-4 mypy: 102 source files, no issues;
+- normal real-socket localhost submit/poll/result-reference manual PASS;
+- transient terminal `/result` HTTP 500 followed by automatic successful retry with
+  no resubmit, manually reproduced on a second newly-created job.
+
+Latest-head full/static/docs PASS is not yet claimed. Remaining storage/lifecycle
+blockers, final owner validation, and independent whole-PR re-review are required
+before merge.
 
 Only validation actually observed for a named head may be recorded as PASS.
