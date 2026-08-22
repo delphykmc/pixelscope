@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
 import numpy as np
@@ -59,6 +60,42 @@ def source_cell_polygon(
 ) -> NDArray[np.float64]:
     mapped = analysis_to_source(geometry, analysis_cell_polygon(grid, row, column))
     return _clip_to_source(mapped, float(source_width), float(source_height))
+
+
+def source_point_to_grid_cell(
+    geometry: SceneGeometry,
+    grid: GridGeometry,
+    source_x: float,
+    source_y: float,
+) -> tuple[int, int] | None:
+    """Map one continuous source coordinate to the same analysis-grid cell used for drawing."""
+
+    if not math.isfinite(source_x) or not math.isfinite(source_y):
+        return None
+    mapped = source_to_analysis(
+        geometry,
+        np.asarray([[source_x, source_y]], dtype=np.float64),
+    )[0]
+    analysis_x = float(mapped[0])
+    analysis_y = float(mapped[1])
+    valid_x, valid_y, valid_width, valid_height = geometry.valid_rect
+    if not (
+        valid_x <= analysis_x < valid_x + valid_width
+        and valid_y <= analysis_y < valid_y + valid_height
+    ):
+        return None
+    grid_right = grid.origin_x + grid.columns * grid.block_width
+    grid_bottom = grid.origin_y + grid.rows * grid.block_height
+    if not (
+        grid.origin_x <= analysis_x < grid_right
+        and grid.origin_y <= analysis_y < grid_bottom
+    ):
+        return None
+    column = int(math.floor((analysis_x - grid.origin_x) / grid.block_width))
+    row = int(math.floor((analysis_y - grid.origin_y) / grid.block_height))
+    if row < 0 or row >= grid.rows or column < 0 or column >= grid.columns:
+        return None
+    return row, column
 
 
 Point = NDArray[np.float64]
