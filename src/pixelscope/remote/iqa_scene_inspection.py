@@ -159,7 +159,10 @@ def verify_scene_sources(
     return SceneVerificationOutcome(scene_id=scene_id, sources=tuple(verified))
 
 
-def _resolve_published_source(source: Source, settings: RemoteIqaSettings) -> ResolvedSource:
+def _resolve_published_source(
+    source: Source,
+    settings: RemoteIqaSettings,
+) -> ResolvedSource:
     root_id = source.storage_root_id
     if root_id is None:
         raise StorageResolutionError("published source location is unavailable")
@@ -198,7 +201,11 @@ def probe_image_dimensions(path: Path) -> tuple[int, int]:
 def _probe_png(path: Path) -> tuple[int, int]:
     with path.open("rb") as stream:
         header = stream.read(24)
-    if len(header) != 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+    if (
+        len(header) != 24
+        or header[:8] != b"\x89PNG\r\n\x1a\n"
+        or header[12:16] != b"IHDR"
+    ):
         raise ValueError("invalid PNG header")
     width, height = struct.unpack(">II", header[16:24])
     if width <= 0 or height <= 0:
