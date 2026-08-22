@@ -137,8 +137,7 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     )
     workspace.folder_submit.setText("Submit Pairs")
     workspace.folder_submit.setToolTip(
-        "Submit the currently validated Folder Pair. "
-        "This is disabled until validation succeeds."
+        "Submit the currently validated Folder Pair. " "This is disabled until validation succeeds."
     )
     folder_actions.addWidget(workspace.preview_button)
     folder_actions.addWidget(workspace.preview_status, 1)

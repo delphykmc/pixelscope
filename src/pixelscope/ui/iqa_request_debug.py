@@ -158,9 +158,7 @@ class RemoteIqaRequestInspectorController(QObject):
         identity = self.workspace.preview_identity
         preview = self.workspace.preview_entries
         if identity is None or not preview:
-            self.panel.show_error(
-                "validate the current Folder Pair before inspecting its request"
-            )
+            self.panel.show_error("validate the current Folder Pair before inspecting its request")
             return
         folder_a, folder_b = identity
 
@@ -285,9 +283,7 @@ def install_remote_iqa_request_debug(
     current_button.setToolTip("Build the exact Current Pair request JSON but do not POST it.")
     folder_button = QPushButton("Inspect JSON · DEBUG", workspace.setup_page)
     folder_button.setObjectName("remoteIqaDebugInspectFolder")
-    folder_button.setToolTip(
-        "Build the validated Folder Pair request JSON but do not POST it."
-    )
+    folder_button.setToolTip("Build the validated Folder Pair request JSON but do not POST it.")
     current_actions.addWidget(current_button)
     folder_actions.addWidget(folder_button)
 

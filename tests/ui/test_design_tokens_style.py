@@ -5,7 +5,7 @@ from typing import Any, cast
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QStyle, QWidget, QWidgetItem
 
-from pixelscope.ui.design_tokens import EngineeringStyle, TOKENS, apply_engineering_palette
+from pixelscope.ui.design_tokens import TOKENS, EngineeringStyle, apply_engineering_palette
 
 
 def test_engineering_style_ignores_qwidgetitem_style_hint(qtbot: object) -> None:
@@ -30,6 +30,4 @@ def test_engineering_palette_keeps_placeholder_text_readable(qtbot: object) -> N
 
     apply_engineering_palette(app)
 
-    assert app.palette().color(QPalette.ColorRole.PlaceholderText) == QColor(
-        TOKENS.text_secondary
-    )
+    assert app.palette().color(QPalette.ColorRole.PlaceholderText) == QColor(TOKENS.text_secondary)
