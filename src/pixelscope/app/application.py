@@ -25,6 +25,7 @@ from pixelscope.ui.iqa_request_debug import install_remote_iqa_request_debug
 from pixelscope.ui.iqa_result_retry import install_remote_iqa_result_retry
 from pixelscope.ui.iqa_setup_presentation import polish_remote_iqa_setup
 from pixelscope.ui.iqa_submission import install_remote_iqa
+from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
@@ -97,6 +98,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_recent_entries(window)
     install_analysis_export(window)
     remote_iqa_controller = install_remote_iqa(window)
+    install_remote_iqa_submission_lifecycle(window)
     install_remote_iqa_result_retry(window)
     polish_remote_iqa_setup(remote_iqa_controller.workspace)
     install_remote_iqa_request_debug(window)
