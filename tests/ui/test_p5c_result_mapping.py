@@ -25,9 +25,7 @@ class _FakeWorkspace:
 
 class _FakeController:
     def __init__(self, settings: RemoteIqaSettings, job: RemoteJobRecord) -> None:
-        self.window = SimpleNamespace(
-            application_settings=SimpleNamespace(remote_iqa=settings)
-        )
+        self.window = SimpleNamespace(application_settings=SimpleNamespace(remote_iqa=settings))
         self.workspace = _FakeWorkspace()
         self._jobs = {job.job_id: job}
         self._workers: dict[str, TaskWorker] = {}
