@@ -12,8 +12,8 @@ import pytest
 
 from pixelscope.remote.iqa_domain import (
     AttributeSpec,
-    ComparisonOperator,
     CompactAttributeData,
+    ComparisonOperator,
     GridGeometry,
     LoadStatus,
     QualityDirection,
@@ -81,7 +81,11 @@ def _scene_result(
     geometry = SceneGeometry(
         analysis_width=8,
         analysis_height=6,
-        source_to_analysis=((0.5, 0.0, 0.25), (0.0, 0.5, 0.5), (0.0, 0.0, 1.0)),
+        source_to_analysis=(
+            (0.5, 0.0, 0.25),
+            (0.0, 0.5, 0.5),
+            (0.0, 0.0, 1.0),
+        ),
         valid_rect=(1.0, 1.0, 6.0, 4.0),
     )
     grid = GridGeometry(
@@ -95,7 +99,9 @@ def _scene_result(
         discarded_bottom=1.25,
     )
     specs = _specs()
-    variants = tuple(Variant(f"v{index}", f"Variant {index}") for index in range(variant_count))
+    variants = tuple(
+        Variant(f"v{index}", f"Variant {index}") for index in range(variant_count)
+    )
     measurements = tuple(
         SourceMeasurementV2(
             variant_id=variant.variant_id,
@@ -116,7 +122,13 @@ def _scene_result(
     scene = SceneV2(
         scene_id="scene-1",
         measurement_context_id="mc2:" + "0" * 64,
-        context_provenance=MeasurementContextProvenance("rep", "pre", "model", "weight", "geom"),
+        context_provenance=MeasurementContextProvenance(
+            "rep",
+            "pre",
+            "model",
+            "weight",
+            "geom",
+        ),
         sources=measurements,
         grid_artifact="scenes/scene-1/grid.npz",
         grid_uncompressed_size=1,
@@ -181,19 +193,25 @@ def _grid_data(result: ResultV2) -> GridSceneDataV2:
     )
 
 
-def test_old_v2_without_storage_root_still_opens_but_inspect_does_not_guess(tmp_path: Path) -> None:
+def test_old_v2_without_storage_root_still_opens_but_inspect_does_not_guess(
+    tmp_path: Path,
+) -> None:
     root = write_golden_result_v2(tmp_path / "golden")
     outcome = load_result_v2(root)
     assert outcome.status is LoadStatus.SUCCESS, outcome.reason
     assert isinstance(outcome.result, ResultV2)
     result = outcome.result
     assert result.scenes[0].sources[0].source.storage_root_id is None
-    assert inspect_unavailable_reason(result, result.scenes[0].scene_id, RemoteIqaSettings()) == (
-        "Published source location is unavailable"
-    )
+    assert inspect_unavailable_reason(
+        result,
+        result.scenes[0].scene_id,
+        RemoteIqaSettings(),
+    ) == "Published source location is unavailable"
 
 
-def test_additive_storage_root_locator_round_trips_without_context_change(tmp_path: Path) -> None:
+def test_additive_storage_root_locator_round_trips_without_context_change(
+    tmp_path: Path,
+) -> None:
     root = write_golden_result_v2(tmp_path / "golden")
     manifest_path = root / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -328,7 +346,22 @@ def _write_bmp(path: Path, width: int, height: int, fill: int = 0) -> None:
     header = bytearray()
     header.extend(b"BM")
     header.extend(struct.pack("<IHHI", file_size, 0, 0, 54))
-    header.extend(struct.pack("<IIIHHIIIIII", 40, width, height, 1, 24, 0, pixel_size, 0, 0, 0, 0))
+    header.extend(
+        struct.pack(
+            "<IIIHHIIIIII",
+            40,
+            width,
+            height,
+            1,
+            24,
+            0,
+            pixel_size,
+            0,
+            0,
+            0,
+            0,
+        )
+    )
     pixels = bytes([fill & 0xFF]) * pixel_size
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(bytes(header) + pixels)
@@ -340,8 +373,13 @@ def test_lightweight_probe_reads_bmp_dimensions_without_decode(tmp_path: Path) -
     assert probe_image_dimensions(path) == (13, 7)
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Remote IQA client roots are Windows/UNC paths")
-def test_scene_verification_is_all_or_nothing_and_reports_identity_mismatch(tmp_path: Path) -> None:
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="Remote IQA client roots are Windows/UNC paths",
+)
+def test_scene_verification_is_all_or_nothing_and_reports_identity_mismatch(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "root"
     first = root / "scene" / "source-0.bmp"
     second = root / "scene" / "source-1.bmp"
@@ -396,8 +434,13 @@ def test_scene_verification_is_all_or_nothing_and_reports_identity_mismatch(tmp_
     assert failed.failed_source_id == "source-1"
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Remote IQA client roots are Windows/UNC paths")
-def test_scene_verification_dimension_and_missing_file_fail_before_any_payload(tmp_path: Path) -> None:
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="Remote IQA client roots are Windows/UNC paths",
+)
+def test_scene_verification_dimension_and_missing_file_fail_before_any_payload(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / "root"
     first = root / "scene" / "source-0.bmp"
     second = root / "scene" / "source-1.bmp"
