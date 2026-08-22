@@ -65,9 +65,7 @@ class MultiCompareView(QWidget):
             viewer.line_changed.connect(self.line_changed)
             viewer.line_cleared.connect(self.line_cleared)
             viewer.view_box.sigRangeChanged.connect(
-                lambda _box, ranges, _changed=None, active=viewer: self._sync_range(
-                    active, ranges
-                )
+                lambda _box, ranges, _changed=None, active=viewer: self._sync_range(active, ranges)
             )
         self.set_capacity(2)
 
@@ -88,9 +86,7 @@ class MultiCompareView(QWidget):
             raise ValueError("comparison capacity must be 2, 4, or 6")
         if capacity == self.capacity:
             return
-        shrinking_diff_presentation = (
-            capacity < self.capacity and self._presentation_has_difference
-        )
+        shrinking_diff_presentation = capacity < self.capacity and self._presentation_has_difference
         self.capacity = capacity
         if shrinking_diff_presentation:
             # MainWindow immediately follows a Difference capacity change with
@@ -191,8 +187,7 @@ class MultiCompareView(QWidget):
             (
                 viewer
                 for viewer in self.visible_viewers
-                if viewer.document is not None
-                and viewer.document.document_id == previous_active_id
+                if viewer.document is not None and viewer.document.document_id == previous_active_id
             ),
             None,
         ) or next((viewer for viewer in self.visible_viewers if viewer.document), None)
@@ -251,9 +246,7 @@ class MultiCompareView(QWidget):
             ordered.append(reusable)
             used_viewer_ids.add(id(reusable))
 
-        remaining = [
-            viewer for viewer in self.viewers if id(viewer) not in used_viewer_ids
-        ]
+        remaining = [viewer for viewer in self.viewers if id(viewer) not in used_viewer_ids]
         filled: list[ImageViewer] = []
         for reusable in ordered:
             filled.append(remaining.pop(0) if reusable is None else reusable)
@@ -483,16 +476,12 @@ class MultiCompareView(QWidget):
                 viewer.hide()
 
         placements, row_stretches, column_stretches = self._fixed_geometry(count)
-        for viewer, (row, column, row_span, column_span) in zip(
-            active, placements, strict=False
-        ):
+        for viewer, (row, column, row_span, column_span) in zip(active, placements, strict=False):
             self._layout.addWidget(viewer, row, column, row_span, column_span)
             if viewer.isHidden():
                 viewer.show()
         for row in range(3):
-            self._layout.setRowStretch(
-                row, row_stretches[row] if row < len(row_stretches) else 0
-            )
+            self._layout.setRowStretch(row, row_stretches[row] if row < len(row_stretches) else 0)
         for column in range(3):
             self._layout.setColumnStretch(
                 column,

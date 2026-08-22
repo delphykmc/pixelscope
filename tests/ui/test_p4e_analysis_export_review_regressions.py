@@ -181,9 +181,7 @@ def test_difference_export_disarms_when_panel_pair_diverges_from_active_result(
     )
 
     target = Path(observed[0])
-    assert target.name == (
-        "pixelscope_difference_gray_mask_thr-6code_20260815-004500-123.png"
-    )
+    assert target.name == ("pixelscope_difference_gray_mask_thr-6code_20260815-004500-123.png")
     assert target.is_file()
     np.testing.assert_array_equal(_read_png_as_preview(target), settled_preview)
 

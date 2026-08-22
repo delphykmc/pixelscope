@@ -141,8 +141,7 @@ def test_analysis_tables_use_clean_headings_and_unified_command_buttons(
     controller.statistics_copy_button.click()
 
     assert QApplication.clipboard().text() == (
-        "Id,Ch,Min,Max,Mean,Std,P1,P50,P99\n"
-        "1,Gray,0,15,7.5,2,1,8,14\n"
+        "Id,Ch,Min,Max,Mean,Std,P1,P50,P99\n" "1,Gray,0,15,7.5,2,1,8,14\n"
     )
 
 
@@ -178,27 +177,31 @@ def test_default_export_path_is_timestamped_and_custom_name_is_respected(
         capture_default,
     )
     filename = controller._timestamped_filename("pixelscope_histogram", ".csv")
-    assert controller._choose_path(
-        "Export Histogram",
-        filename,
-        "CSV (*.csv)",
-        ".csv",
-    ) is None
-    assert observed == [
-        str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")
-    ]
+    assert (
+        controller._choose_path(
+            "Export Histogram",
+            filename,
+            "CSV (*.csv)",
+            ".csv",
+        )
+        is None
+    )
+    assert observed == [str(tmp_path / "pixelscope_histogram_20260814-221500-123.csv")]
 
     custom = tmp_path / "review.csv"
     monkeypatch.setattr(  # type: ignore[attr-defined]
         "pixelscope.ui.analysis_export.QFileDialog.getSaveFileName",
         lambda *_args, **_kwargs: (str(custom), "CSV (*.csv)"),
     )
-    assert controller._choose_path(
-        "Export Histogram",
-        filename,
-        "CSV (*.csv)",
-        ".csv",
-    ) == custom
+    assert (
+        controller._choose_path(
+            "Export Histogram",
+            filename,
+            "CSV (*.csv)",
+            ".csv",
+        )
+        == custom
+    )
 
 
 def test_difference_postfix_and_metrics_export_preserve_current_context(
@@ -271,10 +274,7 @@ def test_difference_postfix_and_metrics_export_preserve_current_context(
     )
     controller.export_difference_metrics_csv()
 
-    filename = (
-        "pixelscope_difference_metrics_gray_full-image_native_"
-        "20260814-221500-123.csv"
-    )
+    filename = "pixelscope_difference_metrics_gray_full-image_native_" "20260814-221500-123.csv"
     assert observed_initial == [str(tmp_path / filename)]
     rows = _csv_rows(tmp_path / filename)
     assert rows[0] == [

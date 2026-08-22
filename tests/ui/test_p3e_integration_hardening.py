@@ -28,9 +28,7 @@ def _ready_documents(tmp_path: Path, count: int) -> list[ImageDocument]:
 
 def _pending_documents(tmp_path: Path, count: int) -> list[ImageDocument]:
     return [
-        ImageDocument.pending_document(
-            tmp_path / f"set-{index:02d}" / f"image{index + 1:02d}.png"
-        )
+        ImageDocument.pending_document(tmp_path / f"set-{index:02d}" / f"image{index + 1:02d}.png")
         for index in range(count)
     ]
 

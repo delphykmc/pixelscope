@@ -105,9 +105,9 @@ def test_later_comparison_page_restores_independently_of_active_presentation(
     assert loaded == 12
     assert missing == ()
     assert [document.source_path for document in window.selected_documents] == paths
-    assert [
-        document.source_path for document in window.current_comparison_documents()
-    ] == paths[6:12]
+    assert [document.source_path for document in window.current_comparison_documents()] == paths[
+        6:12
+    ]
     active = window.documents.get(window._active_document_id or "")
     assert active is not None and active.source_path == paths[8]
     window.close()
@@ -172,9 +172,9 @@ def test_active_difference_restores_saved_page_before_explicit_calculate(
         lambda: bool(calculations),
         timeout=5000,
     )
-    assert [
-        document.source_path for document in window.current_comparison_documents()
-    ] == paths[6:12]
+    assert [document.source_path for document in window.current_comparison_documents()] == paths[
+        6:12
+    ]
     assert set(requested).issubset(set(paths[6:12]))
     assert not set(requested).intersection(paths[:6])
     assert window._difference_source_ids is None
@@ -186,10 +186,7 @@ def test_save_omits_hidden_difference_recipe_after_navigating_away_from_pair(
     tmp_path: Path,
 ) -> None:
     paths = [tmp_path / f"off-page-{index:02d}.png" for index in range(12)]
-    documents = [
-        _ready_gray(path, 20 + index)
-        for index, path in enumerate(paths)
-    ]
+    documents = [_ready_gray(path, 20 + index) for index, path in enumerate(paths)]
     window = _window(qtbot)
     for document in documents:
         window.add_document(document, select=False)
@@ -213,9 +210,9 @@ def test_save_omits_hidden_difference_recipe_after_navigating_away_from_pair(
     assert window._difference_source_ids == (a_id, b_id)
 
     window.next_comparison_page()
-    assert [
-        document.source_path for document in window.current_comparison_documents()
-    ] == paths[6:12]
+    assert [document.source_path for document in window.current_comparison_documents()] == paths[
+        6:12
+    ]
     assert window._difference_source_ids == (a_id, b_id)
 
     window._set_focus_document(documents[6].document_id)
@@ -237,9 +234,9 @@ def test_save_omits_hidden_difference_recipe_after_navigating_away_from_pair(
         reopened.session_controller._restore_overlay.isHidden,
         timeout=5000,
     )
-    assert [
-        document.source_path for document in reopened.current_comparison_documents()
-    ] == paths[6:12]
+    assert [document.source_path for document in reopened.current_comparison_documents()] == paths[
+        6:12
+    ]
     assert reopened._difference_document is None
     assert reopened._difference_source_ids is None
     reopened.close()

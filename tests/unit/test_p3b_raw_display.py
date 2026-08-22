@@ -58,9 +58,7 @@ def test_gain_one_does_not_redefine_black_or_white_as_display_endpoints() -> Non
         black_level=profile.black_level,
         gain=1.0,
     )
-    expected = np.rint(
-        source.astype(np.float32) * np.float32(255.0 / 4095.0)
-    ).astype(np.uint8)
+    expected = np.rint(source.astype(np.float32) * np.float32(255.0 / 4095.0)).astype(np.uint8)
     assert np.array_equal(preview, expected)
     assert int(preview[0, 1]) > 0
     assert int(preview[0, 2]) < 255
@@ -91,9 +89,7 @@ def test_black_anchored_gain_matches_known_values_and_does_not_underflow() -> No
     preview = to_display_uint8(source, transform)
 
     gained = np.array([[48, 60, 64, 68, 88]], dtype=np.float32)
-    expected = np.rint(np.clip(gained / np.float32(4095.0), 0.0, 1.0) * 255.0).astype(
-        np.uint8
-    )
+    expected = np.rint(np.clip(gained / np.float32(4095.0), 0.0, 1.0) * 255.0).astype(np.uint8)
     assert np.array_equal(preview, expected)
     assert np.array_equal(source, original)
 
@@ -152,9 +148,9 @@ def test_bayer_split_channel_uses_named_black_anchor_and_keeps_tile_color() -> N
         black_level=(64, 72, 80, 96),
         gain=4.0,
     )
-    expected_green = np.rint(
-        np.array([[76, 80]], dtype=np.float32) * (255.0 / 4095.0)
-    ).astype(np.uint8)
+    expected_green = np.rint(np.array([[76, 80]], dtype=np.float32) * (255.0 / 4095.0)).astype(
+        np.uint8
+    )
     assert preview.shape == (1, 2, 3)
     assert np.array_equal(preview[..., 1], expected_green)
     assert not np.any(preview[..., 0])

@@ -53,10 +53,7 @@ def summary_from_accumulators(
         return MeasurementSummary.invalid()
     if valid_count <= 0:
         raise ValueError("valid summary requires positive valid_count")
-    if not all(
-        math.isfinite(value)
-        for value in (weight_sum, weighted_sum, weighted_square_sum)
-    ):
+    if not all(math.isfinite(value) for value in (weight_sum, weighted_sum, weighted_square_sum)):
         raise ValueError("valid summary accumulators must be finite")
     if weight_sum <= 0.0:
         raise ValueError("valid summary requires positive weight_sum")
@@ -79,17 +76,13 @@ def summary_from_accumulators(
     )
 
 
-def summary_from_grid(
-    data: CompactAttributeData, value_kind: ValueKind
-) -> MeasurementSummary:
+def summary_from_grid(data: CompactAttributeData, value_kind: ValueKind) -> MeasurementSummary:
     weight = np.asarray(data.weight_sum)
     weighted = np.asarray(data.weighted_sum)
     squared = np.asarray(data.weighted_square_sum)
     count = np.asarray(data.valid_count)
     mask = np.asarray(data.valid_mask, dtype=np.bool_)
-    if not (
-        weight.shape == weighted.shape == squared.shape == count.shape == mask.shape
-    ):
+    if not (weight.shape == weighted.shape == squared.shape == count.shape == mask.shape):
         raise ValueError("grid sufficient-statistic shapes must match")
     if not np.any(mask):
         return MeasurementSummary.invalid()
@@ -104,9 +97,7 @@ def summary_from_grid(
     if np.any(weight[mask] <= 0.0):
         raise ValueError("explicit-valid grid cells require positive weight_sum")
     if np.any(squared[mask] < 0.0):
-        raise ValueError(
-            "explicit-valid grid cells require non-negative weighted_square_sum"
-        )
+        raise ValueError("explicit-valid grid cells require non-negative weighted_square_sum")
     if value_kind is ValueKind.POWER and np.any(weighted[mask] < 0.0):
         raise ValueError("power-domain grid weighted_sum must be non-negative")
     cell_means = weighted[mask] / weight[mask]
@@ -144,9 +135,7 @@ def compare_v2_sources(
     reference: CompactAttributeData,
 ) -> dict[ComparisonMode, RelativeStatisticV2]:
     """Compare target/reference using the executable schema-v2 semantics."""
-    input_reason = _comparison_input_reason(target) or _comparison_input_reason(
-        reference
-    )
+    input_reason = _comparison_input_reason(target) or _comparison_input_reason(reference)
     if input_reason is not None:
         return _invalid_relative_result(spec.value_kind, input_reason)
 
@@ -160,11 +149,7 @@ def compare_v2_sources(
     target_mean, _ = recompose_statistics(target, pair_mask)
     reference_mean, _ = recompose_statistics(reference, pair_mask)
     if not target_mean.valid or not reference_mean.valid:
-        reason = (
-            target_mean.invalid_reason
-            or reference_mean.invalid_reason
-            or "missing_data"
-        )
+        reason = target_mean.invalid_reason or reference_mean.invalid_reason or "missing_data"
         return _invalid_relative_result(spec.value_kind, reason)
     assert target_mean.value is not None and reference_mean.value is not None
 
@@ -209,9 +194,7 @@ def compare_v2_sources(
     }
 
 
-def quality_relative_value(
-    spec: AttributeSpec, raw: ScalarStatistic
-) -> ScalarStatistic:
+def quality_relative_value(spec: AttributeSpec, raw: ScalarStatistic) -> ScalarStatistic:
     """Convert raw target/reference orientation to +target-better presentation."""
     if not raw.valid:
         return ScalarStatistic.invalid(raw.invalid_reason or "missing_data")
@@ -247,9 +230,7 @@ def _comparison_input_reason(data: CompactAttributeData) -> str | None:
     squared = np.asarray(data.weighted_square_sum)
     count = np.asarray(data.valid_count)
     mask = np.asarray(data.valid_mask, dtype=np.bool_)
-    if not (
-        weight.shape == weighted.shape == squared.shape == count.shape == mask.shape
-    ):
+    if not (weight.shape == weighted.shape == squared.shape == count.shape == mask.shape):
         return "shape_mismatch"
     if (
         np.any(mask & ~np.isfinite(weight))
@@ -301,9 +282,7 @@ def _power_log_ratio(
     reference_value: float,
     epsilon: float,
 ) -> ScalarStatistic:
-    if not all(
-        math.isfinite(value) for value in (target_value, reference_value, epsilon)
-    ):
+    if not all(math.isfinite(value) for value in (target_value, reference_value, epsilon)):
         return ScalarStatistic.invalid("nonfinite_input")
     if target_value < 0.0 or reference_value < 0.0:
         return ScalarStatistic.invalid("negative_power")
@@ -336,9 +315,7 @@ def _invalid_relative_result(
     }
 
 
-def _variance(
-    weight_sum: float, weighted_sum: float, weighted_square_sum: float
-) -> float:
+def _variance(weight_sum: float, weighted_sum: float, weighted_square_sum: float) -> float:
     mean = weighted_sum / weight_sum
     second_moment = weighted_square_sum / weight_sum
     mean_square = mean * mean

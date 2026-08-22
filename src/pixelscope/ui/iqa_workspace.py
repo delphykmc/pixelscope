@@ -182,17 +182,13 @@ class IqaWorkspaceWidget(QWidget):
         heading_font = self.overview_detail_heading.font()
         heading_font.setBold(True)
         self.overview_detail_heading.setFont(heading_font)
-        self.overview_detail_heading.setStyleSheet(
-            f"color: {TOKENS.text_secondary};"
-        )
+        self.overview_detail_heading.setStyleSheet(f"color: {TOKENS.text_secondary};")
         detail_layout.addWidget(self.overview_detail_heading)
 
         self.hierarchy = QTreeWidget(self.overview_detail_panel)
         self.hierarchy.setObjectName("iqaAttributeSceneHierarchy")
         self.hierarchy.setAlternatingRowColors(True)
-        self.hierarchy.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
+        self.hierarchy.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.hierarchy.setUniformRowHeights(True)
         self.hierarchy.currentItemChanged.connect(  # type: ignore[attr-defined]
             self._hierarchy_selection_changed
@@ -237,9 +233,7 @@ class IqaWorkspaceWidget(QWidget):
         attribute_layout.addWidget(QLabel("Attributes", attribute_panel))
         self.attribute_filter = QListWidget(attribute_panel)
         self.attribute_filter.setObjectName("iqaAttributeFilter")
-        self.attribute_filter.setSelectionMode(
-            QAbstractItemView.SelectionMode.NoSelection
-        )
+        self.attribute_filter.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.attribute_filter.setMinimumWidth(150)
         self.attribute_filter.setMaximumWidth(230)
         self.attribute_filter.setStyleSheet(
@@ -258,12 +252,8 @@ class IqaWorkspaceWidget(QWidget):
         self.scene_trend_plot.setMinimumHeight(170)
         self.scene_trend_plot.setBackground(TOKENS.workspace_background)
         self.scene_trend_plot.showGrid(x=True, y=True, alpha=0.2)
-        self.scene_trend_plot.scene().sigMouseClicked.connect(
-            self._scene_plot_clicked
-        )
-        self.scene_trend_plot.scene().sigMouseMoved.connect(
-            self._scene_plot_hovered
-        )
+        self.scene_trend_plot.scene().sigMouseClicked.connect(self._scene_plot_clicked)
+        self.scene_trend_plot.scene().sigMouseMoved.connect(self._scene_plot_hovered)
         trend_splitter.addWidget(attribute_panel)
         trend_splitter.addWidget(self.scene_trend_plot)
         trend_splitter.setStretchFactor(0, 0)
@@ -276,8 +266,7 @@ class IqaWorkspaceWidget(QWidget):
         preview_layout.setContentsMargins(0, TOKENS.spacing_sm, 0, 0)
         preview_layout.setSpacing(TOKENS.spacing_sm)
         self.preview_caption = QLabel(
-            "Click a Scene in the trend plot to inspect its published source "
-            "identities.",
+            "Click a Scene in the trend plot to inspect its published source " "identities.",
             preview_panel,
         )
         self.preview_caption.setObjectName("iqaScenePreviewCaption")
@@ -334,10 +323,7 @@ class IqaWorkspaceWidget(QWidget):
         for row in range(self.attribute_filter.count()):
             item = self.attribute_filter.item(row)
             attribute_id = item.data(Qt.ItemDataRole.UserRole)
-            if (
-                isinstance(attribute_id, str)
-                and item.checkState() == Qt.CheckState.Checked
-            ):
+            if isinstance(attribute_id, str) and item.checkState() == Qt.CheckState.Checked:
                 enabled.append(attribute_id)
         return tuple(enabled)
 
@@ -352,13 +338,9 @@ class IqaWorkspaceWidget(QWidget):
         if self._model is None:
             return
         label = next(
-            item.label
-            for item in self._model.variants
-            if item.variant_id == reference_variant_id
+            item.label for item in self._model.variants if item.variant_id == reference_variant_id
         )
-        self.status_label.setText(
-            f"Loading Scene grids for Reference {label}..."
-        )
+        self.status_label.setText(f"Loading Scene grids for Reference {label}...")
         self._relative_loading = True
         self.reference_combo.setEnabled(False)
         self.mode_combo.setEnabled(False)
@@ -386,9 +368,7 @@ class IqaWorkspaceWidget(QWidget):
         previous_attribute = self._selected_attribute_id
         previous_scene = self._selected_scene_id
         rollback_reference = self._presented_reference_variant_id
-        previous_reference = (
-            self.reference_variant_id if preserve_reference else None
-        )
+        previous_reference = self.reference_variant_id if preserve_reference else None
         self._model = model
         attribute_ids = {item.attribute_id for item in model.result.attributes}
         if previous_attribute not in attribute_ids:
@@ -419,11 +399,7 @@ class IqaWorkspaceWidget(QWidget):
 
         result = model.result
         source_count = sum(len(scene.sources) for scene in result.scenes)
-        mode = (
-            "schema v2"
-            if model.is_v2
-            else "schema v1 · read-only compatibility"
-        )
+        mode = "schema v2" if model.is_v2 else "schema v1 · read-only compatibility"
         self.result_label.setText(f"Job/result {result.result_id} · {mode}")
         self.dataset_label.setText(
             f"{len(result.scenes)} Scenes · {source_count} Scene sources · "
@@ -496,8 +472,9 @@ class IqaWorkspaceWidget(QWidget):
         if self._model is None:
             return
         previous = {
-            self.attribute_filter.item(row).data(Qt.ItemDataRole.UserRole):
-            self.attribute_filter.item(row).checkState()
+            self.attribute_filter.item(row).data(
+                Qt.ItemDataRole.UserRole
+            ): self.attribute_filter.item(row).checkState()
             for row in range(self.attribute_filter.count())
         }
         self.attribute_filter.blockSignals(True)
@@ -506,20 +483,14 @@ class IqaWorkspaceWidget(QWidget):
         for index, attribute in enumerate(self._model.result.attributes):
             item = QListWidgetItem(attribute.name, self.attribute_filter)
             item.setData(Qt.ItemDataRole.UserRole, attribute.attribute_id)
-            item.setCheckState(
-                previous.get(attribute.attribute_id, Qt.CheckState.Checked)
-            )
+            item.setCheckState(previous.get(attribute.attribute_id, Qt.CheckState.Checked))
             item.setIcon(_color_chip_icon(_attribute_color(index, total)))
-            item.setToolTip(
-                f"Check to show/hide · {attribute.name} · {attribute.unit}"
-            )
+            item.setToolTip(f"Check to show/hide · {attribute.name} · {attribute.unit}")
         self.attribute_filter.blockSignals(False)
 
     def _display_columns(self) -> tuple[tuple[str, str], ...]:
         assert self._model is not None
-        return tuple(
-            (item.variant_id, item.label) for item in self._model.variants
-        )
+        return tuple((item.variant_id, item.label) for item in self._model.variants)
 
     def _trend_columns(self) -> tuple[tuple[str, str], ...]:
         assert self._model is not None
@@ -527,9 +498,7 @@ class IqaWorkspaceWidget(QWidget):
         if reference is ABSOLUTE_REFERENCE_ID:
             return self._display_columns()
         reference_label = next(
-            item.label
-            for item in self._model.variants
-            if item.variant_id == reference
+            item.label for item in self._model.variants if item.variant_id == reference
         )
         return tuple(
             (item.variant_id, f"{item.label} vs {reference_label}")
@@ -543,11 +512,7 @@ class IqaWorkspaceWidget(QWidget):
         reference = self.reference_variant_id
         if reference is ABSOLUTE_REFERENCE_ID:
             return None
-        return next(
-            item.label
-            for item in self._model.variants
-            if item.variant_id == reference
-        )
+        return next(item.label for item in self._model.variants if item.variant_id == reference)
 
     def _stat_for(
         self,
@@ -696,9 +661,7 @@ class IqaWorkspaceWidget(QWidget):
                         0,
                         "Potential outlier · robust quality-oriented hint",
                     )
-            parent.setExpanded(
-                attribute.attribute_id == self._selected_attribute_id
-            )
+            parent.setExpanded(attribute.attribute_id == self._selected_attribute_id)
             if attribute.attribute_id == self._selected_attribute_id:
                 selected_item = parent
 
@@ -714,9 +677,7 @@ class IqaWorkspaceWidget(QWidget):
         plot.clear()
         self.overview_legend.clear()
         attributes = [
-            item
-            for item in self._model.result.attributes
-            if item.value_kind is ValueKind.POWER
+            item for item in self._model.result.attributes if item.value_kind is ValueKind.POWER
         ]
         self._overview_hover_texts = ()
         self._last_overview_hover_index = None
@@ -727,9 +688,7 @@ class IqaWorkspaceWidget(QWidget):
         columns = self._display_columns()
         self.overview_legend.setColumnCount(min(4, max(1, len(columns))))
         x = np.arange(len(attributes), dtype=np.float64)
-        crowded_ticks = len(attributes) >= 6 or any(
-            len(item.name) > 14 for item in attributes
-        )
+        crowded_ticks = len(attributes) >= 6 or any(len(item.name) > 14 for item in attributes)
         bottom_axis = plot.getAxis("bottom")
         bottom_axis.setStyle(
             autoExpandTextSpace=True,
@@ -739,13 +698,15 @@ class IqaWorkspaceWidget(QWidget):
         )
         bottom_axis.setHeight(44 if crowded_ticks else None)
         bottom_axis.setTicks(
-            [[
-                (
-                    float(index),
-                    _overview_tick_label(item.name, crowded=crowded_ticks),
-                )
-                for index, item in enumerate(attributes)
-            ]]
+            [
+                [
+                    (
+                        float(index),
+                        _overview_tick_label(item.name, crowded=crowded_ticks),
+                    )
+                    for index, item in enumerate(attributes)
+                ]
+            ]
         )
         width = 0.72 / max(1, len(columns))
         hover_lines = [[attribute.name] for attribute in attributes]
@@ -790,16 +751,10 @@ class IqaWorkspaceWidget(QWidget):
                     attributes[index].attribute_id,
                     relative=relative,
                 )
-                hover_lines[index].append(
-                    f"{label}: {_display_value(value)} {unit}"
-                )
-        self._overview_hover_texts = tuple(
-            "\n".join(lines) for lines in hover_lines
-        )
+                hover_lines[index].append(f"{label}: {_display_value(value)} {unit}")
+        self._overview_hover_texts = tuple("\n".join(lines) for lines in hover_lines)
         if reference is ABSOLUTE_REFERENCE_ID:
-            plot.setTitle(
-                "Absolute Dataset Overview · pooled weighted mean"
-            )
+            plot.setTitle("Absolute Dataset Overview · pooled weighted mean")
         else:
             plot.addItem(
                 pg.InfiniteLine(
@@ -810,8 +765,7 @@ class IqaWorkspaceWidget(QWidget):
             )
             reference_label = self._reference_label()
             plot.setTitle(
-                "Relative Dataset Overview · "
-                f"Reference: {reference_label} · equal-Scene mean"
+                "Relative Dataset Overview · " f"Reference: {reference_label} · equal-Scene mean"
             )
         plot.setLabel("left", "Value")
         plot.enableAutoRange()
@@ -829,16 +783,11 @@ class IqaWorkspaceWidget(QWidget):
         scene_ids = self._model.scene_ids
         x = np.arange(len(scene_ids), dtype=np.float64)
         plot.getAxis("bottom").setTicks(
-            [[
-                (float(index), scene_id)
-                for index, scene_id in enumerate(scene_ids)
-            ]]
+            [[(float(index), scene_id) for index, scene_id in enumerate(scene_ids)]]
         )
         enabled = set(self.enabled_attribute_ids)
         attributes = [
-            item
-            for item in self._model.result.attributes
-            if item.attribute_id in enabled
+            item for item in self._model.result.attributes if item.attribute_id in enabled
         ]
         if not attributes:
             self.trend_label.setText("No attributes selected")
@@ -875,9 +824,7 @@ class IqaWorkspaceWidget(QWidget):
                     x,
                     values,
                     pen=_series_pen(color, series_index),
-                    symbol=_VARIANT_SYMBOLS[
-                        series_index % len(_VARIANT_SYMBOLS)
-                    ],
+                    symbol=_VARIANT_SYMBOLS[series_index % len(_VARIANT_SYMBOLS)],
                     symbolSize=6,
                     symbolPen=pg.mkPen(color),
                     symbolBrush=pg.mkBrush(color),
@@ -889,21 +836,17 @@ class IqaWorkspaceWidget(QWidget):
                 )
                 for scene_index, value in enumerate(values):
                     hover_lines[scene_index].append(
-                        f"{attribute.name} · {label}: "
-                        f"{_display_value(value)} {unit}"
+                        f"{attribute.name} · {label}: " f"{_display_value(value)} {unit}"
                     )
 
-        self._scene_hover_texts = tuple(
-            "\n".join(lines) for lines in hover_lines
-        )
+        self._scene_hover_texts = tuple("\n".join(lines) for lines in hover_lines)
         mode_label = "Relative" if relative else "Absolute"
         self.trend_label.setText(
             f"{mode_label} Scene trend · {len(attributes)} / "
             f"{len(self._model.result.attributes)} attributes"
         )
         self.series_hint.setText(
-            "Attribute = color · variant/target = marker · "
-            "click = selected Scene"
+            "Attribute = color · variant/target = marker · " "click = selected Scene"
         )
         if relative:
             plot.addItem(
@@ -942,8 +885,7 @@ class IqaWorkspaceWidget(QWidget):
         _clear_layout(self.preview_layout)
         if self._model is None or self._selected_scene_id is None:
             self.preview_caption.setText(
-                "Click a Scene in the trend plot to inspect its published "
-                "source identities."
+                "Click a Scene in the trend plot to inspect its published " "source identities."
             )
             return
         self.preview_caption.setText(
@@ -965,9 +907,7 @@ class IqaWorkspaceWidget(QWidget):
             title.setFont(font)
             card_layout.addWidget(title)
             card_layout.addWidget(QLabel(source.source_id, card))
-            card_layout.addWidget(
-                QLabel(f"{source.width} × {source.height}", card)
-            )
+            card_layout.addWidget(QLabel(f"{source.width} × {source.height}", card))
             path_label = QLabel(
                 f"Published relative path: {source.relative_path}",
                 card,
@@ -1010,9 +950,7 @@ class IqaWorkspaceWidget(QWidget):
         if self._model is None or self._relative_loading:
             return
         reference = self.reference_variant_id
-        if reference is not ABSOLUTE_REFERENCE_ID and not self._model.reference_ready(
-            reference
-        ):
+        if reference is not ABSOLUTE_REFERENCE_ID and not self._model.reference_ready(reference):
             self.show_relative_loading(reference)
             self.relative_requested.emit(reference)
             return
@@ -1035,11 +973,7 @@ class IqaWorkspaceWidget(QWidget):
         if current is None or self._model is None:
             return
         data = current.data(0, Qt.ItemDataRole.UserRole)
-        if (
-            isinstance(data, tuple)
-            and len(data) == 2
-            and isinstance(data[0], str)
-        ):
+        if isinstance(data, tuple) and len(data) == 2 and isinstance(data[0], str):
             self._selected_attribute_id = data[0]
 
     @Slot(QPointF)
@@ -1106,10 +1040,7 @@ class IqaWorkspaceWidget(QWidget):
         if self._model is None:
             return
         button_method = getattr(event, "button", None)
-        if (
-            callable(button_method)
-            and button_method() != Qt.MouseButton.LeftButton
-        ):
+        if callable(button_method) and button_method() != Qt.MouseButton.LeftButton:
             return
         position_method = getattr(event, "scenePos", None)
         if not callable(position_method):
@@ -1118,9 +1049,7 @@ class IqaWorkspaceWidget(QWidget):
         view_box = self.scene_trend_plot.plotItem.vb
         if not view_box.sceneBoundingRect().contains(scene_position):
             return
-        index = int(
-            round(float(view_box.mapSceneToView(scene_position).x()))
-        )
+        index = int(round(float(view_box.mapSceneToView(scene_position).x())))
         self._select_scene_index(index)
 
     def _select_scene_index(self, scene_index: int) -> None:
@@ -1186,11 +1115,7 @@ class IqaWorkspaceController(QObject):
     @Slot(str)
     def prepare_relative(self, reference_variant_id: str) -> None:
         model = self.workspace.model
-        if (
-            not self._active
-            or model is None
-            or model.reference_ready(reference_variant_id)
-        ):
+        if not self._active or model is None or model.reference_ready(reference_variant_id):
             return
         if self._relative_worker is not None:
             return
@@ -1248,10 +1173,7 @@ class IqaWorkspaceController(QObject):
         value: object,
     ) -> VersionedResultLoadOutcome:
         if isinstance(value, _WorkspaceLoadPayload):
-            if (
-                value.outcome.status is LoadStatus.SUCCESS
-                and value.model is not None
-            ):
+            if value.outcome.status is LoadStatus.SUCCESS and value.model is not None:
                 return self.workspace.set_model(value.model)
             return value.outcome
         if isinstance(value, VersionedResultLoadOutcome):
@@ -1302,11 +1224,7 @@ class IqaWorkspaceController(QObject):
     ) -> None:
         if not self._active or generation != self._generation:
             return
-        reason = (
-            value.message
-            if isinstance(value, TaskError)
-            else "unexpected reader failure"
-        )
+        reason = value.message if isinstance(value, TaskError) else "unexpected reader failure"
         outcome = VersionedResultLoadOutcome(
             LoadStatus.CORRUPT,
             reason=reason,
@@ -1324,11 +1242,7 @@ class IqaWorkspaceController(QObject):
     ) -> None:
         if not self._active or generation != self._generation:
             return
-        reason = (
-            value.message
-            if isinstance(value, TaskError)
-            else "unexpected Scene-grid failure"
-        )
+        reason = value.message if isinstance(value, TaskError) else "unexpected Scene-grid failure"
         outcome = VersionedResultLoadOutcome(
             LoadStatus.CORRUPT,
             reason=reason,
@@ -1343,10 +1257,7 @@ class IqaWorkspaceController(QObject):
 
     @Slot(str)
     def _relative_worker_finished(self, task_id: str) -> None:
-        if (
-            self._relative_worker is not None
-            and self._relative_worker.task_id == task_id
-        ):
+        if self._relative_worker is not None and self._relative_worker.task_id == task_id:
             self._relative_worker = None
 
 
@@ -1380,11 +1291,7 @@ def _stat_text(statistic: ScalarStatistic) -> str:
 
 
 def _stat_plot_value(statistic: ScalarStatistic) -> float:
-    if (
-        statistic.valid
-        and statistic.value is not None
-        and np.isfinite(statistic.value)
-    ):
+    if statistic.valid and statistic.value is not None and np.isfinite(statistic.value):
         return float(statistic.value)
     return float("nan")
 

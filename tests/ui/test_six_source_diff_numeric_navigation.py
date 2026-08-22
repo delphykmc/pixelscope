@@ -86,9 +86,7 @@ def test_six_source_diff_number_keys_show_matching_source_and_keep_diff_availabl
         for candidate in documents:
             item = window.document_list.document_item(candidate.document_id)
             assert item is not None
-            assert bool(item.data(0, window.document_list.ACTIVE_ROLE)) is (
-                candidate is document
-            )
+            assert bool(item.data(0, window.document_list.ACTIVE_ROLE)) is (candidate is document)
 
     window._navigate_single_view("difference")
     assert window.viewer.document is difference

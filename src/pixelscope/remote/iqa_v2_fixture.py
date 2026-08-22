@@ -138,24 +138,15 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
     detail_root.mkdir(exist_ok=True)
     specs = tuple(_attribute_spec(row) for row in V2_ATTRIBUTE_ROWS)
     attributes = [_attribute_manifest(row) for row in V2_ATTRIBUTE_ROWS]
-    variants = [
-        {"variant_id": variant_id, "label": label}
-        for variant_id, label in V2_VARIANTS
-    ]
+    variants = [{"variant_id": variant_id, "label": label} for variant_id, label in V2_VARIANTS]
     variant_count = len(variants)
     attribute_count = len(specs)
 
-    scene_weight = np.zeros(
-        (scene_count, variant_count, attribute_count), dtype=np.float64
-    )
+    scene_weight = np.zeros((scene_count, variant_count, attribute_count), dtype=np.float64)
     scene_weighted = np.zeros_like(scene_weight)
     scene_squared = np.zeros_like(scene_weight)
-    scene_count_values = np.zeros(
-        (scene_count, variant_count, attribute_count), dtype=np.int64
-    )
-    scene_valid = np.zeros(
-        (scene_count, variant_count, attribute_count), dtype=np.bool_
-    )
+    scene_count_values = np.zeros((scene_count, variant_count, attribute_count), dtype=np.int64)
+    scene_valid = np.zeros((scene_count, variant_count, attribute_count), dtype=np.bool_)
     scene_mean = np.zeros_like(scene_weight)
     scene_std = np.zeros_like(scene_weight)
     source_ids = np.empty((scene_count, variant_count), dtype="<U128")
@@ -191,9 +182,7 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
             weighting_id="scene-context-gating-v2",
             geometry_id="analysis-grid-profile-v2",
         )
-        context_id = build_measurement_context_id(
-            scene_id, measurements, specs, provenance
-        )
+        context_id = build_measurement_context_id(scene_id, measurements, specs, provenance)
         context_ids[scene_index] = context_id
 
         for attribute_index, spec in enumerate(specs):
@@ -209,9 +198,7 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
             prefix = f"{spec.attribute_id}__"
             arrays[prefix + "weight_sum"] = np.asarray(compact.weight_sum)
             arrays[prefix + "weighted_sum"] = np.asarray(compact.weighted_sum)
-            arrays[prefix + "weighted_square_sum"] = np.asarray(
-                compact.weighted_square_sum
-            )
+            arrays[prefix + "weighted_square_sum"] = np.asarray(compact.weighted_square_sum)
             arrays[prefix + "valid_count"] = np.asarray(compact.valid_count)
             arrays[prefix + "valid_mask"] = np.asarray(compact.valid_mask)
             for variant_index in range(variant_count):
@@ -232,9 +219,7 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
                 scene_mean[scene_stat_index] = mean
                 scene_std[scene_stat_index] = std
 
-        arrays["variant_ids"] = np.asarray(
-            [row[0] for row in V2_VARIANTS], dtype="<U128"
-        )
+        arrays["variant_ids"] = np.asarray([row[0] for row in V2_VARIANTS], dtype="<U128")
         arrays["source_ids"] = source_ids[scene_index].copy()
         arrays["measurement_context_id"] = np.asarray([context_id], dtype="<U68")
         grid_path = scenes_root / f"{scene_id}.npz"
@@ -301,15 +286,10 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
             pooled_std[dataset_stat_index] = std
             means = [
                 float(value)
-                for value in scene_mean[
-                    :, variant_index, attribute_index
-                ][mask].tolist()
+                for value in scene_mean[:, variant_index, attribute_index][mask].tolist()
             ]
             mean_of_scenes = math.fsum(means) / len(means)
-            variance = (
-                math.fsum((value - mean_of_scenes) ** 2 for value in means)
-                / len(means)
-            )
+            variance = math.fsum((value - mean_of_scenes) ** 2 for value in means) / len(means)
             equal_mean[dataset_stat_index] = mean_of_scenes
             equal_std[dataset_stat_index] = math.sqrt(max(0.0, variance))
             equal_count[dataset_stat_index] = len(means)
@@ -320,9 +300,7 @@ def write_golden_result_v2(root: Path, scene_count: int = 4) -> Path:
         summary_path,
         scene_ids=np.asarray([scene["scene_id"] for scene in scenes], dtype="<U128"),
         variant_ids=np.asarray([row[0] for row in V2_VARIANTS], dtype="<U128"),
-        attribute_ids=np.asarray(
-            [spec.attribute_id for spec in specs], dtype="<U64"
-        ),
+        attribute_ids=np.asarray([spec.attribute_id for spec in specs], dtype="<U64"),
         source_ids=source_ids,
         measurement_context_ids=context_ids,
         scene_weight_sum=scene_weight,
@@ -464,9 +442,7 @@ def _geometry(scene_index: int) -> SceneGeometry:
     )
 
 
-def _grid(
-    scene_index: int, attribute_index: int, geometry: SceneGeometry
-) -> GridGeometry:
+def _grid(scene_index: int, attribute_index: int, geometry: SceneGeometry) -> GridGeometry:
     if attribute_index < 5:
         block_width, block_height, rows, columns = (32.0, 32.0, 3, 4)
     else:
@@ -507,25 +483,16 @@ def _compact_arrays(
                 cell_weight = float(1 + ((cell_index + variant_index) % 4))
                 if spec.value_kind is ValueKind.SIGNED:
                     mean = -0.04 + attribute_index * 0.004 + scene_index * 0.012
-                    mean += (
-                        (-0.025, 0.0, 0.035)[variant_index]
-                        + cell_index * 0.0015
-                    )
+                    mean += (-0.025, 0.0, 0.035)[variant_index] + cell_index * 0.0015
                 else:
                     mean = 0.035 + attribute_index * 0.012 + scene_index * 0.004
                     mean *= 1.0 + cell_index * 0.025
                     mean *= (1.0, 1.18, 0.88)[variant_index]
-                    if (
-                        scene_index == 1
-                        and attribute_index == 0
-                        and variant_index == 2
-                    ):
+                    if scene_index == 1 and attribute_index == 0 and variant_index == 2:
                         mean = 0.0
                 weight[variant_index, row, column] = cell_weight
                 weighted[variant_index, row, column] = cell_weight * mean
-                squared[variant_index, row, column] = cell_weight * (
-                    mean * mean + 0.0004
-                )
+                squared[variant_index, row, column] = cell_weight * (mean * mean + 0.0004)
     if scene_index == 0 and attribute_index == 1:
         valid[0, 0, 0] = False
         valid[1, 0, 1] = False
@@ -555,13 +522,8 @@ def _fixture_summary(
     if not np.any(mask):
         return None
     weight = [float(value) for value in np.asarray(data.weight_sum)[mask].tolist()]
-    weighted = [
-        float(value) for value in np.asarray(data.weighted_sum)[mask].tolist()
-    ]
-    squared = [
-        float(value)
-        for value in np.asarray(data.weighted_square_sum)[mask].tolist()
-    ]
+    weighted = [float(value) for value in np.asarray(data.weighted_sum)[mask].tolist()]
+    squared = [float(value) for value in np.asarray(data.weighted_square_sum)[mask].tolist()]
     counts = [int(value) for value in np.asarray(data.valid_count)[mask].tolist()]
     total_weight = math.fsum(weight)
     total_weighted = math.fsum(weighted)

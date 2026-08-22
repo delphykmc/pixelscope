@@ -119,9 +119,7 @@ def test_direct_curation_install_preserves_selected_and_current_page(
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
     selected_before = tuple(document.document_id for document in window.selected_documents)
-    page_before = tuple(
-        document.document_id for document in window.current_comparison_documents()
-    )
+    page_before = tuple(document.document_id for document in window.current_comparison_documents())
 
     assert tuple(document.document_id for document in window.selected_documents) == selected_before
     assert (
@@ -241,9 +239,7 @@ def test_keep_selection_filters_baseline_order_and_keeps_nonpicked_registered(
         documents[7].document_id,
     ]
     assert [document.document_id for document in window.selected_documents] == expected
-    assert [
-        document.document_id for document in window.current_comparison_documents()
-    ] == expected
+    assert [document.document_id for document in window.current_comparison_documents()] == expected
     assert set(window.documents) == {document.document_id for document in documents}
     assert not controller.active
     assert controller.picked_count == 0

@@ -94,9 +94,7 @@ class SessionRestoreOverlay(QFrame):
         fraction = max(0.0, min(float(fraction), 1.0))
         overall = ((step - 1) + fraction) / len(self._steps)
         self.progress_bar.setValue(round(overall * self.progress_bar.maximum()))
-        self.step_label.setText(
-            f"Step {step} of {len(self._steps)} · {self._steps[step - 1]}"
-        )
+        self.step_label.setText(f"Step {step} of {len(self._steps)} · {self._steps[step - 1]}")
         self.detail_label.setText(detail)
 
     def finish(self, detail: str = "Session restored") -> None:

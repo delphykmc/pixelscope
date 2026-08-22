@@ -251,9 +251,7 @@ def test_registered_raw_sidecar_resolves_when_document_is_actually_loaded(
     monkeypatch.setattr(
         window,
         "_start_load",
-        lambda target_id, path, raw_profile: started.append(
-            (target_id, path, raw_profile)
-        ),
+        lambda target_id, path, raw_profile: started.append((target_id, path, raw_profile)),
     )
 
     window._ensure_loaded(document)
@@ -391,12 +389,10 @@ def test_folder_position_uses_only_selected_folders_among_many_registered(
     _disable_background_loading(window, monkeypatch)
     selected_folder_indices = [0, 3, 7, 9]
     selected_ids = [
-        _document_id_for_path(window, by_folder[index][0])
-        for index in selected_folder_indices
+        _document_id_for_path(window, by_folder[index][0]) for index in selected_folder_indices
     ]
     expected_next_ids = tuple(
-        _document_id_for_path(window, by_folder[index][1])
-        for index in selected_folder_indices
+        _document_id_for_path(window, by_folder[index][1]) for index in selected_folder_indices
     )
     window._select_document_ids(selected_ids)
 

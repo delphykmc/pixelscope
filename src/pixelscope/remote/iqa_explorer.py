@@ -53,18 +53,14 @@ class IqaExplorerModel:
         self,
         result: Result | ResultV2,
         *,
-        relative_cache: dict[
-            tuple[str, ComparisonMode, str, str], tuple[RelativeTrendPoint, ...]
-        ]
+        relative_cache: dict[tuple[str, ComparisonMode, str, str], tuple[RelativeTrendPoint, ...]]
         | None = None,
         prepared_references: frozenset[str] | None = None,
     ) -> None:
         self.result = result
         self._legacy_comparisons: dict[tuple[str, str], Comparison] = {}
         self._relative_cache = dict(relative_cache or {})
-        self._dataset_cache: dict[
-            tuple[str, ComparisonMode, str, str], ScalarStatistic
-        ] = {}
+        self._dataset_cache: dict[tuple[str, ComparisonMode, str, str], ScalarStatistic] = {}
         self._prepared_references = prepared_references or frozenset()
         if isinstance(result, ResultV2):
             self._variants = tuple(
@@ -113,9 +109,7 @@ class IqaExplorerModel:
         if self.reference_ready(reference_variant_id):
             return self
 
-        rows: dict[
-            tuple[str, ComparisonMode, str, str], list[RelativeTrendPoint]
-        ] = {}
+        rows: dict[tuple[str, ComparisonMode, str, str], list[RelativeTrendPoint]] = {}
         for attribute in result.attributes:
             modes = _modes_for(attribute.value_kind)
             for target_variant_id in variant_ids:
@@ -178,9 +172,7 @@ class IqaExplorerModel:
         return IqaExplorerModel(
             result,
             relative_cache=cache,
-            prepared_references=(
-                self._prepared_references | frozenset({reference_variant_id})
-            ),
+            prepared_references=(self._prepared_references | frozenset({reference_variant_id})),
         )
 
     def absolute_dataset_stat(self, variant_id: str, attribute_id: str) -> ScalarStatistic:
@@ -198,11 +190,7 @@ class IqaExplorerModel:
     ) -> ScalarStatistic:
         if not isinstance(self.result, ResultV2):
             return ScalarStatistic.invalid("legacy_v1_has_no_absolute_measurement")
-        summary = (
-            self.result.scene(scene_id)
-            .source_for_variant(variant_id)
-            .summary(attribute_id)
-        )
+        summary = self.result.scene(scene_id).source_for_variant(variant_id).summary(attribute_id)
         return _measurement_mean(summary.valid, summary.weighted_mean)
 
     def relative_trend(
@@ -229,9 +217,7 @@ class IqaExplorerModel:
             return cached
         if isinstance(self.result, ResultV2):
             if not self.reference_ready(reference_variant_id):
-                raise RuntimeError(
-                    f"Reference {reference_variant_id} has not been prepared"
-                )
+                raise RuntimeError(f"Reference {reference_variant_id} has not been prepared")
             raise KeyError(key)
         points = self._legacy_relative_trend(
             attribute_id,
@@ -311,13 +297,9 @@ class IqaExplorerModel:
             iqr = float(q3 - q1)
             if iqr <= 0.0 or not math.isfinite(iqr):
                 return ()
-            flagged = (values < q1 - 1.5 * iqr) | (
-                values > q3 + 1.5 * iqr
-            )
+            flagged = (values < q1 - 1.5 * iqr) | (values > q3 + 1.5 * iqr)
         return tuple(
-            point.scene_id
-            for point, is_flagged in zip(valid, flagged, strict=True)
-            if is_flagged
+            point.scene_id for point, is_flagged in zip(valid, flagged, strict=True) if is_flagged
         )
 
     def display_unit(self, attribute_id: str, *, relative: bool) -> str:
