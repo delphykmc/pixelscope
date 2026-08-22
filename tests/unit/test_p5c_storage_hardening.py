@@ -68,6 +68,29 @@ def test_concurrent_staging_uses_unique_temps_and_one_verified_target(
     assert list(staging.rglob("*.part")) == []
 
 
+def test_publish_race_reuses_verified_winner_after_replace_permission_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.bin"
+    payload = b"windows-publish-race" * 10_000
+    source.write_bytes(payload)
+    staging = tmp_path / "share"
+    staging.mkdir()
+
+    def competing_replace(src: Path, dst: Path) -> None:
+        dst.write_bytes(src.read_bytes())
+        raise PermissionError(5, "simulated publish contention")
+
+    monkeypatch.setattr(iqa_storage.os, "replace", competing_replace)
+
+    staged = stage_source(source, staging, "shared")
+
+    assert staged.local_path.read_bytes() == payload
+    assert staged.sha256 == hashlib.sha256(payload).hexdigest()
+    assert list(staging.rglob("*.part")) == []
+
+
 def test_staging_rejects_escaping_directory_link_before_external_mutation(
     tmp_path: Path,
 ) -> None:
