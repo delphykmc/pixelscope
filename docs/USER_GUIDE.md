@@ -49,7 +49,7 @@ Opening folders is **registration-only**:
 - the current viewer/layout does not change;
 - no first image is automatically selected;
 - two folders do not implicitly create a comparison group;
-- folders with no supported images are skipped while other folders continue.
+- folders with no supported images are skipped while other inputs continue.
 
 Therefore adding folders while comparing A001/B001 leaves that comparison intact.
 ROI, Line Profile, Difference presentation, Display Gain, active/primary state,
@@ -73,6 +73,53 @@ Drag/drop follows the same intent rules:
 Dropping one, two, six, or more folders behaves the same way. There is no special
 two-folder auto-comparison behavior. Unsupported files and standalone `.json`
 files are ignored rather than interpreted as RAW.
+
+## Open and explore IQA results
+
+Use **File > Open IQA Result...** to open a published Remote IQA result directory.
+The IQA workspace is non-modal, so the existing image workspace remains available
+while the result is explored.
+
+For current schema-v2 results, open is **summary-first**. PixelScope reads the small
+manifest/summary artifacts and initially shows **Absolute measurements** without
+opening every Scene grid. The Dataset Overview uses the published pooled weighted
+mean, while the hierarchy and Scene Trend expose the published Scene-level absolute
+measurements for every declared variant.
+
+The **Reference** control is local to the IQA workspace and is independent from the
+image viewer's Primary state. A schema-v2 result may contain more than two variants.
+Selecting a variant as Reference starts background preparation of the required Scene
+grid measurements. During that work the workspace reports loading/calculation state;
+when preparation completes, the hierarchy and plots switch to target-versus-reference
+relative values. Returning to an already prepared Reference reuses the derived scalar
+results. If deferred grid loading or calculation fails, PixelScope restores the last
+successfully presented Absolute/Reference mode instead of leaving the control and
+plots with different semantics.
+
+For power-valued attributes, relative results are displayed in dB and the aggregation
+control selects either the ratio of pair-valid weighted means or the mean of finite
+pair-valid grid log-ratios. Signed attributes use their signed engineering unit and
+the canonical target-minus-reference calculation. The relative Dataset Overview is
+the arithmetic mean of valid Scene comparison values.
+
+Use the attribute visibility controls to reduce the plotted set. The hierarchy is
+organized by attribute and Scene, and the Scene Trend supports hover/click selection.
+Selecting a Scene updates the Scene cards. These cards show published variant/source
+identity, relative path, hash, and related metadata only; P5-B does **not** open those
+paths as native PixelScope source images. Logical-root resolution, hash verification,
+and source-image inspection are deferred to the later explicit Inspect workflow.
+
+Historical schema-v1 results remain read-only compatibility. They expose the
+available two-source A/B comparison workflow and do not invent schema-v2 absolute
+measurements.
+
+The IQA dock uses the same **Float/Dock**, **Maximize/Restore**, and **Hide** title-bar
+behavior as Plots. **View > Reset Workspace Layout** clears its persisted floating
+geometry, re-docks it on the right, and hides it with the rest of the workspace reset.
+
+Passive IQA result browsing does not change Files registration, logical Selected,
+Current Comparison Page, Active/Primary image state, Difference, Display Gain,
+source residency/preload, native analysis results, Session state, or temporary Picks.
 
 ## Current Comparison Page navigation
 
