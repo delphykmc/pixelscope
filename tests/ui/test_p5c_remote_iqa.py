@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -8,14 +9,18 @@ from PySide6.QtWidgets import QDockWidget, QTableWidgetItem
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
-from pixelscope.app.settings import ApplicationSettings, QSettingsAdapter, SettingsRepository
+from pixelscope.app.settings import (
+    ApplicationSettings,
+    QSettingsAdapter,
+    SettingsRepository,
+)
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_result_reader import load_result
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.remote.iqa_submission import JobState
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.ui.iqa_remote_settings import RemoteIqaSettingsDialog
-from pixelscope.ui.iqa_submission import RemoteJobRecord, RemoteIqaWorkspace
+from pixelscope.ui.iqa_submission import RemoteIqaWorkspace, RemoteJobRecord
 
 
 @pytest.fixture(autouse=True)
@@ -34,17 +39,16 @@ def _repository() -> SettingsRepository:
 
 
 def _make_partial(root: Path) -> Path:
-    result_root = write_golden_result_v2(root, scene_count=2)
-    import json
-
+    result_root = write_golden_result_v2(root, scene_count=3)
     manifest_path = result_root / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
         {"scene_id": "scene_000000", "status": "succeeded"},
         {"scene_id": "scene_000001", "status": "succeeded"},
+        {"scene_id": "scene_000002", "status": "succeeded"},
         {
-            "scene_id": "scene_000002",
+            "scene_id": "scene_000003",
             "status": "failed",
             "error": {
                 "code": "source_unavailable",
@@ -57,7 +61,9 @@ def _make_partial(root: Path) -> Path:
     return result_root
 
 
-def test_remote_settings_dialog_round_trips_machine_local_mapping(qtbot: object) -> None:
+def test_remote_settings_dialog_round_trips_machine_local_mapping(
+    qtbot: object,
+) -> None:
     repository = _repository()
     dialog = RemoteIqaSettingsDialog(
         repository,
@@ -83,7 +89,9 @@ def test_remote_settings_dialog_round_trips_machine_local_mapping(qtbot: object)
     assert "restart" not in dialog.remote_page.toolTip().casefold()
 
 
-def test_production_composition_extends_exactly_one_existing_iqa_dock(qtbot: object) -> None:
+def test_production_composition_extends_exactly_one_existing_iqa_dock(
+    qtbot: object,
+) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
@@ -156,18 +164,20 @@ def test_valid_partial_result_shows_compact_status_and_failed_scene_diagnostics(
     window.remote_iqa_workspace.present_result_outcome(outcome)
 
     assert window.remote_iqa_workspace.partial_status.isVisible() is False or (
-        "2 / 3 Scenes succeeded" in window.remote_iqa_workspace.partial_status.text()
+        "3 / 4 Scenes succeeded" in window.remote_iqa_workspace.partial_status.text()
     )
-    assert "2 / 3 Scenes succeeded" in window.remote_iqa_workspace.partial_status.text()
+    assert "3 / 4 Scenes succeeded" in window.remote_iqa_workspace.partial_status.text()
     assert window.remote_iqa_workspace.partial_diagnostics.topLevelItemCount() == 1
     item = window.remote_iqa_workspace.partial_diagnostics.topLevelItem(0)
-    assert item.text(0) == "scene_000002"
+    assert item.text(0) == "scene_000003"
     assert item.text(1) == "failed"
     assert item.text(2) == "source_unavailable"
     window.close()
 
 
-def test_shutdown_rejects_late_submission_callbacks_without_remote_cancel(qtbot: object) -> None:
+def test_shutdown_rejects_late_submission_callbacks_without_remote_cancel(
+    qtbot: object,
+) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     _compose_main_window_presentation(window)

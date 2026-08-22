@@ -26,7 +26,10 @@ def _write_manifest(root: Path, manifest: dict[str, Any]) -> None:
 
 
 def _partial_root(tmp_path: Path, failed_status: str) -> Path:
-    root = write_golden_result_v2(tmp_path / f"partial-{failed_status}", scene_count=4)
+    root = write_golden_result_v2(
+        tmp_path / f"partial-{failed_status}",
+        scene_count=4,
+    )
     manifest = _manifest(root)
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
@@ -87,7 +90,9 @@ def test_partial_v2_golden_opens_successful_scenes_and_preserves_diagnostics(
     assert failed[0].scene_id == "scene_000004"
     assert failed[0].status == failed_status
     assert failed[0].error_code == "future.server.code/v7"
-    assert failed[0].error_message == "bounded diagnostic for the unavailable Scene"
+    assert failed[0].error_message == (
+        "bounded diagnostic for the unavailable Scene"
+    )
 
     model = IqaExplorerModel(result)
     assert model.scene_ids == (
@@ -100,8 +105,10 @@ def test_partial_v2_golden_opens_successful_scenes_and_preserves_diagnostics(
         result.scene("scene_000004")
 
 
-def test_partial_zero_success_is_invalid_before_numerical_scene_parsing(tmp_path: Path) -> None:
-    root = write_golden_result_v2(tmp_path / "zero-success", scene_count=2)
+def test_partial_zero_success_is_invalid_before_numerical_scene_parsing(
+    tmp_path: Path,
+) -> None:
+    root = write_golden_result_v2(tmp_path / "zero-success", scene_count=3)
     manifest = _manifest(root)
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
@@ -115,6 +122,11 @@ def test_partial_zero_success_is_invalid_before_numerical_scene_parsing(tmp_path
             "status": "cancelled",
             "error": {"code": "cancelled", "message": "second cancelled"},
         },
+        {
+            "scene_id": "scene_000002",
+            "status": "failed",
+            "error": {"code": "failed", "message": "third failed"},
+        },
     ]
     _write_manifest(root, manifest)
 
@@ -125,7 +137,7 @@ def test_partial_zero_success_is_invalid_before_numerical_scene_parsing(tmp_path
 
 
 def test_partial_all_success_is_invalid(tmp_path: Path) -> None:
-    root = write_golden_result_v2(tmp_path / "all-success", scene_count=2)
+    root = write_golden_result_v2(tmp_path / "all-success", scene_count=3)
     manifest = _manifest(root)
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
@@ -140,7 +152,9 @@ def test_partial_all_success_is_invalid(tmp_path: Path) -> None:
     assert "failed or cancelled" in outcome.reason
 
 
-def test_partial_success_outcomes_must_exactly_match_published_scenes(tmp_path: Path) -> None:
+def test_partial_success_outcomes_must_exactly_match_published_scenes(
+    tmp_path: Path,
+) -> None:
     root = _partial_root(tmp_path, "failed")
     manifest = _manifest(root)
     manifest["scene_outcomes"][0]["scene_id"] = "scene_wrong"
@@ -164,7 +178,10 @@ def test_partial_success_outcomes_must_exactly_match_published_scenes(tmp_path: 
         lambda outcomes: outcomes[-1]["error"].update({"retryable": "yes"}),
     ),
 )
-def test_malformed_partial_outcomes_are_invalid(tmp_path: Path, mutate: Any) -> None:
+def test_malformed_partial_outcomes_are_invalid(
+    tmp_path: Path,
+    mutate: Any,
+) -> None:
     root = _partial_root(tmp_path, "failed")
     manifest = _manifest(root)
     mutate(manifest["scene_outcomes"])
@@ -175,14 +192,18 @@ def test_malformed_partial_outcomes_are_invalid(tmp_path: Path, mutate: Any) -> 
     assert outcome.status is LoadStatus.INVALID
 
 
-def test_partial_failed_scene_never_gets_fabricated_measurements(tmp_path: Path) -> None:
+def test_partial_failed_scene_never_gets_fabricated_measurements(
+    tmp_path: Path,
+) -> None:
     root = _partial_root(tmp_path, "failed")
     outcome = load_result(root)
     assert isinstance(outcome.result, PartialResultV2)
 
     result = outcome.result
     published_scene_ids = {scene.scene_id for scene in result.scenes}
-    failed_scene_ids = {item.scene_id for item in result.unsuccessful_scene_outcomes}
+    failed_scene_ids = {
+        item.scene_id for item in result.unsuccessful_scene_outcomes
+    }
 
     assert published_scene_ids.isdisjoint(failed_scene_ids)
     assert failed_scene_ids == {"scene_000004"}
