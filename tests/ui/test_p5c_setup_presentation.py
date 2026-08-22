@@ -38,7 +38,7 @@ def test_release_remote_iqa_setup_uses_compact_pair_workflow(
     assert workspace.folder_b.placeholderText() == "Choose Folder B"
     assert workspace.folder_a_browse.text() == "Browse…"
     assert workspace.folder_b_browse.text() == "Browse…"
-    assert workspace.current_pair_label.text() == "Select 2 images in Comparison Page"
+    assert workspace.current_pair_label.text() == "Configure Remote IQA first"
     assert workspace.preview_status.text() == "Choose A/B folders"
 
     stale_headings = [
