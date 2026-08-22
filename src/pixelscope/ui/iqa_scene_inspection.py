@@ -181,6 +181,8 @@ class IqaSceneInspectionController(QObject):
         self._result_opening = False
         self._inspect_generation = 0
         self._spatial_generation = 0
+        self._local_intent_generation = 0
+        self._inspect_local_intent_generation: int | None = None
         self._inspect_worker: TaskWorker | None = None
         self._spatial_worker: TaskWorker | None = None
         self._inspect_result_identity: tuple[str, int] | None = None
@@ -364,6 +366,7 @@ class IqaSceneInspectionController(QObject):
             **kwargs: object,
         ) -> Any:
             if self._owned_mutation_depth == 0:
+                self._local_intent_generation += 1
                 self._invalidate_return("Return invalidated by a newer local Selected change")
             return self._original_select_document_ids(document_ids, *args, **kwargs)
 
@@ -372,26 +375,33 @@ class IqaSceneInspectionController(QObject):
             *args: object,
             **kwargs: object,
         ) -> Any:
-            if self._owned_mutation_depth == 0 and self._return_snapshot is not None:
-                captured = set(self._return_snapshot.selected_ids)
-                if captured.intersection(str(item) for item in document_ids):
-                    self._invalidate_return("Return invalidated because a captured source was removed")
-                else:
-                    self._invalidate_return("Return invalidated by a newer local Files change")
+            if self._owned_mutation_depth == 0:
+                self._local_intent_generation += 1
+                if self._return_snapshot is not None:
+                    captured = set(self._return_snapshot.selected_ids)
+                    if captured.intersection(str(item) for item in document_ids):
+                        self._invalidate_return(
+                            "Return invalidated because a captured source was removed"
+                        )
+                    else:
+                        self._invalidate_return("Return invalidated by a newer local Files change")
             return self._original_remove_document_ids(document_ids, *args, **kwargs)
 
         def set_layout_mode(mode: str) -> None:
             if (
                 self._owned_mutation_depth == 0
-                and self._return_snapshot is not None
                 and mode != self.window._layout_mode
             ):
-                self._invalidate_return("Return invalidated by a newer local layout choice")
+                self._local_intent_generation += 1
+                if self._return_snapshot is not None:
+                    self._invalidate_return("Return invalidated by a newer local layout choice")
             self._original_set_layout_mode(mode)
 
         def set_focus_document(document: object) -> None:
-            if self._owned_mutation_depth == 0 and self._return_snapshot is not None:
-                self._invalidate_return("Return invalidated by a newer local Primary choice")
+            if self._owned_mutation_depth == 0:
+                self._local_intent_generation += 1
+                if self._return_snapshot is not None:
+                    self._invalidate_return("Return invalidated by a newer local Primary choice")
             self._original_set_focus_document(document)
 
         def open_result(root: object) -> int:
@@ -497,6 +507,7 @@ class IqaSceneInspectionController(QObject):
         self._cancel_inspect_worker()
         self._inspect_generation += 1
         generation = self._inspect_generation
+        self._inspect_local_intent_generation = self._local_intent_generation
         self._inspect_result_identity = (result.result_id, id(result))
         self._set_status(f"Verifying published sources for {scene_id}…")
         worker = TaskWorker(
@@ -521,7 +532,12 @@ class IqaSceneInspectionController(QObject):
         generation: int,
         value: object,
     ) -> None:
-        if not self._active or self._result_opening or generation != self._inspect_generation:
+        if (
+            not self._active
+            or self._result_opening
+            or generation != self._inspect_generation
+            or self._inspect_local_intent_generation != self._local_intent_generation
+        ):
             return
         if not isinstance(value, SceneVerificationOutcome):
             self._set_status("Source verification returned no Scene outcome")
@@ -552,7 +568,12 @@ class IqaSceneInspectionController(QObject):
         generation: int,
         error: object,
     ) -> None:
-        if not self._active or self._result_opening or generation != self._inspect_generation:
+        if (
+            not self._active
+            or self._result_opening
+            or generation != self._inspect_generation
+            or self._inspect_local_intent_generation != self._local_intent_generation
+        ):
             return
         message = error.message if isinstance(error, TaskError) else str(error)
         self._set_status(f"Source verification failed · {message}")
@@ -814,7 +835,10 @@ class IqaSceneInspectionController(QObject):
         self._sync_controls()
 
     def _files_selection_changing(self) -> None:
-        if self._owned_mutation_depth == 0 and self._return_snapshot is not None:
+        if self._owned_mutation_depth != 0:
+            return
+        self._local_intent_generation += 1
+        if self._return_snapshot is not None:
             self._invalidate_return("Return invalidated by a newer local Selected change")
 
     def _files_selection_changed(self) -> None:
@@ -828,6 +852,7 @@ class IqaSceneInspectionController(QObject):
     def _files_remove_changing(self, document_ids: object) -> None:
         if self._owned_mutation_depth != 0 or not isinstance(document_ids, list):
             return
+        self._local_intent_generation += 1
         snapshot = self._return_snapshot
         if snapshot is None:
             return
@@ -865,6 +890,7 @@ class IqaSceneInspectionController(QObject):
         if self._inspect_worker is not None:
             self._inspect_worker.cancel()
         self._inspect_worker = None
+        self._inspect_local_intent_generation = None
 
     def _cancel_spatial_worker(self) -> None:
         self._spatial_generation += 1
