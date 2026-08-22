@@ -413,8 +413,7 @@ Folder Position +1.
 
 `RawProfile` JSON migration remains the durable compatibility boundary. P4-A adds
 no profile-library persistence, profile schema version, last-profile reuse,
-size-only/fuzzy matching, sensor inference, Bayer-pattern inference, or automatic
-Black/White estimation.
+size-only/fuzzy matching, sensor inference, or automatic Black/White estimation.
 
 ## Workspace and Folder Position
 
