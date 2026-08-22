@@ -195,7 +195,13 @@ class LocalhostIqaServer:
         if self.config.scenario == "failed":
             return _ServerResponse(
                 200,
-                self._status_payload(returned_id, "failed", 0, job.total_scenes, "scripted failure"),
+                self._status_payload(
+                    returned_id,
+                    "failed",
+                    0,
+                    job.total_scenes,
+                    "scripted failure",
+                ),
             )
         if self.config.scenario == "partial":
             completed = max(1, job.total_scenes - 1)
