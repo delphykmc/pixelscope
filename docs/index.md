@@ -10,7 +10,7 @@ knowledge belongs in focused documents under `docs/`.
 | Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
 | User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `ui/` note | Behavior, terminology, shortcut, or workflow changes |
 | Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
-| Remote IQA result/schema work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, active P5 plan | Measurement/comparison ownership, result identity, summaries/grids, loading boundaries, or P5 sequencing change |
+| Remote IQA result/schema/submission work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, active P5 plan | Measurement/comparison ownership, storage/request/job identity, result schema, summaries/grids, loading boundaries, or P5 sequencing change |
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
@@ -28,9 +28,10 @@ knowledge belongs in focused documents under `docs/`.
   and lifecycle invariants; planned components are explicitly marked.
 - `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
-- `REMOTE_IQA_CONTRACT.md`: broad P5 Remote IQA product/architecture boundary.
-- `REMOTE_IQA_V2_SPEC.md`: current P5 numerical/result-schema target centered on
-  Scene-context absolute source measurements and local reference-dependent views.
+- `REMOTE_IQA_CONTRACT.md`: broad P5 Remote IQA product/architecture/transport
+  boundary, including P5-C storage/submission/jobs/PARTIAL ownership.
+- `REMOTE_IQA_V2_SPEC.md`: current executable P5 numerical/result-schema authority,
+  including COMPLETE and P5-C PARTIAL schema-v2 rules.
 - `REMOTE_IQA_V1_SPEC.md`: historical merged P5-A/schema-v1 executable/read-only
   compatibility contract; it is not the current writer/numerical target.
 - `SESSION_CONTRACT.md`: authoritative P4-C Session v1 persistence, restore,
@@ -39,15 +40,16 @@ knowledge belongs in focused documents under `docs/`.
 - `BRANDING.md`: canonical application identity, asset roles, visual constraints,
   supported icon sizes, and release-tool consumption rules.
 - `PACKAGING_CONSTRAINTS.md`: deployment environment and fixed packaging rules.
-- `USER_GUIDE.md`: end-user workflows.
+- `USER_GUIDE.md`: end-user workflows, including Remote IQA configuration,
+  submission, Jobs, explicit Open Result, and result exploration.
 - `QUALITY.md`: change-to-check matrix and completion evidence.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
-- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current P5
-  execution/orchestration plan.
-- [`exec-plans/active/p5-schema-v2-revision.md`](exec-plans/active/p5-schema-v2-revision.md):
-  focused P5-A2 schema-v2 interruption/rebase plan while PR #39 is active.
+- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current P5-C
+  execution/closeout plan; it is the required active execution plan.
+- [`exec-plans/completed/p5-schema-v2-revision.md`](exec-plans/completed/p5-schema-v2-revision.md):
+  retained rationale/closure record for the completed P5-A2 schema-v2 interruption.
 - [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md): retained P1 workspace-polish rationale and completion evidence.
 - `exec-plans/completed/`: retained plans whose rationale remains useful.
 - `exec-plans/TEMPLATE.md`: standard long-work format.

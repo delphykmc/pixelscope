@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QStyleHintReturn,
     QStyleOption,
     QWidget,
-    QWidgetItem,
 )
 
 
@@ -57,12 +56,10 @@ class EngineeringStyle(QProxyStyle):
 
 
 def _style_hint_widget(widget: object | None) -> QWidget | None:
-    """Normalize PySide6 virtual callbacks to the base binding's QWidget contract."""
+    """Return only live QWidget callbacks; never dereference layout-item wrappers."""
 
     if isinstance(widget, QWidget):
         return widget
-    if isinstance(widget, QWidgetItem):
-        return widget.widget()
     return None
 
 
@@ -78,6 +75,7 @@ def apply_engineering_palette(app: QApplication) -> None:
     palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(TOKENS.raised_background))
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(TOKENS.text_primary))
     palette.setColor(QPalette.ColorRole.Text, QColor(TOKENS.text_primary))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(TOKENS.text_secondary))
     palette.setColor(QPalette.ColorRole.Button, QColor(TOKENS.raised_background))
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(TOKENS.text_primary))
     palette.setColor(QPalette.ColorRole.BrightText, QColor("#ffffff"))

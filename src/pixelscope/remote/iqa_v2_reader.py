@@ -33,6 +33,7 @@ from pixelscope.remote.iqa_v2_math import (
     summary_from_accumulators,
     summary_from_grid,
 )
+from pixelscope.remote.iqa_v2_partial import PartialResultV2, parse_scene_outcomes
 from pixelscope.remote.iqa_v2_support import (
     V2_ARCHIVE_ON_DISK_LIMIT,
     V2_ARRAY_LIMIT,
@@ -84,14 +85,30 @@ def load_result_v2(root: Path | str) -> VersionedResultLoadOutcome:
         if version != 2:
             raise UnsupportedV2(f"schema-v2 reader cannot read schema_version {version}")
         state = manifest.get("publication_state")
-        if state == "partial":
-            raise UnsupportedV2(
-                "schema-v2 PARTIAL terminal details are reserved for P5-C; "
-                "successful Scene representation remains version-compatible"
-            )
-        if state != "complete":
+        if state not in {"complete", "partial"}:
             raise InvalidV2("schema-v2 publication_state must be complete or partial")
+
+        outcomes = None
+        successful_outcome_ids: tuple[str, ...] = ()
+        if state == "partial":
+            outcomes = parse_scene_outcomes(manifest)
+            successful_outcome_ids = tuple(
+                item.scene_id for item in outcomes if item.status == "succeeded"
+            )
+            if not successful_outcome_ids:
+                raise InvalidV2("PARTIAL result requires at least one successful Scene")
+            if len(successful_outcome_ids) == len(outcomes):
+                raise InvalidV2("PARTIAL result requires at least one failed or cancelled Scene")
+
         parsed = parse_complete_manifest(result_root, manifest)
+        if outcomes is not None:
+            scene_ids = tuple(scene.scene_id for scene in parsed.scenes)
+            if successful_outcome_ids != scene_ids:
+                raise InvalidV2(
+                    "successful scene_outcomes must correspond exactly to scenes[] "
+                    "in request order"
+                )
+
         summary_path = safe_artifact(result_root, parsed.summary_artifact)
         arrays = _load_summary(
             summary_path,
@@ -103,9 +120,8 @@ def load_result_v2(root: Path | str) -> VersionedResultLoadOutcome:
         _validate_summary_identity(arrays, parsed.scenes, parsed.variants, parsed.attributes)
         scenes = _populate_scene_summaries(parsed.scenes, parsed.attributes, arrays)
         dataset = _parse_dataset_summaries(scenes, parsed.variants, parsed.attributes, arrays)
-        return VersionedResultLoadOutcome(
-            LoadStatus.SUCCESS,
-            result=ResultV2(
+        if outcomes is not None:
+            result: ResultV2 = PartialResultV2(
                 root=result_root.resolve(),
                 result_id=parsed.result_id,
                 schema_version=2,
@@ -114,8 +130,20 @@ def load_result_v2(root: Path | str) -> VersionedResultLoadOutcome:
                 scenes=scenes,
                 dataset_summaries=dataset,
                 summary_artifact=parsed.summary_artifact,
-            ),
-        )
+                scene_outcomes=outcomes,
+            )
+        else:
+            result = ResultV2(
+                root=result_root.resolve(),
+                result_id=parsed.result_id,
+                schema_version=2,
+                variants=parsed.variants,
+                attributes=parsed.attributes,
+                scenes=scenes,
+                dataset_summaries=dataset,
+                summary_artifact=parsed.summary_artifact,
+            )
+        return VersionedResultLoadOutcome(LoadStatus.SUCCESS, result=result)
     except UnsupportedV2 as exc:
         return VersionedResultLoadOutcome(LoadStatus.UNSUPPORTED, reason=str(exc))
     except InvalidV2 as exc:
@@ -317,7 +345,13 @@ def _parse_dataset_summaries(
         for attribute_index, attribute in enumerate(attributes):
             index = (variant_index, attribute_index)
             identity = f"dataset/{variant.variant_id}/{attribute.attribute_id}"
-            pooled = _published_summary(arrays, index, attribute.value_kind, "pooled_", identity)
+            pooled = _published_summary(
+                arrays,
+                index,
+                attribute.value_kind,
+                "pooled_",
+                identity,
+            )
             scene_summaries = [
                 scene.source_for_variant(variant.variant_id).summary(attribute.attribute_id)
                 for scene in scenes
@@ -351,7 +385,10 @@ def _parse_dataset_summaries(
             ):
                 raise CorruptV2(f"{identity} equal-Scene projection mismatch")
             result[(variant.variant_id, attribute.attribute_id)] = DatasetSummaryV2(
-                pooled, ScalarStatistic(mean, True), ScalarStatistic(std, True), count
+                pooled,
+                ScalarStatistic(mean, True),
+                ScalarStatistic(std, True),
+                count,
             )
     return result
 
@@ -403,7 +440,11 @@ def _validate_pooled(
         math.fsum(item.weighted_sum for item in contributing),
         math.fsum(item.weighted_square_sum for item in contributing),
     )
-    actual = (published.weight_sum, published.weighted_sum, published.weighted_square_sum)
+    actual = (
+        published.weight_sum,
+        published.weighted_sum,
+        published.weighted_square_sum,
+    )
     for name, actual_value, expected_value in zip(
         ("weight_sum", "weighted_sum", "weighted_square_sum"),
         actual,
@@ -444,6 +485,7 @@ def _assert_summary_matches_grid(
         return
     for name in ("weight_sum", "weighted_sum", "weighted_square_sum"):
         if not projection_matches(
-            float(getattr(published, name)), float(getattr(recomposed, name))
+            float(getattr(published, name)),
+            float(getattr(recomposed, name)),
         ):
             raise CorruptV2(f"{identity} grid/summary {name} mismatch")

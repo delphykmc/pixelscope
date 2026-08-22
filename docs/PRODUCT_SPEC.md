@@ -245,8 +245,9 @@ Comparison Set persistence owns none of decoded source arrays, source
 residency/LRU/protection, preload or promotion state, Difference maps/cache, Display
 Gain state/previews, Statistics/Histogram/Line Profile/Difference request state,
 workers/tokens/generation, Split/Difference derived documents, transient zoom/pan,
-ROI/Line state, or temporary Pick state. Settings schema remains version 5 because
-`.pixelscope` is an external artifact, not application-settings storage.
+ROI/Line state, or temporary Pick state. Settings schema remained version 5 at the
+P4-B boundary because `.pixelscope` is an external artifact, not application-settings
+storage.
 
 ### Session persistence and typed Recent
 
@@ -277,8 +278,8 @@ loader. An eligible Difference recipe restores panel intent and issues one expli
 Current File UX exposes **Open Session...**, **Save Session...**, and typed bounded
 **Open Recent Images/Folders/Sessions** submenus. Recent history is max-10, path-only,
 best-effort observer metadata. Image, Folder, and Session activation delegate to
-their canonical workflows; missing paths use explicit Remove/Keep. Recent history is
-outside Settings schema v5 and owns no source/runtime state.
+their canonical workflows; missing paths use explicit Remove/Keep. Recent history
+was introduced outside Settings schema v5 and owns no source/runtime state.
 
 ### RAW input resolution
 
@@ -381,83 +382,201 @@ identity. Difference PNG encoding/file I/O reuses the existing bounded analysis
 worker pool; CSV serialization consumes already-computed in-memory series. The
 existing configured Export directory is reused. Missing/in-flight results are
 unavailable or safe no-ops, Cancel mutates nothing, and failed writes leave the
-workspace unchanged. No new Settings schema or generic export framework is added.
+workspace unchanged. No new generic export framework is added.
 
-### Remote IQA published-result exploration
+### Remote IQA result and submission workflow
 
-P5-A2 executable schema v2 is merged as PR #40 at
-`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`. P5-B / PR #38 implements the first
-user-facing Remote IQA result workspace while preserving the existing local image
-workspace as the sole source/analysis authority.
+P5-A2 schema v2 is the executable result contract. P5-B / PR #38 is merged and owns
+the canonical local result workspace. P5-C / Draft PR #42 extends that same IQA dock
+with remote Setup and Jobs; it does not create a second result parser or local source
+workspace.
 
-Use **File > Open IQA Result...** to open an immutable published result directory.
-The IQA workspace is non-modal and supports the same float/dock/maximize/reset title-
-bar behavior as Plots.
+The product surface is one non-modal IQA workspace:
+
+```text
+IQA
+├─ Setup
+├─ Jobs
+└─ Results
+```
+
+The dock retains the same float/dock/maximize/reset workspace behavior as Plots.
+Users may also continue to use **File > Open IQA Result...** for an already-published
+result directory.
+
+#### Setup — Current Pair
+
+Current Pair submits exactly two variants, `A` and `B`, from the **underlying Current
+Comparison Page documents**. The product requires exactly two eligible source images
+with matching original dimensions.
+
+Submission identity is independent from:
+
+- Primary;
+- Active;
+- viewer tile reorder;
+- Single/Multi presentation;
+- Display Gain;
+- Difference;
+- Split Channels.
+
+Remote submission currently supports PNG/JPG/JPEG/BMP only. RAW is explicitly
+unsupported; PixelScope does not silently demosaic or convert RAW for the remote IQA
+service.
+
+#### Setup — Folder Pair
+
+Folder Pair evaluates two directories without turning the entire batch into local
+Files/Selected/source-residency ownership.
+
+The user chooses Folder A and Folder B, then **Validate / Preview** before submit.
+Eligible files are immediate children only: no recursion and no symlink input. Each
+folder is normalized to deterministic Unicode-NFC lexical order. The folders must
+contain the same non-zero eligible count, at most 512 images, and items pair by
+sorted index. Each resulting A/B pair must have equal original dimensions.
+
+Folder filenames do not need to be semantically identical; deterministic sorted
+position is the pairing authority.
+
+#### Portable shared-storage identity
+
+Client and server may mount the same shared storage at different physical paths.
+PixelScope therefore sends logical identity rather than Windows paths:
+
+```text
+storage_root_id + relative_path + sha256 + width + height
+```
+
+A source already under a configured logical storage root is referenced in place.
+A source outside configured roots may be staged under the configured staging root
+using content-addressed SHA-256 identity.
+
+Machine-local drive/UNC paths are configuration only. They are not serialized as
+portable job/result identity, and PixelScope does not store server physical paths or
+credentials in the result/session artifacts.
+
+#### Jobs
+
+Submission creates a durable remote job and switches to Jobs without blocking the
+local comparison workflow. The client polls job state and displays progress/status.
+
+Remote states include queued/preparing/extracting/aggregating/writing and terminal
+`succeeded`, `partial`, `failed`, or `cancelled`.
+
+Jobs exposes:
+
+- **Cancel** while server state permits it;
+- **Open Result** only when a succeeded/partial job has a published result reference
+  that resolves through the current local storage-root mapping.
+
+Completion never automatically replaces the current Results view. **Open Result is
+always explicit** and delegates to the merged P5-B result controller.
+
+Create-job POST is intentionally not automatically retried because an error or
+timeout can occur after the server has already accepted the job. Idempotent terminal
+result-reference retrieval is different: a transient failure can be retried in a
+bounded sequence without resubmitting the job. A temporary result-reference failure
+may therefore recover automatically while the Jobs row remains terminal.
+
+#### Results
 
 For schema v2:
 
-- ordinary open is **summary-first** and reads only manifest + summary metadata;
+- ordinary open is summary-first and reads only manifest + summary metadata;
 - the initial mode is **Absolute measurements**;
-- Absolute Dataset Overview uses server-authored `pooled_weighted_mean` and the
-  detailed table shows published absolute Dataset/Scene values for every variant;
+- Absolute Dataset Overview uses server-authored `pooled_weighted_mean`;
 - Reference selection uses stable N-way `variant_id`, independent from local Primary;
 - all variants keep stable table/chart ordering across Absolute and Relative modes;
-- Absolute mode is a client-local presentation state, not a reserved server
-  `variant_id`, so any schema-valid real variant string remains selectable;
-- selecting an unprepared Reference loads/calculates in the background one Scene
-  grid at a time and retains only derived scalar results;
-- in Relative mode, the selected Reference appears as a presentation-only zero
-  anchor and every other variant displays canonical target/reference values;
+- Absolute mode is client-local state, not a reserved server variant string;
+- an unprepared Reference loads/calculates in the background one Scene grid at a
+  time and retains derived scalar results rather than the grid corpus;
+- Relative mode uses the selected Reference as a presentation-only zero anchor while
+  other values use canonical target/reference math;
 - Relative Dataset Overview is the arithmetic mean of valid Scene comparison values;
-- failed/corrupt deferred Reference preparation restores the last successfully
-  presented mode/reference instead of leaving the combo and visible data mismatched;
-- Scene Trend and attribute filters explore published/derived result values without
+- failed deferred Reference preparation restores the last valid presentation;
+- Scene Trend and attribute filters browse published/derived result values without
   changing native PixelScope analysis;
-- Scene cards show published variant/source/path/hash identity only. They do not open
-  source pixels from result-relative paths; logical-root mapping, hash verification,
-  native source Inspect, spatial overlay, and block inspection remain later P5-D
-  work.
+- Scene cards show published source identity/path/hash metadata only. Native source
+  opening, hash-verified Inspect, spatial overlay, and block inspection remain P5-D.
 
 Schema v1 remains explicit historical read-only two-source compatibility and never
 receives synthetic v2 absolute measurements.
 
-Passive IQA browsing does not register/select/decode batch sources and does not
-change Files, Selected, Current Comparison Page, Active/Primary, Difference, source
-residency/preload, Statistics/Histogram/Line Profile, or Session state.
+#### PARTIAL results
+
+A durable PARTIAL schema-v2 result preserves successful Scene work while reporting
+failed/cancelled requested Scenes.
+
+- `scene_outcomes[]` describes every requested Scene in original order;
+- successful Scenes remain full valid schema-v2 Scenes;
+- failed/cancelled outcomes carry bounded diagnostics;
+- zero-success work is Failed/Cancelled rather than PARTIAL;
+- all-success work is normal Complete/Succeeded.
+
+Results shows a compact `successful / requested` partial summary and the failed/
+cancelled diagnostics while keeping the successful Scenes available for normal
+result exploration.
+
+Passive IQA browsing and remote job tracking do not register/select/decode the
+batch and do not change Files, Selected, Current Comparison Page, Active/Primary,
+Difference, source residency/preload, Statistics/Histogram/Line Profile, or Session
+state.
+
+#### Debug-only validation surfaces
+
+`PIXELSCOPE_REMOTE_IQA_DEBUG` enables development/contract-validation tools that are
+not normal release workflow:
+
+- Request Inspector — run production request preparation without POST;
+- Replay JSON — inject a bounded logical terminal job/result reference without HTTP;
+- deterministic schema-v2 fake-result generator;
+- localhost real-socket fault server used to exercise the production HTTP client.
+
+The localhost server performs no IQA calculation. It returns logical references to
+known deterministic schema-v2 artifacts so the client can be exercised before the
+external GPU service is available.
 
 ## Settings and runtime policy
 
-`Edit > Settings...` uses **General / Files / Performance** category pages.
-Settings schema remains version 5. P4-A adds no Settings/QSettings key and does not
-persist the captured curation baseline/Pick Set. Comparison Set/Session artifacts
-and P4-E exports are external files and do not change the Settings schema. Typed
-Recent path history is separate QSettings observer metadata outside the typed
-ApplicationSettings schema.
+`Edit > Settings...` currently uses **General / Files / Performance / Remote IQA**.
+Application Settings schema is version 6.
 
 **General** owns persistent RAW JSON confirmation, exact RAW file-size policy, and
 Difference Threshold/Gain defaults. **Files** owns default Open/Export directories.
 **Performance** owns Difference Map Cache MiB, Decoded Source Memory MiB, and preload
 enablement.
 
+**Remote IQA** owns machine-local client configuration:
+
+- Server base URL;
+- one or more shared-storage roots with **Root ID** and **Client path**;
+- optional staging root selection from those logical roots.
+
+Remote IQA mappings are live application configuration rather than Session v1 state.
+`Reset Settings` resets schema-owned Remote IQA configuration together with the
+other application settings; workspace layout reset remains separate.
+
+Comparison Set/Session artifacts and analysis exports remain external files and do
+not become `ApplicationSettings` state. Typed Recent path history remains separate
+QSettings observer metadata.
+
 Decoded Source Memory accounts native resident `ImageDocument.source` arrays only
 and uses protected soft-budget LRU semantics. Source eviction and Difference cache
-ownership remain independent. Registration and off-page Selected/Picked membership
-do not make source data resident.
+ownership remain independent. Registration, remote batch membership, and off-page
+Selected/Picked membership do not make source data resident.
 
 For large logical selections, **Selected alone is not a source-protection owner**.
 Pick membership is also not a protection owner. Current Comparison Page plus
 correctness dependencies such as foreground load, promoted foreground preload,
 explicit Difference dependencies, and non-reloadable sources are protected.
 Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
-budget and normally reload when their page is revisited. Comparison Set/Session
-persistence and P4-E export do not introduce Selected-wide protection or
-persistence/export-owned residency.
+budget and normally reload when their page is revisited. Session persistence, export,
+and Remote IQA tracking do not introduce Selected-wide protection.
 
-**Preload Next Folder Position** remains exactly `+1`, one valid one-to-six
-Selected Folder Position deep, on a dedicated max-one worker; an exact matching
-physically RUNNING preload may transfer logical authority to foreground without
-duplicate decode. P4-A adds no Comparison Page or Pick Set preload system, and
-Session/P4-E add no new preload policy.
+**Preload Next Folder Position** remains exactly `+1`, one valid one-to-six Selected
+Folder Position deep, on a dedicated max-one worker; an exact matching physically
+RUNNING preload may transfer logical authority to foreground without duplicate
+decode. P5-C adds no Remote-IQA-driven source preload system.
 
 ## Difference contract
 
@@ -478,7 +597,7 @@ cannot change threshold or metric semantics.
 
 Threshold uses `code` in the native domain and `%FS` in the normalized domain;
 mask comparison remains strict `>`. Persisted Settings Threshold remains the
-native-domain code default under schema v5. Normalized threshold is session-local.
+native-domain code default. Normalized threshold is session-local.
 
 Difference owns its own independent presentation Gain. General Display Gain is
 not applied to Difference numerical sources, Difference preview generation, or
@@ -620,25 +739,28 @@ analysis are outside the current product contract.
 
 ## Program status and future scope
 
-P3 — Image Semantics & RAW Processing is Complete through P3-E. P4 — Workflow &
-Session Productivity is Complete through P4-F / PR #35; the P4-complete main
-baseline is `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
+P3 — Image Semantics & RAW Processing and P4 — Workflow & Session Productivity are
+Complete. P5-0 / PR #36, P5-A schema-v1 / PR #37, P5-A2 durable/executable schema-v2
+/ PR #39/#40, and P5-B IQA Workspace / PR #38 are merged. Current merged main is
+`ad3721e28b759e75d8e0f4a28b003a4dd22f0f4a` after PR #41's formatting baseline.
 
-P5-0 / PR #36 and P5-A schema-v1 / PR #37 are Complete. P5-A2 Stage 1 durable
-schema-v2 contract / PR #39 and Stage 2 executable-v2 migration / PR #40 are also
-Complete; executable v2 is merged at
-`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`.
+P5-C **Submission & Shared Storage** / Draft PR #42 is Active. The major client
+workflow—typed Remote IQA settings, portable root identity, Current/Folder Pair
+submission, Jobs polling, explicit Open Result, executable PARTIAL results, debug
+request/replay harnesses, real-socket localhost fault testing, and bounded terminal
+result-reference retry—is implemented and under closeout.
 
-P5-B **IQA Workspace & Local Result Exploration** / PR #38 is Active / merge
-candidate. Owner full/focused Windows validation and requested static checks were
-reported PASS on pre-review-fix head `c77169d7db19ac7dd308c5f772d704c305761ba9`.
-The narrow reviewer-requested collision/failure/docs fixes after that head require
-fresh latest-head validation and independent re-review before merge.
+P5-C still has pre-merge lifecycle/storage blockers: cross-process staging and
+symlink/junction containment, cooperative cancellation of running preparation before
+create POST, duplicate/ambiguous create handling without blind POST retry, and the
+settings-remap/result-resolution race. Latest-head full validation and independent
+whole-PR review are also required.
 
-P5-C **Submission & Shared Storage** is next planned, followed by P5-D viewer-linked
-Scene/grid inspection, P5-E historical/recent result workflow, and P5-F real-server
-integration/performance/lifetime hardening. P6 owns identity/access/remote operations
-and P7 owns release engineering/distribution.
+P5-D viewer-linked Scene/grid Inspect is blocked until P5-C merges. P5-E then adds
+historical/recent result productivity, and P5-F owns real external-server/shared-
+storage integration and measured performance/lifetime hardening. P6 owns identity,
+access, credentials, permission, and remote operations. P7 owns release engineering
+and distribution.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or
@@ -652,6 +774,3 @@ Arbitrary-angle Line Profile is also deferred. Line Profile is an observation/
 sampling tool, so a future arbitrary-angle design requires an explicit discrete
 pixel-sampling/path and coordinate-display contract rather than implicitly adopting
 interpolation.
-
-Repository-wide Ruff formatter baseline cleanup is intentionally separated from
-P5-B into a later formatting-only PR rather than mixed with product/runtime changes.

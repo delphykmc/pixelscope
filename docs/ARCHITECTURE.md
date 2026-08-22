@@ -307,7 +307,7 @@ curation UI resync
 
 Registration-only folder input does not invalidate captured curation state because
 it does not mutate Selected. Temporary curation state is not persisted; Settings
-schema remains v5.
+schema remains v5 at the P4-A boundary.
 
 ## P4-B Comparison Set persistence boundary
 
@@ -366,7 +366,7 @@ residency/LRU/protection, Difference maps/cache, preload plans/workers, foregrou
 promotion, Display Gain state/previews, Statistics/Histogram/Line Profile/Difference
 request state, worker/token/generation state, Split/Difference derived documents,
 transient zoom/pan, ROI/Line state, or temporary curation. Settings schema remains
-v5 because `.pixelscope` is an external artifact rather than an
+v5 at the P4-B boundary because `.pixelscope` is an external artifact rather than an
 `ApplicationSettings` migration.
 
 ## RAW profile-resolution boundary
@@ -469,18 +469,29 @@ acceptance. Hidden viewers release obsolete derived buffers.
 Frozen `ApplicationSettings` plus `SettingsRepository` own versioned application
 preferences. Workspace layout/session QSettings remain separate.
 
-Schema version 5 owns RAW JSON confirmation, exact RAW size, default Open/Export
-directories, Difference Threshold/Gain, Difference Map Cache MiB, Decoded Source
-Memory MiB, and preload enablement.
+Current schema version 6 owns the prior schema-v5 preferences—RAW JSON confirmation,
+exact RAW size, default Open/Export directories, Difference Threshold/Gain,
+Difference Map Cache MiB, Decoded Source Memory MiB, and preload enablement—and adds
+typed machine-local Remote IQA settings:
 
-P4-A adds no setting/schema migration. Display Gain is QApplication-session state
-and the captured curation baseline/Pick Set is temporary application-session
-workflow state. Neither is persisted through `ApplicationSettings`; `Reset
-Settings` remains separate from workspace-layout reset.
+```text
+RemoteIqaSettings
+    server_base_url
+    storage_roots[] {
+        storage_root_id
+        client_path
+    }
+    staging_root_id
+```
 
-P4-B also leaves Settings schema v5 unchanged. `.pixelscope` Comparison Sets are
-explicit user-managed external artifacts rather than SettingsRepository/QSettings
-state.
+`storage_root_id` is portable client/server identity; `client_path` is machine-local
+only. Server physical paths and credentials are not persisted in PixelScope. Session
+v1 and result artifacts do not own these mappings.
+
+P4-A/P4-B introduced no setting/schema migration; Display Gain and temporary curation
+remain session-local. P5-C is the schema-v5→v6 migration owner. `Reset Settings`
+resets schema-owned application preferences, including Remote IQA configuration,
+while workspace-layout reset remains separate.
 
 ## Thread and request lifecycle
 
@@ -642,12 +653,11 @@ manifest.json publication marker
 ```
 
 Its Tier-1/Tier-2 vocabulary and A/B-specific comparison behavior are not the current
-schema-v2 architecture and are not silently changed by P5-A2.
+schema-v2 architecture and are not silently changed by P5-A2/P5-C.
 
-## Current P5-A2 executable schema-v2 published-result boundary
+## Current schema-v2 result architecture
 
-PR #40 establishes the current Qt-free result architecture under
-`src/pixelscope/remote/`:
+The Qt-free result path under `src/pixelscope/remote/` is:
 
 ```text
 manifest.json
@@ -655,10 +665,13 @@ manifest.json
         ├─ schema_version 1 → iqa_reader historical read-only Result
         └─ schema_version 2 → iqa_v2_reader.load_result_v2()
                                  ↓
+                         COMPLETE or PARTIAL manifest
+                                 ↓
                          manifest structure + summary.npz
                                  ↓
                               ResultV2
-                                 ↓ on explicit Scene demand
+                       / PartialResultV2
+                                 ↓ explicit Scene demand
                          load_grid_scene(scene_id)
                                  ↓
                          bounded Scene grid NPZ
@@ -667,49 +680,200 @@ manifest.json
                          target/reference comparison
 ```
 
-Schema-v2 normal open is **summary-first**: it performs filesystem I/O for
-`manifest.json` and `summary.npz` only. Deferred Scene-grid and optional-detail paths
-receive cross-platform relative-path syntax validation without stat/resolve/open.
-`load_grid_scene()` is the boundary for resolved-root containment, file existence,
-archive/member/dtype/shape validation, materialization, and grid-level numerical
-consistency. Optional detail references remain opaque until a later typed consumer
-contract is introduced.
+Schema-v2 ordinary open is summary-first: filesystem I/O is limited to
+`manifest.json` and `summary.npz`. Deferred Scene-grid/detail references receive path
+syntax validation; `load_grid_scene()` owns resolved containment, existence,
+archive/member/dtype/shape materialization, and grid numerical consistency. Optional
+detail references remain opaque until a later typed P5-D consumer contract.
 
-The schema-v2 identity split is explicit:
+Identity remains explicit:
 
-- `variant_id` is the ordered comparison/Reference slot identity;
-- `source_id` is stable concrete-image identity and may repeat in the same or
-  different Scenes when `relative_path`, SHA-256, width, and height match exactly;
-- `scene_id` is Scene identity;
-- `measurement_context_id` fingerprints ordered variant/source membership, geometry,
-  model/preprocessing/weighting, representative, and related measurement context.
+- `variant_id` = ordered comparison/Reference slot;
+- `source_id` = concrete source identity, reusable only with identical immutable
+  path/hash/dimension metadata;
+- `scene_id` = Scene identity;
+- `measurement_context_id` = deterministic Scene measurement-context fingerprint.
 
-A repeated source does not authorize reuse of a weighted measurement across contexts.
-Each COMPLETE Scene binds every top-level variant exactly once. Cross-variant
-SceneGeometry and per-attribute GridGeometry are exactly equal; PixelScope does not
-align or resize incompatible result grids.
+Every published successful Scene—COMPLETE or PARTIAL—binds every declared variant
+exactly once and obeys the same exact cross-variant SceneGeometry/GridGeometry and
+numerical invariants. A failed/cancelled requested Scene is represented by the
+PARTIAL outcome list and is absent from published `scenes[]`; PixelScope never
+publishes an incomplete successful Scene.
 
 Server-authored W/S1/S2/count/valid remain numerical authority. Scene absolute mean
-is `ΣS1/ΣW`; pooled and equal-Scene Dataset summaries remain separately named
-projections. Local v2 comparison owns:
+is `ΣS1/ΣW`; pooled/equal-Scene Dataset summaries are distinct projections. Local
+comparison owns pair-valid support, both power modes, signed target-minus-reference,
+and centralized quality orientation.
 
-- pair-valid target/reference support;
-- power Mode 1 ratio of aggregate weighted means;
-- power Mode 2 unweighted arithmetic mean of **finite** pair-valid per-grid dB
-  ratios, skipping undefined/non-finite cell ratios and returning invalid only when
-  no finite ratio remains (negative power input remains invalid);
-- signed target-minus-reference;
-- centralized quality orientation for higher/lower/neutral attributes.
+### Executable PARTIAL extension
 
-The v2 parser uses bounded data-only JSON/NPZ input. The aggregate 1024 source-binding
-ceiling is an intentional result-acceptance envelope sized above the Stage-1 roughly
-300-source planning assumption; it is not source residency or a result-grid cache
-budget.
+P5-C keeps `schema_version = 2` and adds ordered `scene_outcomes[]` for
+`publication_state = "partial"`:
 
-This remote domain imports neither Qt nor UI/controller code and owns no native image,
-Selected, Current Comparison Page, source residency/preload, Difference, Session,
-storage-root mapping, live job, or HTTP lifecycle state. P5-B consumes this result
-authority after Stage 2 merges rather than recreating schema/math rules in UI code.
+- one outcome for every requested Scene in request order;
+- status `succeeded`, `failed`, or `cancelled`;
+- bounded error diagnostics required for failed/cancelled outcomes;
+- at least one success and one failed/cancelled outcome;
+- `scenes[]` equals the ordered successful outcomes only;
+- zero-success terminal jobs publish no PARTIAL result;
+- all-success jobs publish COMPLETE.
+
+The existing schema-v2 reader/math remains the only numerical authority.
+
+## P5-B Results workspace boundary
+
+P5-B / PR #38 is merged and owns the canonical local IQA Results path.
+
+```text
+Open IQA Result
+    ↓ canonical versioned loader
+summary-first ResultV2 / PartialResultV2
+    ↓
+Absolute Dataset/Scene presentation
+    ↓ optional Reference selection
+background one-Scene-at-a-time grid preparation
+    ↓
+canonical relative scalar results
+    ↓
+Dataset Overview / Scene Trend / source metadata cards
+```
+
+P5-B retains only derived scalar Reference-preparation results rather than the raw
+grid corpus. Passive browsing does not mutate Files, Selected, Primary, native
+analysis, Difference, source residency/preload, Session, or Picks. Scene cards are
+metadata-only; native source Inspect remains P5-D.
+
+## P5-C storage and submission architecture
+
+### Portable shared-storage identity
+
+Machine-local root configuration belongs to schema-v6 `ApplicationSettings`, while
+portable request/result identity is always:
+
+```text
+storage_root_id + relative_path
+```
+
+Existing sources under configured roots resolve using the most-specific matching
+root. Sources outside configured roots may be staged using SHA-256 content identity.
+Machine-local Windows/UNC roots are never request/result identity and server physical
+paths are never persisted by PixelScope.
+
+Staging uses independently named same-directory temporary files, resolves containment
+before child mutation, rejects source/result symlink or junction escapes outside the
+configured logical root, and atomically publishes/reuses the final file only after
+SHA-256 verification. Concurrent publishers, including the Windows `os.replace()`
+loser case, converge on the verified final identity rather than sharing one temp name.
+
+### Deterministic request builder
+
+Initial P5-C submit cardinality is exactly two variants A/B.
+
+- Current Pair consumes the A/B pair of **underlying Current Comparison Page
+  documents**, not Primary/Active/presented tile order.
+- Folder Pair is an independent Remote-IQA batch-preparation path over immediate
+  eligible files; it does not register/select/decode the whole batch locally.
+- PNG/JPG/JPEG/BMP only; RAW is rejected.
+- Folder pairing is deterministic NFC lexical sort + pair-by-index with equal count
+  and equal pair dimensions.
+- Scene IDs are deterministic `scene_000000...`.
+- request source records contain logical root, relative path, SHA-256, width, height.
+
+The request builder is Qt-free and performs preflight/hash/staging before creating an
+`IqaJobRequest`. Viewer transforms and local Difference state do not participate.
+
+### HTTP client and Jobs ownership
+
+`HttpIqaJobClient` is synchronous/Qt-free and is always called from feature-local
+workers. It owns only REST protocol validation:
+
+```text
+POST /v1/iqa/jobs
+GET  /v1/iqa/jobs/{job_id}
+GET  /v1/iqa/jobs/{job_id}/result
+POST /v1/iqa/jobs/{job_id}/cancel
+```
+
+The UI/controller owns worker scheduling, local tracked-job records, polling cadence,
+and stale callback rejection. The remote durable job remains server-owned.
+
+Create POST is deliberately never auto-retried. One local preparation/create owner
+prevents duplicate in-process submissions; ambiguous create outcomes block further
+submission in that process rather than inviting a blind retry. Cooperative
+cancellation reaches preflight/hash/staging and checks again immediately before the
+create POST. Terminal succeeded/partial result-reference acquisition is an idempotent
+GET with bounded 1s/2s/4s/8s recovery after the initial attempt. Completion never
+auto-opens Results; explicit `Open Result` resolves the logical result reference
+through current settings and delegates to the P5-B controller.
+
+Client errors are classified as configuration, connection, timeout, HTTP, protocol,
+or storage-resolution failures. Result-path resolution is a separate machine-local
+storage operation after the server has returned portable result identity. Live
+storage-root changes use revision + pending re-resolution so stale old-mapping
+callbacks cannot overwrite the newest mapping.
+
+### Folder Pair preview lifecycle
+
+Folder Pair validation has feature-local latest-request ownership. Editing Folder A/B
+while an older validation is running invalidates the old preview; stale callbacks do
+not publish results, and completion of the latest in-flight validation restores the
+`Validate / Preview` action. A stale older worker cannot re-enable controls over a
+newer validation. This preview lifecycle does not acquire Files/Selected/current-page,
+source-residency, or preload authority.
+
+### Single IQA workspace composition
+
+Production composition installs one IQA dock:
+
+```text
+RemoteIqaWorkspace
+├─ Setup
+│   ├─ Current Pair
+│   └─ Folder Pair
+├─ Jobs
+│   ├─ Cancel
+│   └─ Open Result
+└─ Results
+    └─ existing P5-B IqaWorkspaceWidget/controller
+```
+
+This composition does not create a second result parser, source catalog, or analysis
+working set.
+
+### Debug harness separation
+
+`PIXELSCOPE_REMOTE_IQA_DEBUG` gates contract-validation tools that are not production
+server architecture:
+
+- Request Inspector runs the production request preparation path and stops before
+  POST;
+- Replay JSON injects bounded logical terminal-job/result records without HTTP;
+- deterministic fake result generation reuses the canonical v2 fixture writer and
+  validates through the canonical loader;
+- the localhost `ThreadingHTTPServer` uses real socket HTTP to exercise the production
+  client and fault/retry paths but performs no IQA computation.
+
+A future real GPU server plugs into the same REST/logical-storage contract rather than
+requiring a separate PixelScope transport architecture.
+
+## P5-C lifetime boundaries — implemented; closeout validation/review pending
+
+PR #42 now implements the lifecycle/resource hardening that was previously tracked as
+merge-blocking:
+
+- concurrent staging and resolved containment before filesystem mutation;
+- cooperative preflight/hash/staging cancellation plus a final pre-create checkpoint;
+- one in-flight local create owner and explicit ambiguous-create/no-blind-retry policy;
+- settings mapping revision + pending re-resolution so newest result-path mapping wins;
+- latest Folder Pair preview ownership so input edits cannot permanently disable
+  validation;
+- production-composition regressions for Current Pair A/B page-order authority and
+  Folder Pair isolation from Files/Selected/current page/residency/preload.
+
+These guards remain feature-local and do not redesign P2 source residency/preload or
+P5-A2/P5-B numerical/result ownership. Remaining P5-C work is current-head focused
+validation, independent closeout re-review, final full repository validation, and the
+owner merge decision.
 
 ## Runtime diagnostics and release boundaries
 

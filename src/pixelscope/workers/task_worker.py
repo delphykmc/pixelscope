@@ -9,6 +9,8 @@ from uuid import uuid4
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
+from pixelscope.core.cancellation import CooperativeCancellation, cancellation_scope
+
 
 @dataclass(frozen=True)
 class TaskError:
@@ -66,11 +68,19 @@ class TaskWorker(QRunnable):
             self.signals.finished.emit(self.task_id)
             return
         try:
-            result = self._function(*self._args, **self._kwargs)
+            with cancellation_scope(self._cancel_event):
+                result = self._function(*self._args, **self._kwargs)
             if self.is_cancelled:
                 self.signals.cancelled.emit(self.task_id, self.document_id, self.generation)
             else:
-                self.signals.succeeded.emit(self.task_id, self.document_id, self.generation, result)
+                self.signals.succeeded.emit(
+                    self.task_id,
+                    self.document_id,
+                    self.generation,
+                    result,
+                )
+        except CooperativeCancellation:
+            self.signals.cancelled.emit(self.task_id, self.document_id, self.generation)
         except Exception as exc:  # noqa: BLE001 - worker boundary must report every failure
             error = TaskError(
                 task_id=self.task_id,

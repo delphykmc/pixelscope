@@ -31,7 +31,7 @@ def test_native_difference_threshold_product_bound_is_uint16_max() -> None:
         ApplicationSettings(difference_threshold=65_536)
 
 
-def test_schema_v5_oversized_native_threshold_normalizes_to_uint16_max(
+def test_schema_v6_oversized_native_threshold_normalizes_to_uint16_max(
     tmp_path: Path,
 ) -> None:
     repository, settings = _repository(tmp_path)
@@ -45,4 +45,4 @@ def test_schema_v5_oversized_native_threshold_normalizes_to_uint16_max(
     persisted_threshold = settings.value(DIFFERENCE_THRESHOLD_KEY, type=int)
     assert persisted_threshold == MAX_DIFFERENCE_THRESHOLD
     persisted_schema = settings.value(SCHEMA_VERSION_KEY, type=int)
-    assert persisted_schema == CURRENT_SETTINGS_SCHEMA_VERSION == 5
+    assert persisted_schema == CURRENT_SETTINGS_SCHEMA_VERSION == 6
