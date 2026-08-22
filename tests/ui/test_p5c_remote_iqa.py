@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDockWidget, QTableWidgetItem
 
 from pixelscope.app.application import _compose_main_window_presentation
@@ -72,7 +72,7 @@ def test_remote_settings_dialog_round_trips_machine_local_mapping(
     )
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
 
-    assert dialog.category_list.findItems("Remote IQA", 0)
+    assert dialog.category_list.findItems("Remote IQA", Qt.MatchFlag.MatchExactly)
     dialog.remote_server_url.setText("https://iqa.example.test")
     dialog.remote_roots.setRowCount(1)
     dialog.remote_roots.setItem(0, 0, QTableWidgetItem("shared"))
