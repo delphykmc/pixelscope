@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QLayout, QVBoxLayout
+from PySide6.QtWidgets import (
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 def polish_remote_iqa_setup(workspace: Any) -> None:
@@ -14,21 +22,35 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     if not isinstance(layout, QVBoxLayout):
         raise RuntimeError("Remote IQA Setup page layout is unavailable")
 
-    _drain_layout(layout)
+    preserved = (
+        workspace.configuration_label,
+        workspace.configure_button,
+        workspace.current_pair_label,
+        workspace.current_submit,
+        workspace.folder_a,
+        workspace.folder_b,
+        workspace.folder_a_browse,
+        workspace.folder_b_browse,
+        workspace.preview_button,
+        workspace.preview_status,
+        workspace.folder_submit,
+        workspace.preview_table,
+    )
+    _drain_layout(layout, preserved)
     layout.setContentsMargins(6, 8, 6, 6)
     layout.setSpacing(10)
 
     settings_row = QHBoxLayout()
     settings_row.setSpacing(8)
-    title = QLabel("Remote IQA", workspace.setup_page)
-    title_font = title.font()
-    title_font.setBold(True)
-    title.setFont(title_font)
-    workspace.configuration_label.setToolTip(
-        "Machine-local server and shared-storage configuration. Configure once, then submit pairs."
+    workspace.configuration_label.setWordWrap(False)
+    _install_compact_status(
+        workspace.configuration_label,
+        _compact_configuration_status,
     )
     workspace.configure_button.setText("Settings…")
-    settings_row.addWidget(title)
+    workspace.configure_button.setToolTip(
+        "Configure the Remote IQA server and this machine's shared-storage mappings."
+    )
     settings_row.addWidget(workspace.configuration_label, 1)
     settings_row.addWidget(workspace.configure_button)
     layout.addLayout(settings_row)
@@ -38,18 +60,20 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     current_group.setToolTip(
         "Uses exactly the two native images on the Current Comparison Page, in A/B page order."
     )
-    current_layout = QVBoxLayout(current_group)
-    current_layout.setContentsMargins(8, 10, 8, 8)
-    current_layout.setSpacing(6)
-    current_layout.addWidget(workspace.current_pair_label)
-    current_actions = QHBoxLayout()
-    current_actions.addStretch(1)
+    current_actions = QHBoxLayout(current_group)
+    current_actions.setContentsMargins(8, 10, 8, 8)
+    current_actions.setSpacing(6)
+    workspace.current_pair_label.setWordWrap(False)
+    _install_compact_status(
+        workspace.current_pair_label,
+        _compact_current_pair_status,
+    )
     workspace.current_submit.setText("Submit Pair")
     workspace.current_submit.setToolTip(
         "Prepare the current A/B pair and submit one Remote IQA job."
     )
+    current_actions.addWidget(workspace.current_pair_label, 1)
     current_actions.addWidget(workspace.current_submit)
-    current_layout.addLayout(current_actions)
     layout.addWidget(current_group)
 
     folder_group = QGroupBox("Folder Pair", workspace.setup_page)
@@ -84,8 +108,9 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
         "Validate every A/B pair and preview the exact deterministic Scene order before submission."
     )
     workspace.preview_status.setWordWrap(False)
-    workspace.preview_status.setToolTip(
-        "Folder Pair must be validated again whenever either folder input changes."
+    _install_compact_status(
+        workspace.preview_status,
+        _compact_folder_status,
     )
     workspace.folder_submit.setText("Submit Pairs")
     workspace.folder_submit.setToolTip(
@@ -103,14 +128,82 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     workspace.remote_iqa_setup_layout = layout
 
 
-def _drain_layout(layout: QLayout) -> None:
-    """Remove layout ownership while preserving the existing widgets for recomposition."""
+def _install_compact_status(label: QLabel, compact: Callable[[str], str]) -> None:
+    """Keep dense dock text short while preserving the full status as a tooltip."""
+
+    def apply(text: str) -> None:
+        shortened = compact(text)
+        if shortened == text:
+            return
+        label.setToolTip(text)
+        label.blockSignals(True)
+        label.setText(shortened)
+        label.blockSignals(False)
+
+    label.textChanged.connect(apply)  # type: ignore[attr-defined]
+    apply(label.text())
+
+
+def _compact_configuration_status(text: str) -> str:
+    if text.startswith("Configured · "):
+        return text.replace(" storage root(s)", " root", 1)
+    if text.startswith("Remote IQA submission unavailable"):
+        return "Not configured"
+    return text
+
+
+def _compact_current_pair_status(text: str) -> str:
+    folded = text.casefold()
+    if "exactly two images" in folded or "not an eligible pair" in folded:
+        return "Select 2 images in Comparison Page"
+    if "configure" in folded and "remote iqa" in folded:
+        return "Configure Remote IQA first"
+    if "native source" in folded or "split/difference" in folded:
+        return "Native image pair required"
+    if "raw is not eligible" in folded:
+        return "RAW is not supported"
+    if "unsupported remote iqa extension" in folded:
+        return "Unsupported image format"
+    if text.startswith("Unavailable · "):
+        return "Unavailable · see tooltip"
+    return text
+
+
+def _compact_folder_status(text: str) -> str:
+    folded = text.casefold()
+    if "choose folder a and folder b" in folded or "choose both folders" in folded:
+        return "Choose A/B folders"
+    if "inputs changed" in folded:
+        return "Changed · Validate again"
+    if "validating folder pair" in folded:
+        return "Validating…"
+    if text.startswith("Validated full Pair Preview · ") and text.endswith(" Scenes"):
+        count = text.removeprefix("Validated full Pair Preview · ").removesuffix(" Scenes")
+        return f"{count} pairs ready"
+    if text.startswith("Blocked · "):
+        if "count mismatch" in folded:
+            return "Blocked · count mismatch"
+        if "no eligible images" in folded:
+            return "Blocked · no images"
+        if "dimension mismatch" in folded:
+            return "Blocked · size mismatch"
+        if "folder is unavailable" in folded:
+            return "Blocked · folder unavailable"
+        return "Blocked · see tooltip"
+    return text
+
+
+def _drain_layout(layout: QLayout, preserved: tuple[QWidget, ...]) -> None:
+    """Remove old layout ownership and hide presentation widgets that will not be reused."""
 
     while layout.count():
         item = layout.takeAt(0)
         if item is None:
             continue
+        widget = item.widget()
+        if widget is not None and widget not in preserved:
+            widget.hide()
         child_layout = item.layout()
         if child_layout is not None:
-            _drain_layout(child_layout)
+            _drain_layout(child_layout, preserved)
             child_layout.deleteLater()

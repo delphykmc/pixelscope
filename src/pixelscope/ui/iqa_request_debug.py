@@ -57,7 +57,7 @@ class RemoteIqaRequestInspector(QGroupBox):
     """Debug detail panel; visible only after an explicit inspect action."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("DEBUG · Request Inspector", parent)
+        super().__init__("DEBUG · Request JSON", parent)
         self.setObjectName("remoteIqaRequestInspector")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -274,12 +274,12 @@ def install_remote_iqa_request_debug(
     if not isinstance(current_actions, QHBoxLayout) or not isinstance(folder_actions, QHBoxLayout):
         raise RuntimeError("Remote IQA action rows are unavailable for debug inspection")
 
-    current_button = QPushButton("Inspect Request · DEBUG", workspace.setup_page)
+    current_button = QPushButton("Inspect JSON · DEBUG", workspace.setup_page)
     current_button.setObjectName("remoteIqaDebugInspectCurrent")
-    current_button.setToolTip("Build the exact Current Pair request but do not POST it.")
-    folder_button = QPushButton("Inspect Request · DEBUG", workspace.setup_page)
+    current_button.setToolTip("Build the exact Current Pair request JSON but do not POST it.")
+    folder_button = QPushButton("Inspect JSON · DEBUG", workspace.setup_page)
     folder_button.setObjectName("remoteIqaDebugInspectFolder")
-    folder_button.setToolTip("Build the validated Folder Pair request but do not POST it.")
+    folder_button.setToolTip("Build the validated Folder Pair request JSON but do not POST it.")
     current_actions.addWidget(current_button)
     folder_actions.addWidget(folder_button)
 
