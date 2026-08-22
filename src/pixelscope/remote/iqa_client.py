@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any
 
 import httpx
@@ -16,8 +17,24 @@ from pixelscope.remote.iqa_submission import (
 )
 
 
+class IqaClientErrorKind(str, Enum):
+    """Stable error classes suitable for UI diagnostics and localhost fault tests."""
+
+    CONFIG = "config"
+    CONNECT = "connect"
+    TIMEOUT = "timeout"
+    HTTP = "http"
+    PROTOCOL = "protocol"
+    STORAGE = "storage"
+
+
 class IqaClientError(RuntimeError):
-    """Bounded transport/protocol error suitable for Jobs UI display."""
+    """Bounded classified client error suitable for Jobs UI display."""
+
+    def __init__(self, kind: IqaClientErrorKind, message: str) -> None:
+        self.kind = kind
+        self.detail = _bounded_text(message)
+        super().__init__(f"{kind.value}: {self.detail}")
 
 
 class IqaJobClient(ABC):
@@ -55,6 +72,15 @@ class HttpIqaJobClient(IqaJobClient):
     ) -> None:
         if timeout_seconds <= 0.0:
             raise ValueError("timeout_seconds must be positive")
+        try:
+            parsed = httpx.URL(base_url)
+        except (TypeError, ValueError) as exc:
+            raise IqaClientError(IqaClientErrorKind.CONFIG, "server base URL is invalid") from exc
+        if parsed.scheme not in {"http", "https"} or parsed.host is None:
+            raise IqaClientError(
+                IqaClientErrorKind.CONFIG,
+                "server base URL must use http or https and include a host",
+            )
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=httpx.Timeout(timeout_seconds),
@@ -67,21 +93,21 @@ class HttpIqaJobClient(IqaJobClient):
 
     def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
         data = self._request_json("POST", "/v1/iqa/jobs", json=request.to_json())
-        job_id = _required_string(data, "job_id")
+        job_id = _job_id(_required_string(data, "job_id"))
         state = _job_state(data.get("state", JobState.QUEUED.value))
         if state.terminal:
-            raise IqaClientError("create-job response unexpectedly reported a terminal state")
+            raise _protocol_error("create-job response unexpectedly reported a terminal state")
         return IqaJobCreated(job_id, state)
 
     def get_status(self, job_id: str) -> IqaJobStatus:
         data = self._request_json("GET", f"/v1/iqa/jobs/{_job_id(job_id)}")
-        returned_id = _required_string(data, "job_id")
+        returned_id = _job_id(_required_string(data, "job_id"))
         if returned_id != job_id:
-            raise IqaClientError("job status identity mismatch")
+            raise _protocol_error("job status identity mismatch")
         completed = _optional_nonnegative_int(data, "completed_scenes")
         total = _optional_nonnegative_int(data, "total_scenes")
         if completed is not None and total is not None and completed > total:
-            raise IqaClientError("job progress is invalid")
+            raise _protocol_error("job progress is invalid")
         return IqaJobStatus(
             returned_id,
             _job_state(data.get("state")),
@@ -92,15 +118,15 @@ class HttpIqaJobClient(IqaJobClient):
 
     def get_result(self, job_id: str) -> IqaResultReference:
         data = self._request_json("GET", f"/v1/iqa/jobs/{_job_id(job_id)}/result")
-        returned_id = _required_string(data, "job_id")
+        returned_id = _job_id(_required_string(data, "job_id"))
         if returned_id != job_id:
-            raise IqaClientError("result reference job identity mismatch")
+            raise _protocol_error("result reference job identity mismatch")
         publication_state = _required_string(data, "publication_state")
         if publication_state not in {"complete", "partial"}:
-            raise IqaClientError("result reference publication_state must be complete or partial")
+            raise _protocol_error("result reference publication_state must be complete or partial")
         schema_version = _required_int(data, "schema_version")
         if schema_version != 2:
-            raise IqaClientError("P5-C result reference must identify schema_version 2")
+            raise _protocol_error("P5-C result reference must identify schema_version 2")
         return IqaResultReference(
             returned_id,
             _required_string(data, "storage_root_id"),
@@ -114,9 +140,9 @@ class HttpIqaJobClient(IqaJobClient):
             "POST",
             f"/v1/iqa/jobs/{_job_id(job_id)}/cancel",
         )
-        returned_id = _required_string(data, "job_id")
+        returned_id = _job_id(_required_string(data, "job_id"))
         if returned_id != job_id:
-            raise IqaClientError("cancel response job identity mismatch")
+            raise _protocol_error("cancel response job identity mismatch")
         return IqaJobStatus(
             returned_id,
             _job_state(data.get("state")),
@@ -134,34 +160,49 @@ class HttpIqaJobClient(IqaJobClient):
     ) -> dict[str, Any]:
         try:
             response = self._client.request(method, path, json=json)
+        except httpx.TimeoutException as exc:
+            raise IqaClientError(IqaClientErrorKind.TIMEOUT, _bounded_error(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise IqaClientError(IqaClientErrorKind.CONNECT, _bounded_error(exc)) from exc
+        try:
             response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            raise IqaClientError(
+                IqaClientErrorKind.HTTP,
+                f"HTTP {status} for {method} {path}",
+            ) from exc
+        try:
             data = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise IqaClientError(_bounded_error(exc)) from exc
+        except ValueError as exc:
+            raise IqaClientError(
+                IqaClientErrorKind.PROTOCOL,
+                "server response is not valid JSON",
+            ) from exc
         if not isinstance(data, dict):
-            raise IqaClientError("server response must be a JSON object")
+            raise _protocol_error("server response must be a JSON object")
         return data
 
 
 def _job_state(value: object) -> JobState:
     if not isinstance(value, str):
-        raise IqaClientError("job state is missing")
+        raise _protocol_error("job state is missing")
     try:
         return JobState(value)
     except ValueError as exc:
-        raise IqaClientError(f"unknown job state: {value[:64]}") from exc
+        raise _protocol_error(f"unknown job state: {value[:64]}") from exc
 
 
 def _job_id(value: str) -> str:
     if not value or len(value) > 128 or any(char in value for char in "/\\\x00"):
-        raise ValueError("invalid job_id")
+        raise _protocol_error("job_id is invalid")
     return value
 
 
 def _required_string(data: dict[str, Any], key: str) -> str:
     value = data.get(key)
     if not isinstance(value, str) or not value or len(value) > 2048 or "\x00" in value:
-        raise IqaClientError(f"{key} is missing or invalid")
+        raise _protocol_error(f"{key} is missing or invalid")
     return value
 
 
@@ -170,7 +211,7 @@ def _optional_string(data: dict[str, Any], key: str) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str):
-        raise IqaClientError(f"{key} must be a string")
+        raise _protocol_error(f"{key} must be a string")
     clean = " ".join(value.split())
     return clean[:512]
 
@@ -178,7 +219,7 @@ def _optional_string(data: dict[str, Any], key: str) -> str | None:
 def _required_int(data: dict[str, Any], key: str) -> int:
     value = data.get(key)
     if not isinstance(value, int) or isinstance(value, bool):
-        raise IqaClientError(f"{key} must be an integer")
+        raise _protocol_error(f"{key} must be an integer")
     return value
 
 
@@ -187,10 +228,19 @@ def _optional_nonnegative_int(data: dict[str, Any], key: str) -> int | None:
     if value is None:
         return None
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise IqaClientError(f"{key} must be a non-negative integer")
+        raise _protocol_error(f"{key} must be a non-negative integer")
     return value
+
+
+def _protocol_error(message: str) -> IqaClientError:
+    return IqaClientError(IqaClientErrorKind.PROTOCOL, message)
 
 
 def _bounded_error(exc: BaseException) -> str:
     text = " ".join(str(exc).split())
-    return (text or exc.__class__.__name__)[:512]
+    return _bounded_text(text or exc.__class__.__name__)
+
+
+def _bounded_text(value: str) -> str:
+    clean = " ".join(value.split())
+    return (clean or "Remote IQA client error")[:512]
