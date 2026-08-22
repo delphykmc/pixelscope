@@ -74,9 +74,165 @@ Dropping one, two, six, or more folders behaves the same way. There is no specia
 two-folder auto-comparison behavior. Unsupported files and standalone `.json`
 files are ignored rather than interpreted as RAW.
 
+## Configure and submit Remote IQA
+
+P5-C adds remote IQA submission to the existing IQA dock. The dock has three tabs:
+
+```text
+IQA
+├─ Setup
+├─ Jobs
+└─ Results
+```
+
+The remote workflow is separate from local Files/Selected analysis. Submitting a
+batch does not register or decode the whole batch into the local image workspace.
+
+### Configure Remote IQA
+
+Open **Edit > Settings... > Remote IQA**.
+
+Configure:
+
+- **Server base URL** — the HTTP(S) endpoint for the external IQA service;
+- one or more shared-storage mappings:
+  - **Root ID** — a portable logical identifier understood by client and server;
+  - **Client path** — the drive/UNC path for that root on this Windows machine;
+- **Staging root** — optional logical root used when a submitted source is outside
+  the configured shared roots.
+
+The same logical root may have a different physical path on the server. For example:
+
+```text
+Root ID: iqadata
+PixelScope client path: G:\IQA
+server path: /home/data/IQA
+```
+
+PixelScope sends only the logical root plus relative path and integrity metadata.
+The Windows client path is machine-local configuration; the server physical path is
+not stored in PixelScope settings/result artifacts.
+
+### Submit Current Pair
+
+In the IQA **Setup** tab, Current Pair submits exactly two variants `A` and `B`.
+They are the **underlying Current Comparison Page documents** when exactly two
+eligible images are present.
+
+Current Pair requires:
+
+- exactly two eligible source images;
+- PNG/JPG/JPEG/BMP input;
+- matching original image dimensions.
+
+Remote IQA currently does **not** accept RAW and PixelScope does not silently
+demosaic/convert RAW for submission.
+
+A/B submission identity does not change when you change:
+
+- Primary;
+- Active;
+- tile/view order;
+- Single/Multi View;
+- Display Gain;
+- Difference;
+- Split Channels.
+
+Use **Submit Current Pair** after the Setup status reports the pair is eligible.
+
+### Submit Folder Pair
+
+Folder Pair is for deterministic bulk evaluation of two directories.
+
+1. Choose **Folder A** and **Folder B**.
+2. Use **Validate / Preview**.
+3. Confirm the previewed Scene count/order.
+4. Use **Submit Folder Pair**.
+
+The current pairing rules are:
+
+- immediate files only; no recursive subdirectory scan;
+- symlink inputs are excluded;
+- eligible types are PNG/JPG/JPEG/BMP;
+- each folder is normalized to deterministic Unicode-NFC lexical order;
+- both folders must have the same non-zero eligible file count;
+- maximum 512 pairs/Scenes;
+- sorted A and B entries pair by index;
+- every A/B pair must have matching original dimensions.
+
+The filenames do not have to be semantically equal. The validated deterministic
+sorted position is the pairing authority.
+
+Folder Pair preparation is independent from Files registration. A large batch can
+be submitted without making all of its images Selected or resident in PixelScope.
+
+### Shared-storage staging
+
+If a source already lies under a configured Remote IQA root, PixelScope references
+it by logical Root ID + relative path.
+
+If a source lies outside the configured roots and a staging root is configured,
+PixelScope may copy it to content-addressed staging based on SHA-256 before job
+creation. The request still contains portable logical identity rather than the
+original Windows path.
+
+## Track Remote IQA Jobs
+
+After submission, use the IQA **Jobs** tab. The local image workspace remains usable
+while the remote job runs.
+
+Jobs may pass through states such as:
+
+```text
+queued
+preparing
+extracting
+aggregating
+writing
+succeeded
+partial
+failed
+cancelled
+```
+
+The Jobs list shows job ID, submission kind, state, progress, and compact status/
+error information.
+
+### Cancel
+
+Use **Cancel** for a non-terminal job when you want to request cancellation from the
+server. The server owns the final state; cancellation can race with completion.
+
+### Open Result
+
+A successful/partial job does **not** automatically replace the current Results
+view. This is intentional.
+
+**Open Result** becomes available only after PixelScope has:
+
+1. observed terminal `succeeded` or `partial`;
+2. obtained the published schema-v2 logical result reference;
+3. resolved that reference through the current Remote IQA storage-root mapping.
+
+Click **Open Result** explicitly to open it through the same canonical result viewer
+used by **File > Open IQA Result...**.
+
+A temporary failure while retrieving the terminal result reference can recover
+automatically without resubmitting the job. The job row remains terminal while the
+client performs bounded retry. Create-job submission itself is not blindly retried,
+because a connection error/timeout may occur after the server has already accepted
+the job.
+
+If a job stays terminal but Open Result cannot become available, inspect the compact
+Jobs error. Typical categories are configuration, connection, timeout, HTTP,
+protocol, or local storage-root resolution problems.
+
 ## Open and explore IQA results
 
-Use **File > Open IQA Result...** to open a published Remote IQA result directory.
+Use **File > Open IQA Result...** to open an already-published Remote IQA result
+directory directly, or use **Open Result** from a tracked job. Both paths reuse the
+same Results workspace.
+
 The IQA workspace is non-modal, so the existing image workspace remains available
 while the result is explored.
 
@@ -105,9 +261,27 @@ the arithmetic mean of valid Scene comparison values.
 Use the attribute visibility controls to reduce the plotted set. The hierarchy is
 organized by attribute and Scene, and the Scene Trend supports hover/click selection.
 Selecting a Scene updates the Scene cards. These cards show published variant/source
-identity, relative path, hash, and related metadata only; P5-B does **not** open those
-paths as native PixelScope source images. Logical-root resolution, hash verification,
-and source-image inspection are deferred to the later explicit Inspect workflow.
+identity, relative path, hash, and related metadata only. They do **not** open those
+paths directly as native PixelScope source images. Logical-root resolution, source
+hash verification, native source Inspect, spatial overlay, and block inspection are
+later P5-D work.
+
+### PARTIAL results
+
+A PARTIAL result contains a valid subset of successfully published Scenes plus
+explicit diagnostics for requested Scenes that failed or were cancelled.
+
+The Results tab shows a compact summary such as:
+
+```text
+Partial result · 3 / 4 Scenes succeeded
+```
+
+and lists failed/cancelled Scene diagnostics. The successful Scenes remain available
+for the same Absolute/Relative exploration as a COMPLETE result.
+
+A zero-success job is Failed/Cancelled rather than a PARTIAL result. An all-success
+job is the normal Complete/Succeeded path.
 
 Historical schema-v1 results remain read-only compatibility. They expose the
 available two-source A/B comparison workflow and do not invent schema-v2 absolute
@@ -117,9 +291,29 @@ The IQA dock uses the same **Float/Dock**, **Maximize/Restore**, and **Hide** ti
 behavior as Plots. **View > Reset Workspace Layout** clears its persisted floating
 geometry, re-docks it on the right, and hides it with the rest of the workspace reset.
 
-Passive IQA result browsing does not change Files registration, logical Selected,
-Current Comparison Page, Active/Primary image state, Difference, Display Gain,
-source residency/preload, native analysis results, Session state, or temporary Picks.
+Passive IQA result browsing and Jobs tracking do not change Files registration,
+logical Selected, Current Comparison Page, Active/Primary image state, Difference,
+Display Gain, source residency/preload, native analysis results, Session state, or
+temporary Picks.
+
+### Development-only Remote IQA debug tools
+
+When `PIXELSCOPE_REMOTE_IQA_DEBUG=1`, additional developer validation controls may
+appear. They are not part of the normal release workflow:
+
+- **Inspect JSON · DEBUG** runs the production request-preparation path but stops
+  before the job POST;
+- **Replay JSON · DEBUG** injects a bounded logical terminal job/result reference and
+  still requires explicit Open Result;
+- `scripts/p5c_make_debug_result.py` creates deterministic schema-v2 COMPLETE/
+  PARTIAL test artifacts;
+- `scripts/p5c_localhost_iqa_server.py` runs a real localhost HTTP fault server for
+  client contract testing.
+
+The localhost server performs no GPU/IQA calculation. It returns a logical reference
+to a deterministic existing result artifact so submission, polling, error handling,
+result-reference retry, and Open Result can be tested before a real external service
+is available.
 
 ## Current Comparison Page navigation
 
@@ -546,8 +740,12 @@ metadata only.
 
 ## Settings
 
-Open **Edit > Settings...**. Categories are **General**, **Files**, and
-**Performance**.
+Open **Edit > Settings...**. Categories are **General**, **Files**, **Performance**,
+and **Remote IQA**.
+
+Application Settings schema is currently version 6. Session `.pixelscope` files,
+legacy Comparison Sets, analysis exports, and typed Recent entries remain separate
+from this application-settings schema.
 
 ### General
 
@@ -571,8 +769,9 @@ The default is 256 MiB. Current Comparison Page sources and other correctness
 requirements are protected; a large Selected set does **not** automatically protect
 every visited off-page source. Pick membership also does not protect an off-page
 source. Off-page Selected/Picked source may be evicted under the P2 soft budget and
-normally reload when its page is revisited. Saving/opening a Session or exporting
-analysis does not create Selected-wide residency protection.
+normally reload when its page is revisited. Saving/opening a Session, exporting
+analysis, or tracking a Remote IQA job does not create Selected-wide residency
+protection.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
 itself discard a valid generation-keyed Difference map. Keep Selection also does
@@ -582,19 +781,29 @@ does not mutate the cache.
 
 **Preload Next Folder Position** remains exactly one valid one-to-six Selected
 Folder Position ahead, direction +1, on a separate max-one worker. It does not
-preload the next Comparison Page, Pick Set, Session, or export target. A physically
-RUNNING matching Folder Position preload may transfer to foreground authority
-without duplicate decode. Unresolved RAW without a profile is skipped rather than
-prompting from speculative preload.
+preload the next Comparison Page, Pick Set, Session, export target, or Remote IQA
+batch. A physically RUNNING matching Folder Position preload may transfer to
+foreground authority without duplicate decode. Unresolved RAW without a profile is
+skipped rather than prompting from speculative preload.
 
 Performance budget/preload changes are startup settings and display the restart-
 required indication when they differ from current runtime values.
 
-**Reset Settings** resets application preferences only. **View > Reset Workspace
-Layout** resets workspace layout separately. The captured curation baseline/Pick Set
-is temporary and adds no Settings/QSettings key. `.pixelscope` Session/legacy
-Comparison Set artifacts and P4-E exports are separate external files and do not
-change Settings schema v5. Typed Recent path history is separate observer metadata.
+### Remote IQA
+
+- **Server base URL** configures the remote IQA HTTP endpoint.
+- **Root ID / Client path** rows map portable storage identities to paths available
+  on this Windows machine.
+- **Staging root** selects which configured logical root may receive content-addressed
+  staging for outside sources.
+
+Remote IQA storage paths are machine-local settings. They are not saved in Session v1
+and are not embedded as server physical paths in IQA result artifacts.
+
+**Reset Settings** resets application preferences including Remote IQA configuration.
+**View > Reset Workspace Layout** resets workspace layout separately. Temporary Pick
+state adds no Settings key. Typed Recent path history remains separate observer
+metadata.
 
 ## Runtime Diagnostics
 
@@ -606,8 +815,12 @@ Diagnostics does not scan files, mutate selection, touch LRUs, start/cancel load
 calculate Difference, or change presentation. Paths, credentials, traceback
 context, and excess failure detail are sanitized.
 
-## Plots dock
+## Plots and IQA docks
 
 The Plots title bar provides Float/Dock, Maximize/Restore, and Hide. Histogram /
 Line Profile selected tab and floating geometry are restored separately from
 application Settings.
+
+The IQA dock follows the same workspace title-bar behavior. Its Setup/Jobs/Results
+workflow is non-modal, and **View > Reset Workspace Layout** returns it to the normal
+docked/hidden baseline along with the rest of the workspace reset.
