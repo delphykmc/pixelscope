@@ -75,6 +75,7 @@ def apply_engineering_palette(app: QApplication) -> None:
     palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(TOKENS.raised_background))
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(TOKENS.text_primary))
     palette.setColor(QPalette.ColorRole.Text, QColor(TOKENS.text_primary))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(TOKENS.text_secondary))
     palette.setColor(QPalette.ColorRole.Button, QColor(TOKENS.raised_background))
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(TOKENS.text_primary))
     palette.setColor(QPalette.ColorRole.BrightText, QColor("#ffffff"))

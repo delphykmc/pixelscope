@@ -21,6 +21,7 @@ from pixelscope.ui.difference_curation_lifecycle import install_difference_curat
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
 from pixelscope.ui.iqa_request_debug import install_remote_iqa_request_debug
+from pixelscope.ui.iqa_setup_presentation import polish_remote_iqa_setup
 from pixelscope.ui.iqa_submission import install_remote_iqa
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.recent_entries import install_recent_entries
@@ -94,6 +95,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_recent_entries(window)
     install_analysis_export(window)
     install_remote_iqa(window)
+    polish_remote_iqa_setup(window.remote_iqa_workspace)
     install_remote_iqa_request_debug(window)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
