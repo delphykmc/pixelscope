@@ -158,7 +158,12 @@ def stage_source(
             return _staged_source(storage_root_id, relative_path, digest, final)
 
         cancellation_checkpoint()
-        os.replace(part, final)
+        try:
+            os.replace(part, final)
+        except OSError as publish_error:
+            if _existing_staged_target_is_valid(final, digest):
+                return _staged_source(storage_root_id, relative_path, digest, final)
+            raise StorageResolutionError("unable to publish staged source") from publish_error
         part = None
         if not _existing_staged_target_is_valid(final, digest):
             raise StorageResolutionError(
