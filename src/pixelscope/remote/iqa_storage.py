@@ -161,7 +161,9 @@ def stage_source(
         os.replace(part, final)
         part = None
         if not _existing_staged_target_is_valid(final, digest):
-            raise StorageResolutionError("published staged target failed SHA-256 identity verification")
+            raise StorageResolutionError(
+                "published staged target failed SHA-256 identity verification"
+            )
     except StorageResolutionError:
         raise
     except OSError as exc:
