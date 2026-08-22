@@ -96,12 +96,8 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         self.remote_roots = QTableWidget(0, 2, page)
         self.remote_roots.setObjectName("remoteIqaStorageRoots")
         self.remote_roots.setHorizontalHeaderLabels(("Root ID", "Client path"))
-        self.remote_roots.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self.remote_roots.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
+        self.remote_roots.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.remote_roots.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.remote_roots.verticalHeader().setVisible(False)
         header = self.remote_roots.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -189,11 +185,7 @@ class RemoteIqaSettingsDialog(SettingsDialog):
             client_path = "" if path_item is None else path_item.text().strip()
             roots.append(RemoteIqaStorageRoot(root_id, client_path))
         staging_data = self.remote_staging_root.currentData()
-        staging = (
-            str(staging_data)
-            if isinstance(staging_data, str) and staging_data
-            else None
-        )
+        staging = str(staging_data) if isinstance(staging_data, str) and staging_data else None
         return RemoteIqaSettings(
             server_base_url=self.remote_server_url.text().strip(),
             storage_roots=tuple(roots),
@@ -216,15 +208,11 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         if row >= 0:
             selected = self.remote_staging_root.currentData()
             self.remote_roots.removeRow(row)
-            self._refresh_staging_choices(
-                str(selected) if isinstance(selected, str) else None
-            )
+            self._refresh_staging_choices(str(selected) if isinstance(selected, str) else None)
 
     def _roots_changed(self, _item: QTableWidgetItem) -> None:
         selected = self.remote_staging_root.currentData()
-        self._refresh_staging_choices(
-            str(selected) if isinstance(selected, str) else None
-        )
+        self._refresh_staging_choices(str(selected) if isinstance(selected, str) else None)
 
     def _refresh_staging_choices(self, preferred: str | None) -> None:
         self.remote_staging_root.blockSignals(True)

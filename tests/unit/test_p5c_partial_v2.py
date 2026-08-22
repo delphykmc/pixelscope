@@ -33,8 +33,7 @@ def _partial_root(tmp_path: Path, failed_status: str) -> Path:
     manifest = _manifest(root)
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
-        {"scene_id": scene["scene_id"], "status": "succeeded"}
-        for scene in manifest["scenes"]
+        {"scene_id": scene["scene_id"], "status": "succeeded"} for scene in manifest["scenes"]
     ] + [
         {
             "scene_id": "scene_000004",
@@ -90,9 +89,7 @@ def test_partial_v2_golden_opens_successful_scenes_and_preserves_diagnostics(
     assert failed[0].scene_id == "scene_000004"
     assert failed[0].status == failed_status
     assert failed[0].error_code == "future.server.code/v7"
-    assert failed[0].error_message == (
-        "bounded diagnostic for the unavailable Scene"
-    )
+    assert failed[0].error_message == ("bounded diagnostic for the unavailable Scene")
 
     model = IqaExplorerModel(result)
     assert model.scene_ids == (
@@ -141,8 +138,7 @@ def test_partial_all_success_is_invalid(tmp_path: Path) -> None:
     manifest = _manifest(root)
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
-        {"scene_id": scene["scene_id"], "status": "succeeded"}
-        for scene in manifest["scenes"]
+        {"scene_id": scene["scene_id"], "status": "succeeded"} for scene in manifest["scenes"]
     ]
     _write_manifest(root, manifest)
 
@@ -201,9 +197,7 @@ def test_partial_failed_scene_never_gets_fabricated_measurements(
 
     result = outcome.result
     published_scene_ids = {scene.scene_id for scene in result.scenes}
-    failed_scene_ids = {
-        item.scene_id for item in result.unsuccessful_scene_outcomes
-    }
+    failed_scene_ids = {item.scene_id for item in result.unsuccessful_scene_outcomes}
 
     assert published_scene_ids.isdisjoint(failed_scene_ids)
     assert failed_scene_ids == {"scene_000004"}

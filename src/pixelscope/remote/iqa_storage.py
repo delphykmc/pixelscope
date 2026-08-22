@@ -49,9 +49,7 @@ def validate_relative_path(value: str) -> None:
         or any(part in {"", ".", ".."} for part in posix.parts)
         or "\\" in value
     ):
-        raise StorageResolutionError(
-            "relative_path must be a contained portable POSIX path"
-        )
+        raise StorageResolutionError("relative_path must be a contained portable POSIX path")
 
 
 def sha256_file(path: Path, *, chunk_size: int = HASH_CHUNK_BYTES) -> str:
@@ -82,9 +80,7 @@ def resolve_existing_source(
 
     source_path = Path(source)
     if not source_path.is_file():
-        raise StorageResolutionError(
-            f"source is missing or not a regular file: {source_path.name}"
-        )
+        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
     candidate = _longest_matching_root(str(source_path), settings.storage_roots)
     if candidate is None:
         return None
@@ -106,9 +102,7 @@ def stage_source(
 
     source_path = Path(source)
     if not source_path.is_file() or source_path.is_symlink():
-        raise StorageResolutionError(
-            f"source is missing or not a regular file: {source_path.name}"
-        )
+        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
     digest = sha256_file(source_path)
     root = Path(staging_root)
     final = root / "staging" / digest / source_path.name
@@ -187,9 +181,7 @@ def resolve_result_reference(
     validate_relative_path(relative_path)
     root = settings.root(storage_root_id)
     if root is None:
-        raise StorageResolutionError(
-            f"storage root '{storage_root_id}' is not configured"
-        )
+        raise StorageResolutionError(f"storage root '{storage_root_id}' is not configured")
     root_path = Path(root.client_path)
     if not root_path.is_dir():
         raise StorageResolutionError(f"storage root '{storage_root_id}' is unavailable")
@@ -237,9 +229,7 @@ def _windows_relative(source: str, root: str) -> str:
         if tuple(part.casefold() for part in source_parts[: len(root_parts)]) != tuple(
             part.casefold() for part in root_parts
         ):
-            raise StorageResolutionError(
-                "source is not contained by configured root"
-            ) from None
+            raise StorageResolutionError("source is not contained by configured root") from None
         relative = PureWindowsPath(*source_parts[len(root_parts) :])
     value = PurePosixPath(*relative.parts).as_posix()
     validate_relative_path(value)

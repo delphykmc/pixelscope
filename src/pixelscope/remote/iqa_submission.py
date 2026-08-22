@@ -192,9 +192,7 @@ def pair_folders(
     a_paths = _folder_eligible_paths(Path(folder_a))
     b_paths = _folder_eligible_paths(Path(folder_b))
     if len(a_paths) != len(b_paths):
-        raise PreflightError(
-            f"Folder Pair count mismatch: A={len(a_paths)}, B={len(b_paths)}"
-        )
+        raise PreflightError(f"Folder Pair count mismatch: A={len(a_paths)}, B={len(b_paths)}")
     if not a_paths:
         raise PreflightError("Folder Pair contains no eligible images")
     if len(a_paths) > MAX_SCENES:
@@ -271,18 +269,13 @@ def _folder_eligible_paths(folder: Path) -> tuple[Path, ...]:
 def _require_same_dimensions(a: ImageProbe, b: ImageProbe, context: str) -> None:
     if (a.width, a.height) != (b.width, b.height):
         raise PreflightError(
-            f"{context} dimension mismatch: "
-            f"A={a.width}x{a.height}, B={b.width}x{b.height}"
+            f"{context} dimension mismatch: " f"A={a.width}x{a.height}, B={b.width}x{b.height}"
         )
 
 
 def _probe_png(stream: BinaryIO) -> tuple[int, int]:
     header = stream.read(24)
-    if (
-        len(header) != 24
-        or header[:8] != b"\x89PNG\r\n\x1a\n"
-        or header[12:16] != b"IHDR"
-    ):
+    if len(header) != 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
         raise PreflightError("unreadable PNG header")
     return struct.unpack(">II", header[16:24])
 

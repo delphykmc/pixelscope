@@ -70,9 +70,7 @@ class HttpIqaJobClient(IqaJobClient):
         job_id = _required_string(data, "job_id")
         state = _job_state(data.get("state", JobState.QUEUED.value))
         if state.terminal:
-            raise IqaClientError(
-                "create-job response unexpectedly reported a terminal state"
-            )
+            raise IqaClientError("create-job response unexpectedly reported a terminal state")
         return IqaJobCreated(job_id, state)
 
     def get_status(self, job_id: str) -> IqaJobStatus:
@@ -99,9 +97,7 @@ class HttpIqaJobClient(IqaJobClient):
             raise IqaClientError("result reference job identity mismatch")
         publication_state = _required_string(data, "publication_state")
         if publication_state not in {"complete", "partial"}:
-            raise IqaClientError(
-                "result reference publication_state must be complete or partial"
-            )
+            raise IqaClientError("result reference publication_state must be complete or partial")
         schema_version = _required_int(data, "schema_version")
         if schema_version != 2:
             raise IqaClientError("P5-C result reference must identify schema_version 2")
@@ -164,12 +160,7 @@ def _job_id(value: str) -> str:
 
 def _required_string(data: dict[str, Any], key: str) -> str:
     value = data.get(key)
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > 2048
-        or "\x00" in value
-    ):
+    if not isinstance(value, str) or not value or len(value) > 2048 or "\x00" in value:
         raise IqaClientError(f"{key} is missing or invalid")
     return value
 

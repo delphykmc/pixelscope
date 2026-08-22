@@ -368,14 +368,12 @@ def _parse_dataset_summaries(
                 continue
             _validate_pooled(pooled, contributing, identity)
             means = [
-                float(item.weighted_mean)
-                for item in contributing
-                if item.weighted_mean is not None
+                float(item.weighted_mean) for item in contributing if item.weighted_mean is not None
             ]
             expected_mean = math.fsum(means) / len(means)
-            expected_variance = math.fsum(
-                (value - expected_mean) ** 2 for value in means
-            ) / len(means)
+            expected_variance = math.fsum((value - expected_mean) ** 2 for value in means) / len(
+                means
+            )
             expected_std = math.sqrt(max(0.0, expected_variance))
             count = int(arrays["scene_count"][index])
             mean = float(arrays["scene_mean"][index])

@@ -24,19 +24,14 @@ class RemoteIqaStorageRoot:
 
     def __post_init__(self) -> None:
         root_id = self.storage_root_id.strip()
-        if (
-            root_id != self.storage_root_id
-            or _STORAGE_ROOT_ID_RE.fullmatch(root_id) is None
-        ):
+        if root_id != self.storage_root_id or _STORAGE_ROOT_ID_RE.fullmatch(root_id) is None:
             raise ValueError(
                 "storage_root_id must be a portable 1-64 character identifier "
                 "using letters, digits, '.', '_' or '-'"
             )
         path = self.client_path.strip()
         if path != self.client_path or not path or len(path) > MAX_CLIENT_PATH_LENGTH:
-            raise ValueError(
-                "client_path must be a non-empty bounded absolute Windows/UNC path"
-            )
+            raise ValueError("client_path must be a non-empty bounded absolute Windows/UNC path")
         if "\x00" in path:
             raise ValueError("client_path must not contain NUL")
         parsed = PureWindowsPath(path)
@@ -65,9 +60,7 @@ class RemoteIqaSettings:
             if parsed.query or parsed.fragment:
                 raise ValueError("server_base_url must not contain query or fragment")
         if len(self.storage_roots) > MAX_STORAGE_ROOTS:
-            raise ValueError(
-                f"at most {MAX_STORAGE_ROOTS} storage roots may be configured"
-            )
+            raise ValueError(f"at most {MAX_STORAGE_ROOTS} storage roots may be configured")
         ids = [root.storage_root_id for root in self.storage_roots]
         if len(set(ids)) != len(ids):
             raise ValueError("storage_root_id values must be unique")
@@ -80,11 +73,7 @@ class RemoteIqaSettings:
 
     def root(self, storage_root_id: str) -> RemoteIqaStorageRoot | None:
         return next(
-            (
-                item
-                for item in self.storage_roots
-                if item.storage_root_id == storage_root_id
-            ),
+            (item for item in self.storage_roots if item.storage_root_id == storage_root_id),
             None,
         )
 

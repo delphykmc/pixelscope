@@ -39,10 +39,7 @@ def _png(path: Path, width: int, height: int) -> None:
         path.write_bytes(b"BM" + b"\x00" * 12 + struct.pack("<Iii", 40, width, height))
         return
     path.write_bytes(
-        b"\x89PNG\r\n\x1a\n"
-        + struct.pack(">I", 13)
-        + b"IHDR"
-        + struct.pack(">II", width, height)
+        b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", width, height)
     )
 
 
@@ -159,10 +156,7 @@ def test_header_only_preflight_and_current_pair_dimension_contract(
     _png(a, 640, 480)
     # JPEG SOI + SOF0 length/precision/height/width is enough for the bounded marker probe.
     b.write_bytes(
-        b"\xff\xd8\xff\xc0\x00\x11\x08"
-        + struct.pack(">HH", 480, 640)
-        + b"\x03"
-        + b"\x00" * 9
+        b"\xff\xd8\xff\xc0\x00\x11\x08" + struct.pack(">HH", 480, 640) + b"\x03" + b"\x00" * 9
     )
     raw.write_bytes(b"raw")
 

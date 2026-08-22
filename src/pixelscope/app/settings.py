@@ -122,10 +122,7 @@ class ApplicationSettings:
             raise TypeError("default_open_directory must be str")
         if not isinstance(self.default_export_directory, str):
             raise TypeError("default_export_directory must be str")
-        if (
-            "\x00" in self.default_open_directory
-            or "\x00" in self.default_export_directory
-        ):
+        if "\x00" in self.default_open_directory or "\x00" in self.default_export_directory:
             raise ValueError("default directories must not contain NUL characters")
 
     @staticmethod
@@ -190,13 +187,8 @@ class SettingsRepository:
         return self._future_schema_version is not None
 
     def load(self) -> ApplicationSettings:
-        schema_version = self._parse_schema_version(
-            self._adapter.value(SCHEMA_VERSION_KEY)
-        )
-        if (
-            schema_version is not None
-            and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION
-        ):
+        schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
+        if schema_version is not None and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION:
             self._future_schema_version = schema_version
             return ApplicationSettings()
 
@@ -337,12 +329,8 @@ class SettingsRepository:
         return self._load_pre_remote_values(include_preload=False)
 
     def _load_pre_remote_values(self, *, include_preload: bool) -> ApplicationSettings:
-        dont_show, _ = self._parse_bool(
-            self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        )
-        exact_size, _ = self._parse_bool(
-            self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY)
-        )
+        dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
+        exact_size, _ = self._parse_bool(self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY))
         cache_mib, _ = self._parse_int_range(
             self._adapter.value(DIFFERENCE_CACHE_MIB_KEY),
             DEFAULT_DIFFERENCE_CACHE_MIB,
@@ -364,17 +352,13 @@ class SettingsRepository:
             MIN_DIFFERENCE_GAIN,
             MAX_DIFFERENCE_GAIN,
         )
-        open_directory, _ = self._parse_directory(
-            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
-        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
         preload_enabled = True
         if include_preload:
-            parsed, valid = self._parse_bool(
-                self._adapter.value(PRELOAD_ENABLED_KEY)
-            )
+            parsed, valid = self._parse_bool(self._adapter.value(PRELOAD_ENABLED_KEY))
             preload_enabled = parsed if valid else True
         return ApplicationSettings(
             dont_show_raw_json_profiles=dont_show,
@@ -389,12 +373,8 @@ class SettingsRepository:
         )
 
     def _load_schema_v3_values(self) -> ApplicationSettings:
-        dont_show, _ = self._parse_bool(
-            self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        )
-        exact_size, _ = self._parse_bool(
-            self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY)
-        )
+        dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
+        exact_size, _ = self._parse_bool(self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY))
         cache_mib = self._parse_legacy_difference_cache(
             self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
@@ -407,9 +387,7 @@ class SettingsRepository:
             MIN_DIFFERENCE_GAIN,
             MAX_DIFFERENCE_GAIN,
         )
-        open_directory, _ = self._parse_directory(
-            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
-        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
@@ -424,15 +402,11 @@ class SettingsRepository:
         )
 
     def _load_schema_v2_values(self) -> ApplicationSettings:
-        dont_show, _ = self._parse_bool(
-            self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        )
+        dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
         cache_mib = self._parse_legacy_difference_cache(
             self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
-        open_directory, _ = self._parse_directory(
-            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
-        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
@@ -444,9 +418,7 @@ class SettingsRepository:
         )
 
     def _load_schema_v1_values(self) -> ApplicationSettings:
-        dont_show, _ = self._parse_bool(
-            self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        )
+        dont_show, _ = self._parse_bool(self._adapter.value(DONT_SHOW_RAW_JSON_PROFILES_KEY))
         cache_mib = self._parse_legacy_difference_cache(
             self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
@@ -462,9 +434,7 @@ class SettingsRepository:
             else self._adapter.value(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
         )
         dont_show, _ = self._parse_bool(raw_bool)
-        exact_size, _ = self._parse_bool(
-            self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY)
-        )
+        exact_size, _ = self._parse_bool(self._adapter.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY))
         cache_mib = self._parse_legacy_difference_cache(
             self._adapter.value(DIFFERENCE_CACHE_MIB_KEY)
         )
@@ -477,9 +447,7 @@ class SettingsRepository:
             MIN_DIFFERENCE_GAIN,
             MAX_DIFFERENCE_GAIN,
         )
-        open_directory, _ = self._parse_directory(
-            self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY)
-        )
+        open_directory, _ = self._parse_directory(self._adapter.value(DEFAULT_OPEN_DIRECTORY_KEY))
         export_directory, _ = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
@@ -543,13 +511,8 @@ class SettingsRepository:
         self._adapter.sync()
 
     def _guard_writable_schema(self) -> None:
-        schema_version = self._parse_schema_version(
-            self._adapter.value(SCHEMA_VERSION_KEY)
-        )
-        if (
-            schema_version is not None
-            and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION
-        ):
+        schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
+        if schema_version is not None and schema_version > CURRENT_SETTINGS_SCHEMA_VERSION:
             self._future_schema_version = schema_version
             raise UnsupportedSettingsSchemaError(
                 f"settings schema {schema_version} is newer than supported schema "

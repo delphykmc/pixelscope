@@ -78,17 +78,9 @@ class MockIqaService:
                 return httpx.Response(404, json={"detail": "unknown job"})
             if len(parts) == 4 and request.method == "GET":
                 return self._status(job_id, job)
-            if (
-                len(parts) == 5
-                and parts[4] == "result"
-                and request.method == "GET"
-            ):
+            if len(parts) == 5 and parts[4] == "result" and request.method == "GET":
                 return self._result(job_id, job)
-            if (
-                len(parts) == 5
-                and parts[4] == "cancel"
-                and request.method == "POST"
-            ):
+            if len(parts) == 5 and parts[4] == "cancel" and request.method == "POST":
                 return self._cancel(job_id, job)
             return httpx.Response(405, json={"detail": "method not allowed"})
 

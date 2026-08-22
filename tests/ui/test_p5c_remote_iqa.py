@@ -106,9 +106,7 @@ def test_production_composition_extends_exactly_one_existing_iqa_dock(
     ] == ["Setup", "Jobs", "Results"]
     assert window.iqa_workspace.parent() is window.remote_iqa_workspace.results_page
     iqa_docks = [
-        dock
-        for dock in window.findChildren(QDockWidget)
-        if dock.objectName() == "iqaWorkspaceDock"
+        dock for dock in window.findChildren(QDockWidget) if dock.objectName() == "iqaWorkspaceDock"
     ]
     assert iqa_docks == [window.iqa_dock]
     assert isinstance(window.create_settings_dialog(), RemoteIqaSettingsDialog)

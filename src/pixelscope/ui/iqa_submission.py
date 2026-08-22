@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, QThreadPool, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, Qt, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -229,15 +229,9 @@ class RemoteIqaWorkspace(QWidget):
         layout.addWidget(self.preview_status)
         self.preview_table = QTableWidget(0, 5, self.setup_page)
         self.preview_table.setObjectName("remoteIqaPairPreview")
-        self.preview_table.setHorizontalHeaderLabels(
-            ("Scene", "A", "B", "Width", "Height")
-        )
-        self.preview_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
-        self.preview_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
+        self.preview_table.setHorizontalHeaderLabels(("Scene", "A", "B", "Width", "Height"))
+        self.preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.preview_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.preview_table.verticalHeader().setVisible(False)
         header = self.preview_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -256,16 +250,10 @@ class RemoteIqaWorkspace(QWidget):
         self.jobs_tree = QTreeWidget(self.jobs_page)
         self.jobs_tree.setObjectName("remoteIqaJobs")
         self.jobs_tree.setColumnCount(5)
-        self.jobs_tree.setHeaderLabels(
-            ("Job ID", "Kind", "State", "Progress", "Message")
-        )
+        self.jobs_tree.setHeaderLabels(("Job ID", "Kind", "State", "Progress", "Message"))
         self.jobs_tree.setRootIsDecorated(False)
-        self.jobs_tree.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self.jobs_tree.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
+        self.jobs_tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.jobs_tree.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         header = self.jobs_tree.header()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -331,8 +319,7 @@ class RemoteIqaWorkspace(QWidget):
             )
         else:
             self.configuration_label.setText(
-                "Remote IQA submission unavailable · configure server URL and "
-                "storage roots."
+                "Remote IQA submission unavailable · configure server URL and " "storage roots."
             )
         self.folder_submit.setEnabled(
             settings.submission_configured and self._preview_identity is not None
@@ -369,9 +356,7 @@ class RemoteIqaWorkspace(QWidget):
             )
             for column, value in enumerate(values):
                 self.preview_table.setItem(row, column, QTableWidgetItem(value))
-        self.preview_status.setText(
-            f"Validated full Pair Preview · {len(payload.entries)} Scenes"
-        )
+        self.preview_status.setText(f"Validated full Pair Preview · {len(payload.entries)} Scenes")
         self.preview_button.setEnabled(True)
 
     def show_preview_error(self, message: str) -> None:
@@ -408,8 +393,7 @@ class RemoteIqaWorkspace(QWidget):
         if self.jobs_tree.currentItem() is None:
             self.jobs_tree.setCurrentItem(item)
         self.jobs_status.setText(
-            f"{len(self._jobs)} job(s) tracked locally · remote jobs remain durable "
-            "on close"
+            f"{len(self._jobs)} job(s) tracked locally · remote jobs remain durable " "on close"
         )
         self._job_selection_changed()
 
@@ -438,14 +422,10 @@ class RemoteIqaWorkspace(QWidget):
                 item.setText(0, scene.scene_id)
                 item.setText(1, scene.status)
                 item.setText(2, scene.error_code or "")
-                retryable = (
-                    "—" if scene.retryable is None else str(scene.retryable).lower()
-                )
+                retryable = "—" if scene.retryable is None else str(scene.retryable).lower()
                 item.setText(3, retryable)
                 item.setText(4, scene.error_message or "")
-            self.partial_diagnostics.setVisible(
-                bool(result.unsuccessful_scene_outcomes)
-            )
+            self.partial_diagnostics.setVisible(bool(result.unsuccessful_scene_outcomes))
         else:
             self.partial_status.hide()
             self.partial_diagnostics.hide()
@@ -458,9 +438,7 @@ class RemoteIqaWorkspace(QWidget):
             self._preview_identity = None
             self._preview_entries = ()
             self.preview_table.setRowCount(0)
-            self.preview_status.setText(
-                "Folder inputs changed · validate the full pair again."
-            )
+            self.preview_status.setText("Folder inputs changed · validate the full pair again.")
             self.folder_submit.setEnabled(False)
 
     def _request_preview(self) -> None:
@@ -647,9 +625,7 @@ class RemoteIqaController(QObject):
         path_a = getattr(documents[0], "source_path", None)
         path_b = getattr(documents[1], "source_path", None)
         if not isinstance(path_a, Path) or not isinstance(path_b, Path):
-            self.workspace.show_submission_error(
-                "Current Pair is not two native source paths"
-            )
+            self.workspace.show_submission_error("Current Pair is not two native source paths")
             return
         self._start_submission(
             "current_pair",
@@ -681,9 +657,7 @@ class RemoteIqaController(QObject):
         preview = self.workspace.preview_entries
         preview_identity = self.workspace.preview_identity
         if preview_identity != (folder_a, folder_b) or not preview:
-            self.workspace.show_submission_error(
-                "validate the full Folder Pair before submit"
-            )
+            self.workspace.show_submission_error("validate the full Folder Pair before submit")
             return
         settings = self.window.application_settings.remote_iqa
 
@@ -727,9 +701,7 @@ class RemoteIqaController(QObject):
         worker.signals.succeeded.connect(self._submission_ready)
         worker.signals.failed.connect(self._submission_failed)
         self._track_worker(worker)
-        self.workspace.jobs_status.setText(
-            "Preparing/staging and submitting Remote IQA job..."
-        )
+        self.workspace.jobs_status.setText("Preparing/staging and submitting Remote IQA job...")
         self.workspace.tabs.setCurrentWidget(self.workspace.jobs_page)
 
     @Slot(str, object, int, object)
@@ -791,9 +763,7 @@ class RemoteIqaController(QObject):
         if current_identity != (value.folder_a, value.folder_b):
             return
         self.workspace.set_folder_preview(value)
-        self.workspace.set_configuration_state(
-            self.window.application_settings.remote_iqa
-        )
+        self.workspace.set_configuration_state(self.window.application_settings.remote_iqa)
 
     @Slot(str, object, int, object)
     def _preview_failed(
@@ -904,9 +874,7 @@ class RemoteIqaController(QObject):
         job = self._jobs.get(document_id)
         if job is None or job.state not in {JobState.SUCCEEDED, JobState.PARTIAL}:
             return
-        expected_state = (
-            "complete" if job.state is JobState.SUCCEEDED else "partial"
-        )
+        expected_state = "complete" if job.state is JobState.SUCCEEDED else "partial"
         if value.publication_state != expected_state:
             self.workspace.show_job_operation_error(
                 job.job_id,
