@@ -1,8 +1,8 @@
 # Remote IQA contract
 
-Status: P5 planning contract — schema-v2 numerical revision active
+Status: P5 durable contract — executable schema-v2 + P5-C client contract active
 Owner: PixelScope P5 program + external IQA server contract
-Established: P5-0; numerical ownership revised by PR #39
+Established: P5-0; numerical ownership revised by PR #39; P5-C transport/storage/failure contract frozen in PR #42
 
 This document defines the stable product/architecture boundary for PixelScope P5.
 The external GPU IQA implementation lives in a separate repository. PixelScope
@@ -73,7 +73,7 @@ IQA Job / Result
 ordered variants[]                 # stable comparison-group identity
     ↓
 Scene / measurement context
-    ├─ exactly one source per variant for normal complete results
+    ├─ exactly one source per variant for every published successful Scene
     ├─ representative image / structural context
     ├─ common Edge Map
     ├─ common Texture Gate
@@ -100,9 +100,11 @@ transplanted across incompatible Scene/job/cohort contexts merely because a sour
 SHA matches. Server caches may reuse lower-level features only where mathematically
 valid.
 
-For a normal non-PARTIAL complete result, each Scene contains exactly one source for
-each declared variant, with no duplicate variant binding. Missing-variant semantics
-belong to the detailed PARTIAL contract.
+For COMPLETE and for each successful Scene inside PARTIAL, the published Scene remains
+a full schema-v2 Scene with exactly one source for each declared variant. P5-C does
+not serialize an incomplete successful Scene with a missing variant. A Scene that
+cannot produce the complete comparable cohort is represented as a failed/cancelled
+`scene_outcome` rather than an imputed or locally repaired Scene.
 
 ## 4. Ten IQA attributes
 
@@ -129,10 +131,9 @@ power-ratio dB.
 
 ## 5. Remote analysis domain and geometry
 
-The GPU service operates on RGB-family encoded image inputs. The merged v1 input
-eligibility rules remain the current submission baseline until a later transport
-contract explicitly revises them; local RAW support does not imply a silent remote
-RAW conversion path.
+The GPU service operates on RGB-family encoded image inputs. P5-C submission accepts
+PNG/JPG/JPEG/BMP only. Local RAW support does not imply a silent remote RAW conversion
+path.
 
 All sources in a comparable Scene must have equal original dimensions. Unevaluable
 cohorts are rejected/excluded by server evaluation under the applicable failure
@@ -258,7 +259,7 @@ Published results are immutable historical engineering artifacts. Ordinary clien
 expect them to persist until explicit/administrative deletion. Authentication,
 identity, permission, and administration remain P6.
 
-## 9. Shared storage abstraction
+## 9. Shared storage abstraction — P5-C frozen
 
 Client and GPU server may mount the same SMB/network storage at different paths. The
 API uses logical root + relative path, never machine-local paths as portable identity:
@@ -271,59 +272,132 @@ client: iqadata → G:\IQA
 server: iqadata → /home/data/IQA
 ```
 
-Local inputs may be staged safely; partial copies must not become visible as complete
-server inputs. Content-addressed SHA-256 reuse is preferred where practical.
+P5-C freezes the machine-local ownership in typed `ApplicationSettings` schema v6:
 
-The machine-local configuration owner for logical-root→client-path mapping remains an
-explicit P5-C decision gate. Result artifacts and Session cannot own it.
+```text
+RemoteIqaSettings
+    server_base_url
+    storage_roots[] {
+        storage_root_id
+        client_path
+    }
+    staging_root_id
+```
 
-## 10. Submission pairing and failure direction
+`storage_root_id` is the portable identity shared by client/server. `client_path` is
+machine-local and is never serialized into the job request or result artifact. Server
+physical paths and credentials are not persisted by PixelScope. Session v1 does not
+own these mappings.
+
+Existing sources under a configured root are represented by the most-specific matching
+logical root plus portable POSIX relative path. Sources outside configured roots may be
+staged under the configured staging root using content-addressed SHA-256 identity.
+Staging uses `.part` publication and atomic final replacement/reuse verification.
+
+P5-C still has pre-merge hardening work for cross-process staging concurrency and
+symlink/junction containment; those implementation blockers do not change the logical
+identity contract above.
+
+## 10. Submission pairing and PARTIAL contract — P5-C frozen
 
 Request/result/Scene-manifest identity remains N-way-capable, but the **initial P5-C
 user-facing submission workflow is exactly two variants**:
 
-- Current Pair submits exactly two variants from the deterministic underlying
-  Current Comparison Page source order;
-- batch submission uses the deterministic two-folder Pair workflow;
-- arbitrary three-or-more-variant submission UI/API workflow is deferred to a later
-  explicit owner decision;
-- P5-B remains capable of opening and exploring externally produced N-way schema-v2
-  results and switching IQA Reference across their variants.
+- Current Pair submits the A/B pair of underlying Current Comparison Page documents;
+- A/B identity follows deterministic underlying page/source order and is independent
+  from Primary, Active, view reorder, Display Gain, Difference, or Split presentation;
+- Folder Pair uses immediate eligible files only, no recursion, no symlinks, Unicode
+  NFC lexical ordering, equal eligible counts, and pair-by-index ordering;
+- each submitted pair must have equal original dimensions;
+- request Scene IDs are deterministic `scene_000000...` and each Scene serializes A
+  then B;
+- arbitrary three-or-more-variant submission UI is deferred to a later explicit
+  owner decision;
+- P5-B remains capable of opening externally produced N-way schema-v2 results.
 
-Submission requests still use explicit ordered Scene manifests and must not make
-server re-sorting or local Primary/Active/view reorder identity authority.
+Client-known preflight errors block the request before job creation. Server-side
+per-Scene evaluation failures are represented by the terminal result taxonomy below.
+The client does not resize/align or synthesize a missing variant.
 
-Large batch references do not become Files/Selected/decoded source ownership.
+Durable PARTIAL results are executable schema-v2 results with these rules:
 
-The owner-approved failure direction is already fixed:
+- `publication_state = "partial"`;
+- `scene_outcomes[]` covers **every requested Scene in original request order**;
+- each outcome has unique `scene_id` and status `succeeded`, `failed`, or `cancelled`;
+- `succeeded` outcomes contain no error diagnostics;
+- `failed`/`cancelled` outcomes require bounded `error {code, message}` and may carry
+  optional boolean `retryable`;
+- at least one Scene must succeed and at least one Scene must fail/cancel;
+- `scenes[]` contains **only** fully published successful Scenes, in the same order
+  as the successful `scene_outcomes`;
+- every published successful Scene still satisfies the normal complete-Scene v2
+  numerical/cardinality/geometry invariants;
+- zero-success jobs are not PARTIAL; they terminate `failed` or `cancelled` and have
+  no published result reference;
+- all-success jobs are `succeeded` with `publication_state = "complete"`.
 
-> **Durable PARTIAL results are allowed and successful Scene work must be
-> preservable when another Scene fails.**
+For COMPLETE and PARTIAL, `manifest.json` remains the immutable publication commit
+marker and summary/grid artifacts cover only the published successful `scenes[]`.
 
-P5-C still must freeze request-level rejection, per-Scene failure records, exact
-PARTIAL terminal identity, missing-variant rules, required artifacts, no-success
-behavior, and cancel/completion/publication races.
+## 11. Job API and retry contract — P5-C frozen
 
-## 11. Job API target
-
-The existing service has a blocking HTTP interface. P5 targets a separable async job
-adapter:
+P5-C uses the following polling REST boundary:
 
 ```text
-POST /v1/iqa/jobs                  → job_id
+POST /v1/iqa/jobs                  → job_id + non-terminal state
 GET  /v1/iqa/jobs/{job_id}         → progress/state
 GET  /v1/iqa/jobs/{job_id}/result  → logical result reference
-POST /v1/iqa/jobs/{job_id}/cancel
+POST /v1/iqa/jobs/{job_id}/cancel  → server-owned resulting state
 ```
 
-Polling is the initial default; WebSocket is not required. Typical 4K extraction is
-about two seconds per source, so batch work is non-modal and cancellable. A result is
-not historically openable until its immutable publication contract is complete for
-the applicable COMPLETE/PARTIAL terminal state.
+States are:
+
+```text
+queued
+preparing
+extracting
+aggregating
+writing
+succeeded
+partial
+failed
+cancelled
+```
+
+Terminal states are `succeeded`, `partial`, `failed`, and `cancelled`. Only
+`succeeded` and `partial` may resolve an immutable result reference. The result
+reference contains `job_id`, `storage_root_id`, portable `relative_path`,
+`schema_version = 2`, and matching `publication_state` (`complete` for succeeded,
+`partial` for partial).
+
+Polling is the initial default; WebSocket is not required. Job completion never
+automatically opens or replaces the current IQA result. The user explicitly chooses
+`Open Result`, which resolves the logical result reference through current machine-local
+settings and delegates to the existing P5-B canonical result loader/controller.
+
+Retry semantics are asymmetric by operation:
+
+- create `POST /jobs` is **never automatically retried** because timeout after server
+  acceptance is an ambiguous create;
+- status/result/cancel operations are idempotent/safe only where their endpoint
+  semantics allow it;
+- after terminal `succeeded`/`partial`, initial `GET /result` is attempted once by the
+  existing lifecycle; transient result-reference failure is retried only for that
+  idempotent GET with bounded 1s/2s/4s/8s backoff;
+- retry exhaustion leaves the terminal job visible with an explicit error; it never
+  converts the job to another terminal state and never resubmits the job.
+
+Client diagnostics classify configuration, connection, timeout, HTTP, protocol, and
+storage-resolution failures so the Jobs UI can present bounded actionable errors.
+
+The exact production server implementation remains external. PR #42 includes a
+real-socket localhost `ThreadingHTTPServer` fault harness only to exercise this client
+contract before a GPU server is available; that debug server is not production
+server architecture.
 
 ## 12. UX contract
 
-P5 adds one non-modal IQA workspace/dock:
+P5 uses one non-modal IQA workspace/dock:
 
 ```text
 IQA
@@ -332,8 +406,12 @@ IQA
 └─ Results
 ```
 
+Setup owns Current Pair and deterministic Folder Pair preparation/submission. Jobs owns
+locally tracked durable job state, Cancel, and explicit Open Result. Results embeds the
+existing P5-B result workspace rather than creating a second result parser/controller.
+
 Native OS file/folder pickers may remain modal; pairing, jobs, and result exploration
-remain non-modal.
+remain non-modal. A job reaching COMPLETE/PARTIAL does not auto-open Results.
 
 Result exploration follows:
 
@@ -363,47 +441,46 @@ P5 blocks conflicting Inspect while a P4-A temporary Pick baseline is active.
 Return-to-previous-workspace remains transient and must not overwrite newer non-IQA
 workspace intent.
 
-## 13. Open Result ownership and current P5 interruption
+Debug-only P5-C tools are gated by `PIXELSCOPE_REMOTE_IQA_DEBUG` and are not release
+workflow authority. Request Inspector runs the production request-builder path but
+stops before POST. Replay JSON injects bounded logical terminal job/result references
+without HTTP and still requires explicit Open Result. The localhost fault server uses
+real HTTP solely for client-contract validation.
 
-P5-B owns the one canonical `Open IQA Result...` controller/parser path; P5-E later
-extends that same path with production logical-storage reopen, bounded Recent IQA
-Results, provenance, source/hash diagnostics, and result-only mode.
+## 13. Open Result ownership and current P5 sequence
 
-However, P5-B schema-dependent implementation is currently **paused**. Sequence is:
+P5-B / PR #38 is merged into main and owns the one canonical `Open IQA Result...`
+controller/parser path. P5-C extends the same IQA dock with Setup/Jobs and delegates
+explicit Remote `Open Result` back through that P5-B authority. P5-E later extends the
+same path with bounded Recent IQA Results and historical reopen productivity.
+
+Current sequence is:
 
 ```text
 P5-A/schema v1 merged (#37)
     ↓
-PR #39 schema-v2 contract merge
+P5-A2 durable + executable schema v2 merged (#39/#40)
     ↓
-focused executable-v2 domain/fixture/parser migration
+P5-B local result workspace merged (#38)
     ↓
-P5-B rebase/revision against executable v2
+P5-C submission/shared-storage client (#42, active)
 ```
-
-P5-B must not invent schema-v2 parser/field/safety semantics before that focused
-migration lands.
 
 If original images disappear, server result summaries and measurement artifacts remain
 usable for result-only exploration while source-linked inspection/overlay may be
 unavailable.
 
-## 14. Fixture-first implementation and compatibility
+## 14. Executable compatibility and test harness ownership
 
-P5-A/PR #37 at `fceb16f6e43c48ec65fbf7ebbcc103b56716b686` is the merged historical
-schema-v1 executable baseline. Its deterministic fixture proves v1 math, geometry,
-parser safety, publication, and N-source structural identity.
+P5-A/PR #37 remains the historical schema-v1 executable baseline. P5-A2 / PR #39 and
+PR #40 define and implement the canonical schema-v2 domain, manifest/summary/grid
+reader, deterministic context identity, numerical checks, safety ceilings, and
+explicit v1 read-only dispatch.
 
-After PR #39 merges, a focused executable-v2 migration must update the Qt-free domain,
-manifest/summary/grid parser, fixture writer, and golden numerical tests before P5-B
-resumes. That migration must also implement:
-
-- explicit v1 read-only compatibility dispatch;
-- N-way `variant_id` identity and complete-result cardinality;
-- `measurement_context_id` construction;
-- cross-variant grid-correspondence validation;
-- summary projection consistency validation;
-- justified v2 safety ceilings and concrete field/dtype/shape rules.
+P5-C extends that executable v2 reader with PARTIAL `scene_outcomes`; it does not
+create a second numerical parser. Deterministic P5-C debug result generation reuses
+the canonical v2 fixture writer and validates the generated artifact through the
+canonical result loader before publishing replay metadata.
 
 No silent v1→v2 numerical upgrade is allowed.
 
