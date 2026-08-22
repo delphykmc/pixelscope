@@ -505,10 +505,10 @@ NumPy allocation or decompression. The historical focused command is:
 Schema v1 remains read-only compatibility after P5-A2; its historical aggregation
 behavior is not silently changed to match v2.
 
-## P5-A2 Stage 2 deterministic executable-v2 contract
+## P5-A2 Stage 2 deterministic executable-v2 contract — Complete / PR #40
 
-PR #40 must be validated as the executable schema-v2 authority, not only as a parser
-round-trip. The focused files are:
+PR #40 merged at `5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`; this section
+remains the executable schema-v2 quality baseline. The focused files are:
 
 ```text
 tests/unit/test_remote_iqa_v2.py
@@ -516,7 +516,7 @@ tests/unit/test_remote_iqa_v2_limits.py
 tests/unit/test_remote_iqa_v2_review_regressions.py
 ```
 
-The v2 golden/safety matrix must establish at minimum:
+The v2 golden/safety matrix establishes at minimum:
 
 - canonical dispatch: real schema-v1 golden remains read-only while schema-v2 uses
   the native v2 reader and future versions are unsupported;
@@ -549,7 +549,7 @@ than a cache budget. Its merge rationale is Stage-1's approximately 300-source
 production planning assumption with >3x headroom; future larger requirements require
 explicit schema/safety review.
 
-Run the focused compatibility/v2 suite before the standard repository contract:
+Historical focused compatibility/v2 command:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
@@ -560,12 +560,86 @@ Run the focused compatibility/v2 suite before the standard repository contract:
     tests\unit\test_remote.py
 ```
 
-Because PR #40 changes `src/`, `tests/`, and durable docs, the full Standard
-validation matrix at the top of this document and the broader applicable pytest
-regression suite remain required before merge. A reduced/pre-review harness result
-must not be promoted into a latest-head PASS claim. At the time this Stage-2 quality
-contract was written, repository-pinned latest-head pytest/Ruff/mypy/docs/pip/diff
-validation had not yet been observed.
+## P5-B IQA Workspace & Local Result Exploration quality gate — Active / PR #38
+
+P5-B acceptance is authority/lifecycle/presentation based. It consumes executable-v2
+rather than redefining parser/math contracts.
+
+Focused coverage must establish:
+
+- canonical version dispatch and explicit v1 read-only compatibility;
+- v2 summary-first open with Absolute default and no Scene-grid I/O at ordinary open;
+- server-authored absolute Dataset/Scene summary projection, with default absolute
+  Dataset Overview = `pooled_weighted_mean`;
+- N-way `variant_id` Reference switching with stable variant order/labels and no
+  hidden reservation in the server-owned string namespace; specifically a real
+  variant ID equal to `__absolute__` must remain distinguishable from client-local
+  Absolute presentation mode;
+- Relative presentation keeping all variant columns stable and showing the selected
+  Reference as a presentation-only zero anchor while target values use canonical v2
+  target/reference math;
+- default relative Dataset Overview = arithmetic mean of valid Scene comparison
+  values for the selected aggregation mode;
+- Reference preparation off the Qt thread with one Scene grid materialized at a time,
+  scalar-only retained cache, and no raw-grid corpus retained by the workspace model;
+- switching among prepared/unprepared References without duplicating parser or
+  numerical authority;
+- failed/missing/corrupt deferred Scene-grid preparation restoring the last
+  successfully presented Reference/mode so the combo and visible values remain
+  coherent;
+- stale/superseded/closed/shutdown callback rejection and last-valid presentation
+  preservation;
+- hierarchy/Overview/Scene Trend/attribute filters/source cards under N-way v2;
+- source cards remaining metadata-only and not opening `relative_path` as native
+  local source authority;
+- IQA dock float/dock/maximize/reset behavior and QSettings test isolation;
+- passive IQA browsing preserving Files, Selected, Current Comparison Page,
+  Active/Primary, Difference, decoded-source residency/preload, native analysis,
+  and Session state.
+
+Recommended latest-head focused command:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+    tests\unit\test_remote_iqa_v2.py `
+    tests\unit\test_remote_iqa_v2_limits.py `
+    tests\unit\test_remote_iqa_v2_review_regressions.py `
+    tests\unit\test_iqa_explorer.py `
+    tests\ui\test_p5b_iqa_workspace.py `
+    tests\ui\test_design_tokens_style.py `
+    tests\ui\test_p4c_session_restore.py::test_registered_order_is_not_session_semantic_but_selected_order_is `
+    tests\ui\test_p1e_plots_workspace.py
+```
+
+The repository owner reported the requested full/focused Windows pytest and static
+validation PASS on pre-review-fix head
+`c77169d7db19ac7dd308c5f772d704c305761ba9`. That evidence is retained exactly
+for that head only.
+
+The independent review that followed required two narrow runtime regressions plus
+system-of-record reconciliation: collision-proof Absolute display state and
+transactional deferred-Reference failure restoration. Those changes require fresh
+latest-head focused/static/docs validation before the old PASS may be superseded.
+At minimum rerun the focused command above plus:
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m mypy src
+.\.venv\Scripts\python.exe scripts\check_docs.py
+.\.venv\Scripts\python.exe -m pip check
+git diff --check
+```
+
+For PR #38 only, the repository owner explicitly deferred the already-existing
+repository-wide `ruff format --check .` baseline drift to a separate formatting-only
+PR. That exception must be recorded rather than hidden: it does **not** claim the
+repository is formatter-clean, does not weaken `ruff check`, mypy, pytest, docs, pip,
+or diff validation, and must not be used to justify unrelated formatting churn in
+P5-B. A later formatting-only PR is responsible for restoring the global formatter
+baseline.
+
+After latest-head validation, PR #38 requires fresh independent re-review before
+merge. P5-C remains the next planned runtime slice.
 
 ## Completion evidence
 

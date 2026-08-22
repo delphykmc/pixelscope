@@ -383,6 +383,48 @@ existing configured Export directory is reused. Missing/in-flight results are
 unavailable or safe no-ops, Cancel mutates nothing, and failed writes leave the
 workspace unchanged. No new Settings schema or generic export framework is added.
 
+### Remote IQA published-result exploration
+
+P5-A2 executable schema v2 is merged as PR #40 at
+`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`. P5-B / PR #38 implements the first
+user-facing Remote IQA result workspace while preserving the existing local image
+workspace as the sole source/analysis authority.
+
+Use **File > Open IQA Result...** to open an immutable published result directory.
+The IQA workspace is non-modal and supports the same float/dock/maximize/reset title-
+bar behavior as Plots.
+
+For schema v2:
+
+- ordinary open is **summary-first** and reads only manifest + summary metadata;
+- the initial mode is **Absolute measurements**;
+- Absolute Dataset Overview uses server-authored `pooled_weighted_mean` and the
+  detailed table shows published absolute Dataset/Scene values for every variant;
+- Reference selection uses stable N-way `variant_id`, independent from local Primary;
+- all variants keep stable table/chart ordering across Absolute and Relative modes;
+- Absolute mode is a client-local presentation state, not a reserved server
+  `variant_id`, so any schema-valid real variant string remains selectable;
+- selecting an unprepared Reference loads/calculates in the background one Scene
+  grid at a time and retains only derived scalar results;
+- in Relative mode, the selected Reference appears as a presentation-only zero
+  anchor and every other variant displays canonical target/reference values;
+- Relative Dataset Overview is the arithmetic mean of valid Scene comparison values;
+- failed/corrupt deferred Reference preparation restores the last successfully
+  presented mode/reference instead of leaving the combo and visible data mismatched;
+- Scene Trend and attribute filters explore published/derived result values without
+  changing native PixelScope analysis;
+- Scene cards show published variant/source/path/hash identity only. They do not open
+  source pixels from result-relative paths; logical-root mapping, hash verification,
+  native source Inspect, spatial overlay, and block inspection remain later P5-D
+  work.
+
+Schema v1 remains explicit historical read-only two-source compatibility and never
+receives synthetic v2 absolute measurements.
+
+Passive IQA browsing does not register/select/decode batch sources and does not
+change Files, Selected, Current Comparison Page, Active/Primary, Difference, source
+residency/preload, Statistics/Histogram/Line Profile, or Session state.
+
 ## Settings and runtime policy
 
 `Edit > Settings...` uses **General / Files / Performance** category pages.
@@ -578,28 +620,25 @@ analysis are outside the current product contract.
 
 ## Program status and future scope
 
-P3 — Image Semantics & RAW Processing is Complete through P3-E. PR #27 merged at
-`835634a58609601605fd0fc18a3028b64225f535` after integration/presentation
-hardening of the delivered Difference, RAW/display, Display Gain, unified input,
-and Current Comparison Page contracts.
+P3 — Image Semantics & RAW Processing is Complete through P3-E. P4 — Workflow &
+Session Productivity is Complete through P4-F / PR #35; the P4-complete main
+baseline is `d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
 
-P4-0 merged as PR #28 at `e30c49d6759715228a820d673ad8939ea9a3afe8`.
-P4-A Review Selection & Curation merged as PR #29 at
-`3486146494076e9b513843b90ec44e504043729e`.
-P4-B Comparison Set Persistence merged as PR #30 at
-`3a19589e6cbad5fa8c814c522df6a553f59ee340`.
-P4-C Session Persistence & Typed Recent merged as PR #31 at
-`436033a0d99513fe8db35f08305395127e430af2`. Display Gain/Difference runtime
-stabilization and source-curation lifecycle are inherited from merged PR #32/#33.
+P5-0 / PR #36 and P5-A schema-v1 / PR #37 are Complete. P5-A2 Stage 1 durable
+schema-v2 contract / PR #39 and Stage 2 executable-v2 migration / PR #40 are also
+Complete; executable v2 is merged at
+`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`.
 
-P4-E **Analysis Export Productivity** is active. P4-D Saved/named/multiple ROI is
-deferred because Session v1 already persists current active ROI/Line and the
-remaining manager needs unresolved ownership/coordinate semantics. Alpha Overlay is
-also deferred because no concrete workflow need currently justifies Overlay/Flicker/
-Wipe pairing and presentation semantics beyond Multi View and Difference.
+P5-B **IQA Workspace & Local Result Exploration** / PR #38 is Active / merge
+candidate. Owner full/focused Windows validation and requested static checks were
+reported PASS on pre-review-fix head `c77169d7db19ac7dd308c5f772d704c305761ba9`.
+The narrow reviewer-requested collision/failure/docs fixes after that head require
+fresh latest-head validation and independent re-review before merge.
 
-P4-F **Integration & Workflow Hardening** follows P4-E and is the final P4 closure
-phase. P4-D Saved ROI and Alpha Overlay are not P4 completion blockers.
+P5-C **Submission & Shared Storage** is next planned, followed by P5-D viewer-linked
+Scene/grid inspection, P5-E historical/recent result workflow, and P5-F real-server
+integration/performance/lifetime hardening. P6 owns identity/access/remote operations
+and P7 owns release engineering/distribution.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or
@@ -609,10 +648,10 @@ Additional RAW clipping/highlight/shadow or Bayer observability remains optional
 Demosaic remains deferred unless a future owner-approved processed-preview scope
 defines white balance, color, tone, metadata, and analysis boundaries coherently.
 
-Arbitrary-angle Line Profile is also deferred from P4. Line Profile is an
-observation/sampling tool, so a future arbitrary-angle design would require an
-explicit discrete pixel-sampling/path and coordinate-display contract rather than
-implicitly adopting interpolation.
+Arbitrary-angle Line Profile is also deferred. Line Profile is an observation/
+sampling tool, so a future arbitrary-angle design requires an explicit discrete
+pixel-sampling/path and coordinate-display contract rather than implicitly adopting
+interpolation.
 
-Later planned work includes remote IQA / image evaluation, heatmaps, and validated
-standalone Windows distribution.
+Repository-wide Ruff formatter baseline cleanup is intentionally separated from
+P5-B into a later formatting-only PR rather than mixed with product/runtime changes.

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QStyleHintReturn,
     QStyleOption,
     QWidget,
+    QWidgetItem,
 )
 
 
@@ -47,11 +48,24 @@ class EngineeringStyle(QProxyStyle):
         widget: QWidget | None = None,
         return_data: QStyleHintReturn | None = None,
     ) -> int:
+        style_widget = _style_hint_widget(widget)
         if hint == QStyle.StyleHint.SH_EtchDisabledText:
-            if widget is not None and bool(widget.property("etchedDisabledText")):
+            if style_widget is not None and bool(
+                style_widget.property("etchedDisabledText")
+            ):
                 return 1
             return 0
-        return super().styleHint(hint, option, widget, return_data)
+        return super().styleHint(hint, option, style_widget, return_data)
+
+
+def _style_hint_widget(widget: object | None) -> QWidget | None:
+    """Normalize PySide6 virtual callbacks to the base binding's QWidget contract."""
+
+    if isinstance(widget, QWidget):
+        return widget
+    if isinstance(widget, QWidgetItem):
+        return widget.widget()
+    return None
 
 
 def apply_engineering_palette(app: QApplication) -> None:

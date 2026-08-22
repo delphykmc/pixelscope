@@ -221,13 +221,13 @@ def test_fixture_dataset_pooled_and_equal_scene_means_are_distinct(
     golden_root: Path,
 ) -> None:
     result = _loaded(golden_root)
-    summary = result.dataset_summary("baseline", "luma_noise")
+    summary = result.dataset_summary("baseline", "luma_detail")
     assert summary.pooled.valid
     assert summary.pooled.weighted_mean is not None
     assert summary.scene_mean.valid
     assert summary.scene_mean.value is not None
     scene_summaries = [
-        scene.source_for_variant("baseline").summary("luma_noise")
+        scene.source_for_variant("baseline").summary("luma_detail")
         for scene in result.scenes
     ]
     expected_pooled = math.fsum(
@@ -641,7 +641,10 @@ def _npy_bytes(array: np.ndarray[Any, Any]) -> bytes:
 def test_npz_duplicate_members_are_rejected(tmp_path: Path) -> None:
     path = tmp_path / "duplicate.npz"
     payload = _npy_bytes(np.asarray([1.0], dtype=np.float64))
-    with zipfile.ZipFile(path, "w") as archive:
+    with (
+        pytest.warns(UserWarning, match=r"Duplicate name: 'x\.npy'"),
+        zipfile.ZipFile(path, "w") as archive,
+    ):
         archive.writestr("x.npy", payload)
         archive.writestr("x.npy", payload)
     with pytest.raises(CorruptV2, match="duplicate members"):

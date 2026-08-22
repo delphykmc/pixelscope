@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from pixelscope.ui.design_tokens import TOKENS, dock_title_button_style
 
 PLOTS_FLOATING_GEOMETRY_SETTING = "ui/plots_floating_geometry"
+IQA_FLOATING_GEOMETRY_SETTING = "ui/iqa_floating_geometry"
 
 
 def _title_icon(kind: str) -> QIcon:
@@ -68,29 +69,49 @@ def _title_icon(kind: str) -> QIcon:
 
 
 class PlotsDockTitleBar(QWidget):
-    """Compact controls for floating/docking and maximizing/restoring Plots."""
+    """Compact reusable controls for floating/docking and maximizing a dock."""
 
-    def __init__(self, dock: QDockWidget) -> None:
+    _known_geometry_settings = {
+        PLOTS_FLOATING_GEOMETRY_SETTING,
+        IQA_FLOATING_GEOMETRY_SETTING,
+    }
+
+    @classmethod
+    def register_geometry_setting(cls, setting: str) -> None:
+        """Register a workspace dock geometry key so Reset clears it even while hidden."""
+
+        cls._known_geometry_settings.add(setting)
+
+    def __init__(
+        self,
+        dock: QDockWidget,
+        *,
+        title: str = "Plots",
+        geometry_setting: str = PLOTS_FLOATING_GEOMETRY_SETTING,
+    ) -> None:
         super().__init__(dock)
         self._dock = dock
+        self._panel_title = title
+        self._geometry_setting = geometry_setting
+        self.register_geometry_setting(geometry_setting)
         self._restore_to_docked = False
         self._restore_area = Qt.DockWidgetArea.BottomDockWidgetArea
         self._settings = QSettings()
-        stored_geometry = self._settings.value(PLOTS_FLOATING_GEOMETRY_SETTING)
+        stored_geometry = self._settings.value(self._geometry_setting)
         self._floating_geometry = (
             QByteArray(stored_geometry)
             if isinstance(stored_geometry, QByteArray | bytes)
             else QByteArray()
         )
         self._restoring_floating_geometry = False
-        self.title = QLabel("Plots")
+        self.title = QLabel(title)
         self.float_button = self._button("float")
         self.maximize_button = self._button("maximize")
         self.close_button = self._button("hide")
         self.float_button.clicked.connect(self._toggle_floating)  # type: ignore[attr-defined]
         self.maximize_button.clicked.connect(self._toggle_maximized)  # type: ignore[attr-defined]
         self.close_button.clicked.connect(dock.hide)  # type: ignore[attr-defined]
-        self.close_button.setToolTip("Hide Plots")
+        self.close_button.setToolTip(f"Hide {self._panel_title}")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(TOKENS.spacing_sm, 0, TOKENS.spacing_xs, 0)
@@ -101,6 +122,7 @@ class PlotsDockTitleBar(QWidget):
         layout.addWidget(self.close_button)
         self._dock.installEventFilter(self)
         self._dock.topLevelChanged.connect(self._floating_changed)  # type: ignore[attr-defined]
+        self._remember_dock_area()
         self.sync(False)
 
     def _button(self, icon: str) -> QToolButton:
@@ -114,7 +136,9 @@ class PlotsDockTitleBar(QWidget):
 
     def sync(self, floating: bool) -> None:
         self.float_button.setIcon(_title_icon("dock" if floating else "float"))
-        self.float_button.setToolTip("Dock Plots" if floating else "Float Plots")
+        self.float_button.setToolTip(
+            f"Dock {self._panel_title}" if floating else f"Float {self._panel_title}"
+        )
         if not floating and not self._dock.isMaximized():
             self._set_maximize_state(False)
 
@@ -129,7 +153,7 @@ class PlotsDockTitleBar(QWidget):
             geometry = self._dock.saveGeometry()
             if not geometry.isEmpty():
                 self._floating_geometry = geometry
-                self._settings.setValue(PLOTS_FLOATING_GEOMETRY_SETTING, geometry)
+                self._settings.setValue(self._geometry_setting, geometry)
         return super().eventFilter(watched, event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
@@ -142,6 +166,8 @@ class PlotsDockTitleBar(QWidget):
     def _toggle_floating(self) -> None:
         if self._dock.isMaximized():
             self._dock.showNormal()
+        if not self._dock.isFloating():
+            self._remember_dock_area()
         self._restore_to_docked = False
         self._dock.setFloating(not self._dock.isFloating())
         self._dock.show()
@@ -159,14 +185,16 @@ class PlotsDockTitleBar(QWidget):
             self._restore_to_docked = False
         else:
             self._restore_to_docked = not self._dock.isFloating()
-            window = self._main_window()
-            if self._restore_to_docked and window is not None:
-                self._restore_area = window.dockWidgetArea(self._dock)
-                self._dock.setFloating(True)
+            if self._restore_to_docked:
+                self._remember_dock_area()
+                window = self._main_window()
+                if window is not None:
+                    self._dock.setFloating(True)
             self._dock.showMaximized()
         self._set_maximize_state(not maximized)
 
     def _floating_changed(self, floating: bool) -> None:
+        self.sync(floating)
         if not floating or self._floating_geometry.isEmpty():
             return
         self._restoring_floating_geometry = True
@@ -179,12 +207,48 @@ class PlotsDockTitleBar(QWidget):
             geometry = self._dock.saveGeometry()
             if not geometry.isEmpty():
                 self._floating_geometry = geometry
-                self._settings.setValue(PLOTS_FLOATING_GEOMETRY_SETTING, geometry)
+                self._settings.setValue(self._geometry_setting, geometry)
 
     def clear_persisted_geometry(self) -> None:
-        """Forget the saved normal floating geometry."""
-        self._settings.remove(PLOTS_FLOATING_GEOMETRY_SETTING)
-        self._floating_geometry = QByteArray()
+        """Clear registered workspace dock geometry and normalize managed floating docks."""
+
+        for setting in self._known_geometry_settings:
+            self._settings.remove(setting)
+        window = self._main_window()
+        if window is None:
+            self._floating_geometry = QByteArray()
+            return
+        for dock in window.findChildren(QDockWidget):
+            title_bar = dock.titleBarWidget()
+            managed = (
+                isinstance(title_bar, PlotsDockTitleBar)
+                or dock.objectName() == "iqaWorkspaceDock"
+            )
+            if not managed:
+                continue
+            if isinstance(title_bar, PlotsDockTitleBar):
+                title_bar._floating_geometry = QByteArray()
+                title_bar._settings.remove(title_bar._geometry_setting)
+                title_bar._remember_dock_area()
+            if not dock.isFloating():
+                continue
+            was_visible = dock.isVisible()
+            area = (
+                title_bar._restore_area
+                if isinstance(title_bar, PlotsDockTitleBar)
+                else _default_dock_area(dock)
+            )
+            window.addDockWidget(area, dock)
+            dock.setFloating(False)
+            dock.setVisible(was_visible)
+
+    def _remember_dock_area(self) -> None:
+        window = self._main_window()
+        if window is None:
+            return
+        area = window.dockWidgetArea(self._dock)
+        if area != Qt.DockWidgetArea.NoDockWidgetArea:
+            self._restore_area = area
 
     def _main_window(self) -> QMainWindow | None:
         parent = self._dock.parentWidget()
@@ -194,4 +258,18 @@ class PlotsDockTitleBar(QWidget):
 
     def _set_maximize_state(self, maximized: bool) -> None:
         self.maximize_button.setIcon(_title_icon("restore" if maximized else "maximize"))
-        self.maximize_button.setToolTip("Restore Plots" if maximized else "Maximize Plots")
+        action = "Restore" if maximized else "Maximize"
+        self.maximize_button.setToolTip(f"{action} {self._panel_title}")
+
+
+def _default_dock_area(dock: QDockWidget) -> Qt.DockWidgetArea:
+    allowed = dock.allowedAreas()
+    for area in (
+        Qt.DockWidgetArea.RightDockWidgetArea,
+        Qt.DockWidgetArea.LeftDockWidgetArea,
+        Qt.DockWidgetArea.BottomDockWidgetArea,
+        Qt.DockWidgetArea.TopDockWidgetArea,
+    ):
+        if allowed & area:
+            return area
+    return Qt.DockWidgetArea.RightDockWidgetArea

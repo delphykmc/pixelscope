@@ -1,17 +1,18 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-21
-Current merged baseline / P5-A2 Stage 1 PR #39 merge commit:
-`4f2d58f36152cbebd1110a2aed09afacc6f09596`
+Snapshot date: 2026-08-22
+Current merged executable-v2 baseline / P5-A2 Stage 2 PR #40 merge commit:
+`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`
 
 P4 **Workflow & Session Productivity**, P5-0 **P4 Closure & P5 Program Setup**, P5-A
-**schema-v1 Contract Fixtures & IQA Domain**, and P5-A2 Stage 1 **schema-v2 durable
-contract** are Complete.
+**schema-v1 Contract Fixtures & IQA Domain**, and P5-A2 **schema-v2 durable +
+executable migration** are Complete.
 
-P5 **Remote IQA Platform** is Active in P5-A2 Stage 2 executable-v2 migration. Draft
-PR #40 is the focused executable domain/fixture/parser/tests/docs slice. P5-B / PR #38
-is schema-dependent and remains paused/untouched until Stage 2 is reviewed, validated,
-and merged to `main`.
+P5 **Remote IQA Platform** is Active in P5-B **IQA Workspace & Local Result
+Exploration** / PR #38. P5-B is rebased on the executable-v2 main baseline and is a
+merge candidate pending fresh validation/re-review of the narrow latest reviewer
+fixes. P5-C **Submission & Shared Storage** is the next planned slice after P5-B
+closes.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -55,6 +56,8 @@ Completed P4 plan:
   `fceb16f6e43c48ec65fbf7ebbcc103b56716b686`.
 - P5-A2 Stage 1 schema-v2 durable contract merged as PR #39 at
   `4f2d58f36152cbebd1110a2aed09afacc6f09596`.
+- P5-A2 Stage 2 executable schema-v2 migration merged as PR #40 at
+  `5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`.
 
 P5-A provides the historical Qt-free schema-v1 published-result domain, safe bounded
 manifest/summary/compact reader, deterministic W/S1/S2/count/valid recomposition,
@@ -127,9 +130,9 @@ P5 inherits and must not accidentally redesign:
 Remote IQA transport/result callbacks are feature-local asynchronous work and must
 compose with these lifetime rules rather than acquire source ownership.
 
-Schema-v2 grid loading is not tied to source residency. Result grids may use their own
-bounded feature-local loading/cache policy when implemented; that policy does not
-turn batch sources into decoded local source ownership.
+Schema-v2 grid loading is not tied to source residency. P5-B uses a bounded
+feature-local Reference-preparation policy and does not turn batch sources into
+decoded local source ownership. Final grid-cache/preload tuning remains P5-F.
 
 ## P3 image-analysis semantics
 
@@ -214,9 +217,9 @@ P5 result export is not implicitly provided by these actions. Future remote-IQA 
 must consume the remote result repository without changing local numerical/source
 authority.
 
-## P5 current result architecture — executable schema v2 target
+## P5 current result architecture — executable schema v2
 
-The active target is:
+The active executable contract is:
 
 > **Server owns measurement; PixelScope owns reference-dependent comparison,
 > reductions, and visualization.**
@@ -380,9 +383,10 @@ freezes detailed missing-variant/per-Scene failure/API/publication/cancel rules.
 Unevaluable dimension-mismatched cohorts are rejected/excluded by server evaluation
 rather than repaired locally.
 
-### P5-A2 Stage-2 executable additions
+### P5-A2 Stage-2 executable additions — Complete / PR #40
 
-PR #40 freezes the Stage-1 target into the executable v2 representation:
+PR #40 froze the Stage-1 target into the executable v2 representation and merged at
+`5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`:
 
 - same concrete source identity may recur within/across Scenes when immutable metadata
   is identical; `variant_id` remains comparison-slot identity;
@@ -402,27 +406,39 @@ PR #40 freezes the Stage-1 target into the executable v2 representation:
 - exact arrays/dtypes/shapes, safety ceilings, fingerprint construction, and
   validation behavior are normative in `REMOTE_IQA_V2_SPEC.md`.
 
-## P5 UX plan
+## P5-B implemented result workspace — Active / PR #38
 
-One non-modal IQA workspace/dock is planned/under development:
+P5-B currently implements the local result-exploration slice:
 
-```text
-IQA
-├─ Setup
-├─ Jobs
-└─ Results
-```
+- **File > Open IQA Result...** uses canonical version dispatch;
+- v2 opens summary-first and defaults to Absolute measurements;
+- Absolute Dataset Overview uses `pooled_weighted_mean` and absolute Scene values use
+  published canonical summaries;
+- all N-way variants retain stable table/chart order and color across display modes;
+- selecting a v2 Reference defers Scene-grid I/O/math to a background worker;
+- Reference preparation materializes one Scene grid at a time, derives all applicable
+  target/attribute scalar comparisons via executable-v2 helpers, retains only scalar
+  results, releases the grid, then advances;
+- relative Dataset Overview is the equal-Scene arithmetic mean of valid Scene
+  comparison values;
+- Relative table/chart keeps the selected Reference as a local presentation-only zero
+  anchor while target values remain canonical target/reference engineering values;
+- Absolute display mode uses a collision-proof local presentation tag rather than a
+  reserved string in the server-owned `variant_id` namespace;
+- a failed deferred Reference preparation restores the last successfully presented
+  Reference/mode so the combo and visible values cannot disagree;
+- Scene cards show published variant/source/path/hash metadata only and do not open
+  native source pixels; logical-root/hash-verified source Inspect remains P5-D;
+- IQA dock float/dock/maximize/reset reuses the Plots title-bar lifecycle;
+- passive result browsing does not mutate Files, Selected, Current Comparison Page,
+  Primary, Difference, source residency/preload, native analysis, or Session.
 
-- completed jobs do not forcibly replace local workspace;
-- passive result browsing does not mutate Selected;
-- small summary metadata can render initial absolute Overview/Scene Trend;
-- IQA Reference is feature-local and separate from Primary;
-- relative views are locally derived from server measurements;
-- grid I/O/calculation must be non-blocking and stale-safe;
-- explicit Inspect later loads only selected Scene sources using canonical local paths.
-
-Results drill down from Job/dataset → attribute overview → Scene Trend/outliers → Scene
-→ spatial block inspector.
+The repository owner reported the requested Windows full/focused pytest and static
+validation PASS on `c77169d7db19ac7dd308c5f772d704c305761ba9`. The narrow
+post-review collision/failed-reference/docs changes after that head still require
+fresh focused/static/docs validation and independent latest-head re-review before
+merge. Repository-wide Ruff formatter drift is intentionally deferred to a separate
+formatting-only PR rather than expanded into P5-B.
 
 ## P5 program status
 
@@ -435,37 +451,23 @@ Execution sequence:
   `fceb16f6...`).
 - **P5-A2 Stage 1** — schema-v2 durable contract revision — Complete (PR #39,
   `4f2d58f...`).
-- **P5-A2 Stage 2** — executable v2 domain/fixture/parser/tests/docs migration — Active,
-  Draft PR #40, required before P5-B resumes.
-- **P5-B** — IQA workspace + local result exploration — Paused/schema-dependent
-  (PR #38 work in progress and untouched by Stage 2).
-- **P5-C** — shared storage + submission + HTTP jobs — Planned.
+- **P5-A2 Stage 2** — executable v2 domain/fixture/parser/tests/docs migration —
+  Complete (PR #40, `5fcea48...`).
+- **P5-B** — IQA workspace + local result exploration — Active / merge candidate
+  (PR #38; latest reviewer-fix validation + re-review pending).
+- **P5-C** — shared storage + submission + HTTP jobs — Planned next.
 - **P5-D** — viewer-linked Scene/grid inspection — Planned.
 - **P5-E** — historical/recent result workflow — Planned.
 - **P5-F** — real-server integration/performance/lifetime hardening — Planned.
 
-## P5-A2 executable migration gates
-
-Before P5-B resumes, the focused v2 migration must implement/test:
-
-- concrete v2 manifest/summary/grid fields and JSON/NPZ placement;
-- dtype/rank/shape constraints and justified v2 safety ceilings;
-- `measurement_context_id` construction;
-- N-way variant/cardinality and concrete-source reuse validation;
-- exact cross-variant grid-correspondence validation;
-- summary projection consistency tolerance;
-- canonical absolute and relative reductions, including finite-only Mode 2;
-- deterministic v2 fixture/golden/review-regression coverage;
-- explicit v1 read-only compatibility dispatch.
-
-PR #40 now contains repository-native v2 tests for these contracts, but it remains
-Draft until independent latest-head re-review and repository-pinned validation are
-observed. P5-B may not invent these semantics in UI code.
-
 ## Deferred/future boundaries
 
-Still outside current P5 runtime scope:
+Still outside current P5-B runtime scope:
 
+- P5-C submission/jobs/shared-storage configuration/PARTIAL terminal policy;
+- P5-D logical-root/hash/native Inspect and spatial viewer overlay/block inspection;
+- P5-E Recent IQA Results and production historical reopen workflow;
+- P5-F final grid-cache/preload/cancellation/performance policy;
 - saved/named/multiple ROI;
 - Alpha Overlay/Flicker/Wipe;
 - arbitrary-angle Line Profile;

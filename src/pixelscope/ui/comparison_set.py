@@ -91,7 +91,11 @@ class SessionController:
         self._file_menu_ref = replacement
 
         action_map = self.window.action_map
-        for name in ("Open Images...", "Open Folder..."):
+        for name in (
+            "Open Images...",
+            "Open Folder...",
+            "Open IQA Result...",
+        ):
             action = action_map.get(name)
             if isinstance(action, QAction):
                 replacement.addAction(action)
