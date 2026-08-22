@@ -1,7 +1,7 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-22
-Current merged `main`: `ad3721e28b759e75d8e0f4a28b003a4dd22f0f4a`
+Snapshot date: 2026-08-23
+Current merged `main`: `24b328d02c0cd56fb79920e069af06d6e4cb706f`
 
 `main` includes:
 
@@ -10,10 +10,11 @@ Current merged `main`: `ad3721e28b759e75d8e0f4a28b003a4dd22f0f4a`
 - P5-A2 Stage 2 / PR #40 — executable schema-v2 reader/domain/math;
 - P5-B / PR #38 — IQA Workspace & Local Result Exploration, merged at
   `a44978db783ebcecb0d55f8abb52b583e0fdc47c`;
-- PR #41 — repository Ruff-format baseline, merged into current main.
+- PR #41 — repository Ruff-format baseline;
+- P5-C / PR #42 — Submission & Shared Storage, merged as current main.
 
-P5 **Remote IQA Platform** is currently Active in **P5-C — Submission & Shared
-Storage**, Draft PR #42 on `feature/p5-c-submission-shared-storage`.
+P5 **Remote IQA Platform** is currently Active in **P5-D — Viewer-linked Scene
+Inspection** on `feature/p5-d-viewer-linked-scene-inspection`.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -23,6 +24,9 @@ Durable P5 product/transport contract:
 
 Current numerical/result contract:
 [`REMOTE_IQA_V2_SPEC.md`](REMOTE_IQA_V2_SPEC.md).
+
+P5-D viewer-linked inspection contract:
+[`P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
 
 Historical schema-v1 compatibility contract:
 [`REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
@@ -57,7 +61,8 @@ separate concepts.
 
 Remote IQA remains a parallel feature-local job/result domain. Submission, Jobs, and
 passive result browsing do not create a second Files/Selected/source-residency
-authority.
+authority. P5-D may mutate Selected only at the explicit **Inspect in Viewer** boundary,
+and then only through the canonical local registration/selection workflow.
 
 ## Current local input policy
 
@@ -74,7 +79,7 @@ Supported local PixelScope image families remain:
 - unresolved folder RAW remains lazy until foreground intent requires profile
   resolution.
 
-Remote P5-C submission is intentionally narrower:
+Remote IQA submission remains intentionally narrower:
 
 ```text
 .png  .bmp  .jpg  .jpeg
@@ -136,40 +141,31 @@ Dataset Overview is the arithmetic mean of valid Scene comparison values.
 Schema v1 remains explicit read-only historical compatibility and is never silently
 upgraded to v2.
 
-## P5-B merged result workspace
+## P5-B canonical result workspace
 
-P5-B / PR #38 is now merged and owns the canonical local result-browsing path:
+P5-B / PR #38 owns the local result-browsing path:
 
 - **File > Open IQA Result...** uses canonical version dispatch;
 - schema v2 opens summary-first and defaults to Absolute;
 - N-way `variant_id` Reference switching is supported;
 - Reference-dependent preparation runs off the Qt thread and processes one Scene grid
   at a time while retaining derived scalar results rather than the full grid corpus;
-- Absolute/Relative table and Scene Trend presentation reuse the canonical v2 math;
-- Scene cards expose published identity/path/hash metadata only;
+- Absolute/Relative table and Scene Trend presentation reuse canonical v2 math;
+- Scene cards expose published source identity/path/hash metadata;
 - IQA Reference remains independent from local Primary;
 - IQA dock float/dock/maximize/reset behavior follows the Plots workspace pattern;
-- passive result browsing does not mutate Files, Selected, Current Comparison Page,
-  Difference, source residency/preload, native analysis, Session, or Picks.
+- result browsing itself does not mutate local workspace authority.
 
-P5-D still owns logical-root/hash-verified **native source Inspect** and viewer-linked
-spatial inspection.
+P5-D composes explicit native Inspect on top of this workspace; it does not replace the
+P5-B reader/controller.
 
-## P5-C active client workflow
+## P5-C merged client workflow
 
-P5-C extends the existing single IQA dock to:
-
-```text
-IQA
-├─ Setup
-├─ Jobs
-└─ Results
-```
+P5-C / PR #42 is complete and owns Remote IQA Setup/Jobs/shared-storage transport.
 
 ### Settings ownership
 
-Application settings schema is now v6 and adds typed machine-local
-`RemoteIqaSettings`:
+Application settings schema v6 provides typed machine-local `RemoteIqaSettings`:
 
 ```text
 server_base_url
@@ -182,7 +178,7 @@ staging_root_id
 
 `storage_root_id + relative_path` is portable identity. Windows/UNC client paths are
 machine-local configuration only. Server physical paths and credentials are not
-stored in PixelScope result/session artifacts.
+stored in PixelScope request/result/session artifacts.
 
 ### Submission identity
 
@@ -196,7 +192,7 @@ Folder Pair uses immediate eligible non-symlink files, Unicode-NFC deterministic
 lexical ordering, equal eligible counts, pair-by-index pairing, equal pair dimensions,
 and at most 512 Scenes.
 
-Requests serialize only portable source identity and integrity metadata:
+Requests serialize portable source identity/integrity metadata:
 
 ```text
 storage_root_id
@@ -206,13 +202,11 @@ width
 height
 ```
 
-Existing files under a configured logical root are referenced in place. Other files
-may be content-addressed into the configured staging root using SHA-256 plus `.part`
-publication and atomic final publication/reuse verification.
+Existing files under a configured root are referenced in place. Outside files may be
+content-addressed into the selected staging root using SHA-256, guarded `.part`
+publication, containment checks, and atomic final publication/reuse verification.
 
 ### Job API
-
-Current P5-C client API is:
 
 ```text
 POST /v1/iqa/jobs
@@ -221,109 +215,130 @@ GET  /v1/iqa/jobs/{job_id}/result
 POST /v1/iqa/jobs/{job_id}/cancel
 ```
 
-Polling is used; WebSocket is not required.
-
-Terminal states are:
-
-```text
-succeeded  partial  failed  cancelled
-```
-
-Only `succeeded` and `partial` may resolve a published schema-v2 result reference.
-Completion never auto-opens Results. `Open Result` is explicit and delegates to the
-existing P5-B canonical loader/controller.
-
-Create POST is never automatically retried. Terminal `GET /result` recovery is
-bounded and idempotent: after the initial attempt, retry delays are 1s, 2s, 4s, and
-8s. Retry exhaustion keeps the terminal job visible and does not resubmit it.
+Terminal states are `succeeded`, `partial`, `failed`, and `cancelled`. Only succeeded
+and partial terminal jobs resolve published schema-v2 results. Completion never
+auto-opens Results. Create is not blindly retried; result-reference recovery is bounded
+and idempotent.
 
 ### Executable PARTIAL result
 
-P5-C extends schema v2 without a schema-version bump:
+P5-C extends schema v2 without a version bump:
 
 - `publication_state = "partial"`;
 - ordered `scene_outcomes[]` covers every requested Scene;
-- statuses are `succeeded`, `failed`, or `cancelled`;
-- failed/cancelled outcomes carry bounded error diagnostics;
+- failed/cancelled outcomes carry bounded diagnostics;
 - at least one Scene succeeds and at least one fails/cancels;
 - `scenes[]` contains only fully published successful Scenes in request order;
-- every successful Scene still satisfies the same v2 numerical/geometry/cardinality
-  invariants as COMPLETE;
-- zero-success terminal work is FAILED/CANCELLED, not PARTIAL;
-- all-success terminal work is SUCCEEDED/COMPLETE.
+- successful Scenes satisfy the same schema-v2 numerical/geometry/cardinality
+  invariants as COMPLETE.
 
-P5-B Results displays PARTIAL status plus failed/cancelled Scene diagnostics while
-continuing to explore the published successful Scenes.
+P5-B Results explores successful Scenes and reports failed/cancelled Scene outcomes.
 
-## P5-C debug/validation harnesses
+### Debug/contract harnesses
 
-Debug-only features are gated by `PIXELSCOPE_REMOTE_IQA_DEBUG` and are not production
-workflow authority.
+Debug-only P5-C tools remain gated by `PIXELSCOPE_REMOTE_IQA_DEBUG`:
 
-- **Request Inspector** runs the production request builder but stops before HTTP
-  POST.
-- **Replay JSON** accepts a bounded logical terminal job/result record, resolves it
-  through current settings, injects Jobs, and still requires explicit Open Result.
-- **Deterministic result generator** reuses the canonical v2 fixture writer and then
-  validates through the canonical result loader.
-- **Localhost fault server** uses real TCP/HTTP via stdlib `ThreadingHTTPServer` to
-  exercise the production `HttpIqaJobClient`; it does not perform IQA computation.
+- Request Inspector;
+- Replay JSON;
+- deterministic COMPLETE/PARTIAL result generator;
+- real-socket localhost HTTP fault harness.
 
-Supported localhost fault scenarios include normal, PARTIAL, failed/cancelled,
-create/status/result 5xx, one-shot result 500, malformed JSON, slow status, wrong job
-ID, and wrong schema.
+The localhost server is a client protocol test double, not the GPU server.
 
-## Current validation evidence
+## P5-C validation authority
 
-Only observed owner evidence is recorded.
+PR #42 merged as `main@24b328d02c0cd56fb79920e069af06d6e4cb706f` only after its
+storage/lifecycle blockers were closed, independent latest-head review passed, and the
+owner reported final full-repository validation PASS.
 
-Historical full-suite checkpoint:
+That is historical P5-C evidence only. It does not validate P5-D changes.
 
-- `04f8c08ad77681d84ec934c902db8f8d03376e34` — full pytest PASS (809 tests), Ruff,
-  mypy, and diff checks PASS. This predates later P5-C stages and is not claimed for
-  the current head.
+## P5-D active implementation state
 
-Later validated checkpoints:
+P5-D currently adds explicit native Scene inspection to the production composition.
 
-- Setup UX + Request Inspector through `41384ec...`: focused behavior/static PASS;
-- Replay JSON + deterministic COMPLETE result through repaired Stage-3 head
-  `444391d...`: focused tests and manual replay/Open Result PASS;
-- Stage-4 pre-formatting focused suite: **26 passed**;
-- Stage-4 mypy: **102 source files, no issues**;
-- manual real-socket `normal`: POST → status polling → result-reference success;
-- manual `result-500-once`: first terminal `GET /result` returned HTTP 500, automatic
-  result-reference retry returned 200 without resubmitting the same job;
-- the owner repeated that recovery with a second newly created job and again observed
-  terminal `succeeded`, enabled Open Result, and successful result browsing.
+### Source locator and verification
 
-A latest-head repository-wide/full validation PASS is **not yet claimed**. Static
-re-check after the Stage-4 formatting repair and final full validation remain required
-before merge.
+Schema-v2 source bindings may add optional `storage_root_id`.
 
-## Remaining P5-C merge blockers
+- no schema bump;
+- old v2 without the field still opens through P5-B;
+- omission disables native Inspect because PixelScope does not guess roots;
+- location metadata is excluded from `measurement_context_id`;
+- root-ID validation is shared with P5-C;
+- resolution reuses the P5-C existing-source resolver and containment rules;
+- ordinary PNG/BMP/JPG/JPEG dimensions are bounded-header probed;
+- the resolver's streamed SHA-256 is compared with the published SHA;
+- all required source variants must pass before local mutation;
+- duplicate physical sources and >6-variant native Inspect are rejected explicitly.
 
-The current implementation is not merge-ready solely because the HTTP happy path and
-transient-result recovery work. Independent review identified remaining lifecycle and
-storage hardening:
+### Canonical local workflow
 
-1. shared staging cross-process concurrency and symlink/junction containment;
-2. cooperative cancellation/shutdown while staging/preparing create work is already
-   running;
-3. duplicate in-flight submit prevention and explicit ambiguous-create handling for a
-   timeout after possible server acceptance;
-4. settings-change/result-path remap race while a prior resolution worker is in
-   flight;
-5. final durable-doc validation, latest-head full owner validation, and independent
-   whole-PR re-review.
+Successful Inspect:
 
-P5-D must not start and PR #42 must not merge until these blockers are resolved and the
-final gates pass.
+1. reuses already-Registered paths where present;
+2. registers any missing verified sources through the ordinary input path;
+3. selects the Scene sources through the ordinary Selected/current-page path;
+4. lets normal load/residency/preload/Difference/analysis lifecycle run unchanged.
+
+P4-A temporary Picks block Inspect.
+
+### Return lifecycle
+
+The first successful Inspect captures a transient Selected-order / page-anchor /
+applicable Active / applicable Primary / layout snapshot. Linked Scene navigation does
+not replace this first target.
+
+Return explicitly re-commits the captured page after canonical selection reset. Single
+View restores the actual displayed Active source; Multi View restores applicable
+Primary and then activates the captured Active tile.
+
+Newer non-IQA Selected/Files/layout/Primary intent invalidates Return. Active alone is
+not an invalidation trigger. The snapshot is not Session v1 persistence.
+
+### Spatial inspection
+
+P5-D reuses the existing schema-v2 Scene grid loader and math:
+
+- Absolute cell value = `S1/W`;
+- Relative power = canonical raw target/reference dB;
+- Relative signed = raw target-reference delta;
+- invalid/pair-invalid cells stay invalid;
+- no quality-direction sign flip is applied to the raw spatial field.
+
+Existing affine/grid geometry maps analysis cells to source polygons and source cursor
+points back to grid cells. Drawing and hit-testing share non-zero grid origins,
+non-integer transforms, valid rectangles, and discarded borders.
+
+Overlay is vector/block based on existing `ImageViewer.view_box`; no full-resolution
+heatmap/alpha buffer or secondary viewer/source authority is introduced.
+
+Block Inspector exposes bounded W/S1/S2/count/valid/mean/reference/pair/geometry data.
+
+### Async/stale safety
+
+Verification and grid work use feature-local workers. Generation, result identity,
+Scene, and spatial request identity gate publication. New Result open and shutdown
+cancel feature-local work and clear overlays.
+
+## P5-D validation status
+
+P5-D exact-head automated/full owner validation has **not yet been observed** and must
+not be inferred from P5-C.
+
+Focused regression files are:
+
+```text
+tests/unit/test_p5d_scene_inspection.py
+tests/ui/test_p5d_viewer_linked_inspection.py
+```
+
+The complete contract, automated matrix, and Windows manual checklist are in
+[`P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
 
 ## Forward sequence
 
 ```text
-P5-C closeout
-    ↓
 P5-D Viewer-linked Scene Inspection
     ↓
 P5-E Historical Result Workflow
