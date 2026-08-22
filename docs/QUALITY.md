@@ -42,6 +42,7 @@ ownership assertions rather than an elapsed-time threshold.
 | File/RAW decoding | Valid, malformed, truncated, unsupported, endian, stride, alignment, packing, bit-depth, profile identity, and exact-size policy cases as applicable |
 | Persistence/QSettings | Fresh-state, saved-state, invalid/legacy-state, schema migration/future-version behavior, reset scope, and restart behavior |
 | External artifact persistence | Schema/kind/version validation, deterministic identity, atomic save, corrupt/future/semantic-invalid rejection before workspace mutation, missing/zero-loadable behavior, round-trip ordering/state, privacy/portability implications, and explicit non-ownership of runtime resources |
+| Remote job/storage lifecycle | Portable path identity, request determinism, one-shot create semantics, safe idempotent GET retry, connection/timeout/HTTP/protocol/storage error classification, staging publication/containment/concurrency, shutdown/late-result rejection, and no unintended local source ownership |
 | Performance/resource characterization | Representative FHD/UHD and dtype/channel/RAW cases; exact native bytes, cache/residency state, worker ownership, decode count, stale rejection, and output correctness as merge gates; wall-clock timings observational only |
 | Application identity/package resources | Focused SVG/PNG/ICO structure and decode tests, application-icon UI test, reproducible-generation check, wheel-content verification, unrelated-CWD launch, and Windows title-bar/Alt+Tab/running-taskbar/DPI visual checks |
 | Public workflow/terminology | Product/user documentation update and UI assertions |
@@ -230,8 +231,8 @@ request churn. Off-page picked sources are allowed to be nonresident and
 unprotected.
 
 Derived Split/Difference presentation cannot become an independent Pick identity.
-Settings schema remains v5, the captured baseline/Pick Set is not persisted, and
-P4-B persistence is outside P4-A.
+Settings schema remains v5 at the P4-A boundary, the captured baseline/Pick Set is
+not persisted, and P4-B persistence is outside P4-A.
 
 Owner/local Windows validation is authoritative for visual affordance, paging,
 selection replacement, and cross-feature interaction. Run the focused P4-A suite
@@ -263,7 +264,7 @@ The external v1 artifact boundary must establish:
   preload/promotion, Difference/cache, Display Gain, analysis requests/results,
   worker/token/generation state, derived documents, transient view state, ROI/Line,
   or P4-A Pick state;
-- Settings schema remaining v5; and
+- Settings schema remaining v5 at the P4-B boundary; and
 - absolute-path privacy/portability implications documented in product/user docs.
 
 Large pending-set tests must prove Save is metadata-only with respect to load and
@@ -304,8 +305,8 @@ Off-page hidden Difference provenance is not persisted.
 Typed Recent Image/Folder/Session history is max-10 path-only observer metadata.
 Activation delegates to canonical workflows, missing paths use Remove/Keep, and
 bookkeeping failure cannot make a successful canonical operation fail. Settings
-schema remains v5 and runtime arrays/cache/residency/preload/workers/calculated
-analysis/Picks remain non-persistent.
+schema remains v5 at the P4-C boundary and runtime arrays/cache/residency/preload/
+workers/calculated analysis/Picks remain non-persistent.
 
 P4-C is merged as PR #31 at
 `436033a0d99513fe8db35f08305395127e430af2`; its previously reported owner Windows
@@ -479,36 +480,20 @@ introduction is therefore deferred; packaging/installer CI remains P7.
 
 ## P5-A deterministic Remote IQA result contract — historical schema v1
 
-`tests/unit/test_remote_iqa_v1.py` generates and consumes an 11-Scene production-
-shaped schema-v1 result without network, GPU, or Qt UI. It verifies all ten
-attributes, two-source and 3-source identity, dynamic grids, optional detail, exact
-epsilon/A-B/quality/bias orientation, W/S1/S2/count/valid recomposition, pairwise
-intersections, both official aggregation modes, invalid results, non-integer affine
-geometry, and publication/artifact safety.
+`tests/unit/test_remote_iqa_v1.py` remains the deterministic historical schema-v1
+compatibility oracle. It verifies the original ten attributes, pairwise math,
+W/S1/S2/count/valid recomposition, geometry, and bounded artifact safety. Its exact
+historical aggregation behavior is not changed to match v2.
 
-The Tier-1 fixture oracle is independent from production recomposition, with separate
-hand-calculated exact golden assertions. Review regressions also cover zero-epsilon
-undefined ratios, negative/non-finite power, neutral quality, inconsistent moments,
-general affine polygon clipping across every source boundary, required comparison
-operators, analysis-bounded valid rectangles, official-mode applicability, and
-adversarial archive/member metadata.
-
-Safety coverage includes incomplete publication, dimension mismatch, missing and
-corrupt compact data, traversal/absolute/NUL/symlink escape, object arrays, malformed
-dtype/rank/shape, and declared/actual safety-ceiling rejection before unrestricted
-NumPy allocation or decompression. The historical focused command is:
+Historical focused command:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q tests\unit\test_remote_iqa_v1.py tests\unit\test_remote.py
 ```
 
-Schema v1 remains read-only compatibility after P5-A2; its historical aggregation
-behavior is not silently changed to match v2.
+## P5-A2 executable schema-v2 contract — Complete / PR #40
 
-## P5-A2 Stage 2 deterministic executable-v2 contract — Complete / PR #40
-
-PR #40 merged at `5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6`; this section
-remains the executable schema-v2 quality baseline. The focused files are:
+The executable-v2 quality baseline is covered by:
 
 ```text
 tests/unit/test_remote_iqa_v2.py
@@ -516,130 +501,170 @@ tests/unit/test_remote_iqa_v2_limits.py
 tests/unit/test_remote_iqa_v2_review_regressions.py
 ```
 
-The v2 golden/safety matrix establishes at minimum:
+It establishes canonical v1/v2 dispatch, N-way identity, deterministic measurement
+context, Scene/Dataset reductions, both power modes, signed/quality orientation,
+pair-valid support, projection checks, exact complete-Scene geometry/cardinality,
+summary-first deferred grid access, path/NPZ safety, and explicit bounded ceilings.
 
-- canonical dispatch: real schema-v1 golden remains read-only while schema-v2 uses
-  the native v2 reader and future versions are unsupported;
-- deterministic N-way `variant_id`/source/context identity and exact variant order;
-- repeated `source_id` acceptance within/across Scenes only when immutable concrete
-  metadata matches, including an identical-source multi-variant zero-delta sanity case;
-- deterministic `measurement_context_id` and tamper rejection;
-- canonical Scene `ΣS1/ΣW`, pooled Dataset, and equal-Scene Dataset statistics using
-  hand-calculated cases that distinguish the reductions;
-- Mode 1 ratio-of-weighted-means and Mode 2 unweighted mean of **finite** per-grid
-  log-ratios, including a mixed `0/0` + finite-cell case and a no-finite-ratio case;
-- reference reversal, signed target-minus-reference, and centralized higher/lower/
-  neutral quality orientation;
-- pair-valid support, negative/non-finite/zero power, epsilon behavior, inconsistent
-  moments, and projection-tolerance corruption;
-- COMPLETE cardinality, exact cross-variant geometry/grid correspondence, and no
-  client alignment/imputation;
-- summary-first open proving Scene grid/detail files are not touched until the
-  explicit grid-load boundary;
-- POSIX/Windows path traversal/absolute/UNC rejection and deferred containment;
-- malformed, duplicate, encrypted, unsupported-compression, object/pickle,
-  wrong-dtype/rank/shape, declared-size and bounded archive/member/array failures;
-- explicit parser ceilings for variants, Scenes, attributes, aggregate source
-  bindings, grid cells, detail references, manifest, summary, Scene artifact,
-  archive, member, and ndarray size;
-- v2 PARTIAL remaining `UNSUPPORTED` until P5-C freezes its detailed shape.
+P5-C extends this same schema-v2 reader with PARTIAL; it does not create independent
+result math.
 
-The aggregate `1024` source-binding ceiling is an acceptance safety envelope rather
-than a cache budget. Its merge rationale is Stage-1's approximately 300-source
-production planning assumption with >3x headroom; future larger requirements require
-explicit schema/safety review.
+## P5-B IQA Workspace quality gate — Complete / PR #38
 
-Historical focused compatibility/v2 command:
+P5-B quality coverage establishes:
+
+- canonical version dispatch and v1 read-only compatibility;
+- summary-first Absolute v2 default;
+- N-way Reference switching with collision-proof client-local Absolute state;
+- stable variant order/labels across Absolute/Relative presentation;
+- canonical Dataset/Scene relative reduction;
+- one-Scene-at-a-time off-thread Reference preparation with scalar-only retention;
+- transactional rollback after deferred-grid failure;
+- metadata-only source cards;
+- Plots-equivalent dock lifecycle and isolated QSettings tests;
+- passive browsing that preserves Files/Selected/Current Comparison Page/Primary/
+  Difference/source residency/native analysis/Session state.
+
+P5-B is merged and is now the Results authority consumed by P5-C.
+
+## P5-C Submission & Shared Storage quality gate — Active / PR #42
+
+P5-C acceptance is contract/transaction/lifecycle/resource based, not timing based.
+
+### Required deterministic coverage
+
+#### Settings and logical storage
+
+- schema-v5→v6 migration preserves prior settings and adds empty/default Remote IQA;
+- Remote IQA settings round-trip, corruption/future handling, reset scope, and live
+  application behavior where intended;
+- portable `storage_root_id` validation and duplicate rejection;
+- drive/UNC local mapping validation without serializing physical paths into request/
+  result artifacts;
+- longest matching configured root;
+- path traversal/absolute/cross-platform rejection;
+- stream SHA-256 and verified staging reuse;
+- staging cross-process/concurrent publication safety;
+- symlink/junction resolved containment before any mutation.
+
+#### Request pairing and identity
+
+- Current Pair is exactly the A/B pair of underlying Current Comparison Page
+  documents and survives Primary/Active/view-order/presentation changes;
+- Folder Pair is immediate/non-recursive/non-symlink, NFC deterministic lexical,
+  equal count, pair-by-index, equal dimensions, bounded to 512 Scenes;
+- PNG/JPG/JPEG/BMP are eligible and RAW is rejected;
+- exact deterministic A-then-B Scene request ordering;
+- request JSON contains only logical root/path/SHA/dimensions and no machine-local
+  physical paths;
+- staging/batch preparation does not mutate Files/Selected/residency/preload.
+
+#### HTTP and Jobs
+
+- exact create/status/result/cancel endpoint paths and response identity validation;
+- create POST is sent at most once per submit attempt and is never auto-retried;
+- malformed server job IDs are rejected before entering Jobs;
+- connect/timeout/HTTP/protocol/storage/configuration errors remain classified and
+  bounded;
+- polling transitions remain coherent and stale callbacks cannot mutate closed/
+  superseded owners;
+- terminal succeeded/partial result-reference GET recovers transient failure through
+  bounded retry without changing terminal job state or resubmitting;
+- retry exhaustion remains visible/actionable;
+- failed/cancelled zero-success jobs do not expose Open Result;
+- completion never auto-opens Results; explicit Open Result delegates to P5-B.
+
+#### PARTIAL schema v2
+
+- `scene_outcomes[]` covers all requested Scene IDs in order;
+- succeeded/failed/cancelled shape and bounded diagnostics;
+- one-success + one-failure minimum and all-success/zero-success rejection;
+- ordered successful outcome IDs exactly match `scenes[]`;
+- successful PARTIAL Scenes use canonical complete-Scene v2 parser/math;
+- Dataset summaries include successful Scenes only;
+- P5-B partial status/diagnostics render without hiding successful result exploration.
+
+#### Lifetime hardening
+
+- cooperative cancellation checkpoints during preflight/hash/staging and immediately
+  before create POST;
+- physically running pre-create work cannot create an untracked remote job after
+  application shutdown;
+- duplicate in-flight submit is blocked;
+- timeout after possible create acceptance uses an explicit ambiguous-create policy,
+  never blind retry;
+- settings change during result-path resolution guarantees newest mapping wins;
+- close/recreate and late callbacks cannot mutate deleted UI.
+
+### Focused P5-C validation
+
+Current focused command after closeout should include at least:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_remote_iqa_v1.py `
-    tests\unit\test_remote_iqa_v2.py `
-    tests\unit\test_remote_iqa_v2_limits.py `
-    tests\unit\test_remote_iqa_v2_review_regressions.py `
-    tests\unit\test_remote.py
+    tests\unit\test_p5c_submission.py `
+    tests\unit\test_p5c_partial_v2.py `
+    tests\unit\test_p5c_request_debug.py `
+    tests\unit\test_p5c_debug_replay.py `
+    tests\unit\test_p5c_localhost_http.py `
+    tests\ui\test_p5c_remote_iqa.py `
+    tests\ui\test_p5c_setup_presentation.py `
+    tests\ui\test_p5c_debug_replay_ui.py `
+    tests\ui\test_p5c_result_retry.py
 ```
 
-## P5-B IQA Workspace & Local Result Exploration quality gate — Active / PR #38
+Add focused staging/shutdown/remap/duplicate-create regressions as those blockers are
+fixed.
 
-P5-B acceptance is authority/lifecycle/presentation based. It consumes executable-v2
-rather than redefining parser/math contracts.
-
-Focused coverage must establish:
-
-- canonical version dispatch and explicit v1 read-only compatibility;
-- v2 summary-first open with Absolute default and no Scene-grid I/O at ordinary open;
-- server-authored absolute Dataset/Scene summary projection, with default absolute
-  Dataset Overview = `pooled_weighted_mean`;
-- N-way `variant_id` Reference switching with stable variant order/labels and no
-  hidden reservation in the server-owned string namespace; specifically a real
-  variant ID equal to `__absolute__` must remain distinguishable from client-local
-  Absolute presentation mode;
-- Relative presentation keeping all variant columns stable and showing the selected
-  Reference as a presentation-only zero anchor while target values use canonical v2
-  target/reference math;
-- default relative Dataset Overview = arithmetic mean of valid Scene comparison
-  values for the selected aggregation mode;
-- Reference preparation off the Qt thread with one Scene grid materialized at a time,
-  scalar-only retained cache, and no raw-grid corpus retained by the workspace model;
-- switching among prepared/unprepared References without duplicating parser or
-  numerical authority;
-- failed/missing/corrupt deferred Scene-grid preparation restoring the last
-  successfully presented Reference/mode so the combo and visible values remain
-  coherent;
-- stale/superseded/closed/shutdown callback rejection and last-valid presentation
-  preservation;
-- hierarchy/Overview/Scene Trend/attribute filters/source cards under N-way v2;
-- source cards remaining metadata-only and not opening `relative_path` as native
-  local source authority;
-- IQA dock float/dock/maximize/reset behavior and QSettings test isolation;
-- passive IQA browsing preserving Files, Selected, Current Comparison Page,
-  Active/Primary, Difference, decoded-source residency/preload, native analysis,
-  and Session state.
-
-Recommended latest-head focused command:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q `
-    tests\unit\test_remote_iqa_v2.py `
-    tests\unit\test_remote_iqa_v2_limits.py `
-    tests\unit\test_remote_iqa_v2_review_regressions.py `
-    tests\unit\test_iqa_explorer.py `
-    tests\ui\test_p5b_iqa_workspace.py `
-    tests\ui\test_design_tokens_style.py `
-    tests\ui\test_p4c_session_restore.py::test_registered_order_is_not_session_semantic_but_selected_order_is `
-    tests\ui\test_p1e_plots_workspace.py
-```
-
-The repository owner reported the requested full/focused Windows pytest and static
-validation PASS on pre-review-fix head
-`c77169d7db19ac7dd308c5f772d704c305761ba9`. That evidence is retained exactly
-for that head only.
-
-The independent review that followed required two narrow runtime regressions plus
-system-of-record reconciliation: collision-proof Absolute display state and
-transactional deferred-Reference failure restoration. Those changes require fresh
-latest-head focused/static/docs validation before the old PASS may be superseded.
-At minimum rerun the focused command above plus:
+Then run static/docs checks:
 
 ```powershell
 .\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
 .\.venv\Scripts\python.exe -m mypy src
 .\.venv\Scripts\python.exe scripts\check_docs.py
+git diff --check
+```
+
+### Observed P5-C evidence
+
+Observed evidence is recorded without extrapolation:
+
+- `04f8c08...`: historical full P5-C checkpoint — 809 pytest PASS plus Ruff/mypy/
+  diff PASS, before later P5-C stages;
+- Setup UX + Request Inspector: focused behavior/static PASS through `41384ec...`;
+- Replay/fake result stage: focused tests + deterministic COMPLETE generation + Jobs
+  replay + explicit P5-B Open Result manual PASS through repaired `444391d...`;
+- Stage-4 focused localhost/result-retry/submission/UI command: **26 passed**;
+- Stage-4 `mypy src`: **102 source files, no issues**;
+- real-socket localhost `normal`: create → polling → terminal result-reference manual
+  PASS;
+- `result-500-once`: first terminal result-reference GET returned HTTP 500, automatic
+  retry returned 200 without resubmission; owner repeated the scenario with a second
+  newly-created job and again observed `succeeded`, enabled Open Result, and successful
+  result browsing.
+
+Stage-4 formatting findings were mechanically repaired afterward. A post-format and
+post-doc latest-head static/full PASS has **not yet been observed** and must not be
+claimed.
+
+### P5-C final merge gate
+
+After all lifecycle/storage blockers are fixed:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_docs.py
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy src
 .\.venv\Scripts\python.exe -m pip check
 git diff --check
 ```
 
-For PR #38 only, the repository owner explicitly deferred the already-existing
-repository-wide `ruff format --check .` baseline drift to a separate formatting-only
-PR. That exception must be recorded rather than hidden: it does **not** claim the
-repository is formatter-clean, does not weaken `ruff check`, mypy, pytest, docs, pip,
-or diff validation, and must not be used to justify unrelated formatting churn in
-P5-B. A later formatting-only PR is responsible for restoring the global formatter
-baseline.
-
-After latest-head validation, PR #38 requires fresh independent re-review before
-merge. P5-C remains the next planned runtime slice.
+Then perform independent latest-head whole-PR review. PR #42 must remain unmerged and
+P5-D must remain blocked until both the owner validation and independent review gates
+are clean.
 
 ## Completion evidence
 
