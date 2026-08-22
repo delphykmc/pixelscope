@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import tempfile
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -76,12 +77,14 @@ def resolve_existing_source(
     source: Path | str,
     settings: RemoteIqaSettings,
 ) -> ResolvedSource | None:
-    """Resolve a source already under a configured root; longest match wins."""
+    """Resolve a source already under a configured root; longest safe match wins."""
 
     source_path = Path(source)
     if not source_path.is_file():
-        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
-    candidate = _longest_matching_root(str(source_path), settings.storage_roots)
+        raise StorageResolutionError(
+            f"source is missing or not a regular file: {source_path.name}"
+        )
+    candidate = _longest_matching_root(source_path, settings.storage_roots)
     if candidate is None:
         return None
     relative = _windows_relative(str(source_path), candidate.client_path)
@@ -102,51 +105,70 @@ def stage_source(
 
     source_path = Path(source)
     if not source_path.is_file() or source_path.is_symlink():
-        raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
-    digest = sha256_file(source_path)
-    root = Path(staging_root)
-    final = root / "staging" / digest / source_path.name
-    part = final.with_name(final.name + ".part")
-    final.parent.mkdir(parents=True, exist_ok=True)
-    _assert_contained(root, final)
-    if final.exists():
-        if not final.is_file() or final.is_symlink():
-            raise StorageResolutionError("existing staged target is not a regular file")
-        if sha256_file(final) != digest:
-            raise StorageResolutionError(
-                "existing staged target failed SHA-256 identity verification"
-            )
-        return ResolvedSource(
-            LogicalStoragePath(
-                storage_root_id,
-                _portable_staged_path(digest, source_path.name),
-            ),
-            digest,
-            final,
-            True,
+        raise StorageResolutionError(
+            f"source is missing or not a regular file: {source_path.name}"
         )
+    digest = sha256_file(source_path)
+    relative_path = _portable_staged_path(digest, source_path.name)
+    root = Path(staging_root)
+    root_resolved = _resolve_existing_directory(root, "staging root")
+    final_parent = _ensure_contained_directory(
+        root,
+        root_resolved,
+        ("staging", digest),
+    )
+    final = final_parent / source_path.name
+    _assert_resolved_contained(
+        root_resolved,
+        _resolve_for_containment(final, strict=False),
+    )
+
+    if _existing_staged_target_is_valid(final, digest):
+        return _staged_source(storage_root_id, relative_path, digest, final)
+
+    part: Path | None = None
+    fd = -1
     try:
-        part.unlink(missing_ok=True)
-        with source_path.open("rb") as src, part.open("xb") as dst:
+        fd, part_name = tempfile.mkstemp(
+            prefix=".pixelscope-iqa-",
+            suffix=".part",
+            dir=final_parent,
+        )
+        part = Path(part_name)
+        output = os.fdopen(fd, "wb")
+        fd = -1
+        with source_path.open("rb") as src, output as dst:
             shutil.copyfileobj(src, dst, length=COPY_CHUNK_BYTES)
             dst.flush()
             os.fsync(dst.fileno())
         if sha256_file(part) != digest:
             raise StorageResolutionError("staging copy failed SHA-256 verification")
+
+        # Another PixelScope process may have published the same content-addressed
+        # target while this process was copying. Reuse only after identity
+        # verification; otherwise publish our independently named temporary file.
+        if _existing_staged_target_is_valid(final, digest):
+            return _staged_source(storage_root_id, relative_path, digest, final)
+
         os.replace(part, final)
-    except Exception:
-        with suppress(OSError):
-            part.unlink(missing_ok=True)
+        part = None
+        if not _existing_staged_target_is_valid(final, digest):
+            raise StorageResolutionError(
+                "published staged target failed SHA-256 identity verification"
+            )
+    except StorageResolutionError:
         raise
-    return ResolvedSource(
-        LogicalStoragePath(
-            storage_root_id,
-            _portable_staged_path(digest, source_path.name),
-        ),
-        digest,
-        final,
-        True,
-    )
+    except OSError as exc:
+        raise StorageResolutionError("unable to publish staged source") from exc
+    finally:
+        if fd >= 0:
+            with suppress(OSError):
+                os.close(fd)
+        if part is not None:
+            with suppress(OSError):
+                part.unlink(missing_ok=True)
+
+    return _staged_source(storage_root_id, relative_path, digest, final)
 
 
 def resolve_or_stage_source(
@@ -181,38 +203,56 @@ def resolve_result_reference(
     validate_relative_path(relative_path)
     root = settings.root(storage_root_id)
     if root is None:
-        raise StorageResolutionError(f"storage root '{storage_root_id}' is not configured")
+        raise StorageResolutionError(
+            f"storage root '{storage_root_id}' is not configured"
+        )
     root_path = Path(root.client_path)
-    if not root_path.is_dir():
-        raise StorageResolutionError(f"storage root '{storage_root_id}' is unavailable")
+    root_resolved = _resolve_existing_directory(
+        root_path,
+        f"storage root '{storage_root_id}'",
+    )
     target = root_path.joinpath(*PurePosixPath(relative_path).parts)
-    _assert_contained(root_path, target)
-    if not target.is_dir():
+    target_resolved = _resolve_for_containment(target, strict=True)
+    _assert_resolved_contained(root_resolved, target_resolved)
+    if not target_resolved.is_dir():
         raise StorageResolutionError("result directory is unavailable")
     return target
 
 
 def _longest_matching_root(
-    source: str,
+    source: Path,
     roots: tuple[RemoteIqaStorageRoot, ...],
 ) -> RemoteIqaStorageRoot | None:
-    """Compare Windows paths case-insensitively without requiring the share to be online."""
+    """Choose the longest lexical Windows root whose resolved path contains source."""
 
-    source_path = PureWindowsPath(source)
+    source_windows = PureWindowsPath(str(source))
+    source_resolved = _resolve_for_containment(source, strict=True)
     matches: list[tuple[int, RemoteIqaStorageRoot]] = []
     for root in roots:
-        root_path = PureWindowsPath(root.client_path)
+        root_windows = PureWindowsPath(root.client_path)
         try:
-            relative = source_path.relative_to(root_path)
+            relative = source_windows.relative_to(root_windows)
         except ValueError:
-            source_parts = tuple(part.casefold() for part in source_path.parts)
-            root_parts = tuple(part.casefold() for part in root_path.parts)
+            source_parts = tuple(part.casefold() for part in source_windows.parts)
+            root_parts = tuple(part.casefold() for part in root_windows.parts)
             if source_parts[: len(root_parts)] != root_parts:
                 continue
-            relative = PureWindowsPath(*source_path.parts[len(root_path.parts) :])
+            relative = PureWindowsPath(
+                *source_windows.parts[len(root_windows.parts) :]
+            )
         if not relative.parts:
             continue
-        matches.append((len(root_path.parts), root))
+
+        try:
+            root_resolved = _resolve_for_containment(
+                Path(root.client_path),
+                strict=True,
+            )
+        except StorageResolutionError:
+            continue
+        if not _resolved_is_within(root_resolved, source_resolved):
+            continue
+        matches.append((len(root_windows.parts), root))
     if not matches:
         return None
     return max(matches, key=lambda item: item[0])[1]
@@ -229,7 +269,9 @@ def _windows_relative(source: str, root: str) -> str:
         if tuple(part.casefold() for part in source_parts[: len(root_parts)]) != tuple(
             part.casefold() for part in root_parts
         ):
-            raise StorageResolutionError("source is not contained by configured root") from None
+            raise StorageResolutionError(
+                "source is not contained by configured root"
+            ) from None
         relative = PureWindowsPath(*source_parts[len(root_parts) :])
     value = PurePosixPath(*relative.parts).as_posix()
     validate_relative_path(value)
@@ -242,8 +284,87 @@ def _portable_staged_path(digest: str, basename: str) -> str:
     return value
 
 
-def _assert_contained(root: Path, target: Path) -> None:
+def _staged_source(
+    storage_root_id: str,
+    relative_path: str,
+    digest: str,
+    final: Path,
+) -> ResolvedSource:
+    return ResolvedSource(
+        LogicalStoragePath(storage_root_id, relative_path),
+        digest,
+        final,
+        True,
+    )
+
+
+def _existing_staged_target_is_valid(final: Path, digest: str) -> bool:
+    if final.is_symlink():
+        raise StorageResolutionError("existing staged target is not a regular file")
+    if not final.exists():
+        return False
+    if not final.is_file():
+        raise StorageResolutionError("existing staged target is not a regular file")
+    if sha256_file(final) != digest:
+        raise StorageResolutionError(
+            "existing staged target failed SHA-256 identity verification"
+        )
+    return True
+
+
+def _ensure_contained_directory(
+    root: Path,
+    root_resolved: Path,
+    relative_parts: tuple[str, ...],
+) -> Path:
+    """Create child directories only after their parent resolves inside root."""
+
+    current = root
+    current_resolved = root_resolved
+    for part in relative_parts:
+        _assert_resolved_contained(root_resolved, current_resolved)
+        candidate = current / part
+        try:
+            candidate.mkdir()
+        except FileExistsError:
+            pass
+        except OSError as exc:
+            raise StorageResolutionError("unable to create staging directory") from exc
+
+        candidate_resolved = _resolve_for_containment(candidate, strict=True)
+        _assert_resolved_contained(root_resolved, candidate_resolved)
+        if not candidate_resolved.is_dir():
+            raise StorageResolutionError("staging path is not a directory")
+
+        current = candidate
+        current_resolved = candidate_resolved
+    return current_resolved
+
+
+def _resolve_existing_directory(path: Path, label: str) -> Path:
+    resolved = _resolve_for_containment(path, strict=True)
+    if not resolved.is_dir():
+        raise StorageResolutionError(f"{label} is unavailable")
+    return resolved
+
+
+def _resolve_for_containment(path: Path, *, strict: bool) -> Path:
     try:
-        target.resolve(strict=False).relative_to(root.resolve(strict=False))
-    except (OSError, ValueError) as exc:
-        raise StorageResolutionError("path escapes configured storage root") from exc
+        return path.resolve(strict=strict)
+    except (OSError, RuntimeError) as exc:
+        raise StorageResolutionError("unable to resolve storage path") from exc
+
+
+def _assert_resolved_contained(root_resolved: Path, target_resolved: Path) -> None:
+    if not _resolved_is_within(root_resolved, target_resolved):
+        raise StorageResolutionError("path escapes configured storage root")
+
+
+def _resolved_is_within(root_resolved: Path, target_resolved: Path) -> bool:
+    try:
+        common = os.path.commonpath(
+            (os.fspath(root_resolved), os.fspath(target_resolved))
+        )
+    except ValueError:
+        return False
+    return os.path.normcase(common) == os.path.normcase(os.fspath(root_resolved))
