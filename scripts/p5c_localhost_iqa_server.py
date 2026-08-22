@@ -57,7 +57,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(f"Remote IQA localhost server: {server.base_url}")
     print(f"Scenario: {config.scenario}")
-    print("Published result reference: " f"{config.storage_root_id}:{config.result_relative_path}")
+    print(f"Published result reference: {config.storage_root_id}:{config.result_relative_path}")
     if config.last_request_path is not None:
         print(f"Last request capture: {config.last_request_path}")
     print("Press Ctrl+C to stop.")
