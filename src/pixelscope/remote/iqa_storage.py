@@ -283,9 +283,7 @@ def _existing_staged_target_is_valid(final: Path, digest: str) -> bool:
     if not final.is_file():
         raise StorageResolutionError("existing staged target is not a regular file")
     if sha256_file(final) != digest:
-        raise StorageResolutionError(
-            "existing staged target failed SHA-256 identity verification"
-        )
+        raise StorageResolutionError("existing staged target failed SHA-256 identity verification")
     return True
 
 
