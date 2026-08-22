@@ -15,12 +15,48 @@ from PySide6.QtWidgets import (
 )
 
 
+class _CompactStatusLabel(QLabel):
+    """QLabel that renders compact text while preserving full detail as a tooltip."""
+
+    def __init__(
+        self,
+        source: QLabel,
+        compact: Callable[[str], str],
+    ) -> None:
+        super().__init__(source.parentWidget())
+        self._compact = compact
+        self.setObjectName(source.objectName())
+        self.setAccessibleName(source.accessibleName())
+        self.setAlignment(source.alignment())
+        self.setSizePolicy(source.sizePolicy())
+        self.setWordWrap(False)
+        self.setText(source.text())
+        source.hide()
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt API override
+        self.setToolTip(text)
+        super().setText(self._compact(text))
+
+
 def polish_remote_iqa_setup(workspace: Any) -> None:
     """Recompose existing P5-C controls without changing submission authority."""
 
     layout = workspace.setup_page.layout()
     if not isinstance(layout, QVBoxLayout):
         raise RuntimeError("Remote IQA Setup page layout is unavailable")
+
+    workspace.configuration_label = _replace_status_label(
+        workspace.configuration_label,
+        _compact_configuration_status,
+    )
+    workspace.current_pair_label = _replace_status_label(
+        workspace.current_pair_label,
+        _compact_current_pair_status,
+    )
+    workspace.preview_status = _replace_status_label(
+        workspace.preview_status,
+        _compact_folder_status,
+    )
 
     preserved = (
         workspace.configuration_label,
@@ -42,11 +78,6 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
 
     settings_row = QHBoxLayout()
     settings_row.setSpacing(8)
-    workspace.configuration_label.setWordWrap(False)
-    _install_compact_status(
-        workspace.configuration_label,
-        _compact_configuration_status,
-    )
     workspace.configure_button.setText("Settings…")
     workspace.configure_button.setToolTip(
         "Configure the Remote IQA server and this machine's shared-storage mappings."
@@ -63,11 +94,6 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     current_actions = QHBoxLayout(current_group)
     current_actions.setContentsMargins(8, 10, 8, 8)
     current_actions.setSpacing(6)
-    workspace.current_pair_label.setWordWrap(False)
-    _install_compact_status(
-        workspace.current_pair_label,
-        _compact_current_pair_status,
-    )
     workspace.current_submit.setText("Submit Pair")
     workspace.current_submit.setToolTip(
         "Prepare the current A/B pair and submit one Remote IQA job."
@@ -79,7 +105,8 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     folder_group = QGroupBox("Folder Pair", workspace.setup_page)
     folder_group.setObjectName("remoteIqaFolderPairGroup")
     folder_group.setToolTip(
-        "Choose A/B folders, validate the deterministic lexical pairing, then submit the previewed pairs."
+        "Choose A/B folders, validate the deterministic lexical pairing, "
+        "then submit the previewed pairs."
     )
     folder_layout = QVBoxLayout(folder_group)
     folder_layout.setContentsMargins(8, 10, 8, 8)
@@ -105,16 +132,13 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     folder_actions.setSpacing(6)
     workspace.preview_button.setText("Validate")
     workspace.preview_button.setToolTip(
-        "Validate every A/B pair and preview the exact deterministic Scene order before submission."
-    )
-    workspace.preview_status.setWordWrap(False)
-    _install_compact_status(
-        workspace.preview_status,
-        _compact_folder_status,
+        "Validate every A/B pair and preview the exact deterministic Scene order "
+        "before submission."
     )
     workspace.folder_submit.setText("Submit Pairs")
     workspace.folder_submit.setToolTip(
-        "Submit the currently validated Folder Pair. This is disabled until validation succeeds."
+        "Submit the currently validated Folder Pair. "
+        "This is disabled until validation succeeds."
     )
     folder_actions.addWidget(workspace.preview_button)
     folder_actions.addWidget(workspace.preview_status, 1)
@@ -128,20 +152,11 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     workspace.remote_iqa_setup_layout = layout
 
 
-def _install_compact_status(label: QLabel, compact: Callable[[str], str]) -> None:
-    """Keep dense dock text short while preserving the full status as a tooltip."""
-
-    def apply(text: str) -> None:
-        shortened = compact(text)
-        if shortened == text:
-            return
-        label.setToolTip(text)
-        label.blockSignals(True)
-        label.setText(shortened)
-        label.blockSignals(False)
-
-    label.textChanged.connect(apply)  # type: ignore[attr-defined]
-    apply(label.text())
+def _replace_status_label(
+    source: QLabel,
+    compact: Callable[[str], str],
+) -> _CompactStatusLabel:
+    return _CompactStatusLabel(source, compact)
 
 
 def _compact_configuration_status(text: str) -> str:

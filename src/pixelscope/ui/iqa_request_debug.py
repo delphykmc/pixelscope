@@ -158,7 +158,9 @@ class RemoteIqaRequestInspectorController(QObject):
         identity = self.workspace.preview_identity
         preview = self.workspace.preview_entries
         if identity is None or not preview:
-            self.panel.show_error("validate the current Folder Pair before inspecting its request")
+            self.panel.show_error(
+                "validate the current Folder Pair before inspecting its request"
+            )
             return
         folder_a, folder_b = identity
 
@@ -166,7 +168,8 @@ class RemoteIqaRequestInspectorController(QObject):
             current = pair_folders(folder_a, folder_b)
             if current != preview:
                 raise PreflightError(
-                    "Folder Pair changed after preview; validate again before inspecting its request"
+                    "Folder Pair changed after preview; validate again before "
+                    "inspecting its request"
                 )
             return current
 
@@ -271,7 +274,10 @@ def install_remote_iqa_request_debug(
     folder_actions = getattr(workspace, "remote_iqa_folder_actions", None)
     if not isinstance(setup_layout, QVBoxLayout):
         raise RuntimeError("Remote IQA Setup presentation must be installed before debug")
-    if not isinstance(current_actions, QHBoxLayout) or not isinstance(folder_actions, QHBoxLayout):
+    if not isinstance(current_actions, QHBoxLayout) or not isinstance(
+        folder_actions,
+        QHBoxLayout,
+    ):
         raise RuntimeError("Remote IQA action rows are unavailable for debug inspection")
 
     current_button = QPushButton("Inspect JSON · DEBUG", workspace.setup_page)
@@ -279,7 +285,9 @@ def install_remote_iqa_request_debug(
     current_button.setToolTip("Build the exact Current Pair request JSON but do not POST it.")
     folder_button = QPushButton("Inspect JSON · DEBUG", workspace.setup_page)
     folder_button.setObjectName("remoteIqaDebugInspectFolder")
-    folder_button.setToolTip("Build the validated Folder Pair request JSON but do not POST it.")
+    folder_button.setToolTip(
+        "Build the validated Folder Pair request JSON but do not POST it."
+    )
     current_actions.addWidget(current_button)
     folder_actions.addWidget(folder_button)
 

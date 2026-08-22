@@ -5,11 +5,7 @@ from typing import Any, cast
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QStyle, QWidget, QWidgetItem
 
-from pixelscope.ui.design_tokens import (
-    EngineeringStyle,
-    TOKENS,
-    apply_engineering_palette,
-)
+from pixelscope.ui.design_tokens import EngineeringStyle, TOKENS, apply_engineering_palette
 
 
 def test_engineering_style_ignores_qwidgetitem_style_hint(qtbot: object) -> None:
