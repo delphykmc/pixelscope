@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QStyle, QWidget, QWidgetItem
 from pixelscope.ui.design_tokens import EngineeringStyle
 
 
-def test_engineering_style_normalizes_qwidgetitem_style_hint(qtbot: object) -> None:
+def test_engineering_style_ignores_qwidgetitem_style_hint(qtbot: object) -> None:
     widget = QWidget()
     qtbot.addWidget(widget)  # type: ignore[attr-defined]
     item = QWidgetItem(widget)

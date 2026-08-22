@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QStyleHintReturn,
     QStyleOption,
     QWidget,
-    QWidgetItem,
 )
 
 
@@ -57,12 +56,10 @@ class EngineeringStyle(QProxyStyle):
 
 
 def _style_hint_widget(widget: object | None) -> QWidget | None:
-    """Normalize PySide6 virtual callbacks to the base binding's QWidget contract."""
+    """Return only live QWidget callbacks; never dereference layout-item wrappers."""
 
     if isinstance(widget, QWidget):
         return widget
-    if isinstance(widget, QWidgetItem):
-        return widget.widget()
     return None
 
 
