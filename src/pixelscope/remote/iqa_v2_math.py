@@ -171,7 +171,7 @@ def compare_v2_sources(
     if epsilon is None or not math.isfinite(epsilon) or epsilon < 0.0:
         return _invalid_relative_result(spec.value_kind, "missing_data")
 
-    aggregate_raw = _power_log_ratio(
+    aggregate_raw = power_log_ratio(
         target_mean.value,
         reference_mean.value,
         epsilon,
@@ -258,7 +258,7 @@ def _mean_finite_grid_log_ratios(
     for target_value, reference_value in zip(
         target_means.tolist(), reference_means.tolist(), strict=True
     ):
-        cell = _power_log_ratio(
+        cell = power_log_ratio(
             float(target_value),
             float(reference_value),
             epsilon,
@@ -277,11 +277,12 @@ def _mean_finite_grid_log_ratios(
     return ScalarStatistic(value, True)
 
 
-def _power_log_ratio(
+def power_log_ratio(
     target_value: float,
     reference_value: float,
     epsilon: float,
 ) -> ScalarStatistic:
+    """Return the canonical raw target/reference per-cell power ratio in dB."""
     if not all(math.isfinite(value) for value in (target_value, reference_value, epsilon)):
         return ScalarStatistic.invalid("nonfinite_input")
     if target_value < 0.0 or reference_value < 0.0:
