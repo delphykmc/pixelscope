@@ -29,43 +29,56 @@ class IqaTransportPoolDiagnostics:
 
 
 class _ClientLease(IqaJobClient):
-    def __init__(
-        self,
-        owner: ReusableIqaClientPool,
-        endpoint: str,
-        client: IqaJobClient,
-    ) -> None:
+    """Lazy proxy that checks out a physical client only on first HTTP use."""
+
+    def __init__(self, owner: ReusableIqaClientPool, endpoint: str) -> None:
         self._owner = owner
         self._endpoint = endpoint
-        self._client = client
+        self._client: IqaJobClient | None = None
         self._closed = False
 
     def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
-        return self._client.create_job(request)
+        return self._client_for_use().create_job(request)
 
     def get_status(self, job_id: str) -> IqaJobStatus:
-        return self._client.get_status(job_id)
+        return self._client_for_use().get_status(job_id)
 
     def get_result(self, job_id: str) -> IqaResultReference:
-        return self._client.get_result(job_id)
+        return self._client_for_use().get_result(job_id)
 
     def cancel_job(self, job_id: str) -> IqaJobStatus:
-        return self._client.cancel_job(job_id)
+        return self._client_for_use().cancel_job(job_id)
 
     def close(self) -> None:
         if self._closed:
             return
         self._closed = True
-        self._owner._release(self._endpoint, self._client)
+        client = self._client
+        self._client = None
+        if client is not None:
+            self._owner._release(self._endpoint, client)
+
+    def _client_for_use(self) -> IqaJobClient:
+        if self._closed:
+            raise RuntimeError("Remote IQA client lease is closed")
+        client = self._client
+        if client is None:
+            client = self._owner._acquire(self._endpoint)
+            self._client = client
+        return client
 
 
 class ReusableIqaClientPool:
-    """Lease one client per worker while retaining only a bounded idle set.
+    """Lazily lease one client per executing worker with a bounded idle set.
 
-    The production P5-C helpers still call ``close()`` after every operation. A lease
-    interprets that call as "return to the pool" so the underlying ``httpx.Client`` can
-    keep its connection pool across create/status/result/cancel requests without ever
-    sharing one active client between worker threads.
+    P5-C constructs clients before queuing several worker types, so ``client()`` returns
+    a cheap lazy proxy. Physical ``HttpIqaJobClient`` checkout happens only when a worker
+    executes its first HTTP operation. A queued worker cleared before ``run()`` therefore
+    owns no socket/client resource and cannot leak an active lease.
+
+    The production P5-C helpers still call ``close()`` after every operation. Closing an
+    unused proxy is a no-op; closing an acquired proxy returns the underlying client to
+    the bounded idle set so its ``httpx.Client`` connection pool can be reused.
     """
 
     def __init__(
@@ -92,15 +105,7 @@ class ReusableIqaClientPool:
         with self._lock:
             if self._closed:
                 raise RuntimeError("Remote IQA transport pool is closed")
-            client = self._idle.pop(endpoint, None)
-            if client is None:
-                client = self._client_builder(endpoint)
-                self._clients_created += 1
-            else:
-                self._leases_reused += 1
-            self._active_leases += 1
-            self._max_active_leases = max(self._max_active_leases, self._active_leases)
-        return _ClientLease(self, endpoint, client)
+        return _ClientLease(self, endpoint)
 
     def close(self) -> None:
         with self._lock:
@@ -124,6 +129,20 @@ class ReusableIqaClientPool:
                 discarded_clients=self._discarded_clients,
                 closed=self._closed,
             )
+
+    def _acquire(self, endpoint: str) -> IqaJobClient:
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("Remote IQA transport pool is closed")
+            client = self._idle.pop(endpoint, None)
+            if client is None:
+                client = self._client_builder(endpoint)
+                self._clients_created += 1
+            else:
+                self._leases_reused += 1
+            self._active_leases += 1
+            self._max_active_leases = max(self._max_active_leases, self._active_leases)
+            return client
 
     def _release(self, endpoint: str, client: IqaJobClient) -> None:
         keep = False
