@@ -6,6 +6,7 @@ from types import MethodType
 from typing import Any
 
 from PySide6.QtCore import QObject, Slot
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 import pixelscope.ui.iqa_scene_inspection as inspection_module
 from pixelscope.io.path_discovery import ImageInput
@@ -27,6 +28,7 @@ class IqaSceneInspectionLifecycle(QObject):
         self._settings_revision = 0
         self._inspect_settings_revision: int | None = None
         self._document_variant_aliases: dict[str, tuple[str, ...]] = {}
+        self._variant_binding_targets: tuple[tuple[str, str], ...] = ()
 
         self._original_return_to_local_workspace = controller.return_to_local_workspace
         self._original_sync_controls = controller._sync_controls
@@ -132,6 +134,8 @@ class IqaSceneInspectionLifecycle(QObject):
         controller.return_button.clicked.disconnect()
         controller.return_button.clicked.connect(controller.return_to_local_workspace)
 
+        self._install_variant_binding_control()
+
         # ReviewSelection owns Pick state. This listener observes the post-Pick state
         # only to invalidate P5-D Return; it never changes or clears curation itself.
         for viewer in controller._all_viewers():
@@ -146,6 +150,84 @@ class IqaSceneInspectionLifecycle(QObject):
     @property
     def document_variant_aliases(self) -> dict[str, tuple[str, ...]]:
         return dict(self._document_variant_aliases)
+
+    def _install_variant_binding_control(self) -> None:
+        """Add a bounded selector for schema-valid aliases sharing one native source."""
+
+        layout = self.controller.panel.layout()
+        if not isinstance(layout, QVBoxLayout):
+            raise RuntimeError("P5-D Scene inspection panel requires a vertical layout")
+        row = QWidget(self.controller.panel)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        label = QLabel("Shared-source spatial binding", row)
+        combo = QComboBox(row)
+        combo.setObjectName("iqaSpatialVariantBinding")
+        row_layout.addWidget(label)
+        row_layout.addWidget(combo, 1)
+        layout.insertWidget(1, row)
+        combo.currentIndexChanged.connect(self._variant_binding_changed)
+        self.variant_binding_combo = combo
+        self.controller.variant_binding_combo = combo
+        self._refresh_variant_binding_control()
+
+    def _refresh_variant_binding_control(self) -> None:
+        """Expose every aliased variant while keeping one canonical native document."""
+
+        combo = self.variant_binding_combo
+        combo.blockSignals(True)
+        combo.clear()
+        targets: list[tuple[str, str]] = []
+        result = self.controller._inspected_result
+        if isinstance(result, ResultV2):
+            for document_id, aliases in self._document_variant_aliases.items():
+                if len(aliases) < 2:
+                    continue
+                for variant_id in aliases:
+                    try:
+                        variant_label = result.variant(variant_id).label
+                    except (KeyError, StopIteration):
+                        variant_label = variant_id
+                    combo.addItem(f"{variant_label} ({variant_id})", variant_id)
+                    targets.append((document_id, variant_id))
+
+        self._variant_binding_targets = tuple(targets)
+        if not targets:
+            combo.addItem("No shared-source aliases")
+            combo.setCurrentIndex(0)
+            combo.setEnabled(False)
+            combo.setToolTip(
+                "This Scene has no native source shared by multiple variant bindings"
+            )
+            combo.blockSignals(False)
+            return
+
+        current_index = 0
+        for index, (document_id, variant_id) in enumerate(targets):
+            if self.controller._inspected_document_variants.get(document_id) == variant_id:
+                current_index = index
+                break
+        combo.setCurrentIndex(current_index)
+        combo.setEnabled(True)
+        combo.setToolTip(
+            "Choose which IQA variant binding is painted and inspected for a shared native source"
+        )
+        combo.blockSignals(False)
+
+    @Slot(int)
+    def _variant_binding_changed(self, index: int) -> None:
+        if index < 0 or index >= len(self._variant_binding_targets):
+            return
+        document_id, variant_id = self._variant_binding_targets[index]
+        aliases = self._document_variant_aliases.get(document_id, ())
+        if variant_id not in aliases:
+            return
+        self.controller._inspected_document_variants[document_id] = variant_id
+        self.controller.block_label.setText(
+            "Block inspector: hover or click a Scene grid cell."
+        )
+        self.controller._sync_all_overlays()
+        self.controller._sync_legend()
 
     def settings_changed(self) -> None:
         """Invalidate locator-dependent pending verification and refresh availability."""
@@ -314,6 +396,7 @@ class IqaSceneInspectionLifecycle(QObject):
             document_id: tuple(variants_by_source[binding.source.source_id])
             for document_id, binding in zip(document_ids, unique_sources, strict=True)
         }
+        self._refresh_variant_binding_control()
         self.controller._clear_spatial_overlay()
         binding_count = len(outcome.sources)
         source_count = len(unique_sources)
@@ -353,6 +436,7 @@ class IqaSceneInspectionLifecycle(QObject):
         self._original_return_to_local_workspace()
         if not self.controller.return_valid:
             self._document_variant_aliases.clear()
+            self._refresh_variant_binding_control()
 
     @Slot(bool)
     def _review_pick_changed(self, checked: bool) -> None:
@@ -371,6 +455,14 @@ class IqaSceneInspectionLifecycle(QObject):
 
     def _sync_controls(self) -> None:
         self._original_sync_controls()
+        if self.controller._inspected_result is None and self._document_variant_aliases:
+            self._document_variant_aliases.clear()
+            self._refresh_variant_binding_control()
+        self.variant_binding_combo.setEnabled(
+            bool(self._variant_binding_targets)
+            and self.controller._inspected_result is not None
+            and self.controller._inspect_scene_id is not None
+        )
         review = getattr(self.window, "review_selection_controller", None)
         picks_active = bool(getattr(review, "active", False))
         self.controller.return_button.setEnabled(self.controller.return_valid and not picks_active)
