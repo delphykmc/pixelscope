@@ -20,6 +20,7 @@ from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
+from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_preview_lifecycle import install_remote_iqa_preview_lifecycle
 from pixelscope.ui.iqa_replay_debug import install_remote_iqa_replay_debug
 from pixelscope.ui.iqa_request_debug import install_remote_iqa_request_debug
@@ -111,6 +112,8 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_remote_iqa_replay_debug(window)
     install_iqa_scene_inspection(window)
     install_iqa_scene_inspection_lifecycle(window)
+    # P5-E deliberately wraps the P5-D open path rather than bypassing its teardown.
+    install_historical_iqa_results(window)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     return gain_control
