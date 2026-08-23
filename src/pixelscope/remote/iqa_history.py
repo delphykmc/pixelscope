@@ -177,7 +177,7 @@ def locator_for_manual_result(
     *,
     schema_version: int,
 ) -> IqaResultLocator:
-    """Canonicalize a successful explicit local open without touching source files.
+    """Canonicalize a successful explicit local open without reading native sources.
 
     Schema-v1 compatibility remains local. Schema-v2 uses lexical matching only to
     propose portable candidates; a candidate becomes logical history only when the
@@ -205,7 +205,11 @@ def locator_for_manual_result(
         except StorageResolutionError:
             continue
         matches.append((len(root_path.parts), root.storage_root_id, relative))
-    for _length, root_id, relative in sorted(matches, reverse=True):
+    for _length, root_id, relative in sorted(
+        matches,
+        key=lambda item: item[0],
+        reverse=True,
+    ):
         try:
             resolved = resolve_result_reference(root_id, relative, settings)
         except (OSError, StorageResolutionError):
@@ -265,7 +269,7 @@ def _absolute_local_text(value: str) -> str:
 def _same_existing_directory(left: Path, right: Path) -> bool:
     try:
         return left.resolve(strict=True) == right.resolve(strict=True)
-    except OSError:
+    except (OSError, RuntimeError):
         return False
 
 
