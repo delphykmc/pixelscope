@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import pytest
+
 from pixelscope.remote.iqa_client import IqaJobClient
 from pixelscope.remote.iqa_submission import (
     IqaJobCreated,
@@ -45,11 +47,25 @@ def _builder(store: list[_FakeClient]) -> Callable[[str], IqaJobClient]:
     return build
 
 
+def test_client_proxy_is_lazy_and_unused_close_is_noop() -> None:
+    clients: list[_FakeClient] = []
+    pool = ReusableIqaClientPool(_builder(clients))
+
+    lease = pool.client("http://server")
+
+    assert clients == []
+    assert pool.diagnostics.active_leases == 0
+    lease.close()
+    assert clients == []
+    assert pool.diagnostics.active_leases == 0
+
+
 def test_reuses_idle_client_without_concurrent_sharing() -> None:
     clients: list[_FakeClient] = []
     pool = ReusableIqaClientPool(_builder(clients), max_idle_clients=2)
 
     first = pool.client("http://server/")
+    assert clients == []
     assert first.get_status("job-1").state is JobState.QUEUED
     first.close()
     second = pool.client("http://server")
@@ -66,12 +82,16 @@ def test_reuses_idle_client_without_concurrent_sharing() -> None:
     assert clients[0].close_calls == 1
 
 
-def test_concurrent_same_endpoint_leases_get_distinct_clients_and_bounded_idle() -> None:
+def test_concurrent_same_endpoint_active_leases_get_distinct_clients_and_bounded_idle() -> None:
     clients: list[_FakeClient] = []
     pool = ReusableIqaClientPool(_builder(clients), max_idle_clients=2)
 
     first = pool.client("http://server")
     second = pool.client("http://server")
+    assert clients == []
+
+    assert first.get_status("job-1").state is JobState.QUEUED
+    assert second.get_status("job-2").state is JobState.QUEUED
     assert len(clients) == 2
     assert pool.diagnostics.active_leases == 2
     assert pool.diagnostics.max_active_leases == 2
@@ -90,6 +110,7 @@ def test_close_does_not_close_active_lease_under_worker() -> None:
     clients: list[_FakeClient] = []
     pool = ReusableIqaClientPool(_builder(clients))
     lease = pool.client("http://server")
+    assert lease.get_status("job-1").state is JobState.QUEUED
 
     pool.close()
 
@@ -99,3 +120,17 @@ def test_close_does_not_close_active_lease_under_worker() -> None:
     lease.close()
     assert pool.diagnostics.active_leases == 0
     assert clients[0].close_calls == 1
+
+
+def test_close_before_lazy_checkout_prevents_late_physical_client_creation() -> None:
+    clients: list[_FakeClient] = []
+    pool = ReusableIqaClientPool(_builder(clients))
+    lease = pool.client("http://server")
+
+    pool.close()
+
+    with pytest.raises(RuntimeError, match="transport pool is closed"):
+        lease.get_status("job-1")
+    lease.close()
+    assert clients == []
+    assert pool.diagnostics.active_leases == 0
