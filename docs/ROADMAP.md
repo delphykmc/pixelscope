@@ -140,6 +140,11 @@ Schema v2 separates `variant_id`, `source_id`, `scene_id`, and
 `measurement_context_id` and stores server-authored W/S1/S2/count/valid source
 measurements. PixelScope locally derives selected target/reference comparisons.
 
+Schema-v2 source bindings may additionally carry optional `storage_root_id` location
+metadata. It does not change immutable source identity or `measurement_context_id`;
+old v2 artifacts that omit it remain result-readable but cannot use native P5-D Inspect
+without an explicit portable root locator.
+
 Key defaults remain:
 
 - absolute Dataset Overview = `pooled_weighted_mean`;
@@ -151,7 +156,8 @@ Key defaults remain:
 
 Every published successful Scene binds every declared variant exactly once and obeys
 the same geometry/numerical invariants whether the enclosing result is COMPLETE or
-PARTIAL.
+PARTIAL. Multiple variant bindings may intentionally reference one concrete
+`source_id`; native source identity is not duplicated merely to fill variant slots.
 
 ## P5 execution sequence
 
@@ -174,7 +180,7 @@ P5-0
 | 2 | P5-A2 Schema-v2 durable + executable migration | Complete — PR #39 + #40 |
 | 3 | P5-B IQA Workspace & Local Result Exploration | Complete — PR #38 |
 | 4 | P5-C Submission & Shared Storage | **Complete — PR #42** |
-| 5 | P5-D Viewer-linked Scene Inspection | **Active — implementation/review** |
+| 5 | P5-D Viewer-linked Scene Inspection | **Active — Draft PR #43 review closeout** |
 | 6 | P5-E Historical Result Workflow | Planned |
 | 7 | P5-F Integration & Performance Hardening | Planned |
 
@@ -235,26 +241,41 @@ Results browsing mutate local comparison state.
 ### Current implementation
 
 - Results remain passive until **Inspect in Viewer** is invoked.
-- Active P4-A temporary Picks block Inspect rather than being silently discarded.
+- Active P4-A temporary Picks block initial Inspect rather than being silently
+  discarded.
 - Source bindings may carry optional `storage_root_id`; old schema-v2 artifacts that
   omit it still open normally but native Inspect is unavailable for those sources.
-- `storage_root_id` is location metadata only. It does not change
-  `measurement_context_id` and does not bump schema version 2.
-- Every required Scene source is resolved through the P5-C logical-root authority,
-  dimensions are header-probed, and the resolver's streamed SHA-256 is compared with
-  the published source identity before any local selection mutation.
-- Verification is all-or-nothing. Missing/moved/remapped/hash-mismatched sources do
-  not produce a partial native comparison.
-- A Scene with more than six variants is not silently truncated; native Inspect is
-  unavailable while result browsing remains available.
+- `storage_root_id` is location metadata only. It does not change source equality,
+  `measurement_context_id`, or schema version 2.
+- Every required Scene binding is resolved through the P5-C logical-root authority and
+  uses the same P5-C ordinary-image header probe/format acceptance.
+- Every unique native source is decoded from one encoded byte buffer; SHA-256 over that
+  exact buffer must match the published source before any local mutation. The exact
+  decoded object carrying that SHA becomes the committed local source generation.
+- Verification is all-or-nothing. Missing/moved/remapped/hash/dimension/decode failures
+  do not produce a partial native comparison.
+- Multiple variant bindings may share one `source_id`; P5-D retains those IQA aliases
+  while using one canonical Files/native-source document. Distinct source identities
+  may not claim one physical locator.
+- A Scene with more than six variant bindings is not silently truncated; native Inspect
+  is unavailable while result browsing remains available.
 - Successful Inspect calls the existing registration and Selected/current-page
-  workflow. Already-Registered sources are reused.
+  workflow. Already-Registered paths are reused. Selected/current-page protection is
+  established before exact verified decoded generations are committed, so residency
+  eviction cannot force an unverified disk reload between verification and
+  presentation.
+- Replacing stale resident bytes advances source generation and invalidates dependent
+  source-view caches while retaining the canonical document ID.
 - First successful Inspect captures one transient Return snapshot containing Selected
   order, Comparison Page anchor, applicable Active/Primary, and layout.
 - Linked Scene changes replace the inspected Scene while retaining the first Return
   snapshot.
 - Newer local Selected/Files/layout/Primary intent invalidates Return rather than
   allowing old IQA state to overwrite newer user intent.
+- A new P4-A Pick started after Inspect is preserved and invalidates Return; P5-D never
+  clears that newer curation state to restore an older snapshot.
+- Live Remote IQA root-mapping changes increment the P5-D locator revision, cancel/drop
+  verification started under older settings, and refresh Inspect availability.
 - Return explicitly restores the captured page and actual Single/Multi-view Active
   presentation where still applicable.
 - IQA Reference and local Primary remain independent identities.
@@ -269,8 +290,9 @@ Results browsing mutate local comparison state.
   introduced.
 - Block Inspector exposes row/column, validity, W/S1/S2/count, mean, Reference/pair
   state, analysis bounds, and mapped source polygon. Invalid cells remain invalid.
-- Inspect/grid workers use generation/result/Scene request identity and reject stale
-  callbacks; new Result open and shutdown cancel active feature-local work.
+- Inspect/grid workers use generation/result/Scene/local-intent/settings/spatial-request
+  identity and reject stale callbacks; new Result open and shutdown cancel active
+  feature-local work.
 
 Detailed contract and manual-validation matrix:
 [`docs/P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
@@ -280,12 +302,14 @@ Detailed contract and manual-validation matrix:
 P5-D is **not Complete** until all of the following are observed on the exact review
 head:
 
-1. focused unit/UI regressions pass;
+1. focused reviewer-closeout plus existing P5-D unit/UI regressions pass;
 2. repository Ruff check and formatter check pass;
 3. `mypy src`, docs checker, `pip check`, and diff check pass;
-4. owner Windows manual validation covers source mapping/hash failures, Inspect/Return,
-   linked Scene navigation, Reference/Primary independence, spatial alignment,
-   Difference/Gain/ROI/Line interaction, and close/recreate behavior;
+4. owner Windows manual validation covers exact decoded source identity, stale resident
+   replacement, repeated-source variant aliases, source mapping/hash failures,
+   Inspect/Return/Pick behavior, root-remap stale-drop, linked Scene navigation,
+   Reference/Primary independence, spatial alignment, Difference/Gain/ROI/Line
+   interaction, and close/recreate behavior;
 5. independent whole-PR latest-head review finds no merge blocker;
 6. owner approves merge.
 
@@ -312,7 +336,7 @@ Validate the composed workflow against the real external service and realistic d
 - actual server adapter/protocol compatibility;
 - SMB/network bandwidth and grid-loading behavior;
 - bounded grid cache/preload tuning;
-- reference-switch latency;
+- reference-switch and native Inspect latency;
 - batch/job stress and failure/cancellation cases;
 - stale callbacks and close/recreate safety;
 - proof remote batch membership does not become local source/residency authority;
