@@ -165,7 +165,7 @@ def test_recent_identity_mismatch_preserves_last_valid_result_and_history(
     window.close()
 
 
-def test_jobs_open_records_published_logical_locator_not_mapped_path(
+def test_jobs_open_signal_records_published_logical_locator_not_mapped_path(
     qtbot: Any,
     tmp_path: Path,
 ) -> None:
@@ -190,7 +190,7 @@ def test_jobs_open_records_published_logical_locator_not_mapped_path(
         result_path=root,
     )
 
-    remote.open_result("job-17")
+    remote.workspace.open_result_requested.emit("job-17")
     qtbot.waitUntil(
         lambda: getattr(window.iqa_workspace.result, "result_id", None) == "job-result",
         timeout=5000,
