@@ -69,7 +69,12 @@ def main() -> int:
         return 2
     result = outcome.result
     if not result.scenes or not result.variants:
-        print(json.dumps({"status": "invalid", "reason": "Result has no Scenes/variants"}, indent=2))
+        print(
+            json.dumps(
+                {"status": "invalid", "reason": "Result has no Scenes/variants"},
+                indent=2,
+            )
+        )
         return 2
 
     manifest_path = result.root / "manifest.json"
