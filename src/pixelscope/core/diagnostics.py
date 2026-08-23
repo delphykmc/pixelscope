@@ -112,6 +112,33 @@ class WorkerDiagnostics:
 
 
 @dataclass(frozen=True)
+class RemoteIqaDiagnostics:
+    worker_pool: WorkerPoolDiagnostics
+    http_clients_created: int
+    http_leases_reused: int
+    http_active_leases: int
+    http_max_active_leases: int
+    http_idle_clients: int
+    http_discarded_clients: int
+    transport_closed: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.worker_pool, WorkerPoolDiagnostics):
+            raise TypeError("worker_pool must be WorkerPoolDiagnostics")
+        for name in (
+            "http_clients_created",
+            "http_leases_reused",
+            "http_active_leases",
+            "http_max_active_leases",
+            "http_idle_clients",
+            "http_discarded_clients",
+        ):
+            _require_non_negative_int(name, getattr(self, name))
+        if not isinstance(self.transport_closed, bool):
+            raise TypeError("transport_closed must be bool")
+
+
+@dataclass(frozen=True)
 class FailureDiagnostic:
     subsystem: str
     category: str
@@ -161,6 +188,7 @@ class RuntimeDiagnosticsSnapshot:
     preload: PreloadDiagnostics
     normal_load_stale_drop_count: int
     recent_failures: tuple[FailureDiagnostic, ...] = ()
+    remote_iqa: RemoteIqaDiagnostics | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.source, SourceResidencyDiagnostics):
@@ -171,6 +199,8 @@ class RuntimeDiagnosticsSnapshot:
             raise TypeError("workers must be WorkerDiagnostics")
         if not isinstance(self.preload, PreloadDiagnostics):
             raise TypeError("preload must be PreloadDiagnostics")
+        if self.remote_iqa is not None and not isinstance(self.remote_iqa, RemoteIqaDiagnostics):
+            raise TypeError("remote_iqa must be RemoteIqaDiagnostics when supplied")
         _require_non_negative_int(
             "normal_load_stale_drop_count",
             self.normal_load_stale_drop_count,
@@ -220,13 +250,36 @@ def format_runtime_diagnostics(snapshot: RuntimeDiagnosticsSnapshot) -> str:
         f"Stale drops: {preload.stale_drop_count}",
         f"Cancellation requests: {preload.cancellation_request_count}",
         f"Failures: {preload.failure_count}",
-        "",
-        "Stale Results",
-        f"Foreground stale drops: {snapshot.normal_load_stale_drop_count}",
-        f"Preload stale drops: {preload.stale_drop_count}",
-        "",
-        "Recent Failures",
     ]
+    remote = snapshot.remote_iqa
+    if remote is not None:
+        lines.extend(
+            [
+                "",
+                "Remote IQA",
+                (
+                    f"Workers: active {remote.worker_pool.active_count} / "
+                    f"max {remote.worker_pool.max_count}"
+                ),
+                f"HTTP clients created: {remote.http_clients_created}",
+                f"HTTP leases reused: {remote.http_leases_reused}",
+                f"HTTP active leases: {remote.http_active_leases}",
+                f"HTTP max active leases: {remote.http_max_active_leases}",
+                f"HTTP idle clients: {remote.http_idle_clients}",
+                f"HTTP discarded clients: {remote.http_discarded_clients}",
+                f"Transport closed: {'yes' if remote.transport_closed else 'no'}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "Stale Results",
+            f"Foreground stale drops: {snapshot.normal_load_stale_drop_count}",
+            f"Preload stale drops: {preload.stale_drop_count}",
+            "",
+            "Recent Failures",
+        ]
+    )
     if snapshot.recent_failures:
         lines.extend(
             f"{index}. [{failure.subsystem}/{failure.category}] "

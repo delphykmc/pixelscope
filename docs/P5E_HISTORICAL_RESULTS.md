@@ -1,8 +1,9 @@
 # P5-E — Historical Remote IQA Results
 
-Status: **Active — Draft PR #44**
+Status: **Complete — PR #44**
 
-Base: `main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`
+Merged: `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
+Implementation base: `main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`
 
 P5-E adds bounded historical-result discovery and provenance around the existing
 Remote IQA result workflow. It does not create a second parser, result model,
@@ -213,9 +214,10 @@ Focused automated coverage must include:
 P5-F may extend stress/performance coverage but must not redefine these correctness
 contracts.
 
-## 10. Owner Windows manual validation — required before merge
+## 10. Owner Windows manual validation — historical P5-E merge gate
 
-P5-E remains Active until the owner validates the exact PR head on Windows.
+P5-E is merged as PR #44. The matrix below is retained as the owner validation gate
+that applied to that slice and must not be inferred as P5-F validation evidence.
 
 ### A. Recent / MRU / Clear
 
@@ -282,7 +284,7 @@ P5-E remains Active until the owner validates the exact PR head on Windows.
   Line Profile, and local Primary are unchanged.
 - Confirm IQA Reference remains independent from local Primary.
 
-Record exact-head results in PR #44. Do not infer PASS from P5-D or an earlier P5-E head.
+Historical exact-head observations belong to PR #44. Do not infer P5-F PASS from P5-E.
 
 ## 11. Validation evidence during Draft review
 
@@ -291,7 +293,7 @@ Owner Windows automated/static validation was reported PASS on earlier Draft hea
 Ruff lint/format, mypy, docs checker, pip check, and `git diff --check`.
 
 Independent whole-PR review then identified additional P5-E lifecycle, live Provenance,
-manual-locator canonicalization, and documentation-scope findings. Those fixes move the
-PR head, so the earlier PASS is historical evidence only. **The post-review exact head
-must be revalidated before merge**, followed by owner manual validation A–G and
-independent re-review.
+manual-locator canonicalization, and documentation-scope findings. Those fixes moved
+the PR head before merge. This section is historical review context only; the merged
+P5-E status above is authoritative, and no P5-E validation result is carried forward as
+P5-F evidence.

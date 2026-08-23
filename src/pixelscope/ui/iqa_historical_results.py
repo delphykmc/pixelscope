@@ -552,11 +552,7 @@ class HistoricalIqaResultsController(QObject):
         if pending is None or not isinstance(outcome, VersionedResultLoadOutcome):
             return
         if outcome.status is not LoadStatus.SUCCESS or outcome.result is None:
-            if (
-                pending.from_recent
-                and pending.locator is not None
-                and pending.expected is not None
-            ):
+            if pending.from_recent and pending.locator is not None and pending.expected is not None:
                 entry = RecentIqaResultEntry(pending.locator, pending.expected)
                 if (outcome.reason or "").startswith(_MAPPING_CHANGED):
                     self.open_recent(entry)

@@ -1,7 +1,7 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-23
-Current merged `main`: `24b328d02c0cd56fb79920e069af06d6e4cb706f`
+Snapshot date: 2026-08-24
+Current merged `main`: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
 
 `main` includes:
 
@@ -11,10 +11,16 @@ Current merged `main`: `24b328d02c0cd56fb79920e069af06d6e4cb706f`
 - P5-B / PR #38 — IQA Workspace & Local Result Exploration, merged at
   `a44978db783ebcecb0d55f8abb52b583e0fdc47c`;
 - PR #41 — repository Ruff-format baseline;
-- P5-C / PR #42 — Submission & Shared Storage, merged as current main.
+- P5-C / PR #42 — Submission & Shared Storage;
+- P5-D / PR #43 — Viewer-linked Scene Inspection, merged at
+  `b086443d188eb9daae4bbf4f0faab3ff1d114f93`;
+- P5-E / PR #44 — Historical Result Workflow, merged at
+  `6a0a334d61a7495b9c3433edfcbd537c8df59468`.
 
-P5 **Remote IQA Platform** is currently Active in **P5-D — Viewer-linked Scene
-Inspection** on `feature/p5-d-viewer-linked-scene-inspection` / Draft PR #43.
+P5 **Remote IQA Platform** is currently Active in **P5-F — Remote IQA Integration &
+Performance Hardening** on `feature/p5-f-integration-performance-hardening`. P5-G
+**External GPU/SMB Validation & Closeout** is the planned final P5 gate once the real
+environment is available.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -27,6 +33,12 @@ Current numerical/result contract:
 
 P5-D viewer-linked inspection contract:
 [`P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
+
+P5-E historical-result contract:
+[`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
+
+P5-F integration characterization:
+[`P5F_INTEGRATION_CHARACTERIZATION.md`](P5F_INTEGRATION_CHARACTERIZATION.md).
 
 Historical schema-v1 compatibility contract:
 [`REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
@@ -59,10 +71,11 @@ Resident when required
 Viewer slots are page-local `1..6`; global Selected ordinal and viewer slot are
 separate concepts.
 
-Remote IQA remains a parallel feature-local job/result domain. Submission, Jobs, and
-passive result browsing do not create a second Files/Selected/source-residency
-authority. P5-D may mutate Selected only at the explicit **Inspect in Viewer** boundary,
-and then only through the canonical local registration/selection workflow.
+Remote IQA remains a parallel feature-local job/result domain. Submission, Jobs,
+historical Results, and passive result browsing do not create a second
+Files/Selected/source-residency authority. P5-D may mutate Selected only at the explicit
+**Inspect in Viewer** boundary, and then only through the canonical local
+registration/selection workflow.
 
 ## Current local input policy
 
@@ -162,7 +175,8 @@ P5-B / PR #38 owns the local result-browsing path:
 - result browsing itself does not mutate local workspace authority.
 
 P5-D composes explicit native Inspect on top of this workspace; it does not replace the
-P5-B reader/controller.
+P5-B reader/controller. P5-E composes historical locator/identity/Provenance around the
+same canonical open path.
 
 ## P5-C merged client workflow
 
@@ -256,11 +270,11 @@ PR #42 merged as `main@24b328d02c0cd56fb79920e069af06d6e4cb706f` only after its
 storage/lifecycle blockers were closed, independent latest-head review passed, and the
 owner reported final full-repository validation PASS.
 
-That is historical P5-C evidence only. It does not validate P5-D changes.
+That is historical P5-C evidence only. It does not validate P5-F changes.
 
-## P5-D active implementation state
+## P5-D completed implementation state
 
-P5-D currently adds explicit native Scene inspection to the production composition.
+P5-D adds explicit native Scene inspection to the production composition.
 
 ### Source locator, decode, and identity verification
 
@@ -353,17 +367,10 @@ and refreshes Inspect availability before any later callback can publish.
 
 ## P5-D validation status
 
-Owner validation passed on prior closeout head `164ac2bd7f1a1870ea8eeb284821ad33a8ca275c`
-for Ruff lint/format, mypy, and the then-current focused P5-D regression set. The
-immediately preceding head also recorded **883 passed** for the full repository suite.
+P5-D completed its exact-head automated/manual/review gates and merged as PR #43 at
+`main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`.
 
-The independent re-review at `164ac2b...` closed five of six prior substantive
-findings and requested the shared-source spatial-alias presentation fix plus durable
-validation-command/order reconciliation. Those changes move the branch head again, so
-**no exact-head PASS is claimed for the current closeout head until the owner reruns
-the corrected gate**.
-
-Focused regression files are:
+Its focused regression files remain:
 
 ```text
 tests/unit/test_p5d_scene_inspection.py
@@ -375,17 +382,82 @@ tests/ui/test_p5d_review_closeout.py
 tests/ui/test_p5d_alias_spatial_binding.py
 ```
 
-The complete contract, automated matrix, and Windows manual checklist are in
-[`P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
+The complete contract and historical validation matrix remain in
+[`P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md). P5-D PASS is not inferred as
+P5-F PASS.
+
+## P5-E completed historical workflow
+
+P5-E / PR #44 is merged at
+`main@6a0a334d61a7495b9c3433edfcbd537c8df59468`.
+
+It adds the separate max-10 Recent IQA Results history, production logical/local Result
+locators, pre-presentation `result_id + schema_version` identity checking, result-only
+mode, passive Provenance, live root-remap observation, and stale logical-Recent resolver
+protection while preserving P5-B canonical opening, P5-D Inspect, Session v1, and P4-C
+Recent ownership.
+
+Its exact durable contract is
+[`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md). P5-E validation remains
+historical evidence only.
+
+## P5-F active repository-side hardening state
+
+P5-F follows **measure before optimizing** but is now explicitly scoped to evidence that
+can be obtained without the unavailable real GPU/SMB environment.
+
+Repository characterization identified and corrected two ownership/lifetime problems:
+
+- P5-B Result/Reference, P5-D verification/spatial, and P5-E historical resolution are
+  isolated onto one application-owned max-two Remote IQA result/file pool. The local
+  Statistics/Difference analysis pool remains distinct, and P5-C job operations retain
+  their own separate max-two pool.
+- production HTTP reuse now uses a lazy proxy. Merely queuing a P5-C operation creates
+  no physical `HttpIqaJobClient`; checkout occurs only when the worker performs its first
+  HTTP operation. Queued work cleared before execution therefore owns no HTTP resource.
+
+Independent review also tightened the compatibility probe so a non-terminal cancel
+response continues polling and a succeeded/partial terminal state remains recorded even
+when later Result-reference fetch fails.
+
+Focused regressions cover production pool binding and a four-job/max-two-worker
+shutdown case, proving queued work does not create extra physical clients and executing
+leases drain after shutdown.
+
+No raw-grid cache, grid preload, adaptive polling, generalized retry, new user Settings,
+WebSocket, or optional detail viewer is added without real-environment evidence.
+
+Owner validation on implementation head
+`f9a81b008d660405fc01e775607d78a91676093e` records focused P5-F, docs, Ruff,
+mypy, pip, and diff PASS. Full Windows offscreen pytest records 925 passed, 1 skipped,
+and three Qt/pyqtgraph UI failures. Those exact three nodes reproduce identically on
+implementation base `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
+under the same environment (`3 failed in 8.72s`), satisfying the independent review's
+requested baseline comparison. They are pre-existing/offscreen validation debt rather
+than a P5-F regression. No
+full-suite PASS is claimed. Independent implementation/architecture review is PASS;
+owner merge approval remains pending.
+
+## P5-G planned external validation state
+
+P5-G **External GPU/SMB Validation & Closeout** is the final P5 program gate and is
+blocked only by realistic environment availability, not by missing repository-side
+implementation.
+
+It will validate the real external GPU API/result writer, mapped/shared storage,
+Current Pair/Folder Pair, COMPLETE/PARTIAL, cancel/completion races, historical reopen,
+Inspect/spatial flow, concurrent local analysis, lifecycle behavior, and real
+network/grid/source timing observations. Any follow-up optimization must remain
+measurement-backed and bounded.
+
+No real GPU/SMB PASS has been observed or claimed.
 
 ## Forward sequence
 
 ```text
-P5-D Viewer-linked Scene Inspection
-    ↓
-P5-E Historical Result Workflow
-    ↓
 P5-F Integration & Performance Hardening
+    ↓
+P5-G External GPU/SMB Validation & Closeout
     ↓
 P5 Complete
     ↓
