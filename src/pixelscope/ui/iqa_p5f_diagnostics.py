@@ -25,7 +25,7 @@ def install_remote_iqa_diagnostics(
     if getattr(window, "_p5f_original_runtime_diagnostics_snapshot", None) is not None:
         return
     original: Callable[[], RuntimeDiagnosticsSnapshot] = window.runtime_diagnostics_snapshot
-    setattr(window, "_p5f_original_runtime_diagnostics_snapshot", original)
+    window._p5f_original_runtime_diagnostics_snapshot = original
 
     def snapshot(_window: Any) -> RuntimeDiagnosticsSnapshot:
         base = original()
