@@ -378,7 +378,7 @@ class HistoricalIqaResultsController(QObject):
             original(text)
             self.provenance.set_native_status(text)
 
-        setattr(inspection, "_set_status", MethodType(status, inspection))
+        inspection._set_status = MethodType(status, inspection)
 
     def _install_menu(self) -> None:
         actions = self.file_menu.actions()
