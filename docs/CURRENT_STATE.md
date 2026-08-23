@@ -287,13 +287,20 @@ Successful Inspect:
 
 1. reuses already-Registered paths where present;
 2. registers any missing verified unique sources through the ordinary input path;
-3. selects those unique sources through the canonical Selected/current-page path;
-4. invalidates any ordinary loads started by that selection and commits the exact
-   already-decoded SHA-bound generation while current-page residency protection is
-   active;
-5. bumps source generation and dependent source-view cache identity when replacing a
-   stale resident decode;
-6. leaves normal residency/preload/Difference/analysis ownership unchanged.
+3. advances canonical load tokens so older foreground/preload decodes stale-drop;
+4. publishes each exact already-decoded SHA-bound generation under its canonical
+   document ID, accounts/touches it through the normal residency owner, and invalidates
+   dependent source-view cache identity when source content changed;
+5. only after every verified unique-source generation is present, selects those unique
+   sources through the canonical Selected/current-page path so first presentation and
+   native analysis observe the verified generation;
+6. enforces normal residency eviction after current-page protection exists;
+7. leaves normal residency/preload/Difference/analysis ownership unchanged.
+
+Repeated variant bindings that share one native `source_id` still retain every IQA
+variant identity. The one canonical Files/native document gets a bounded
+**Shared-source spatial binding** selector so overlay and Block Inspector can switch
+between the aliased variant fields without duplicating local image identity.
 
 P4-A temporary Picks block initial Inspect. A new Pick made after Inspect is preserved
 and invalidates Return rather than being silently cleared by restoration.
@@ -330,6 +337,9 @@ Overlay is vector/block based on existing `ImageViewer.view_box`; no full-resolu
 heatmap/alpha buffer or secondary viewer/source authority is introduced.
 
 Block Inspector exposes bounded W/S1/S2/count/valid/mean/reference/pair/geometry data.
+For a shared native source, the Shared-source spatial binding selector changes the
+active aliased `variant_id` used by both overlay painting and Block Inspector while the
+canonical Files document remains unchanged.
 
 ### Async/stale safety
 
@@ -343,18 +353,26 @@ and refreshes Inspect availability before any later callback can publish.
 
 ## P5-D validation status
 
-P5-D exact-head automated/full owner validation has **not yet been observed** and must
-not be inferred from P5-C.
+Owner validation passed on prior closeout head `164ac2bd7f1a1870ea8eeb284821ad33a8ca275c`
+for Ruff lint/format, mypy, and the then-current focused P5-D regression set. The
+immediately preceding head also recorded **883 passed** for the full repository suite.
+
+The independent re-review at `164ac2b...` closed five of six prior substantive
+findings and requested the shared-source spatial-alias presentation fix plus durable
+validation-command/order reconciliation. Those changes move the branch head again, so
+**no exact-head PASS is claimed for the current closeout head until the owner reruns
+the corrected gate**.
 
 Focused regression files are:
 
 ```text
 tests/unit/test_p5d_scene_inspection.py
 tests/unit/test_p5d_source_locator_identity.py
-tests/unit/test_p5d_review_closeout.py
+tests/unit/test_p5d_review_closeout_unit.py
 tests/ui/test_p5d_viewer_linked_inspection.py
 tests/ui/test_p5d_stale_inspection.py
 tests/ui/test_p5d_review_closeout.py
+tests/ui/test_p5d_alias_spatial_binding.py
 ```
 
 The complete contract, automated matrix, and Windows manual checklist are in
