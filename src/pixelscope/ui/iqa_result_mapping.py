@@ -90,9 +90,7 @@ class RemoteIqaResultMappingGuard(QObject):
         return frozenset(self._pending_jobs)
 
     def _settings_changed(self) -> None:
-        current_identity = _mapping_identity(
-            self.controller.window.application_settings.remote_iqa
-        )
+        current_identity = _mapping_identity(self.controller.window.application_settings.remote_iqa)
         if current_identity != self._mapping_identity:
             self._mapping_identity = current_identity
             self._revision += 1
@@ -162,10 +160,15 @@ class RemoteIqaResultMappingGuard(QObject):
         if not should_reresolve or not getattr(self.controller, "_active", False):
             return
         job = self.controller._jobs.get(job_id)
-        if job is None or job.result_reference is None or job.state not in {
-            JobState.SUCCEEDED,
-            JobState.PARTIAL,
-        }:
+        if (
+            job is None
+            or job.result_reference is None
+            or job.state
+            not in {
+                JobState.SUCCEEDED,
+                JobState.PARTIAL,
+            }
+        ):
             return
         self.controller._resolve_result_path(job)
 
