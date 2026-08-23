@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import pixelscope.ui.iqa_scene_inspection as inspection_module
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.io.image_reader import read_image
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_explorer import IqaExplorerModel
@@ -96,13 +98,23 @@ def _install_fake_verifier(
     def verify(result: ResultV2, scene_id: str, _settings: object) -> SceneVerificationOutcome:
         calls.append(scene_id)
         scene = result.scene(scene_id)
-        return SceneVerificationOutcome(
-            scene_id=scene_id,
-            sources=tuple(
-                VerifiedSceneSource(measurement.variant_id, measurement.source, path)
-                for measurement, path in zip(scene.sources, paths[scene_id], strict=True)
-            ),
-        )
+        verified: list[VerifiedSceneSource] = []
+        for measurement, path in zip(scene.sources, paths[scene_id], strict=True):
+            decoded = read_image(path)
+            assert decoded.encoded_source_sha256 is not None
+            source = replace(
+                measurement.source,
+                sha256=decoded.encoded_source_sha256,
+            )
+            verified.append(
+                VerifiedSceneSource(
+                    measurement.variant_id,
+                    source,
+                    path,
+                    decoded,
+                )
+            )
+        return SceneVerificationOutcome(scene_id=scene_id, sources=tuple(verified))
 
     monkeypatch.setattr(inspection_module, "verify_scene_sources", verify)
     return calls
@@ -174,7 +186,10 @@ def test_inspect_reuses_registered_source_and_return_restores_single_view_page_a
 
     controller = window.iqa_scene_inspection_controller
     controller.inspect_selected_scene()
-    qtbot.waitUntil(lambda: controller.inspected_scene_id == result.scenes[0].scene_id, timeout=3000)
+    qtbot.waitUntil(
+        lambda: controller.inspected_scene_id == result.scenes[0].scene_id,
+        timeout=3000,
+    )
     inspected_ids = [document.document_id for document in window.selected_documents]
     assert len(inspected_ids) == len(result.scenes[0].sources)
     assert first_registered in inspected_ids
@@ -232,7 +247,10 @@ def test_failed_source_verification_preserves_registered_selected_and_presentati
     before_widget = window.central_stack.currentWidget()
 
     controller.inspect_selected_scene()
-    qtbot.waitUntil(lambda: "Source hash changed" in controller.inspect_status.text(), timeout=3000)
+    qtbot.waitUntil(
+        lambda: "Source hash changed" in controller.inspect_status.text(),
+        timeout=3000,
+    )
 
     assert tuple(window.documents) == before_registered
     assert tuple(document.document_id for document in window.selected_documents) == before_selected
@@ -260,15 +278,22 @@ def test_newer_local_selection_invalidates_return_instead_of_overwriting_user_in
     _present_result(window, result)
     controller = window.iqa_scene_inspection_controller
     controller.inspect_selected_scene()
-    qtbot.waitUntil(lambda: controller.inspected_scene_id == result.scenes[0].scene_id, timeout=3000)
+    qtbot.waitUntil(
+        lambda: controller.inspected_scene_id == result.scenes[0].scene_id,
+        timeout=3000,
+    )
     assert controller.return_valid
 
     window._select_document_ids([local[2].document_id])
     assert not controller.return_valid
-    assert [document.document_id for document in window.selected_documents] == [local[2].document_id]
+    assert [document.document_id for document in window.selected_documents] == [
+        local[2].document_id
+    ]
 
     controller.return_to_local_workspace()
-    assert [document.document_id for document in window.selected_documents] == [local[2].document_id]
+    assert [document.document_id for document in window.selected_documents] == [
+        local[2].document_id
+    ]
     assert "Return is unavailable" in controller.inspect_status.text()
     window.close()
 
@@ -292,7 +317,10 @@ def test_iqa_reference_and_local_primary_remain_independent(
     _present_result(window, result)
     controller = window.iqa_scene_inspection_controller
     controller.inspect_selected_scene()
-    qtbot.waitUntil(lambda: controller.inspected_scene_id == result.scenes[0].scene_id, timeout=3000)
+    qtbot.waitUntil(
+        lambda: controller.inspected_scene_id == result.scenes[0].scene_id,
+        timeout=3000,
+    )
 
     reference_before = window.iqa_workspace.reference_variant_id
     page = window.current_comparison_documents()
