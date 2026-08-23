@@ -15,6 +15,17 @@ MAX_SERVER_URL_LENGTH = 2048
 _STORAGE_ROOT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
+def validate_storage_root_id(storage_root_id: str) -> str:
+    """Validate the portable logical-root identifier shared by requests and results."""
+    root_id = storage_root_id.strip()
+    if root_id != storage_root_id or _STORAGE_ROOT_ID_RE.fullmatch(root_id) is None:
+        raise ValueError(
+            "storage_root_id must be a portable 1-64 character identifier "
+            "using letters, digits, '.', '_' or '-'"
+        )
+    return root_id
+
+
 @dataclass(frozen=True)
 class RemoteIqaStorageRoot:
     """One portable logical root mapped to this machine's Windows/UNC path."""
@@ -23,12 +34,7 @@ class RemoteIqaStorageRoot:
     client_path: str
 
     def __post_init__(self) -> None:
-        root_id = self.storage_root_id.strip()
-        if root_id != self.storage_root_id or _STORAGE_ROOT_ID_RE.fullmatch(root_id) is None:
-            raise ValueError(
-                "storage_root_id must be a portable 1-64 character identifier "
-                "using letters, digits, '.', '_' or '-'"
-            )
+        validate_storage_root_id(self.storage_root_id)
         path = self.client_path.strip()
         if path != self.client_path or not path or len(path) > MAX_CLIENT_PATH_LENGTH:
             raise ValueError("client_path must be a non-empty bounded absolute Windows/UNC path")

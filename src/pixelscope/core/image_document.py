@@ -24,6 +24,7 @@ class ImageDocument:
     display_transform: DisplayTransform = field(default_factory=DisplayTransform)
     document_id: str = field(default_factory=lambda: str(uuid4()))
     preview: NDArray[np.uint8] | None = None
+    encoded_source_sha256: str | None = field(default=None, compare=False)
     statistics_cache: dict[tuple[Any, ...], Any] = field(default_factory=dict)
     histogram_cache: dict[tuple[Any, ...], Any] = field(default_factory=dict)
     evaluation_results: list[Any] = field(default_factory=list)
@@ -42,6 +43,7 @@ class ImageDocument:
         raw_profile: Any | None = None,
         display_transform: DisplayTransform | None = None,
         prepared_preview: NDArray[np.uint8] | None = None,
+        encoded_source_sha256: str | None = None,
     ) -> ImageDocument:
         if source.ndim not in (2, 3):
             raise ValueError("images must be HxW or HxWxC")
@@ -71,6 +73,7 @@ class ImageDocument:
             raw_profile=raw_profile,
             display_transform=transform,
             preview=preview,
+            encoded_source_sha256=encoded_source_sha256,
         )
 
     @classmethod
@@ -133,6 +136,7 @@ class ImageDocument:
         )
         self.source = replacement.source
         self.preview = replacement.preview
+        self.encoded_source_sha256 = None
         self.generation += 1
         self.statistics_cache.clear()
         self.histogram_cache.clear()

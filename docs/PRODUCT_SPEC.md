@@ -384,14 +384,15 @@ existing configured Export directory is reused. Missing/in-flight results are
 unavailable or safe no-ops, Cancel mutates nothing, and failed writes leave the
 workspace unchanged. No new generic export framework is added.
 
-### Remote IQA result and submission workflow
+### Remote IQA result, submission, and viewer-linked inspection workflow
 
-P5-A2 schema v2 is the executable result contract. P5-B / PR #38 is merged and owns
-the canonical local result workspace. P5-C / Draft PR #42 extends that same IQA dock
-with remote Setup and Jobs; it does not create a second result parser or local source
-workspace.
+P5-A2 schema v2 is the executable result contract. P5-B / PR #38 owns the canonical
+local result workspace. P5-C / PR #42 is merged and owns remote Setup, Jobs, logical
+shared-storage mappings, submission, PARTIAL results, and explicit Open Result. P5-D
+adds explicit viewer-linked native Scene inspection on top of those existing
+authorities; it does not create a second result parser or local source workspace.
 
-The product surface is one non-modal IQA workspace:
+The product surface remains one non-modal IQA workspace:
 
 ```text
 IQA
@@ -455,6 +456,12 @@ Machine-local drive/UNC paths are configuration only. They are not serialized as
 portable job/result identity, and PixelScope does not store server physical paths or
 credentials in the result/session artifacts.
 
+Schema-v2 result source bindings may carry the same optional `storage_root_id` as
+additive **location metadata**. It is excluded from immutable source identity and
+`measurement_context_id`. Old schema-v2 results that omit it remain result-readable,
+but native Inspect is unavailable for those source bindings rather than guessing a
+machine-local root.
+
 #### Jobs
 
 Submission creates a durable remote job and switches to Jobs without blocking the
@@ -496,11 +503,67 @@ For schema v2:
 - failed deferred Reference preparation restores the last valid presentation;
 - Scene Trend and attribute filters browse published/derived result values without
   changing native PixelScope analysis;
-- Scene cards show published source identity/path/hash metadata only. Native source
-  opening, hash-verified Inspect, spatial overlay, and block inspection remain P5-D.
+- Scene cards show published source identity/path/hash/location metadata while
+  remaining passive until the user explicitly chooses **Inspect in Viewer**.
 
 Schema v1 remains explicit historical read-only two-source compatibility and never
 receives synthetic v2 absolute measurements.
+
+#### Viewer-linked Scene Inspect and Return
+
+P5-D's **Inspect in Viewer** is the explicit boundary at which a selected schema-v2
+Scene may temporarily become the local comparison workspace. Passive Results browsing
+never performs this mutation.
+
+Initial Inspect requires:
+
+- a selected published schema-v2 Scene;
+- no active P4-A temporary Pick baseline;
+- at most six published variant bindings, with no silent truncation;
+- a published `storage_root_id` for each source binding and a current machine-local
+  mapping for every referenced root;
+- ordinary PNG/JPG/JPEG/BMP sources that still match published dimensions and SHA-256.
+
+Before changing Files/Selected, PixelScope resolves all required logical paths through
+P5-C containment rules and uses the same ordinary-image header probe as submission.
+Each unique native source is then decoded from one encoded byte buffer; SHA-256 is
+computed over that exact buffer and must match the published source. The exact decoded
+object carrying that verified SHA is what PixelScope commits into the canonical local
+source lifecycle. This prevents an already-Registered stale resident decode or a
+verification-to-reload file replacement from displaying pixels different from the
+published result identity.
+
+After all bindings verify, PixelScope reuses/registers canonical Files documents and
+advances their ordinary load tokens. It publishes/account/touches every exact verified
+decoded generation under the canonical document IDs **before** Selected/render can
+make the Scene visible. Only after all unique sources hold those verified generations
+does PixelScope enter the ordinary Selected/current-page path; normal eviction
+enforcement follows after current-page protection exists.
+
+If several variant slots intentionally share one concrete `source_id`, they retain
+separate IQA variant identities but use one native Files/viewer source document rather
+than manufacturing duplicate local image identity. A bounded **Shared-source spatial
+binding** selector chooses which aliased `variant_id` drives that document's spatial
+overlay and Block Inspector, so every schema-valid alias remains inspectable without
+creating another Files/source identity.
+
+The first successful Inspect captures a transient Return point containing prior
+Selected order, page anchor, applicable Active/Primary, and layout. Linked IQA Scene
+navigation keeps that original Return target. **Return** restores the captured local
+comparison only while it is still valid; the snapshot is not Session persistence.
+
+Newer local Selected/Files/layout/Primary intent invalidates Return. A new temporary
+Pick after Inspect also invalidates Return while preserving that Pick state. Active
+alone does not invalidate Return. Changing Remote IQA logical-root mappings is newer
+locator intent: pending verification under the old mapping is cancelled/stale-dropped
+and Inspect availability is immediately recomputed from current settings.
+
+IQA **Reference** and local viewer **Primary** remain independent. Spatial inspection
+reuses schema-v2 W/S1/S2/count/valid data and canonical target/reference math. The
+vector overlay is attached to existing `ImageViewer` ViewBoxes rather than allocating a
+full-resolution heatmap/source image. Block Inspector reports bounded per-cell
+statistics and geometry; invalid/pair-invalid cells remain invalid rather than being
+painted as zero.
 
 #### PARTIAL results
 
@@ -520,7 +583,8 @@ result exploration.
 Passive IQA browsing and remote job tracking do not register/select/decode the
 batch and do not change Files, Selected, Current Comparison Page, Active/Primary,
 Difference, source residency/preload, Statistics/Histogram/Line Profile, or Session
-state.
+state. Only explicit successful P5-D Inspect crosses into the canonical local
+comparison workflow.
 
 #### Debug-only validation surfaces
 
@@ -554,7 +618,9 @@ enablement.
 
 Remote IQA mappings are live application configuration rather than Session v1 state.
 `Reset Settings` resets schema-owned Remote IQA configuration together with the
-other application settings; workspace layout reset remains separate.
+other application settings; workspace layout reset remains separate. P5-D treats a
+live root-mapping change as a locator revision: in-flight native-source verification
+started from older mappings cannot publish afterward.
 
 Comparison Set/Session artifacts and analysis exports remain external files and do
 not become `ApplicationSettings` state. Typed Recent path history remains separate
@@ -571,12 +637,15 @@ correctness dependencies such as foreground load, promoted foreground preload,
 explicit Difference dependencies, and non-reloadable sources are protected.
 Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
 budget and normally reload when their page is revisited. Session persistence, export,
-and Remote IQA tracking do not introduce Selected-wide protection.
+and passive Remote IQA tracking do not introduce Selected-wide protection. Explicit
+P5-D Inspect publishes its exact verified decoded generations before Selected/render,
+then relies on the existing Current Comparison Page protection before the following
+eviction enforcement; it does not add another residency owner.
 
 **Preload Next Folder Position** remains exactly `+1`, one valid one-to-six Selected
 Folder Position deep, on a dedicated max-one worker; an exact matching physically
 RUNNING preload may transfer logical authority to foreground without duplicate
-decode. P5-C adds no Remote-IQA-driven source preload system.
+decode. P5-C/P5-D add no Remote-IQA-owned preload system.
 
 ## Difference contract
 
@@ -741,26 +810,21 @@ analysis are outside the current product contract.
 
 P3 — Image Semantics & RAW Processing and P4 — Workflow & Session Productivity are
 Complete. P5-0 / PR #36, P5-A schema-v1 / PR #37, P5-A2 durable/executable schema-v2
-/ PR #39/#40, and P5-B IQA Workspace / PR #38 are merged. Current merged main is
-`ad3721e28b759e75d8e0f4a28b003a4dd22f0f4a` after PR #41's formatting baseline.
+/ PR #39/#40, P5-B IQA Workspace / PR #38, and P5-C Submission & Shared Storage /
+PR #42 are merged. Current merged main is
+`24b328d02c0cd56fb79920e069af06d6e4cb706f`.
 
-P5-C **Submission & Shared Storage** / Draft PR #42 is Active. The major client
-workflow—typed Remote IQA settings, portable root identity, Current/Folder Pair
-submission, Jobs polling, explicit Open Result, executable PARTIAL results, debug
-request/replay harnesses, real-socket localhost fault testing, and bounded terminal
-result-reference retry—is implemented and under closeout.
+P5-D **Viewer-linked Scene Inspection** is Active in Draft PR #43. The implementation
+adds explicit hash-bound native Inspect/Return, source-locator/root verification,
+repeated-source variant aliasing with active spatial alias selection, viewer-linked
+spatial grids, Block Inspector, and stale-intent/root-remap guards. Exact-head
+focused/full validation, Windows manual validation, and independent latest-head
+re-review remain required before P5-D can be marked Complete or merged.
 
-P5-C still has pre-merge lifecycle/storage blockers: cross-process staging and
-symlink/junction containment, cooperative cancellation of running preparation before
-create POST, duplicate/ambiguous create handling without blind POST retry, and the
-settings-remap/result-resolution race. Latest-head full validation and independent
-whole-PR review are also required.
-
-P5-D viewer-linked Scene/grid Inspect is blocked until P5-C merges. P5-E then adds
-historical/recent result productivity, and P5-F owns real external-server/shared-
-storage integration and measured performance/lifetime hardening. P6 owns identity,
-access, credentials, permission, and remote operations. P7 owns release engineering
-and distribution.
+P5-E then adds historical/recent result productivity, and P5-F owns real external-
+server/shared-storage integration and measured performance/lifetime hardening. P6 owns
+identity, access, credentials, permission, and remote operations. P7 owns release
+engineering and distribution.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or

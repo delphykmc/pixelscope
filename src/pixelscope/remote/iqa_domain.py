@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
@@ -70,6 +70,9 @@ class Source:
     sha256: str
     width: int
     height: int
+    # Machine-local logical-root location is deliberately not source identity.
+    # Equality/hash continue to reflect the schema-v2 immutable source metadata only.
+    storage_root_id: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)

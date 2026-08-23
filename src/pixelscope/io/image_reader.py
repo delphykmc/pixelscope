@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import cv2
@@ -15,7 +16,7 @@ class ImageReadError(ValueError):
 
 
 def read_image(path: str | Path) -> ImageDocument:
-    """Decode a Unicode-safe PNG/BMP/JPEG and normalize OpenCV channels to RGB(A)."""
+    """Decode a Unicode-safe PNG/BMP/JPEG and bind pixels to the encoded byte SHA-256."""
 
     source_path = Path(path)
     if source_path.suffix.lower() not in (".png", ".bmp", ".jpg", ".jpeg"):
@@ -24,6 +25,7 @@ def read_image(path: str | Path) -> ImageDocument:
         encoded = np.fromfile(source_path, dtype=np.uint8)
     except OSError as exc:
         raise ImageReadError(f"Cannot read image file: {exc}") from exc
+    encoded_sha256 = hashlib.sha256(encoded.tobytes()).hexdigest()
     decoded = cv2.imdecode(encoded, cv2.IMREAD_UNCHANGED)
     if decoded is None:
         raise ImageReadError("The file is not a valid or supported PNG/BMP/JPEG image")
@@ -43,6 +45,7 @@ def read_image(path: str | Path) -> ImageDocument:
         display_name=source_path.name,
         source_path=source_path,
         channel_layout=layout,
+        encoded_source_sha256=encoded_sha256,
     )
 
 

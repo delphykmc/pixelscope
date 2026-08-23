@@ -1,6 +1,6 @@
 # Remote IQA schema v2 source-measurement specification
 
-Status: Executable schema-v2 authority; P5-C PARTIAL extension active in PR #42
+Status: Executable schema-v2 authority; P5-C PARTIAL merged; P5-D source-locator extension active in PR #43
 Owner: PixelScope P5 program + external IQA server contract
 Historical executable baseline: P5-A / PR #37 / schema v1
 Durable schema-v2 contract baseline: P5-A2 Stage 1 / PR #39
@@ -82,6 +82,37 @@ sanity comparisons without inventing a second image identity. Ordered
 `(variant_id, source_id, ...)` membership remains part of the context fingerprint, so
 this does not make variant bindings ambiguous.
 
+### 2.2 Additive native-source location metadata
+
+A schema-v2 source binding may additionally contain:
+
+```text
+storage_root_id          optional string
+```
+
+`storage_root_id` is **portable location metadata**, not immutable source identity and
+not measurement identity. Its grammar is the same as the P5-C logical-storage setting:
+1-64 characters matching `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, with no leading/trailing
+whitespace. The value names a logical root; it never embeds a machine-local drive/UNC
+path.
+
+The field is additive and does not bump `schema_version`:
+
+- old schema-v2 artifacts that omit it remain valid and fully readable for result
+  browsing;
+- omission means PixelScope has no portable root locator for native source Inspect, so
+  P5-D must report Inspect unavailable rather than guess a local root;
+- `storage_root_id` is excluded from `Source` equality/immutable identity checks;
+- `storage_root_id` is excluded from `measurement_context_id` because moving or
+  remapping identical bytes does not change the server-authored measurement;
+- a configured machine-local mapping from `storage_root_id` to client path remains
+  application settings, never result identity;
+- P5-D resolves the published `storage_root_id + relative_path` under the current
+  mapping and rechecks containment before using a native source.
+
+This separation allows the same immutable result to be reopened on machines with
+different drive/UNC mappings without changing source or measurement identity.
+
 ## 3. Published-success Scene structural invariants
 
 For `publication_state = "complete"`, and for every successful Scene retained by a
@@ -144,7 +175,9 @@ The canonical payload binds:
 Display labels and reference choice do not participate because they do not change the
 published absolute measurement. Comparison operator, quality direction, and epsilon
 also do not change the server-authored W/S1/S2 measurement and therefore are not part
-of this measurement-context fingerprint.
+of this measurement-context fingerprint. `storage_root_id` is likewise excluded:
+logical location/remapping changes where identical bytes are found, not the weighted
+measurement context.
 
 A manifest whose supplied `measurement_context_id` does not exactly match the
 recomputed fingerprint is invalid.
@@ -410,15 +443,32 @@ grid_artifact           {path, uncompressed_size}
 detail_artifacts[]      optional opaque relative-path strings
 ```
 
-Each source binding contains `variant_id`, immutable source metadata, one complete
-`geometry` record, and a `grids` object containing exactly every declared attribute.
-Repeated concrete `source_id` values are permitted as described in section 2.1.
+Each source binding contains:
+
+```text
+variant_id
+source_id
+relative_path
+sha256
+width
+height
+storage_root_id         optional additive location metadata; see section 2.2
+geometry
+  ...
+grids
+  ...
+```
+
+Immutable source metadata, one complete `geometry` record, and a `grids` object
+containing exactly every declared attribute remain required. Repeated concrete
+`source_id` values are permitted as described in section 2.1. `storage_root_id` is not
+part of immutable source identity.
 
 `detail_artifacts[]` is intentionally **opaque in schema v2 Stage 2/P5-C**. A bare path
-is only a bounded reference and is not a permanent P5-D decode contract. P5-D may
-define a separately versioned typed detail sub-schema containing kind/dtype/shape/
-size/geometry metadata before consuming such data. Current readers never infer detail
-dtype or meaning from the path.
+is only a bounded reference and is not a permanent P5-D decode contract. A future
+slice may define a separately versioned typed detail sub-schema containing kind/dtype/
+shape/size/geometry metadata before consuming such data. Current readers never infer
+detail dtype or meaning from the path.
 
 ### 13.2 `summary.npz`
 
@@ -586,16 +636,35 @@ Rules:
 This representation intentionally preserves successful Scene work without creating a
 second numerical authority or a relaxed incomplete-Scene schema.
 
-## 17. Source inspection remains separate
+## 17. Native source inspection locator and decoded identity
 
-`source.relative_path` is historical/logical source metadata, not direct machine-local
-open authority. Passive result browsing must not mutate Files, Selected, Primary,
-decoded residency, Statistics, Difference, or the current comparison workspace.
+`source.relative_path` is portable source metadata, not a direct machine-local open
+path. Passive result browsing must not mutate Files, Selected, Primary, decoded
+residency, Statistics, Difference, or the current comparison workspace.
 
-P5-C logical result resolution uses configured `storage_root_id + relative_path` for
-the result artifact itself. Native source Inspect still belongs to the later P5-D
-contract and requires explicit source logical-root/hash verification before canonical
-local registration/selection.
+P5-D native inspection begins only after explicit **Inspect in Viewer**. For every
+required Scene source, PixelScope:
+
+1. resolves the optional `storage_root_id + relative_path` under current machine-local
+   Remote IQA settings;
+2. applies the same containment and ordinary-image format/header rules used by P5-C;
+3. requires published original dimensions;
+4. decodes the ordinary image from one encoded byte buffer and computes SHA-256 over
+   that exact encoded buffer;
+5. requires the decoded generation's encoded SHA-256 to equal the published `sha256`;
+6. commits that exact verified decoded generation into the canonical Files/Selected/
+   Current Comparison Page lifecycle.
+
+This binding prevents a previously resident stale document or a verification-to-decode
+file replacement from causing spatial IQA to be painted over pixels different from the
+published source identity. If the same concrete `source_id` occupies multiple variant
+slots, P5-D keeps one canonical Files/native-source document and retains those variant
+bindings as aliases; it does not invent duplicate local image identity.
+
+Live logical-root mapping changes are newer locator intent. They invalidate/cancel any
+in-flight locator-dependent verification and refresh Inspect availability. Old-v2
+artifacts without `storage_root_id` remain result-readable but cannot enter native
+Inspect without a new explicit locator contract.
 
 ## 18. Executable acceptance and compatibility gates
 
@@ -622,9 +691,14 @@ The merged P5-A2 Stage-2 coverage establishes the complete-result schema-v2 base
 
 P5-C adds executable PARTIAL coverage for ordered Scene outcomes, success/failure/
 cancelled diagnostics, zero-success/all-success rejection, successful-Scene ordering,
-and COMPLETE/PARTIAL canonical loader compatibility. P5-C debug fixtures must reuse
-the canonical v2 fixture/result-loader path rather than defining independent result
-math.
+and COMPLETE/PARTIAL canonical loader compatibility. P5-C debug fixtures reuse the
+canonical v2 fixture/result-loader path rather than defining independent result math.
+
+P5-D adds executable coverage for optional locator parsing/fingerprint independence,
+old-v2 omission compatibility, P5-C/P5-D ordinary-image probe parity, exact encoded
+SHA-to-decoded-generation binding, stale resident replacement, repeated-source variant
+collapse onto one canonical Files document, Pick/Return invalidation, live logical-root
+revision invalidation, and spatial grid/geometry consistency.
 
 Observed validation is recorded separately from planned commands. Repository standard
 checks for changed `src/`, `tests/`, and docs remain the merge gate: focused/full

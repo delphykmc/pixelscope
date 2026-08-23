@@ -20,6 +20,7 @@ from pixelscope.remote.iqa_domain import (
     ValueKind,
 )
 from pixelscope.remote.iqa_geometry import source_to_analysis
+from pixelscope.remote.iqa_settings import validate_storage_root_id
 from pixelscope.remote.iqa_v2_domain import (
     MeasurementContextProvenance,
     SceneV2,
@@ -245,6 +246,14 @@ def _parse_source_measurement(
     sha256 = bounded_string(data, "sha256", 64)
     if len(sha256) != 64 or any(char not in "0123456789abcdef" for char in sha256):
         raise InvalidV2("source sha256 must be 64 lowercase hexadecimal characters")
+    storage_root_id = data.get("storage_root_id")
+    if storage_root_id is not None:
+        if not isinstance(storage_root_id, str):
+            raise InvalidV2("storage_root_id must be a string when present")
+        try:
+            storage_root_id = validate_storage_root_id(storage_root_id)
+        except ValueError as exc:
+            raise InvalidV2(str(exc)) from exc
     source = Source(
         source_id=bounded_string(data, "source_id", V2_MAX_ID_LENGTH),
         relative_path=bounded_string(
@@ -255,6 +264,7 @@ def _parse_source_measurement(
         sha256=sha256,
         width=positive_integer(data, "width"),
         height=positive_integer(data, "height"),
+        storage_root_id=storage_root_id,
     )
     geometry = _parse_geometry(data.get("geometry"))
     grids_data = data.get("grids")

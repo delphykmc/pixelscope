@@ -79,9 +79,7 @@ def write_debug_result_bundle(
         raise ValueError("debug result target already exists")
 
     output_replay = (
-        Path(replay_path)
-        if replay_path is not None
-        else root / "debug-replay" / f"{job_id}.json"
+        Path(replay_path) if replay_path is not None else root / "debug-replay" / f"{job_id}.json"
     )
     if output_replay.exists():
         raise ValueError("debug replay JSON target already exists")
@@ -91,13 +89,10 @@ def write_debug_result_bundle(
     manifest = _read_manifest(manifest_path)
     manifest["result_id"] = job_id
     if mode is not DebugResultMode.COMPLETE:
-        failed_status = (
-            "failed" if mode is DebugResultMode.PARTIAL_FAILED else "cancelled"
-        )
+        failed_status = "failed" if mode is DebugResultMode.PARTIAL_FAILED else "cancelled"
         manifest["publication_state"] = publication_state
         manifest["scene_outcomes"] = [
-            {"scene_id": scene["scene_id"], "status": "succeeded"}
-            for scene in manifest["scenes"]
+            {"scene_id": scene["scene_id"], "status": "succeeded"} for scene in manifest["scenes"]
         ] + [
             {
                 "scene_id": f"scene_{SUCCESSFUL_DEBUG_SCENES:06d}",
