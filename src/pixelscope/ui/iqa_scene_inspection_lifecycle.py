@@ -169,7 +169,7 @@ class IqaSceneInspectionLifecycle(QObject):
         self._inspect_settings_revision = self._settings_revision
         self.controller._inspect_result_identity = (result.result_id, id(result))
         self.controller._set_status(f"Verifying and decoding published sources for {scene_id}…")
-        verify_scene_sources = getattr(inspection_module, "verify_scene_sources")
+        verify_scene_sources = vars(inspection_module)["verify_scene_sources"]
         worker = TaskWorker(
             verify_scene_sources,
             result,
@@ -284,9 +284,9 @@ class IqaSceneInspectionLifecycle(QObject):
                 previous = self.window.documents[document_id]
                 previous_sha = previous.encoded_source_sha256
                 content_changed = (
-                    previous_sha is not None
+                    previous.source is not None
                     and previous_sha != decoded.encoded_source_sha256
-                ) or (previous.source is not None and previous_sha is None)
+                )
 
                 self.window._load_tokens[document_id] = (
                     self.window._load_tokens.get(document_id, 0) + 1
@@ -332,9 +332,7 @@ class IqaSceneInspectionLifecycle(QObject):
 
     def _rollback_new_registrations(self, before_ids: set[str]) -> None:
         newly_registered = [
-            document_id
-            for document_id in self.window.documents
-            if document_id not in before_ids
+            document_id for document_id in self.window.documents if document_id not in before_ids
         ]
         if newly_registered:
             self.controller._original_remove_document_ids(newly_registered)
