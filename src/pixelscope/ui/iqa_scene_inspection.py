@@ -388,10 +388,7 @@ class IqaSceneInspectionController(QObject):
             return self._original_remove_document_ids(document_ids, *args, **kwargs)
 
         def set_layout_mode(mode: str) -> None:
-            if (
-                self._owned_mutation_depth == 0
-                and mode != self.window._layout_mode
-            ):
+            if self._owned_mutation_depth == 0 and mode != self.window._layout_mode:
                 self._local_intent_generation += 1
                 if self._return_snapshot is not None:
                     self._invalidate_return("Return invalidated by a newer local layout choice")
@@ -407,7 +404,7 @@ class IqaSceneInspectionController(QObject):
         def open_result(root: object) -> int:
             self._new_result_opening()
             try:
-                return self._original_open_result(root)
+                return int(self._original_open_result(root))
             except Exception:
                 self._result_opening = False
                 self._sync_controls()
@@ -429,13 +426,9 @@ class IqaSceneInspectionController(QObject):
 
     def _connect_workspace(self) -> None:
         self.workspace.scene_requested.connect(self._scene_requested)
-        self.workspace.reference_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
-            self._spatial_control_changed
-        )
-        self.workspace.mode_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
-            self._spatial_control_changed
-        )
-        self.workspace.hierarchy.currentItemChanged.connect(  # type: ignore[attr-defined]
+        self.workspace.reference_combo.currentIndexChanged.connect(self._spatial_control_changed)
+        self.workspace.mode_combo.currentIndexChanged.connect(self._spatial_control_changed)
+        self.workspace.hierarchy.currentItemChanged.connect(
             lambda _current, _previous: self._sync_attribute_from_workspace()
         )
         self.result_controller.outcome_ready.connect(self._result_outcome)
@@ -599,7 +592,9 @@ class IqaSceneInspectionController(QObject):
             document_ids = self.window._register_inputs(inputs, resolve_raw_profiles=False)
             if len(document_ids) != len(outcome.sources):
                 newly_registered = [
-                    document_id for document_id in self.window.documents if document_id not in before_ids
+                    document_id
+                    for document_id in self.window.documents
+                    if document_id not in before_ids
                 ]
                 if newly_registered:
                     self._original_remove_document_ids(newly_registered)
