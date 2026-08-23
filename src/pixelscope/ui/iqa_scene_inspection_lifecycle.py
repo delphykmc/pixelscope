@@ -283,9 +283,8 @@ class IqaSceneInspectionLifecycle(QObject):
                 assert decoded is not None
                 previous = self.window.documents[document_id]
                 previous_sha = previous.encoded_source_sha256
-                content_changed = (
-                    previous.source is not None
-                    and previous_sha != decoded.encoded_source_sha256
+                content_changed = previous_sha != decoded.encoded_source_sha256 and (
+                    previous_sha is not None or previous.source is not None
                 )
 
                 self.window._load_tokens[document_id] = (
