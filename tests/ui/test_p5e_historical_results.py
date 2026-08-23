@@ -102,7 +102,10 @@ def test_manual_result_open_records_recent_and_remains_browsable_without_sources
     qtbot: Any,
     tmp_path: Path,
 ) -> None:
-    root = _set_result_id(write_golden_result_v2(tmp_path / "result"), "history-result")
+    root = _set_result_id(
+        write_golden_result_v2(tmp_path / "result"),
+        "history-result",
+    )
     window = MainWindow()
     qtbot.addWidget(window)
     _compose_main_window_presentation(window)
@@ -135,8 +138,14 @@ def test_recent_identity_mismatch_preserves_last_valid_result_and_history(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root_a = _set_result_id(write_golden_result_v2(tmp_path / "result-a"), "result-a")
-    root_b = _set_result_id(write_golden_result_v2(tmp_path / "result-b"), "result-b")
+    root_a = _set_result_id(
+        write_golden_result_v2(tmp_path / "result-a"),
+        "result-a",
+    )
+    root_b = _set_result_id(
+        write_golden_result_v2(tmp_path / "result-b"),
+        "result-b",
+    )
     window = MainWindow()
     qtbot.addWidget(window)
     _compose_main_window_presentation(window)
@@ -170,7 +179,10 @@ def test_jobs_open_signal_records_published_logical_locator_not_mapped_path(
     qtbot: Any,
     tmp_path: Path,
 ) -> None:
-    root = _set_result_id(write_golden_result_v2(tmp_path / "job-result"), "job-result")
+    root = _set_result_id(
+        write_golden_result_v2(tmp_path / "job-result"),
+        "job-result",
+    )
     window = MainWindow()
     qtbot.addWidget(window)
     _compose_main_window_presentation(window)
@@ -210,7 +222,10 @@ def test_schema_v1_history_is_local_and_explicitly_read_only(
     qtbot: Any,
     tmp_path: Path,
 ) -> None:
-    root = _set_result_id(write_golden_result(tmp_path / "v1-result"), "history-v1")
+    root = _set_result_id(
+        write_golden_result(tmp_path / "v1-result"),
+        "history-v1",
+    )
     window = MainWindow()
     qtbot.addWidget(window)
     _compose_main_window_presentation(window)
@@ -258,8 +273,14 @@ def test_rapid_result_open_keeps_only_latest_generation(
     qtbot: Any,
     tmp_path: Path,
 ) -> None:
-    root_a = _set_result_id(write_golden_result_v2(tmp_path / "rapid-a"), "rapid-a")
-    root_b = _set_result_id(write_golden_result_v2(tmp_path / "rapid-b"), "rapid-b")
+    root_a = _set_result_id(
+        write_golden_result_v2(tmp_path / "rapid-a"),
+        "rapid-a",
+    )
+    root_b = _set_result_id(
+        write_golden_result_v2(tmp_path / "rapid-b"),
+        "rapid-b",
+    )
     window = MainWindow()
     qtbot.addWidget(window)
     _compose_main_window_presentation(window)
@@ -296,8 +317,14 @@ def test_mapping_revision_change_rejects_loaded_result_before_presentation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root_a = _set_result_id(write_golden_result_v2(tmp_path / "mapped-a"), "mapped-a")
-    root_b = _set_result_id(write_golden_result_v2(tmp_path / "mapped-b"), "mapped-b")
+    root_a = _set_result_id(
+        write_golden_result_v2(tmp_path / "mapped-a"),
+        "mapped-a",
+    )
+    root_b = _set_result_id(
+        write_golden_result_v2(tmp_path / "mapped-b"),
+        "mapped-b",
+    )
     window = MainWindow()
     qtbot.addWidget(window)
     _compose_main_window_presentation(window)
@@ -347,7 +374,10 @@ def test_recent_history_survives_window_close_and_recreate(
     qtbot: Any,
     tmp_path: Path,
 ) -> None:
-    root = _set_result_id(write_golden_result_v2(tmp_path / "result"), "persistent-result")
+    root = _set_result_id(
+        write_golden_result_v2(tmp_path / "result"),
+        "persistent-result",
+    )
     first = MainWindow()
     qtbot.addWidget(first)
     _compose_main_window_presentation(first)
