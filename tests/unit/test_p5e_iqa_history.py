@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
+
+import pytest
 
 from pixelscope.app.iqa_history import (
     RECENT_IQA_RESULTS_KEY,
@@ -114,20 +117,46 @@ def test_repository_skips_bad_records_without_dropping_valid_history() -> None:
     assert repository.load() == (_entry(7),)
 
 
-def test_manual_v2_uses_most_specific_logical_root_but_v1_stays_local() -> None:
+def test_manual_v2_uses_most_specific_resolvable_root_but_v1_stays_local(
+    tmp_path: Path,
+) -> None:
+    shared = tmp_path / "IQA"
+    results = shared / "results"
+    result = results / "2026" / "run-17"
+    result.mkdir(parents=True)
     settings = RemoteIqaSettings(
         storage_roots=(
-            RemoteIqaStorageRoot("shared", r"C:\\IQA"),
-            RemoteIqaStorageRoot("results", r"C:\\IQA\\results"),
+            RemoteIqaStorageRoot("shared", str(shared)),
+            RemoteIqaStorageRoot("results", str(results)),
         )
     )
-    path = r"C:\\IQA\\results\\2026\\run-17"
 
-    v2_locator = locator_for_manual_result(path, settings, schema_version=2)
-    v1_locator = locator_for_manual_result(path, settings, schema_version=1)
+    v2_locator = locator_for_manual_result(result, settings, schema_version=2)
+    v1_locator = locator_for_manual_result(result, settings, schema_version=1)
 
     assert v2_locator == LogicalIqaResultLocator("results", "2026/run-17")
-    assert v1_locator == LocalIqaResultLocator(path)
+    assert v1_locator == LocalIqaResultLocator(str(result))
+
+
+def test_manual_v2_symlink_escape_stays_local_when_supported(tmp_path: Path) -> None:
+    shared = tmp_path / "IQA"
+    outside = tmp_path / "outside"
+    target = outside / "run-17"
+    shared.mkdir()
+    target.mkdir(parents=True)
+    link = shared / "link"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlink is unavailable: {exc}")
+    opened = link / "run-17"
+    settings = RemoteIqaSettings(
+        storage_roots=(RemoteIqaStorageRoot("shared", str(shared)),)
+    )
+
+    locator = locator_for_manual_result(opened, settings, schema_version=2)
+
+    assert locator == LocalIqaResultLocator(str(opened))
 
 
 def test_clear_is_independent_observer_metadata() -> None:
