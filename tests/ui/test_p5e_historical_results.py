@@ -251,7 +251,7 @@ def test_partial_history_preserves_publication_state_and_failed_scene_diagnostic
         _set_result_id(
             write_golden_result_v2(tmp_path / "partial-result"),
             "history-partial",
-        )
+        ),
     )
     window = MainWindow()
     qtbot.addWidget(window)
