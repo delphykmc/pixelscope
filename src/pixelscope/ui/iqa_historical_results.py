@@ -7,7 +7,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from types import MethodType
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtCore import QObject, QSettings, Slot
 from PySide6.QtWidgets import (
@@ -202,7 +202,8 @@ class IqaProvenancePanel(QWidget):
 
     def _populate_v1(self, result: Result) -> None:
         self.status.setText(
-            "Result available · Historical schema v1 read-only · Native source inspection unavailable."
+            "Result available · Historical schema v1 read-only · "
+            "Native source inspection unavailable."
         )
         group = self._group("Result · historical schema v1 / read-only")
         self._fields(
@@ -274,9 +275,10 @@ class HistoricalIqaResultsController(QObject):
         self.workspace.pages.addTab(self.provenance, "Provenance")
         self.workspace.scene_requested.connect(self._scene_requested)
         recent = getattr(window, "recent_entries_controller", None)
-        self.file_menu = getattr(recent, "file_menu", None)
-        if not isinstance(self.file_menu, QMenu):
+        file_menu = getattr(recent, "file_menu", None)
+        if not isinstance(file_menu, QMenu):
             raise RuntimeError("Historical IQA Results requires the existing File menu")
+        self.file_menu: QMenu = file_menu
         self.recent_menu = QMenu("Open Recent IQA Results", self.file_menu)
         self.recent_menu.setStyleSheet(menu_style())
         self._install_menu()
@@ -296,7 +298,10 @@ class HistoricalIqaResultsController(QObject):
             pending = self._pending.get(generation)
             result = _loaded_result(value)
             if pending is not None and result is not None:
-                observed = IqaResultIdentity(str(result.result_id), int(result.schema_version))
+                observed = IqaResultIdentity(
+                    str(result.result_id),
+                    int(result.schema_version),
+                )
                 if pending.expected is not None and observed != pending.expected:
                     return VersionedResultLoadOutcome(
                         LoadStatus.INVALID,
@@ -314,7 +319,7 @@ class HistoricalIqaResultsController(QObject):
                         LoadStatus.INVALID,
                         reason=f"{_MAPPING_CHANGED}; reopen uses current mapping",
                     )
-            return self._original_present(value)
+            return cast(VersionedResultLoadOutcome, self._original_present(value))
 
         def open_result(_controller: Any, root: Path | str) -> int:
             return self._start_open(Path(root))
@@ -323,7 +328,10 @@ class HistoricalIqaResultsController(QObject):
             self.shutdown()
             self._original_shutdown()
 
-        self.result_controller._present_loaded_value = MethodType(present, self.result_controller)
+        self.result_controller._present_loaded_value = MethodType(
+            present,
+            self.result_controller,
+        )
         self.result_controller.open_result = MethodType(open_result, self.result_controller)
         self.result_controller.shutdown = MethodType(shutdown, self.result_controller)
 
@@ -360,6 +368,8 @@ class HistoricalIqaResultsController(QObject):
 
     def _install_inspect_observer(self) -> None:
         inspection = getattr(self.window, "iqa_scene_inspection_controller", None)
+        if inspection is None:
+            return
         original = getattr(inspection, "_set_status", None)
         if not callable(original):
             return
@@ -368,7 +378,7 @@ class HistoricalIqaResultsController(QObject):
             original(text)
             self.provenance.set_native_status(text)
 
-        inspection._set_status = MethodType(status, inspection)
+        setattr(inspection, "_set_status", MethodType(status, inspection))
 
     def _install_menu(self) -> None:
         actions = self.file_menu.actions()
