@@ -202,10 +202,10 @@ class IqaProvenancePanel(QWidget):
 
     def _populate_v1(self, result: Result) -> None:
         self.status.setText(
-            "Result available · Historical schema v1 read-only · "
+            "Result available · Historical / read-only schema v1 · "
             "Native source inspection unavailable."
         )
-        group = self._group("Result · historical schema v1 / read-only")
+        group = self._group("Result · historical / read-only schema v1")
         self._fields(
             group,
             (
@@ -270,6 +270,7 @@ class HistoricalIqaResultsController(QObject):
         self._resolve_generation = 0
         self._resolver: TaskWorker | None = None
         self._resolver_entry: RecentIqaResultEntry | None = None
+        self._job_open_context: tuple[Path, LogicalIqaResultLocator] | None = None
 
         self.provenance = IqaProvenancePanel(self.workspace)
         self.workspace.pages.addTab(self.provenance, "Provenance")
@@ -307,7 +308,8 @@ class HistoricalIqaResultsController(QObject):
                         LoadStatus.INVALID,
                         reason=(
                             "historical identity mismatch: expected "
-                            f"{pending.expected.result_id}/schema-v{pending.expected.schema_version}, "
+                            f"{pending.expected.result_id}/"
+                            f"schema-v{pending.expected.schema_version}, "
                             f"found {observed.result_id}/schema-v{observed.schema_version}"
                         ),
                     )
@@ -322,7 +324,11 @@ class HistoricalIqaResultsController(QObject):
             return cast(VersionedResultLoadOutcome, self._original_present(value))
 
         def open_result(_controller: Any, root: Path | str) -> int:
-            return self._start_open(Path(root))
+            root_path = Path(root)
+            job_context = self._job_open_context
+            if job_context is not None and job_context[0] == root_path:
+                return self._start_open(root_path, locator=job_context[1])
+            return self._start_open(root_path)
 
         def shutdown(_controller: Any) -> None:
             self.shutdown()
@@ -332,7 +338,10 @@ class HistoricalIqaResultsController(QObject):
             present,
             self.result_controller,
         )
-        self.result_controller.open_result = MethodType(open_result, self.result_controller)
+        self.result_controller.open_result = MethodType(
+            open_result,
+            self.result_controller,
+        )
         self.result_controller.shutdown = MethodType(shutdown, self.result_controller)
 
     def _install_job_observer(self) -> None:
@@ -349,16 +358,15 @@ class HistoricalIqaResultsController(QObject):
                 original(job_id)
                 return
             reference = job.result_reference
-            self._start_open(
-                job.result_path,
-                locator=LogicalIqaResultLocator(
-                    reference.storage_root_id,
-                    reference.relative_path,
-                ),
+            locator = LogicalIqaResultLocator(
+                reference.storage_root_id,
+                reference.relative_path,
             )
-            self.remote_controller.workspace.tabs.setCurrentWidget(
-                self.remote_controller.workspace.results_page
-            )
+            self._job_open_context = (job.result_path, locator)
+            try:
+                original(job_id)
+            finally:
+                self._job_open_context = None
 
         signal = self.remote_controller.workspace.open_result_requested
         with suppress(RuntimeError, TypeError):
@@ -645,6 +653,7 @@ class HistoricalIqaResultsController(QObject):
         self._resolve_generation += 1
         self._cancel_resolver()
         self._pending.clear()
+        self._job_open_context = None
 
     def _cancel_resolver(self) -> None:
         if self._resolver is not None:
