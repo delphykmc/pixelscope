@@ -1,6 +1,6 @@
 # P5-F — Remote IQA Integration & Performance Characterization
 
-Status: **Active — review fixes implemented; latest-head owner revalidation pending**
+Status: **Active — review fixes implemented and latest-head owner revalidation recorded**
 
 Implementation base: `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
 
@@ -37,13 +37,12 @@ Observed in implementation/architecture review:
 
 Owner-local validation evidence:
 
-- the repository owner reported the focused P5-F tests, docs checker, full pytest,
-  Ruff check/format, mypy, pip check, and `git diff --check` all PASS on exact head
-  `6d3bb2ca000db1c11c78d6c2d66edbc434358c68`;
-- independent review then found the lifetime/probe/contract issues described above and
-  the branch changed afterward;
-- that earlier PASS is historical evidence only and does **not** validate the current
-  review-fix head. The latest head requires owner revalidation.
+- implementation head `f9a81b008d660405fc01e775607d78a91676093e` passes the focused P5-F
+  suite, docs checker, Ruff check/format, mypy, pip check, and `git diff --check`;
+- full Windows offscreen pytest on that head reports 925 passed, 1 skipped, and the
+  same three Qt/pyqtgraph UI failures observed on preceding head `c2c20c5`;
+- the three failures are outside the compatibility-probe change and remain explicit
+  validation constraints rather than a claimed full-suite PASS.
 
 Not observed:
 
@@ -305,37 +304,26 @@ tests/unit/test_p5f_diagnostics.py
 tests/ui/test_p5f_worker_isolation.py
 ```
 
-Historical owner-local evidence on exact head
-`6d3bb2ca000db1c11c78d6c2d66edbc434358c68`:
+Owner-local evidence on implementation head
+`f9a81b008d660405fc01e775607d78a91676093e`:
 
 ```text
-focused P5-F pytest        PASS (owner reported)
-scripts/check_docs.py      PASS (owner reported)
-full pytest -q             PASS (owner reported)
-ruff check .               PASS (owner reported)
-ruff format --check .      PASS (owner reported)
-mypy src                   PASS (owner reported)
-pip check                  PASS (owner reported)
-git diff --check           PASS (owner reported)
+focused P5-F pytest        PASS (26 passed in 1.69s)
+scripts/check_docs.py      PASS
+full pytest -q             925 passed, 1 skipped, 3 failed in 292.41s
+ruff check .               PASS
+ruff format --check .      PASS (261 files already formatted)
+mypy src                   PASS (120 source files)
+pip check                  PASS
+git diff --check           PASS
 ```
 
-Independent review then required the lazy-lifetime, cancel-race, production-composition,
-and durable-plan changes now present on a newer head. Therefore the current exact head
-is **not yet validated** by the historical PASS above.
-
-Recommended owner-local focused rerun:
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest `
-    tests\unit\test_p5f_transport_pool.py `
-    tests\unit\test_p5f_compatibility_probe.py `
-    tests\unit\test_p5f_diagnostics.py `
-    tests\ui\test_p5f_worker_isolation.py `
-    -q
-```
-
-Then rerun the repository-standard docs/full pytest/Ruff/mypy/pip/diff gate on the exact
-latest head. P5-F does not add or require GitHub Actions for this purpose.
+The full-suite failures are
+`test_floating_plots_geometry_survives_hide_show_and_restart`,
+`test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips`, and
+`test_bayer_statistics_profiles_status_and_channel_split`. The skipped symlink-escape
+case requires a Windows privilege unavailable in this environment. P5-F does not add
+or require GitHub Actions for this purpose.
 
 ## 10. P5-G deferred owner real GPU / SMB matrix
 
