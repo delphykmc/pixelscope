@@ -63,6 +63,10 @@ Resident when required
 - Multiple variant bindings may intentionally reference the same concrete `source_id`.
   Those bindings retain separate IQA identities but share one canonical native Files
   document/source identity.
+- When multiple variant bindings share that one native source, P5-D exposes a bounded
+  **Shared-source spatial binding** selector. The selector changes which aliased
+  `variant_id` supplies the overlay and Block Inspector for that canonical native
+  document; it does not duplicate Files/source identity.
 
 ## 3. Portable source locator
 
@@ -144,21 +148,26 @@ After successful all-source verification only:
 - repeated variant bindings for one `source_id` collapse to one canonical native
   document while P5-D retains all corresponding `variant_id` aliases;
 - the verified unique native-source order becomes the requested Selected order;
-- Selected/current-page authority is established before the verified decoded arrays are
-  committed, so normal residency enforcement treats them as correctness-protected and
-  cannot evict/reload them from disk between verification and presentation;
-- any ordinary load started by canonical selection receives a newer load token and is
-  stale-dropped when the exact verified decoded generation is committed;
-- if an already-resident document's encoded SHA differs, the exact verified decoded
-  generation replaces it under the same document ID, its source generation advances,
-  dependent source-view caches are invalidated, and generation-keyed downstream caches
-  cannot mistake old pixels for the new source;
+- before any Selected/render transition, P5-D advances each canonical document load
+  token so an ordinary foreground/preload decode already in flight becomes stale;
+- P5-D then publishes the exact verified decoded `ImageDocument` under the canonical
+  document ID, records/touches that generation in the normal residency owner, and
+  updates the canonical Files item without presenting it yet;
+- if an already-resident or previously-evicted document carries a different prior
+  encoded SHA/content generation, the verified replacement advances source generation
+  and invalidates dependent source-view caches;
+- only after every verified unique-source generation is committed does P5-D call the
+  canonical `_select_document_ids()` path, so the first viewer/Statistics/Difference
+  observation already sees the verified generation;
+- canonical Selected/Current Comparison Page protection is therefore active before the
+  following eviction enforcement, preventing those displayed sources from being
+  evicted and reloaded from unverified disk state;
 - normal MainWindow Current Comparison Page, residency, preload, Difference, and native
   analysis ownership otherwise remains unchanged.
 
 P5-D does not maintain parallel source arrays after commit. Feature-local state keeps
-only result/Scene identity and the document-to-variant binding aliases needed for IQA
-presentation.
+only result/Scene identity, document-to-active-variant binding, and bounded alias lists
+needed for IQA presentation.
 
 ## 6. Return snapshot
 
@@ -211,24 +220,24 @@ remap.
 When Return is invalidated, IQA spatial presentation is cleared and the current local
 workspace—including any new Pick state—remains authoritative.
 
-## 8. IQA Reference versus local Primary
+## 8. IQA Reference, local Primary, and shared-source aliases
 
 These are independent concepts:
 
 - **Reference** selects the IQA comparison operand used by Results/spatial relative
   values;
-- **Primary** selects local viewer presentation/reference priority.
+- **Primary** selects local viewer presentation/reference priority;
+- **Shared-source spatial binding** selects which aliased result variant is painted and
+  inspected for a canonical native source shared by multiple variant slots.
 
 Changing Primary does not rewrite IQA Reference. Changing IQA Reference does not
-choose a Primary image.
+choose a Primary image. Changing the shared-source spatial binding does not duplicate
+or replace the canonical Files document.
 
 For spatial Relative mode the per-cell value is always raw target/reference orientation
-from schema-v2 semantics, not quality-oriented sign-flipped presentation.
-
-When several variant slots intentionally share one concrete `source_id`, one native
-viewer tile represents that concrete image while the result domain retains all variant
-aliases. Native source identity is not duplicated merely to manufacture one tile per
-variant binding.
+from schema-v2 semantics, not quality-oriented sign-flipped presentation. If aliases
+A/B share one concrete source, A and B remain separately reachable as target bindings;
+choosing B makes the overlay and Block Inspector consume B's schema-v2 spatial field.
 
 ## 9. Spatial numerical contract
 
@@ -322,9 +331,10 @@ Spatial visualization uses vector `QGraphicsItem` polygons attached to the exist
 It must not allocate a source-resolution heatmap/alpha bitmap. Feature memory scales
 with grid-cell count and the canonical lazy grid artifact, not with image pixel count.
 
-P5-D does not add source-residency protection solely for overlay ownership. Existing
-Current Comparison Page/viewer protection remains authoritative. The verified decoded
-generation is committed only after those canonical page protections are active.
+P5-D does not add source-residency protection solely for overlay ownership. Exact
+verified decoded generations are published to canonical document/residency state before
+Selected/render; then canonical Current Comparison Page protection is established
+before eviction enforcement.
 
 ## 12. Block Inspector
 
@@ -332,7 +342,7 @@ Hover/click may expose bounded per-cell data:
 
 - Scene ID;
 - attribute ID;
-- variant/source ID;
+- active aliased variant/source ID;
 - row/column;
 - source validity;
 - W/S1/S2/valid_count;
@@ -343,8 +353,9 @@ Hover/click may expose bounded per-cell data:
 - analysis bounds;
 - mapped source polygon.
 
-This is diagnostic/presentation information derived from published schema-v2 data. It
-never writes measurements back to the result.
+For a shared native source, the Shared-source spatial binding selector determines which
+aliased `variant_id` is passed to both overlay painting and Block Inspector hit/detail
+lookup. This is diagnostic/presentation state only and never mutates result data.
 
 ## 13. Async/stale-result rules
 
@@ -384,6 +395,7 @@ portable locators. Required scenarios include:
 - invalid source/pair cells;
 - an already-Registered resident source whose disk bytes changed;
 - repeated variant bindings to one concrete `source_id`;
+- switching the active spatial alias while keeping one Files/native document;
 - P5-C/P5-D BMP/JPEG header-probe parity;
 - root-mapping changes while verification is pending.
 
@@ -399,6 +411,8 @@ Focused tests must cover at least:
 - missing/moved/hash/dimension failure;
 - already-Registered stale-resident replacement;
 - repeated `source_id` multi-variant collapse without losing variant aliases;
+- shared-source alias switching changing overlay and Block Inspector target while Files
+  identity remains one document;
 - distinct source identities aliasing one locator rejection;
 - >6-variant non-truncation;
 - Absolute `S1/W` and invalid-cell handling;
@@ -423,10 +437,11 @@ Repository gate on the exact review head:
 .\.venv\Scripts\python.exe -m pytest `
     tests\unit\test_p5d_scene_inspection.py `
     tests\unit\test_p5d_source_locator_identity.py `
-    tests\unit\test_p5d_review_closeout.py `
+    tests\unit\test_p5d_review_closeout_unit.py `
     tests\ui\test_p5d_viewer_linked_inspection.py `
     tests\ui\test_p5d_stale_inspection.py `
     tests\ui\test_p5d_review_closeout.py `
+    tests\ui\test_p5d_alias_spatial_binding.py `
     -q
 
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -449,8 +464,9 @@ sources:
 2. verify Inspect disabled/rejected for missing locator/root, changed source, and
    >6-variant Scene;
 3. inspect a valid 2–6-binding Scene and confirm unique-source order/reuse;
-4. inspect a Scene where two variants intentionally share one `source_id` and confirm
-   one Files/native source is used while result variant identities remain available;
+4. inspect a Scene where two variants intentionally share one `source_id`; confirm one
+   Files/native source is used, then switch Shared-source spatial binding A/B and verify
+   overlay plus Block Inspector follow the chosen alias;
 5. replace bytes at an already-Registered resident source path and confirm Inspect shows
    the published/verified pixels rather than the old resident decode;
 6. navigate to another IQA Scene and confirm the original Return target remains;
