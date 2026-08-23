@@ -102,6 +102,23 @@ def test_probe_cancel_is_single_bounded_operation() -> None:
     assert trace.terminal_state == "cancelled"
 
 
+def test_probe_reports_status_limit_without_claiming_terminal_success() -> None:
+    client = _ScriptedClient([JobState.PREPARING, JobState.EXTRACTING])
+
+    trace = run_iqa_compatibility_probe(
+        client,
+        _request(),
+        max_status_requests=2,
+    )
+
+    assert client.create_calls == 1
+    assert client.status_calls == 2
+    assert client.result_calls == 0
+    assert trace.terminal_state is None
+    assert trace.error_kind == "status_limit"
+    assert trace.error_message == "status request limit reached before terminal state"
+
+
 def test_probe_records_classified_transport_error_without_retrying_create() -> None:
     class FailingClient(_ScriptedClient):
         def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
