@@ -133,7 +133,11 @@ def run_iqa_compatibility_probe(
 
         return _trace(job_id, states, operations, observed_state, reference, None)
     except IqaClientError as error:
-        terminal = observed_state if observed_state is not None and observed_state.terminal else None
+        terminal = (
+            observed_state
+            if observed_state is not None and observed_state.terminal
+            else None
+        )
         return _trace(job_id, states, operations, terminal, reference, error)
 
 
