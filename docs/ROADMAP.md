@@ -259,13 +259,17 @@ Results browsing mutate local comparison state.
   may not claim one physical locator.
 - A Scene with more than six variant bindings is not silently truncated; native Inspect
   is unavailable while result browsing remains available.
-- Successful Inspect calls the existing registration and Selected/current-page
-  workflow. Already-Registered paths are reused. Selected/current-page protection is
-  established before exact verified decoded generations are committed, so residency
-  eviction cannot force an unverified disk reload between verification and
-  presentation.
-- Replacing stale resident bytes advances source generation and invalidates dependent
-  source-view caches while retaining the canonical document ID.
+- Successful Inspect reuses/registers canonical Files paths first, advances canonical
+  load tokens, and publishes every exact verified decoded generation into the normal
+  document/residency owner **before** any Selected/render transition. Only after all
+  unique sources hold those verified generations does the canonical
+  Selected/current-page workflow present them; normal eviction enforcement follows
+  after current-page protection exists.
+- Replacing stale resident or previously evicted bytes advances source generation and
+  invalidates dependent source-view caches while retaining the canonical document ID.
+- When multiple variant bindings share one native source, a bounded
+  **Shared-source spatial binding** selector keeps each aliased `variant_id` reachable
+  by overlay and Block Inspector without duplicating Files/native identity.
 - First successful Inspect captures one transient Return snapshot containing Selected
   order, Comparison Page anchor, applicable Active/Primary, and layout.
 - Linked Scene changes replace the inspected Scene while retaining the first Return
@@ -306,14 +310,14 @@ head:
 2. repository Ruff check and formatter check pass;
 3. `mypy src`, docs checker, `pip check`, and diff check pass;
 4. owner Windows manual validation covers exact decoded source identity, stale resident
-   replacement, repeated-source variant aliases, source mapping/hash failures,
-   Inspect/Return/Pick behavior, root-remap stale-drop, linked Scene navigation,
-   Reference/Primary independence, spatial alignment, Difference/Gain/ROI/Line
-   interaction, and close/recreate behavior;
+   replacement, repeated-source variant aliases including active spatial alias
+   switching, source mapping/hash failures, Inspect/Return/Pick behavior, root-remap
+   stale-drop, linked Scene navigation, Reference/Primary independence, spatial
+   alignment, Difference/Gain/ROI/Line interaction, and close/recreate behavior;
 5. independent whole-PR latest-head review finds no merge blocker;
 6. owner approves merge.
 
-No P5-D PASS is inferred from the P5-C validation record.
+No P5-D PASS is inferred from the P5-C validation record or an older P5-D head.
 
 ## P5-E — Historical Result Workflow — Planned
 
