@@ -184,8 +184,8 @@ P5-0
 | 3 | P5-B IQA Workspace & Local Result Exploration | Complete — PR #38 |
 | 4 | P5-C Submission & Shared Storage | **Complete — PR #42** |
 | 5 | P5-D Viewer-linked Scene Inspection | **Complete — PR #43 · `b086443d188eb9daae4bbf4f0faab3ff1d114f93`** |
-| 6 | P5-E Historical Result Workflow | **Active — Draft PR #44** |
-| 7 | P5-F Integration & Performance Hardening | Planned |
+| 6 | P5-E Historical Result Workflow | **Complete — PR #44 · `6a0a334d61a7495b9c3433edfcbd537c8df59468`** |
+| 7 | P5-F Integration & Performance Hardening | **Active** |
 
 ## P5-0 / P5-A / P5-A2 — Complete
 
@@ -311,7 +311,7 @@ PR #43 merged as
 manual closeout, and independent review gates were completed. That evidence remains
 historical P5-D evidence and is not inferred as P5-E validation.
 
-## P5-E — Historical Result Workflow — Active
+## P5-E — Historical Result Workflow — Complete
 
 P5-E extends the canonical P5-B result-open path with bounded historical discovery and
 passive provenance while preserving P5-C logical storage and P5-D explicit Inspect.
@@ -319,7 +319,7 @@ passive provenance while preserving P5-C logical storage and P5-D explicit Inspe
 Focused contract:
 [`docs/P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
 
-Current scope:
+Delivered scope:
 
 - separate max-10 MRU **Recent IQA Results** observer metadata;
 - production logical Result locator `storage_root_id + relative_path`, resolved through
@@ -334,28 +334,35 @@ Current scope:
 - live Provenance refresh after Remote IQA root mapping changes;
 - Session v1 and P4-C Recent Images/Folders/Sessions remain unchanged.
 
-P5-E remains **Active** until exact-head validation, owner Windows manual A–G,
-independent latest-head re-review, and owner merge approval are complete.
+P5-E merged as PR #44 at
+`main@6a0a334d61a7495b9c3433edfcbd537c8df59468`. Its validation evidence is historical
+P5-E evidence and is not inferred as P5-F validation.
 
-## P5-F — Integration & Performance Hardening — Planned
+## P5-F — Integration & Performance Hardening — Active
 
-Validate the composed workflow against the real external service and realistic data:
+P5-F validates the composed workflow against the real external service and realistic
+data and applies only measurement-backed bounded hardening:
 
 - actual server adapter/protocol compatibility;
 - SMB/network bandwidth and grid-loading behavior;
-- bounded grid cache/preload tuning;
+- Result/Reference/Inspect worker contention and ownership;
+- HTTP client lifetime, polling, retry, and connection reuse;
 - reference-switch and native Inspect latency;
 - batch/job stress and failure/cancellation cases;
 - stale callbacks and close/recreate safety;
 - proof remote batch membership does not become local source/residency authority;
 - optional detail artifact characterization;
-- P5 closure documentation.
+- P5 closure documentation preparation.
+
+No grid cache, speculative preload, new worker pool, retry expansion, or other
+optimization is introduced merely because it is plausible. Measure first; retain only
+demonstrated bounded improvements.
 
 No fixed wall-clock number is a correctness gate. Correctness gates remain stable
 versioned identity/math/geometry, bounded ownership, no duplicate work, stale-result
 rejection, and teardown safety.
 
-# P6 — Identity, Access & Remote Operations — Planned
+# P6 — Identity, Access & Remote Operations — Planned / next after P5 closure
 
 - Login / SSO;
 - token and credential lifecycle;

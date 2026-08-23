@@ -1,9 +1,9 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — **P5-E Historical Result Workflow / Draft PR #44**
+Status: Active — **P5-F Integration & Performance Hardening**
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
 Last updated: 2026-08-23
-Current merged main: `b086443d188eb9daae4bbf4f0faab3ff1d114f93`
+Current merged main: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
 
 Authoritative P5 documents:
 
@@ -13,8 +13,10 @@ Authoritative P5 documents:
   [`docs/REMOTE_IQA_V2_SPEC.md`](../../REMOTE_IQA_V2_SPEC.md)
 - completed P5-D viewer-linked inspection contract:
   [`docs/P5D_VIEWER_INSPECTION.md`](../../P5D_VIEWER_INSPECTION.md)
-- active P5-E historical-result contract:
+- completed P5-E historical-result contract:
   [`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md)
+- P5-F integration characterization:
+  [`docs/P5F_INTEGRATION_CHARACTERIZATION.md`](../../P5F_INTEGRATION_CHARACTERIZATION.md)
 - historical schema-v1 compatibility:
   [`docs/REMOTE_IQA_V1_SPEC.md`](../../REMOTE_IQA_V1_SPEC.md)
 - current repository snapshot:
@@ -33,8 +35,8 @@ P5 remains an orchestrated multi-PR program.
 - **Independent reviewers** inspect the latest full PR head without modifying the branch.
 - **Repository owner** runs requested local Windows validation and approves merge.
 
-Observed evidence and planned validation remain separate. A PASS from P5-C/P5-D or an
-older P5-E head is not validation of the latest P5-E head.
+Observed evidence and planned validation remain separate. A PASS from P5-C/P5-D/P5-E
+or an older P5-F head is not validation of the latest P5-F head.
 
 ## Product flow
 
@@ -83,12 +85,13 @@ Resident when required
 
 `Analysis Working Set = Current Comparison Page`.
 
-P5-E must not create another authority for Files/Selected/Current Comparison Page,
+P5-F must not create another authority for Files/Selected/Current Comparison Page,
 source residency/protection/preload, Difference/cache, Display Gain, native analysis,
 or Session v1.
 
 The canonical Result path remains P5-B with P5-A2/v1 reader dispatch. P5-D remains the
-only explicit native source verification/Inspect bridge.
+only explicit native source verification/Inspect bridge. P5-E remains the historical
+locator/identity/provenance authority.
 
 ## Completed P5 baseline
 
@@ -100,11 +103,12 @@ only explicit native source verification/Inspect bridge.
 | P5-A2 Stage 2 | Complete — PR #40 | executable schema-v2 reader/math/artifacts |
 | P5-B | Complete — PR #38 | canonical local IQA Results workspace |
 | P5-C | Complete — PR #42 | submission/shared storage/jobs/PARTIAL |
-| P5-D | **Complete — PR #43** | verified viewer-linked Scene Inspect/Return |
+| P5-D | Complete — PR #43 | verified viewer-linked Scene Inspect/Return |
+| P5-E | **Complete — PR #44** | historical locator/identity/Provenance/result-only mode |
 
 P5-B merged at `a44978db783ebcecb0d55f8abb52b583e0fdc47c`.
-P5-D merged as current
-`main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`.
+P5-D merged at `b086443d188eb9daae4bbf4f0faab3ff1d114f93`.
+P5-E merged as current `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`.
 
 ## Current executable schema-v2 contract
 
@@ -119,251 +123,153 @@ Optional `storage_root_id` is source-location metadata only and is excluded from
 immutable source equality and measurement-context identity. Schema v1 remains explicit
 read-only compatibility.
 
-## P5-E scope
+## P5-E completed scope
 
-### E1 — Historical Result Locator
+P5-E delivered the historical-result layer without changing canonical Result or source
+authority:
 
-Implement Qt-free typed locator models:
+- typed logical/local historical locators;
+- independent max-10 Recent IQA Results observer metadata;
+- `result_id + schema_version` historical identity gate before presentation;
+- current-mapping logical root resolution and remap handling;
+- result-only mode when native Scene sources are unavailable;
+- passive Provenance in the existing Results workspace;
+- explicit schema-v1 historical/read-only treatment;
+- stale resolver rejection across File/Jobs/Recent open intents;
+- Session v1 unchanged.
 
-```text
-LogicalIqaResultLocator(storage_root_id, relative_path)
-LocalIqaResultLocator(absolute_path)
-```
+The detailed merged P5-E authority remains in
+[`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md). Its validation is
+historical evidence only and is not carried forward as P5-F PASS.
 
-Rules:
+## P5-F active scope
 
-- logical locator is the portable production form;
-- current machine mapping resolves only at reopen time;
-- P5-C `resolve_result_reference()` remains the containment/availability authority;
-- Jobs retain the server-published logical Result locator;
-- a successful manual schema-v2 open may become logical history only when the proposed
-  most-specific logical locator resolves through P5-C to the same canonical opened
-  Result directory;
-- lexical root membership alone must not manufacture a portable locator for a
-  symlink/junction escape or otherwise unreproducible path;
-- manual/out-of-root, unreproducible v2, and v1 Results may retain a local absolute
-  locator;
-- mapped drive/UNC path is never stored as the portable logical identity.
-
-### E2 — Recent IQA Results
-
-Add separate bounded observer persistence:
+P5-F is a final integration/characterization/hardening slice, not a new Remote IQA
+architecture phase. The governing loop is:
 
 ```text
-key = recent/iqa_results
-payload_version = 1
-limit = 10
-ordering = MRU
-dedup = locator identity
+existing behavior
+    ↓
+instrument / characterize
+    ↓
+identify actual bottleneck or duplicate work
+    ↓
+minimal bounded correction
+    ↓
+measure again
 ```
 
-Required behavior:
+No fixed wall-clock value is a correctness contract.
 
-- malformed/future individual records are skipped;
-- oversized/malformed containers do not become application authority;
-- successful File, Jobs, and Recent opens record;
-- failed/unsupported/corrupt/identity-mismatch opens do not record;
-- Recent reopen moves the same locator to MRU;
-- missing/offline/remapped entries remain until explicit Remove/Clear;
-- P4-C Recent Images/Folders/Sessions remain unchanged;
-- ApplicationSettings schema remains v6.
+### P5-F1 — Real GPU Server Compatibility
 
-### E3 — Historical identity and Result-only mode
+- validate actual external GPU API/result writer compatibility against the frozen P5-C
+  transport and schema-v2 publication contracts;
+- reuse/extend localhost/debug harnesses for deterministic client-side compatibility
+  evidence;
+- record transport-compatible differences additively;
+- record contract contradictions as external integration blockers rather than silently
+  normalizing source order, logical storage, publication, geometry, or numerical meaning.
 
-A successful open records observed:
+### P5-F2 — SMB / Network / Grid Performance Characterization
 
-```text
-result_id + schema_version
-```
+Characterize separately:
 
-Recent reopen validates that identity after the canonical reader succeeds but before
-Results presentation changes. Mismatch keeps the prior valid Result and the existing
-history entry.
+- preflight/header/hash/shared-root/staging/create;
+- status polling/result-reference recovery;
+- historical logical resolution/manifest/summary/initial presentation;
+- first/repeated Reference preparation and Scene-grid loading;
+- source resolution/hash/read/decode/verified commit;
+- spatial Scene-grid load/overlay preparation.
 
-No new whole-result digest is introduced.
+Prefer bounded monotonic timing, counts, byte counts, cache hits/misses, and worker
+activity. Do not retain source arrays, whole HTTP bodies, or unbounded per-Scene history.
 
-Result open remains summary-first and does not stat/hash/decode every native source.
-Missing/offline/unmapped source files do not make a structurally valid server Result
-corrupt. Native source verification remains explicit P5-D Inspect authority.
+### P5-F3 — Measured bounded optimization
 
-### E4 — Provenance and historical compatibility
+Only measured findings may justify changes such as:
 
-Add one passive Provenance page inside the existing Results workspace.
+- isolating Remote IQA blocking work from the local Statistics/Difference analysis pool;
+- reusing the existing HTTP client/session lifetime when the current composition defeats
+  connection pooling;
+- bounded read retry/backoff where transient behavior demonstrates benefit;
+- a byte-budgeted current-result raw-grid cache or at-most-one adjacent preload only if
+  repeated grid I/O is materially harmful.
 
-Schema v2 displays published:
+A raw-grid cache and speculative grid preload are not default deliverables.
 
-- Result ID/schema/publication state;
-- selected Scene measurement-context provenance;
-- source IDs;
-- optional logical storage root;
-- relative path;
-- SHA-256;
-- dimensions;
-- current local native-inspection status.
+### P5-F4 — Stress / Failure / Lifecycle Hardening
 
-The existing P5-C/P5-D live `settings_changed()` chain remains authoritative for
-machine-local root mappings. P5-E observes the completed chain and refreshes Provenance
-immediately after root add/remove/remap without Result reopen or Scene reselection.
+Exercise deterministic representative workloads for 1, ~10, ~50, ~150, and around
+~300 compared sources where practical without committed huge binaries. Structural
+assertions cover bounded worker/memory/I/O ownership rather than brittle timing gates.
 
-PARTIAL remains PARTIAL and existing failed/cancelled Scene diagnostics remain intact.
+Cover COMPLETE/PARTIAL/failure/cancel, transient network/storage failures, rapid Result
+and Scene intents, close/recreate, local workflow coexistence, root remap, hash mismatch,
+and stale callback rejection.
 
-Schema v1 is explicitly historical/read-only. P5-E must not synthesize v2 root,
-measurement-context, N-way, or absolute-source metadata.
+### P5-F5 — Optional Detail Characterization + P5 closure preparation
 
-### E5 — stale work / lifecycle / integration
+Optional `detail_artifacts[]` stay opaque/deferred unless a stable typed server contract
+and clear product need are observed. Filename conventions do not create a contract.
 
-- install P5-E after P5-D so every new Result open consumes P5-D teardown;
-- use a P5-E resolver generation for the asynchronous logical-Recent stage that occurs
-  before the canonical P5-B loader;
-- any newer File/Jobs/Recent Result-open intent invalidates feature-local logical
-  resolution before it can later start a canonical open;
-- cancellation alone is insufficient; stale resolver callbacks must fail the P5-E
-  generation guard even if their worker completes later;
-- after resolution, rely on P5-B Result generation for canonical A→B stale callback
-  rejection;
-- keep one pending P5-E context for the latest Result generation;
-- logical Recent resolution captures current P5-C mapping revision;
-- remap during resolution/open cannot publish a path resolved under the old mapping;
-- close invalidates/cancels feature-local locator resolution and clears pending context;
-- close never cancels durable remote jobs;
-- Session v1 remains unchanged and carries no IQA reference/state.
+P5-F prepares the P5 completion summary but remains Active while its PR is unmerged.
+After P5-F merge, a tiny docs-only closeout records the actual merge SHA, marks P5
+Complete, archives the active plan, and makes P6 the active program.
 
-## Implementation status on Draft PR #44
+## Automated validation direction
 
-Implemented on the branch:
+Focused P5-F automated coverage must prioritize deterministic structure and lifecycle:
 
-- ROADMAP transition P5-D Complete / P5-E Active / P5-F Planned;
-- P5-F1..P5-F5 planning split;
-- typed locator/result-identity/Recent domain;
-- independent `recent/iqa_results` repository;
-- canonical File/Jobs/Recent open coordinator;
-- pre-presentation historical identity gate;
-- logical-root revision gate;
-- passive Results Provenance page;
-- explicit v1 historical/read-only presentation;
-- P5-E resolver-generation lifecycle hardening across pre-loader Recent resolution and
-  newer File/Jobs/Recent opens;
-- live Provenance refresh after the existing P5-C/P5-D settings-change chain;
-- authoritative same-directory validation before manual v2 logical-history promotion;
-- focused lifecycle/canonicalization review regressions;
-- unrelated top-level durable documentation restored to the merged-main content rather
-  than condensed inside this feature PR;
-- focused P5-E contract document.
+1. real-contract HTTP JSON fixture compatibility;
+2. endpoint/state/result-reference regression and no blind create retry;
+3. one poll in flight and HTTP client/session lifetime;
+4. slow-filesystem/SMB-like contention and Remote IQA/local-analysis coexistence;
+5. summary-first Result open and Reference/grid I/O counts;
+6. repeated Reference/grid access behavior;
+7. source verification and staging streaming/bounds;
+8. representative synthetic Scene counts;
+9. COMPLETE/PARTIAL/failure/cancel/recovery;
+10. Recent remap/offline/identity and Inspect/hash/root-remap;
+11. stale callbacks, close/recreate, and no batch-owned residency;
+12. v1 compatibility and full P5-B/C/D/E regressions.
 
-Still required before P5-E Complete:
+Performance evidence is observational unless a specific regression is later frozen.
 
-- exact-head automated/static validation after review fixes;
-- owner Windows manual A–G validation;
-- independent latest-head whole-PR re-review;
-- owner merge approval.
+## Owner manual / real-server gate
 
-## Focused automated validation
+The implementation agent must not fabricate a live GPU/SMB PASS. Real-server owner
+validation records client head SHA, server build/algorithm identifiers when available,
+Scene/source counts, storage topology, and observed timings for Current Pair, Folder
+Pair, PARTIAL, Cancel, Historical, SMB/staging, and concurrent local use.
 
-Run on the exact PR head:
+The repository-standard Windows validation remains:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest `
-    tests\unit\test_p5e_iqa_history.py `
-    tests\ui\test_p5e_historical_results.py `
-    tests\ui\test_p5e_review_regressions.py `
-    tests\ui\test_p5b_iqa_workspace.py `
-    tests\ui\test_p5c_remote_iqa.py `
-    tests\ui\test_p5c_result_mapping.py `
-    tests\ui\test_p5c_debug_replay_ui.py `
-    tests\ui\test_p5d_viewer_linked_inspection.py `
-    tests\ui\test_p5d_stale_inspection.py `
-    tests\ui\test_p5d_review_closeout.py `
-    -q
-
-.\.venv\Scripts\python.exe -m ruff check `
-    src\pixelscope\app\application.py `
-    src\pixelscope\app\iqa_history.py `
-    src\pixelscope\remote\iqa_history.py `
-    src\pixelscope\ui\iqa_historical_results.py `
-    src\pixelscope\ui\iqa_historical_results_lifecycle.py `
-    tests\unit\test_p5e_iqa_history.py `
-    tests\ui\test_p5e_historical_results.py `
-    tests\ui\test_p5e_review_regressions.py
-
-.\.venv\Scripts\python.exe -m ruff format --check `
-    src\pixelscope\app\application.py `
-    src\pixelscope\app\iqa_history.py `
-    src\pixelscope\remote\iqa_history.py `
-    src\pixelscope\ui\iqa_historical_results.py `
-    src\pixelscope\ui\iqa_historical_results_lifecycle.py `
-    tests\unit\test_p5e_iqa_history.py `
-    tests\ui\test_p5e_historical_results.py `
-    tests\ui\test_p5e_review_regressions.py
-
-.\.venv\Scripts\python.exe -m mypy src
 .\.venv\Scripts\python.exe scripts\check_docs.py
-.\.venv\Scripts\python.exe -m pytest tests\unit\test_docs_contract.py -q
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m mypy src
 .\.venv\Scripts\python.exe -m pip check
 git diff --check
 ```
 
-After focused validation, run the repository-standard full suite before merge.
+Only observed results may be recorded as PASS.
 
-Owner Windows automated/static validation was reported PASS on pre-review Draft head
-`dd1ebfb8aa4846233de854fcd3cb313f069161e9`. Independent review then moved the branch
-through additional fixes, so that PASS is historical evidence only. No PASS is recorded
-for the post-review exact head until the commands above and the full suite are observed.
+## P5-F merge gate
 
-## Owner manual validation
+P5-F merge recommendation requires implementation completion, no blocking external
+protocol contradiction, deterministic localhost/mock regression PASS, exact-head full
+repository validation PASS, owner Windows real-server/manual validation, independent
+latest-head whole-PR PASS, no unresolved correctness/lifetime/resource blocker,
+truthful characterization docs, and owner approval.
 
-Use the A–G checklist in
-[`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md):
+Do not mark P5-F or P5 Complete while the P5-F PR is unmerged.
 
-A. Recent / MRU / Clear
-B. logical-root remap + live Provenance mapping refresh
-C. offline / missing / replacement identity
-D. Result-only / native source failure
-E. Provenance / schema v1 / PARTIAL
-F. lifecycle / P5-D teardown / delayed logical Recent → newer File/Jobs / rapid canonical
-   A→B / close-recreate
-G. local-workspace authority
+## P6 boundary
 
-Record exact-head observations in PR #44.
-
-## Independent review gate
-
-After implementation, tests, docs, and owner manual validation are updated:
-
-1. re-open exact PR #44 state;
-2. confirm base is still the intended latest `main` or rebase deliberately if main moved;
-3. review the whole PR, not only the newest commit;
-4. inspect P5-B/P5-C/P5-D compatibility and Session/P4 Recent boundaries;
-5. resolve all merge-blocking review findings;
-6. rerun affected validation after any correction;
-7. keep the PR Draft until all merge gates are complete.
-
-## P5-F handoff — Planned
-
-P5-E does not implement P5-F. The next slice is explicitly split into:
-
-### P5-F1 — Real GPU Server Compatibility
-
-- validate actual external GPU API/result writer compatibility;
-- reconcile protocol edge cases without changing frozen Result/source identities ad hoc.
-
-### P5-F2 — SMB / Network / Grid Performance Characterization
-
-- characterize shared-storage filesystem calls, bandwidth, latency, and failure behavior;
-- measure Result open, Reference preparation, historical reopen, and native Inspect.
-
-### P5-F3 — Cache / HTTP / Retry / Backoff Tuning
-
-- tune HTTP session reuse, polling/backoff, and result-reference retry from measurements;
-- add bounded grid cache/preload only if measurements justify it.
-
-### P5-F4 — Stress / Failure / Lifecycle Hardening
-
-- large jobs/batches and COMPLETE/PARTIAL/failure/cancel cases;
-- disconnect/reconnect, stale callbacks, rapid reopen/Inspect, close/recreate;
-- prove remote batch membership never becomes local source/residency authority.
-
-### P5-F5 — Optional Detail Characterization + P5 Closure
-
-- characterize optional detail artifacts and decide whether typed detail support is
-  justified;
-- close P5 documentation and archive this execution plan only after P5-F is complete.
+P6 **Identity, Access & Remote Operations** is the next major program after P5 closure.
+P5-F does not implement authentication/SSO, credential lifecycle, permission policy,
+audit, or result administration merely because a production server may require those
+later.
