@@ -533,12 +533,19 @@ source lifecycle. This prevents an already-Registered stale resident decode or a
 verification-to-reload file replacement from displaying pixels different from the
 published result identity.
 
-After all bindings verify, PixelScope reuses/registers canonical Files documents,
-selects the verified unique native sources through the ordinary Selected/current-page
-path, and commits the exact verified decoded generations while current-page residency
-protection is active. If several variant slots intentionally share one concrete
-`source_id`, they retain separate IQA variant identities but use one native Files/viewer
-source document rather than manufacturing duplicate local image identity.
+After all bindings verify, PixelScope reuses/registers canonical Files documents and
+advances their ordinary load tokens. It publishes/account/touches every exact verified
+decoded generation under the canonical document IDs **before** Selected/render can
+make the Scene visible. Only after all unique sources hold those verified generations
+does PixelScope enter the ordinary Selected/current-page path; normal eviction
+enforcement follows after current-page protection exists.
+
+If several variant slots intentionally share one concrete `source_id`, they retain
+separate IQA variant identities but use one native Files/viewer source document rather
+than manufacturing duplicate local image identity. A bounded **Shared-source spatial
+binding** selector chooses which aliased `variant_id` drives that document's spatial
+overlay and Block Inspector, so every schema-valid alias remains inspectable without
+creating another Files/source identity.
 
 The first successful Inspect captures a transient Return point containing prior
 Selected order, page anchor, applicable Active/Primary, and layout. Linked IQA Scene
@@ -631,8 +638,9 @@ explicit Difference dependencies, and non-reloadable sources are protected.
 Selected/Picked-but-off-page resident sources may therefore be evicted under the P2
 budget and normally reload when their page is revisited. Session persistence, export,
 and passive Remote IQA tracking do not introduce Selected-wide protection. Explicit
-P5-D Inspect uses the existing Current Comparison Page protection while committing its
-verified decoded generations; it does not add another residency owner.
+P5-D Inspect publishes its exact verified decoded generations before Selected/render,
+then relies on the existing Current Comparison Page protection before the following
+eviction enforcement; it does not add another residency owner.
 
 **Preload Next Folder Position** remains exactly `+1`, one valid one-to-six Selected
 Folder Position deep, on a dedicated max-one worker; an exact matching physically
@@ -808,10 +816,10 @@ PR #42 are merged. Current merged main is
 
 P5-D **Viewer-linked Scene Inspection** is Active in Draft PR #43. The implementation
 adds explicit hash-bound native Inspect/Return, source-locator/root verification,
-repeated-source variant aliasing, viewer-linked spatial grids, Block Inspector, and
-stale-intent/root-remap guards. Exact-head focused/full validation, Windows manual
-validation, and independent latest-head re-review remain required before P5-D can be
-marked Complete or merged.
+repeated-source variant aliasing with active spatial alias selection, viewer-linked
+spatial grids, Block Inspector, and stale-intent/root-remap guards. Exact-head
+focused/full validation, Windows manual validation, and independent latest-head
+re-review remain required before P5-D can be marked Complete or merged.
 
 P5-E then adds historical/recent result productivity, and P5-F owns real external-
 server/shared-storage integration and measured performance/lifetime hardening. P6 owns
