@@ -60,7 +60,7 @@ typed Recent Images/Folders/Sessions, Difference/source-curation lifecycle align
 focused analysis export, and workflow hardening.
 
 P4-F merged as PR #35 at
-`d1d1fbe8fc7ee855e5e037bcecc1278435e298`.
+`d1d1fbe8fc7ee81855e5e037bcecc1278435e298`.
 Completed plan:
 [`docs/exec-plans/completed/p4-workflow-session-productivity.md`](exec-plans/completed/p4-workflow-session-productivity.md).
 
