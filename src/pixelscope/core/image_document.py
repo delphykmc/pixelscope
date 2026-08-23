@@ -24,7 +24,7 @@ class ImageDocument:
     display_transform: DisplayTransform = field(default_factory=DisplayTransform)
     document_id: str = field(default_factory=lambda: str(uuid4()))
     preview: NDArray[np.uint8] | None = None
-    encoded_source_sha256: str | None = None
+    encoded_source_sha256: str | None = field(default=None, compare=False)
     statistics_cache: dict[tuple[Any, ...], Any] = field(default_factory=dict)
     histogram_cache: dict[tuple[Any, ...], Any] = field(default_factory=dict)
     evaluation_results: list[Any] = field(default_factory=list)
