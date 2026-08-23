@@ -116,7 +116,10 @@ class IqaSceneInspectionLifecycle(QObject):
         controller._sync_controls = MethodType(sync_controls, controller)
         controller.settings_changed = MethodType(settings_changed, controller)
 
-        if remote_controller is not None and self._original_remote_settings_changed is not None:
+        if (
+            remote_controller is not None
+            and self._original_remote_settings_changed is not None
+        ):
 
             def remote_settings_changed(_remote_controller: Any) -> None:
                 assert self._original_remote_settings_changed is not None
@@ -166,7 +169,8 @@ class IqaSceneInspectionLifecycle(QObject):
         row_layout.addWidget(label)
         row_layout.addWidget(combo, 1)
         layout.insertWidget(1, row)
-        combo.currentIndexChanged.connect(self._variant_binding_changed)
+        current_index_changed = getattr(combo, "currentIndexChanged")
+        current_index_changed.connect(self._variant_binding_changed)
         self.variant_binding_combo = combo
         self.controller.variant_binding_combo = combo
         self._refresh_variant_binding_control()
@@ -247,10 +251,14 @@ class IqaSceneInspectionLifecycle(QObject):
         self._cancel_inspect_worker()
         self.controller._inspect_generation += 1
         generation = self.controller._inspect_generation
-        self.controller._inspect_local_intent_generation = self.controller._local_intent_generation
+        self.controller._inspect_local_intent_generation = (
+            self.controller._local_intent_generation
+        )
         self._inspect_settings_revision = self._settings_revision
         self.controller._inspect_result_identity = (result.result_id, id(result))
-        self.controller._set_status(f"Verifying and decoding published sources for {scene_id}…")
+        self.controller._set_status(
+            f"Verifying and decoding published sources for {scene_id}…"
+        )
         verify_scene_sources = vars(inspection_module)["verify_scene_sources"]
         worker = TaskWorker(
             verify_scene_sources,
@@ -329,11 +337,15 @@ class IqaSceneInspectionLifecycle(QObject):
                 self._sync_controls()
                 return
             if decoded.encoded_source_sha256 != binding.source.sha256:
-                self.controller._set_status("Decoded source identity no longer matches the result")
+                self.controller._set_status(
+                    "Decoded source identity no longer matches the result"
+                )
                 self._sync_controls()
                 return
             if decoded.shape[:2] != (binding.source.height, binding.source.width):
-                self.controller._set_status("Decoded source dimensions no longer match the result")
+                self.controller._set_status(
+                    "Decoded source dimensions no longer match the result"
+                )
                 self._sync_controls()
                 return
 
@@ -414,7 +426,9 @@ class IqaSceneInspectionLifecycle(QObject):
 
     def _rollback_new_registrations(self, before_ids: set[str]) -> None:
         newly_registered = [
-            document_id for document_id in self.window.documents if document_id not in before_ids
+            document_id
+            for document_id in self.window.documents
+            if document_id not in before_ids
         ]
         if newly_registered:
             self.controller._original_remove_document_ids(newly_registered)
@@ -446,7 +460,9 @@ class IqaSceneInspectionLifecycle(QObject):
         if not bool(getattr(review, "active", False)):
             return
         self.controller._local_intent_generation += 1
-        self.controller._invalidate_return("Return invalidated by newer temporary Pick intent")
+        self.controller._invalidate_return(
+            "Return invalidated by newer temporary Pick intent"
+        )
         self._sync_controls()
 
     def _cancel_inspect_worker(self) -> None:
@@ -465,7 +481,9 @@ class IqaSceneInspectionLifecycle(QObject):
         )
         review = getattr(self.window, "review_selection_controller", None)
         picks_active = bool(getattr(review, "active", False))
-        self.controller.return_button.setEnabled(self.controller.return_valid and not picks_active)
+        self.controller.return_button.setEnabled(
+            self.controller.return_valid and not picks_active
+        )
         if picks_active and self.controller.return_valid:
             self.controller.return_button.setToolTip(
                 "Return is disabled while temporary Picks are active"
