@@ -76,7 +76,8 @@ files are ignored rather than interpreted as RAW.
 
 ## Configure and submit Remote IQA
 
-P5-C adds remote IQA submission to the existing IQA dock. The dock has three tabs:
+P5-C provides remote IQA submission in the existing IQA dock, and P5-D adds an
+explicit native Scene inspection step from Results. The dock has three tabs:
 
 ```text
 IQA
@@ -85,8 +86,9 @@ IQA
 └─ Results
 ```
 
-The remote workflow is separate from local Files/Selected analysis. Submitting a
-batch does not register or decode the whole batch into the local image workspace.
+Submitting or passively browsing a result remains separate from local Files/Selected
+analysis. Only explicit successful **Inspect in Viewer** crosses into the local image
+workspace.
 
 ### Configure Remote IQA
 
@@ -112,6 +114,11 @@ server path: /home/data/IQA
 PixelScope sends only the logical root plus relative path and integrity metadata.
 The Windows client path is machine-local configuration; the server physical path is
 not stored in PixelScope settings/result artifacts.
+
+Changing a shared-storage mapping is a live configuration change. If native Scene
+verification is running, PixelScope cancels/invalidates that pending Inspect attempt
+and recomputes Inspect availability using the newest root mapping. An old verification
+callback cannot later replace the local viewer.
 
 ### Submit Current Pair
 
@@ -260,11 +267,96 @@ the arithmetic mean of valid Scene comparison values.
 
 Use the attribute visibility controls to reduce the plotted set. The hierarchy is
 organized by attribute and Scene, and the Scene Trend supports hover/click selection.
-Selecting a Scene updates the Scene cards. These cards show published variant/source
-identity, relative path, hash, and related metadata only. They do **not** open those
-paths directly as native PixelScope source images. Logical-root resolution, source
-hash verification, native source Inspect, spatial overlay, and block inspection are
-later P5-D work.
+Selecting a Scene updates the Scene cards with published variant/source identity,
+logical relative path, hash, optional Root ID, and related metadata. Selecting a Scene
+alone is still passive and does not open native images or change Selected.
+
+### Inspect a Scene in Viewer
+
+For a selected schema-v2 Scene, **Inspect in Viewer** is the explicit P5-D transition
+from passive result exploration to native PixelScope viewing.
+
+Inspect is available only when:
+
+- the result is schema v2;
+- a Scene is selected;
+- no temporary **Pick** baseline is currently active;
+- the Scene contains at most six published variant bindings;
+- every source binding provides `storage_root_id` and its Root ID is configured on
+  this machine;
+- every required source remains an ordinary PNG/JPG/JPEG/BMP with the published
+  dimensions and SHA-256.
+
+Old schema-v2 artifacts that predate `storage_root_id` remain fully readable in
+Results, but native Inspect is unavailable because PixelScope does not guess which
+machine-local root should be used. A Scene with more than six variant bindings also
+remains result-browsable; PixelScope never truncates it to fit the viewer.
+
+When you click **Inspect in Viewer**, PixelScope verifies **all** required bindings
+before changing the local workspace. It resolves `storage_root_id + relative_path`
+through the current Remote IQA mappings and the same containment/header rules used by
+submission. Each unique native source is decoded from one encoded byte buffer, and the
+SHA-256 of that exact buffer must match the published source hash. The exact decoded
+object associated with that verified SHA is then committed to the normal PixelScope
+Files/Selected/current-page lifecycle.
+
+This matters when a path was already Registered: if the resident image was decoded
+from older bytes at the same filename, Inspect replaces that resident generation with
+the verified published pixels instead of reusing stale memory. If the file changes or
+does not match during verification, Inspect fails without partially selecting a Scene.
+
+A schema-v2 Scene may intentionally use the same concrete `source_id` for several
+variant slots. PixelScope keeps those IQA variant bindings but shows/registers one
+canonical native image for that concrete source rather than creating duplicate Files
+entries. The Results workspace remains the place where all N-way variant identities and
+measurements are visible.
+
+After a successful Inspect:
+
+- the verified unique native sources become the canonical local Selected/current page;
+- already-Registered paths retain their existing document identity where possible;
+- normal source residency, Difference, Display Gain, ROI, Line Profile, Histogram,
+  Statistics, zoom/pan, and viewer semantics continue to use the existing local
+  authorities;
+- the **Spatial attribute** control can load the selected Scene grid;
+- Absolute spatial cells show valid `S1/W` values;
+- Relative power cells show raw target/reference dB and signed attributes show raw
+  target-minus-reference deltas;
+- invalid/pair-invalid cells remain invalid instead of being displayed as zero;
+- the overlay is vector/block based on the existing image viewer, not a second source
+  image or full-resolution heatmap;
+- Block Inspector reports the selected cell's validity, W/S1/S2/count, mean,
+  reference/pair-relative information, and mapped source geometry.
+
+The IQA **Reference** and local **Primary** remain independent. Changing one does not
+rewrite the other.
+
+### Return from native IQA inspection
+
+The first successful Inspect captures a temporary Return target: previous Selected
+order, Comparison Page, applicable Active/Primary, and layout. If you move to another
+IQA Scene while still linked, PixelScope keeps the original pre-Inspect target.
+
+Use **Return** to restore it. Return is deliberately conservative: it is disabled or
+invalidated rather than overwriting newer user intent.
+
+The following newer local actions invalidate Return:
+
+- changing Selected;
+- removing/changing relevant Files sources;
+- choosing another layout;
+- choosing another Primary;
+- starting a new temporary Pick baseline after Inspect.
+
+A new Pick is **preserved**. P5-D does not clear that curation state in order to return
+to an older snapshot. Ordinary Active-image changes during inspection do not by
+themselves invalidate Return.
+
+Changing a Remote IQA Root ID mapping while source verification is still running also
+cancels/invalidate that pending verification and refreshes Inspect availability. This
+prevents a callback created under an old mapping from later changing the viewer.
+
+The Return snapshot is transient application state and is not added to Session v1.
 
 ### PARTIAL results
 
@@ -278,14 +370,15 @@ Partial result · 3 / 4 Scenes succeeded
 ```
 
 and lists failed/cancelled Scene diagnostics. The successful Scenes remain available
-for the same Absolute/Relative exploration as a COMPLETE result.
+for the same Absolute/Relative exploration and, when their source locators are valid,
+explicit native Inspect as a COMPLETE result.
 
 A zero-success job is Failed/Cancelled rather than a PARTIAL result. An all-success
 job is the normal Complete/Succeeded path.
 
 Historical schema-v1 results remain read-only compatibility. They expose the
 available two-source A/B comparison workflow and do not invent schema-v2 absolute
-measurements.
+measurements or P5-D source locators.
 
 The IQA dock uses the same **Float/Dock**, **Maximize/Restore**, and **Hide** title-bar
 behavior as Plots. **View > Reset Workspace Layout** clears its persisted floating
@@ -294,7 +387,8 @@ geometry, re-docks it on the right, and hides it with the rest of the workspace 
 Passive IQA result browsing and Jobs tracking do not change Files registration,
 logical Selected, Current Comparison Page, Active/Primary image state, Difference,
 Display Gain, source residency/preload, native analysis results, Session state, or
-temporary Picks.
+temporary Picks. Only explicit successful Inspect enters the canonical local image
+workflow.
 
 ### Development-only Remote IQA debug tools
 
@@ -436,7 +530,8 @@ A Session can store:
 Temporary Picks are not persisted. Session also does not save decoded image arrays,
 residency/LRU/preload state, workers/tokens/generations, calculated Statistics/
 Histogram/Line Profile results, Difference maps/cache/generated result image, or
-transient zoom/pan buffers.
+transient zoom/pan buffers. P5-D Return state and IQA source/variant aliases are also
+transient and are not added to Session v1.
 
 Use **File > Open Session...** to restore a Session. PixelScope validates and stages
 incoming identities before replacing the current logical workspace. It restores the
@@ -771,7 +866,8 @@ every visited off-page source. Pick membership also does not protect an off-page
 source. Off-page Selected/Picked source may be evicted under the P2 soft budget and
 normally reload when its page is revisited. Saving/opening a Session, exporting
 analysis, or tracking a Remote IQA job does not create Selected-wide residency
-protection.
+protection. Explicit P5-D Inspect uses the same Current Comparison Page protection for
+the exact verified decoded generation rather than creating another residency owner.
 
 **Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
 itself discard a valid generation-keyed Difference map. Keep Selection also does
@@ -798,7 +894,9 @@ required indication when they differ from current runtime values.
   staging for outside sources.
 
 Remote IQA storage paths are machine-local settings. They are not saved in Session v1
-and are not embedded as server physical paths in IQA result artifacts.
+and are not embedded as server physical paths in IQA result artifacts. Saving/resetting
+these mappings immediately refreshes P5-D Inspect availability and cancels any pending
+native-source verification that began under an older mapping.
 
 **Reset Settings** resets application preferences including Remote IQA configuration.
 **View > Reset Workspace Layout** resets workspace layout separately. Temporary Pick
