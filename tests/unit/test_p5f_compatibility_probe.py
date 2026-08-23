@@ -79,7 +79,9 @@ def _request(scene_count: int = 1) -> IqaJobRequest:
 
 
 def test_probe_uses_single_create_serial_status_and_terminal_result() -> None:
-    client = _ScriptedClient([JobState.PREPARING, JobState.EXTRACTING, JobState.SUCCEEDED])
+    client = _ScriptedClient(
+        [JobState.PREPARING, JobState.EXTRACTING, JobState.SUCCEEDED]
+    )
 
     trace = run_iqa_compatibility_probe(client, _request())
 
@@ -153,7 +155,11 @@ def test_probe_nonterminal_cancel_can_race_to_success_and_fetch_result() -> None
 
 
 def test_probe_preserves_terminal_state_when_result_fetch_fails() -> None:
-    error = IqaClientError(IqaClientErrorKind.HTTP, "private result detail", status_code=503)
+    error = IqaClientError(
+        IqaClientErrorKind.HTTP,
+        "private result detail",
+        status_code=503,
+    )
     client = _ScriptedClient([JobState.SUCCEEDED], result_error=error)
 
     trace = run_iqa_compatibility_probe(client, _request())
