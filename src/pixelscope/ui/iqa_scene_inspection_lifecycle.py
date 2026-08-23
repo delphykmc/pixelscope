@@ -116,10 +116,7 @@ class IqaSceneInspectionLifecycle(QObject):
         controller._sync_controls = MethodType(sync_controls, controller)
         controller.settings_changed = MethodType(settings_changed, controller)
 
-        if (
-            remote_controller is not None
-            and self._original_remote_settings_changed is not None
-        ):
+        if remote_controller is not None and self._original_remote_settings_changed is not None:
 
             def remote_settings_changed(_remote_controller: Any) -> None:
                 assert self._original_remote_settings_changed is not None
@@ -201,9 +198,7 @@ class IqaSceneInspectionLifecycle(QObject):
             combo.addItem("No shared-source aliases")
             combo.setCurrentIndex(0)
             combo.setEnabled(False)
-            combo.setToolTip(
-                "This Scene has no native source shared by multiple variant bindings"
-            )
+            combo.setToolTip("This Scene has no native source shared by multiple variant bindings")
             combo.blockSignals(False)
             return
 
@@ -228,9 +223,7 @@ class IqaSceneInspectionLifecycle(QObject):
         if variant_id not in aliases:
             return
         self.controller._inspected_document_variants[document_id] = variant_id
-        self.controller.block_label.setText(
-            "Block inspector: hover or click a Scene grid cell."
-        )
+        self.controller.block_label.setText("Block inspector: hover or click a Scene grid cell.")
         self.controller._sync_all_overlays()
         self.controller._sync_legend()
 
@@ -252,14 +245,10 @@ class IqaSceneInspectionLifecycle(QObject):
         self._cancel_inspect_worker()
         self.controller._inspect_generation += 1
         generation = self.controller._inspect_generation
-        self.controller._inspect_local_intent_generation = (
-            self.controller._local_intent_generation
-        )
+        self.controller._inspect_local_intent_generation = self.controller._local_intent_generation
         self._inspect_settings_revision = self._settings_revision
         self.controller._inspect_result_identity = (result.result_id, id(result))
-        self.controller._set_status(
-            f"Verifying and decoding published sources for {scene_id}…"
-        )
+        self.controller._set_status(f"Verifying and decoding published sources for {scene_id}…")
         verify_scene_sources = vars(inspection_module)["verify_scene_sources"]
         worker = TaskWorker(
             verify_scene_sources,
@@ -338,15 +327,11 @@ class IqaSceneInspectionLifecycle(QObject):
                 self._sync_controls()
                 return
             if decoded.encoded_source_sha256 != binding.source.sha256:
-                self.controller._set_status(
-                    "Decoded source identity no longer matches the result"
-                )
+                self.controller._set_status("Decoded source identity no longer matches the result")
                 self._sync_controls()
                 return
             if decoded.shape[:2] != (binding.source.height, binding.source.width):
-                self.controller._set_status(
-                    "Decoded source dimensions no longer match the result"
-                )
+                self.controller._set_status("Decoded source dimensions no longer match the result")
                 self._sync_controls()
                 return
 
@@ -416,9 +401,7 @@ class IqaSceneInspectionLifecycle(QObject):
         if binding_count == source_count:
             identity_text = f"{source_count} native source(s)"
         else:
-            identity_text = (
-                f"{source_count} native source(s) / {binding_count} variant binding(s)"
-            )
+            identity_text = f"{source_count} native source(s) / {binding_count} variant binding(s)"
         self.controller._set_status(
             f"Inspecting {outcome.scene_id} · {identity_text} · decoded SHA verified"
         )
@@ -427,9 +410,7 @@ class IqaSceneInspectionLifecycle(QObject):
 
     def _rollback_new_registrations(self, before_ids: set[str]) -> None:
         newly_registered = [
-            document_id
-            for document_id in self.window.documents
-            if document_id not in before_ids
+            document_id for document_id in self.window.documents if document_id not in before_ids
         ]
         if newly_registered:
             self.controller._original_remove_document_ids(newly_registered)
@@ -461,9 +442,7 @@ class IqaSceneInspectionLifecycle(QObject):
         if not bool(getattr(review, "active", False)):
             return
         self.controller._local_intent_generation += 1
-        self.controller._invalidate_return(
-            "Return invalidated by newer temporary Pick intent"
-        )
+        self.controller._invalidate_return("Return invalidated by newer temporary Pick intent")
         self._sync_controls()
 
     def _cancel_inspect_worker(self) -> None:
@@ -482,9 +461,7 @@ class IqaSceneInspectionLifecycle(QObject):
         )
         review = getattr(self.window, "review_selection_controller", None)
         picks_active = bool(getattr(review, "active", False))
-        self.controller.return_button.setEnabled(
-            self.controller.return_valid and not picks_active
-        )
+        self.controller.return_button.setEnabled(self.controller.return_valid and not picks_active)
         if picks_active and self.controller.return_valid:
             self.controller.return_button.setToolTip(
                 "Return is disabled while temporary Picks are active"
