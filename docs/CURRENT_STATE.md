@@ -14,7 +14,7 @@ Current merged `main`: `24b328d02c0cd56fb79920e069af06d6e4cb706f`
 - P5-C / PR #42 — Submission & Shared Storage, merged as current main.
 
 P5 **Remote IQA Platform** is currently Active in **P5-D — Viewer-linked Scene
-Inspection** on `feature/p5-d-viewer-linked-scene-inspection`.
+Inspection** on `feature/p5-d-viewer-linked-scene-inspection` / Draft PR #43.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -123,9 +123,14 @@ Schema v2 distinguishes:
 - `measurement_context_id` — Scene context that governs the published weighted
   measurement.
 
+A source binding may additionally carry optional `storage_root_id` location metadata.
+It is excluded from immutable source identity/equality and from
+`measurement_context_id`; old schema-v2 artifacts that omit it remain result-readable.
+
 For every published successful Scene, including successful Scenes inside PARTIAL:
 
 - every declared variant is present exactly once in top-level variant order;
+- multiple variant slots may intentionally reference the same concrete `source_id`;
 - source dimensions and required physical geometry are compatible/exact as specified;
 - PixelScope never aligns, resizes, imputes, or index-zips incompatible grids.
 
@@ -151,7 +156,7 @@ P5-B / PR #38 owns the local result-browsing path:
 - Reference-dependent preparation runs off the Qt thread and processes one Scene grid
   at a time while retaining derived scalar results rather than the full grid corpus;
 - Absolute/Relative table and Scene Trend presentation reuse canonical v2 math;
-- Scene cards expose published source identity/path/hash metadata;
+- Scene cards expose published source identity/path/hash/location metadata;
 - IQA Reference remains independent from local Primary;
 - IQA dock float/dock/maximize/reset behavior follows the Plots workspace pattern;
 - result browsing itself does not mutate local workspace authority.
@@ -257,31 +262,41 @@ That is historical P5-C evidence only. It does not validate P5-D changes.
 
 P5-D currently adds explicit native Scene inspection to the production composition.
 
-### Source locator and verification
+### Source locator, decode, and identity verification
 
 Schema-v2 source bindings may add optional `storage_root_id`.
 
 - no schema bump;
 - old v2 without the field still opens through P5-B;
 - omission disables native Inspect because PixelScope does not guess roots;
-- location metadata is excluded from `measurement_context_id`;
+- location metadata is excluded from source equality and `measurement_context_id`;
 - root-ID validation is shared with P5-C;
 - resolution reuses the P5-C existing-source resolver and containment rules;
-- ordinary PNG/BMP/JPG/JPEG dimensions are bounded-header probed;
-- the resolver's streamed SHA-256 is compared with the published SHA;
-- all required source variants must pass before local mutation;
-- duplicate physical sources and >6-variant native Inspect are rejected explicitly.
+- ordinary PNG/BMP/JPG/JPEG dimensions use the exact P5-C bounded-header probe;
+- every unique native source is decoded from one encoded byte buffer;
+- SHA-256 over that exact buffer must equal the published SHA before commit;
+- the resulting decoded `ImageDocument` is carried forward as the verified generation;
+- all required variant bindings must pass before local mutation;
+- repeated variant bindings to the same `source_id` share one native source identity;
+- distinct source identities claiming one physical locator are rejected;
+- >6-variant-binding native Inspect is rejected without truncation.
 
 ### Canonical local workflow
 
 Successful Inspect:
 
 1. reuses already-Registered paths where present;
-2. registers any missing verified sources through the ordinary input path;
-3. selects the Scene sources through the ordinary Selected/current-page path;
-4. lets normal load/residency/preload/Difference/analysis lifecycle run unchanged.
+2. registers any missing verified unique sources through the ordinary input path;
+3. selects those unique sources through the canonical Selected/current-page path;
+4. invalidates any ordinary loads started by that selection and commits the exact
+   already-decoded SHA-bound generation while current-page residency protection is
+   active;
+5. bumps source generation and dependent source-view cache identity when replacing a
+   stale resident decode;
+6. leaves normal residency/preload/Difference/analysis ownership unchanged.
 
-P4-A temporary Picks block Inspect.
+P4-A temporary Picks block initial Inspect. A new Pick made after Inspect is preserved
+and invalidates Return rather than being silently cleared by restoration.
 
 ### Return lifecycle
 
@@ -293,8 +308,9 @@ Return explicitly re-commits the captured page after canonical selection reset. 
 View restores the actual displayed Active source; Multi View restores applicable
 Primary and then activates the captured Active tile.
 
-Newer non-IQA Selected/Files/layout/Primary intent invalidates Return. Active alone is
-not an invalidation trigger. The snapshot is not Session v1 persistence.
+Newer non-IQA Selected/Files/layout/Primary or temporary Pick intent invalidates
+Return. Active alone is not an invalidation trigger. The snapshot is not Session v1
+persistence.
 
 ### Spatial inspection
 
@@ -318,8 +334,12 @@ Block Inspector exposes bounded W/S1/S2/count/valid/mean/reference/pair/geometry
 ### Async/stale safety
 
 Verification and grid work use feature-local workers. Generation, result identity,
-Scene, and spatial request identity gate publication. New Result open and shutdown
-cancel feature-local work and clear overlays.
+Scene, local intent, settings revision, and spatial request identity gate publication.
+New Result open and shutdown cancel feature-local work and clear overlays.
+
+Remote IQA logical-root mappings are live settings. A mapping change increments the
+P5-D locator revision, cancels pending native verification under the older mapping,
+and refreshes Inspect availability before any later callback can publish.
 
 ## P5-D validation status
 
@@ -330,7 +350,11 @@ Focused regression files are:
 
 ```text
 tests/unit/test_p5d_scene_inspection.py
+tests/unit/test_p5d_source_locator_identity.py
+tests/unit/test_p5d_review_closeout.py
 tests/ui/test_p5d_viewer_linked_inspection.py
+tests/ui/test_p5d_stale_inspection.py
+tests/ui/test_p5d_review_closeout.py
 ```
 
 The complete contract, automated matrix, and Windows manual checklist are in
