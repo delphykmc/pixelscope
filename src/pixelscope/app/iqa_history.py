@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Protocol, Sequence
+from collections.abc import Sequence
+from typing import Protocol
 
 from pixelscope.remote.iqa_history import (
     MAX_RECENT_IQA_JSON_CHARS,
@@ -19,13 +20,17 @@ _MAX_DECODED_RECENT_ITEMS = 64
 
 
 class RecentIqaSettingsStorage(Protocol):
-    def value(self, key: str, default: object = None) -> object: ...
+    def value(self, key: str, default: object = None) -> object:
+        ...
 
-    def set_value(self, key: str, value: object) -> None: ...
+    def set_value(self, key: str, value: object) -> None:
+        ...
 
-    def remove(self, key: str) -> None: ...
+    def remove(self, key: str) -> None:
+        ...
 
-    def sync(self) -> None: ...
+    def sync(self) -> None:
+        ...
 
 
 class RecentIqaResultsRepository:
