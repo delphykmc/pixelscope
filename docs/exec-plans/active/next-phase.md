@@ -1,6 +1,6 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — **P5-D Viewer-linked Scene Inspection / reviewer closeout and validation**
+Status: Active — **P5-D Viewer-linked Scene Inspection / narrow reviewer closeout**
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
 Last updated: 2026-08-23
 Current merged main: `24b328d02c0cd56fb79920e069af06d6e4cb706f`
@@ -103,9 +103,8 @@ canonical Open IQA Result / Results UI authority.
 
 P5-C merged as `main@24b328d02c0cd56fb79920e069af06d6e4cb706f` and remains the
 canonical Remote IQA settings, shared-storage, staging, job transport, PARTIAL, and
-debug-harness authority. Its PR closeout records independent review PASS and owner
-final full validation PASS; that evidence is historical and not carried forward as a
-P5-D PASS.
+debug-harness authority. Its PR closeout validation is historical and is not carried
+forward as a P5-D PASS.
 
 ## Current executable schema-v2 contract
 
@@ -153,11 +152,14 @@ Implemented contract:
 - distinct source identities may not claim one physical locator;
 - >6 variant bindings are rejected without silent truncation;
 - canonical registration reuses already-Registered source paths;
-- canonical Selected/current-page protection is established before verified decoded
-  generations are committed, preventing residency eviction from forcing an unverified
-  disk reload;
-- replacing stale resident bytes keeps document identity but advances source generation
-  and invalidates dependent source-view caches.
+- before presentation, canonical load tokens are advanced and every verified decoded
+  generation is published/accounted under its canonical document ID;
+- only after all exact verified generations are present does canonical Selected/render
+  run, so viewer/Statistics/Difference cannot observe an older resident generation;
+- Selected/Current Comparison Page protection is active before the following eviction
+  enforcement;
+- replacing stale resident or evicted bytes keeps document identity but advances source
+  generation and invalidates dependent source-view caches.
 
 ### D2 — Return and curation lifecycle
 
@@ -186,7 +188,7 @@ not an invalidation trigger. A temporary Pick created after Inspect is newer cur
 intent: P5-D preserves the Pick and invalidates/disables Return rather than clearing
 that Pick to restore an older workspace snapshot.
 
-### D3 — Reference and Primary independence
+### D3 — Reference, Primary, and shared-source spatial binding
 
 IQA `Reference` and local viewer `Primary` are separate identities. Neither control may
 rewrite the other.
@@ -194,6 +196,11 @@ rewrite the other.
 Repeated variant bindings may share one concrete native source. Result identities stay
 N-way even though the native Files/viewer layer intentionally keeps one concrete source
 document for that `source_id`.
+
+For a shared native source, P5-D provides a bounded **Shared-source spatial binding**
+selector. Every aliased `variant_id` remains reachable without duplicating Files
+identity. The selected alias becomes the target consumed by overlay painting and Block
+Inspector for that document. Reference selection remains independent.
 
 ### D4 — spatial grid derivation and overlay
 
@@ -250,6 +257,8 @@ Implemented/required fixture cases include:
 - already-Registered stale-resident replacement;
 - P5-C/P5-D BMP/JPEG probe parity;
 - repeated `source_id` variant aliases and conflicting physical-locator rejection;
+- shared-source alias selection driving overlay and Block Inspector while Files remains
+  one canonical document;
 - post-Inspect Pick/Return preservation;
 - root-remap pending-worker stale drop and availability refresh;
 - missing/corrupt Scene grid;
@@ -261,13 +270,14 @@ Implemented/required fixture cases include:
 
 ## P5-D current validation status
 
-No exact-head automated or owner Windows PASS has been observed yet in this execution
-plan. The implementation branch must therefore remain Draft/review/validation pending.
+Owner validation passed on prior closeout head `164ac2bd7f1a1870ea8eeb284821ad33a8ca275c`
+for Ruff lint/format, mypy, and the then-current focused P5-D regression set; the
+immediately preceding head also recorded `883 passed` for the full repository suite.
 
-The agent environment used for this implementation cannot clone the repository from
-GitHub into its shell, so no local pytest/Ruff/mypy result is claimed here. Repository
-validation must come from an actual CI run if configured or from the owner's Windows
-`.venv`.
+The independent re-review at `164ac2b...` closed five of six substantive prior
+findings and requested one narrow alias-presentation fix plus documentation/test-path
+corrections. Those changes move the branch head again, so **no exact-head PASS is
+claimed for the new closeout head until the owner reruns the corrected gate**.
 
 ## P5-D execution order
 
@@ -280,13 +290,14 @@ validation must come from an actual CI run if configured or from the owner's Win
 - geometry hit-test;
 - vector overlay/block inspector.
 
-### Step 2 — viewer/workspace lifecycle — Implemented / reviewer findings addressed
+### Step 2 — viewer/workspace lifecycle — Implemented / reviewer closeout applied
 
 - explicit Inspect;
 - pre-Inspect Pick guard;
 - canonical registration/selection;
+- exact verified decode commit before presentation;
 - stale resident replacement under canonical document identity;
-- repeated-source variant alias collapse;
+- repeated-source variant alias collapse with active spatial alias selector;
 - first Return snapshot;
 - linked Scene replacement;
 - newer-local-intent and post-Inspect Pick invalidation;
@@ -301,10 +312,11 @@ Required focused files:
 ```text
 tests/unit/test_p5d_scene_inspection.py
 tests/unit/test_p5d_source_locator_identity.py
-tests/unit/test_p5d_review_closeout.py
+tests/unit/test_p5d_review_closeout_unit.py
 tests/ui/test_p5d_viewer_linked_inspection.py
 tests/ui/test_p5d_stale_inspection.py
 tests/ui/test_p5d_review_closeout.py
+tests/ui/test_p5d_alias_spatial_binding.py
 ```
 
 Review them specifically for:
@@ -315,6 +327,7 @@ Review them specifically for:
 - stale resident replacement and source generation/cache invalidation;
 - P5-C/P5-D header-probe parity;
 - repeated-source aliases without duplicate native Files identity;
+- alias switching reaching each variant field in overlay and Block Inspector;
 - Single View page + actual Active restoration;
 - pre/post P4-A Pick behavior;
 - root-remap stale callbacks and live availability;
@@ -336,10 +349,11 @@ Run on Windows against the exact P5-D PR head:
 .\.venv\Scripts\python.exe -m pytest `
     tests\unit\test_p5d_scene_inspection.py `
     tests\unit\test_p5d_source_locator_identity.py `
-    tests\unit\test_p5d_review_closeout.py `
+    tests\unit\test_p5d_review_closeout_unit.py `
     tests\ui\test_p5d_viewer_linked_inspection.py `
     tests\ui\test_p5d_stale_inspection.py `
     tests\ui\test_p5d_review_closeout.py `
+    tests\ui\test_p5d_alias_spatial_binding.py `
     -q
 
 .\.venv\Scripts\python.exe -m ruff check `
@@ -352,10 +366,11 @@ Run on Windows against the exact P5-D PR head:
     src\pixelscope\ui\iqa_scene_inspection_lifecycle.py `
     tests\unit\test_p5d_scene_inspection.py `
     tests\unit\test_p5d_source_locator_identity.py `
-    tests\unit\test_p5d_review_closeout.py `
+    tests\unit\test_p5d_review_closeout_unit.py `
     tests\ui\test_p5d_viewer_linked_inspection.py `
     tests\ui\test_p5d_stale_inspection.py `
-    tests\ui\test_p5d_review_closeout.py
+    tests\ui\test_p5d_review_closeout.py `
+    tests\ui\test_p5d_alias_spatial_binding.py
 
 .\.venv\Scripts\python.exe -m ruff format --check `
     src\pixelscope\core\image_document.py `
@@ -367,10 +382,11 @@ Run on Windows against the exact P5-D PR head:
     src\pixelscope\ui\iqa_scene_inspection_lifecycle.py `
     tests\unit\test_p5d_scene_inspection.py `
     tests\unit\test_p5d_source_locator_identity.py `
-    tests\unit\test_p5d_review_closeout.py `
+    tests\unit\test_p5d_review_closeout_unit.py `
     tests\ui\test_p5d_viewer_linked_inspection.py `
     tests\ui\test_p5d_stale_inspection.py `
-    tests\ui\test_p5d_review_closeout.py
+    tests\ui\test_p5d_review_closeout.py `
+    tests\ui\test_p5d_alias_spatial_binding.py
 
 .\.venv\Scripts\python.exe -m mypy src
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -386,7 +402,8 @@ Follow the checklist in `docs/P5D_VIEWER_INSPECTION.md`, including:
 - P5-C/P5-D source-format/header parity;
 - already-Registered resident bytes replaced by verified result bytes;
 - 2–6 variant-binding Inspect and >6 non-truncation;
-- repeated `source_id` variant aliases using one native Files source;
+- repeated `source_id` aliases using one native Files source, with A/B spatial binding
+  switching reflected in overlay and Block Inspector;
 - linked Scene navigation retaining first Return target;
 - Single/Multi Return for Selected >6;
 - newer local intent invalidation;
