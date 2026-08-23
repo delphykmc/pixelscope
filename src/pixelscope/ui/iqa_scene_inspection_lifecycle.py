@@ -169,8 +169,9 @@ class IqaSceneInspectionLifecycle(QObject):
         self._inspect_settings_revision = self._settings_revision
         self.controller._inspect_result_identity = (result.result_id, id(result))
         self.controller._set_status(f"Verifying and decoding published sources for {scene_id}…")
+        verify_scene_sources = getattr(inspection_module, "verify_scene_sources")
         worker = TaskWorker(
-            inspection_module.verify_scene_sources,
+            verify_scene_sources,
             result,
             scene_id,
             self.window.application_settings.remote_iqa,
@@ -274,44 +275,35 @@ class IqaSceneInspectionLifecycle(QObject):
                 self._sync_controls()
                 return
 
-            # Make the fully verified Scene the canonical Current Comparison Page before
-            # committing decoded arrays. MainWindow's normal load commit may enforce the
-            # residency budget immediately; Selected/current-page membership therefore
-            # protects these exact decoded generations from being evicted and reloaded
-            # from disk between verification and presentation.
-            self.window._select_document_ids(document_ids)
-
+            # Publish every exact verified decoded generation before Selected/render can
+            # make the Scene visible to viewer or analysis consumers. Load-token bumps
+            # stale-drop any ordinary foreground/preload decode already in flight.
             for document_id, binding in zip(document_ids, unique_sources, strict=True):
                 decoded = binding.decoded_document
                 assert decoded is not None
                 previous = self.window.documents[document_id]
+                previous_sha = previous.encoded_source_sha256
                 content_changed = (
-                    previous.source is not None
-                    and previous.encoded_source_sha256 != decoded.encoded_source_sha256
-                )
-                previous_generation = previous.generation
+                    previous_sha is not None
+                    and previous_sha != decoded.encoded_source_sha256
+                ) or (previous.source is not None and previous_sha is None)
 
-                # Invalidate any ordinary load started by selection and commit the exact
-                # already-decoded bytes that carried the verified encoded SHA.
-                request_token = self.window._load_tokens.get(document_id, 0) + 1
-                self.window._load_tokens[document_id] = request_token
-                self.window._load_succeeded(document_id, request_token, decoded)
-                committed = self.window.documents.get(document_id)
-                if committed is None or committed.encoded_source_sha256 != binding.source.sha256:
-                    self._rollback_new_registrations(before_ids)
-                    if captured_now:
-                        self.controller._return_snapshot = None
-                        self.controller._return_valid = False
-                    self.controller._set_status(
-                        "Verified decoded source could not be committed to the viewer"
-                    )
-                    self._sync_controls()
-                    return
+                self.window._load_tokens[document_id] = (
+                    self.window._load_tokens.get(document_id, 0) + 1
+                )
+                decoded.document_id = document_id
+                decoded.generation = previous.generation + int(content_changed)
+                self.window.documents[document_id] = decoded
                 if content_changed:
-                    committed.generation = previous_generation + 1
-                    committed.statistics_cache.clear()
-                    committed.histogram_cache.clear()
                     self.window._invalidate_channel_views(document_id)
+                self.window._record_resident_source(decoded)
+                self.window.residency_manager.touch(document_id)
+                self.window._update_document_item(decoded)
+
+            # Only now may the canonical Selected/current-page path render or start
+            # analysis, so no stale resident generation is observable to consumers.
+            self.window._select_document_ids(document_ids)
+            self.window._evict_resident_documents()
 
         self.controller._inspect_scene_id = outcome.scene_id
         self.controller._inspected_result = result
@@ -340,7 +332,9 @@ class IqaSceneInspectionLifecycle(QObject):
 
     def _rollback_new_registrations(self, before_ids: set[str]) -> None:
         newly_registered = [
-            document_id for document_id in self.window.documents if document_id not in before_ids
+            document_id
+            for document_id in self.window.documents
+            if document_id not in before_ids
         ]
         if newly_registered:
             self.controller._original_remove_document_ids(newly_registered)
@@ -350,7 +344,9 @@ class IqaSceneInspectionLifecycle(QObject):
         if bool(getattr(review, "active", False)):
             if self.controller._return_snapshot is not None:
                 self.controller._local_intent_generation += 1
-                self.controller._invalidate_return("Return invalidated by newer temporary Pick intent")
+                self.controller._invalidate_return(
+                    "Return invalidated by newer temporary Pick intent"
+                )
             else:
                 self.controller._set_status(
                     "Return is unavailable while temporary Picks are active"
