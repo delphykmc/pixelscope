@@ -138,7 +138,11 @@ def test_inspect_replaces_stale_resident_pixels_with_verified_decoded_generation
     verified_bytes = reused_path.read_bytes()
 
     old_pixels = np.full(
-        (result.scenes[0].sources[0].source.height, result.scenes[0].sources[0].source.width, 3),
+        (
+            result.scenes[0].sources[0].source.height,
+            result.scenes[0].sources[0].source.width,
+            3,
+        ),
         3,
         dtype=np.uint8,
     )
