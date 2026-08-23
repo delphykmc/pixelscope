@@ -138,7 +138,11 @@ def test_inspect_replaces_stale_resident_pixels_with_verified_decoded_generation
     verified_bytes = reused_path.read_bytes()
 
     old_pixels = np.full(
-        (result.scenes[0].sources[0].source.height, result.scenes[0].sources[0].source.width, 3),
+        (
+            result.scenes[0].sources[0].source.height,
+            result.scenes[0].sources[0].source.width,
+            3,
+        ),
         3,
         dtype=np.uint8,
     )
@@ -256,7 +260,10 @@ def test_post_inspect_pick_invalidates_return_without_clearing_pick_state(
 
     assert window.review_selection_controller.active
     assert picked_id in window.review_selection_controller.picked_ids
-    assert tuple(document.document_id for document in window.selected_documents) == selected_after_pick
+    assert (
+        tuple(document.document_id for document in window.selected_documents)
+        == selected_after_pick
+    )
     window.close()
 
 
