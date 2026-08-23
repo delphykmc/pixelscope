@@ -18,9 +18,13 @@ from pixelscope.remote.iqa_scene_inspection import (
     SceneVerificationOutcome,
     VerifiedSceneSource,
 )
-from pixelscope.remote.iqa_v2_domain import ResultV2
+from pixelscope.remote.iqa_spatial import derive_spatial_scene
+from pixelscope.remote.iqa_v2_domain import (
+    ResultV2,
+    build_measurement_context_id,
+)
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
-from pixelscope.remote.iqa_v2_reader import load_result_v2
+from pixelscope.remote.iqa_v2_reader import load_grid_scene, load_result_v2
 
 
 @pytest.fixture(autouse=True)
@@ -51,9 +55,13 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
     qtbot.addWidget(window)
     _compose_main_window_presentation(window)
 
-    result = _result(tmp_path)
-    scene = result.scenes[0]
-    first_source = scene.sources[0].source
+    base_result = _result(tmp_path)
+    base_scene = base_result.scenes[0]
+    grid_outcome = load_grid_scene(base_result, base_scene.scene_id)
+    assert grid_outcome.status is LoadStatus.SUCCESS, grid_outcome.reason
+    assert grid_outcome.data is not None
+
+    first_source = base_scene.sources[0].source
     path = tmp_path / "shared-source.png"
     image = np.full(
         (first_source.height, first_source.width, 3),
@@ -67,6 +75,29 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
         first_source,
         sha256=decoded.encoded_source_sha256,
     )
+
+    shared_measurements = tuple(
+        replace(measurement, source=shared_source)
+        for measurement in base_scene.sources
+    )
+    measurement_context_id = build_measurement_context_id(
+        base_scene.scene_id,
+        shared_measurements,
+        base_result.attributes,
+        base_scene.context_provenance,
+    )
+    scene = replace(
+        base_scene,
+        measurement_context_id=measurement_context_id,
+        sources=shared_measurements,
+    )
+    result = replace(base_result, scenes=(scene,))
+    grid_data = replace(
+        grid_outcome.data,
+        measurement_context_id=measurement_context_id,
+        source_ids=tuple(shared_source.source_id for _ in shared_measurements),
+    )
+
     verification = SceneVerificationOutcome(
         scene_id=scene.scene_id,
         sources=tuple(
@@ -82,7 +113,14 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
 
     controller = window.iqa_scene_inspection_controller
     controller._apply_verified_scene(result, verification)
-    qtbot.waitUntil(lambda: controller._field is not None, timeout=3000)
+    controller._cancel_spatial_worker()
+    controller._field = derive_spatial_scene(
+        result,
+        scene.scene_id,
+        grid_data,
+        result.attributes[0].attribute_id,
+    )
+    controller._sync_all_overlays()
 
     selected = tuple(document.document_id for document in window.selected_documents)
     assert len(selected) == 1
@@ -96,7 +134,9 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
     assert combo.isEnabled()
     assert combo.count() == len(aliases)
     first_variant = controller._inspected_document_variants[document_id]
-    second_variant = next(variant_id for variant_id in aliases if variant_id != first_variant)
+    second_variant = next(
+        variant_id for variant_id in aliases if variant_id != first_variant
+    )
 
     viewer = next(
         item
