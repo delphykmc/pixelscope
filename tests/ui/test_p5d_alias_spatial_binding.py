@@ -78,8 +78,7 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
     )
 
     shared_measurements = tuple(
-        replace(measurement, source=shared_source)
-        for measurement in base_scene.sources
+        replace(measurement, source=shared_source) for measurement in base_scene.sources
     )
     measurement_context_id = build_measurement_context_id(
         base_scene.scene_id,
@@ -141,9 +140,7 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
     assert combo.isEnabled()
     assert combo.count() == len(aliases)
     first_variant = controller._inspected_document_variants[document_id]
-    second_variant = next(
-        variant_id for variant_id in aliases if variant_id != first_variant
-    )
+    second_variant = next(variant_id for variant_id in aliases if variant_id != first_variant)
 
     viewer = next(
         item
@@ -185,9 +182,7 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
     monkeypatch.setattr(
         inspection_module,
         "spatial_cell_detail",
-        lambda _result, _field, variant_id, *_cell: (
-            block_variants.append(variant_id) or object()
-        ),
+        lambda _result, _field, variant_id, *_cell: (block_variants.append(variant_id) or object()),
     )
     monkeypatch.setattr(controller, "_show_block_detail", lambda _detail: None)
 
