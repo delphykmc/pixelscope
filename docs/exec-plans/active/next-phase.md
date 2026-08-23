@@ -1,8 +1,8 @@
 # Execution plan: P5 — Remote IQA Platform
 
-Status: Active — **P5-F Integration & Performance Hardening**
+Status: Active — **P5-F Integration & Performance Hardening**, followed by **P5-G External GPU/SMB Validation & Closeout** when the environment is available
 Owner: repository owner + P5 orchestrator + slice implementation/review agents
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 Current merged main: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
 
 Authoritative P5 documents:
@@ -36,7 +36,8 @@ P5 remains an orchestrated multi-PR program.
 - **Repository owner** runs requested local Windows validation and approves merge.
 
 Observed evidence and planned validation remain separate. A PASS from P5-C/P5-D/P5-E
-or an older P5-F head is not validation of the latest P5-F head.
+or an older P5-F head is not validation of the latest P5-F head. Localhost/mock evidence
+never substitutes for an unobserved external GPU/SMB environment.
 
 ## Product flow
 
@@ -85,9 +86,9 @@ Resident when required
 
 `Analysis Working Set = Current Comparison Page`.
 
-P5-F must not create another authority for Files/Selected/Current Comparison Page,
-source residency/protection/preload, Difference/cache, Display Gain, native analysis,
-or Session v1.
+P5-F and P5-G must not create another authority for Files/Selected/Current Comparison
+Page, source residency/protection/preload, Difference/cache, Display Gain, native
+analysis, or Session v1.
 
 The canonical Result path remains P5-B with P5-A2/v1 reader dispatch. P5-D remains the
 only explicit native source verification/Inspect bridge. P5-E remains the historical
@@ -142,106 +143,84 @@ The detailed merged P5-E authority remains in
 [`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md). Its validation is
 historical evidence only and is not carried forward as P5-F PASS.
 
-## P5-F active scope
+## P5-F active scope — repository-side integration hardening
 
-P5-F is a final integration/characterization/hardening slice, not a new Remote IQA
-architecture phase. The governing loop is:
+P5-F is the repository-side integration/characterization/hardening slice that can be
+completed without access to the external GPU/SMB environment. It is not a new Remote
+IQA architecture phase. The governing loop is:
 
 ```text
 existing behavior
     ↓
-instrument / characterize
+characterize deterministic ownership/lifetime
     ↓
-identify actual bottleneck or duplicate work
+identify demonstrated duplicate work or contention
     ↓
 minimal bounded correction
     ↓
-measure again
+regression evidence
 ```
 
 No fixed wall-clock value is a correctness contract.
 
-### P5-F1 — Real GPU Server Compatibility
+### P5-F1 — deterministic transport compatibility tooling
 
-- validate actual external GPU API/result writer compatibility against the frozen P5-C
-  transport and schema-v2 publication contracts;
-- reuse/extend localhost/debug harnesses for deterministic client-side compatibility
-  evidence;
-- record transport-compatible differences additively;
-- record contract contradictions as external integration blockers rather than silently
-  normalizing source order, logical storage, publication, geometry, or numerical meaning.
+- preserve the frozen P5-C create/status/result/cancel state machine;
+- keep CREATE single-shot/no-blind-retry semantics;
+- model non-terminal cancel responses and completion/cancel races correctly;
+- provide a bounded compatibility probe that can later be pointed at the real service;
+- reuse localhost/debug harnesses for deterministic client-side evidence only.
 
-### P5-F2 — SMB / Network / Grid Performance Characterization
+### P5-F2 — worker and HTTP lifetime hardening
 
-Characterize separately:
+- isolate P5-B Result/Reference, P5-D verification/spatial, and P5-E historical resolver
+  file/grid work from the local Statistics/Difference analysis pool;
+- retain the existing separate max-two P5-C job-operation pool;
+- reuse HTTP connection pools through the existing `client_factory` seam;
+- use lazy physical HTTP checkout so queued/cleared workers own no client resource;
+- keep idle clients bounded and close active clients deterministically after their worker
+  returns during shutdown;
+- extend the existing Copy Diagnostics surface with bounded worker/transport counters.
 
-- preflight/header/hash/shared-root/staging/create;
-- status polling/result-reference recovery;
-- historical logical resolution/manifest/summary/initial presentation;
-- first/repeated Reference preparation and Scene-grid loading;
-- source resolution/hash/read/decode/verified commit;
-- spatial Scene-grid load/overlay preparation.
+### P5-F3 — deterministic stress / lifecycle regressions
 
-Prefer bounded monotonic timing, counts, byte counts, cache hits/misses, and worker
-activity. Do not retain source arrays, whole HTTP bodies, or unbounded per-Scene history.
+Exercise representative generated workloads for 1, ~10, ~50, ~150, and around ~300
+Scenes without committed huge binaries. Structural assertions cover bounded ownership
+rather than brittle timing thresholds.
 
-### P5-F3 — Measured bounded optimization
+Cover:
 
-Only measured findings may justify changes such as:
+- COMPLETE/PARTIAL/failure/cancel state handling through inherited P5 suites;
+- cancel response races in the compatibility probe;
+- more queued HTTP operations than physical P5-C worker slots;
+- shutdown while workers are running and additional work is queued;
+- Remote IQA/local Statistics-Difference coexistence;
+- production P5-B/P5-D/P5-E pool rebinding;
+- stale callbacks, root remap, source verification, and no batch-owned residency through
+  inherited regressions.
 
-- isolating Remote IQA blocking work from the local Statistics/Difference analysis pool;
-- reusing the existing HTTP client/session lifetime when the current composition defeats
-  connection pooling;
-- bounded read retry/backoff where transient behavior demonstrates benefit;
-- a byte-budgeted current-result raw-grid cache or at-most-one adjacent preload only if
-  repeated grid I/O is materially harmful.
+### P5-F4 — optimization decisions
 
-A raw-grid cache and speculative grid preload are not default deliverables.
+P5-F does **not** add a raw-grid cache, speculative grid preload, adaptive polling,
+generalized retries, new performance Settings, WebSocket, or optional detail viewer
+without environment evidence that justifies the permanent product/resource contract.
 
-### P5-F4 — Stress / Failure / Lifecycle Hardening
+Optional `detail_artifacts[]` remain opaque/deferred unless a stable typed server
+contract and clear product need are observed. Filename conventions do not create a
+contract.
 
-Exercise deterministic representative workloads for 1, ~10, ~50, ~150, and around
-~300 compared sources where practical without committed huge binaries. Structural
-assertions cover bounded worker/memory/I/O ownership rather than brittle timing gates.
+## P5-F validation direction
 
-Cover COMPLETE/PARTIAL/failure/cancel, transient network/storage failures, rapid Result
-and Scene intents, close/recreate, local workflow coexistence, root remap, hash mismatch,
-and stale callback rejection.
+Focused P5-F automated coverage prioritizes deterministic structure and lifecycle:
 
-### P5-F5 — Optional Detail Characterization + P5 closure preparation
-
-Optional `detail_artifacts[]` stay opaque/deferred unless a stable typed server contract
-and clear product need are observed. Filename conventions do not create a contract.
-
-P5-F prepares the P5 completion summary but remains Active while its PR is unmerged.
-After P5-F merge, a tiny docs-only closeout records the actual merge SHA, marks P5
-Complete, archives the active plan, and makes P6 the active program.
-
-## Automated validation direction
-
-Focused P5-F automated coverage must prioritize deterministic structure and lifecycle:
-
-1. real-contract HTTP JSON fixture compatibility;
-2. endpoint/state/result-reference regression and no blind create retry;
-3. one poll in flight and HTTP client/session lifetime;
-4. slow-filesystem/SMB-like contention and Remote IQA/local-analysis coexistence;
-5. summary-first Result open and Reference/grid I/O counts;
-6. repeated Reference/grid access behavior;
-7. source verification and staging streaming/bounds;
-8. representative synthetic Scene counts;
-9. COMPLETE/PARTIAL/failure/cancel/recovery;
-10. Recent remap/offline/identity and Inspect/hash/root-remap;
-11. stale callbacks, close/recreate, and no batch-owned residency;
-12. v1 compatibility and full P5-B/C/D/E regressions.
-
-Performance evidence is observational unless a specific regression is later frozen.
-
-## Owner manual / real-server gate
-
-The implementation agent must not fabricate a live GPU/SMB PASS. Real-server owner
-validation records client head SHA, server build/algorithm identifiers when available,
-Scene/source counts, storage topology, and observed timings for Current Pair, Folder
-Pair, PARTIAL, Cancel, Historical, SMB/staging, and concurrent local use.
+1. endpoint/state/result-reference regression and no blind create retry;
+2. cancel-at-most-once with non-terminal cancel response races;
+3. lazy/bounded HTTP client lifetime under queued work and shutdown;
+4. production Result/Inspect/history worker ownership;
+5. Remote IQA/local-analysis coexistence;
+6. representative synthetic Scene counts;
+7. diagnostics bounds/redaction;
+8. inherited P5-B/C/D/E and schema-v1 regressions.
 
 The repository-standard Windows validation remains:
 
@@ -255,21 +234,62 @@ The repository-standard Windows validation remains:
 git diff --check
 ```
 
-Only observed results may be recorded as PASS.
+Only exact-head observed results may be recorded as PASS.
 
 ## P5-F merge gate
 
-P5-F merge recommendation requires implementation completion, no blocking external
-protocol contradiction, deterministic localhost/mock regression PASS, exact-head full
-repository validation PASS, owner Windows real-server/manual validation, independent
-latest-head whole-PR PASS, no unresolved correctness/lifetime/resource blocker,
-truthful characterization docs, and owner approval.
+P5-F merge recommendation requires:
 
-Do not mark P5-F or P5 Complete while the P5-F PR is unmerged.
+- repository-side implementation completion;
+- focused deterministic P5-F regression PASS on the exact head;
+- exact-head full repository/static validation PASS;
+- independent latest-head whole-PR PASS;
+- no unresolved correctness/lifetime/resource blocker;
+- truthful characterization docs;
+- owner approval.
+
+**Real external GPU/SMB access is not a P5-F PR merge gate when that environment is
+unavailable.** This is an explicit scheduling split, not a substitute PASS. Merging
+P5-F may mark P5-F Complete, but it must **not** mark the overall P5 program Complete.
+
+## P5-G — External GPU/SMB Validation & Closeout — pending environment access
+
+P5-G is the final P5 program gate and begins only after P5-F is merged and an external
+environment is realistically available. It owns observation, not speculative redesign.
+
+Required real-environment validation:
+
+- actual external GPU API/result-writer compatibility against the frozen P5-C transport
+  and schema-v2 publication contracts;
+- Current Pair and Folder Pair end-to-end execution;
+- COMPLETE and PARTIAL publication behavior;
+- early/late cancel and completion races;
+- historical logical Result reopen/root remap;
+- real shared-root/staging/SMB access;
+- manifest/summary/Reference/Scene-grid/source verification/spatial-load timing and byte
+  observations;
+- concurrent local Statistics/Difference/Display Gain/ROI/Line/page navigation;
+- close/reopen and rapid Result/Scene intents;
+- server build/algorithm identity and storage topology capture where available.
+
+Any performance correction in P5-G must still be measurement-backed and bounded. Real
+timing observations do not become correctness thresholds unless a concrete regression
+is intentionally frozen.
+
+P5-G is also the only slice allowed to perform final P5 closeout:
+
+1. record P5-F and P5-G merge/evidence identities;
+2. mark the overall P5 Remote IQA Platform Complete;
+3. archive this active plan under `docs/exec-plans/completed/`;
+4. update ROADMAP/CURRENT_STATE/UI implementation status;
+5. make P6 **Identity, Access & Remote Operations** the active/next program.
+
+The implementation agent must never fabricate a live GPU/SMB PASS. Localhost/mock PASS
+and compatibility tooling are preparation/evidence only.
 
 ## P6 boundary
 
-P6 **Identity, Access & Remote Operations** is the next major program after P5 closure.
-P5-F does not implement authentication/SSO, credential lifecycle, permission policy,
-audit, or result administration merely because a production server may require those
-later.
+P6 **Identity, Access & Remote Operations** is the next major program only after P5-G
+and final P5 closeout. P5-F/P5-G do not implement authentication/SSO, credential
+lifecycle, permission policy, audit, or result administration merely because a
+production server may require those later.
