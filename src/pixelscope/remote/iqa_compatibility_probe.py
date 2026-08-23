@@ -55,8 +55,9 @@ def run_iqa_compatibility_probe(
     """Exercise create/status/result/cancel without retries or overlapping requests.
 
     ``poll_pause`` is injectable so tests remain deterministic while an owner-side live
-    probe may provide a bounded sleep. CREATE is issued exactly once; any ambiguous
-    create failure is returned as classified evidence rather than retried.
+    probe may provide a bounded sleep. CREATE is issued exactly once. Cancel is issued
+    at most once; a non-terminal cancel response remains server-owned state and polling
+    continues until a terminal state or the actual status-request bound.
     """
 
     if max_status_requests < 1:
@@ -68,25 +69,27 @@ def run_iqa_compatibility_probe(
     states: list[str] = []
     job_id: str | None = None
     reference: IqaResultReference | None = None
+    observed_state: JobState | None = None
 
     try:
         started = clock()
         created = client.create_job(request)
         duration = max(0.0, (clock() - started) * 1000.0)
         job_id = created.job_id
+        observed_state = created.state
         states.append(created.state.value)
         operations.append(IqaProbeOperation("create", duration, created.state.value))
 
-        terminal = created.state
-        for status_index in range(1, max_status_requests + 1):
-            if terminal.terminal:
-                break
+        status_requests = 0
+        cancel_issued = False
+        while not observed_state.terminal and status_requests < max_status_requests:
             if poll_pause is not None:
                 poll_pause()
             started = clock()
             status = client.get_status(created.job_id)
             duration = max(0.0, (clock() - started) * 1000.0)
-            terminal = status.state
+            status_requests += 1
+            observed_state = status.state
             states.append(status.state.value)
             operations.append(
                 IqaProbeOperation(
@@ -99,13 +102,15 @@ def run_iqa_compatibility_probe(
             )
             if (
                 cancel_after_status_requests is not None
-                and status_index >= cancel_after_status_requests
-                and not terminal.terminal
+                and not cancel_issued
+                and status_requests >= cancel_after_status_requests
+                and not observed_state.terminal
             ):
                 started = clock()
                 status = client.cancel_job(created.job_id)
                 duration = max(0.0, (clock() - started) * 1000.0)
-                terminal = status.state
+                cancel_issued = True
+                observed_state = status.state
                 states.append(status.state.value)
                 operations.append(
                     IqaProbeOperation(
@@ -116,20 +121,20 @@ def run_iqa_compatibility_probe(
                         status.total_scenes,
                     )
                 )
-                break
 
-        if not terminal.terminal:
+        if not observed_state.terminal:
             return _status_limit_trace(job_id, states, operations)
 
-        if terminal in {JobState.SUCCEEDED, JobState.PARTIAL}:
+        if observed_state in {JobState.SUCCEEDED, JobState.PARTIAL}:
             started = clock()
             reference = client.get_result(created.job_id)
             duration = max(0.0, (clock() - started) * 1000.0)
-            operations.append(IqaProbeOperation("result", duration, terminal.value))
+            operations.append(IqaProbeOperation("result", duration, observed_state.value))
 
-        return _trace(job_id, states, operations, terminal, reference, None)
+        return _trace(job_id, states, operations, observed_state, reference, None)
     except IqaClientError as error:
-        return _trace(job_id, states, operations, None, reference, error)
+        terminal = observed_state if observed_state is not None and observed_state.terminal else None
+        return _trace(job_id, states, operations, terminal, reference, error)
 
 
 def _status_limit_trace(
@@ -170,7 +175,7 @@ def _trace(
         job_id=job_id,
         state_sequence=tuple(states),
         operations=tuple(operations),
-        terminal_state=terminal.value if terminal is not None and terminal.terminal else None,
+        terminal_state=terminal.value if terminal is not None else None,
         result_schema_version=reference.schema_version if reference is not None else None,
         result_publication_state=reference.publication_state if reference is not None else None,
         result_storage_root_id=reference.storage_root_id if reference is not None else None,
