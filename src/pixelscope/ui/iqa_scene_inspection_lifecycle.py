@@ -9,7 +9,10 @@ from PySide6.QtCore import QObject, Slot
 
 import pixelscope.ui.iqa_scene_inspection as inspection_module
 from pixelscope.io.path_discovery import ImageInput
-from pixelscope.remote.iqa_scene_inspection import SceneVerificationOutcome, VerifiedSceneSource
+from pixelscope.remote.iqa_scene_inspection import (
+    SceneVerificationOutcome,
+    VerifiedSceneSource,
+)
 from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.workers.task_worker import TaskWorker
 
@@ -90,11 +93,23 @@ class IqaSceneInspectionLifecycle(QObject):
         def settings_changed(_controller: Any) -> None:
             self.settings_changed()
 
-        controller._start_scene_verification = MethodType(start_scene_verification, controller)
-        controller._verification_succeeded = MethodType(verification_succeeded, controller)
-        controller._verification_failed = MethodType(verification_failed, controller)
+        controller._start_scene_verification = MethodType(
+            start_scene_verification,
+            controller,
+        )
+        controller._verification_succeeded = MethodType(
+            verification_succeeded,
+            controller,
+        )
+        controller._verification_failed = MethodType(
+            verification_failed,
+            controller,
+        )
         controller._apply_verified_scene = MethodType(apply_verified_scene, controller)
-        controller.return_to_local_workspace = MethodType(return_to_local_workspace, controller)
+        controller.return_to_local_workspace = MethodType(
+            return_to_local_workspace,
+            controller,
+        )
         controller._cancel_inspect_worker = MethodType(cancel_inspect_worker, controller)
         controller._sync_controls = MethodType(sync_controls, controller)
         controller.settings_changed = MethodType(settings_changed, controller)
@@ -150,9 +165,7 @@ class IqaSceneInspectionLifecycle(QObject):
         self._cancel_inspect_worker()
         self.controller._inspect_generation += 1
         generation = self.controller._inspect_generation
-        self.controller._inspect_local_intent_generation = (
-            self.controller._local_intent_generation
-        )
+        self.controller._inspect_local_intent_generation = self.controller._local_intent_generation
         self._inspect_settings_revision = self._settings_revision
         self.controller._inspect_result_identity = (result.result_id, id(result))
         self.controller._set_status(f"Verifying and decoding published sources for {scene_id}…")
@@ -261,6 +274,13 @@ class IqaSceneInspectionLifecycle(QObject):
                 self._sync_controls()
                 return
 
+            # Make the fully verified Scene the canonical Current Comparison Page before
+            # committing decoded arrays. MainWindow's normal load commit may enforce the
+            # residency budget immediately; Selected/current-page membership therefore
+            # protects these exact decoded generations from being evicted and reloaded
+            # from disk between verification and presentation.
+            self.window._select_document_ids(document_ids)
+
             for document_id, binding in zip(document_ids, unique_sources, strict=True):
                 decoded = binding.decoded_document
                 assert decoded is not None
@@ -271,16 +291,13 @@ class IqaSceneInspectionLifecycle(QObject):
                 )
                 previous_generation = previous.generation
 
-                # Invalidate any pending ordinary load for this document and commit the
-                # exact already-decoded bytes that carried the verified encoded SHA.
+                # Invalidate any ordinary load started by selection and commit the exact
+                # already-decoded bytes that carried the verified encoded SHA.
                 request_token = self.window._load_tokens.get(document_id, 0) + 1
                 self.window._load_tokens[document_id] = request_token
                 self.window._load_succeeded(document_id, request_token, decoded)
                 committed = self.window.documents.get(document_id)
-                if (
-                    committed is None
-                    or committed.encoded_source_sha256 != binding.source.sha256
-                ):
+                if committed is None or committed.encoded_source_sha256 != binding.source.sha256:
                     self._rollback_new_registrations(before_ids)
                     if captured_now:
                         self.controller._return_snapshot = None
@@ -295,8 +312,6 @@ class IqaSceneInspectionLifecycle(QObject):
                     committed.statistics_cache.clear()
                     committed.histogram_cache.clear()
                     self.window._invalidate_channel_views(document_id)
-
-            self.window._select_document_ids(document_ids)
 
         self.controller._inspect_scene_id = outcome.scene_id
         self.controller._inspected_result = result
@@ -325,9 +340,7 @@ class IqaSceneInspectionLifecycle(QObject):
 
     def _rollback_new_registrations(self, before_ids: set[str]) -> None:
         newly_registered = [
-            document_id
-            for document_id in self.window.documents
-            if document_id not in before_ids
+            document_id for document_id in self.window.documents if document_id not in before_ids
         ]
         if newly_registered:
             self.controller._original_remove_document_ids(newly_registered)
@@ -337,9 +350,7 @@ class IqaSceneInspectionLifecycle(QObject):
         if bool(getattr(review, "active", False)):
             if self.controller._return_snapshot is not None:
                 self.controller._local_intent_generation += 1
-                self.controller._invalidate_return(
-                    "Return invalidated by newer temporary Pick intent"
-                )
+                self.controller._invalidate_return("Return invalidated by newer temporary Pick intent")
             else:
                 self.controller._set_status(
                     "Return is unavailable while temporary Picks are active"
@@ -369,9 +380,7 @@ class IqaSceneInspectionLifecycle(QObject):
         self._original_sync_controls()
         review = getattr(self.window, "review_selection_controller", None)
         picks_active = bool(getattr(review, "active", False))
-        self.controller.return_button.setEnabled(
-            self.controller.return_valid and not picks_active
-        )
+        self.controller.return_button.setEnabled(self.controller.return_valid and not picks_active)
         if picks_active and self.controller.return_valid:
             self.controller.return_button.setToolTip(
                 "Return is disabled while temporary Picks are active"
