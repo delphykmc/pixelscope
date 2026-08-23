@@ -9,7 +9,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, TypeAlias
 
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, validate_storage_root_id
-from pixelscope.remote.iqa_storage import StorageResolutionError, validate_relative_path
+from pixelscope.remote.iqa_storage import (
+    StorageResolutionError,
+    resolve_result_reference,
+    validate_relative_path,
+)
 
 RECENT_IQA_ENTRY_VERSION = 1
 RECENT_IQA_RESULT_LIMIT = 10
@@ -175,14 +179,15 @@ def locator_for_manual_result(
 ) -> IqaResultLocator:
     """Canonicalize a successful explicit local open without touching source files.
 
-    Schema-v1 compatibility remains local. Schema-v2 paths use the same longest lexical
-    Windows-root precedence as P5-C; authoritative containment is revalidated by
-    ``resolve_result_reference`` whenever a logical Recent entry is reopened.
+    Schema-v1 compatibility remains local. Schema-v2 uses lexical matching only to
+    propose portable candidates; a candidate becomes logical history only when the
+    authoritative P5-C result resolver maps it back to the same canonical directory.
     """
 
     value = str(path)
+    local = LocalIqaResultLocator(_absolute_local_text(value))
     if schema_version == 1:
-        return LocalIqaResultLocator(_absolute_local_text(value))
+        return local
     source = PureWindowsPath(value)
     matches: list[tuple[int, str, str]] = []
     source_parts = tuple(part.casefold() for part in source.parts)
@@ -200,10 +205,14 @@ def locator_for_manual_result(
         except StorageResolutionError:
             continue
         matches.append((len(root_path.parts), root.storage_root_id, relative))
-    if matches:
-        _length, root_id, relative = max(matches, key=lambda item: item[0])
-        return LogicalIqaResultLocator(root_id, relative)
-    return LocalIqaResultLocator(_absolute_local_text(value))
+    for _length, root_id, relative in sorted(matches, reverse=True):
+        try:
+            resolved = resolve_result_reference(root_id, relative, settings)
+        except (OSError, StorageResolutionError):
+            continue
+        if _same_existing_directory(Path(value), resolved):
+            return LogicalIqaResultLocator(root_id, relative)
+    return local
 
 
 def locator_leaf(locator: IqaResultLocator) -> str:
@@ -251,6 +260,13 @@ def _absolute_local_text(value: str) -> str:
     if _is_absolute_local_path(value):
         return value
     return str(Path(value).absolute())
+
+
+def _same_existing_directory(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve(strict=True) == right.resolve(strict=True)
+    except OSError:
+        return False
 
 
 def _normalized_local_identity(value: str) -> str:
