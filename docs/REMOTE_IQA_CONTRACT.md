@@ -1,8 +1,8 @@
 # Remote IQA contract
 
-Status: P5 durable contract — executable schema-v2 + P5-C client contract active
+Status: P5 durable contract — executable schema-v2 + P5-C/P5-D merged + P5-E historical workflow active
 Owner: PixelScope P5 program + external IQA server contract
-Established: P5-0; numerical ownership revised by PR #39; P5-C transport/storage/failure contract frozen in PR #42
+Established: P5-0; numerical ownership revised by PR #39; P5-C transport/storage/failure contract frozen in PR #42; P5-D native inspection frozen in PR #43
 
 This document defines the stable product/architecture boundary for PixelScope P5.
 The external GPU IQA implementation lives in a separate repository. PixelScope
@@ -14,6 +14,9 @@ extraction models.
 in [`REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md) remains the historical executable
 baseline and explicit read-only compatibility definition. It must not be silently
 reinterpreted as v2.
+
+P5-E historical reopen is specialized in
+[`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
 
 The current ownership principle is:
 
@@ -51,7 +54,7 @@ Resident when required
 `Analysis Working Set = Current Comparison Page` remains authoritative for existing
 Statistics, Histogram, Line Profile, Difference, source protection, and page loading.
 
-Remote IQA batch/result membership is feature-local and must not itself:
+Remote IQA batch/result/history membership is feature-local and must not itself:
 
 - register/decode all batch inputs;
 - own source residency/protection or preload;
@@ -225,7 +228,7 @@ default.
 Optional server pairwise values may exist as diagnostics/verification, but are marked
 derived and do not become a second user-facing numerical authority.
 
-## 8. Durable result artifact categories
+## 8. Durable result artifact categories and historical retention
 
 P5 avoids eager full-map transfer, but schema v2 separates **artifact purpose** from
 client loading policy:
@@ -255,8 +258,10 @@ PixelScope may load them per Scene, bounded batch, background request, or bounde
 according to measured runtime needs. The policy remains bounded, stale-safe, and
 non-blocking for network storage.
 
-Published results are immutable historical engineering artifacts. Ordinary clients
-expect them to persist until explicit/administrative deletion. Authentication,
+Published results are immutable historical engineering artifacts. P5-E records only a
+small locator plus observed `result_id + schema_version`; it does not copy the Result,
+create a second artifact format, or add a whole-result digest. Ordinary clients expect
+published Results to persist until explicit/administrative deletion. Authentication,
 identity, permission, and administration remain P6.
 
 ## 9. Shared storage abstraction — P5-C frozen
@@ -298,6 +303,11 @@ Cross-process concurrent publication and source/result symlink or junction escap
 covered by the P5-C implementation and regression suite without changing the logical
 identity contract above.
 
+P5-E reuses the same abstraction for historical Results. A production historical
+locator is `storage_root_id + relative_path`; current machine mapping is resolved only
+when the user reopens the entry. Jobs history preserves the server-published logical
+Result reference instead of persisting the currently mapped drive/UNC path.
+
 ## 10. Submission pairing and PARTIAL contract — P5-C frozen
 
 Request/result/Scene-manifest identity remains N-way-capable, but the **initial P5-C
@@ -338,6 +348,7 @@ Durable PARTIAL results are executable schema-v2 results with these rules:
 
 For COMPLETE and PARTIAL, `manifest.json` remains the immutable publication commit
 marker and summary/grid artifacts cover only the published successful `scenes[]`.
+P5-E history/provenance does not alter publication state or synthesize missing Scenes.
 
 ## 11. Job API and retry contract — P5-C frozen
 
@@ -404,14 +415,22 @@ IQA
 ├─ Setup
 ├─ Jobs
 └─ Results
+    ├─ Dataset/Scene exploration
+    ├─ P5-D Inspect / Return / spatial inspection
+    └─ P5-E Provenance
 ```
 
 Setup owns Current Pair and deterministic Folder Pair preparation/submission. Jobs owns
 locally tracked durable job state, Cancel, and explicit Open Result. Results embeds the
 existing P5-B result workspace rather than creating a second result parser/controller.
 
-Native OS file/folder pickers may remain modal; pairing, jobs, and result exploration
-remain non-modal. A job reaching COMPLETE/PARTIAL does not auto-open Results.
+Native OS file/folder pickers may remain modal; pairing, jobs, result exploration,
+historical reopen, and Scene inspection remain non-modal. A job reaching
+COMPLETE/PARTIAL does not auto-open Results.
+
+P5-E adds **File > Open Recent IQA Results** with bounded max-10 MRU entries and Clear.
+It is independent from P4-C Recent Images/Folders/Sessions. Missing/offline/remapped
+historical entries remain until explicit Remove/Clear.
 
 Result exploration follows:
 
@@ -433,9 +452,9 @@ Summary metadata supports immediate absolute Overview/Scene Trend. Reference-dep
 views may load compact grid measurements asynchronously and show Loading/Calculating
 state.
 
-Passive result browsing never changes Selected. Explicit Inspect loads only the chosen
-Scene sources through the canonical local registration/selection path. IQA Reference
-is independent from Primary.
+Passive result browsing, Recent reopen, and Provenance never change Selected. Explicit
+Inspect loads only the chosen Scene sources through the canonical local registration/
+selection path. IQA Reference is independent from Primary.
 
 P5 blocks conflicting Inspect while a P4-A temporary Pick baseline is active.
 Return-to-previous-workspace remains transient and must not overwrite newer non-IQA
@@ -447,12 +466,56 @@ stops before POST. Replay JSON injects bounded logical terminal job/result refer
 without HTTP and still requires explicit Open Result. The localhost fault server uses
 real HTTP solely for client-contract validation.
 
-## 13. Open Result ownership and current P5 sequence
+## 13. Historical Result ownership — P5-E
 
-P5-B / PR #38 is merged into main and owns the one canonical `Open IQA Result...`
-controller/parser path. P5-C extends the same IQA dock with Setup/Jobs and delegates
-explicit Remote `Open Result` back through that P5-B authority. P5-E later extends the
-same path with bounded Recent IQA Results and historical reopen productivity.
+All historical open paths converge on the canonical P5-B result loader:
+
+```text
+File > Open IQA Result...
+Jobs > Open Result
+File > Open Recent IQA Results
+        ↓
+P5-E locator + expected historical identity context
+        ↓
+P5-D new-result teardown
+        ↓
+P5-B canonical loader / P5-A2-v1 dispatch
+        ↓
+existing Results workspace
+```
+
+Historical locator types are:
+
+- portable logical Result locator: `storage_root_id + relative_path`;
+- machine-local absolute locator: manual/out-of-root and explicit schema-v1 fallback.
+
+Recent IQA metadata is separate observer persistence under `recent/iqa_results`, payload
+version 1, max 10, MRU, locator-deduplicated. It is not `ApplicationSettings`, does not
+increment settings schema v6, and is not Session v1.
+
+A successful open records observed `result_id + schema_version`. Recent reopen compares
+the observed identity after the canonical reader succeeds but before Results
+`set_model()`. Mismatch rejects the reopen, preserves the last valid current Result, and
+keeps the old history entry unless the user removes it.
+
+No whole-result hash is added. Structural/numerical integrity remains the canonical
+artifact reader's responsibility.
+
+Result-only browsing deliberately does not stat/hash/decode all native sources.
+Source existence/dimension/SHA/decode/containment checks remain lazy P5-D Inspect
+authority. Therefore missing sources can disable Inspect while the immutable server
+Result stays browseable.
+
+P5-E Provenance displays published v2 Result/Scene/source provenance and current native
+inspection state without recomputing IQA or decoding source pixels. Schema v1 remains
+explicit historical/read-only with no invented v2 metadata.
+
+## 14. Open Result ownership and current P5 sequence
+
+P5-B / PR #38 owns the one canonical Result parser/controller/workspace. P5-C / PR #42
+extends the same IQA dock with Setup/Jobs. P5-D / PR #43 composes verified explicit
+native Inspect/Return on top. P5-E / Draft PR #44 extends the same open path with bounded
+historical discovery and Provenance.
 
 Current sequence is:
 
@@ -463,14 +526,20 @@ P5-A2 durable + executable schema v2 merged (#39/#40)
     ↓
 P5-B local result workspace merged (#38)
     ↓
-P5-C submission/shared-storage client (#42, active)
+P5-C submission/shared-storage client merged (#42)
+    ↓
+P5-D viewer-linked Scene inspection merged (#43)
+    ↓
+P5-E historical Result workflow active (Draft #44)
+    ↓
+P5-F real-server/performance hardening planned
 ```
 
 If original images disappear, server result summaries and measurement artifacts remain
 usable for result-only exploration while source-linked inspection/overlay may be
 unavailable.
 
-## 14. Executable compatibility and test harness ownership
+## 15. Executable compatibility and test harness ownership
 
 P5-A/PR #37 remains the historical schema-v1 executable baseline. P5-A2 / PR #39 and
 PR #40 define and implement the canonical schema-v2 domain, manifest/summary/grid
@@ -482,9 +551,10 @@ create a second numerical parser. Deterministic P5-C debug result generation reu
 the canonical v2 fixture writer and validates the generated artifact through the
 canonical result loader before publishing replay metadata.
 
+P5-D and P5-E consume those readers. Neither defines another numerical parser.
 No silent v1→v2 numerical upgrade is allowed.
 
-## 15. Explicit P5 boundaries
+## 16. Explicit P5 boundaries
 
 P5 does not own:
 

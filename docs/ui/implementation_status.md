@@ -1,13 +1,17 @@
 # UI implementation status
 
 Status: P4 **Workflow & Session Productivity** is Complete through P4-F / PR #35.
-P5 **Remote IQA Platform** is Active in P5-D **Viewer-linked Scene Inspection**.
-P5-B local Results and P5-C Setup/Jobs/shared-storage UI are merged.
+P5 **Remote IQA Platform** is Active in P5-E **Historical Result Workflow** / Draft PR #44.
+P5-B local Results, P5-C Setup/Jobs/shared-storage UI, and P5-D viewer-linked Scene
+inspection are merged.
 
 Current merged baseline:
-`24b328d02c0cd56fb79920e069af06d6e4cb706f`
+`b086443d188eb9daae4bbf4f0faab3ff1d114f93`
 
-Active P5-D contract:
+Active P5-E contract:
+[`../P5E_HISTORICAL_RESULTS.md`](../P5E_HISTORICAL_RESULTS.md).
+
+Completed P5-D contract:
 [`../P5D_VIEWER_INSPECTION.md`](../P5D_VIEWER_INSPECTION.md).
 
 ## Current shell — implemented
@@ -21,8 +25,8 @@ Active P5-D contract:
 - One IQA dock contains Setup / Jobs / Results and follows the same float/dock/
   maximize/reset workspace pattern as Plots.
 - File menu owns Open Images, Open Folder, Open Session, typed Recent
-  Images/Folders/Sessions, Save Session, focused analysis exports, and
-  **Open IQA Result...**.
+  Images/Folders/Sessions, Save Session, focused analysis exports,
+  **Open IQA Result...**, and P5-E **Open Recent IQA Results**.
 - There is no separate current Open/Save Comparison Set UI; legacy Comparison Set v1
   remains readable through Session open compatibility.
 
@@ -49,9 +53,9 @@ Resident when required
 - Open Folder/folder D&D are registration-oriented and do not replace Selected.
 - Registered-but-unselected is a valid workspace state.
 
-Remote IQA Setup/Jobs/Results does not add another local source/analysis working-set
-layer. P5-D invokes that local hierarchy only after explicit, successful Scene Inspect
-verification.
+Remote IQA Setup/Jobs/Results/Recent/Provenance does not add another local
+source/analysis working-set layer. P5-D invokes that local hierarchy only after
+explicit, successful Scene Inspect verification.
 
 ## P4 workflow UI — implemented
 
@@ -77,14 +81,16 @@ Current File workflow includes Open Images, Open Folder, Open Session, typed Rec
 Images/Folders/Sessions, and Save Session. Session restore remains a bounded staged
 reconstruction and does not expose runtime arrays/cache state as persistent UI state.
 
-P5-D Return state is transient and is not added to Session v1.
+P5-D Return state is transient and is not added to Session v1. P5-E also does not add
+IQA Result locator/identity, IQA Reference, selected Scene, Provenance, or Inspect state
+to Session v1.
 
 ### Difference lifecycle
 
 Only explicit successful Calculate establishes active Difference state. Toolbar Diff
 is visibility-only for that established result. Selection/curation changes continue to
-obey the canonical Difference teardown/recalculation lifecycle. P5-D does not add a
-Difference owner or treat the spatial overlay as Difference output.
+obey the canonical Difference teardown/recalculation lifecycle. P5-D/P5-E do not add a
+Difference owner or treat spatial/provenance presentation as Difference output.
 
 ### Focused export
 
@@ -96,8 +102,8 @@ PNG. Export consumes already-established local result/presentation state.
 
 P5-B owns the canonical non-modal IQA result workspace/controller.
 
-Use **File > Open IQA Result...** or P5-C Jobs **Open Result** to enter the same Results
-authority.
+Use **File > Open IQA Result...**, P5-C Jobs **Open Result**, or P5-E Recent IQA Results
+to enter the same Results authority.
 
 Implemented behavior:
 
@@ -132,7 +138,7 @@ IQA
 │   ├─ Cancel
 │   └─ Open Result
 └─ Results
-    └─ P5-B workspace + P5-D Inspect controls
+    └─ P5-B workspace + P5-D Inspect controls + P5-E Provenance
 ```
 
 Native OS image/folder pickers may remain modal. IQA setup, pair preview, job progress,
@@ -156,7 +162,8 @@ into Files/Selected.
 Jobs shows locally tracked remote job identity/state/progress. Completion never forces
 Results to change. Cancel requests server cancellation. Open Result is explicit and
 uses the canonical P5-B path. Create POST is not blindly retried; terminal result
-reference recovery is bounded.
+reference recovery is bounded. P5-E observes a successful Jobs open and retains the
+server-published logical Result locator rather than the current mapped client path.
 
 ### PARTIAL
 
@@ -184,7 +191,7 @@ The typed application settings schema is v6.
 generation, and localhost HTTP fault tooling. Those surfaces exercise production client
 contracts but are not the GPU server implementation.
 
-## P5-D Viewer-linked Scene Inspection — Active implementation
+## P5-D Viewer-linked Scene Inspection — Complete / PR #43
 
 P5-D adds one explicit Scene-to-native-viewer transition to the existing Results page.
 
@@ -280,10 +287,37 @@ stale feature-local work. A stale callback cannot newly mutate the local workspa
 
 ## P5-D validation status
 
-The implementation is not yet marked Complete. Exact-head focused/full validation and
-owner Windows manual validation remain required. See
-[`../P5D_VIEWER_INSPECTION.md`](../P5D_VIEWER_INSPECTION.md) for the automated and
-manual matrices.
+P5-D completed its exact-head automated/manual/review gates and merged as PR #43 at
+`main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`. Its validation evidence is historical
+P5-D evidence and is not inferred as P5-E validation.
+
+## P5-E Historical Result Workflow — Active / Draft PR #44
+
+P5-E extends the same P5-B Results authority with:
+
+- **Open Recent IQA Results**, max 10, MRU, and locator dedup independent from existing
+  Recent Images/Folders/Sessions;
+- server-published `storage_root_id + relative_path` history for Jobs;
+- manual schema-v2 logical-history promotion only when the P5-C resolver reproduces the
+  same canonical opened Result directory, otherwise Local fallback;
+- pre-presentation `result_id + schema_version` identity checking;
+- Result-only browsing when native sources are unavailable;
+- passive **Provenance** inside the existing Results workspace;
+- explicit schema-v1 historical/read-only presentation;
+- a feature-local resolver generation so delayed logical Recent resolution cannot
+  override a newer File/Jobs/Recent Result-open intent;
+- immediate Provenance refresh after the existing live Remote IQA settings-change chain.
+
+P5-E remains passive with respect to Files/Selected/Current Comparison Page until the
+existing P5-D **Inspect in Viewer** transition is explicitly invoked.
+
+## P5-E validation status
+
+P5-E is **not Complete**. Owner automated/static validation passed on an earlier Draft
+head, but independent review added lifecycle/canonicalization/documentation fixes after
+that run. The post-review exact head requires focused/full validation, owner Windows
+manual A–G, and independent latest-head re-review. See
+[`../P5E_HISTORICAL_RESULTS.md`](../P5E_HISTORICAL_RESULTS.md).
 
 ## Deferred UI from P4
 
@@ -298,11 +332,10 @@ Not current UI commitments:
 ```text
 P5-B Results workspace                    Complete
 P5-C Setup / Jobs / shared-storage flow   Complete
-P5-D source/spatial Inspect               Active
-P5-E Recent/historical IQA productivity   Planned
+P5-D source/spatial Inspect               Complete
+P5-E Recent/historical IQA productivity   Active — Draft PR #44
 P5-F real-server/performance hardening    Planned
 ```
 
-P5-E may extend the same canonical result-open path with bounded Recent IQA Results.
 P5-F owns real external-server/shared-storage integration and measured large-dataset
 lifetime/performance tuning. Authentication/SSO/permission UI remains P6.

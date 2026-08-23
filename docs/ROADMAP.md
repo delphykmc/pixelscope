@@ -89,8 +89,11 @@ P5 durable contract:
 Current schema-v2 result contract:
 [`docs/REMOTE_IQA_V2_SPEC.md`](REMOTE_IQA_V2_SPEC.md).
 
-P5-D implementation contract:
+P5-D completed implementation contract:
 [`docs/P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
+
+P5-E historical-result contract:
+[`docs/P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
 
 Historical schema-v1 compatibility contract:
 [`docs/REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
@@ -111,7 +114,7 @@ non-modal remote job
     ↓
 continue local work
     ↓
-explicit Open Result
+explicit Open Result / historical reopen
     ↓
 Absolute / Relative Dataset Overview
     ↓
@@ -180,8 +183,8 @@ P5-0
 | 2 | P5-A2 Schema-v2 durable + executable migration | Complete — PR #39 + #40 |
 | 3 | P5-B IQA Workspace & Local Result Exploration | Complete — PR #38 |
 | 4 | P5-C Submission & Shared Storage | **Complete — PR #42** |
-| 5 | P5-D Viewer-linked Scene Inspection | **Active — Draft PR #43 review closeout** |
-| 6 | P5-E Historical Result Workflow | Planned |
+| 5 | P5-D Viewer-linked Scene Inspection | **Complete — PR #43 · `b086443d188eb9daae4bbf4f0faab3ff1d114f93`** |
+| 6 | P5-E Historical Result Workflow | **Active — Draft PR #44** |
 | 7 | P5-F Integration & Performance Hardening | Planned |
 
 ## P5-0 / P5-A / P5-A2 — Complete
@@ -230,7 +233,7 @@ The PR closeout records independent latest-head review PASS and owner final full
 repository validation PASS. Those results are historical P5-C evidence and are not
 carried forward as P5-D validation.
 
-## P5-D — Viewer-linked Scene Inspection — Active
+## P5-D — Viewer-linked Scene Inspection — Complete
 
 ### Goal
 
@@ -301,37 +304,38 @@ Results browsing mutate local comparison state.
 Detailed contract and manual-validation matrix:
 [`docs/P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
 
-### P5-D remaining gates
+### P5-D completion
 
-P5-D is **not Complete** until all of the following are observed on the exact review
-head:
+PR #43 merged as
+`main@b086443d188eb9daae4bbf4f0faab3ff1d114f93` after the P5-D exact-head validation,
+manual closeout, and independent review gates were completed. That evidence remains
+historical P5-D evidence and is not inferred as P5-E validation.
 
-1. focused reviewer-closeout plus existing P5-D unit/UI regressions pass;
-2. repository Ruff check and formatter check pass;
-3. `mypy src`, docs checker, `pip check`, and diff check pass;
-4. owner Windows manual validation covers exact decoded source identity, stale resident
-   replacement, repeated-source variant aliases including active spatial alias
-   switching, source mapping/hash failures, Inspect/Return/Pick behavior, root-remap
-   stale-drop, linked Scene navigation, Reference/Primary independence, spatial
-   alignment, Difference/Gain/ROI/Line interaction, and close/recreate behavior;
-5. independent whole-PR latest-head review finds no merge blocker;
-6. owner approves merge.
+## P5-E — Historical Result Workflow — Active
 
-No P5-D PASS is inferred from the P5-C validation record or an older P5-D head.
+P5-E extends the canonical P5-B result-open path with bounded historical discovery and
+passive provenance while preserving P5-C logical storage and P5-D explicit Inspect.
 
-## P5-E — Historical Result Workflow — Planned
+Focused contract:
+[`docs/P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
 
-Extend the canonical result-open path with:
+Current scope:
 
-- bounded Recent IQA Results;
-- production logical-root reopen;
-- immutable result/source-hash identity diagnostics;
-- result-only mode when sources are unavailable;
-- provenance display;
-- explicit v1 historical handling.
+- separate max-10 MRU **Recent IQA Results** observer metadata;
+- production logical Result locator `storage_root_id + relative_path`, resolved through
+  current P5-C mappings at reopen time;
+- manual v2 logical-history promotion only when P5-C resolves the proposed locator back
+  to the same canonical opened directory; otherwise Local fallback;
+- observed `result_id + schema_version` identity gate before replacing current Results;
+- result-only browsing when native sources are missing/offline/unmapped;
+- passive schema-v2 Provenance plus explicit historical/read-only schema-v1 treatment;
+- feature-local resolver generation so delayed logical Recent work cannot override a
+  newer File/Jobs/Recent Result-open intent;
+- live Provenance refresh after Remote IQA root mapping changes;
+- Session v1 and P4-C Recent Images/Folders/Sessions remain unchanged.
 
-Session v1 is unchanged. Any future Session-carried IQA reference requires an explicit
-new Session schema/version decision.
+P5-E remains **Active** until exact-head validation, owner Windows manual A–G,
+independent latest-head re-review, and owner merge approval are complete.
 
 ## P5-F — Integration & Performance Hardening — Planned
 
