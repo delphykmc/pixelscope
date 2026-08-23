@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QTreeWidgetItem
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
+from pixelscope.remote.iqa_fixture import write_golden_result
 from pixelscope.remote.iqa_history import (
     IqaResultIdentity,
     LocalIqaResultLocator,
@@ -18,6 +19,7 @@ from pixelscope.remote.iqa_history import (
 )
 from pixelscope.remote.iqa_submission import IqaResultReference, JobState
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
+from pixelscope.remote.iqa_v2_partial import PartialResultV2
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 
 
@@ -36,6 +38,31 @@ def _set_result_id(root: Path, result_id: str) -> Path:
     manifest_path = root / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["result_id"] = result_id
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+    return root
+
+
+def _make_partial(root: Path) -> Path:
+    manifest_path = root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["publication_state"] = "partial"
+    manifest["scene_outcomes"] = [
+        {"scene_id": scene["scene_id"], "status": "succeeded"}
+        for scene in manifest["scenes"]
+    ] + [
+        {
+            "scene_id": "scene_failed_history",
+            "status": "failed",
+            "error": {
+                "code": "fixture_failure",
+                "message": "historical fixture failure",
+                "retryable": True,
+            },
+        }
+    ]
     manifest_path.write_text(
         json.dumps(manifest, indent=2, allow_nan=False) + "\n",
         encoding="utf-8",
@@ -178,6 +205,54 @@ def test_jobs_open_records_published_logical_locator_not_mapped_path(
     window.close()
 
 
+def test_schema_v1_history_is_local_and_explicitly_read_only(
+    qtbot: Any,
+    tmp_path: Path,
+) -> None:
+    root = _set_result_id(write_golden_result(tmp_path / "v1-result"), "history-v1")
+    window = MainWindow()
+    qtbot.addWidget(window)
+    _compose_main_window_presentation(window)
+
+    _open_and_wait(qtbot, window, root, "history-v1")
+
+    entry = window.historical_iqa_results_controller.repository.load()[0]
+    assert entry.identity == IqaResultIdentity("history-v1", 1)
+    assert isinstance(entry.locator, LocalIqaResultLocator)
+    provenance = _provenance_text(window)
+    assert "historical / read-only" in provenance
+    assert "schema_version" in provenance
+    assert "measurement_context_id" not in provenance
+    assert "storage_root_id" not in provenance
+    window.close()
+
+
+def test_partial_history_preserves_publication_state_and_failed_scene_diagnostics(
+    qtbot: Any,
+    tmp_path: Path,
+) -> None:
+    root = _make_partial(
+        _set_result_id(
+            write_golden_result_v2(tmp_path / "partial-result"),
+            "history-partial",
+        )
+    )
+    window = MainWindow()
+    qtbot.addWidget(window)
+    _compose_main_window_presentation(window)
+
+    _open_and_wait(qtbot, window, root, "history-partial")
+
+    result = window.iqa_workspace.result
+    assert isinstance(result, PartialResultV2)
+    assert result.publication_state == "partial"
+    assert result.unsuccessful_scene_outcomes[0].scene_id == "scene_failed_history"
+    assert "PARTIAL" in _provenance_text(window)
+    entry = window.historical_iqa_results_controller.repository.load()[0]
+    assert entry.identity == IqaResultIdentity("history-partial", 2)
+    window.close()
+
+
 def test_recent_history_survives_window_close_and_recreate(
     qtbot: Any,
     tmp_path: Path,
@@ -196,6 +271,9 @@ def test_recent_history_survives_window_close_and_recreate(
     entries = second.historical_iqa_results_controller.repository.load()
     assert entries
     assert entries[0].result_id == "persistent-result"
-    menu_text = [action.text() for action in second.historical_iqa_results_controller.recent_menu.actions()]
+    menu_text = [
+        action.text()
+        for action in second.historical_iqa_results_controller.recent_menu.actions()
+    ]
     assert any("persistent-result" in text for text in menu_text)
     second.close()
