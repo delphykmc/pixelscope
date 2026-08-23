@@ -1,6 +1,6 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-23
+Snapshot date: 2026-08-24
 Current merged `main`: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
 
 `main` includes:
@@ -18,7 +18,9 @@ Current merged `main`: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
   `6a0a334d61a7495b9c3433edfcbd537c8df59468`.
 
 P5 **Remote IQA Platform** is currently Active in **P5-F — Remote IQA Integration &
-Performance Hardening** on `feature/p5-f-integration-performance-hardening`.
+Performance Hardening** on `feature/p5-f-integration-performance-hardening`. P5-G
+**External GPU/SMB Validation & Closeout** is the planned final P5 gate once the real
+environment is available.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -399,34 +401,57 @@ Its exact durable contract is
 [`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md). P5-E validation remains
 historical evidence only.
 
-## P5-F active characterization state
+## P5-F active repository-side hardening state
 
-P5-F is the final P5 integration/performance hardening slice. It begins from the merged
-P5-E production flow and follows **measure before optimizing**.
+P5-F follows **measure before optimizing** but is now explicitly scoped to evidence that
+can be obtained without the unavailable real GPU/SMB environment.
 
-Initial code/ownership characterization on the P5-E baseline identifies two items that
-require deterministic regression evidence before any correction is retained:
+Repository characterization identified and corrected two ownership/lifetime problems:
 
-- P5-B Result open/Reference preparation, P5-D native verification/spatial loading, and
-  P5-E logical Recent resolution use the same max-two application analysis pool whose
-  established owner is local Statistics/Difference work. Slow/cancelled-but-running SMB
-  work can therefore contend with local analysis.
-- `HttpIqaJobClient` itself supports connection pooling while alive, but the current
-  production Remote IQA controller creates and closes one client around each individual
-  create/status/result/cancel operation, so job-lifecycle requests cannot reuse that
-  pool.
+- P5-B Result/Reference, P5-D verification/spatial, and P5-E historical resolution are
+  isolated onto one application-owned max-two Remote IQA result/file pool. The local
+  Statistics/Difference analysis pool remains distinct, and P5-C job operations retain
+  their own separate max-two pool.
+- production HTTP reuse now uses a lazy proxy. Merely queuing a P5-C operation creates
+  no physical `HttpIqaJobClient`; checkout occurs only when the worker performs its first
+  HTTP operation. Queued work cleared before execution therefore owns no HTTP resource.
 
-P5-F will add bounded diagnostics/compatibility evidence and apply only corrections
-backed by deterministic structural tests. It does not assume that a raw-grid cache,
-grid preload, adaptive polling, generalized retry, or new user Settings are needed.
+Independent review also tightened the compatibility probe so a non-terminal cancel
+response continues polling and a succeeded/partial terminal state remains recorded even
+when later Result-reference fetch fails.
 
-Real GPU/SMB validation remains an owner/manual gate unless the implementation agent
-actually has access to that environment.
+Focused regressions cover production pool binding and a four-job/max-two-worker
+shutdown case, proving queued work does not create extra physical clients and executing
+leases drain after shutdown.
+
+No raw-grid cache, grid preload, adaptive polling, generalized retry, new user Settings,
+WebSocket, or optional detail viewer is added without real-environment evidence.
+
+The owner previously reported the full local validation gate PASS on exact head
+`6d3bb2ca000db1c11c78d6c2d66edbc434358c68`. Independent review produced later code,
+test, and docs changes, so that PASS is historical only; the latest review-fix head
+requires owner revalidation.
+
+## P5-G planned external validation state
+
+P5-G **External GPU/SMB Validation & Closeout** is the final P5 program gate and is
+blocked only by realistic environment availability, not by missing repository-side
+implementation.
+
+It will validate the real external GPU API/result writer, mapped/shared storage,
+Current Pair/Folder Pair, COMPLETE/PARTIAL, cancel/completion races, historical reopen,
+Inspect/spatial flow, concurrent local analysis, lifecycle behavior, and real
+network/grid/source timing observations. Any follow-up optimization must remain
+measurement-backed and bounded.
+
+No real GPU/SMB PASS has been observed or claimed.
 
 ## Forward sequence
 
 ```text
 P5-F Integration & Performance Hardening
+    ↓
+P5-G External GPU/SMB Validation & Closeout
     ↓
 P5 Complete
     ↓
