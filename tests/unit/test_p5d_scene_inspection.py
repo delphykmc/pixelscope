@@ -99,7 +99,9 @@ def _scene_result(
         discarded_bottom=1.25,
     )
     specs = _specs()
-    variants = tuple(Variant(f"v{index}", f"Variant {index}") for index in range(variant_count))
+    variants = tuple(
+        Variant(f"v{index}", f"Variant {index}") for index in range(variant_count)
+    )
     measurements = tuple(
         SourceMeasurementV2(
             variant_id=variant.variant_id,

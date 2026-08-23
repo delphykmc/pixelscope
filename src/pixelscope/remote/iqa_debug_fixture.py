@@ -91,7 +91,9 @@ def write_debug_result_bundle(
     manifest = _read_manifest(manifest_path)
     manifest["result_id"] = job_id
     if mode is not DebugResultMode.COMPLETE:
-        failed_status = "failed" if mode is DebugResultMode.PARTIAL_FAILED else "cancelled"
+        failed_status = (
+            "failed" if mode is DebugResultMode.PARTIAL_FAILED else "cancelled"
+        )
         manifest["publication_state"] = publication_state
         manifest["scene_outcomes"] = [
             {"scene_id": scene["scene_id"], "status": "succeeded"}
