@@ -118,6 +118,9 @@ def run_iqa_compatibility_probe(
                 )
                 break
 
+        if not terminal.terminal:
+            return _status_limit_trace(job_id, states, operations)
+
         if terminal in {JobState.SUCCEEDED, JobState.PARTIAL}:
             started = clock()
             reference = client.get_result(created.job_id)
@@ -127,6 +130,26 @@ def run_iqa_compatibility_probe(
         return _trace(job_id, states, operations, terminal, reference, None)
     except IqaClientError as error:
         return _trace(job_id, states, operations, None, reference, error)
+
+
+def _status_limit_trace(
+    job_id: str,
+    states: list[str],
+    operations: list[IqaProbeOperation],
+) -> IqaCompatibilityTrace:
+    return IqaCompatibilityTrace(
+        endpoints=PROBE_ENDPOINTS,
+        job_id=job_id,
+        state_sequence=tuple(states),
+        operations=tuple(operations),
+        terminal_state=None,
+        result_schema_version=None,
+        result_publication_state=None,
+        result_storage_root_id=None,
+        result_relative_path=None,
+        error_kind="status_limit",
+        error_message="status request limit reached before terminal state",
+    )
 
 
 def _trace(
