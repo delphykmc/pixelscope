@@ -120,7 +120,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
         window,
         client_factory=transport_pool.client,
     )
-    setattr(window, "remote_iqa_transport_pool", transport_pool)
+    window.__dict__["remote_iqa_transport_pool"] = transport_pool
     install_remote_iqa_transport_lifecycle(window, transport_pool)
     install_remote_iqa_diagnostics(window, transport_pool)
     install_remote_iqa_preview_lifecycle(window)
