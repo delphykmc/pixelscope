@@ -169,9 +169,9 @@ class IqaSceneInspectionLifecycle(QObject):
         row_layout.addWidget(label)
         row_layout.addWidget(combo, 1)
         layout.insertWidget(1, row)
-        # PySide6 6.4.2's stub omits this bound signal even though Qt exposes it at runtime.
-        current_index_changed = getattr(combo, "currentIndexChanged")  # noqa: B009
-        current_index_changed.connect(self._variant_binding_changed)
+        combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._variant_binding_changed
+        )
         self.variant_binding_combo = combo
         self.controller.variant_binding_combo = combo
         self._refresh_variant_binding_control()
