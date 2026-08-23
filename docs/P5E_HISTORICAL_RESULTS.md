@@ -50,15 +50,22 @@ machine's `RemoteIqaSettings` and the P5-C `resolve_result_reference()` authorit
 revalidates the configured root, portable relative path, resolved containment, and
 result-directory availability.
 
-Manual schema-v2 opens beneath configured roots canonicalize to the most-specific
-matching configured root. Jobs retain the logical locator published by the server
-rather than deriving identity from the currently mapped local path.
+Jobs retain the logical locator published by the server rather than deriving identity
+from the currently mapped local path.
+
+A successful manual schema-v2 open may canonicalize to the most-specific configured
+logical root only when the P5-C resolver can resolve that proposed logical locator back
+to the **same canonical opened Result directory**. Lexical root membership alone is not
+enough. A junction/symlink escape, unavailable root, or other proposed locator that
+cannot reproduce the same canonical directory remains a Local locator.
 
 ### 2.2 Local locator
 
 A machine-dependent absolute local locator is allowed for:
 
 - manual/out-of-root Results;
+- manual schema-v2 Results that cannot be reproduced by the production logical-root
+  resolver;
 - historical schema-v1 Results.
 
 It is explicitly not a portable production identity.
@@ -133,7 +140,11 @@ For schema v2 it displays published metadata including:
 - width/height;
 - current local native-inspection status.
 
-The page never decodes native pixels and never recomputes IQA values.
+The page never decodes native pixels and never recomputes IQA values. Its local
+inspection availability is observer state derived from the **current** machine-local
+Remote IQA root mappings. The existing P5-C/P5-D settings-change chain remains the
+authority; P5-E observes that chain and refreshes Provenance immediately after a live
+root add/remove/remap without requiring Result reopen or Scene reselection.
 
 For schema v1 the UI explicitly labels the Result historical/read-only and displays only
 metadata actually present in v1. P5-E does not synthesize v2 storage roots,
@@ -153,14 +164,23 @@ P5-E does not alter P5-C/P5-B publication semantics.
 
 P5-E layers on top of the canonical P5-B generation and P5-D teardown contracts.
 
-- each new Result open advances the P5-B Result generation;
+- every newer Result-open intent invalidates P5-E feature-local logical-Recent
+  resolution **before** entering or superseding the canonical loader;
+- cancellation is best-effort only; stale logical-resolution callbacks are rejected by
+  a P5-E resolver generation even if the underlying worker completes later;
+- after locator resolution, each new Result open advances the P5-B Result generation;
 - rapid A→B open accepts only the latest canonical Result callback;
-- one P5-E pending context is retained for the latest generation;
+- one P5-E pending context is retained for the latest canonical generation;
 - logical Recent resolution captures the P5-C mapping revision;
 - a mapping change before presentation rejects/re-resolves stale work;
 - new Result open first consumes P5-D's existing inspection/spatial teardown;
-- close cancels the feature-local logical-locator resolver and clears pending context;
+- close invalidates/cancels the feature-local logical-locator resolver and clears pending
+  context;
 - closing PixelScope never cancels durable remote server jobs.
+
+Therefore a delayed logical Recent A cannot start a later canonical open after the user
+has already chosen newer File/Jobs Result B. History and Provenance follow only the
+accepted latest open.
 
 ## 8. Session boundary
 
@@ -177,14 +197,18 @@ Focused automated coverage must include:
 1. locator/Recent payload round-trip;
 2. malformed, traversal, and future-version metadata rejection;
 3. max-10 MRU and locator dedup;
-4. most-specific manual-v2 root canonicalization and v1 local fallback;
+4. most-specific manual-v2 logical-root canonicalization only after authoritative
+   same-directory resolution, including symlink/junction escape Local fallback where
+   supported;
 5. successful canonical open recording;
 6. Jobs logical-locator preservation;
 7. Recent identity mismatch preserving the last valid Result and history;
 8. valid Result browsing with unavailable native sources;
-9. Provenance publication metadata;
-10. close/recreate history persistence;
-11. existing P5-B/P5-C/P5-D regressions in the full repository validation.
+9. Provenance publication metadata and live root-mapping freshness;
+10. delayed logical Recent A resolution followed by newer File B and Jobs B, proving A
+    cannot start a later open and history/Provenance remain on B;
+11. close/recreate history persistence;
+12. existing P5-B/P5-C/P5-D regressions in the full repository validation.
 
 P5-F may extend stress/performance coverage but must not redefine these correctness
 contracts.
@@ -210,6 +234,9 @@ P5-E remains Active until the owner validates the exact PR head on Windows.
 - Reopen from Recent and confirm the new mapping is used.
 - Change mapping while a reopen is in flight and confirm stale mapped-path work cannot
   replace the current Result.
+- With a Scene still selected, add/remove its source root mapping and confirm Provenance
+  and P5-D Inspect availability refresh immediately without Result reopen or Scene
+  reselection.
 
 ### C. Offline / missing / replacement
 
@@ -239,7 +266,12 @@ P5-E remains Active until the owner validates the exact PR head on Windows.
 
 - Inspect a Scene, then open another Result from File, Jobs, and Recent paths.
 - Confirm previous Inspect/spatial state cannot overwrite the new Result.
-- Exercise rapid Recent A→B reopen and confirm only B can become current.
+- Start resolving a logical Recent A, then before it resolves open newer File B; release
+  A and confirm B remains current and A is not recorded or presented.
+- Repeat the delayed logical Recent A case with newer Jobs B and confirm the same latest
+  intent behavior.
+- Exercise rapid already-resolved A→B canonical opens and confirm only B can become
+  current.
 - Close PixelScope during historical resolution/open and recreate the window; confirm no
   stale callback or duplicate controller remains.
 
@@ -251,3 +283,15 @@ P5-E remains Active until the owner validates the exact PR head on Windows.
 - Confirm IQA Reference remains independent from local Primary.
 
 Record exact-head results in PR #44. Do not infer PASS from P5-D or an earlier P5-E head.
+
+## 11. Validation evidence during Draft review
+
+Owner Windows automated/static validation was reported PASS on earlier Draft head
+`dd1ebfb8aa4846233de854fcd3cb313f069161e9`, including the full `pytest -q` suite,
+Ruff lint/format, mypy, docs checker, pip check, and `git diff --check`.
+
+Independent whole-PR review then identified additional P5-E lifecycle, live Provenance,
+manual-locator canonicalization, and documentation-scope findings. Those fixes move the
+PR head, so the earlier PASS is historical evidence only. **The post-review exact head
+must be revalidated before merge**, followed by owner manual validation A–G and
+independent re-review.
