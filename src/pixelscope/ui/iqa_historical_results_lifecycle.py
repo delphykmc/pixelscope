@@ -19,8 +19,9 @@ class HistoricalIqaResultsLifecycle(QObject):
         super().__init__(parent)
         self.controller = controller
         self.window = controller.window
-        self.remote_controller = controller.remote_controller
-        self._original_start_open = controller._start_open
+        dynamic_controller: Any = controller
+        self.remote_controller = dynamic_controller.remote_controller
+        self._original_start_open = dynamic_controller._start_open
         self._original_remote_settings_changed = self.remote_controller.settings_changed
 
         def start_open(
@@ -50,7 +51,7 @@ class HistoricalIqaResultsLifecycle(QObject):
                     self.window.application_settings.remote_iqa
                 )
 
-        controller._start_open = MethodType(start_open, controller)
+        dynamic_controller._start_open = MethodType(start_open, dynamic_controller)
         self.remote_controller.settings_changed = MethodType(
             remote_settings_changed,
             self.remote_controller,
