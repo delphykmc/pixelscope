@@ -11,7 +11,7 @@ import pixelscope.ui.iqa_scene_inspection as inspection_module
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.remote.iqa_scene_inspection import SceneVerificationOutcome, VerifiedSceneSource
 from pixelscope.remote.iqa_v2_domain import ResultV2
-from pixelscope.workers.task_worker import TaskError, TaskWorker
+from pixelscope.workers.task_worker import TaskWorker
 
 
 class IqaSceneInspectionLifecycle(QObject):
@@ -25,12 +25,16 @@ class IqaSceneInspectionLifecycle(QObject):
         self._inspect_settings_revision: int | None = None
         self._document_variant_aliases: dict[str, tuple[str, ...]] = {}
 
-        self._original_apply_verified_scene = controller._apply_verified_scene
         self._original_return_to_local_workspace = controller.return_to_local_workspace
         self._original_sync_controls = controller._sync_controls
         self._original_cancel_inspect_worker = controller._cancel_inspect_worker
         self._original_verification_succeeded = controller._verification_succeeded
         self._original_verification_failed = controller._verification_failed
+
+        remote_controller = getattr(self.window, "remote_iqa_controller", None)
+        self._original_remote_settings_changed = (
+            remote_controller.settings_changed if remote_controller is not None else None
+        )
 
         def start_scene_verification(
             _controller: Any,
@@ -94,6 +98,18 @@ class IqaSceneInspectionLifecycle(QObject):
         controller._cancel_inspect_worker = MethodType(cancel_inspect_worker, controller)
         controller._sync_controls = MethodType(sync_controls, controller)
         controller.settings_changed = MethodType(settings_changed, controller)
+
+        if remote_controller is not None and self._original_remote_settings_changed is not None:
+
+            def remote_settings_changed(_remote_controller: Any) -> None:
+                assert self._original_remote_settings_changed is not None
+                self._original_remote_settings_changed()
+                self.settings_changed()
+
+            remote_controller.settings_changed = MethodType(
+                remote_settings_changed,
+                remote_controller,
+            )
 
         # The Return button was connected before this lifecycle wrapper was installed.
         # It is P5-D-owned, so reconnect it to the guarded method without touching any
