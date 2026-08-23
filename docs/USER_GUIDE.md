@@ -4,191 +4,191 @@
 
 PixelScope distinguishes five states:
 
-- **Registered**: known to Files.
-- **Selected**: ordered logical comparison membership.
-- **Current Comparison Page**: current maximum-six working subset of Selected.
-- **Presented**: current viewer representation.
-- **Resident**: decoded native source currently retained when required.
+- **Registered**: the image is known to the Files workspace.
+- **Selected**: the image is in the ordered logical comparison set.
+- **Current Comparison Page**: the current working subset of Selected, maximum six.
+- **Presented**: the current viewer representation of that page.
+- **Resident**: the decoded native source is currently retained in memory when
+  required.
 
-The six-image limit belongs to Current Comparison Page, not Files or Selected.
+The six-image limit belongs to the **Current Comparison Page**, not Files
+registration or logical Selected membership. You may register many folders/images
+and select more than six; PixelScope works on them in six-image Comparison Pages.
+
 `Analysis Working Set = Current Comparison Page`.
+Viewer slot numbers are always local `1..6` inside that page.
 
-### Open Images
+### Open Images...
 
-Use **File > Open Images...** (`Ctrl+O`) to choose images you want to compare now.
-Supported formats are:
+Use **File > Open Images...** (`Ctrl+O`) when you are choosing image files to look
+at now. The dialog supports multiple files and exactly these formats:
 
 ```text
 .png  .bmp  .jpg  .jpeg  .raw
 ```
 
-All supported chosen files are registered and become the ordered Selected set. More than
-six are shown in six-image Comparison Pages.
+All supported selected files are registered and become the current ordered
+Selected set. If 15 files are supplied, all 15 remain Selected. The initial
+Comparison Page is images 1–6, followed by 7–12 and 13–15.
 
-### Open Folder
+PNG/BMP/JPEG open directly. RAW uses the same command but resolves RAW profile
+metadata internally. There is no separate top-level RAW-open command.
 
-Use **File > Open Folder...** (`Ctrl+Shift+O`) to register a dataset folder. Opening a
-folder adds supported files to Files but does not automatically change the current
-Selected/current page/view merely because a new folder was registered.
+### Open Folder...
 
-To register several folders, drag/drop them into Files. There is no special two-folder
-auto-comparison behavior.
+Use **File > Open Folder...** (`Ctrl+Shift+O`) when you are adding a dataset folder
+to the Files workspace. The native folder picker selects one directory per
+invocation. To register several folders at once, drag/drop them into Files; the same
+registration API deduplicates supplied paths and has no six-folder limit.
 
-### RAW
+Opening folders is **registration-only**:
 
-RAW uses the same Open Images command. PixelScope may use a same-basename JSON profile or
-ask for RAW dimensions/packing/CFA metadata. Folder-registered unresolved RAW can remain
-pending until it becomes a foreground current-page source.
+- supported images are added to Files;
+- the current Selected set does not change;
+- the Current Comparison Page does not change;
+- the current viewer/layout does not change;
+- no first image is automatically selected;
+- two folders do not implicitly create a comparison group;
+- folders with no supported images are skipped while other inputs continue.
 
-RAW native pixels remain analysis authority. Display Gain changes presentation only.
+Therefore adding folders while comparing A001/B001 leaves that comparison intact.
+ROI, Line Profile, Difference presentation, Display Gain, active/primary state,
+and current view state are not reset merely because another folder was registered.
+Any captured temporary curation baseline and Pick Set are also unaffected because
+Selected membership did not change.
 
-## Navigate large Selected sets
+If images are registered but nothing is selected, the center workspace shows
+**Select an image from Files to view**. A truly empty workspace shows **Drop images
+or folders here** with Open Images/Open Folder buttons.
 
-The presentation row shows current page/range.
+### Drag and drop
 
-- **Left / Right**: previous/next Selected image.
-- **Ctrl+Left / Ctrl+Right**: previous/next Comparison Page when available.
-- **1..6**: current page-local viewer slots.
-- **PageUp / PageDown**: Folder Position workflow, not Comparison Page navigation.
+Drag/drop follows the same intent rules:
 
-Primary is local to the current page and does not reorder logical Selected.
+- direct image files → register and make them the Selected set;
+- folders → register their supported contents only;
+- mixed image files + folders → direct files become Selected while folder contents
+  are registered only.
 
-## Display Gain
+Dropping one, two, six, or more folders behaves the same way. There is no special
+two-folder auto-comparison behavior. Unsupported files and standalone `.json`
+files are ignored rather than interpreted as RAW.
 
-Display Gain choices are 1×/2×/4×/8×/16×.
+## Configure and submit Remote IQA
 
-- 1× reuses canonical preview.
-- Ordinary Gray/RGB gain is anchored at zero.
-- RAW gain >1 is anchored at Black Level.
-- Difference uses its own Difference Gain and is not affected by general Display Gain.
-
-Statistics, Histogram, Line Profile, Split data, and Difference consume native source,
-not gained preview pixels.
-
-## Difference
-
-Choose Difference inputs and use **Calculate** to establish a Difference result.
-
-Supported comparison families are:
-
-- Gray ↔ Gray;
-- RGB/RGBA ↔ RGB/RGBA;
-- compatible same-CFA Bayer ↔ Bayer.
-
-Equal effective bit depth uses native code-domain Difference. Mixed depth uses normalized
-full-scale Difference. After Calculate succeeds, toolbar Diff hides/shows that active
-result; it does not silently infer or recalculate another pair.
-
-## Review and Keep Selection
-
-Eligible native Multi View tiles provide **Pick**. Pick is temporary and independent from
-Active and Primary.
-
-- **Selected N**: number of temporary Picks.
-- **Clear Selection**: clear Picks only.
-- **Keep Selection**: replace logical Selected with the picked subset in original Selected
-  order.
-
-Pick state is not saved. Keep Selection also clears any active Difference binding before
-the Selected change; it does not purge valid Difference cache entries.
-
-## Sessions and local Recent
-
-Use **File > Save Session** / **Open Session** for durable local workspace intent. Session
-v1 does not save runtime source arrays, caches, workers, temporary Picks, running Remote
-IQA jobs, or IQA historical state.
-
-File menu also provides:
-
-- Open Recent Images;
-- Open Recent Folders;
-- Open Recent Sessions.
-
-These are separate from **Open Recent IQA Results**.
-
-# Remote IQA
-
-Remote IQA connects PixelScope to an external GPU IQA service while keeping the local
-workspace independent.
+P5-C provides remote IQA submission in the existing IQA dock, and P5-D adds an
+explicit native Scene inspection step from Results. The dock has three tabs:
 
 ```text
-Setup / submit
-    ↓
-Jobs
-    ↓ explicit Open Result
-Results
-    ↓ optional Inspect in Viewer
-native local inspection
+IQA
+├─ Setup
+├─ Jobs
+└─ Results
 ```
 
-Tracking jobs or browsing Results does not change Files/Selected/current page. Only an
-explicit successful **Inspect in Viewer** enters the local source/viewer workflow.
+Submitting or passively browsing a result remains separate from local Files/Selected
+analysis. Only explicit successful **Inspect in Viewer** crosses into the local image
+workspace.
 
-## Configure Remote IQA
+### Configure Remote IQA
 
 Open **Edit > Settings... > Remote IQA**.
 
 Configure:
 
-- **Server base URL**;
-- shared-storage mappings:
-  - **Root ID**: portable logical identifier;
-  - **Client path**: drive/UNC path on this machine;
-- optional **Staging root**.
+- **Server base URL** — the HTTP(S) endpoint for the external IQA service;
+- one or more shared-storage mappings:
+  - **Root ID** — a portable logical identifier understood by client and server;
+  - **Client path** — the drive/UNC path for that root on this Windows machine;
+- **Staging root** — optional logical root used when a submitted source is outside
+  the configured shared roots.
 
-Example:
+The same logical root may have a different physical path on the server. For example:
 
 ```text
 Root ID: iqadata
-client path: G:\IQA
+PixelScope client path: G:\IQA
 server path: /home/data/IQA
 ```
 
-PixelScope sends/stores the portable Root ID + relative path. The client path is
-machine-local and may differ across workstations.
+PixelScope sends only the logical root plus relative path and integrity metadata.
+The Windows client path is machine-local configuration; the server physical path is
+not stored in PixelScope settings/result artifacts.
 
-## Submit Current Pair
+Changing a shared-storage mapping is a live configuration change. If native Scene
+verification is running, PixelScope cancels/invalidates that pending Inspect attempt
+and recomputes Inspect availability using the newest root mapping. An old verification
+callback cannot later replace the local viewer.
 
-In IQA **Setup**, Current Pair submits exactly two variants A/B.
+### Submit Current Pair
 
-Requirements:
+In the IQA **Setup** tab, Current Pair submits exactly two variants `A` and `B`.
+They are the **underlying Current Comparison Page documents** when exactly two
+eligible images are present.
 
-- exactly two underlying Current Comparison Page sources;
-- PNG/JPG/JPEG/BMP;
-- matching dimensions.
+Current Pair requires:
 
-RAW is not silently converted for Remote IQA.
+- exactly two eligible source images;
+- PNG/JPG/JPEG/BMP input;
+- matching original image dimensions.
 
-A/B identity is independent from Primary, Active, view reorder, Single/Multi View,
-Display Gain, Difference, and Split presentation.
+Remote IQA currently does **not** accept RAW and PixelScope does not silently
+demosaic/convert RAW for submission.
 
-## Submit Folder Pair
+A/B submission identity does not change when you change:
 
-1. Choose Folder A and Folder B.
-2. Click **Validate / Preview**.
-3. Review pair count/order.
-4. Click **Submit Folder Pair**.
+- Primary;
+- Active;
+- tile/view order;
+- Single/Multi View;
+- Display Gain;
+- Difference;
+- Split Channels.
 
-Rules:
+Use **Submit Current Pair** after the Setup status reports the pair is eligible.
 
-- immediate files only;
-- no recursive scan;
-- symlinks excluded;
-- PNG/JPG/JPEG/BMP only;
-- deterministic Unicode-NFC lexical order;
-- equal non-zero eligible counts;
-- pair-by-index;
-- each pair has matching dimensions;
-- maximum 512 Scenes.
+### Submit Folder Pair
 
-Folder Pair preparation does not register/select/decode the whole remote batch into the
-local workspace.
+Folder Pair is for deterministic bulk evaluation of two directories.
 
-## Jobs
+1. Choose **Folder A** and **Folder B**.
+2. Use **Validate / Preview**.
+3. Confirm the previewed Scene count/order.
+4. Use **Submit Folder Pair**.
 
-Use the IQA **Jobs** tab while work runs remotely. PixelScope remains usable.
+The current pairing rules are:
 
-Typical states include:
+- immediate files only; no recursive subdirectory scan;
+- symlink inputs are excluded;
+- eligible types are PNG/JPG/JPEG/BMP;
+- each folder is normalized to deterministic Unicode-NFC lexical order;
+- both folders must have the same non-zero eligible file count;
+- maximum 512 pairs/Scenes;
+- sorted A and B entries pair by index;
+- every A/B pair must have matching original dimensions.
+
+The filenames do not have to be semantically equal. The validated deterministic
+sorted position is the pairing authority.
+
+Folder Pair preparation is independent from Files registration. A large batch can
+be submitted without making all of its images Selected or resident in PixelScope.
+
+### Shared-storage staging
+
+If a source already lies under a configured Remote IQA root, PixelScope references
+it by logical Root ID + relative path.
+
+If a source lies outside the configured roots and a staging root is configured,
+PixelScope may copy it to content-addressed staging based on SHA-256 before job
+creation. The request still contains portable logical identity rather than the
+original Windows path.
+
+## Track Remote IQA Jobs
+
+After submission, use the IQA **Jobs** tab. The local image workspace remains usable
+while the remote job runs.
+
+Jobs may pass through states such as:
 
 ```text
 queued
@@ -202,249 +202,723 @@ failed
 cancelled
 ```
 
+The Jobs list shows job ID, submission kind, state, progress, and compact status/
+error information.
+
 ### Cancel
 
-**Cancel** requests server cancellation for a non-terminal job. The server owns final
-state.
+Use **Cancel** for a non-terminal job when you want to request cancellation from the
+server. The server owns the final state; cancellation can race with completion.
 
 ### Open Result
 
-A succeeded/partial job never automatically replaces the current Result. **Open Result**
-is explicit and becomes useful after PixelScope obtains and resolves the published
-logical Result reference.
+A successful/partial job does **not** automatically replace the current Results
+view. This is intentional.
 
-Temporary result-reference GET failures may use bounded retry. Job creation itself is not
-blindly retried because timeout may happen after server acceptance.
+**Open Result** becomes available only after PixelScope has:
 
-## Open an IQA Result directly
+1. observed terminal `succeeded` or `partial`;
+2. obtained the published schema-v2 logical result reference;
+3. resolved that reference through the current Remote IQA storage-root mapping.
 
-Use **File > Open IQA Result...** to choose an already-published Result directory.
+Click **Open Result** explicitly to open it through the same canonical result viewer
+used by **File > Open IQA Result...**.
 
-File open and Jobs Open Result use the same canonical Results workspace. Current schema
-v2 opens summary-first: PixelScope reads the manifest/summary and initially shows
-**Absolute measurements** without scanning every Scene grid.
+A temporary failure while retrieving the terminal result reference can recover
+automatically without resubmitting the job. The job row remains terminal while the
+client performs bounded retry. Create-job submission itself is not blindly retried,
+because a connection error/timeout may occur after the server has already accepted
+the job.
 
-The IQA **Reference** control is independent from image Primary. Selecting a Reference may
-prepare required Scene grids in the background. If deferred grid work fails, PixelScope
-returns to the last valid Result presentation rather than leaving controls/plots with
-mismatched semantics.
+If a job stays terminal but Open Result cannot become available, inspect the compact
+Jobs error. Typical categories are configuration, connection, timeout, HTTP,
+protocol, or local storage-root resolution problems.
 
-## Explore Results
+## Open and explore IQA results
 
-The Results workspace provides:
+Use **File > Open IQA Result...** to open an already-published Remote IQA result
+directory directly, or use **Open Result** from a tracked job. Both paths reuse the
+same Results workspace.
 
-- Dataset Overview;
-- attribute/Scene hierarchy;
-- Scene Trend;
-- source identity cards;
-- COMPLETE/PARTIAL diagnostics;
-- P5-D Inspect/Return/spatial controls;
-- P5-E Provenance.
+The IQA workspace is non-modal, so the existing image workspace remains available
+while the result is explored.
 
-For schema v2, Absolute mode shows source-oriented measurements. Relative mode derives
-selected target/reference comparisons locally using the canonical schema-v2 math.
+For current schema-v2 results, open is **summary-first**. PixelScope reads the small
+manifest/summary artifacts and initially shows **Absolute measurements** without
+opening every Scene grid. The Dataset Overview uses the published pooled weighted
+mean, while the hierarchy and Scene Trend expose the published Scene-level absolute
+measurements for every declared variant.
 
-Schema v1 remains explicit **historical / read-only** compatibility.
+The **Reference** control is local to the IQA workspace and is independent from the
+image viewer's Primary state. A schema-v2 result may contain more than two variants.
+Selecting a variant as Reference starts background preparation of the required Scene
+grid measurements. During that work the workspace reports loading/calculation state;
+when preparation completes, the hierarchy and plots switch to target-versus-reference
+relative values. Returning to an already prepared Reference reuses the derived scalar
+results. If deferred grid loading or calculation fails, PixelScope restores the last
+successfully presented Absolute/Reference mode instead of leaving the control and
+plots with different semantics.
 
-## PARTIAL Results
+For power-valued attributes, relative results are displayed in dB and the aggregation
+control selects either the ratio of pair-valid weighted means or the mean of finite
+pair-valid grid log-ratios. Signed attributes use their signed engineering unit and
+the canonical target-minus-reference calculation. The relative Dataset Overview is
+the arithmetic mean of valid Scene comparison values.
 
-A PARTIAL Result contains fully published successful Scenes plus failed/cancelled
-requested-Scene diagnostics.
+Use the attribute visibility controls to reduce the plotted set. The hierarchy is
+organized by attribute and Scene, and the Scene Trend supports hover/click selection.
+Selecting a Scene updates the Scene cards with published variant/source identity,
+logical relative path, hash, optional Root ID, and related metadata. Selecting a Scene
+alone is still passive and does not open native images or change Selected.
 
-Successful Scenes remain normally browseable. Failed/cancelled outcomes are not turned
-into fake successful Scenes. A zero-success job is failed/cancelled rather than PARTIAL;
-an all-success job is COMPLETE.
+### Inspect a Scene in Viewer
 
-# Historical Remote IQA Results — P5-E
+For a selected schema-v2 Scene, **Inspect in Viewer** is the explicit P5-D transition
+from passive result exploration to native PixelScope viewing.
 
-P5-E adds history around the same canonical Result loader. It does **not** rerun IQA or
-create a second Result parser.
+Inspect is available only when:
 
-## Open Recent IQA Results
+- the result is schema v2;
+- a Scene is selected;
+- no temporary **Pick** baseline is currently active;
+- the Scene contains at most six published variant bindings;
+- every source binding provides `storage_root_id` and its Root ID is configured on
+  this machine;
+- every required source remains an ordinary PNG/JPG/JPEG/BMP with the published
+  dimensions and SHA-256.
 
-Use **File > Open Recent IQA Results**.
+Old schema-v2 artifacts that predate `storage_root_id` remain fully readable in
+Results, but native Inspect is unavailable because PixelScope does not guess which
+machine-local root should be used. A Scene with more than six variant bindings also
+remains result-browsable; PixelScope never truncates it to fit the viewer.
 
-The menu retains at most 10 successful historical Result opens in MRU order. Opening the
-same historical locator moves it to the front instead of duplicating it.
+When you click **Inspect in Viewer**, PixelScope verifies **all** required bindings
+before changing the local workspace. It resolves `storage_root_id + relative_path`
+through the current Remote IQA mappings and the same containment/header rules used by
+submission. Each unique native source is decoded from one encoded byte buffer, and the
+SHA-256 of that exact buffer must match the published source hash. The exact decoded
+object associated with that verified SHA is then committed to the normal PixelScope
+Files/Selected/current-page lifecycle.
 
-History is updated after successful opens from:
+This matters when a path was already Registered: if the resident image was decoded
+from older bytes at the same filename, Inspect replaces that resident generation with
+the verified published pixels instead of reusing stale memory. If the file changes or
+does not match during verification, Inspect fails without partially selecting a Scene.
 
-- File > Open IQA Result...;
-- Jobs > Open Result;
-- Open Recent IQA Results itself.
+A schema-v2 Scene may intentionally use the same concrete `source_id` for several
+variant slots. PixelScope keeps those IQA variant bindings but shows/registers one
+canonical native image for that concrete source rather than creating duplicate Files
+entries. The Results workspace remains the place where all N-way variant identities and
+measurements are visible.
 
-Failed, unsupported, corrupt, or historical-identity-mismatch opens are not recorded as a
-new successful history item.
+After a successful Inspect:
 
-Use **Clear Recent IQA Results** to clear only IQA history. Recent Images/Folders/Sessions
-remain unchanged.
+- the verified unique native sources become the canonical local Selected/current page;
+- already-Registered paths retain their existing document identity where possible;
+- normal source residency, Difference, Display Gain, ROI, Line Profile, Histogram,
+  Statistics, zoom/pan, and viewer semantics continue to use the existing local
+  authorities;
+- the **Spatial attribute** control can load the selected Scene grid;
+- Absolute spatial cells show valid `S1/W` values;
+- Relative power cells show raw target/reference dB and signed attributes show raw
+  target-minus-reference deltas;
+- invalid/pair-invalid cells remain invalid instead of being displayed as zero;
+- the overlay is vector/block based on the existing image viewer, not a second source
+  image or full-resolution heatmap;
+- Block Inspector reports the selected cell's validity, W/S1/S2/count, mean,
+  reference/pair-relative information, and mapped source geometry.
 
-## Portable logical history vs local history
+The IQA **Reference** and local **Primary** remain independent. Changing one does not
+rewrite the other.
 
-For production/shared-storage Results, a Recent entry stores:
+### Return from native IQA inspection
+
+The first successful Inspect captures a temporary Return target: previous Selected
+order, Comparison Page, applicable Active/Primary, and layout. If you move to another
+IQA Scene while still linked, PixelScope keeps the original pre-Inspect target.
+
+Use **Return** to restore it. Return is deliberately conservative: it is disabled or
+invalidated rather than overwriting newer user intent.
+
+The following newer local actions invalidate Return:
+
+- changing Selected;
+- removing/changing relevant Files sources;
+- choosing another layout;
+- choosing another Primary;
+- starting a new temporary Pick baseline after Inspect.
+
+A new Pick is **preserved**. P5-D does not clear that curation state in order to return
+to an older snapshot. Ordinary Active-image changes during inspection do not by
+themselves invalidate Return.
+
+Changing a Remote IQA Root ID mapping while source verification is still running also
+cancels/invalidate that pending verification and refreshes Inspect availability. This
+prevents a callback created under an old mapping from later changing the viewer.
+
+The Return snapshot is transient application state and is not added to Session v1.
+
+### PARTIAL results
+
+A PARTIAL result contains a valid subset of successfully published Scenes plus
+explicit diagnostics for requested Scenes that failed or were cancelled.
+
+The Results tab shows a compact summary such as:
 
 ```text
-storage_root_id + relative_path
+Partial result · 3 / 4 Scenes succeeded
 ```
 
-It does **not** store the current mapped drive/UNC path as portable identity. Each reopen
-uses the current Remote IQA mapping for that Root ID.
+and lists failed/cancelled Scene diagnostics. The successful Scenes remain available
+for the same Absolute/Relative exploration and, when their source locators are valid,
+explicit native Inspect as a COMPLETE result.
 
-This means a Result can be recorded on one mapping and reopened after the same Root ID is
-mapped to another valid client path.
+A zero-success job is Failed/Cancelled rather than a PARTIAL result. An all-success
+job is the normal Complete/Succeeded path.
 
-A manual Result outside configured roots, and schema-v1 history, may use a machine-local
-absolute path. Such entries are not portable between different filesystem layouts.
+Historical schema-v1 results remain read-only compatibility. They expose the
+available two-source A/B comparison workflow and do not invent schema-v2 absolute
+measurements or P5-D source locators.
 
-## Missing or offline historical Result
+The IQA dock uses the same **Float/Dock**, **Maximize/Restore**, and **Hide** title-bar
+behavior as Plots. **View > Reset Workspace Layout** clears its persisted floating
+geometry, re-docks it on the right, and hides it with the rest of the workspace reset.
 
-If a Recent logical/local location is unavailable, PixelScope warns that the historical
-Result cannot currently be opened and offers **Remove** or **Keep**.
+Passive IQA result browsing and Jobs tracking do not change Files registration,
+logical Selected, Current Comparison Page, Active/Primary image state, Difference,
+Display Gain, source residency/preload, native analysis results, Session state, or
+temporary Picks. Only explicit successful Inspect enters the canonical local image
+workflow.
 
-Choose **Keep** if the storage is temporarily offline or will be remapped/restored.
-Choose **Remove** only when you want to delete that entry from Recent history.
+### Development-only Remote IQA debug tools
 
-An unavailable entry is not silently deleted.
+When `PIXELSCOPE_REMOTE_IQA_DEBUG=1`, additional developer validation controls may
+appear. They are not part of the normal release workflow:
 
-## Result replacement / identity mismatch
+- **Inspect JSON · DEBUG** runs the production request-preparation path but stops
+  before the job POST;
+- **Replay JSON · DEBUG** injects a bounded logical terminal job/result reference and
+  still requires explicit Open Result;
+- `scripts/p5c_make_debug_result.py` creates deterministic schema-v2 COMPLETE/
+  PARTIAL test artifacts;
+- `scripts/p5c_localhost_iqa_server.py` runs a real localhost HTTP fault server for
+  client contract testing.
 
-A Recent entry remembers the observed:
+The localhost server performs no GPU/IQA calculation. It returns a logical reference
+to a deterministic existing result artifact so submission, polling, error handling,
+result-reference retry, and Open Result can be tested before a real external service
+is available.
+
+## Current Comparison Page navigation
+
+The presentation-control row above the image workspace always shows Comparison
+Page status, including when there is only one page. Previous/next arrows remain in
+place and are disabled when that direction is unavailable, so the controls do not
+shift as selection size changes. Existing Auto/Single/Multi behavior remains
+unchanged for six or fewer Selected images. For example, a three-page selection may
+show:
 
 ```text
-result_id + schema_version
+Page [‹] 2 / 3 [›]  7–12 of 15
 ```
 
-When reopened, PixelScope first lets the canonical reader validate the artifact. Before
-the newly read Result replaces the current Results presentation, P5-E verifies that its
-identity still matches the historical entry.
+- **Ctrl+Left**: Previous Comparison Page when available.
+- **Ctrl+Right**: Next Comparison Page when available.
+- Page navigation does not wrap at the first/last page. At an unavailable endpoint
+  the application shortcut is disabled, so Ctrl+Arrow remains available to the
+  focused editor/control.
+- Changing page does not change Selected membership/order.
+- The active local slot is preserved when possible; a short final page clamps to
+  its last available slot.
 
-If the same path/root now contains a different Result identity:
+In Multi View, large selections keep a six-slot grid for continuity. A final
+three-image page occupies slots 1–3 and leaves slots 4–6 empty rather than changing
+geometry.
 
-- the reopen is rejected;
-- the previous valid Result remains displayed;
-- the old Recent entry remains unless you explicitly Remove it.
+In Single View, one image is presented but its page context is still the full
+Current Comparison Page. Number keys **1–6** always mean local page slots.
+For example, image10 on the 7–12 page is slot **4**, not slot 10.
 
-PixelScope does not add a second whole-Result hash for this purpose; the existing Result
-reader remains structural/numerical integrity authority.
+## Pick and Keep Selection
 
-## Result-only mode when original images are unavailable
+Use the direct **Pick** controls in Multi View when a large Selected set contains
+images you want to inspect page by page and reduce to a smaller comparison subset.
+There is no separate Review Select mode to enter.
 
-A valid server Result remains useful even when original source images are offline,
-missing, unmapped, changed, or did not publish a portable source locator.
+Each eligible native source tile in Multi View shows **Pick**. Clicking Pick toggles
+that source in the temporary Pick Set. The first checked Pick captures the current
+ordered Selected set as the temporary baseline internally. The button text remains
+**Pick** in both states; a picked tile shows the button depressed/checked and uses a
+bright-yellow tile-wide border. Normal tile activation and the Primary flag retain
+their existing meanings, so **Active**, **Primary**, and Pick membership remain
+independent.
 
-Opening/reopening the Result does **not** hash/decode all source images. You can still use:
+A typical 15-image curation can be performed as follows:
 
-- Dataset Overview;
-- Absolute/Relative hierarchy;
-- Scene Trend;
-- PARTIAL diagnostics;
-- Provenance.
+1. In Multi View, click **Pick** on desired images on page 1.
+2. Move to pages 2 and 3 with the normal Comparison Page controls and continue
+   picking. Earlier picks remain remembered even while off-page.
+3. Check **Selected N** in the presentation row for the current temporary Pick Set
+   count. This number is not the Files logical Selected count.
+4. Use **Clear Selection** to clear only the temporary Pick Set if you want to start
+   the curation choices again.
+5. Use **Keep Selection** to replace logical Selected with the picked subset.
 
-Only explicit **Inspect in Viewer** requires native source verification.
+**Keep Selection** is disabled when nothing is picked, so a zero-pick curation
+cannot silently replace Selected with an empty set.
 
-If native verification later fails, that means native inspection is unavailable/failed;
-it does not retroactively make the already-valid Result corrupt.
+Keep Selection preserves the original baseline Selected order, not the order in
+which picks were made. For example, if baseline Selected is `A B C D E F G` and
+you pick `G → B → E`, the new Selected set is `B E G`. All non-picked images remain
+Registered in Files and can be selected again later.
 
-## Provenance
+There is no separate Cancel command. **Clear Selection** removes the current Pick
+membership without changing logical Selected. If another selection-oriented
+workflow actually changes Selected—such as Open Images, direct image-file drag/drop,
+Files selection replacement/removal, or Folder Position movement—the captured
+baseline/Pick Set is invalidated before or with the normal selection operation.
+Registration-only folder input does not cause this reset because it does not change
+Selected. Temporary Pick state is not persisted across application restart.
 
-Open the **Provenance** page inside Results.
+Picks refer to the native registered source image. Split Channel items and derived
+Difference presentation are not independent pick identities. A Difference tile
+shows a non-interactive **Derived** badge instead of Pick. Pick/Unpick/Clear
+Selection therefore leave an existing Difference presentation unchanged.
 
-For schema v2 it shows published metadata such as:
+**Keep Selection is a Difference reset boundary.** If a Difference is active when
+Keep Selection commits the picked subset, PixelScope closes that active Difference
+before replacing Selected. This happens even when both of the old A/B source images
+are included in the kept subset. After Keep, no active Difference document or A/B
+provenance is bound to the new workspace and the toolbar **Diff** action is unchecked
+and disabled.
 
-- Result ID;
-- schema version;
-- COMPLETE/PARTIAL state;
-- historical locator;
-- selected Scene `measurement_context_id`;
-- representative/preprocessing/model/weighting/geometry provenance IDs;
-- each variant/source ID;
-- source Root ID when published;
-- source relative path;
-- source SHA-256;
-- width/height;
-- current local native-inspection status.
+Keep Selection does not purge the generation-keyed Difference Map Cache or change
+source generations. To establish a Difference again, choose a valid current-page
+Image 1/Image 2 pair in the Difference panel and explicitly use **Calculate**. A
+matching cached generation pair is reused without recomputing the numerical map;
+otherwise the normal Difference calculation runs. After a successful Calculate,
+the toolbar **Diff** action controls visibility of that same active result only.
+Hiding and showing it does not select a new pair or start another calculation.
 
-Provenance is passive metadata display. It does not open source pixels and does not
-recompute IQA.
+Picking an image also does not decode or preload off-page images, protect them in
+source residency, run Difference or analysis, or otherwise change the Current
+Comparison Page working-set authority.
 
-For schema v1, Provenance explicitly says historical/read-only and only shows metadata
-that actually exists in v1. It does not invent schema-v2 measurement-context/root fields.
+Only the explicit **Pick** control changes curation membership. Normal image pan,
+Ctrl+drag ROI, Shift+drag Line Profile, and ordinary tile activation do not toggle
+Pick state.
 
-# Inspect an IQA Scene in Viewer
+## Save and open Sessions
 
-For a selected schema-v2 Scene, **Inspect in Viewer** is the explicit transition into the
-normal PixelScope viewer.
+Use **File > Save Session...** to save durable workspace intent for later reuse.
+PixelScope writes a `.pixelscope` JSON Session v1 artifact.
 
-Inspect requires all necessary unique source bindings to resolve and verify. PixelScope
-checks current logical-root mapping, containment, ordinary-image eligibility, published
-dimensions, exact encoded-byte SHA-256, and decode before local mutation.
+A Session can store:
 
-Verification is all-or-nothing. Missing/moved/remapped/hash/dimension/decode problems do
-not partially select a Scene.
+- **Registered** native-source membership and minimum resolved RAW reconstruction
+  metadata;
+- exact ordered **Selected** paths;
+- one Selected source-path anchor that reconstructs the Current Comparison Page;
+- applicable source **Active** and page-local **Primary** state;
+- stable layout mode;
+- current shared ROI and Line Profile selection;
+- current Display Gain;
+- applicable Split Channels state;
+- an eligible regenerable Difference recipe only when its A/B are both on the saved
+  Current Comparison Page.
 
-When successful, verified sources are committed to the existing Files/native-source
-owner and then shown through the normal Selected/current-page viewers. If a path was
-already Registered with stale resident pixels, the verified published generation replaces
-that stale generation rather than silently reusing old bytes.
+Temporary Picks are not persisted. Session also does not save decoded image arrays,
+residency/LRU/preload state, workers/tokens/generations, calculated Statistics/
+Histogram/Line Profile results, Difference maps/cache/generated result image, or
+transient zoom/pan buffers. P5-D Return state and IQA source/variant aliases are also
+transient and are not added to Session v1.
 
-Repeated variant bindings may share one concrete source. PixelScope uses one canonical
-local source/document while keeping the IQA variant aliases in Results/spatial inspection.
+Use **File > Open Session...** to restore a Session. PixelScope validates and stages
+incoming identities before replacing the current logical workspace. It restores the
+saved page and foreground-loads only that bounded Current Comparison Page through
+the normal loader, then restores applicable presentation/analysis intent through the
+existing Display Gain, Split, ROI/Line, and Difference paths. If an eligible
+Difference recipe exists, Open restores its exact compatible options and issues one
+explicit **Calculate**; Session does not pre-bind a Difference result.
 
-## Spatial inspection
+If some saved paths are missing, loadable sources are restored and a compact warning
+reports unavailable entries. If none can be registered, the existing workspace is
+left unchanged. Corrupt files, unsupported/future schema versions, wrong artifact
+kind, invalid paths/layout, or invalid embedded RAW metadata are rejected before
+logical workspace replacement.
 
-Choose a **Spatial attribute** after successful Inspect. PixelScope loads the selected
-Scene grid as needed and shows a vector/block overlay in the normal viewer.
+Session v1 identifies sources by normalized **absolute local paths** and does not
+relocate or fuzzy-match moved files. A `.pixelscope` file may reveal local filesystem
+path names, so review it before sharing outside the intended environment.
 
-Block Inspector exposes cell validity, W/S1/S2/count, mean, optional Reference-relative
-value, and mapped source geometry. Invalid/pair-invalid cells remain invalid rather than
-being presented as zero.
+Legacy P4-B `pixelscope-comparison-set` v1 files remain readable through
+**Open Session...**, but there is no separate current Open/Save Comparison Set UI.
+Legacy Comparison Sets contain the narrower Selected/Active/Primary/layout/RAW
+contract and do not gain Session-only fields retroactively.
 
-IQA Reference and local Primary remain independent.
+### Open Recent
 
-## Return
+The File menu provides typed **Open Recent Images**, **Open Recent Folders**, and
+**Open Recent Sessions** submenus. Each keeps at most ten path entries.
 
-The first successful Inspect captures one transient pre-Inspect local workspace target.
-Use **Return** to restore it if no newer conflicting local intent occurred.
+- Recent Image repeats normal direct-image selection intent.
+- Recent Folder repeats registration-only folder intent.
+- Recent Session delegates to normal Session Open.
+- Missing paths offer explicit **Remove / Keep**.
+- Existing wrong-kind or invalid Session artifacts stay in history until explicitly
+  removed.
 
-Newer Selected/Files/layout/Primary/Pick intent invalidates Return instead of being
-overwritten. A new Pick is preserved; PixelScope does not clear newer curation just to
-restore an older snapshot.
+Recent history is best-effort path metadata; it does not own source, selection,
+residency, Difference, or analysis state.
 
-Opening another Result from File, Jobs, or Recent first tears down old Inspect/spatial
-work so stale Scene callbacks cannot overwrite the new Result/workspace.
+## Fine image navigation
 
-# Session boundary
+**Left/Right** remains Previous/Next Selected Image across the complete ordered
+Selected set.
 
-Session v1 does not store Remote IQA Result/history state. Closing and reopening a Session
-does not restore:
+If Single View is showing image12, pressing Right moves to image13 and automatically
+changes the Current Comparison Page from 7–12 to 13–15. image13 is then local slot
+1. The reverse occurs when moving Left across the boundary.
 
-- running Remote IQA jobs;
-- IQA Result locator/identity;
-- IQA Reference;
-- selected IQA Scene;
-- Provenance selection;
-- Inspect/Return state.
+Up/Down remains Files-tree row navigation.
 
-Recent IQA Results is separate observer metadata and survives normal window close/recreate
-through QSettings, independently from Session.
+## Folder Position navigation
 
-# Remote IQA debug tools
+PageDown/PageUp remains exclusively Folder Position navigation; it is not reused
+for Comparison Page paging.
 
-When `PIXELSCOPE_REMOTE_IQA_DEBUG=1`, developer-only tools may appear for request/replay/
-localhost contract validation. They are not production-server architecture and do not
-perform GPU IQA computation.
+Folder Position requires one to six Selected files from distinct folders. If 20
+folders are registered but the comparison contains A005, D005, F005, and K005,
+PageDown targets A006, D006, F006, and K006 only. All members move atomically in
+natural filename order. If any participating folder is at an endpoint, selection
+is unchanged and the status bar reports the boundary.
 
-# Workspace reset and closing
+When **more than six images are Selected**, Folder Position is unavailable and
+PageUp/PageDown does not partially move only the current page. Reduce Selected to
+one-to-six images to use Folder Position again.
 
-The IQA dock follows Plots-style Float/Dock, Maximize/Restore, Hide, and workspace reset
-behavior.
+If Folder Position changes Selected after a curation baseline has been captured,
+the temporary baseline/Pick Set is discarded before normal Folder Position
+selection replacement.
 
-Closing PixelScope cancels feature-local client workers/resolvers but does not cancel
-durable server jobs merely because the desktop application closed.
+## View and navigate
 
-# Current P5-E status
+- **Auto** chooses the current layout from the applicable comparison size.
+- **Single View** presents one active image from the Current Comparison Page.
+- **Multi View** presents the Current Comparison Page with at most six source tiles.
+- Keys 1–6 and Single View header navigation address page-local slots.
+- Two-, four-, and six-image layouts keep equal tile sizes. Three- and five-image
+  layouts enlarge the primary tile for `Selected <= 6`.
+- For `Selected > 6`, Multi View keeps six-slot geometry even on a partial final
+  page.
+- Selecting a primary flag changes presentation order within the Current Comparison
+  Page without changing Selected ordering or page membership.
+- **Fit** fits visible tiles; **100%** uses native pixel scale.
+- **Split Channels** keeps one source Selected in Files but derives transient
+  R/G/B or R/Gr/Gb/B viewer-local subchannels. Multi View exposes explicit Primary;
+  Single View navigates the same local subchannels with number/header/Left/Right
+  controls. Native Statistics/Histogram/Line/Difference authority remains on the
+  original source page.
 
-P5-D is merged in current main. P5-E is Active in Draft PR #44. Owner Windows manual
-validation A–G is listed in
-[`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md) and remains required before
-P5-E merge.
+Registration count is independent of all of these presentation choices.
+
+## Display Gain
+
+**Display Gain** provides 1×, 2×, 4×, 8×, and 16× viewer-only digital gain for
+ordinary Gray/RGB/RGBA and RAW. One session-local value is shared by supported
+Single/Multi View tiles.
+
+With focus inside an image viewer, `+` moves one gain step higher and `-` lower.
+With focus in Files, those keys keep Qt-native folder expand/collapse behavior.
+
+- ordinary Gray/RGB uses zero-anchored gain (`gain × source`);
+- ordinary RGB split channels use the same zero anchor;
+- RGBA gains RGB only and preserves canonical 1× alpha;
+- RAW uses its Black-derived gain anchor above 1×;
+- Difference has its own independent presentation Gain.
+
+At 1× PixelScope reuses canonical preview. Gain above 1× is generated from already
+resident native source as viewer-local derived presentation. Display Gain does not
+change pixel readout, Statistics, Histogram, Line Profile, Split Channel native
+data, Difference, source generation, or source residency. Pick identity also
+remains the native source document ID, not a gained preview representation.
+Session v1 persists the scalar Display Gain workflow intent and restores it through
+the same presentation path; legacy Comparison Set v1 does not persist Display Gain.
+
+## Cursor, ROI, and Line Profile selection
+
+Moving over an image synchronizes the crosshair and status readout.
+
+- Ctrl+drag creates one shared ROI; Esc clears ROI.
+- Shift+drag creates a horizontal or vertical Line Profile selection.
+- Shift+Esc clears the shared line.
+- Alt+drag does not create a Line Profile.
+
+ROI normalization, Statistics, Histogram, and Line Profile all use the Current
+Comparison Page as the default analysis working set. Temporary Pick Set does not
+extend or replace that analysis working set. Session v1 persists/restores the current
+active ROI and Line selection; it does not add named/multiple ROI management.
+
+## Statistics and Histogram
+
+Statistics supports Full image and Active ROI scopes. The Images summary reports
+bit depth and analyzed pixel count. RGB/RGBA uses R/G/B for analysis; RGBA alpha
+is ignored. Bayer uses R/Gr/Gb/B native mosaic planes.
+
+Histogram supports Auto/256/1024/4096 bins, Count/Normalized/Log count, Separate or
+Overlay display, and native code-value x ranges. Identical source/generation/ROI/
+bin requests do not restart unchanged numerical work.
+
+When you change Comparison Page, Statistics and Histogram move to that same page;
+they do not remain bound to the first six Selected images. Pick/Unpick alone does
+not change their source set or reissue numerical analysis requests.
+
+## Line Profile
+
+Line Profile supports Overlay, Separate by image, and Separate by channel. In
+Difference-from-reference mode, reference priority is primary, then active, then
+first displayed, while an explicitly selected available reference remains stable.
+Its normal source set follows the Current Comparison Page. Pick membership is not
+a Line Profile input authority.
+
+## Difference
+
+Difference supports:
+
+- Gray ↔ Gray;
+- RGB/RGBA ↔ RGB/RGBA, alpha ignored;
+- Bayer ↔ Bayer with the same CFA pattern.
+
+Cross-family, dimension-mismatch, CFA-mismatch, and unsupported layouts are
+rejected. PixelScope does not silently convert RGB to grayscale.
+
+Equal effective bit depths use the Native code domain. Mixed effective bit depths
+normalize each source independently by its own effective full-scale code and use
+float32 `[0,1]` Difference. RAW Black/White metadata, Display Gain, preview values,
+and demosaic do not participate in this normalization.
+
+Threshold units are `code` in Native and `%FS` in Normalized. Mask comparison is
+strict `>`. Difference cache is order-independent and separate from decoded-source
+residency. Folder-only registration does not invalidate a valid Difference cache
+entry or clear the current Difference presentation because it does not alter the
+Selected/current-page lifecycle.
+
+Difference's available/default inputs follow the Current Comparison Page, while an
+explicit Image 1/Image 2 pair remains owned by the Difference feature. Pick
+membership does not change either authority and Pick/Unpick/Clear Selection does
+not calculate, remove, or invalidate Difference. Difference is derived from its A/B
+sources, never an independent Pick or logical Selected member.
+
+When **Keep Selection** commits a new Selected subset, any active Difference is
+closed unconditionally before the Selected mutation, even if its old A/B sources
+both remain in the kept subset. The active Difference document/provenance is cleared
+and toolbar **Diff** remains unchecked and disabled. The generation-keyed cache is
+preserved and source generations are unchanged.
+
+A new active Difference is established only by an explicit **Calculate** request
+for the current Difference Image 1/Image 2 pair. Calculate performs the normal
+compatibility checks and generation-aware cache lookup first. A cache hit is reused
+without numerical-map recomputation; a miss uses the normal asynchronous
+calculation. On success, the result becomes the active Difference and toolbar
+**Diff** becomes enabled and checked.
+
+After Calculate, toolbar **Diff** is visibility-only: unchecking hides that same
+active result and checking it again shows the same result. The toolbar does not infer
+a different A/B pair from the current page, does not promote an unrelated cached
+result, and does not calculate implicitly.
+
+When all six source slots of a Comparison Page are occupied, a successfully
+established Difference result uses the existing Diff-only Single View presentation
+and workspace-restore behavior. A cache hit obtained through explicit Calculate
+uses the same presentation path as a freshly calculated result.
+
+Legacy Comparison Set v1 does not persist Difference. Session v1 may persist only an
+eligible regenerable current-page Difference recipe; it does not persist the map,
+cache, or generated result image.
+
+## Export analysis results
+
+The File menu keeps **Export Statistics CSV...** and adds three focused exports:
+
+- **Export Histogram CSV...** saves the exact current plotted Histogram series. CSV
+  rows identify Full image/Active ROI scope and bounds, source/series/channel,
+  native bin edges and raw count, current displayed bin edges, and current X/Y
+  modes. Gray, RGB, and Bayer follow the same currently plotted series semantics.
+- **Export Line Profile CSV...** saves the exact current plotted samples with line
+  coordinates, source/series/channel, current X/Y modes, sample index/position, and
+  current displayed value.
+- **Export Difference Image...** saves PNG only when an explicit **Calculate** has
+  established an active Difference result. The PNG comes from the current Difference
+  presentation, so current Absolute/Mask, threshold, Difference Gain, and compatible
+  channel presentation are reflected. It contains no toolbar/window chrome.
+
+These commands do not recalculate analysis merely for export. In particular, a
+Difference cache entry by itself does not make Difference export available and
+export never calls Calculate. Export also does not load/reload sources, change
+Selected/Active/Primary/Page, bump source generation, alter Difference cache
+identity, or create preload/residency ownership.
+
+The dialogs reuse **Default Export Folder** and the existing last-used-folder
+fallback. Cancelling leaves the workspace unchanged. A failed write reports a short
+status message and leaves the current analysis/workspace intact.
+
+## RAW profile resolution
+
+RAW uses the same **Open Images...** entry as ordinary images.
+
+### Direct RAW file open/drop
+
+- Exact same-basename sidecar (`frame.raw` + `frame.json`) is parsed and validated.
+- With no sidecar, the editable RAW Profile dialog opens.
+- An invalid sidecar shows a warning and then editable fallback.
+- Cancelling profile entry prevents that directly opened RAW from being registered.
+- Multiple RAW files are resolved independently; PixelScope does not silently
+  reuse the previous profile or select one from byte size alone.
+
+The dialog uses **Load Profile...** and **Save Profile...** terminology. JSON
+remains the compatible storage format.
+
+### RAW inside an opened/dropped folder
+
+Folder registration is intentionally lazy. RAW paths and deterministic
+same-basename sidecar paths can be registered in Files without immediately opening
+RAW Profile dialogs or decoding every source.
+
+A RAW may also be logically Selected or Picked while it is outside the Current
+Comparison Page. In that state it does not prompt, decode, or require residency
+merely because of Selected/Picked membership. Profile resolution occurs when the
+RAW enters the foreground Current Comparison Page and native source is required.
+
+Within one foreground presentation attempt, an unresolved RAW dialog appears at
+most once. Cancel keeps the RAW registered/pending, starts no worker, and passive
+rerenders do not immediately reopen it. A later explicit foreground action may
+retry.
+
+An unresolved RAW is not speculatively preloaded until a profile has been
+resolved. PixelScope never guesses profile parameters merely to make folder
+registration silent.
+
+When opening a Session, saved resolved RAW profile metadata is restored before
+foreground use. If the Session contains an unresolved RAW without saved profile
+metadata, it remains unresolved and uses this same foreground resolution path.
+Legacy Comparison Set v1 files use their compatible narrower RAW reconstruction
+metadata through Open Session.
+
+### RAW profile fields
+
+Profiles retain storage format, unpacked container, effective bit depth, byte
+order/alignment, width/height, offset/stride, Gray/Bayer layout, Bayer pattern,
+Black Level, and White Level. Packed MIPI RAW10/12/14 owns fixed packing rules.
+The same RAW path may be re-resolved with corrected profile settings while keeping
+its document identity/reload semantics.
+
+Current PixelScope intentionally has no global Profile Library, favorites/profile
+CRUD manager, fuzzy or size-only profile suggestion, sensor/Bayer inference, or
+automatic Black/White estimation.
+
+## RAW display
+
+Decoded RAW source remains the native analysis authority.
+
+At Display Gain 1×, RAW display maps effective native full scale
+`0..((1 << bit_depth) - 1)`. Black is not subtracted and White is not used as
+display maximum. Above 1×, gained display follows:
+
+```text
+B + G * (X - B)
+```
+
+Gray uses its scalar Black anchor. Bayer may use channel-specific R/Gr/Gb/B Black
+anchors; split Bayer views use their named channel anchor. Bayer processing uses
+CFA parity-plane views rather than a full-frame Black map. White Level remains
+metadata only.
+
+## Settings
+
+Open **Edit > Settings...**. Categories are **General**, **Files**, **Performance**,
+and **Remote IQA**.
+
+Application Settings schema is currently version 6. Session `.pixelscope` files,
+legacy Comparison Sets, analysis exports, and typed Recent entries remain separate
+from this application-settings schema.
+
+### General
+
+- **Don't Show RAW JSON Profiles** may suppress repeated confirmation only for a
+  valid compatible same-basename sidecar.
+- **Require Exact RAW File Size** switches between minimum-required-byte and exact-
+  byte validation.
+- **Difference Defaults** owns persisted native Threshold/Gain defaults.
+
+### Files
+
+**Default Open Folder** controls the initial directory for Open Images and Open
+Folder. **Default Export Folder** controls export dialogs. Blank values retain
+last-used-folder behavior. These are starting locations, not workspace registration
+limits.
+
+### Performance
+
+**Decoded Source Memory** budgets native decoded `ImageDocument.source` arrays.
+The default is 256 MiB. Current Comparison Page sources and other correctness
+requirements are protected; a large Selected set does **not** automatically protect
+every visited off-page source. Pick membership also does not protect an off-page
+source. Off-page Selected/Picked source may be evicted under the P2 soft budget and
+normally reload when its page is revisited. Saving/opening a Session, exporting
+analysis, or tracking a Remote IQA job does not create Selected-wide residency
+protection. Explicit P5-D Inspect uses the same Current Comparison Page protection for
+the exact verified decoded generation rather than creating another residency owner.
+
+**Difference Map Cache** is separate, default 128 MiB. Source eviction does not by
+itself discard a valid generation-keyed Difference map. Keep Selection also does
+not purge that cache when it closes the active Difference presentation for the new
+Selected workspace. Difference export consumes the current presentation only and
+does not mutate the cache.
+
+**Preload Next Folder Position** remains exactly one valid one-to-six Selected
+Folder Position ahead, direction +1, on a separate max-one worker. It does not
+preload the next Comparison Page, Pick Set, Session, export target, or Remote IQA
+batch. A physically RUNNING matching Folder Position preload may transfer to
+foreground authority without duplicate decode. Unresolved RAW without a profile is
+skipped rather than prompting from speculative preload.
+
+Performance budget/preload changes are startup settings and display the restart-
+required indication when they differ from current runtime values.
+
+### Remote IQA
+
+- **Server base URL** configures the remote IQA HTTP endpoint.
+- **Root ID / Client path** rows map portable storage identities to paths available
+  on this Windows machine.
+- **Staging root** selects which configured logical root may receive content-addressed
+  staging for outside sources.
+
+Remote IQA storage paths are machine-local settings. They are not saved in Session v1
+and are not embedded as server physical paths in IQA result artifacts. Saving/resetting
+these mappings immediately refreshes P5-D Inspect availability and cancels any pending
+native-source verification that began under an older mapping.
+
+**Reset Settings** resets application preferences including Remote IQA configuration.
+**View > Reset Workspace Layout** resets workspace layout separately. Temporary Pick
+state adds no Settings key. Typed Recent path history remains separate observer
+metadata.
+
+## Runtime Diagnostics
+
+**Help > Copy Diagnostics** copies one deterministic sanitized snapshot. It reports
+source residency, Difference cache usage, foreground/preload workers, preload
+counters including promotion, stale results, and bounded recent accepted failures.
+
+Diagnostics does not scan files, mutate selection, touch LRUs, start/cancel loads,
+calculate Difference, or change presentation. Paths, credentials, traceback
+context, and excess failure detail are sanitized.
+
+## Plots and IQA docks
+
+The Plots title bar provides Float/Dock, Maximize/Restore, and Hide. Histogram /
+Line Profile selected tab and floating geometry are restored separately from
+application Settings.
+
+The IQA dock follows the same workspace title-bar behavior. Its Setup/Jobs/Results
+workflow is non-modal, and **View > Reset Workspace Layout** returns it to the normal
+docked/hidden baseline along with the rest of the workspace reset.
