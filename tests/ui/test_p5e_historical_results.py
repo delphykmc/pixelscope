@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -250,6 +251,95 @@ def test_partial_history_preserves_publication_state_and_failed_scene_diagnostic
     assert "PARTIAL" in _provenance_text(window)
     entry = window.historical_iqa_results_controller.repository.load()[0]
     assert entry.identity == IqaResultIdentity("history-partial", 2)
+    window.close()
+
+
+def test_rapid_result_open_keeps_only_latest_generation(
+    qtbot: Any,
+    tmp_path: Path,
+) -> None:
+    root_a = _set_result_id(write_golden_result_v2(tmp_path / "rapid-a"), "rapid-a")
+    root_b = _set_result_id(write_golden_result_v2(tmp_path / "rapid-b"), "rapid-b")
+    window = MainWindow()
+    qtbot.addWidget(window)
+    _compose_main_window_presentation(window)
+    controller = window.historical_iqa_results_controller
+    canonical_loader = window.iqa_controller._loader
+    started = threading.Event()
+    release = threading.Event()
+
+    def gated_loader(path: Path | str) -> object:
+        if Path(path) == root_a:
+            started.set()
+            assert release.wait(timeout=3.0)
+        return canonical_loader(path)
+
+    window.iqa_controller._loader = gated_loader
+    controller._start_open(root_a)
+    assert started.wait(timeout=3.0)
+    controller._start_open(root_b)
+    release.set()
+
+    qtbot.waitUntil(
+        lambda: getattr(window.iqa_workspace.result, "result_id", None) == "rapid-b",
+        timeout=5000,
+    )
+    qtbot.wait(50)
+
+    assert getattr(window.iqa_workspace.result, "result_id", None) == "rapid-b"
+    assert [entry.result_id for entry in controller.repository.load()] == ["rapid-b"]
+    window.close()
+
+
+def test_mapping_revision_change_rejects_loaded_result_before_presentation(
+    qtbot: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root_a = _set_result_id(write_golden_result_v2(tmp_path / "mapped-a"), "mapped-a")
+    root_b = _set_result_id(write_golden_result_v2(tmp_path / "mapped-b"), "mapped-b")
+    window = MainWindow()
+    qtbot.addWidget(window)
+    _compose_main_window_presentation(window)
+    controller = window.historical_iqa_results_controller
+    _open_and_wait(qtbot, window, root_a, "mapped-a")
+    previous_result = window.iqa_workspace.result
+
+    canonical_loader = window.iqa_controller._loader
+    started = threading.Event()
+    release = threading.Event()
+
+    def gated_loader(path: Path | str) -> object:
+        if Path(path) == root_b:
+            started.set()
+            assert release.wait(timeout=3.0)
+        return canonical_loader(path)
+
+    window.iqa_controller._loader = gated_loader
+    entry = RecentIqaResultEntry(
+        LogicalIqaResultLocator("results", "history/mapped-b"),
+        IqaResultIdentity("mapped-b", 2),
+    )
+    reopened: list[RecentIqaResultEntry] = []
+    monkeypatch.setattr(controller, "open_recent", reopened.append)
+    revision = controller._mapping_revision()
+
+    controller._start_open(
+        root_b,
+        locator=entry.locator,
+        expected=entry.identity,
+        mapping_revision=revision,
+        from_recent=True,
+    )
+    assert started.wait(timeout=3.0)
+    window.remote_iqa_result_mapping._revision = revision + 1
+    release.set()
+
+    qtbot.waitUntil(lambda: reopened == [entry], timeout=5000)
+
+    assert window.iqa_workspace.result is previous_result
+    assert getattr(window.iqa_workspace.result, "result_id", None) == "mapped-a"
+    assert [item.result_id for item in controller.repository.load()] == ["mapped-a"]
     window.close()
 
 
