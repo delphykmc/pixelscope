@@ -15,6 +15,7 @@ from pixelscope.app.settings import (
     SettingsRepository,
 )
 from pixelscope.core.performance_settings import PerformanceSettings
+from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
 from pixelscope.ui.analysis_export import install_analysis_export
 from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
@@ -24,6 +25,7 @@ from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_historical_results_lifecycle import (
     install_historical_iqa_results_lifecycle,
 )
+from pixelscope.ui.iqa_p5f_lifecycle import install_remote_iqa_transport_lifecycle
 from pixelscope.ui.iqa_preview_lifecycle import install_remote_iqa_preview_lifecycle
 from pixelscope.ui.iqa_replay_debug import install_remote_iqa_replay_debug
 from pixelscope.ui.iqa_request_debug import install_remote_iqa_request_debug
@@ -38,6 +40,7 @@ from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.session import install_session
+from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
 
 LOGGER = logging.getLogger(__name__)
 WINDOWS_APP_USER_MODEL_ID = "PixelScope.PixelScope"
@@ -105,7 +108,19 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_session(window)
     install_recent_entries(window)
     install_analysis_export(window)
-    remote_iqa_controller = install_remote_iqa(window)
+
+    # P5-F isolates remote Result/Reference/Inspect/history file work from the
+    # application pool reserved for local Statistics/Difference calculations.
+    iqa_pool = remote_iqa_thread_pool()
+    window.iqa_controller._pool = iqa_pool
+
+    transport_pool = ReusableIqaClientPool()
+    remote_iqa_controller = install_remote_iqa(
+        window,
+        client_factory=transport_pool.client,
+    )
+    window.remote_iqa_transport_pool = transport_pool
+    install_remote_iqa_transport_lifecycle(window, transport_pool)
     install_remote_iqa_preview_lifecycle(window)
     install_remote_iqa_submission_lifecycle(window)
     install_remote_iqa_result_mapping(window)
@@ -113,10 +128,12 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     polish_remote_iqa_setup(remote_iqa_controller.workspace)
     install_remote_iqa_request_debug(window)
     install_remote_iqa_replay_debug(window)
-    install_iqa_scene_inspection(window)
+    inspection = install_iqa_scene_inspection(window)
+    inspection._pool = iqa_pool
     install_iqa_scene_inspection_lifecycle(window)
     # P5-E deliberately wraps the P5-D open path rather than bypassing its teardown.
     historical_iqa = install_historical_iqa_results(window)
+    historical_iqa._pool = iqa_pool
     install_historical_iqa_results_lifecycle(window, historical_iqa)
     polish_presentation_controls(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
