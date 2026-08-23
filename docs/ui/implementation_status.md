@@ -2,8 +2,8 @@
 
 Status: P4 **Workflow & Session Productivity** is Complete through P4-F / PR #35.
 P5 **Remote IQA Platform** is Active in P5-E **Historical Result Workflow** / Draft PR #44.
-P5-B Results, P5-C Setup/Jobs/shared storage, and P5-D viewer-linked Scene inspection are
-merged.
+P5-B local Results, P5-C Setup/Jobs/shared-storage UI, and P5-D viewer-linked Scene
+inspection are merged.
 
 Current merged baseline:
 `b086443d188eb9daae4bbf4f0faab3ff1d114f93`
@@ -51,19 +51,19 @@ Resident when required
 - viewer slots are page-local `1..6`.
 - Open Images/direct-file D&D are selection-oriented.
 - Open Folder/folder D&D are registration-oriented and do not replace Selected.
-- Registered-but-unselected is valid.
+- Registered-but-unselected is a valid workspace state.
 
-Remote IQA Setup/Jobs/Results/Recent/Provenance does not add another local source or
-analysis working-set layer. Only explicit successful P5-D **Inspect in Viewer** enters
-the local hierarchy.
+Remote IQA Setup/Jobs/Results/Recent/Provenance does not add another local
+source/analysis working-set layer. P5-D invokes that local hierarchy only after
+explicit, successful Scene Inspect verification.
 
 ## P4 workflow UI — implemented
 
 ### Review Selection & Curation
 
-Native source tiles expose direct Pick controls. Pick state is distinct from Active and
-Primary. Picks persist across Comparison Pages, own no decode/residency or analysis work,
-and are not persisted.
+Native source tiles expose direct Pick controls. Pick state is visually distinct from
+Active and Primary. Picks persist across Comparison Pages, own no decode/residency or
+analysis work, and are not persisted.
 
 The presentation row exposes:
 
@@ -72,7 +72,8 @@ Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection
 ```
 
 Keep Selection is the only temporary-curation operation that commits Pick state to
-logical Selected. P5-D refuses initial Inspect while a temporary Pick baseline is active.
+logical Selected. P5-D therefore refuses Inspect while a temporary Pick baseline is
+active.
 
 ### Session / Recent
 
@@ -80,38 +81,41 @@ Current File workflow includes Open Images, Open Folder, Open Session, typed Rec
 Images/Folders/Sessions, and Save Session. Session restore remains a bounded staged
 reconstruction and does not expose runtime arrays/cache state as persistent UI state.
 
-P5-E does not extend Session v1. IQA Result locator/identity, IQA Reference, selected
-IQA Scene, Provenance state, Inspect state, and Return state are not persisted in Session.
+P5-D Return state is transient and is not added to Session v1. P5-E also does not add
+IQA Result locator/identity, IQA Reference, selected Scene, Provenance, or Inspect state
+to Session v1.
 
 ### Difference lifecycle
 
-Only explicit successful Calculate establishes active Difference state. Toolbar Diff is
-visibility-only for that established result. P5-D/P5-E do not add a Difference owner or
-treat spatial/provenance data as Difference output.
+Only explicit successful Calculate establishes active Difference state. Toolbar Diff
+is visibility-only for that established result. Selection/curation changes continue to
+obey the canonical Difference teardown/recalculation lifecycle. P5-D/P5-E do not add a
+Difference owner or treat spatial/provenance presentation as Difference output.
 
 ### Focused export
 
-Implemented exports include Statistics CSV, Histogram CSV, Line Profile CSV, Difference
-metrics CSV/Copy, and settled active Difference presentation PNG. Export consumes
-already-established local result/presentation state.
+Implemented export/productivity controls include Statistics CSV, Histogram CSV, Line
+Profile CSV, Difference metrics CSV/Copy, and settled active Difference presentation
+PNG. Export consumes already-established local result/presentation state.
 
 ## P5-B Results UI — Complete / PR #38
 
 P5-B owns the canonical non-modal IQA result workspace/controller.
 
-All File, Jobs, and P5-E Recent opens converge on this same Results authority.
+Use **File > Open IQA Result...**, P5-C Jobs **Open Result**, or P5-E Recent IQA Results
+to enter the same Results authority.
 
-Implemented behavior includes:
+Implemented behavior:
 
 - schema-v2 summary-first open;
-- Absolute measurements as initial mode;
+- Absolute measurements as the initial mode;
 - N-way `variant_id` Reference switching independent from local Primary;
+- stable variant ordering across Absolute/Relative presentation;
 - background one-Scene-at-a-time Reference preparation;
 - canonical Dataset/Scene relative reductions;
 - rollback to last-valid presentation after deferred-grid failure;
 - attribute hierarchy/table and Scene Trend;
 - Scene source identity/path/hash cards;
-- COMPLETE/PARTIAL diagnostics;
 - historical schema-v1 read-only compatibility;
 - passive browsing with no Files/Selected/Current Comparison Page/Difference/
   native-analysis/residency mutation.
@@ -134,28 +138,37 @@ IQA
 │   ├─ Cancel
 │   └─ Open Result
 └─ Results
-    └─ P5-B workspace + P5-D Inspect + P5-E Provenance
+    └─ P5-B workspace + P5-D Inspect controls + P5-E Provenance
 ```
 
 Native OS image/folder pickers may remain modal. IQA setup, pair preview, job progress,
-result exploration, history, and Scene inspection remain non-modal.
+result exploration, and Scene inspection controls remain non-modal.
 
-Current Pair uses exactly two eligible underlying Current Comparison Page documents.
-Primary, Active, tile reorder, Display Gain, Difference, and Split presentation do not
-redefine A/B submission identity.
+### Current Pair
 
-Folder Pair uses immediate PNG/JPG/JPEG/BMP files, deterministic Unicode-NFC ordering,
-equal non-zero counts, pair-by-index mapping, exact pair dimensions, no recursive or
-symlink input, and maximum 512 Scenes. It does not eagerly register the batch into
-Files/Selected.
+When the Current Comparison Page has exactly two eligible native documents, Setup
+reuses those underlying A/B documents. Primary, Active, tile reorder, Display Gain,
+Difference, and Split presentation do not redefine A/B submission identity.
+
+### Folder Pair
+
+Validate / Preview uses immediate PNG/JPG/JPEG/BMP files, no recursion/symlink input,
+deterministic Unicode-NFC ordering, equal non-zero counts, pair-by-index mapping,
+exact pair dimensions, and maximum 512 Scenes. It does not eagerly register the batch
+into Files/Selected.
+
+### Jobs
 
 Jobs shows locally tracked remote job identity/state/progress. Completion never forces
-Results to change. Cancel requests server cancellation. Open Result is explicit. P5-E
-observes successful Jobs open so the server-published logical Result locator is retained
-for history rather than the current mapped client path.
+Results to change. Cancel requests server cancellation. Open Result is explicit and
+uses the canonical P5-B path. Create POST is not blindly retried; terminal result
+reference recovery is bounded. P5-E observes a successful Jobs open and retains the
+server-published logical Result locator rather than the current mapped client path.
 
-Valid PARTIAL results show successful/requested Scene counts and bounded diagnostics for
-failed/cancelled outcomes while successful Scenes remain explorable.
+### PARTIAL
+
+Valid PARTIAL results show successful/requested Scene counts and bounded diagnostics
+for failed/cancelled outcomes while published successful Scenes remain explorable.
 
 ## Remote IQA Settings UI — Complete
 
@@ -170,7 +183,13 @@ Staging root
 ```
 
 Root ID is portable logical identity; Client path is machine-local drive/UNC mapping.
-Typed application settings remain schema v6.
+The typed application settings schema is v6.
+
+## P5-C debug UI/harness — Complete, debug-only
+
+`PIXELSCOPE_REMOTE_IQA_DEBUG` gates Request Inspector, Replay JSON, deterministic result
+generation, and localhost HTTP fault tooling. Those surfaces exercise production client
+contracts but are not the GPU server implementation.
 
 ## P5-D Viewer-linked Scene Inspection — Complete / PR #43
 
@@ -179,7 +198,7 @@ P5-D adds one explicit Scene-to-native-viewer transition to the existing Results
 ```text
 selected IQA Scene
     ↓ explicit Inspect in Viewer
-logical root + dimensions + exact encoded-byte SHA verification
+logical root + dimensions + source hash verification
     ↓ all sources succeed
 canonical local registration / Selected / Current Comparison Page
     ↓
@@ -190,106 +209,114 @@ vector spatial overlay + Block Inspector
 captured local Selected/page/Active/Primary/layout
 ```
 
-Scene Trend contains:
+### Inspect controls
+
+Scene Trend includes a P5-D panel with:
 
 - **Inspect in Viewer**;
 - **Return**;
 - **Spatial attribute** selector;
 - compact Inspect status;
 - spatial scale/mode legend;
-- Block Inspector diagnostics;
-- shared-source spatial-binding selection where multiple variants intentionally share
-  one concrete native source.
+- selectable Block Inspector diagnostics.
 
-Old schema-v2 Results without the additive source root locator remain result-readable
-but cannot native-Inspect. Native source failures do not invalidate the server Result.
+Inspect availability is explicit:
 
-P5-D verifies every required source before local mutation and then uses ordinary
-registration/Selected/residency/viewer paths. Newer local intent invalidates Return
-rather than being overwritten. IQA Reference and local Primary remain independent.
+- schema v2 required;
+- a Scene must be selected;
+- P4-A temporary Picks must not be active;
+- all Scene sources need published logical locators resolvable by current settings;
+- native Inspect supports at most six variants and never truncates extras.
 
-Spatial overlays reuse schema-v2 W/S1/S2/count/valid and canonical geometry/math. They
-are vector/block presentation, not a full-resolution image buffer or a second source
-owner.
+Old schema-v2 artifacts without the additive source root locator remain result-readable
+but cannot native-Inspect.
 
-New Result open and shutdown cancel/drop P5-D feature-local verification/spatial work.
+### Source transition
+
+Before any local mutation P5-D verifies every required source. A failure keeps the
+current local comparison intact. A valid Scene then uses the ordinary registration and
+Selected paths, reusing already-Registered source documents.
+
+IQA Scene source order becomes the requested local comparison order. No second Files
+list or viewer stack exists.
+
+### Return UI
+
+The first successful Inspect captures one transient local Return point. Linked Scene
+changes keep the first target.
+
+Return restores exact Selected order, Comparison Page, layout, applicable Primary, and
+actual Active presentation. If the user makes a newer non-IQA Selected/Files/layout/
+Primary choice, Return is disabled/invalidated rather than overwriting that newer
+intent.
+
+### Reference / Primary
+
+IQA **Reference** continues to control IQA target/reference math. Local **Primary**
+continues to control viewer presentation/reference priority. They do not rewrite each
+other.
+
+### Spatial overlay
+
+For the chosen spatial attribute:
+
+- Absolute displays valid per-cell `S1/W`;
+- Relative power displays raw target/reference dB using canonical schema-v2 epsilon
+  handling;
+- Relative signed displays raw target-reference delta;
+- invalid/pair-invalid cells are not painted as valid zero;
+- one shared scale covers currently displayed Scene variants.
+
+The overlay is a vector `QGraphicsItem` on each existing viewer ViewBox. It does not
+allocate a full-resolution heatmap image and does not become source/residency/cache
+ownership.
+
+Drawing and Block Inspector hit-testing share the same schema-v2 affine/grid geometry,
+including non-zero origins, non-integer transforms, valid rectangles, and discarded
+borders.
+
+Block Inspector reports Scene/attribute/variant/source, row/column, validity,
+W/S1/S2/count, mean, optional Reference/pair/raw-relative value, analysis bounds, and
+source polygon.
+
+### Async presentation safety
+
+Source verification and spatial grid preparation use bounded feature-local workers.
+Rapid Scene/attribute/Reference changes, new Result open, and shutdown reject/cancel
+stale feature-local work. A stale callback cannot newly mutate the local workspace.
+
+## P5-D validation status
+
+P5-D completed its exact-head automated/manual/review gates and merged as PR #43 at
+`main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`. Its validation evidence is historical
+P5-D evidence and is not inferred as P5-E validation.
 
 ## P5-E Historical Result Workflow — Active / Draft PR #44
 
-P5-E extends the **same** canonical result-open UI with historical discovery and passive
-provenance.
+P5-E extends the same P5-B Results authority with:
 
-### Open Recent IQA Results
+- **Open Recent IQA Results**, max 10, MRU, and locator dedup independent from existing
+  Recent Images/Folders/Sessions;
+- server-published `storage_root_id + relative_path` history for Jobs;
+- manual schema-v2 logical-history promotion only when the P5-C resolver reproduces the
+  same canonical opened Result directory, otherwise Local fallback;
+- pre-presentation `result_id + schema_version` identity checking;
+- Result-only browsing when native sources are unavailable;
+- passive **Provenance** inside the existing Results workspace;
+- explicit schema-v1 historical/read-only presentation;
+- a feature-local resolver generation so delayed logical Recent resolution cannot
+  override a newer File/Jobs/Recent Result-open intent;
+- immediate Provenance refresh after the existing live Remote IQA settings-change chain.
 
-File menu adds:
-
-```text
-Open Recent IQA Results
-    <MRU result entries, max 10>
-    ---------------------------
-    Clear Recent IQA Results
-```
-
-History is independent from Recent Images/Folders/Sessions.
-
-Each successful Result open records:
-
-- a typed historical locator;
-- observed `result_id`;
-- observed `schema_version`.
-
-Production logical entries display/retain `storage_root_id + relative_path`, not the
-machine's mapped drive/UNC path. Manual out-of-root and schema-v1 entries may display a
-machine-local absolute path.
-
-Reopen resolves logical entries through current Remote IQA mappings. Missing/offline
-entries are kept unless the user explicitly chooses Remove or Clear.
-
-If the locator now resolves to a different `result_id/schema_version`, the reopen is
-rejected before Results presentation changes. The last valid Result stays displayed.
-
-### Result-only browsing
-
-Recent or manual Result open does not verify all native Scene sources. Overview, Scene
-Trend, PARTIAL diagnostics, and Provenance therefore remain usable when original source
-files are offline/unmapped/missing. Native source verification stays explicit P5-D
-Inspect behavior.
-
-### Provenance page
-
-The existing Results tab set gains **Provenance**.
-
-For schema v2 it displays:
-
-- Result ID/schema/COMPLETE-or-PARTIAL state;
-- historical locator;
-- selected Scene measurement-context provenance;
-- per-variant source ID;
-- published logical root when present;
-- relative path;
-- SHA-256;
-- width/height;
-- local native-inspection status.
-
-The page does not decode native pixels and does not recompute IQA.
-
-Schema v1 is explicitly labelled historical/read-only and does not invent v2 fields.
-
-### P5-E lifecycle
-
-P5-E is installed after P5-D. A new historical Result therefore consumes the same P5-D
-new-result teardown before entering the P5-B loader. P5-B Result generation remains the
-latest-open-wins authority; P5-E additionally rejects logical-locator work resolved
-under an obsolete root-mapping revision.
-
-Closing PixelScope cancels P5-E locator resolution/pending context only; durable remote
-server jobs remain untouched.
+P5-E remains passive with respect to Files/Selected/Current Comparison Page until the
+existing P5-D **Inspect in Viewer** transition is explicitly invoked.
 
 ## P5-E validation status
 
-P5-E is **not Complete**. Focused automated tests have been added, but no exact-head CI
-or local PASS has been observed in the implementation environment. Owner Windows manual
-validation A–G and independent latest-head review remain pending. See
+P5-E is **not Complete**. Owner automated/static validation passed on an earlier Draft
+head, but independent review added lifecycle/canonicalization/documentation fixes after
+that run. The post-review exact head requires focused/full validation, owner Windows
+manual A–G, and independent latest-head re-review. See
 [`../P5E_HISTORICAL_RESULTS.md`](../P5E_HISTORICAL_RESULTS.md).
 
 ## Deferred UI from P4
@@ -310,5 +337,5 @@ P5-E Recent/historical IQA productivity   Active — Draft PR #44
 P5-F real-server/performance hardening    Planned
 ```
 
-P5-F owns real external-server/shared-storage compatibility and measured lifetime/
-performance tuning. Authentication/SSO/permission UI remains P6.
+P5-F owns real external-server/shared-storage integration and measured large-dataset
+lifetime/performance tuning. Authentication/SSO/permission UI remains P6.
