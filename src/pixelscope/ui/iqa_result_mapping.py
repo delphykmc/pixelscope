@@ -15,10 +15,7 @@ RESULT_MAPPING_REFRESH_MESSAGE = "storage mapping changed · resolving result pa
 
 
 def _mapping_identity(settings: RemoteIqaSettings) -> tuple[tuple[str, str], ...]:
-    return tuple(
-        (root.storage_root_id, root.client_path)
-        for root in settings.storage_roots
-    )
+    return tuple((root.storage_root_id, root.client_path) for root in settings.storage_roots)
 
 
 class RemoteIqaResultMappingGuard(QObject):
