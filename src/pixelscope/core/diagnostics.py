@@ -257,7 +257,10 @@ def format_runtime_diagnostics(snapshot: RuntimeDiagnosticsSnapshot) -> str:
             [
                 "",
                 "Remote IQA",
-                f"Workers: active {remote.worker_pool.active_count} / max {remote.worker_pool.max_count}",
+                (
+                    f"Workers: active {remote.worker_pool.active_count} / "
+                    f"max {remote.worker_pool.max_count}"
+                ),
                 f"HTTP clients created: {remote.http_clients_created}",
                 f"HTTP leases reused: {remote.http_leases_reused}",
                 f"HTTP active leases: {remote.http_active_leases}",
