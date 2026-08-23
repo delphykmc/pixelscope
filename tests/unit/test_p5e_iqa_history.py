@@ -150,9 +150,7 @@ def test_manual_v2_symlink_escape_stays_local_when_supported(tmp_path: Path) -> 
     except OSError as exc:
         pytest.skip(f"directory symlink is unavailable: {exc}")
     opened = link / "run-17"
-    settings = RemoteIqaSettings(
-        storage_roots=(RemoteIqaStorageRoot("shared", str(shared)),)
-    )
+    settings = RemoteIqaSettings(storage_roots=(RemoteIqaStorageRoot("shared", str(shared)),))
 
     locator = locator_for_manual_result(opened, settings, schema_version=2)
 

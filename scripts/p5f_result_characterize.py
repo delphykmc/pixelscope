@@ -85,9 +85,7 @@ def main() -> int:
     model = IqaExplorerModel(result)
     first_reference_id = result.variants[0].variant_id
     prepared, first_reference_ms = _timed(lambda: model.prepare_reference(first_reference_id))
-    repeated, repeated_reference_ms = _timed(
-        lambda: prepared.prepare_reference(first_reference_id)
-    )
+    repeated, repeated_reference_ms = _timed(lambda: prepared.prepare_reference(first_reference_id))
 
     different_reference_id: str | None = None
     different_reference_ms: float | None = None

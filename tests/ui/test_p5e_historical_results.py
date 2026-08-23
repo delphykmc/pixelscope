@@ -51,8 +51,7 @@ def _make_partial(root: Path) -> Path:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
-        {"scene_id": scene["scene_id"], "status": "succeeded"}
-        for scene in manifest["scenes"]
+        {"scene_id": scene["scene_id"], "status": "succeeded"} for scene in manifest["scenes"]
     ] + [
         {
             "scene_id": "scene_failed_history",
@@ -392,8 +391,7 @@ def test_recent_history_survives_window_close_and_recreate(
     assert entries
     assert entries[0].result_id == "persistent-result"
     menu_text = [
-        action.text()
-        for action in second.historical_iqa_results_controller.recent_menu.actions()
+        action.text() for action in second.historical_iqa_results_controller.recent_menu.actions()
     ]
     assert any("persistent-result" in text for text in menu_text)
     second.close()

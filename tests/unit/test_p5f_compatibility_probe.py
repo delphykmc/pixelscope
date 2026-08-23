@@ -79,9 +79,7 @@ def _request(scene_count: int = 1) -> IqaJobRequest:
 
 
 def test_probe_uses_single_create_serial_status_and_terminal_result() -> None:
-    client = _ScriptedClient(
-        [JobState.PREPARING, JobState.EXTRACTING, JobState.SUCCEEDED]
-    )
+    client = _ScriptedClient([JobState.PREPARING, JobState.EXTRACTING, JobState.SUCCEEDED])
 
     trace = run_iqa_compatibility_probe(client, _request())
 
@@ -216,6 +214,5 @@ def test_large_request_workloads_preserve_order_without_binary_fixture(scene_cou
     assert scenes[0]["scene_id"] == "scene_000000"
     assert scenes[-1]["scene_id"] == f"scene_{scene_count - 1:06d}"
     assert all(
-        [source["variant_id"] for source in scene["sources"]] == ["A", "B"]
-        for scene in scenes
+        [source["variant_id"] for source in scene["sources"]] == ["A", "B"] for scene in scenes
     )
