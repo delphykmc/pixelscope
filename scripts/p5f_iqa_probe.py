@@ -44,19 +44,22 @@ def _parse_source(data: object) -> tuple[str, PortableSourceRequest]:
     return variant_id, source
 
 
+def _parse_variants(data: object) -> tuple[str, ...]:
+    if not isinstance(data, list):
+        raise ValueError("variants must be an array")
+    variants: list[str] = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise ValueError("variant must be an object")
+        variants.append(_required_string(item, "variant_id"))
+    return tuple(variants)
+
+
 def _parse_request(path: Path) -> IqaJobRequest:
     raw = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("request JSON must be an object")
-    raw_variants = raw.get("variants")
-    if not isinstance(raw_variants, list):
-        raise ValueError("variants must be an array")
-    variants = tuple(
-        _required_string(item, "variant_id")
-        if isinstance(item, dict)
-        else (_ for _ in ()).throw(ValueError("variant must be an object"))
-        for item in raw_variants
-    )
+    variants = _parse_variants(raw.get("variants"))
     raw_scenes = raw.get("scenes")
     if not isinstance(raw_scenes, list):
         raise ValueError("scenes must be an array")
