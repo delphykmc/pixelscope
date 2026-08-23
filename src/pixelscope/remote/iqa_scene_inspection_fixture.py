@@ -190,8 +190,6 @@ def _write_png(path: Path, width: int, height: int, *, seed: int) -> None:
 
 def _png_chunk(kind: bytes, payload: bytes) -> bytes:
     body = kind + payload
-    return (
-        struct.pack(">I", len(payload))
-        + body
-        + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+    return struct.pack(">I", len(payload)) + body + struct.pack(
+        ">I", zlib.crc32(body) & 0xFFFFFFFF
     )
