@@ -200,11 +200,14 @@ def test_old_v2_without_storage_root_still_opens_but_inspect_does_not_guess(
     assert isinstance(outcome.result, ResultV2)
     result = outcome.result
     assert result.scenes[0].sources[0].source.storage_root_id is None
-    assert inspect_unavailable_reason(
-        result,
-        result.scenes[0].scene_id,
-        RemoteIqaSettings(),
-    ) == "Published source location is unavailable"
+    assert (
+        inspect_unavailable_reason(
+            result,
+            result.scenes[0].scene_id,
+            RemoteIqaSettings(),
+        )
+        == "Published source location is unavailable"
+    )
 
 
 def test_additive_storage_root_locator_round_trips_without_context_change(
