@@ -28,7 +28,7 @@ class VerifiedSceneSource:
     variant_id: str
     source: Source
     local_path: Path
-    decoded_document: ImageDocument
+    decoded_document: ImageDocument | None = None
 
 
 @dataclass(frozen=True)
@@ -176,7 +176,7 @@ def _resolve_published_source(
 
 
 def probe_image_dimensions(path: Path) -> tuple[int, int]:
-    """Reuse the P5-C ordinary-image header probe so submission/Inspect accept the same files."""
+    """Reuse P5-C's ordinary-image probe for exact submission/Inspect parity."""
 
     probe = probe_image(path)
     return probe.width, probe.height
