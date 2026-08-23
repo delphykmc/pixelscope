@@ -14,6 +14,7 @@ from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.io.image_reader import read_image
 from pixelscope.remote.iqa_domain import LoadStatus
+from pixelscope.remote.iqa_explorer import IqaExplorerModel
 from pixelscope.remote.iqa_scene_inspection import (
     SceneVerificationOutcome,
     VerifiedSceneSource,
@@ -112,6 +113,12 @@ def test_shared_source_alias_selector_switches_overlay_and_block_target(
     )
 
     controller = window.iqa_scene_inspection_controller
+    result_outcome = window.iqa_workspace.set_model(IqaExplorerModel(result))
+    assert result_outcome.status is LoadStatus.SUCCESS, result_outcome.reason
+    controller._populate_attribute_combo()
+    window.iqa_workspace._select_scene_index(0)
+    controller._sync_controls()
+
     controller._apply_verified_scene(result, verification)
     controller._cancel_spatial_worker()
     controller._field = derive_spatial_scene(
