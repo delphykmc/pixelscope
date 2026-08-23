@@ -25,6 +25,7 @@ from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_historical_results_lifecycle import (
     install_historical_iqa_results_lifecycle,
 )
+from pixelscope.ui.iqa_p5f_diagnostics import install_remote_iqa_diagnostics
 from pixelscope.ui.iqa_p5f_lifecycle import install_remote_iqa_transport_lifecycle
 from pixelscope.ui.iqa_preview_lifecycle import install_remote_iqa_preview_lifecycle
 from pixelscope.ui.iqa_replay_debug import install_remote_iqa_replay_debug
@@ -121,6 +122,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     )
     setattr(window, "remote_iqa_transport_pool", transport_pool)
     install_remote_iqa_transport_lifecycle(window, transport_pool)
+    install_remote_iqa_diagnostics(window, transport_pool)
     install_remote_iqa_preview_lifecycle(window)
     install_remote_iqa_submission_lifecycle(window)
     install_remote_iqa_result_mapping(window)
