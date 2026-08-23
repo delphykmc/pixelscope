@@ -16,8 +16,16 @@ from pixelscope.remote.iqa_submission import (
 
 
 class _ScriptedClient(IqaJobClient):
-    def __init__(self, states: list[JobState]) -> None:
+    def __init__(
+        self,
+        states: list[JobState],
+        *,
+        cancel_state: JobState = JobState.CANCELLED,
+        result_error: IqaClientError | None = None,
+    ) -> None:
         self.states = list(states)
+        self.cancel_state = cancel_state
+        self.result_error = result_error
         self.create_calls = 0
         self.status_calls = 0
         self.result_calls = 0
@@ -35,11 +43,13 @@ class _ScriptedClient(IqaJobClient):
 
     def get_result(self, job_id: str) -> IqaResultReference:
         self.result_calls += 1
+        if self.result_error is not None:
+            raise self.result_error
         return IqaResultReference(job_id, "shared", "results/job-1", 2, "complete")
 
     def cancel_job(self, job_id: str) -> IqaJobStatus:
         self.cancel_calls += 1
-        return IqaJobStatus(job_id, JobState.CANCELLED, 0, 1)
+        return IqaJobStatus(job_id, self.cancel_state, 0, 1)
 
 
 def _request(scene_count: int = 1) -> IqaJobRequest:
@@ -86,8 +96,8 @@ def test_probe_uses_single_create_serial_status_and_terminal_result() -> None:
     assert trace.error_kind is None
 
 
-def test_probe_cancel_is_single_bounded_operation() -> None:
-    client = _ScriptedClient([JobState.PREPARING, JobState.EXTRACTING])
+def test_probe_terminal_cancel_is_single_bounded_operation() -> None:
+    client = _ScriptedClient([JobState.PREPARING])
 
     trace = run_iqa_compatibility_probe(
         client,
@@ -100,6 +110,60 @@ def test_probe_cancel_is_single_bounded_operation() -> None:
     assert client.cancel_calls == 1
     assert client.result_calls == 0
     assert trace.terminal_state == "cancelled"
+
+
+def test_probe_nonterminal_cancel_continues_polling_until_cancelled() -> None:
+    client = _ScriptedClient(
+        [JobState.PREPARING, JobState.CANCELLED],
+        cancel_state=JobState.WRITING,
+    )
+
+    trace = run_iqa_compatibility_probe(
+        client,
+        _request(),
+        cancel_after_status_requests=1,
+    )
+
+    assert client.cancel_calls == 1
+    assert client.status_calls == 2
+    assert client.result_calls == 0
+    assert trace.state_sequence == ("queued", "preparing", "writing", "cancelled")
+    assert trace.terminal_state == "cancelled"
+    assert trace.error_kind is None
+
+
+def test_probe_nonterminal_cancel_can_race_to_success_and_fetch_result() -> None:
+    client = _ScriptedClient(
+        [JobState.PREPARING, JobState.SUCCEEDED],
+        cancel_state=JobState.AGGREGATING,
+    )
+
+    trace = run_iqa_compatibility_probe(
+        client,
+        _request(),
+        cancel_after_status_requests=1,
+    )
+
+    assert client.cancel_calls == 1
+    assert client.status_calls == 2
+    assert client.result_calls == 1
+    assert trace.state_sequence == ("queued", "preparing", "aggregating", "succeeded")
+    assert trace.terminal_state == "succeeded"
+    assert trace.result_schema_version == 2
+
+
+def test_probe_preserves_terminal_state_when_result_fetch_fails() -> None:
+    error = IqaClientError(IqaClientErrorKind.HTTP, "private result detail", status_code=503)
+    client = _ScriptedClient([JobState.SUCCEEDED], result_error=error)
+
+    trace = run_iqa_compatibility_probe(client, _request())
+
+    assert client.status_calls == 1
+    assert client.result_calls == 1
+    assert trace.terminal_state == "succeeded"
+    assert trace.error_kind == "http"
+    assert trace.error_message == "HTTP 503"
+    assert "private" not in (trace.error_message or "")
 
 
 def test_probe_reports_status_limit_without_claiming_terminal_success() -> None:
