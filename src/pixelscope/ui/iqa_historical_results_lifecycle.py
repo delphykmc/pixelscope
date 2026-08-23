@@ -7,6 +7,7 @@ from types import MethodType
 from typing import Any
 
 from PySide6.QtCore import QObject
+from PySide6.QtGui import QAction
 
 from pixelscope.remote.iqa_history import IqaResultIdentity, IqaResultLocator
 from pixelscope.ui.iqa_historical_results import HistoricalIqaResultsController
@@ -56,12 +57,45 @@ class HistoricalIqaResultsLifecycle(QObject):
             remote_settings_changed,
             self.remote_controller,
         )
+        self._reorder_file_open_group()
 
     def _invalidate_resolver(self) -> None:
         """Invalidate before cancellation so stale callbacks fail the generation guard."""
 
         self.controller._resolve_generation += 1
         self.controller._cancel_resolver()
+
+    def _reorder_file_open_group(self) -> None:
+        """Keep direct opens together, followed by the four matching Recent menus."""
+
+        recent = getattr(self.window, "recent_entries_controller", None)
+        if recent is None:
+            return
+
+        images_action = self.window.action_map.get("Open Images...")
+        folder_action = self.window.action_map.get("Open Folder...")
+        session_action = recent.session_controller.open_action
+        iqa_action = self.window.action_map.get("Open IQA Result...")
+        separator = recent.session_controller.separator_action
+        ordered_actions = (
+            images_action,
+            folder_action,
+            session_action,
+            iqa_action,
+            recent.images_menu.menuAction(),
+            recent.folders_menu.menuAction(),
+            recent.sessions_menu.menuAction(),
+            self.controller.recent_menu.menuAction(),
+        )
+        if not all(isinstance(action, QAction) for action in ordered_actions):
+            return
+        if not isinstance(separator, QAction):
+            return
+
+        for action in ordered_actions:
+            self.controller.file_menu.removeAction(action)
+        for action in ordered_actions:
+            self.controller.file_menu.insertAction(separator, action)
 
 
 def install_historical_iqa_results_lifecycle(
