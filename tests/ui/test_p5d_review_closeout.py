@@ -242,17 +242,13 @@ def test_post_inspect_pick_invalidates_return_without_clearing_pick_state(
     assert controller.return_valid
 
     viewer = next(
-        item
-        for item in window.multi_compare_view.viewers
-        if item.presented_document is not None
+        item for item in window.multi_compare_view.viewers if item.presented_document is not None
     )
     picked_id = viewer.presented_document.document_id
     viewer.header.pick_requested.emit(True)
     qtbot.waitUntil(lambda: window.review_selection_controller.active, timeout=1000)
 
-    selected_after_pick = tuple(
-        document.document_id for document in window.selected_documents
-    )
+    selected_after_pick = tuple(document.document_id for document in window.selected_documents)
     assert not controller.return_valid
     assert picked_id in window.review_selection_controller.picked_ids
 
@@ -261,8 +257,7 @@ def test_post_inspect_pick_invalidates_return_without_clearing_pick_state(
     assert window.review_selection_controller.active
     assert picked_id in window.review_selection_controller.picked_ids
     assert (
-        tuple(document.document_id for document in window.selected_documents)
-        == selected_after_pick
+        tuple(document.document_id for document in window.selected_documents) == selected_after_pick
     )
     window.close()
 
