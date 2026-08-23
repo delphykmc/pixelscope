@@ -53,10 +53,16 @@ Resident when required
 - Merely selecting an IQA Scene never changes Files, Selected, Current Comparison Page,
   Primary, Difference, residency, preload, ROI, Line, or Session state.
 - **Inspect in Viewer** is the explicit mutation boundary.
-- If P4-A temporary Pick/Keep state is active, Inspect is rejected. P5-D never commits,
-  clears, or reinterprets Picks on the user's behalf.
-- Native Inspect supports one through six published Scene variants. More than six are
-  never truncated; result-only exploration remains available.
+- If P4-A temporary Pick/Keep state is already active, initial Inspect is rejected.
+  P5-D never commits, clears, or reinterprets Picks on the user's behalf.
+- If the user starts a new temporary Pick after Inspect, that is newer local intent:
+  P5-D invalidates Return and preserves the Pick state. Return must never silently clear
+  a newer curation baseline.
+- Native Inspect accepts one through six published **variant bindings**. More than six
+  are never truncated; result-only exploration remains available.
+- Multiple variant bindings may intentionally reference the same concrete `source_id`.
+  Those bindings retain separate IQA identities but share one canonical native Files
+  document/source identity.
 
 ## 3. Portable source locator
 
@@ -84,14 +90,18 @@ Rules:
 - omission disables native Inspect for that source because PixelScope must not guess a
   machine-local root;
 - `storage_root_id` uses the same identifier validation as P5-C settings;
+- `storage_root_id` is not immutable source identity and is excluded from `Source`
+  equality;
 - `storage_root_id` is not measurement identity and is intentionally excluded from
   `measurement_context_id`;
 - `source_id`, SHA-256, dimensions, geometry, grids, and numerical measurements retain
   their existing schema-v2 authority.
 
-## 4. Source resolution and identity verification
+The normative additive field contract is also recorded in `REMOTE_IQA_V2_SPEC.md`.
 
-P5-D reuses P5-C logical storage authority.
+## 4. Source resolution, decode binding, and identity verification
+
+P5-D reuses P5-C logical-storage and ordinary-image acceptance authority.
 
 For every source required by the chosen Scene:
 
@@ -100,34 +110,55 @@ For every source required by the chosen Scene:
 3. resolve through the configured root with existing containment/symlink rules;
 4. require the resolved logical root/path to equal the published locator exactly;
 5. require an ordinary supported native image type (`PNG/JPG/JPEG/BMP`);
-6. probe native dimensions from bounded headers;
+6. run the same bounded P5-C ordinary-image dimension probe, including supported BMP
+   headers and the same JPEG metadata scan budget;
 7. compare dimensions with the published source metadata;
-8. compare the resolver's streamed SHA-256 with the published SHA-256.
+8. read/decode the ordinary source from one encoded byte buffer;
+9. compute SHA-256 over that exact encoded buffer and require it to equal the published
+   SHA-256;
+10. carry the resulting decoded `ImageDocument` forward as the verified generation.
 
 Verification is **all-or-nothing**. No Registered/Selected mutation occurs until every
-required source passes. Missing root, missing source, path escape, duplicate resolved
-source, unsupported type, changed dimensions, or changed hash leaves the local
-comparison untouched and reports an explicit unavailable reason.
+required binding has resolved and every unique native source has passed locator,
+header, decode, dimension, and exact encoded-SHA checks. Missing root, missing source,
+path escape, unsupported type, changed dimensions, changed hash, or distinct source
+identities claiming one physical locator leaves the local comparison untouched and
+reports an explicit unavailable reason.
 
-The resolver already computes SHA-256 while resolving an existing source. P5-D reuses
-that digest and does not perform a second full-file hash pass.
+The exact-decoded-generation rule is intentional. A separate pre-decode hash is not
+sufficient because an already-Registered resident document may contain pixels decoded
+from older bytes at the same path, and a file may change between verification and a
+later independent decode. P5-D therefore commits the already-decoded object whose
+encoded byte buffer produced the verified SHA.
 
-## 5. Registration and Selected authority
+A repeated locator is allowed only when it represents the same immutable `source_id`.
+Such repeated variant bindings reuse one decode and one canonical Files document.
 
-After successful verification only:
+## 5. Registration, decoded generation, and Selected authority
+
+After successful all-source verification only:
 
 - P5-D calls the canonical input registration path;
 - an already-Registered physical source is reused by path identity;
 - new source registrations are ordinary PixelScope registrations;
-- the verified Scene source order becomes the requested Selected order;
-- normal MainWindow Current Comparison Page, load, residency, preload, Difference, and
-  analysis lifecycle runs unchanged;
-- a registration failure before the Selected commit removes P5-D registrations made by
-  that failed attempt and preserves the pre-Inspect local workspace.
+- repeated variant bindings for one `source_id` collapse to one canonical native
+  document while P5-D retains all corresponding `variant_id` aliases;
+- the verified unique native-source order becomes the requested Selected order;
+- Selected/current-page authority is established before the verified decoded arrays are
+  committed, so normal residency enforcement treats them as correctness-protected and
+  cannot evict/reload them from disk between verification and presentation;
+- any ordinary load started by canonical selection receives a newer load token and is
+  stale-dropped when the exact verified decoded generation is committed;
+- if an already-resident document's encoded SHA differs, the exact verified decoded
+  generation replaces it under the same document ID, its source generation advances,
+  dependent source-view caches are invalidated, and generation-keyed downstream caches
+  cannot mistake old pixels for the new source;
+- normal MainWindow Current Comparison Page, residency, preload, Difference, and native
+  analysis ownership otherwise remains unchanged.
 
-P5-D does not maintain parallel source objects after the canonical registration step.
-Its feature-local map only associates canonical document IDs with IQA `variant_id` for
-spatial presentation.
+P5-D does not maintain parallel source arrays after commit. Feature-local state keeps
+only result/Scene identity and the document-to-variant binding aliases needed for IQA
+presentation.
 
 ## 6. Return snapshot
 
@@ -155,22 +186,30 @@ ROI/Line/Difference-derived transient presentation is not serialized into this P
 snapshot. Those features continue to obey their existing canonical selection/change
 lifecycle.
 
-## 7. Stale local intent and Return invalidation
+## 7. Stale local/settings intent and Return invalidation
 
-A Return snapshot must never overwrite newer user intent.
+A Return snapshot or pending source-verification callback must never overwrite newer
+user/configuration intent.
 
 After Inspect begins, these non-IQA mutations invalidate Return:
 
 - a newer Selected mutation;
 - removal/change of Registered sources relevant to the snapshot;
 - a newer layout choice;
-- a newer Primary choice.
+- a newer Primary choice;
+- a newly activated temporary P4-A Pick baseline.
 
 Active alone is not an invalidation trigger because Active changes are common during
 ordinary inspection. If the captured Active remains applicable, Return restores it.
 
+Remote IQA logical-root mappings are live machine-local configuration. A mapping
+change increments the P5-D locator revision, cancels/invalidate any pending native
+source verification started under the old mapping, and refreshes Inspect availability
+against the newest settings. An old verification callback cannot commit after a root
+remap.
+
 When Return is invalidated, IQA spatial presentation is cleared and the current local
-workspace remains authoritative.
+workspace—including any new Pick state—remains authoritative.
 
 ## 8. IQA Reference versus local Primary
 
@@ -185,6 +224,11 @@ choose a Primary image.
 
 For spatial Relative mode the per-cell value is always raw target/reference orientation
 from schema-v2 semantics, not quality-oriented sign-flipped presentation.
+
+When several variant slots intentionally share one concrete `source_id`, one native
+viewer tile represents that concrete image while the result domain retains all variant
+aliases. Native source identity is not duplicated merely to manufacture one tile per
+variant binding.
 
 ## 9. Spatial numerical contract
 
@@ -279,7 +323,8 @@ It must not allocate a source-resolution heatmap/alpha bitmap. Feature memory sc
 with grid-cell count and the canonical lazy grid artifact, not with image pixel count.
 
 P5-D does not add source-residency protection solely for overlay ownership. Existing
-Current Comparison Page/viewer protection remains authoritative.
+Current Comparison Page/viewer protection remains authoritative. The verified decoded
+generation is committed only after those canonical page protections are active.
 
 ## 12. Block Inspector
 
@@ -306,13 +351,16 @@ never writes measurements back to the result.
 Scene verification and spatial-grid preparation run through bounded feature-local task
 workers.
 
-A callback may publish only if all relevant identity still matches:
+A source-verification callback may publish only if all relevant identity still matches:
 
 - controller generation;
 - currently opened result identity;
 - selected IQA Scene;
-- current spatial request identity (Scene, attribute, Reference, aggregation-mode
-  presentation context).
+- local-intent generation captured at verification start;
+- Remote IQA logical-root settings revision captured at verification start.
+
+A spatial callback additionally requires the current spatial request identity (Scene,
+attribute, Reference, aggregation-mode presentation context).
 
 Opening another IQA Result cancels active Inspect/spatial work and prevents the old
 result from becoming newly inspectable while the new result is loading. Shutdown
@@ -333,7 +381,11 @@ portable locators. Required scenarios include:
 - non-zero grid origin;
 - discarded border;
 - multiple attributes;
-- invalid source/pair cells.
+- invalid source/pair cells;
+- an already-Registered resident source whose disk bytes changed;
+- repeated variant bindings to one concrete `source_id`;
+- P5-C/P5-D BMP/JPEG header-probe parity;
+- root-mapping changes while verification is pending.
 
 ## 15. Automated validation matrix
 
@@ -341,20 +393,27 @@ Focused tests must cover at least:
 
 - old schema-v2 omission compatibility;
 - locator parse/validation and fingerprint independence;
+- P5-C/P5-D ordinary-image probe parity;
+- exact encoded-buffer SHA binding to the decoded generation;
 - all-or-nothing verification;
 - missing/moved/hash/dimension failure;
+- already-Registered stale-resident replacement;
+- repeated `source_id` multi-variant collapse without losing variant aliases;
+- distinct source identities aliasing one locator rejection;
 - >6-variant non-truncation;
 - Absolute `S1/W` and invalid-cell handling;
 - raw relative power and signed math;
 - hand-calculated draw/hit-test geometry;
 - Block Inspector sufficient statistics;
 - passive Results isolation;
-- P4-A Pick guard;
+- pre-Inspect P4-A Pick guard;
+- post-Inspect Pick preserving curation while invalidating Return;
 - already-Registered source reuse;
-- exact Scene Selected order;
+- exact unique-source Selected order;
 - Return first-snapshot semantics;
 - Single View page/Active restoration;
 - newer-local-intent invalidation;
+- root-mapping revision stale-drop and live availability refresh;
 - Reference/Primary independence;
 - stale Scene/result callbacks and shutdown safety.
 
@@ -363,7 +422,11 @@ Repository gate on the exact review head:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest `
     tests\unit\test_p5d_scene_inspection.py `
+    tests\unit\test_p5d_source_locator_identity.py `
+    tests\unit\test_p5d_review_closeout.py `
     tests\ui\test_p5d_viewer_linked_inspection.py `
+    tests\ui\test_p5d_stale_inspection.py `
+    tests\ui\test_p5d_review_closeout.py `
     -q
 
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -385,18 +448,26 @@ sources:
 1. open a COMPLETE and PARTIAL schema-v2 Result without changing local Selected;
 2. verify Inspect disabled/rejected for missing locator/root, changed source, and
    >6-variant Scene;
-3. inspect a valid 2–6-variant Scene and confirm source order/reuse;
-4. navigate to another IQA Scene and confirm the original Return target remains;
-5. Return from both Single and Multi View, including a Selected set larger than six;
-6. change local Selected/layout/Primary during Inspect and confirm stale Return cannot
+3. inspect a valid 2–6-binding Scene and confirm unique-source order/reuse;
+4. inspect a Scene where two variants intentionally share one `source_id` and confirm
+   one Files/native source is used while result variant identities remain available;
+5. replace bytes at an already-Registered resident source path and confirm Inspect shows
+   the published/verified pixels rather than the old resident decode;
+6. navigate to another IQA Scene and confirm the original Return target remains;
+7. Return from both Single and Multi View, including a Selected set larger than six;
+8. change local Selected/layout/Primary during Inspect and confirm stale Return cannot
    overwrite the newer choice;
-7. switch IQA Reference and Primary independently;
-8. compare spatial overlay/block inspector with known non-zero-origin/non-integer-affine
-   fixture geometry;
-9. inspect invalid/pair-invalid cells;
-10. exercise Display Gain, Difference, ROI, Line Profile, zoom/pan/sync while inspected;
-11. rapidly change Scene/attribute/Reference and open another Result;
-12. close/recreate the window while source/grid work is active.
+9. start a new Pick after Inspect and confirm the Pick remains while Return is
+   invalidated/disabled;
+10. change a Remote IQA root mapping during pending Inspect verification and confirm the
+    old callback cannot publish and Inspect availability reflects the new mapping;
+11. switch IQA Reference and Primary independently;
+12. compare spatial overlay/block inspector with known non-zero-origin/non-integer-affine
+    fixture geometry;
+13. inspect invalid/pair-invalid cells;
+14. exercise Display Gain, Difference, ROI, Line Profile, zoom/pan/sync while inspected;
+15. rapidly change Scene/attribute/Reference and open another Result;
+16. close/recreate the window while source/grid work is active.
 
 ## 17. Explicit exclusions
 
@@ -404,7 +475,7 @@ P5-D does not implement:
 
 - Recent IQA Results/history (P5-E);
 - Session schema v2 or persisted IQA Return state;
-- arbitrary >6-source local viewer presentation;
+- arbitrary >6-variant-binding local viewer presentation;
 - GPU/server implementation;
 - authentication/SSO/credentials (P6);
 - source residency/preload redesign;
