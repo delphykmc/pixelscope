@@ -1,7 +1,9 @@
 # UI implementation status
 
 Status: P4 **Workflow & Session Productivity** is Complete through P4-F / PR #35.
-P5 **Remote IQA Platform** is Active in P5-F **Integration & Performance Hardening**.
+P5 **Remote IQA Platform** is Active in P5-F **Integration & Performance Hardening**,
+with P5-G **External GPU/SMB Validation & Closeout** planned as the final P5 gate when
+the environment is available.
 P5-B local Results, P5-C Setup/Jobs/shared-storage UI, P5-D viewer-linked Scene
 inspection, and P5-E historical Result workflow are merged.
 
@@ -327,25 +329,40 @@ P5-F makes no new user-facing IQA workspace. It hardens the existing composition
 
 - isolating Remote IQA Result/Reference/Inspect/history file work from the established
   local Statistics/Difference analysis executor with a separate fixed max-two pool;
-- reusing `HttpIqaJobClient` instances through bounded leases so the existing
-  `httpx.Client` connection pool can survive across non-overlapping job operations;
-- preserving CREATE no-blind-retry, one-poll-in-flight, terminal-state, cancel, and
-  durable-job-on-close semantics;
+- retaining the existing separate max-two P5-C job-operation executor;
+- reusing `HttpIqaJobClient` connection pools through **lazy physical checkout**: merely
+  queuing an operation creates no physical client, and checkout happens only inside the
+  executing worker's first HTTP operation;
+- preserving CREATE no-blind-retry, one-poll-in-flight, terminal-state, server-owned
+  cancel-race, result-reference, and durable-job-on-close semantics;
 - extending **Help > Copy Diagnostics** with bounded Remote IQA worker/HTTP lifetime
   counters rather than adding another diagnostics UI;
 - providing developer compatibility/result-characterization probes;
-- adding structural request coverage through 300 Scenes and blocking-I/O executor
-  isolation regressions.
+- adding production composition, four-job/max-two-worker shutdown, blocking-I/O
+  coexistence, and structural request coverage through 300 Scenes.
 
 No raw-grid cache, grid preload, adaptive polling, generalized HTTP retry, new
 performance Settings, or optional detail-artifact viewer is introduced because current
 repository evidence does not justify those as permanent product behavior.
 
-Real external GPU/SMB validation was not available to the implementation agent and is
-explicitly deferred to owner/manual validation. The repository owner will also run the
-local `.venv` validation; no P5-F PASS result is claimed in this branch and no new
-GitHub Actions workflow is added. Full evidence and the owner matrix are in
+The owner reported all local validation gates PASS on historical exact head
+`6d3bb2ca000db1c11c78d6c2d66edbc434358c68`. Independent review then required the lazy
+transport lifetime, cancel-race, production-composition, and durable-plan changes now on
+a newer head. The **latest head therefore requires owner revalidation**; the prior PASS
+must not be carried forward automatically. No GitHub Actions workflow was added.
+
+Real external GPU/SMB validation remains unobserved and is explicitly assigned to P5-G.
+Full evidence is in
 [`../P5F_INTEGRATION_CHARACTERIZATION.md`](../P5F_INTEGRATION_CHARACTERIZATION.md).
+
+## P5-G External GPU/SMB Validation & Closeout — Planned
+
+P5-G adds no new UI by default. It is the final P5 environment-validation gate and will
+use the existing Setup/Jobs/Results/Recent/Inspect UI against the real external GPU
+service and mapped/shared storage when that environment becomes available.
+
+Only observed external evidence may justify follow-up hardening. P5-G, not P5-F merge,
+marks the overall P5 program Complete and activates P6.
 
 ## Deferred UI from P4
 
@@ -362,10 +379,10 @@ P5-B Results workspace                    Complete
 P5-C Setup / Jobs / shared-storage flow   Complete
 P5-D source/spatial Inspect               Complete
 P5-E Recent/historical IQA productivity   Complete — PR #44
-P5-F integration/performance hardening    Active — merge candidate; validation pending
+P5-F integration/performance hardening    Active — Draft PR #45; revalidation pending
+P5-G external GPU/SMB validation          Planned — pending environment access
 ```
 
-P5-F owns final integration/performance characterization without adding a second UI
-authority. Authentication/SSO/permission UI remains P6. P5/P5-F stay Active until the
-P5-F PR is reviewed, owner-validated, and merged; the actual merge SHA belongs in the
-post-merge docs-only closeout.
+P5-F may be marked Complete after its exact-head local validation/review/merge, but P5
+remains Active through P5-G. Authentication/SSO/permission UI remains P6, which becomes
+the active/next program only after the real external P5 gate and final closeout.
