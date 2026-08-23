@@ -136,9 +136,13 @@ Rules:
 - current machine mapping resolves only at reopen time;
 - P5-C `resolve_result_reference()` remains the containment/availability authority;
 - Jobs retain the server-published logical Result locator;
-- successful manual schema-v2 paths under configured roots canonicalize to the
-  most-specific logical root;
-- manual/out-of-root and v1 Results may retain a local absolute locator;
+- a successful manual schema-v2 open may become logical history only when the proposed
+  most-specific logical locator resolves through P5-C to the same canonical opened
+  Result directory;
+- lexical root membership alone must not manufacture a portable locator for a
+  symlink/junction escape or otherwise unreproducible path;
+- manual/out-of-root, unreproducible v2, and v1 Results may retain a local absolute
+  locator;
 - mapped drive/UNC path is never stored as the portable logical identity.
 
 ### E2 — Recent IQA Results
@@ -197,6 +201,10 @@ Schema v2 displays published:
 - dimensions;
 - current local native-inspection status.
 
+The existing P5-C/P5-D live `settings_changed()` chain remains authoritative for
+machine-local root mappings. P5-E observes the completed chain and refreshes Provenance
+immediately after root add/remove/remap without Result reopen or Scene reselection.
+
 PARTIAL remains PARTIAL and existing failed/cancelled Scene diagnostics remain intact.
 
 Schema v1 is explicitly historical/read-only. P5-E must not synthesize v2 root,
@@ -205,11 +213,18 @@ measurement-context, N-way, or absolute-source metadata.
 ### E5 — stale work / lifecycle / integration
 
 - install P5-E after P5-D so every new Result open consumes P5-D teardown;
-- rely on P5-B Result generation for rapid A→B stale callback rejection;
+- use a P5-E resolver generation for the asynchronous logical-Recent stage that occurs
+  before the canonical P5-B loader;
+- any newer File/Jobs/Recent Result-open intent invalidates feature-local logical
+  resolution before it can later start a canonical open;
+- cancellation alone is insufficient; stale resolver callbacks must fail the P5-E
+  generation guard even if their worker completes later;
+- after resolution, rely on P5-B Result generation for canonical A→B stale callback
+  rejection;
 - keep one pending P5-E context for the latest Result generation;
 - logical Recent resolution captures current P5-C mapping revision;
 - remap during resolution/open cannot publish a path resolved under the old mapping;
-- close cancels feature-local locator resolution and clears pending context;
+- close invalidates/cancels feature-local locator resolution and clears pending context;
 - close never cancels durable remote jobs;
 - Session v1 remains unchanged and carries no IQA reference/state.
 
@@ -226,15 +241,20 @@ Implemented on the branch:
 - logical-root revision gate;
 - passive Results Provenance page;
 - explicit v1 historical/read-only presentation;
-- focused P5-E contract document;
-- focused unit/UI regression files.
+- P5-E resolver-generation lifecycle hardening across pre-loader Recent resolution and
+  newer File/Jobs/Recent opens;
+- live Provenance refresh after the existing P5-C/P5-D settings-change chain;
+- authoritative same-directory validation before manual v2 logical-history promotion;
+- focused lifecycle/canonicalization review regressions;
+- unrelated top-level durable documentation restored to the merged-main content rather
+  than condensed inside this feature PR;
+- focused P5-E contract document.
 
 Still required before P5-E Complete:
 
-- final durable-doc reconciliation;
-- exact-head automated validation;
+- exact-head automated/static validation after review fixes;
 - owner Windows manual A–G validation;
-- independent latest-head whole-PR review;
+- independent latest-head whole-PR re-review;
 - owner merge approval.
 
 ## Focused automated validation
@@ -245,9 +265,11 @@ Run on the exact PR head:
 .\.venv\Scripts\python.exe -m pytest `
     tests\unit\test_p5e_iqa_history.py `
     tests\ui\test_p5e_historical_results.py `
+    tests\ui\test_p5e_review_regressions.py `
     tests\ui\test_p5b_iqa_workspace.py `
     tests\ui\test_p5c_remote_iqa.py `
     tests\ui\test_p5c_result_mapping.py `
+    tests\ui\test_p5c_debug_replay_ui.py `
     tests\ui\test_p5d_viewer_linked_inspection.py `
     tests\ui\test_p5d_stale_inspection.py `
     tests\ui\test_p5d_review_closeout.py `
@@ -258,16 +280,20 @@ Run on the exact PR head:
     src\pixelscope\app\iqa_history.py `
     src\pixelscope\remote\iqa_history.py `
     src\pixelscope\ui\iqa_historical_results.py `
+    src\pixelscope\ui\iqa_historical_results_lifecycle.py `
     tests\unit\test_p5e_iqa_history.py `
-    tests\ui\test_p5e_historical_results.py
+    tests\ui\test_p5e_historical_results.py `
+    tests\ui\test_p5e_review_regressions.py
 
 .\.venv\Scripts\python.exe -m ruff format --check `
     src\pixelscope\app\application.py `
     src\pixelscope\app\iqa_history.py `
     src\pixelscope\remote\iqa_history.py `
     src\pixelscope\ui\iqa_historical_results.py `
+    src\pixelscope\ui\iqa_historical_results_lifecycle.py `
     tests\unit\test_p5e_iqa_history.py `
-    tests\ui\test_p5e_historical_results.py
+    tests\ui\test_p5e_historical_results.py `
+    tests\ui\test_p5e_review_regressions.py
 
 .\.venv\Scripts\python.exe -m mypy src
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -278,8 +304,10 @@ git diff --check
 
 After focused validation, run the repository-standard full suite before merge.
 
-No validation PASS is recorded in this plan until those commands are observed on the
-exact current head.
+Owner Windows automated/static validation was reported PASS on pre-review Draft head
+`dd1ebfb8aa4846233de854fcd3cb313f069161e9`. Independent review then moved the branch
+through additional fixes, so that PASS is historical evidence only. No PASS is recorded
+for the post-review exact head until the commands above and the full suite are observed.
 
 ## Owner manual validation
 
@@ -287,11 +315,12 @@ Use the A–G checklist in
 [`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md):
 
 A. Recent / MRU / Clear
-B. logical-root remap
+B. logical-root remap + live Provenance mapping refresh
 C. offline / missing / replacement identity
 D. Result-only / native source failure
 E. Provenance / schema v1 / PARTIAL
-F. lifecycle / P5-D teardown / rapid A→B / close-recreate
+F. lifecycle / P5-D teardown / delayed logical Recent → newer File/Jobs / rapid canonical
+   A→B / close-recreate
 G. local-workspace authority
 
 Record exact-head observations in PR #44.
