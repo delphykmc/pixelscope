@@ -86,10 +86,7 @@ def source_point_to_grid_cell(
         return None
     grid_right = grid.origin_x + grid.columns * grid.block_width
     grid_bottom = grid.origin_y + grid.rows * grid.block_height
-    if not (
-        grid.origin_x <= analysis_x < grid_right
-        and grid.origin_y <= analysis_y < grid_bottom
-    ):
+    if not (grid.origin_x <= analysis_x < grid_right and grid.origin_y <= analysis_y < grid_bottom):
         return None
     column = int(math.floor((analysis_x - grid.origin_x) / grid.block_width))
     row = int(math.floor((analysis_y - grid.origin_y) / grid.block_height))
