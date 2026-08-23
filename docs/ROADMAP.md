@@ -75,6 +75,8 @@ Deferred from P4:
 ```text
 P5 Remote IQA Platform
     ↓
+P5-G External GPU/SMB Validation & Closeout
+    ↓
 P6 Identity, Access & Remote Operations
     ↓
 P7 Release Engineering & Distribution
@@ -94,6 +96,9 @@ P5-D completed implementation contract:
 
 P5-E historical-result contract:
 [`docs/P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
+
+P5-F integration characterization:
+[`docs/P5F_INTEGRATION_CHARACTERIZATION.md`](P5F_INTEGRATION_CHARACTERIZATION.md).
 
 Historical schema-v1 compatibility contract:
 [`docs/REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
@@ -172,7 +177,8 @@ P5-0
 → P5-C submission/shared storage
 → P5-D viewer-linked inspection
 → P5-E historical result workflow
-→ P5-F integration/performance hardening
+→ P5-F repository-side integration/performance hardening
+→ P5-G external GPU/SMB validation & closeout
 → P5 Complete
 ```
 
@@ -185,7 +191,8 @@ P5-0
 | 4 | P5-C Submission & Shared Storage | **Complete — PR #42** |
 | 5 | P5-D Viewer-linked Scene Inspection | **Complete — PR #43 · `b086443d188eb9daae4bbf4f0faab3ff1d114f93`** |
 | 6 | P5-E Historical Result Workflow | **Complete — PR #44 · `6a0a334d61a7495b9c3433edfcbd537c8df59468`** |
-| 7 | P5-F Integration & Performance Hardening | **Active** |
+| 7 | P5-F Integration & Performance Hardening | **Active — Draft PR #45** |
+| 8 | P5-G External GPU/SMB Validation & Closeout | **Planned — pending environment access** |
 
 ## P5-0 / P5-A / P5-A2 — Complete
 
@@ -340,27 +347,47 @@ P5-E evidence and is not inferred as P5-F validation.
 
 ## P5-F — Integration & Performance Hardening — Active
 
-P5-F validates the composed workflow against the real external service and realistic
-data and applies only measurement-backed bounded hardening:
+P5-F owns the repository-side hardening that is testable without the real external
+GPU/SMB environment:
 
-- actual server adapter/protocol compatibility;
-- SMB/network bandwidth and grid-loading behavior;
-- Result/Reference/Inspect worker contention and ownership;
-- HTTP client lifetime, polling, retry, and connection reuse;
-- reference-switch and native Inspect latency;
-- batch/job stress and failure/cancellation cases;
-- stale callbacks and close/recreate safety;
-- proof remote batch membership does not become local source/residency authority;
-- optional detail artifact characterization;
-- P5 closure documentation preparation.
+- isolates P5-B Result/Reference, P5-D verification/spatial, and P5-E historical
+  resolver work from the local Statistics/Difference analysis pool;
+- preserves the separate existing P5-C max-two job-operation pool;
+- enables bounded HTTP connection reuse through lazy per-worker client checkout so
+  queued/cleared workers own no physical HTTP client;
+- preserves one-shot CREATE, polling, result-reference, cancel-race, publication, and
+  durable-job-on-close semantics;
+- extends the existing Copy Diagnostics surface with bounded Remote IQA counters;
+- provides deterministic compatibility/result-characterization tools for later real
+  environment use;
+- adds structural stress coverage through 300 Scenes and queued-worker shutdown cases.
 
-No grid cache, speculative preload, new worker pool, retry expansion, or other
-optimization is introduced merely because it is plausible. Measure first; retain only
-demonstrated bounded improvements.
+No raw-grid cache, speculative preload, adaptive polling, generalized retry, new
+performance Settings, WebSocket, or optional detail viewer is introduced without real
+evidence. No fixed wall-clock number is a correctness gate.
 
-No fixed wall-clock number is a correctness gate. Correctness gates remain stable
-versioned identity/math/geometry, bounded ownership, no duplicate work, stale-result
-rejection, and teardown safety.
+P5-F can be merge-recommended after exact-head local validation and independent review
+without pretending that the unavailable external environment has passed. Its merge may
+mark **P5-F** Complete, but the overall **P5 program remains Active**.
+
+## P5-G — External GPU/SMB Validation & Closeout — Planned / pending environment access
+
+P5-G is the final P5 program gate. When the real environment becomes available it will
+validate:
+
+- external GPU API/result-writer compatibility;
+- Current Pair and Folder Pair end-to-end behavior;
+- COMPLETE/PARTIAL and cancel/completion races;
+- historical Result reopen/root remap;
+- shared-root/staging/SMB behavior;
+- manifest/summary/Reference/grid/native verification/spatial-load timing and byte
+  observations;
+- concurrent local analysis/navigation while remote work is active;
+- close/reopen and rapid Result/Scene intents.
+
+Only observed real-server/SMB evidence may be recorded as PASS. Any follow-up
+optimization remains measurement-backed and bounded. P5-G performs the final P5 docs
+closeout and activates P6 only after the external gate is actually observed.
 
 # P6 — Identity, Access & Remote Operations — Planned / next after P5 closure
 
