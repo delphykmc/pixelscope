@@ -22,10 +22,12 @@ class _ScriptedClient(IqaJobClient):
         *,
         cancel_state: JobState = JobState.CANCELLED,
         result_error: IqaClientError | None = None,
+        result_publication_state: str = "complete",
     ) -> None:
         self.states = list(states)
         self.cancel_state = cancel_state
         self.result_error = result_error
+        self.result_publication_state = result_publication_state
         self.create_calls = 0
         self.status_calls = 0
         self.result_calls = 0
@@ -45,7 +47,13 @@ class _ScriptedClient(IqaJobClient):
         self.result_calls += 1
         if self.result_error is not None:
             raise self.result_error
-        return IqaResultReference(job_id, "shared", "results/job-1", 2, "complete")
+        return IqaResultReference(
+            job_id,
+            "shared",
+            "results/job-1",
+            2,
+            self.result_publication_state,
+        )
 
     def cancel_job(self, job_id: str) -> IqaJobStatus:
         self.cancel_calls += 1
@@ -168,6 +176,54 @@ def test_probe_preserves_terminal_state_when_result_fetch_fails() -> None:
     assert trace.error_kind == "http"
     assert trace.error_message == "HTTP 503"
     assert "private" not in (trace.error_message or "")
+
+
+@pytest.mark.parametrize(
+    ("terminal_state", "publication_state"),
+    [
+        (JobState.SUCCEEDED, "partial"),
+        (JobState.PARTIAL, "complete"),
+    ],
+)
+def test_probe_rejects_terminal_publication_mismatch(
+    terminal_state: JobState,
+    publication_state: str,
+) -> None:
+    client = _ScriptedClient(
+        [terminal_state],
+        result_publication_state=publication_state,
+    )
+
+    trace = run_iqa_compatibility_probe(client, _request())
+
+    assert trace.terminal_state == terminal_state.value
+    assert trace.result_schema_version == 2
+    assert trace.result_publication_state == publication_state
+    assert trace.error_kind == "protocol"
+    assert trace.error_message == "protocol"
+
+
+@pytest.mark.parametrize(
+    ("terminal_state", "publication_state"),
+    [
+        (JobState.SUCCEEDED, "complete"),
+        (JobState.PARTIAL, "partial"),
+    ],
+)
+def test_probe_accepts_matching_terminal_publication(
+    terminal_state: JobState,
+    publication_state: str,
+) -> None:
+    client = _ScriptedClient(
+        [terminal_state],
+        result_publication_state=publication_state,
+    )
+
+    trace = run_iqa_compatibility_probe(client, _request())
+
+    assert trace.terminal_state == terminal_state.value
+    assert trace.result_publication_state == publication_state
+    assert trace.error_kind is None
 
 
 def test_probe_reports_status_limit_without_claiming_terminal_success() -> None:

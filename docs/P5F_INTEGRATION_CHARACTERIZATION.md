@@ -159,6 +159,9 @@ most once. A legitimate non-terminal cancel response remains server-owned state 
 probe continues serial polling until a real terminal state or the actual status-request
 bound. If `GET /result` fails after `succeeded`/`partial` was already observed, the trace
 preserves that terminal state while reporting the Result-reference error separately.
+The probe also mirrors the P5-C cross-state publication contract: `succeeded` requires
+`complete`, while `partial` requires `partial`. A contradictory pair is reported as a
+bounded protocol error while retaining the observed terminal and Result metadata.
 
 The trace excludes the server URL, request body, credentials, source content, and
 detailed transport exception text.

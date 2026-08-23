@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from pixelscope.remote.iqa_client import IqaClientError, IqaJobClient
+from pixelscope.remote.iqa_client import IqaClientError, IqaClientErrorKind, IqaJobClient
 from pixelscope.remote.iqa_submission import IqaJobRequest, IqaResultReference, JobState
 
 PROBE_ENDPOINTS = (
@@ -130,6 +130,7 @@ def run_iqa_compatibility_probe(
             reference = client.get_result(created.job_id)
             duration = max(0.0, (clock() - started) * 1000.0)
             operations.append(IqaProbeOperation("result", duration, observed_state.value))
+            _validate_terminal_publication(observed_state, reference)
 
         return _trace(job_id, states, operations, observed_state, reference, None)
     except IqaClientError as error:
@@ -137,6 +138,18 @@ def run_iqa_compatibility_probe(
             observed_state if observed_state is not None and observed_state.terminal else None
         )
         return _trace(job_id, states, operations, terminal, reference, error)
+
+
+def _validate_terminal_publication(
+    terminal: JobState,
+    reference: IqaResultReference,
+) -> None:
+    expected_publication = "complete" if terminal is JobState.SUCCEEDED else "partial"
+    if reference.publication_state != expected_publication:
+        raise IqaClientError(
+            IqaClientErrorKind.PROTOCOL,
+            "terminal state/result publication mismatch",
+        )
 
 
 def _status_limit_trace(
