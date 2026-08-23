@@ -427,10 +427,16 @@ leases drain after shutdown.
 No raw-grid cache, grid preload, adaptive polling, generalized retry, new user Settings,
 WebSocket, or optional detail viewer is added without real-environment evidence.
 
-The owner previously reported the full local validation gate PASS on exact head
-`6d3bb2ca000db1c11c78d6c2d66edbc434358c68`. Independent review produced later code,
-test, and docs changes, so that PASS is historical only; the latest review-fix head
-requires owner revalidation.
+Owner validation on implementation head
+`f9a81b008d660405fc01e775607d78a91676093e` records focused P5-F, docs, Ruff,
+mypy, pip, and diff PASS. Full Windows offscreen pytest records 925 passed, 1 skipped,
+and three Qt/pyqtgraph UI failures. Those exact three nodes reproduce identically on
+implementation base `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
+under the same environment (`3 failed in 8.72s`), satisfying the independent review's
+requested baseline comparison. They are pre-existing/offscreen validation debt rather
+than a P5-F regression. No
+full-suite PASS is claimed. Independent implementation/architecture review is PASS;
+owner merge approval remains pending.
 
 ## P5-G planned external validation state
 

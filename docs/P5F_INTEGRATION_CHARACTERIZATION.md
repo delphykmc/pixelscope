@@ -1,6 +1,6 @@
 # P5-F — Remote IQA Integration & Performance Characterization
 
-Status: **Active — review fixes implemented and latest-head owner revalidation recorded**
+Status: **Active — implementation review passed and merge validation disposition recorded**
 
 Implementation base: `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
 
@@ -41,8 +41,11 @@ Owner-local validation evidence:
   suite, docs checker, Ruff check/format, mypy, pip check, and `git diff --check`;
 - full Windows offscreen pytest on that head reports 925 passed, 1 skipped, and the
   same three Qt/pyqtgraph UI failures observed on preceding head `c2c20c5`;
-- the three failures are outside the compatibility-probe change and remain explicit
-  validation constraints rather than a claimed full-suite PASS.
+- the exact three failing nodes also fail identically on implementation base
+  `main@6a0a334d61a7495b9c3433edfcbd537c8df59468` under the same Windows offscreen
+  environment (`3 failed in 8.72s`), proving they are not introduced by P5-F;
+- the three failures remain explicit pre-existing/offscreen validation debt rather
+  than a claimed full-suite PASS.
 
 Not observed:
 
@@ -321,9 +324,13 @@ git diff --check           PASS
 The full-suite failures are
 `test_floating_plots_geometry_survives_hide_show_and_restart`,
 `test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips`, and
-`test_bayer_statistics_profiles_status_and_channel_split`. The skipped symlink-escape
-case requires a Windows privilege unavailable in this environment. P5-F does not add
-or require GitHub Actions for this purpose.
+`test_bayer_statistics_profiles_status_and_channel_split`. A temporary archive of base
+`main@6a0a334d61a7495b9c3433edfcbd537c8df59468` was imported directly from its own
+`src` tree and those exact nodes reproduced the same failures (`3 failed in 8.72s`) in
+the same Windows offscreen environment. They are therefore carried as explicit
+pre-existing/offscreen validation debt, not a P5-F regression and not a full-suite
+PASS. The skipped symlink-escape case requires a Windows privilege unavailable in this
+environment. P5-F does not add or require GitHub Actions for this purpose.
 
 ## 10. P5-G deferred owner real GPU / SMB matrix
 

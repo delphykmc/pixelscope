@@ -234,7 +234,10 @@ The repository-standard Windows validation remains:
 git diff --check
 ```
 
-Only exact-head observed results may be recorded as PASS.
+Only exact-head observed results may be recorded as PASS. A failing exact-head node may
+be dispositioned as pre-existing/environmental debt only when that exact node reproduces
+with the same failure on the recorded implementation base under the same environment.
+That disposition is not a full-suite PASS and must remain explicit in validation reports.
 
 ## P5-F merge gate
 
@@ -242,7 +245,8 @@ P5-F merge recommendation requires:
 
 - repository-side implementation completion;
 - focused deterministic P5-F regression PASS on the exact head;
-- exact-head full repository/static validation PASS;
+- exact-head full repository/static validation execution, with either PASS or an
+  independently reviewed base-main disposition for every identical failing node;
 - independent latest-head whole-PR PASS;
 - no unresolved correctness/lifetime/resource blocker;
 - truthful characterization docs;
