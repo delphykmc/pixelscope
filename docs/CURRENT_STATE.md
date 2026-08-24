@@ -1,7 +1,7 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-24
-Current merged `main`: `6e98baea425f3dfbfacc1140370a77e889673a76`
+Current merged `main`: `336a27e5e10e3d5e8d83bc18046bec837daa5b96`
 
 `main` includes:
 
@@ -28,12 +28,15 @@ Current merged `main`: `6e98baea425f3dfbfacc1140370a77e889673a76`
   `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`.
 - R3-B / PR #50 — Session and legacy boundary clarification, merged at
   `6e98baea425f3dfbfacc1140370a77e889673a76`.
+- R4-A / PR #51 — common UI test fixtures, merged at
+  `336a27e5e10e3d5e8d83bc18046bec837daa5b96`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
 real environment is available. The current active repository program is **R —
 Repository Refactoring & Validation Hardening**; it adds no product behavior.
-R4-A **Common UI Test Fixtures** is active on `codex/r4a-common-ui-fixtures`.
+R4-B **Smoke Suite Decomposition** is active on
+`codex/r4b-smoke-suite-decomposition`.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).

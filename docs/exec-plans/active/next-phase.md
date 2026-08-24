@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R4-A independent review PASS / merge pending**
+Status: Active — **R4-B independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r4a-common-ui-fixtures` / #51
+Branch/PR: `codex/r4b-smoke-suite-decomposition` / #52
 Last updated: 2026-08-24
 
 ## Goal
@@ -276,7 +276,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1; independent of R3-A.
 - Merge criterion: simpler boundary with identical persisted fixtures and reviewer PASS.
 
-### R4-A — Common UI test fixtures — review PASS / merge pending
+### R4-A — Common UI test fixtures — Complete / PR #51
 
 - Goal: centralize behavior-identical QSettings/UI setup without changing test scope.
 - Expected areas: `tests/ui/conftest.py` and affected UI tests.
@@ -287,7 +287,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1/R2 stable composition.
 - Merge criterion: fixture duplication reduced; isolation/order characterization PASS.
 
-### R4-B — Smoke suite decomposition
+### R4-B — Smoke suite decomposition — review PASS / merge pending
 
 - Goal: split the oversized smoke module along existing product-contract boundaries.
 - Expected areas: UI test modules/helpers only.
@@ -535,6 +535,30 @@ baseline or environment-dependent debt is never called full PASS.
   re-review confirmed the finding closed and reported PASS. Full repository pytest,
   mypy, interactive Windows UI, packaging, and real GPU/SMB remain unverified and are
   not claimed.
+- 2026-08-24: R4-A closure head `53503c53501d2d63be11a7c30a341a9c237a3103`
+  passed final docs-only review, and PR #51 merged at
+  `main@336a27e5e10e3d5e8d83bc18046bec837daa5b96`.
+- 2026-08-24: started R4-B from the R4-A merge. The 39 tests in the approximately
+  1,900-line `test_ui_smoke.py` were moved without renaming into six phase-neutral
+  contract modules: workspace, Difference, plots/statistics, input/navigation, viewer
+  interaction, and RAW input. A base-to-head AST comparison confirmed all 39 function
+  bodies are identical. Collection remained 39 for the moved group and 467 for all UI
+  tests. The focused pre-change result was 37 passed plus the two carried pyqtgraph
+  hover failures; the post-change result was identical. The full UI run observed
+  464 passed plus the exact three carried Windows offscreen failures in 280.06 seconds.
+  Ruff check/format and diff check passed. No production source, assertion,
+  parametrization, skip, or xfail changed. Independent latest-whole-head review remains
+  the merge gate.
+- 2026-08-24: independent review of latest whole head
+  `fe252eacae2d3846f3f036ba0c389db9ca073ae0` found no actionable issue. The
+  reviewer confirmed a one-to-one 39-function AST mapping with no missing, duplicate,
+  or changed body; preserved fixtures/assertions/parametrization/skip/xfail; cohesive
+  six-module boundaries; and no QSettings/order or durable-history regression.
+  Independent validation observed 39 collected with 37 passed plus two known failures,
+  and all UI observed 467 collected with 464 passed plus the exact three known failures
+  in 274.33 seconds. Ruff, format, pip, docs, docs-contract, and diff gates passed.
+  Full repository pytest, mypy, interactive UI, packaging, and GPU/SMB remain
+  unverified and are not claimed. Reviewer reported PASS.
 
 ## Completion summary
 
