@@ -215,12 +215,17 @@ There is no acceptance requirement for an explicit Review Select mode because th
 product intentionally has no such mode.
 
 Production UI coverage must also establish the direct presentation-row contract
-`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`,
-where `Selected N` is temporary Pick count; eligible native Multi View tiles expose
+`Layout | Page | Display Gain | ● Picked N | Clear Selection | Keep Selection`,
+where `● Picked N` is temporary Pick count; eligible native Multi View tiles expose
 `Pick` with stable text; Single View and Split/Difference derived presentations do
 not acquire independent Pick identity; pan, Ctrl+drag ROI, and Shift+drag Line
 Profile gestures do not toggle Pick; and Keep Selection leaves the Files tree on
 exactly the resulting subset with the first result Active.
+
+Workflow-polish coverage must send actual `S` and `Ctrl+Shift+I` key events through an
+active production window, preserve complete Page/range text beyond the compact
+reservation, disable page-inapplicable Files Primary actions, and transition Histogram
+and Line Profile guidance immediately when their prerequisites become available.
 
 Runtime regression must prove that Pick membership itself is inert with respect to
 native source ownership. On representative large pending selections, only the
@@ -305,9 +310,11 @@ Off-page hidden Difference provenance is not persisted.
 
 Typed Recent Image/Folder/Session history is max-10 path-only observer metadata.
 Activation delegates to canonical workflows, missing paths use Remove/Keep, and
-bookkeeping failure cannot make a successful canonical operation fail. Settings
-schema remains v5 at the P4-C boundary and runtime arrays/cache/residency/preload/
-workers/calculated analysis/Picks remain non-persistent.
+bookkeeping failure cannot make a successful canonical operation fail. Folder history
+must remain unchanged when canonical folder registration finds zero supported images,
+including when other folders in the same registration batch succeed. Settings schema
+remains v5 at the P4-C boundary and runtime arrays/cache/residency/preload/workers/
+calculated analysis/Picks remain non-persistent.
 
 P4-C is merged as PR #31 at
 `436033a0d99513fe8db35f08305395127e430af2`; its previously reported owner Windows

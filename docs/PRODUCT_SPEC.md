@@ -82,6 +82,12 @@ Drag/drop preserves the same intent split:
 as independent image documents. Files remain grouped by parent folder with natural
 order and loading/resident/error indicators.
 
+The Files context menu reuses **Open Images...** and **Open Folder...** on blank,
+image, and folder rows. Image rows additionally expose page-applicable **Set as
+Primary**, **Show Selected in Multi View**, and batch **Remove Selected from Files**.
+Folder rows expose one batch **Remove Folder from Files** operation; removal never
+deletes source files.
+
 A stable state with registered documents and zero Selected documents is supported.
 The central workspace prompts **Select an image from Files to view**. A truly empty
 workspace instead prompts **Drop images or folders here** and exposes Open Images
@@ -113,7 +119,8 @@ For `Selected > 6`:
   remains available to the focused control;
 - the presentation-control row above the image workspace always exposes Page status
   and the current range/total, including a single page; previous/next arrows stay
-  present and disable at unavailable endpoints;
+  present and disable at unavailable endpoints; compact widths cover ordinary counts
+  and expand when larger page/range text is required rather than clipping it;
 - page navigation preserves the active local slot when possible and clamps it on a
   short final page;
 - primary/focus presentation ordering is page-local and cannot change Selected
@@ -152,8 +159,8 @@ not be decoded, resident, protected, preloaded, or presented. Pick Set membershi
 not an analysis input and does not extend the Current Comparison Page working set.
 
 The presentation row exposes the temporary curation state directly as
-`Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection`.
-`Selected N` is the temporary Pick Set count, not the Files logical Selected count.
+`Layout | Page | Display Gain | ● Picked N | Clear Selection | Keep Selection`.
+`● Picked N` is the temporary Pick Set count, not the Files logical Selected count.
 **Clear Selection** clears only temporary pick membership. **Keep Selection** is
 disabled when the Pick Set is empty. Only Keep Selection changes logical Selected:
 it computes the new Selected set by filtering the captured baseline ordering by
@@ -278,8 +285,10 @@ loader. An eligible Difference recipe restores panel intent and issues one expli
 Current File UX exposes **Open Session...**, **Save Session...**, and typed bounded
 **Open Recent Images/Folders/Sessions** submenus. Recent history is max-10, path-only,
 best-effort observer metadata. Image, Folder, and Session activation delegate to
-their canonical workflows; missing paths use explicit Remove/Keep. Recent history
-was introduced outside Settings schema v5 and owns no source/runtime state.
+their canonical workflows; missing paths use explicit Remove/Keep. A folder is added
+to Recent Folders only when registration finds at least one supported image; a
+zero-image Open Folder operation leaves folder history unchanged. Recent history was
+introduced outside Settings schema v5 and owns no source/runtime state.
 
 ### RAW input resolution
 
@@ -331,7 +340,7 @@ all selected RAW files, or pick a profile from byte size alone.
   line coordinates.
 - Fixed two/three/four/five/six-image presentation layouts remain for
   `Selected <= 6`; large selections use fixed six-slot page geometry.
-- **Split Channels** derives a transient R/G/B or R/Gr/Gb/B presentation working
+- **Split Channels** (`S`) derives a transient R/G/B or R/Gr/Gb/B presentation working
   set from one Selected source. Multi View exposes explicit subchannel Primary;
   Single View navigates the same local subchannels. Files selection and native
   Current Comparison Page analysis remain source-owned.
@@ -341,6 +350,8 @@ all selected RAW files, or pick a profile from byte size alone.
 - Histogram supports Auto/256/1024/4096 bins with Count, Normalized, and Log count.
 - Line Profile uses primary→active→first-displayed reference priority in
   Difference-from-reference mode.
+- Histogram and Line Profile show centered prerequisite guidance only while no
+  applicable image or line selection exists.
 - RGB and Bayer R/Gr/Gb/B analysis; RGBA alpha is ignored.
 - Order-independent Difference cache keeps native compact maps for equal effective
   bit depth and normalized float32 maps for mixed effective bit depth, plus
@@ -402,9 +413,9 @@ IQA
 └─ Results
 ```
 
-The dock retains the same float/dock/maximize/reset workspace behavior as Plots.
-Users may also continue to use **File > Open IQA Result...** for an already-published
-result directory.
+The dock retains the same Float/Dock → Maximize/Restore → Close title-bar behavior as
+Plots and toggles with `Ctrl+Shift+I`. Users may also continue to use **File > Open IQA
+Result...** for an already-published result directory.
 
 #### Setup — Current Pair
 

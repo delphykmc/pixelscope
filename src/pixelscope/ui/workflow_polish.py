@@ -38,6 +38,12 @@ class FilesContextMenuController(QObject):
         if document_id is not None:
             document_key = str(document_id)
             primary = menu.addAction("Set as Primary")
+            current_page_ids = {
+                document.document_id for document in self.window.current_comparison_documents()
+            }
+            primary.setEnabled(document_key in current_page_ids)
+            if not primary.isEnabled():
+                primary.setToolTip("Primary is available only on the current Comparison Page")
             compare = menu.addAction("Show Selected in Multi View")
             menu.addSeparator()
             remove = menu.addAction("Remove Selected from Files")
@@ -170,13 +176,14 @@ def _install_toolbar_spacing(window: Any) -> None:
 def _install_page_polish(window: Any) -> None:
     page_label = window.comparison_page_label
     range_label = window.comparison_page_range_label
-    page_label.setFixedWidth(
+    page_reservation = (
         page_label.fontMetrics().horizontalAdvance("999 / 999") + 2 * TOKENS.spacing_sm
     )
-    range_label.setFixedWidth(
-        range_label.fontMetrics().horizontalAdvance("9999–9999 of 9999")
-        + 2 * TOKENS.spacing_sm
+    range_reservation = (
+        range_label.fontMetrics().horizontalAdvance("9999–9999 of 9999") + 2 * TOKENS.spacing_sm
     )
+    page_label.setFixedWidth(page_reservation)
+    range_label.setFixedWidth(range_reservation)
 
     page_layout = window.comparison_page_group.layout()
     if page_layout is not None:
@@ -191,7 +198,27 @@ def _install_page_polish(window: Any) -> None:
         original_update()
         _start, _end, total = _window._comparison_page_range()
         if total > 0:
+            _window.comparison_page_label.setFixedWidth(
+                max(
+                    page_reservation,
+                    _window.comparison_page_label.fontMetrics().horizontalAdvance(
+                        _window.comparison_page_label.text()
+                    )
+                    + 2 * TOKENS.spacing_sm,
+                )
+            )
+            _window.comparison_page_range_label.setFixedWidth(
+                max(
+                    range_reservation,
+                    _window.comparison_page_range_label.fontMetrics().horizontalAdvance(
+                        _window.comparison_page_range_label.text()
+                    )
+                    + 2 * TOKENS.spacing_sm,
+                )
+            )
             return
+        _window.comparison_page_label.setFixedWidth(page_reservation)
+        _window.comparison_page_range_label.setFixedWidth(range_reservation)
         _window.comparison_page_group.setVisible(True)
         _window.comparison_page_label.setText("— / —")
         _window.comparison_page_range_label.setText("—")
@@ -266,7 +293,7 @@ def _install_header_polish(window: Any) -> None:
         if prefix:
             kwargs["prefix"] = prefix.replace(" [", " · ").replace("]", "")
         _original(*args, **kwargs)
-        if not _header.difference_reference.isVisible():
+        if not bool(kwargs.get("visible", False)):
             return
         a_slot = kwargs.get("a_slot")
         b_slot = kwargs.get("b_slot")
@@ -327,16 +354,40 @@ def _install_difference_polish(window: Any) -> None:
         return
     panel.setProperty("workflowPolished", True)
     original_validate = panel._validate
+    original_calculate = panel.calculate_difference
 
     def validate(_panel: Any) -> str | None:
         reason = cast(str | None, original_validate())
-        pending = reason is None and not _panel.has_cached_map()
+        calculated_result = _panel.last_result is not None
+        in_flight = _panel._worker is not None or _panel._preview_worker is not None
+        pending = (
+            reason is None
+            and not _panel.has_cached_map()
+            and not calculated_result
+            and not in_flight
+        )
         hint.setVisible(pending)
         if pending:
             _panel.status.setText("Not calculated")
+        elif reason is None and calculated_result and _panel.status.text() == "Ready":
+            _panel.status.setText("Calculated")
         return reason
 
     panel._validate = MethodType(validate, panel)
+
+    def calculate_difference(
+        _panel: Any,
+        _checked: bool = False,
+        *,
+        publish_result: bool = True,
+    ) -> None:
+        hint.hide()
+        original_calculate(_checked, publish_result=publish_result)
+        if _panel._worker is not None or _panel._preview_worker is not None:
+            hint.hide()
+
+    panel.calculate_difference = MethodType(calculate_difference, panel)
+    panel.calculate.pressed.connect(hint.hide)
 
     def calculated(*_args: object) -> None:
         hint.hide()
@@ -359,9 +410,7 @@ def _install_review_polish(review_controller: Any) -> None:
         count = _controller.state.picked_count
         _controller.count_label.setText(f"● Picked {count}")
         color = TOKENS.selection if count > 0 else TOKENS.text_secondary
-        _controller.count_label.setStyleSheet(
-            f"QLabel {{ color: {color}; font-weight: 600; }}"
-        )
+        _controller.count_label.setStyleSheet(f"QLabel {{ color: {color}; font-weight: 600; }}")
 
     review_controller._sync_controls = MethodType(sync_controls, review_controller)
     review_controller._sync_controls()
@@ -382,17 +431,29 @@ def _install_histogram_polish(window: Any) -> None:
     panel.workflow_histogram_hint_controller = hint
 
     original_clear = panel.clear
+    original_set_documents = panel.set_documents
     original_render = panel._render
 
     def clear(_panel: Any) -> None:
         original_clear()
         hint.show()
 
+    def set_documents(
+        _panel: Any,
+        documents: object,
+        bounds: object,
+        region_name: str | None = None,
+    ) -> None:
+        original_set_documents(documents, bounds, region_name)
+        if _panel._documents:
+            hint.hide()
+
     def render(_panel: Any, results: object, histogram_specs: object) -> None:
         hint.hide()
         original_render(results, histogram_specs)
 
     panel.clear = MethodType(clear, panel)
+    panel.set_documents = MethodType(set_documents, panel)
     panel._render = MethodType(render, panel)
     if panel.last_results:
         hint.hide()
@@ -422,16 +483,29 @@ def _install_line_profile_polish(window: Any) -> None:
             hint.show("Draw a line to view its profile\n\nShift + drag on an image")
             panel.status.setText("Shift+drag on an image to set a line profile")
         else:
-            hint.show(
-                "Select an image to use Line Profile\n\nThen Shift + drag to draw a line"
-            )
+            hint.show("Select an image to use Line Profile\n\nThen Shift + drag to draw a line")
             panel.status.setText("Select an image, then Shift+drag to set a line profile")
 
     original_clear = panel._clear_plot
+    original_set_documents = panel.set_documents
     original_render = panel._render
 
     def clear_plot(_panel: Any) -> None:
         original_clear()
+        sync_hint()
+
+    def set_documents(
+        _panel: Any,
+        documents: object,
+        selection: object,
+        *,
+        reference_priority_ids: tuple[str, ...] = (),
+    ) -> None:
+        original_set_documents(
+            documents,
+            selection,
+            reference_priority_ids=reference_priority_ids,
+        )
         sync_hint()
 
     def render(_panel: Any, results: object) -> None:
@@ -439,6 +513,7 @@ def _install_line_profile_polish(window: Any) -> None:
         original_render(results)
 
     panel._clear_plot = MethodType(clear_plot, panel)
+    panel.set_documents = MethodType(set_documents, panel)
     panel._render = MethodType(render, panel)
     sync_hint()
 

@@ -3,10 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
+from pixelscope.core.difference_cache import DifferenceMapCache
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
@@ -33,18 +37,61 @@ def test_shortcuts_page_reservations_and_initial_placeholders(qtbot: object) -> 
     range_metrics = window.comparison_page_range_label.fontMetrics()
     page_width = window.comparison_page_label.width()
     range_width = window.comparison_page_range_label.width()
-    assert page_width == (
-        page_metrics.horizontalAdvance("999 / 999") + 2 * TOKENS.spacing_sm
-    )
+    assert page_width == (page_metrics.horizontalAdvance("999 / 999") + 2 * TOKENS.spacing_sm)
     assert range_width == (
         range_metrics.horizontalAdvance("9999–9999 of 9999") + 2 * TOKENS.spacing_sm
     )
-    assert page_width < (
-        page_metrics.horizontalAdvance("8888 / 8888") + 2 * TOKENS.spacing_sm
-    )
+    assert page_width < (page_metrics.horizontalAdvance("8888 / 8888") + 2 * TOKENS.spacing_sm)
     assert range_width < (
         range_metrics.horizontalAdvance("99999–99999 of 99999") + 2 * TOKENS.spacing_sm
     )
+
+    window._comparison_page_range = lambda: (9996, 10000, 10000)  # type: ignore[method-assign]
+    window._comparison_page_controls_state = None
+    window._update_comparison_page_controls()
+    assert window.comparison_page_label.text() == "1667 / 1667"
+    assert window.comparison_page_range_label.text() == "9997–10000 of 10000"
+    assert window.comparison_page_label.width() >= (
+        page_metrics.horizontalAdvance(window.comparison_page_label.text()) + 2 * TOKENS.spacing_sm
+    )
+    assert window.comparison_page_range_label.width() >= (
+        range_metrics.horizontalAdvance(window.comparison_page_range_label.text())
+        + 2 * TOKENS.spacing_sm
+    )
+
+
+def test_shortcuts_dispatch_in_active_production_window(qtbot: object) -> None:
+    window, _review = _window(qtbot)
+    document = ImageDocument.from_array(
+        np.zeros((2, 2, 3), dtype=np.uint8),
+        "rgb.png",
+    )
+    window.add_document(document)
+    window.show()
+    QApplication.setActiveWindow(window)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: QApplication.activeWindow() is window,
+        timeout=3000,
+    )
+    window.viewer.setFocus()
+
+    qtbot.keyClick(window.viewer, Qt.Key.Key_S)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        window.split_channels_action.isChecked,
+        timeout=3000,
+    )
+
+    assert window.iqa_dock.isHidden()
+    qtbot.keyClick(  # type: ignore[attr-defined]
+        window.viewer,
+        Qt.Key.Key_I,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not window.iqa_dock.isHidden(),
+        timeout=3000,
+    )
+    window.close()
 
 
 def test_iqa_workspace_uses_plots_dock_chrome_before_first_show(qtbot: object) -> None:
@@ -113,6 +160,7 @@ def test_difference_and_plot_empty_states_are_consistent(qtbot: object) -> None:
     assert "Select an image" in histogram_panel.workflow_histogram_hint.text()
     assert "Histogram" in histogram_panel.workflow_histogram_hint.text()
     histogram_panel.set_documents([first], None)
+    assert histogram_panel.workflow_histogram_hint.isHidden()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: len(histogram_panel.last_results) == 1,
         timeout=3000,
@@ -128,6 +176,39 @@ def test_difference_and_plot_empty_states_are_consistent(qtbot: object) -> None:
     assert "Shift + drag" in line_panel.workflow_empty_hint.text()
     assert "Shift+drag" in line_panel.status.text()
     assert "Alt+drag" not in line_panel.status.text()
+    line_panel.set_documents([first], LineSelection(0, 0, 1, 1))
+    assert line_panel.workflow_empty_hint.isHidden()
+
+
+def test_difference_hint_hides_in_flight_and_stays_hidden_for_uncached_result(
+    qtbot: object,
+    monkeypatch: object,
+) -> None:
+    window, _review = _window(qtbot)
+    panel = window.difference_panel
+    first = ImageDocument.from_array(np.zeros((2, 2, 3), dtype=np.uint8), "a.png")
+    second = ImageDocument.from_array(np.ones((2, 2, 3), dtype=np.uint8), "b.png")
+    panel.set_documents([first, second], None)
+
+    start = panel._pool.start
+    monkeypatch.setattr(panel._pool, "start", lambda _worker: None)  # type: ignore[attr-defined]
+    qtbot.mouseClick(panel.calculate, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    assert panel.status.text() == "Calculating map…"
+    assert panel.workflow_metrics_hint.isHidden()
+    panel._cancel_worker()
+
+    monkeypatch.setattr(panel._pool, "start", start)  # type: ignore[attr-defined]
+    panel._map_cache = DifferenceMapCache(1)
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None and panel._worker is None,
+        timeout=3000,
+    )
+    assert not panel.has_cached_map()
+    panel._validate()
+    assert panel.status.text() == "Calculated"
+    assert panel.workflow_metrics_hint.isHidden()
+    window.close()
 
 
 def test_review_count_uses_pick_language_and_selection_accent(qtbot: object) -> None:
@@ -171,9 +252,7 @@ def test_files_context_menu_reuses_open_actions_and_batches_folder_removal(
     ]
 
     image_menu = controller.build_menu_for_item(image_item)
-    image_texts = [
-        action.text() for action in image_menu.actions() if not action.isSeparator()
-    ]
+    image_texts = [action.text() for action in image_menu.actions() if not action.isSeparator()]
     assert image_texts == [
         "Open Images...",
         "Open Folder...",
@@ -185,18 +264,14 @@ def test_files_context_menu_reuses_open_actions_and_batches_folder_removal(
     removed: list[object] = []
     tree.remove_requested.connect(removed.append)
     folder_menu = controller.build_menu_for_item(folder_item)
-    folder_texts = [
-        action.text() for action in folder_menu.actions() if not action.isSeparator()
-    ]
+    folder_texts = [action.text() for action in folder_menu.actions() if not action.isSeparator()]
     assert folder_texts == [
         "Open Images...",
         "Open Folder...",
         "Remove Folder from Files",
     ]
     remove_folder = next(
-        action
-        for action in folder_menu.actions()
-        if action.text() == "Remove Folder from Files"
+        action for action in folder_menu.actions() if action.text() == "Remove Folder from Files"
     )
     remove_folder.trigger()
 
@@ -206,3 +281,31 @@ def test_files_context_menu_reuses_open_actions_and_batches_folder_removal(
     assert second.document_id not in window.documents
     assert tree.document_count == 0
     assert tree.topLevelItemCount() == 0
+
+
+def test_files_context_menu_disables_primary_outside_current_comparison_page(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, _review = _window(qtbot)
+    documents = [
+        ImageDocument.from_array(
+            np.full((2, 2), index, dtype=np.uint8),
+            f"{index}.png",
+            source_path=tmp_path / f"{index}.png",
+        )
+        for index in range(7)
+    ]
+    for document in documents:
+        window.add_document(document, select=False)
+    window._select_document_ids([document.document_id for document in documents])
+    controller = window.workflow_files_context_menu
+    off_page_item = window.document_list.document_item(documents[-1].document_id)
+    assert off_page_item is not None
+
+    menu = controller.build_menu_for_item(off_page_item)
+    primary = next(action for action in menu.actions() if action.text() == "Set as Primary")
+
+    assert not primary.isEnabled()
+    assert "current Comparison Page" in primary.toolTip()
+    window.close()

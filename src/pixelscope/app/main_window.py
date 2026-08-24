@@ -124,6 +124,7 @@ class FolderRegistrationResult:
     folder_count: int
     image_count: int
     empty_folder_count: int
+    registered_folders: tuple[Path, ...]
 
 
 class MainWindow(QMainWindow):
@@ -1120,18 +1121,23 @@ class MainWindow(QMainWindow):
         ordered_folders = [unique[key] for key in sorted(unique)]
 
         registered_ids: set[str] = set()
+        registered_folders: list[Path] = []
         empty_folder_count = 0
         for folder in ordered_folders:
             inputs = discover_image_inputs((folder,))
             if not inputs:
                 empty_folder_count += 1
                 continue
-            registered_ids.update(self._register_inputs(inputs, resolve_raw_profiles=False))
+            folder_ids = self._register_inputs(inputs, resolve_raw_profiles=False)
+            if folder_ids:
+                registered_folders.append(folder)
+                registered_ids.update(folder_ids)
         self._update_empty_workspace_state()
         return FolderRegistrationResult(
             folder_count=len(ordered_folders),
             image_count=len(registered_ids),
             empty_folder_count=empty_folder_count,
+            registered_folders=tuple(registered_folders),
         )
 
     @staticmethod

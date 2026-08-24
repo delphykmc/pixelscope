@@ -383,6 +383,7 @@ measurements or P5-D source locators.
 The IQA dock uses the same **Float/Dock**, **Maximize/Restore**, and **Hide** title-bar
 behavior as Plots. **View > Reset Workspace Layout** clears its persisted floating
 geometry, re-docks it on the right, and hides it with the rest of the workspace reset.
+Use **Ctrl+Shift+I** to show or hide the IQA workspace.
 
 Passive IQA result browsing and Jobs tracking do not change Files registration,
 logical Selected, Current Comparison Page, Active/Primary image state, Difference,
@@ -414,9 +415,10 @@ is available.
 The presentation-control row above the image workspace always shows Comparison
 Page status, including when there is only one page. Previous/next arrows remain in
 place and are disabled when that direction is unavailable, so the controls do not
-shift as selection size changes. Existing Auto/Single/Multi behavior remains
-unchanged for six or fewer Selected images. For example, a three-page selection may
-show:
+shift for ordinary selection sizes. If a page or total exceeds the compact reserved
+width, the labels expand to keep the complete values visible. Existing
+Auto/Single/Multi behavior remains unchanged for six or fewer Selected images. For
+example, a three-page selection may show:
 
 ```text
 Page [‹] 2 / 3 [›]  7–12 of 15
@@ -458,7 +460,7 @@ A typical 15-image curation can be performed as follows:
 1. In Multi View, click **Pick** on desired images on page 1.
 2. Move to pages 2 and 3 with the normal Comparison Page controls and continue
    picking. Earlier picks remain remembered even while off-page.
-3. Check **Selected N** in the presentation row for the current temporary Pick Set
+3. Check **● Picked N** in the presentation row for the current temporary Pick Set
    count. This number is not the Files logical Selected count.
 4. Use **Clear Selection** to clear only the temporary Pick Set if you want to start
    the curation choices again.
@@ -563,6 +565,7 @@ The File menu provides typed **Open Recent Images**, **Open Recent Folders**, an
 
 - Recent Image repeats normal direct-image selection intent.
 - Recent Folder repeats registration-only folder intent.
+- Opening a folder with no supported images does not add it to Recent Folders.
 - Recent Session delegates to normal Session Open.
 - Missing paths offer explicit **Remove / Keep**.
 - Existing wrong-kind or invalid Session artifacts stay in history until explicitly
@@ -617,8 +620,8 @@ selection replacement.
 - **Split Channels** keeps one source Selected in Files but derives transient
   R/G/B or R/Gr/Gb/B viewer-local subchannels. Multi View exposes explicit Primary;
   Single View navigates the same local subchannels with number/header/Left/Right
-  controls. Native Statistics/Histogram/Line/Difference authority remains on the
-  original source page.
+  controls. Press **S** to toggle Split Channels. Native Statistics/Histogram/Line/
+  Difference authority remains on the original source page.
 
 Registration count is independent of all of these presentation choices.
 
@@ -669,6 +672,10 @@ Histogram supports Auto/256/1024/4096 bins, Count/Normalized/Log count, Separate
 Overlay display, and native code-value x ranges. Identical source/generation/ROI/
 bin requests do not restart unchanged numerical work.
 
+With no applicable image, Histogram shows centered selection guidance. The guidance
+disappears as soon as an image becomes the analysis input, including while analysis is
+still preparing.
+
 When you change Comparison Page, Statistics and Histogram move to that same page;
 they do not remain bound to the first six Selected images. Pick/Unpick alone does
 not change their source set or reissue numerical analysis requests.
@@ -680,6 +687,10 @@ Difference-from-reference mode, reference priority is primary, then active, then
 first displayed, while an explicitly selected available reference remains stable.
 Its normal source set follows the Current Comparison Page. Pick membership is not
 a Line Profile input authority.
+
+Line Profile shows image-selection guidance when no source exists and **Shift+drag**
+guidance when a source exists without a line. The guidance disappears as soon as a
+line selection exists, including while sampling is still preparing.
 
 ## Difference
 
@@ -721,6 +732,9 @@ compatibility checks and generation-aware cache lookup first. A cache hit is reu
 without numerical-map recomputation; a miss uses the normal asynchronous
 calculation. On success, the result becomes the active Difference and toolbar
 **Diff** becomes enabled and checked.
+
+Before that explicit request, the panel reports **Not calculated** and prompts you to
+click Calculate rather than presenting the state as already ready.
 
 After Calculate, toolbar **Diff** is visibility-only: unchecking hides that same
 active result and checking it again shows the same result. The toolbar does not infer
