@@ -16,7 +16,7 @@ baseline and explicit read-only compatibility definition. It must not be silentl
 reinterpreted as v2.
 
 P5-E historical reopen is specialized in
-[`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
+[`REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 The current ownership principle is:
 

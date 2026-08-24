@@ -889,10 +889,12 @@ implementation program is active.
   does not introduce a broader speculative layer framework.
 - Retain `REMOTE_IQA_V1_SPEC.md` and `REMOTE_IQA_V2_SPEC.md` because version identity is
   part of persisted compatibility authority.
-- Retain the phase-named P5-D/P5-E/P5-F root documents. Their names preserve additive
-  contract and closure-evidence scope, while moving them would churn roughly twenty
-  durable links without improving current authority. `docs/index.md` now states each
-  role explicitly.
+- PR #54 initially retained the phase-named P5-D/P5-E/P5-F root documents to avoid
+  link churn. The owner subsequently clarified that current durable contracts at the
+  docs root must use phase-neutral filenames. Use
+  `REMOTE_IQA_VIEWER_INSPECTION.md`, `REMOTE_IQA_HISTORICAL_RESULTS.md`, and
+  `REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md` for current navigation; preserve P5-D,
+  P5-E, and P5-F identity inside the documents and completed execution history.
 
 ## Current resource policy
 

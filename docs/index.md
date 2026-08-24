@@ -34,11 +34,11 @@ knowledge belongs in focused documents under `docs/`.
   including COMPLETE and P5-C PARTIAL schema-v2 rules.
 - `REMOTE_IQA_V1_SPEC.md`: historical merged P5-A/schema-v1 executable/read-only
   compatibility contract; it is not the current writer/numerical target.
-- `P5D_VIEWER_INSPECTION.md`: phase-scoped additive native-Inspect contract and retained
+- `REMOTE_IQA_VIEWER_INSPECTION.md`: additive native-Inspect contract and retained
   P5-D closure evidence.
-- `P5E_HISTORICAL_RESULTS.md`: phase-scoped historical-Result contract and retained P5-E
+- `REMOTE_IQA_HISTORICAL_RESULTS.md`: historical-Result contract and retained P5-E
   closure evidence.
-- `P5F_INTEGRATION_CHARACTERIZATION.md`: retained repository-side integration and
+- `REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`: retained repository-side integration and
   performance characterization; it does not claim the deferred external P5-G gate.
 - `SESSION_CONTRACT.md`: authoritative P4-C Session v1 persistence, restore,
   legacy Comparison Set compatibility, typed Recent, and PR #32/#33 integration
@@ -84,9 +84,9 @@ knowledge belongs in focused documents under `docs/`.
 9. Move substantial completed plans to `exec-plans/completed/`, keep unavailable but
    still-authoritative work in `exec-plans/deferred/`, and keep the required current
    plan at `exec-plans/active/next-phase.md`.
-10. Retain explicit schema-v1/v2 filenames as compatibility authority. Phase-named
-    durable contracts may remain at the docs root when the name preserves historical
-    scope; clarify their role here instead of renaming solely to reduce top-level files.
+10. Retain explicit schema-v1/v2 filenames as compatibility authority. Use
+    phase-neutral filenames for current durable contracts at the docs root; preserve
+    phase identity inside those documents and in completed execution history.
 
 ## Mechanical documentation check
 
