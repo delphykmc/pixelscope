@@ -923,9 +923,16 @@ composition no longer mutates private `_pool` state after installation.
 
 The controllers retain a read-only `pool` ownership view for composition and contract
 tests. Direct non-production construction may still omit the dependency and use the
-established analysis-pool fallback. R2 does not change pool sizes, the separate P5-C
-job-operation pool, worker start/cancel behavior, stale-result guards, shutdown hooks,
-HTTP checkout, or installer/wrapper order.
+established analysis-pool fallback. Idempotent P5-D/P5-E installation returns the
+existing controller only when an explicitly supplied pool has the same identity; a
+conflicting pool fails instead of silently splitting result-side ownership.
+
+Production initializes the already-existing analysis pool before the Remote IQA pool,
+then constructs `MainWindow`. This retains the pre-R2 `aboutToQuit` clear/wait order
+(local background pools, then Remote IQA) while still injecting the final P5-B pool at
+construction. R2 does not change pool sizes, the separate P5-C job-operation pool,
+worker start/cancel behavior, stale-result guards, HTTP checkout, or installer/wrapper
+order.
 
 ## Runtime diagnostics and release boundaries
 

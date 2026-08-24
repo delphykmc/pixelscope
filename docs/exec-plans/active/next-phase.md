@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R2 implementation/validation complete; independent review pending**
+Status: Active — **R2 reviewer remediation; re-review pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r2-worker-resource-ownership`
 Last updated: 2026-08-24
@@ -239,7 +239,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: explicit dependency graph with behavior-equivalent focused evidence
   and reviewer confirmation of wrapper/shutdown order.
 
-### R2 — Worker and resource ownership injection — review pending
+### R2 — Worker and resource ownership injection — reviewer remediation complete / re-review pending
 
 - Goal: remove private post-construction pool rebinding and state ownership explicitly.
 - Expected areas: P5-B/D/E controller constructors/installers, application Remote IQA
@@ -432,6 +432,15 @@ baseline or environment-dependent debt is never called full PASS.
   Ruff check/format and five-module mypy passed; docs checker, docs contract test, and
   diff check passed. No full-suite PASS is claimed; independent latest-whole-head review
   remains the merge gate.
+- 2026-08-24: independent review of `5533fc4f527e30a559ad7e5b2b45474c3386ebdc`
+  requested two P1 lifecycle corrections and one P2 PR-attribution correction. R2 now
+  initializes the analysis pool before the Remote IQA pool to preserve the existing Qt
+  shutdown-hook clear/wait order, and P5-D/P5-E idempotent installers reject a different
+  explicit pool while retaining same-pool idempotency. Focused regressions cover the
+  fresh registration/clear/wait sequence and both installer outcomes; the remediated
+  focused selection observed 44 passed and changed-file Ruff/format/mypy passed. The PR
+  body records the actual owner-authenticated Git/GitHub attribution and non-rewrite of
+  human commits. Latest-whole-head re-review remains pending.
 
 ## Completion summary
 

@@ -845,6 +845,10 @@ repository program.
 - A read-only controller `pool` property exposes the fixed dependency without granting
   rebinding authority. The existing analysis-pool fallback remains available to direct
   non-production controller construction.
+- Production initializes the local analysis pool before the Remote IQA pool so Qt
+  shutdown retains its existing local-background then Remote-IQA clear/wait order.
+- Reinstalling P5-D or P5-E with the same explicit pool is idempotent; supplying a
+  different pool fails explicitly rather than hiding split ownership.
 - Fixed max-two Remote IQA result/file and P5-C job pools, local analysis separation,
   lazy HTTP checkout, cancellation, stale-callback, and shutdown semantics are
   unchanged.
