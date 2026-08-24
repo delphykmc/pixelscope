@@ -9,10 +9,10 @@ P5-B local Results, P5-C Setup/Jobs/shared-storage UI, P5-D viewer-linked Scene
 inspection, P5-E historical Results, and P5-F repository hardening are merged.
 
 Current merged baseline:
-`808f1e6bccd67e649be71b03798a1a1f407628f8`
+`7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`
 
-R1 application composition is merged. R2 makes the existing Remote IQA result-pool
-ownership explicit and adds no UI behavior.
+R1 application composition and R2 result-pool ownership are merged. R3-A removes an
+unconnected pre-P5 Remote scaffold and adds no UI behavior.
 
 Completed P5-F characterization:
 [`../P5F_INTEGRATION_CHARACTERIZATION.md`](../P5F_INTEGRATION_CHARACTERIZATION.md).

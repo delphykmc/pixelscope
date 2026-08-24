@@ -934,6 +934,20 @@ construction. R2 does not change pool sizes, the separate P5-C job-operation poo
 worker start/cancel behavior, stale-result guards, HTTP checkout, or installer/wrapper
 order.
 
+## R3-A pre-P5 Remote scaffold boundary
+
+The initial-release `evaluation_client.py`, `mock_client.py`, and `schemas.py` formed an
+isolated `/v1/jobs` sketch. They were never exported by `pixelscope.remote`, imported by
+production, or connected to the canonical P5 result/job architecture. R3-A removes that
+dead implementation and its self-only test so `remote` exposes one supported IQA stack.
+
+This removal does not affect P5-A historical schema-v1 Result compatibility, whose
+authority remains `iqa_domain.py`/`iqa_reader.py` plus
+`tests/unit/test_remote_iqa_v1.py`. It also does not change the P5-C `/v1/iqa/jobs`
+transport or P5-F compatibility probe. The original endpoint sketch remains clearly
+marked historical/unsupported in `server/api_contract.md`; current server/transport
+authority stays in `REMOTE_IQA_CONTRACT.md`.
+
 ## Runtime diagnostics and release boundaries
 
 `RuntimeDiagnosticsSnapshot` is frozen, deterministic, bounded, sanitized, and

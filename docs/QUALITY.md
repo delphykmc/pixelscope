@@ -491,9 +491,11 @@ Historical focused command:
 .\.venv\Scripts\python.exe -m pytest -q tests\unit\test_remote_iqa_v1.py
 ```
 
-`tests/unit/test_remote.py` covers an isolated pre-P5 `/v1/jobs` scaffold, not the
-schema-v1 Result compatibility oracle. R3-A owns its history/import audit and removal or
-explicit retention decision.
+R3-A removed the isolated pre-P5 `/v1/jobs` scaffold and its self-only
+`tests/unit/test_remote.py` after history/import/package audit found no supported
+consumer. This does not reduce schema-v1 Result compatibility coverage: the canonical
+oracle above remains unchanged. Canonical P5-C/P5-F tests continue to cover the
+`/v1/iqa/jobs` client, localhost/mock transports, cancellation, and compatibility probe.
 
 ## P5-A2 executable schema-v2 contract — Complete / PR #40
 
