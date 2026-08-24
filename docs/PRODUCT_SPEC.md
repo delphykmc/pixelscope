@@ -814,11 +814,10 @@ Complete. P5-0 / PR #36, P5-A schema-v1 / PR #37, P5-A2 durable/executable schem
 / PR #39/#40, P5-B IQA Workspace / PR #38, and P5-C Submission & Shared Storage /
 PR #42, P5-D Viewer-linked Scene Inspection / PR #43, P5-E Historical Result Workflow /
 PR #44, and P5-F Integration & Performance Hardening / PR #45 are merged. Current
-merged main is `7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`.
+merged main is `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`.
 
-R1 application composition and R2 worker/resource ownership injection are merged. R3-A
-obsolete Remote scaffold disposition is the active behavior-preserving repository
-slice. P5-G owns
+R1 through R3-A repository slices are merged. R3-B Session/legacy boundary
+clarification is the active behavior-preserving repository slice. P5-G owns
 the still-unobserved real external-server/shared-storage validation and final P5
 closeout when that environment becomes available. P6 owns identity, access,
 credentials, permission, and remote operations. P7 owns release engineering and

@@ -853,7 +853,7 @@ repository program.
   lazy HTTP checkout, cancellation, stale-callback, and shutdown semantics are
   unchanged.
 
-### R3-A obsolete Remote scaffold decisions — active
+### R3-A obsolete Remote scaffold decisions — complete / PR #49
 
 - Remove the initial-release `remote/evaluation_client.py`, `mock_client.py`, and
   `schemas.py` plus their isolated `tests/unit/test_remote.py`. Repository history and
@@ -865,6 +865,20 @@ repository program.
 - Preserve the original `/v1/jobs` sketch in `server/api_contract.md` with an explicit
   historical/unsupported status and link the server directory to the current durable
   contract. Do not silently rewrite it as a production server specification.
+
+### R3-B Session/legacy adapter decisions — active
+
+- `ui.session.SessionController` installed by `install_session` is the sole production
+  transactional Session restore authority and owns `window.session_controller`.
+- `ui.comparison_set.SessionController` remains the shared capture/menu and legacy
+  restore base; `SessionControllerBase` makes that inheritance role explicit without
+  deleting its compatibility names or installer.
+- `window.comparison_set_controller` remains a facade over the same production
+  controller only to preserve the P4-B selected-count `open_from_path` view. It has no
+  independent repository or runtime ownership.
+- Recent Sessions type-check and delegate to the production Session controller. Session
+  v1 writes, legacy Comparison Set v1 reads, repository payloads, transactional restore,
+  menu order, Recent behavior, and return semantics are unchanged.
 
 ## Current resource policy
 
@@ -889,8 +903,8 @@ repository program.
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. R0–R2 merged as PR #46–#48. Current main
-is `7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`; R3-A is active.
+client work is complete through P5-F / PR #45. R0–R3-A merged as PR #46–#49. Current
+main is `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`; R3-B is active.
 
 Observed P5-C evidence includes:
 

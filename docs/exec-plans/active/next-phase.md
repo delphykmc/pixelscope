@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R3-A independent review PASS / merge pending**
+Status: Active — **R3-B implementation/validation complete; independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r3a-obsolete-remote-scaffold`
+Branch/PR: `codex/r3b-session-authority`
 Last updated: 2026-08-24
 
 ## Goal
@@ -252,7 +252,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: no controller temporarily owns the wrong pool; exact lifetime tests
   and independent race/ownership review PASS.
 
-### R3-A — Obsolete Remote scaffold disposition — review PASS / merge pending
+### R3-A — Obsolete Remote scaffold disposition — Complete / PR #49
 
 - Goal: eliminate the misleading pre-P5 client only if repository/history evidence
   confirms it has no supported consumer.
@@ -265,7 +265,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: documented removal rationale, equivalent current-contract coverage,
   and compatibility reviewer PASS; otherwise record and retain it.
 
-### R3-B — Session and legacy boundary clarification
+### R3-B — Session and legacy boundary clarification — review pending
 
 - Goal: make Session v1 authority and legacy Comparison Set adapter ownership explicit.
 - Expected areas: comparison/session modules, facade/call sites, persistence tests/docs.
@@ -476,6 +476,23 @@ baseline or environment-dependent debt is never called full PASS.
   unit result plus import/package/static/docs/diff gates, and reported PASS. The only
   residual compatibility risk is an undocumented repository-external deep importer;
   R3-A merge is pending.
+- 2026-08-24: R3-A closure head `da7f066aeb4975c13cb5815c274a10ea112642aa`
+  passed final docs/body review, and PR #49 merged at
+  `main@a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`.
+- 2026-08-24: started R3-B from the R3-A merge. Audit confirmed Session v1 domain/write
+  authority is already centralized in `Session` and `ComparisonSetRepository`; the
+  maintainability issue was UI naming around the shared base, production transactional
+  subclass, and legacy selected-count facade. The pre-change persistence/Recent/UI
+  selection observed 72 passed. R3-B adds the explicit `SessionControllerBase` role,
+  names the legacy facade, makes Recent depend on the production Session controller,
+  and locks production/facade ownership in a focused test. It does not consolidate the
+  divergent restore algorithms or change persisted/return behavior. Post-change focused
+  selection observed 73 passed; changed-file Ruff and three-module mypy passed.
+- 2026-08-24: expanded latest-head P4/persistence selection observed 101 passed and
+  390 deselected. Changed-file Ruff check/format and three-module mypy passed, pip check
+  reported no broken requirements, docs checker/contract passed, and diff check passed.
+  No full-suite PASS is claimed; independent persisted-data/compatibility review remains
+  the merge gate.
 
 ## Completion summary
 
