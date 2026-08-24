@@ -690,8 +690,9 @@ expectations and same-process geometry checks, uses an interior histogram coordi
 shows the plot under test, and separates persisted restore authority from unsupported
 offscreen window-manager placement. The three nodes passed five consecutive runs, their
 related modules passed 19 tests, and the full UI suite passed all 467 tests on the R5
-implementation branch. Independent review remains the merge gate; no product source,
-skip/xfail, or tolerance changed.
+implementation branch. Independent latest-head review passed, and PR #53 merged at
+`main@45e718abe28ab600edab41cf04a998029f6fc5f7`; no product source, skip/xfail, or
+tolerance changed.
 
 ## Completion evidence
 
