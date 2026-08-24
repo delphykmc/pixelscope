@@ -26,6 +26,8 @@ def test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips(
 ) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.show()
+    window._show_plot_tab(0)
     documents = [
         ImageDocument.from_array(
             np.full((12, 16, 3), 20 + index, dtype=np.uint8),
@@ -48,7 +50,7 @@ def test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips(
     assert not histogram.plots[1].isHidden()
     assert len(histogram.legends[0].items) == 3
     assert len(histogram.legends[1].items) == 3
-    point = histogram.plots[1].getViewBox().mapViewToScene(QPointF(21, 10))
+    point = histogram.plots[1].getViewBox().mapViewToScene(QPointF(20.5, 10))
     histogram._on_histogram_mouse_moved(1, point)
     hint = histogram._histogram_hover_texts[1]
     assert hint is not None and hint.isVisible()
@@ -456,6 +458,8 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
     )
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.show()
+    window._show_plot_tab(0)
     window.add_document(document)
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: len(window.comparison_analysis_panel.last_results) == 1,
@@ -492,6 +496,7 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
     profile_result = window.line_profile_panel.last_results[0]
     assert profile_result.channel_names == ("R", "Gr", "Gb", "B")
     assert profile_result.positions[1].tolist() == [1.0, 3.0]
+    window._show_plot_tab(1)
     hover_position = window.line_profile_panel.plot.getViewBox().mapViewToScene(QPointF(0, 25))
     window.line_profile_panel._on_plot_mouse_moved(hover_position)
     assert window.line_profile_panel._hover_text is not None

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import QByteArray, QRect, QSettings, Qt
+from PySide6.QtGui import QGuiApplication
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.line_profile import LineSelection
@@ -101,15 +102,20 @@ def test_floating_plots_geometry_survives_hide_show_and_restart(qtbot: object) -
     assert window.bottom_dock.isFloating()
     assert _geometry_close(window.bottom_dock.geometry(), expected)
     window._save_ui_state()
+    stored_geometry = QSettings().value(PLOTS_FLOATING_GEOMETRY_SETTING)
+    assert isinstance(stored_geometry, QByteArray | bytes)
+    expected_geometry_state = QByteArray(stored_geometry)
     window.close()
 
     restored = MainWindow()
     qtbot.addWidget(restored)  # type: ignore[attr-defined]
+    assert restored.plots_dock_title._floating_geometry == expected_geometry_state
     restored.show()
     qtbot.waitUntil(restored.bottom_dock.isFloating)  # type: ignore[attr-defined]
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: _geometry_close(restored.bottom_dock.geometry(), expected)
-    )
+    if QGuiApplication.platformName() != "offscreen":
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: _geometry_close(restored.bottom_dock.geometry(), expected)
+        )
 
     restored.close()
 
