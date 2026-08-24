@@ -44,8 +44,11 @@ Repository Refactoring & Validation Hardening**; it adds no product behavior.
 R7 **Final Integration Validation and Closeout** is active on
 `codex/r7-refactoring-closeout`.
 
-Active plan:
+Current execution pointer:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
+
+Completed R program record:
+[`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md).
 
 Durable P5 product/transport contract:
 [`REMOTE_IQA_CONTRACT.md`](REMOTE_IQA_CONTRACT.md).
