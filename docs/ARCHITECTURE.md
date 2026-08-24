@@ -369,6 +369,26 @@ transient zoom/pan, ROI/Line state, or temporary curation. Settings schema remai
 v5 at the P4-B boundary because `.pixelscope` is an external artifact rather than an
 `ApplicationSettings` migration.
 
+### P4-C/R3-B current Session UI authority
+
+Current writes and production restore are Session v1. `core.comparison_set.Session`
+owns the durable domain, while `ComparisonSetRepository` writes only
+`kind = "pixelscope-session"` and retains the legacy P4-B kind as a read adapter.
+
+At the UI boundary, `ui.comparison_set.SessionController` retains shared capture/menu
+mechanics and the legacy restore implementation. `SessionControllerBase` names that
+role explicitly. Production composition calls only `ui.session.install_session`, which
+installs the transactional `ui.session.SessionController` as
+`window.session_controller`. Production composition coverage locks that concrete type.
+`RecentEntriesController` accepts the shared base so the retained P4-B
+`install_comparison_set` compatibility composition remains valid.
+
+`window.comparison_set_controller` remains a narrow P4-B compatibility facade over the
+same production controller. It shares the repository and all operations but preserves
+the legacy `open_from_path` selected-count return view. It is not a second persistence,
+restore, menu, Recent, or runtime owner. No Session/Comparison Set field, byte format,
+validation, transaction, or restore order changes at this boundary.
+
 ## RAW profile-resolution boundary
 
 RAW and ordinary images share the same user-facing image-open command but retain

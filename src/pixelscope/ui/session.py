@@ -10,14 +10,14 @@ from PySide6.QtWidgets import QMessageBox
 from pixelscope.core.comparison_set import Session
 from pixelscope.io.path_discovery import image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
-from pixelscope.ui.comparison_set import SessionController as _BaseSessionController
+from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
 from pixelscope.ui.session_restore_overlay import SessionRestoreOverlay
 
 LOGGER = logging.getLogger(__name__)
 
 
-class SessionController(_BaseSessionController):
+class SessionController(SessionControllerBase):
     """Transactional Session open adapted to the merged PR #33 Difference lifecycle."""
 
     def _connect_deferred_restore_signals(self) -> None:
@@ -522,7 +522,9 @@ class SessionController(_BaseSessionController):
         self._finalize_restore("Session restored · Difference skipped")
 
 
-class _ComparisonSetControllerFacade:
+class _LegacyComparisonSetControllerFacade:
+    """Preserve the P4-B selected-count view over canonical Session restore."""
+
     def __init__(self, controller: SessionController) -> None:
         self._controller = controller
 
@@ -537,10 +539,12 @@ class _ComparisonSetControllerFacade:
 
 
 def install_session(window: Any) -> SessionController:
+    """Install canonical Session authority plus the retained P4-B facade."""
+
     existing = getattr(window, "session_controller", None)
     if isinstance(existing, SessionController):
         return existing
     controller = SessionController(window)
     window.session_controller = controller
-    window.comparison_set_controller = _ComparisonSetControllerFacade(controller)
+    window.comparison_set_controller = _LegacyComparisonSetControllerFacade(controller)
     return controller

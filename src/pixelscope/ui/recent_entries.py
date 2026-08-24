@@ -15,7 +15,7 @@ from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
-from pixelscope.ui.comparison_set import SessionController
+from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.design_tokens import menu_style
 
 LOGGER = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class RecentEntriesController:
         self.window = window
         self.repository = repository or RecentEntriesRepository(QSettingsAdapter(self._settings()))
         session = getattr(window, "session_controller", None)
-        if not isinstance(session, SessionController):
+        if not isinstance(session, SessionControllerBase):
             raise RuntimeError("Recent Entries requires the Session controller")
         self.session_controller = session
         self.comparison_set_controller = session

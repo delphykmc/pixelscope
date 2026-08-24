@@ -9,10 +9,10 @@ P5-B local Results, P5-C Setup/Jobs/shared-storage UI, P5-D viewer-linked Scene
 inspection, P5-E historical Results, and P5-F repository hardening are merged.
 
 Current merged baseline:
-`7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`
+`a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`
 
-R1 application composition and R2 result-pool ownership are merged. R3-A removes an
-unconnected pre-P5 Remote scaffold and adds no UI behavior.
+R1 through R3-A are merged. R3-B clarifies current Session controller versus the legacy
+Comparison Set facade and adds no UI behavior.
 
 Completed P5-F characterization:
 [`../P5F_INTEGRATION_CHARACTERIZATION.md`](../P5F_INTEGRATION_CHARACTERIZATION.md).
