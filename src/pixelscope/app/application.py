@@ -4,7 +4,7 @@ import logging
 import sys
 from collections.abc import Sequence
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QThreadPool
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from pixelscope.app.main_window import MainWindow
@@ -110,12 +110,31 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_recent_entries(window)
     install_analysis_export(window)
 
-    # P5-F isolates remote Result/Reference/Inspect/history file work from the
+    # P5-F isolates result/reference/inspection/history file work from the
     # application pool reserved for local Statistics/Difference calculations.
-    iqa_pool = remote_iqa_thread_pool()
-    window.iqa_controller._pool = iqa_pool
-
+    result_pool = remote_iqa_thread_pool()
+    window.iqa_controller._pool = result_pool
     transport_pool = ReusableIqaClientPool()
+    _compose_remote_iqa(
+        window,
+        result_pool=result_pool,
+        transport_pool=transport_pool,
+    )
+    polish_presentation_controls(window)
+    install_display_gain_shortcuts(window.central_stack, gain_control)
+    return gain_control
+
+
+def _compose_remote_iqa(
+    window: MainWindow,
+    *,
+    result_pool: QThreadPool,
+    transport_pool: ReusableIqaClientPool,
+) -> None:
+    """Install the existing Remote IQA controllers in their dependency order."""
+
+    # P5-C owns submission/jobs and the transport lifetime. Result mapping must wrap
+    # settings changes before the later P5-D and P5-E observers extend that chain.
     remote_iqa_controller = install_remote_iqa(
         window,
         client_factory=transport_pool.client,
@@ -130,16 +149,17 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     polish_remote_iqa_setup(remote_iqa_controller.workspace)
     install_remote_iqa_request_debug(window)
     install_remote_iqa_replay_debug(window)
+
+    # P5-D owns the only native Inspect bridge and consumes the already-hardened
+    # P5-C settings chain.
     inspection = install_iqa_scene_inspection(window)
-    inspection._pool = iqa_pool
+    inspection._pool = result_pool
     install_iqa_scene_inspection_lifecycle(window)
+
     # P5-E deliberately wraps the P5-D open path rather than bypassing its teardown.
     historical_iqa = install_historical_iqa_results(window)
-    historical_iqa._pool = iqa_pool
+    historical_iqa._pool = result_pool
     install_historical_iqa_results_lifecycle(window, historical_iqa)
-    polish_presentation_controls(window)
-    install_display_gain_shortcuts(window.central_stack, gain_control)
-    return gain_control
 
 
 def main(arguments: Sequence[str] | None = None) -> int:

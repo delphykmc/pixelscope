@@ -823,6 +823,19 @@ repository program.
 - R may clarify construction, dependency, and shutdown seams but may not change these
   pool counts, retry/polling, cancellation, or stale-callback semantics.
 
+### R1 application composition decisions — active
+
+- The production application keeps one small `_compose_remote_iqa` seam rather than a
+  DI framework, service container, or new controller hierarchy.
+- Application ownership of the Remote IQA result pool and reusable transport pool is
+  explicit at the seam. Final result-side pool binding behavior remains unchanged in
+  R1; constructor/install injection belongs to R2.
+- Installer order remains P5-C mapping/retry and lifecycle hardening, then P5-D native
+  Inspect, then P5-E history/Provenance. The nested settings/open/teardown chains are
+  preserved and covered by focused composition and inherited semantic tests.
+- Existing controller attributes, `MethodType` wrappers, signal reconnections,
+  shutdown behavior, debug gating, and UI layout remain unchanged.
+
 ## Current resource policy
 
 - Difference Map Cache remains byte-budgeted and persistence-free with default
@@ -846,8 +859,8 @@ repository program.
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. Current main is
-`6634447fc3c48545a2482718dd3f444928806218`.
+client work is complete through P5-F / PR #45. R0 merged as PR #46. Current main is
+`a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`; R1 is active.
 
 Observed P5-C evidence includes:
 

@@ -891,6 +891,30 @@ shutdown. No raw-grid cache, speculative preload, adaptive polling, generalized 
 or concurrency-policy change was introduced. R may make injection/composition explicit
 but must not change these lifetime policies.
 
+## R1 application composition seam
+
+`src/pixelscope/app/application.py` remains the production composition root. Its local
+presentation/workflow installation stays in `_compose_main_window_presentation`, while
+the Remote IQA feature chain is isolated in `_compose_remote_iqa` with its existing
+application-owned result pool and transport pool passed explicitly.
+
+The Remote IQA installation order is a behavior contract, not incidental formatting:
+
+```text
+P5-C submission/jobs + transport lifetime
+    ↓
+result mapping/retry/setup/debug hardening
+    ↓
+P5-D explicit native Inspect + settings observer
+    ↓
+P5-E historical open + Provenance observer
+```
+
+This seam does not replace `MethodType` wrappers, reconnect signals, change any
+controller method, or alter settings/open/shutdown order. R2 separately owns replacing
+the remaining post-construction private result-pool assignments with explicit
+constructor/install dependencies while preserving the same three pool domains.
+
 ## Runtime diagnostics and release boundaries
 
 `RuntimeDiagnosticsSnapshot` is frozen, deterministic, bounded, sanitized, and

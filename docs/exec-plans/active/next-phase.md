@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R0 review gate satisfied; R1 Application Composition next after merge**
+Status: Active — **R1 Application Composition review gate satisfied / merge pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: [`PR #46`](https://github.com/delphykmc/pixelscope/pull/46)
+Branch/PR: `codex/r1-application-composition`
 Last updated: 2026-08-24
 
 ## Goal
@@ -184,6 +184,23 @@ No P0 correctness defect was found during the initial repository-wide audit.
 - Risk: file-move/format churn can exceed the structural value.
 - Proposed slice: R6 or Deferred, based on evidence.
 
+### P2 — phase-shaped top-level durable document names
+
+- Problem: current Remote IQA contracts and characterization include P5-D/P5-E/P5-F
+  phase names at the top of `docs/`, making current contract authority look like
+  temporary execution history.
+- Evidence: `P5D_VIEWER_INSPECTION.md`, `P5E_HISTORICAL_RESULTS.md`, and
+  `P5F_INTEGRATION_CHARACTERIZATION.md` mix current behavior contracts with phase
+  closure evidence. `REMOTE_IQA_V1_SPEC.md` and `REMOTE_IQA_V2_SPEC.md` also expose
+  versions, but those names represent persisted schema compatibility and are necessary.
+- Impact: current versus historical reading paths are less obvious, while removing
+  schema versions would weaken compatibility authority.
+- Recommended correction: in R6 evaluate a bounded phase-neutral contract/history
+  structure, preserve explicit schema-v1/v2 identity, retain history, and move files
+  only when link/history/deletion audit proves the navigation benefit.
+- Risk: widespread link churn or accidental durable-history contraction.
+- Proposed slice: R6; no file move in R0/R1.
+
 ### Deferred — speculative abstraction and policy changes
 
 Generic generation frameworks, DI/service containers, broad source moves, MainWindow
@@ -196,7 +213,7 @@ Each slice is a separate small PR. Focused checks run during implementation; ful
 run before major integration points and R closeout. Every PR receives independent
 read-only review of its latest whole head before merge.
 
-### R0 — State reconciliation and executable program plan — review PASS / merge pending
+### R0 — State reconciliation and executable program plan — Complete / PR #46
 
 - Goal: make the P5-F merge, deferred P5-G gate, and active R program unambiguous.
 - Expected areas: durable status documents and execution-plan directories only.
@@ -208,7 +225,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: all current-status authorities agree; no broken link or unexplained
   documentation contraction; independent latest-head PASS.
 
-### R1 — Explicit application/IQA composition seam
+### R1 — Explicit application/IQA composition seam — review PASS / merge pending
 
 - Goal: make installer order and cross-controller dependencies visible and testable.
 - Expected areas: `src/pixelscope/app/application.py`, IQA install/composition modules,
@@ -295,12 +312,14 @@ read-only review of its latest whole head before merge.
 
 ### R6 — Harness and architecture guardrails
 
-- Goal: make stable ownership/status rules mechanically visible without building a new
-  framework.
+- Goal: make stable ownership/status rules mechanically visible and evaluate a bounded
+  phase-neutral current-contract versus historical-evidence document structure without
+  building a new framework.
 - Expected areas: docs checker, narrow import/architecture tests, QUALITY/index/harness
-  notes.
+  notes, and Remote IQA durable-document paths only when the move value is proven.
 - Contract/non-goal: enforce only durable proven rules; no speculative layer taxonomy or
-  replacement of reviewer judgment.
+  replacement of reviewer judgment. Preserve explicit schema-v1/v2 identity and all
+  historical contracts; no mass move merely to reduce top-level file count.
 - Focused validation: guardrail unit tests, docs contract, affected imports, Ruff/mypy.
 - Dependency: R1–R5 reveal stable seams.
 - Merge criterion: each rule has a concrete past failure/drift case and actionable output.
@@ -360,16 +379,45 @@ baseline or environment-dependent debt is never called full PASS.
   plan and separated unobserved P5-G into a deferred plan.
 - 2026-08-24: R0 focused validation observed `scripts/check_docs.py` PASS,
   `tests/unit/test_docs_contract.py` 1 passed, staged/unstaged `git diff --check` PASS,
-  and no stale current-status pattern. The staged set contains 15 documentation files,
-  including a 320-line retained P5 archive and an 83-line deferred P5-G plan; no source,
-  test, or owner untracked artifact is staged.
+  and no stale current-status pattern. The initial staged set contained 15 documentation
+  files, including a 320-line retained P5 archive and an 83-line deferred P5-G plan; no
+  source, test, or owner untracked artifact was staged.
 - 2026-08-24: independent latest-head review requested one P2 correction: two audit
   references and the R1 expected area named the wrong composition-root path. Corrected
   them to `src/pixelscope/app/application.py` and aligned the execution-plan template
   with the new Deferred status; focused docs validation remained PASS.
 - 2026-08-24: independent reviewer rechecked the full PR at
   `9d677aaf69fea1e9a3e42073a4e951081b960cfa`, confirmed the P2 finding closed, and
-  reported PASS with no remaining actionable finding. R0 merge is pending.
+  reported PASS with no remaining actionable finding. Closure head `1e2d242e...` also
+  passed latest-whole-head review; PR #46 merged at
+  `main@a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`.
+- 2026-08-24: started R1 from the R0 merge. Characterized the P5-C mapping → P5-D
+  settings/Inspect → P5-E history/Provenance wrapper order and observed the focused
+  pre-change baseline as 21 passed. Extracted `_compose_remote_iqa` as the smallest
+  application-level seam, keeping private result-pool rebinding for R2. The first
+  post-change focused run observed 22 passed; changed-file Ruff check and mypy passed,
+  and Ruff format requested then applied one mechanical `application.py` reflow.
+- 2026-08-24: owner asked whether phase/version-named top-level documents should remain.
+  Recorded R6 evaluation of phase-neutral current contracts versus historical evidence;
+  schema v1/v2 remains explicit persisted-contract identity and no move is mixed into
+  R0/R1.
+- 2026-08-24: R1 expanded validation observed 206 passed, 1 skipped, and 243 deselected
+  for the P5/Remote-IQA unit selection, followed by 161 passed and 304 deselected for
+  the P4/P5 UI selection. The skip is the existing Windows directory-symlink privilege
+  constraint. No full-suite PASS is claimed; independent latest-whole-head review is
+  pending.
+- 2026-08-24: independent review of `d917e9ac...` found the implementation order,
+  wrapper chains, pool policies, tests, and validation scope sound, and requested one
+  P2 documentation correction: PRODUCT_SPEC and UI status still named the P5-F merge
+  as the current baseline. Updated both current-status authorities to the R0 merge
+  `a25b3ee1...` while retaining historical P5-F identities. Although the reviewer found
+  the transport-construction/pool-bind reordering unobservable, R1 also restored the
+  original relative order because no change was required.
+- 2026-08-24: independent reviewer rechecked latest whole head
+  `33ebd9cf3720bf18e5eac7d22765ca08d8e45bcb`, confirmed the P2 finding and exact-order
+  remediation closed, independently observed 32 focused tests plus static/docs/diff
+  gates passing, and reported PASS with no remaining actionable finding. R1 merge is
+  pending.
 
 ## Completion summary
 

@@ -1,7 +1,7 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-24
-Current merged `main`: `6634447fc3c48545a2482718dd3f444928806218`
+Current merged `main`: `a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`
 
 `main` includes:
 
@@ -17,12 +17,15 @@ Current merged `main`: `6634447fc3c48545a2482718dd3f444928806218`
 - P5-E / PR #44 — Historical Result Workflow, merged at
   `6a0a334d61a7495b9c3433edfcbd537c8df59468`;
 - P5-F / PR #45 — Integration & Performance Hardening, merged at
-  `6634447fc3c48545a2482718dd3f444928806218`.
+  `6634447fc3c48545a2482718dd3f444928806218`;
+- R0 / PR #46 — state reconciliation and executable refactoring program, merged at
+  `a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
 real environment is available. The current active repository program is **R —
 Repository Refactoring & Validation Hardening**; it adds no product behavior.
+R1 **Application Composition** is active on `codex/r1-application-composition`.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).

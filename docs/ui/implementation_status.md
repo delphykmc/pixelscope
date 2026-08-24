@@ -9,7 +9,7 @@ P5-B local Results, P5-C Setup/Jobs/shared-storage UI, P5-D viewer-linked Scene
 inspection, P5-E historical Results, and P5-F repository hardening are merged.
 
 Current merged baseline:
-`6634447fc3c48545a2482718dd3f444928806218`
+`a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`
 
 Completed P5-F characterization:
 [`../P5F_INTEGRATION_CHARACTERIZATION.md`](../P5F_INTEGRATION_CHARACTERIZATION.md).
