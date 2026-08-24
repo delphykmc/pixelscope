@@ -2,7 +2,7 @@
 
 Status: Active — **R4-B implementation validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r4b-smoke-suite-decomposition` / pending
+Branch/PR: `codex/r4b-smoke-suite-decomposition` / #52
 Last updated: 2026-08-24
 
 ## Goal
