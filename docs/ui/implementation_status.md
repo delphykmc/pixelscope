@@ -4,15 +4,16 @@ Status: P4 **Workflow & Session Productivity** is Complete through P4-F / PR #35
 P5 **Remote IQA Platform** is complete through P5-F **Integration & Performance
 Hardening**. P5-G **External GPU/SMB Validation & Closeout** remains deferred as the
 final P5 gate until the environment is available. R **Repository Refactoring &
-Validation Hardening** is the active behavior-preserving repository program.
+Validation Hardening** closeout is independently reviewed on PR #55 with merge pending;
+no repository implementation program is active.
 P5-B local Results, P5-C Setup/Jobs/shared-storage UI, P5-D viewer-linked Scene
 inspection, P5-E historical Results, and P5-F repository hardening are merged.
 
 Current merged baseline:
-`a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`
+`7c3dbe386aaff900f0accc7ce460759df80f14e0`
 
-R1 through R3-A are merged. R3-B clarifies current Session controller versus the legacy
-Comparison Set facade and adds no UI behavior.
+R0 through R6 are merged. R7 is docs-only integration validation and closeout; R adds
+no UI behavior.
 
 Completed P5-F characterization:
 [`../P5F_INTEGRATION_CHARACTERIZATION.md`](../P5F_INTEGRATION_CHARACTERIZATION.md).
@@ -384,7 +385,7 @@ P5-C Setup / Jobs / shared-storage flow   Complete
 P5-D source/spatial Inspect               Complete
 P5-E Recent/historical IQA productivity   Complete — PR #44
 P5-F integration/performance hardening    Complete — PR #45
-R repository/validation hardening         Active — behavior preserving
+R repository/validation hardening         Closeout reviewed — PR #55 merge pending
 P5-G external GPU/SMB validation          Deferred — pending environment access
 ```
 

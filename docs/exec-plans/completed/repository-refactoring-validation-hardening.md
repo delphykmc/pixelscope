@@ -638,8 +638,8 @@ worker contracts, and deferred real GPU/SMB authority.
 Final observed gate: documentation contract PASS; full Windows offscreen pytest
 933 passed with one environment-dependent directory-symlink privilege skip; Ruff
 check/format PASS; mypy PASS for 117 source files; pip check PASS; diff check PASS.
-Interactive window-manager restart placement, the skipped privileged symlink path,
-packaging, and real GPU/SMB remain unverified. Every slice received independent
+Interactive UI, including window-manager restart placement, the skipped privileged
+symlink path, packaging, and real GPU/SMB remain unverified. Every slice received independent
 latest-head review. Owner-authenticated commits used `mc.kang <delphykmc@gmail.com>`
 with `Co-authored-by: ChatGPT <noreply@openai.com>`; GitHub activity used `delphykmc`;
 existing human commits were not rewritten.

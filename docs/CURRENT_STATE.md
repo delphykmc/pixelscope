@@ -39,10 +39,9 @@ Current merged `main`: `7c3dbe386aaff900f0accc7ce460759df80f14e0`
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
-real environment is available. The current active repository program is **R —
-Repository Refactoring & Validation Hardening**; it adds no product behavior.
-R7 **Final Integration Validation and Closeout** is active on
-`codex/r7-refactoring-closeout`.
+real environment is available. R **Repository Refactoring & Validation Hardening**
+closeout is independently reviewed on PR #55 with merge pending; no repository
+implementation program is active. R adds no product behavior.
 
 Current execution pointer:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
