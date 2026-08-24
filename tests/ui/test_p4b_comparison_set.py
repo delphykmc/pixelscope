@@ -16,7 +16,8 @@ from pixelscope.core.comparison_set import (
 )
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.raw_profile import RawProfile
-from pixelscope.ui.comparison_set import SessionControllerBase
+from pixelscope.ui.comparison_set import SessionControllerBase, install_comparison_set
+from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.session import SessionController
 
 
@@ -67,6 +68,22 @@ def test_production_session_and_legacy_facade_ownership(qtbot: object) -> None:
     assert window.recent_entries_controller.session_controller is window.session_controller
     assert window.comparison_set_controller is not window.session_controller
     assert window.comparison_set_controller.repository is window.session_controller.repository
+
+    window.close()
+
+
+def test_legacy_comparison_set_installer_composes_with_recent_entries(
+    qtbot: object,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    session = install_comparison_set(window)
+    recent = install_recent_entries(window)
+
+    assert recent.session_controller is session
+    assert recent.comparison_set_controller is session
+    assert window.comparison_set_controller is session
 
     window.close()
 
