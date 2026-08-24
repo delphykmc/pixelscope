@@ -395,8 +395,8 @@ The authoritative R plan is
 | R4-A | Common UI test fixtures | **Complete — PR #51 · `336a27e5e10e3d5e8d83bc18046bec837daa5b96`** |
 | R4-B | Smoke suite decomposition | **Complete — PR #52 · `39b8c77fbf8a497d2787f33b8e119d2ddbed9604`** |
 | R5 | Windows/offscreen validation hardening | **Complete — PR #53 · `45e718abe28ab600edab41cf04a998029f6fc5f7`** |
-| R6 | Harness and architecture guardrails | **Active** |
-| R7 | Final integration validation and closeout | Planned |
+| R6 | Harness and architecture guardrails | **Complete — PR #54 · `7c3dbe386aaff900f0accc7ce460759df80f14e0`** |
+| R7 | Final integration validation and closeout | **Active** |
 
 ## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 

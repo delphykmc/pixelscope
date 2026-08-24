@@ -696,6 +696,12 @@ tolerance changed.
 
 ## Completion evidence
 
+R7 final integration validation on `main@7c3dbe386aaff900f0accc7ce460759df80f14e0`
+observed the documentation contract pass, `933 passed` with one Windows
+directory-symlink privilege skip in 295.96 seconds, Ruff check/format pass, mypy pass
+for 117 source files, pip check pass, and diff check pass. Independent latest-head
+review remains the R-program closeout gate.
+
 Every agent-assisted change reports:
 
 1. Changed files and purpose.

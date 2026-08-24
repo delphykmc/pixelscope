@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R6 independent review PASS / merge pending**
+Status: Active — **R7 final validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r6-harness-architecture-guardrails` / #54
+Branch/PR: `codex/r7-refactoring-closeout` / pending
 Last updated: 2026-08-24
 
 ## Goal
@@ -310,7 +310,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: deterministic PASS or exact documented environment constraint with
   no hidden failure and independent product-vs-harness review.
 
-### R6 — Harness and architecture guardrails — review PASS / merge pending
+### R6 — Harness and architecture guardrails — Complete / PR #54
 
 - Goal: make stable ownership/status rules mechanically visible and evaluate a bounded
   phase-neutral current-contract versus historical-evidence document structure without
@@ -324,7 +324,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1–R5 reveal stable seams.
 - Merge criterion: each rule has a concrete past failure/drift case and actionable output.
 
-### R7 — Final integration validation and closeout
+### R7 — Final integration validation and closeout — review pending
 
 - Goal: verify all R slices together and leave one accurate repository state.
 - Expected areas: validation evidence and narrow durable closeout updates.
@@ -608,6 +608,16 @@ baseline or environment-dependent debt is never called full PASS.
   passes, Ruff/format/pip/docs/diff PASS, and reported PASS. Full repository pytest,
   mypy, interactive UI, packaging, dynamic imports, and `.pyi` imports remain
   unverified and are not claimed.
+- 2026-08-24: R6 closure head `7d49f49476040e1fbcdb7f8f5f3fad721452c46c`
+  passed final docs-only review, and PR #54 merged at
+  `main@7c3dbe386aaff900f0accc7ce460759df80f14e0`.
+- 2026-08-24: started R7 from the R6 merge and changed no production or test source.
+  Final integration validation observed docs PASS; full Windows offscreen pytest
+  `933 passed, 1 skipped` in 295.96 seconds, where the skip is the retained Windows
+  directory-symlink privilege constraint; Ruff check PASS; Ruff format PASS for 264
+  files; mypy PASS for 117 source files; pip check PASS; and diff check PASS. Owner
+  untracked artifacts remained untouched. Independent latest-whole-head review and
+  docs-only archival closeout remain the final merge gates.
 
 ## Completion summary
 
