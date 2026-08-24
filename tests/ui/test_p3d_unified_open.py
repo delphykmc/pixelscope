@@ -4,7 +4,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from pixelscope.app.main_window import MainWindow
@@ -12,18 +11,7 @@ from pixelscope.io.path_discovery import SUPPORTED_IMAGE_FILTER, ImageInput
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 
-
-@pytest.fixture(autouse=True)
-def isolated_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    settings = QSettings()
-    settings.clear()
-    settings.sync()
+pytestmark = pytest.mark.usefixtures("isolated_synced_qsettings")
 
 
 def _profile(name: str = "sensor") -> RawProfile:

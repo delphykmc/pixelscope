@@ -11,12 +11,7 @@ from pixelscope.app.main_window import MainWindow, SixImageDiffRestoreState
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.multi_compare_view import MultiCompareView
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _documents(count: int) -> list[ImageDocument]:

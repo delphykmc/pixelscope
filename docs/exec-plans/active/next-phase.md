@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R3-B independent review PASS / merge pending**
+Status: Active — **R4-A independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r3b-session-authority`
+Branch/PR: `codex/r4a-common-ui-fixtures` / #51
 Last updated: 2026-08-24
 
 ## Goal
@@ -265,7 +265,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: documented removal rationale, equivalent current-contract coverage,
   and compatibility reviewer PASS; otherwise record and retain it.
 
-### R3-B — Session and legacy boundary clarification — review PASS / merge pending
+### R3-B — Session and legacy boundary clarification — Complete / PR #50
 
 - Goal: make Session v1 authority and legacy Comparison Set adapter ownership explicit.
 - Expected areas: comparison/session modules, facade/call sites, persistence tests/docs.
@@ -276,7 +276,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1; independent of R3-A.
 - Merge criterion: simpler boundary with identical persisted fixtures and reviewer PASS.
 
-### R4-A — Common UI test fixtures
+### R4-A — Common UI test fixtures — review PASS / merge pending
 
 - Goal: centralize behavior-identical QSettings/UI setup without changing test scope.
 - Expected areas: `tests/ui/conftest.py` and affected UI tests.
@@ -506,6 +506,35 @@ baseline or environment-dependent debt is never called full PASS.
   domain/repository byte identity and facade selected-count adaptation remain unchanged.
   The reviewer observed 79 focused tests plus Ruff/format/mypy/docs/diff gates passing
   and reported PASS with no remaining actionable finding. R3-B merge is pending.
+- 2026-08-24: R3-B closure head `27227271defd61f411214aee2594324f3d5da849`
+  passed final docs-only review, and PR #50 merged at
+  `main@6e98baea425f3dfbfacc1140370a77e889673a76`.
+- 2026-08-24: started R4-A from the R3-B merge. The audit classified 28 module-level
+  autouse QSettings fixtures into three behavior-distinct groups: clear under
+  `tmp_path`, clear plus explicit `sync()`, and P5-E clear under
+  `tmp_path / "settings"`. R4-A centralizes those exact operations as opt-in fixtures
+  in `tests/ui/conftest.py`; modules opt in with `pytest.mark.usefixtures`, so the
+  fixture does not broaden to unrelated UI tests. Inline mid-test clears and the
+  P5-D stale-inspection setup remain untouched because their timing or scope differs.
+  A representative pre-change run observed 103 passed and the two known pyqtgraph
+  hover failures; the same selection after migration observed the identical result.
+  The full post-change UI run observed 464 passed and the exact three carried Windows
+  offscreen failures in 273.54 seconds. Repository Ruff check/format and diff check
+  passed. Independent latest-whole-head review remains the merge gate.
+- 2026-08-24: independent review of latest whole head
+  `d1244c294ddd245c9142aaae81e4c1d8f5b6ce47` confirmed the 28 removed module
+  fixtures map one-to-one to 28 opt-in modules; no-sync, explicit-sync, temporary-root,
+  and P5-E settings-subdirectory behavior remain distinct. Node/assertion/
+  parametrization/skip/xfail coverage is unchanged, and the timing-distinct P5-D setup
+  remains local. The reviewer observed 467 collected nodes, then 464 passed plus the
+  exact three carried offscreen failures in 270.75 seconds; Ruff, format, pip, docs,
+  docs-contract, and diff gates passed. One P2 PR-provenance finding requested the
+  actual Git and GitHub account identities. The PR body now records Git author and
+  committer `mc.kang <delphykmc@gmail.com>`, the ChatGPT co-author trailer on every
+  R4-A commit, GitHub CLI account `delphykmc`, and no human-commit rewrite. Body-only
+  re-review confirmed the finding closed and reported PASS. Full repository pytest,
+  mypy, interactive Windows UI, packaging, and real GPU/SMB remain unverified and are
+  not claimed.
 
 ## Completion summary
 

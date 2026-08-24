@@ -1,7 +1,7 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-24
-Current merged `main`: `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`
+Current merged `main`: `6e98baea425f3dfbfacc1140370a77e889673a76`
 
 `main` includes:
 
@@ -26,13 +26,14 @@ Current merged `main`: `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`
   `7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`;
 - R3-A / PR #49 — obsolete pre-P5 Remote scaffold disposition, merged at
   `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`.
+- R3-B / PR #50 — Session and legacy boundary clarification, merged at
+  `6e98baea425f3dfbfacc1140370a77e889673a76`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
 real environment is available. The current active repository program is **R —
 Repository Refactoring & Validation Hardening**; it adds no product behavior.
-R3-B **Session and Legacy Boundary Clarification** is active on
-`codex/r3b-session-authority`.
+R4-A **Common UI Test Fixtures** is active on `codex/r4a-common-ui-fixtures`.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).

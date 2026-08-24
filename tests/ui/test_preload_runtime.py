@@ -6,7 +6,6 @@ from threading import Event, Lock
 import cv2
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
 
 import pixelscope.app.main_window as main_window_module
 from pixelscope.app.main_window import MainWindow
@@ -17,12 +16,7 @@ from pixelscope.io.path_discovery import discover_image_inputs
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.workers.task_worker import TaskWorker
 
-
-@pytest.fixture(autouse=True)
-def isolated_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _write_images(folder: Path, count: int, *, shape: tuple[int, int] = (3, 4)) -> None:

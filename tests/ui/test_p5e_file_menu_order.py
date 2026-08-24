@@ -1,24 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import pytest
-from PySide6.QtCore import QSettings
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path / "settings"),
-    )
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings_subdirectory")
 
 
 def test_file_menu_groups_direct_opens_before_matching_recent_menus(qtbot: Any) -> None:

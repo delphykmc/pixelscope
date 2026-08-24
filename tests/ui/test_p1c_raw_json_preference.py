@@ -14,17 +14,7 @@ from pixelscope.io.raw_profile import RawProfile
 LEGACY_SETTING_KEY = LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY
 
 
-@pytest.fixture(autouse=True)
-def isolated_raw_json_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    settings = QSettings()
-    settings.clear()
-    settings.sync()
+pytestmark = pytest.mark.usefixtures("isolated_synced_qsettings")
 
 
 def _profile() -> RawProfile:

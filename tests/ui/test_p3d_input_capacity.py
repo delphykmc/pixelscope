@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog
 
 from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
@@ -16,18 +16,7 @@ from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.display_gain import install_display_gain_control
 
-
-@pytest.fixture(autouse=True)
-def isolated_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    settings = QSettings()
-    settings.clear()
-    settings.sync()
+pytestmark = pytest.mark.usefixtures("isolated_synced_qsettings")
 
 
 def _ready_documents(tmp_path: Path, count: int) -> list[ImageDocument]:
