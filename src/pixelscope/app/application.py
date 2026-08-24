@@ -110,7 +110,10 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_recent_entries(window)
     install_analysis_export(window)
 
+    # P5-F isolates result/reference/inspection/history file work from the
+    # application pool reserved for local Statistics/Difference calculations.
     result_pool = remote_iqa_thread_pool()
+    window.iqa_controller._pool = result_pool
     transport_pool = ReusableIqaClientPool()
     _compose_remote_iqa(
         window,
@@ -129,10 +132,6 @@ def _compose_remote_iqa(
     transport_pool: ReusableIqaClientPool,
 ) -> None:
     """Install the existing Remote IQA controllers in their dependency order."""
-
-    # P5-F isolates result/reference/inspection/history file work from the
-    # application pool reserved for local Statistics/Difference calculations.
-    window.iqa_controller._pool = result_pool
 
     # P5-C owns submission/jobs and the transport lifetime. Result mapping must wrap
     # settings changes before the later P5-D and P5-E observers extend that chain.

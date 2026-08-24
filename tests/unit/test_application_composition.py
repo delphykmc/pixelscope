@@ -11,7 +11,7 @@ def test_remote_iqa_composition_preserves_explicit_dependency_order(
 ) -> None:
     events: list[str] = []
     result_pool = object()
-    result_controller = SimpleNamespace(_pool=object())
+    result_controller = SimpleNamespace(_pool=result_pool)
     window = SimpleNamespace(iqa_controller=result_controller)
 
     def client_factory(_base_url: str) -> object:
