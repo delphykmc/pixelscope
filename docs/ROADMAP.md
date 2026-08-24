@@ -385,6 +385,12 @@ worker concurrency, or server APIs.
 The authoritative R plan is
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
 
+| Order | Slice | Status |
+|---|---|---|
+| R0 | State reconciliation and executable program | **Complete — PR #46 · `a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`** |
+| R1 | Application composition | **Active** |
+| R2–R7 | Ownership, cleanup, validation, guardrails, closeout | Planned |
+
 ## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 
 P5-G is the final P5 program gate. When the real environment becomes available it will
