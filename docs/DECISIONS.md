@@ -835,7 +835,7 @@ repository program.
 - Existing controller attributes, `MethodType` wrappers, signal reconnections,
   shutdown behavior, debug gating, and UI layout remain unchanged.
 
-### R2 result-pool injection decisions — active
+### R2 result-pool injection decisions — complete / PR #48
 
 - Production constructs the Remote IQA result/file pool before `MainWindow` and injects
   it into P5-B at controller construction time.
@@ -852,6 +852,19 @@ repository program.
 - Fixed max-two Remote IQA result/file and P5-C job pools, local analysis separation,
   lazy HTTP checkout, cancellation, stale-callback, and shutdown semantics are
   unchanged.
+
+### R3-A obsolete Remote scaffold decisions — active
+
+- Remove the initial-release `remote/evaluation_client.py`, `mock_client.py`, and
+  `schemas.py` plus their isolated `tests/unit/test_remote.py`. Repository history and
+  reference inventory show no production/export/canonical-test consumer after their
+  common introduction in `262cd5b`.
+- This is dead-contract removal, not schema-v1 compatibility removal. Historical
+  schema-v1 Result reading remains executable through `test_remote_iqa_v1.py`; canonical
+  job transport remains `/v1/iqa/jobs` in `iqa_client.py` and its P5-C/P5-F tests.
+- Preserve the original `/v1/jobs` sketch in `server/api_contract.md` with an explicit
+  historical/unsupported status and link the server directory to the current durable
+  contract. Do not silently rewrite it as a production server specification.
 
 ## Current resource policy
 
@@ -876,8 +889,8 @@ repository program.
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. R0 merged as PR #46 and R1 merged as
-PR #47. Current main is `808f1e6bccd67e649be71b03798a1a1f407628f8`; R2 is active.
+client work is complete through P5-F / PR #45. R0–R2 merged as PR #46–#48. Current main
+is `7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`; R3-A is active.
 
 Observed P5-C evidence includes:
 

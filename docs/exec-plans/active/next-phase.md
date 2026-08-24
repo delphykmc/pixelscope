@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R2 independent review PASS / merge pending**
+Status: Active — **R3-A implementation/validation complete; independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r2-worker-resource-ownership`
+Branch/PR: `codex/r3a-obsolete-remote-scaffold`
 Last updated: 2026-08-24
 
 ## Goal
@@ -239,7 +239,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: explicit dependency graph with behavior-equivalent focused evidence
   and reviewer confirmation of wrapper/shutdown order.
 
-### R2 — Worker and resource ownership injection — review PASS / merge pending
+### R2 — Worker and resource ownership injection — Complete / PR #48
 
 - Goal: remove private post-construction pool rebinding and state ownership explicitly.
 - Expected areas: P5-B/D/E controller constructors/installers, application Remote IQA
@@ -252,7 +252,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: no controller temporarily owns the wrong pool; exact lifetime tests
   and independent race/ownership review PASS.
 
-### R3-A — Obsolete Remote scaffold disposition
+### R3-A — Obsolete Remote scaffold disposition — review pending
 
 - Goal: eliminate the misleading pre-P5 client only if repository/history evidence
   confirms it has no supported consumer.
@@ -448,6 +448,25 @@ baseline or environment-dependent debt is never called full PASS.
   passing, and reported PASS with no remaining actionable finding. Latest implementer
   broad reruns observed 212 passed, 1 skipped, and 239 deselected for P5/Remote-IQA
   units plus 62 passed and 403 deselected for P5 UI. R2 merge is pending.
+- 2026-08-24: R2 closure head `93a514ad722e7662a396a1f19f142499722490ad`
+  passed final docs-only whole-head review, and PR #48 merged at
+  `main@7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`.
+- 2026-08-24: started R3-A from the R2 merge. All three pre-P5 Remote modules and their
+  sole test originated together in initial release `262cd5b` and had no later history,
+  package export, production import, or consumer outside that isolated test. The same
+  historical `/v1/jobs` sketch also remained in `server/api_contract.md`; it is retained
+  with an explicit historical/unsupported label and canonical-contract link. Pre-change
+  scaffold plus canonical Remote coverage observed 123 passed and import smoke PASS.
+  After removing only the three dead modules and self-only test, canonical focused
+  coverage observed 121 passed, canonical import/legacy absence smoke passed, Remote
+  Ruff passed, and mypy reported no issues in 29 source files. Schema-v1 Result and
+  canonical `/v1/iqa/jobs` contracts remain unchanged.
+- 2026-08-24: expanded latest-head Remote/IQA unit selection observed 212 passed,
+  1 skipped, and 237 deselected. The skip is the existing Windows directory-symlink
+  privilege constraint. Ruff check and format passed for all Remote source plus unit
+  tests, mypy passed all 29 remaining Remote source files, pip check reported no broken
+  requirements, docs checker/contract passed, and diff check passed. No full-suite PASS
+  is claimed; independent compatibility review remains the merge gate.
 
 ## Completion summary
 

@@ -389,8 +389,9 @@ The authoritative R plan is
 |---|---|---|
 | R0 | State reconciliation and executable program | **Complete — PR #46 · `a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`** |
 | R1 | Application composition | **Complete — PR #47 · `808f1e6bccd67e649be71b03798a1a1f407628f8`** |
-| R2 | Worker and resource ownership injection | **Active** |
-| R3–R7 | Cleanup, validation, guardrails, closeout | Planned |
+| R2 | Worker and resource ownership injection | **Complete — PR #48 · `7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`** |
+| R3-A | Obsolete Remote scaffold disposition | **Active** |
+| R3-B–R7 | Cleanup, validation, guardrails, closeout | Planned |
 
 ## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 
