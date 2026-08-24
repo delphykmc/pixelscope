@@ -497,6 +497,11 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
     assert profile_result.channel_names == ("R", "Gr", "Gb", "B")
     assert profile_result.positions[1].tolist() == [1.0, 3.0]
     window._show_plot_tab(1)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.line_profile_panel.plot.isVisible()
+        and window.line_profile_panel.plot.getViewBox().sceneBoundingRect().width() > 0,
+        timeout=3000,
+    )
     hover_position = window.line_profile_panel.plot.getViewBox().mapViewToScene(QPointF(0, 25))
     window.line_profile_panel._on_plot_mouse_moved(hover_position)
     assert window.line_profile_panel._hover_text is not None

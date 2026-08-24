@@ -27,11 +27,14 @@ Completed P5-D contract:
 ## Current shell — implemented
 
 - Main toolbar owns image-view/analysis actions.
-- The presentation-control row owns Layout / Page / Display Gain / Selected N /
+- The presentation-control row owns Layout / Page / Display Gain / ● Picked N /
   Clear Selection / Keep Selection.
 - Files is the catalog/selection surface.
+- Files context menus reuse Open actions and delegate page-local Primary, Multi View,
+  batch image removal, and batch folder removal to existing owners.
 - Analysis contains Statistics and Difference.
-- Plots contains Histogram and Line Profile with dock/floating persistence.
+- Plots contains Histogram and Line Profile with dock/floating persistence and
+  prerequisite-specific centered empty guidance.
 - One IQA dock contains Setup / Jobs / Results and follows the same float/dock/
   maximize/reset workspace pattern as Plots.
 - File menu owns Open Images, Open Folder, Open Session, typed Recent
@@ -78,7 +81,7 @@ analysis work, and are not persisted.
 The presentation row exposes:
 
 ```text
-Layout | Page | Display Gain | Selected N | Clear Selection | Keep Selection
+Layout | Page | Display Gain | ● Picked N | Clear Selection | Keep Selection
 ```
 
 Keep Selection is the only temporary-curation operation that commits Pick state to
@@ -90,6 +93,11 @@ active.
 Current File workflow includes Open Images, Open Folder, Open Session, typed Recent
 Images/Folders/Sessions, and Save Session. Session restore remains a bounded staged
 reconstruction and does not expose runtime arrays/cache state as persistent UI state.
+Open Folder contributes to Recent Folders only when it registers at least one supported
+image; zero-image folder operations leave the MRU unchanged.
+
+Split Channels uses `S`; the IQA workspace uses `Ctrl+Shift+I`. IQA and Plots share the
+same Float/Dock → Maximize/Restore → Close title-bar order.
 
 P5-D Return state is transient and is not added to Session v1. P5-E also does not add
 IQA Result locator/identity, IQA Reference, selected Scene, Provenance, or Inspect state

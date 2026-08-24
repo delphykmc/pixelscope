@@ -41,6 +41,7 @@ from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.session import install_session
+from pixelscope.ui.workflow_polish import install_workflow_polish
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -121,6 +122,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
         transport_pool=transport_pool,
     )
     polish_presentation_controls(window)
+    install_workflow_polish(window, review_controller)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     return gain_control
 

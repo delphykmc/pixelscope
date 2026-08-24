@@ -64,7 +64,7 @@ def test_multi_view_pick_is_direct_and_independent_from_active_and_primary(
 
     viewers = window.multi_compare_view.occupied_viewers
     assert not controller.active
-    assert controller.count_label.text() == "Selected 0"
+    assert controller.count_label.text() == "● Picked 0"
     assert not controller.clear_button.isEnabled()
     assert not controller.keep_button.isEnabled()
     assert all(not viewer.header.pick.isHidden() for viewer in viewers)
@@ -79,7 +79,7 @@ def test_multi_view_pick_is_direct_and_independent_from_active_and_primary(
     assert controller.picked_ids == {documents[1].document_id}
     assert target.header.pick.isChecked()
     assert target.header.pick.text() == "Pick"
-    assert controller.count_label.text() == "Selected 1"
+    assert controller.count_label.text() == "● Picked 1"
     assert controller.clear_button.isEnabled()
     assert controller.keep_button.isEnabled()
     assert window._focus_document_id == primary_id
@@ -103,7 +103,7 @@ def test_single_view_has_no_tile_pick_control(
 
     assert window.central_stack.currentWidget() is window.viewer
     assert window.viewer.header.pick.isHidden()
-    assert controller.count_label.text() == "Selected 0"
+    assert controller.count_label.text() == "● Picked 0"
     assert not controller.active
     window.close()
 
@@ -159,7 +159,7 @@ def test_clear_selection_leaves_selected_page_active_and_primary_unchanged(
     controller.clear_picks()
 
     assert controller.picked_count == 0
-    assert controller.count_label.text() == "Selected 0"
+    assert controller.count_label.text() == "● Picked 0"
     assert not controller.keep_button.isEnabled()
     assert tuple(document.document_id for document in window.selected_documents) == selected_before
     assert window._page_start == page_before
@@ -211,7 +211,7 @@ def test_fifteen_images_keep_first_middle_and_final_page_picks(
         documents[8].document_id,
         documents[14].document_id,
     }
-    assert controller.count_label.text() == "Selected 3"
+    assert controller.count_label.text() == "● Picked 3"
     window.close()
 
 
@@ -243,7 +243,7 @@ def test_keep_selection_filters_baseline_order_and_keeps_nonpicked_registered(
     assert set(window.documents) == {document.document_id for document in documents}
     assert not controller.active
     assert controller.picked_count == 0
-    assert controller.count_label.text() == "Selected 0"
+    assert controller.count_label.text() == "● Picked 0"
     assert [
         viewer.document.document_id
         for viewer in window.multi_compare_view.occupied_viewers

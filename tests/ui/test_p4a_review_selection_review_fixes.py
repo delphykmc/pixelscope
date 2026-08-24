@@ -60,7 +60,7 @@ def test_production_composition_has_no_review_mode_and_unwraps_curation_controls
     assert not controller.active
     assert not hasattr(controller, "mode_button")
     assert not hasattr(controller, "cancel_button")
-    assert controller.count_label.text() == "Selected 0"
+    assert controller.count_label.text() == "● Picked 0"
     assert controller.clear_button.text() == "Clear Selection"
     assert controller.keep_button.text() == "Keep Selection"
 

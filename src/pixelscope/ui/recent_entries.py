@@ -88,11 +88,9 @@ class RecentEntriesController:
             return document_ids
 
         def observed_register_folders(folders: Sequence[Path]) -> Any:
-            supplied = tuple(Path(folder).resolve(strict=False) for folder in folders)
             result = self._register_folders_original(folders)
-            existing = tuple(folder for folder in supplied if folder.is_dir())
-            if existing:
-                self._observe_history(RecentEntryKind.FOLDER, existing)
+            if result.registered_folders:
+                self._observe_history(RecentEntryKind.FOLDER, result.registered_folders)
             return result
 
         self.window._register_inputs = observed_register_inputs

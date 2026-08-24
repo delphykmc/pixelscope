@@ -234,9 +234,9 @@ Split/Difference documents. `kept_selected_ids()` filters baseline order by pick
 membership so application order never depends on pick order.
 
 `ui.review_selection.ReviewSelectionController` owns direct temporary-curation
-orchestration. Production composition adds `Selected N / Clear Selection / Keep
+orchestration. Production composition adds `● Picked N / Clear Selection / Keep
 Selection` after Display Gain in the presentation row; there is no Review Select
-entry control and no user-facing Cancel action. `Selected N` is the temporary Pick
+entry control and no user-facing Cancel action. `● Picked N` is the temporary Pick
 Set count rather than Files logical Selected count.
 
 `TileHeader` owns the explicit stable **Pick** affordance on eligible native-source
@@ -920,6 +920,12 @@ but must not change these lifetime policies.
 presentation/workflow installation stays in `_compose_main_window_presentation`, while
 the Remote IQA feature chain is isolated in `_compose_remote_iqa` with its existing
 application-owned result pool and transport pool passed explicitly.
+
+After Session/Recent/analysis-export and the other local owners are installed,
+`ui.workflow_polish.install_workflow_polish` composes UI-only shortcuts, context-menu
+delegation, dock chrome, stable/expanding label geometry, and empty-state presentation.
+It delegates registration, selection, page-local Primary, removal, Difference, and
+analysis work to the existing owners rather than introducing parallel authorities.
 
 The Remote IQA installation order is a behavior contract, not incidental formatting:
 

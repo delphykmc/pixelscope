@@ -137,9 +137,76 @@ def test_folder_history_is_registration_only_and_history_failure_is_non_authorit
 
     second = tmp_path / "dataset2"
     second.mkdir()
+    (second / "frame.png").write_bytes(b"pending-image")
     monkeypatch.setattr(controller.repository, "record", _raise_recent_failure)
     window.register_folders([second])
     assert [item.document_id for item in window.selected_documents] == [selected.document_id]
+    window.close()
+
+
+def test_zero_image_folder_is_not_added_to_recent_folders(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "notes.txt").write_text("not an image", encoding="utf-8")
+    monkeypatch.setattr(
+        QFileDialog,
+        "getExistingDirectory",
+        lambda *args, **kwargs: str(empty),
+    )
+
+    window.action_map["Open Folder..."].trigger()
+
+    assert window.statusBar().currentMessage() == "No supported images found in 1 folder(s)"
+    assert controller.repository.load(RecentEntryKind.FOLDER) == ()
+    window.close()
+
+
+def test_multi_folder_history_excludes_each_folder_without_supported_images(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    populated = tmp_path / "populated"
+    populated.mkdir()
+    (populated / "frame.png").write_bytes(b"pending-image")
+
+    result = window.register_folders([empty, populated])
+
+    assert result.image_count == 1
+    assert result.registered_folders == (populated.resolve(),)
+    assert controller.repository.load(RecentEntryKind.FOLDER) == (populated.resolve(),)
+    window.close()
+
+
+def test_folder_history_consumes_canonical_result_without_observer_rediscovery(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window = _production_window(qtbot)
+    controller = window.recent_entries_controller
+    folder = tmp_path / "dataset"
+    folder.mkdir()
+    (folder / "frame.png").write_bytes(b"pending-image")
+
+    def fail_rediscovery(*_args: object, **_kwargs: object) -> None:
+        raise OSError("observer must not rescan a successful registration")
+
+    monkeypatch.setattr("pixelscope.ui.recent_entries.discover_image_inputs", fail_rediscovery)
+
+    result = window.register_folders([folder])
+
+    assert result.registered_folders == (folder.resolve(),)
+    assert controller.repository.load(RecentEntryKind.FOLDER) == (folder.resolve(),)
     window.close()
 
 
