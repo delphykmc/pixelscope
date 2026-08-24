@@ -1,8 +1,9 @@
 # P5-D — Viewer-linked Scene Inspection Contract
 
-Status: Active implementation/review
+Status: **Complete — PR #43**
 
 Base authority: `main@24b328d02c0cd56fb79920e069af06d6e4cb706f`
+Merge identity: `main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`
 
 This document freezes the P5-D feature-local contract. It does not replace
 `REMOTE_IQA_CONTRACT.md` or `REMOTE_IQA_V2_SPEC.md`; it specializes those authorities
@@ -455,10 +456,10 @@ git diff --check
 
 Do not record PASS until output from the exact head is observed.
 
-## 16. Owner Windows manual validation
+## 16. Historical owner Windows manual validation gate
 
-Before merge, verify with a production-composed MainWindow and realistic shared/local
-sources:
+The P5-D merge gate required verification with a production-composed MainWindow and
+realistic shared/local sources:
 
 1. open a COMPLETE and PARTIAL schema-v2 Result without changing local Selected;
 2. verify Inspect disabled/rejected for missing locator/root, changed source, and

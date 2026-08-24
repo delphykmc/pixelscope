@@ -856,7 +856,7 @@ server architecture:
 A future real GPU server plugs into the same REST/logical-storage contract rather than
 requiring a separate PixelScope transport architecture.
 
-## P5-C lifetime boundaries — implemented; closeout validation/review pending
+## P5-C lifetime boundaries — complete / PR #42
 
 PR #42 now implements the lifecycle/resource hardening that was previously tracked as
 merge-blocking:
@@ -871,9 +871,25 @@ merge-blocking:
   Folder Pair isolation from Files/Selected/current page/residency/preload.
 
 These guards remain feature-local and do not redesign P2 source residency/preload or
-P5-A2/P5-B numerical/result ownership. Remaining P5-C work is current-head focused
-validation, independent closeout re-review, final full repository validation, and the
-owner merge decision.
+P5-A2/P5-B numerical/result ownership. P5-C merged as PR #42.
+
+## P5-D/P5-E/P5-F composed lifetime boundaries — implemented
+
+P5-D is the only explicit verified native Inspect/Return bridge. P5-E wraps the same
+canonical P5-B open path with bounded historical locator/identity/Provenance state and
+does not acquire Files/Selected authority. P5-F preserves those boundaries while
+separating three resource domains:
+
+- local Statistics/Difference analysis uses the established analysis pool;
+- P5-B Result/Reference, P5-D verification/spatial, and P5-E historical resolution use
+  one application-owned fixed max-two Remote IQA file/result pool;
+- P5-C job operations retain their separate fixed max-two pool.
+
+Production HTTP operations use lazy per-worker physical client checkout. Queued work
+cleared before execution owns no physical client; executing leases drain during
+shutdown. No raw-grid cache, speculative preload, adaptive polling, generalized retry,
+or concurrency-policy change was introduced. R may make injection/composition explicit
+but must not change these lifetime policies.
 
 ## Runtime diagnostics and release boundaries
 

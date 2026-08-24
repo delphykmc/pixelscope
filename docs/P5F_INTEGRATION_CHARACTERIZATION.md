@@ -1,8 +1,9 @@
 # P5-F — Remote IQA Integration & Performance Characterization
 
-Status: **Active — implementation review passed and merge validation disposition recorded**
+Status: **Complete — PR #45**
 
 Implementation base: `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
+Merge identity: `main@6634447fc3c48545a2482718dd3f444928806218`
 
 P5-F is the repository-side Remote IQA integration/hardening slice. It consumes the
 merged P5-A/A2/B/C/D/E authorities without changing IQA numerical meaning, Result
@@ -351,19 +352,18 @@ observations into correctness thresholds unless a concrete regression is later f
 
 ## 11. P5-F merge and P5 closure
 
-P5-F remains Active while PR #45 is unmerged. After exact-head owner revalidation,
-independent latest-head review, and owner approval, P5-F may merge and be marked
-**P5-F Complete**.
+P5-F passed independent latest-head review and merged as PR #45 at
+`main@6634447fc3c48545a2482718dd3f444928806218`. P5-F is **Complete**.
 
-That merge does **not** mark the overall P5 program Complete. The active P5 plan then
-moves to **P5-G — External GPU/SMB Validation & Closeout**, pending real environment
-access.
+That merge does **not** mark the overall P5 program Complete. P5-G — External GPU/SMB
+Validation & Closeout remains deferred pending real environment access in
+[`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 Only after P5-G observes the real external gate may the repository:
 
 1. record final P5-G evidence/identity;
 2. mark P5 Remote IQA Platform Complete;
-3. archive the active P5 plan under `docs/exec-plans/completed/`;
+3. archive the P5-G plan under `docs/exec-plans/completed/`;
 4. make P6 **Identity, Access & Remote Operations** the active/next program.
 
 P6/P7 implementation is outside this branch.

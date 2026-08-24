@@ -73,9 +73,11 @@ Deferred from P4:
 ## Forward sequence
 
 ```text
-P5 Remote IQA Platform
+P5 Remote IQA Platform complete through P5-F
     ↓
-P5-G External GPU/SMB Validation & Closeout
+R Repository Refactoring & Validation Hardening
+    ↓
+P5-G External GPU/SMB Validation & Closeout when environment is available
     ↓
 P6 Identity, Access & Remote Operations
     ↓
@@ -191,8 +193,8 @@ P5-0
 | 4 | P5-C Submission & Shared Storage | **Complete — PR #42** |
 | 5 | P5-D Viewer-linked Scene Inspection | **Complete — PR #43 · `b086443d188eb9daae4bbf4f0faab3ff1d114f93`** |
 | 6 | P5-E Historical Result Workflow | **Complete — PR #44 · `6a0a334d61a7495b9c3433edfcbd537c8df59468`** |
-| 7 | P5-F Integration & Performance Hardening | **Active — Draft PR #45** |
-| 8 | P5-G External GPU/SMB Validation & Closeout | **Planned — pending environment access** |
+| 7 | P5-F Integration & Performance Hardening | **Complete — PR #45 · `6634447fc3c48545a2482718dd3f444928806218`** |
+| 8 | P5-G External GPU/SMB Validation & Closeout | **Deferred — pending environment access** |
 
 ## P5-0 / P5-A / P5-A2 — Complete
 
@@ -345,7 +347,7 @@ P5-E merged as PR #44 at
 `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`. Its validation evidence is historical
 P5-E evidence and is not inferred as P5-F validation.
 
-## P5-F — Integration & Performance Hardening — Active
+## P5-F — Integration & Performance Hardening — Complete
 
 P5-F owns the repository-side hardening that is testable without the real external
 GPU/SMB environment:
@@ -366,11 +368,24 @@ No raw-grid cache, speculative preload, adaptive polling, generalized retry, new
 performance Settings, WebSocket, or optional detail viewer is introduced without real
 evidence. No fixed wall-clock number is a correctness gate.
 
-P5-F can be merge-recommended after exact-head local validation and independent review
-without pretending that the unavailable external environment has passed. Its merge may
-mark **P5-F** Complete, but the overall **P5 program remains Active**.
+P5-F merged as PR #45 at
+`main@6634447fc3c48545a2482718dd3f444928806218` after exact-head local validation and
+independent review. The unavailable external environment was not treated as PASS, so
+the overall **P5 program remains Active**.
 
-## P5-G — External GPU/SMB Validation & Closeout — Planned / pending environment access
+## R — Repository Refactoring & Validation Hardening — Active
+
+R is a behavior-preserving repository program between repository-side P5-F completion
+and production-shaped P5-G integration. It owns small independently reviewed slices for
+composition, resource ownership, targeted structural/test cleanup, offscreen validation
+debt, and harness/documentation hardening. It does not change user-visible behavior,
+schema, Session format, numerical semantics, source/residency policy, retry/polling,
+worker concurrency, or server APIs.
+
+The authoritative R plan is
+[`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
+
+## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 
 P5-G is the final P5 program gate. When the real environment becomes available it will
 validate:
@@ -388,6 +403,9 @@ validate:
 Only observed real-server/SMB evidence may be recorded as PASS. Any follow-up
 optimization remains measurement-backed and bounded. P5-G performs the final P5 docs
 closeout and activates P6 only after the external gate is actually observed.
+
+The authoritative deferred gate is
+[`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 # P6 — Identity, Access & Remote Operations — Planned / next after P5 closure
 

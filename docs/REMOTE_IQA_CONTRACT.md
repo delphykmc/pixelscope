@@ -1,8 +1,8 @@
 # Remote IQA contract
 
-Status: P5 durable contract — executable schema-v2 + P5-C/P5-D merged + P5-E historical workflow active
+Status: P5 durable contract — repository client complete through P5-F; P5-G external validation deferred
 Owner: PixelScope P5 program + external IQA server contract
-Established: P5-0; numerical ownership revised by PR #39; P5-C transport/storage/failure contract frozen in PR #42; P5-D native inspection frozen in PR #43
+Established: P5-0; numerical ownership revised by PR #39; P5-C transport/storage/failure contract frozen in PR #42; P5-D native inspection frozen in PR #43; P5-E history frozen in PR #44; P5-F lifetime hardening merged in PR #45
 
 This document defines the stable product/architecture boundary for PixelScope P5.
 The external GPU IQA implementation lives in a separate repository. PixelScope
@@ -514,8 +514,9 @@ explicit historical/read-only with no invented v2 metadata.
 
 P5-B / PR #38 owns the one canonical Result parser/controller/workspace. P5-C / PR #42
 extends the same IQA dock with Setup/Jobs. P5-D / PR #43 composes verified explicit
-native Inspect/Return on top. P5-E / Draft PR #44 extends the same open path with bounded
-historical discovery and Provenance.
+native Inspect/Return on top. P5-E / PR #44 extends the same open path with bounded
+historical discovery and Provenance. P5-F / PR #45 preserves those authorities while
+hardening bounded worker and transport lifetime ownership.
 
 Current sequence is:
 
@@ -530,9 +531,13 @@ P5-C submission/shared-storage client merged (#42)
     ↓
 P5-D viewer-linked Scene inspection merged (#43)
     ↓
-P5-E historical Result workflow active (Draft #44)
+P5-E historical Result workflow merged (#44)
     ↓
-P5-F real-server/performance hardening planned
+P5-F repository integration/lifetime hardening merged (#45)
+    ↓
+R behavior-preserving repository/validation hardening active
+    ↓
+P5-G external GPU/SMB validation deferred until environment access
 ```
 
 If original images disappear, server result summaries and measurement artifacts remain

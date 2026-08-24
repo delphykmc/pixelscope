@@ -1,7 +1,7 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-24
-Current merged `main`: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
+Current merged `main`: `6634447fc3c48545a2482718dd3f444928806218`
 
 `main` includes:
 
@@ -15,12 +15,14 @@ Current merged `main`: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
 - P5-D / PR #43 — Viewer-linked Scene Inspection, merged at
   `b086443d188eb9daae4bbf4f0faab3ff1d114f93`;
 - P5-E / PR #44 — Historical Result Workflow, merged at
-  `6a0a334d61a7495b9c3433edfcbd537c8df59468`.
+  `6a0a334d61a7495b9c3433edfcbd537c8df59468`;
+- P5-F / PR #45 — Integration & Performance Hardening, merged at
+  `6634447fc3c48545a2482718dd3f444928806218`.
 
-P5 **Remote IQA Platform** is currently Active in **P5-F — Remote IQA Integration &
-Performance Hardening** on `feature/p5-f-integration-performance-hardening`. P5-G
-**External GPU/SMB Validation & Closeout** is the planned final P5 gate once the real
-environment is available.
+P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
+P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
+real environment is available. The current active repository program is **R —
+Repository Refactoring & Validation Hardening**; it adds no product behavior.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -39,6 +41,9 @@ P5-E historical-result contract:
 
 P5-F integration characterization:
 [`P5F_INTEGRATION_CHARACTERIZATION.md`](P5F_INTEGRATION_CHARACTERIZATION.md).
+
+Deferred P5-G external validation plan:
+[`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 Historical schema-v1 compatibility contract:
 [`REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
@@ -401,7 +406,7 @@ Its exact durable contract is
 [`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md). P5-E validation remains
 historical evidence only.
 
-## P5-F active repository-side hardening state
+## P5-F completed repository-side hardening state
 
 P5-F follows **measure before optimizing** but is now explicitly scoped to evidence that
 can be obtained without the unavailable real GPU/SMB environment.
@@ -427,22 +432,23 @@ leases drain after shutdown.
 No raw-grid cache, grid preload, adaptive polling, generalized retry, new user Settings,
 WebSocket, or optional detail viewer is added without real-environment evidence.
 
-Owner validation on implementation head
+Historical owner validation on implementation head
 `f9a81b008d660405fc01e775607d78a91676093e` records focused P5-F, docs, Ruff,
 mypy, pip, and diff PASS. Full Windows offscreen pytest records 925 passed, 1 skipped,
 and three Qt/pyqtgraph UI failures. Those exact three nodes reproduce identically on
 implementation base `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
 under the same environment (`3 failed in 8.72s`), satisfying the independent review's
 requested baseline comparison. They are pre-existing/offscreen validation debt rather
-than a P5-F regression. No
-full-suite PASS is claimed. Independent implementation/architecture review is PASS;
-owner merge approval remains pending.
+than a P5-F regression. No full-suite PASS is claimed. Independent implementation and
+architecture review passed, and P5-F merged as PR #45 at
+`main@6634447fc3c48545a2482718dd3f444928806218`.
 
-## P5-G planned external validation state
+## P5-G deferred external validation state
 
 P5-G **External GPU/SMB Validation & Closeout** is the final P5 program gate and is
-blocked only by realistic environment availability, not by missing repository-side
-implementation.
+deferred for realistic environment availability, not because repository-side client
+implementation is missing. Its authoritative deferred execution plan is
+[`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 It will validate the real external GPU API/result writer, mapped/shared storage,
 Current Pair/Folder Pair, COMPLETE/PARTIAL, cancel/completion races, historical reopen,
@@ -455,9 +461,9 @@ No real GPU/SMB PASS has been observed or claimed.
 ## Forward sequence
 
 ```text
-P5-F Integration & Performance Hardening
+R Repository Refactoring & Validation Hardening
     ↓
-P5-G External GPU/SMB Validation & Closeout
+P5-G External GPU/SMB Validation & Closeout when the environment is available
     ↓
 P5 Complete
     ↓

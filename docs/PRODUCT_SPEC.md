@@ -389,8 +389,9 @@ workspace unchanged. No new generic export framework is added.
 P5-A2 schema v2 is the executable result contract. P5-B / PR #38 owns the canonical
 local result workspace. P5-C / PR #42 is merged and owns remote Setup, Jobs, logical
 shared-storage mappings, submission, PARTIAL results, and explicit Open Result. P5-D
-adds explicit viewer-linked native Scene inspection on top of those existing
-authorities; it does not create a second result parser or local source workspace.
+adds explicit viewer-linked native Scene inspection, P5-E adds historical reopen and
+Provenance, and P5-F hardens worker/transport lifetimes on top of those existing
+authorities. None creates a second result parser or local source workspace.
 
 The product surface remains one non-modal IQA workspace:
 
@@ -811,20 +812,15 @@ analysis are outside the current product contract.
 P3 — Image Semantics & RAW Processing and P4 — Workflow & Session Productivity are
 Complete. P5-0 / PR #36, P5-A schema-v1 / PR #37, P5-A2 durable/executable schema-v2
 / PR #39/#40, P5-B IQA Workspace / PR #38, and P5-C Submission & Shared Storage /
-PR #42 are merged. Current merged main is
-`24b328d02c0cd56fb79920e069af06d6e4cb706f`.
+PR #42, P5-D Viewer-linked Scene Inspection / PR #43, P5-E Historical Result Workflow /
+PR #44, and P5-F Integration & Performance Hardening / PR #45 are merged. Current
+merged main is `6634447fc3c48545a2482718dd3f444928806218`.
 
-P5-D **Viewer-linked Scene Inspection** is Active in Draft PR #43. The implementation
-adds explicit hash-bound native Inspect/Return, source-locator/root verification,
-repeated-source variant aliasing with active spatial alias selection, viewer-linked
-spatial grids, Block Inspector, and stale-intent/root-remap guards. Exact-head
-focused/full validation, Windows manual validation, and independent latest-head
-re-review remain required before P5-D can be marked Complete or merged.
-
-P5-E then adds historical/recent result productivity, and P5-F owns real external-
-server/shared-storage integration and measured performance/lifetime hardening. P6 owns
-identity, access, credentials, permission, and remote operations. P7 owns release
-engineering and distribution.
+The active R program is behavior-preserving repository/validation hardening. P5-G owns
+the still-unobserved real external-server/shared-storage validation and final P5
+closeout when that environment becomes available. P6 owns identity, access,
+credentials, permission, and remote operations. P7 owns release engineering and
+distribution.
 
 The earlier reusable Profile Library/suggestion plan remains deferred. It should
 return only if actual workflow evidence justifies persistent profile management or

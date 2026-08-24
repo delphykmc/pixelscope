@@ -637,13 +637,15 @@ P4-F merged as PR #35; the P4-complete main baseline is
 - P4-D Saved/named/multiple ROI, Alpha Overlay/Flicker/Wipe, and arbitrary-angle
   Line Profile remain deferred beyond P4.
 
-## P5 Remote IQA decisions — executable schema v2 / P5-C active
+## P5 Remote IQA decisions — executable schema v2 / client complete through P5-F
 
 P5-0 / PR #36 established the program. P5-A / PR #37 is the historical executable
 schema-v1 baseline. P5-A2 Stage 1 / PR #39 established the durable schema-v2 model;
 Stage 2 / PR #40 is the executable schema-v2 authority. P5-B / PR #38 is merged at
 `a44978db783ebcecb0d55f8abb52b583e0fdc47c` and owns the canonical local Results
-workspace. P5-C / PR #42 is the active submission/shared-storage slice.
+workspace. P5-C / PR #42, P5-D / PR #43, P5-E / PR #44, and P5-F / PR #45 are merged.
+P5-G remains an unobserved external validation gate; R is the active behavior-preserving
+repository program.
 
 `docs/REMOTE_IQA_CONTRACT.md` is the product/transport ownership authority.
 `docs/REMOTE_IQA_V2_SPEC.md` is the current numerical/artifact authority.
@@ -658,8 +660,8 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
   membership, and machine-local root mappings do not become Session/source/
   residency/preload/Difference authority.
 - Passive IQA result browsing does not mutate Files/Selected/Primary/native analysis.
-- Native source Inspect remains a later P5-D logical-root/hash/canonical-registration
-  action rather than direct use of result `relative_path`.
+- Native source Inspect remains the explicit P5-D logical-root/hash/canonical-
+  registration action rather than direct use of result `relative_path`.
 
 ### Executable version/result decisions
 
@@ -792,7 +794,7 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
   only. It returns references to deterministic fake results and performs no IQA
   computation.
 
-### P5-C lifecycle decisions — implemented; closeout validation/review pending
+### P5-C lifecycle decisions — complete / PR #42
 
 - Cooperative cancellation reaches running preflight/hash/staging work and checks
   again immediately before create POST.
@@ -806,9 +808,20 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
 - Production-composition regressions assert Current Pair A/B remains underlying page
   order across Primary/Active presentation changes and Folder Pair preparation does
   not mutate Files/Selected/current page/residency/preload.
-- These implementation decisions are complete. PR #42 still requires current-head
-  focused/static validation, independent closeout re-review, final full validation,
-  and owner merge approval before P5-D starts.
+- These implementation decisions are complete and merged in PR #42.
+
+### P5-D/P5-E/P5-F lifetime decisions — complete
+
+- P5-D alone owns explicit verified native Inspect/Return; P5-E historical reopen is
+  passive until that explicit transition.
+- P5-B Result/Reference, P5-D verification/spatial, and P5-E historical resolution use
+  one application-owned fixed max-two Remote IQA file/result pool, separate from local
+  analysis and the existing P5-C max-two job-operation pool.
+- HTTP client reuse uses lazy physical checkout inside executing P5-C workers. Queued
+  work cleared before execution owns no physical client; shutdown drains executing
+  leases.
+- R may clarify construction, dependency, and shutdown seams but may not change these
+  pool counts, retry/polling, cancellation, or stale-callback semantics.
 
 ## Current resource policy
 
@@ -827,16 +840,14 @@ workspace. P5-C / PR #42 is the active submission/shared-storage slice.
   Remote IQA result membership introduce no Selected-wide speculative
   preload/cache/residency owner.
 - P5-B Reference-grid preparation and P5-C transport/staging workers are feature-local
-  and do not alter decoded source residency ownership. Final result-grid/network
-  cache/preload tuning remains P5-F.
+  and do not alter decoded source residency ownership. P5-F added no result-grid cache
+  or preload; any later tuning requires measured P5-G evidence and review.
 
 ## Validation and merge state
 
-P3 is Complete through PR #27. P4 is Complete through PR #35. P5-0 / PR #36,
-P5-A / PR #37, P5-A2 / PR #39/#40, and P5-B / PR #38 are merged. Current main is
-`ad3721e28b759e75d8e0f4a28b003a4dd22f0f4a` after PR #41 formatting baseline.
-
-P5-C / PR #42 remains Draft.
+P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
+client work is complete through P5-F / PR #45. Current main is
+`6634447fc3c48545a2482718dd3f444928806218`.
 
 Observed P5-C evidence includes:
 
@@ -856,9 +867,9 @@ Observed P5-C evidence includes:
 
 Independent whole-PR review at `177078f...` confirmed the earlier architecture
 blockers closed and requested only narrow preview-lifecycle, authority-regression,
-and stale-status-doc closeout. The code/test part is implemented by `70b7b6d...`;
-current-head PASS is not yet claimed. Required next steps are focused/static owner
-validation, independent closeout re-review, final full repository validation, and the
-owner merge decision.
+and stale-status-doc closeout. That evidence is historical P5-C evidence; PR #42 later
+merged. P5-D/E/F subsequently merged as PR #43/#44/#45. Their exact evidence remains in
+the corresponding durable contracts/characterization and is not inferred as current R
+validation.
 
 Only validation actually observed for a named head may be recorded as PASS.

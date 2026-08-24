@@ -10,7 +10,7 @@ knowledge belongs in focused documents under `docs/`.
 | Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
 | User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `ui/` note | Behavior, terminology, shortcut, or workflow changes |
 | Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
-| Remote IQA result/schema/submission work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, active P5 plan | Measurement/comparison ownership, storage/request/job identity, result schema, summaries/grids, loading boundaries, or P5 sequencing change |
+| Remote IQA result/schema/submission work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, current/deferred execution plan as applicable | Measurement/comparison ownership, storage/request/job identity, result schema, summaries/grids, loading boundaries, or P5 sequencing change |
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
@@ -46,12 +46,19 @@ knowledge belongs in focused documents under `docs/`.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
-- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current P5-C
-  execution/closeout plan; it is the required active execution plan.
+- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current
+  Repository Refactoring & Validation Hardening program; it is the required active
+  execution plan.
+- [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md):
+  authoritative unobserved external GPU/SMB validation and final P5 closeout gate.
+- [`exec-plans/completed/p5-remote-iqa-platform-through-p5f.md`](exec-plans/completed/p5-remote-iqa-platform-through-p5f.md):
+  retained P5 program rationale and repository-side closure through P5-F / PR #45.
 - [`exec-plans/completed/p5-schema-v2-revision.md`](exec-plans/completed/p5-schema-v2-revision.md):
   retained rationale/closure record for the completed P5-A2 schema-v2 interruption.
 - [`exec-plans/completed/p1-d-to-p1-f-workspace-polish.md`](exec-plans/completed/p1-d-to-p1-f-workspace-polish.md): retained P1 workspace-polish rationale and completion evidence.
 - `exec-plans/completed/`: retained plans whose rationale remains useful.
+- `exec-plans/deferred/`: executable future plans blocked by explicit environment or
+  authority prerequisites; deferred status is not PASS.
 - `exec-plans/TEMPLATE.md`: standard long-work format.
 
 ## Maintenance rules
@@ -67,8 +74,9 @@ knowledge belongs in focused documents under `docs/`.
    removal condition.
 8. Use an execution plan when work crosses components, has unresolved design
    choices, or is likely to span multiple commits or sessions.
-9. Move substantial completed plans to `exec-plans/completed/` and keep the
-   required active plan at `exec-plans/active/next-phase.md`.
+9. Move substantial completed plans to `exec-plans/completed/`, keep unavailable but
+   still-authoritative work in `exec-plans/deferred/`, and keep the required current
+   plan at `exec-plans/active/next-phase.md`.
 
 ## Mechanical documentation check
 
