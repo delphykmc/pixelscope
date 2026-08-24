@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R6 implementation validation complete / independent review pending**
+Status: Active — **R6 independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r6-harness-architecture-guardrails` / #54
 Last updated: 2026-08-24
@@ -310,7 +310,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: deterministic PASS or exact documented environment constraint with
   no hidden failure and independent product-vs-harness review.
 
-### R6 — Harness and architecture guardrails — review pending
+### R6 — Harness and architecture guardrails — review PASS / merge pending
 
 - Goal: make stable ownership/status rules mechanically visible and evaluate a bounded
   phase-neutral current-contract versus historical-evidence document structure without
@@ -598,6 +598,16 @@ baseline or environment-dependent debt is never called full PASS.
   would churn roughly twenty durable links. `docs/index.md` now makes their current
   contract versus closure-evidence roles explicit. No production source or document was
   moved. Independent latest-whole-head review remains the merge gate.
+- 2026-08-24: independent review of R6 found one P2 semantic drift: QUALITY still
+  described R5 review as pending after PR #53 merged. QUALITY now records the actual
+  independent PASS and merge SHA. Latest whole-head re-review at
+  `d1d277c445e76599608fd4386f76282e7de61d65` confirmed the finding closed, the
+  guardrail catches direct/submodule/from imports for both forbidden frameworks, and
+  the bounded document-retention decision preserves authority and history. The reviewer
+  observed 451 unit passes with one environment-dependent symlink skip, focused 3
+  passes, Ruff/format/pip/docs/diff PASS, and reported PASS. Full repository pytest,
+  mypy, interactive UI, packaging, dynamic imports, and `.pyi` imports remain
+  unverified and are not claimed.
 
 ## Completion summary
 
