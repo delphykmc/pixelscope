@@ -6,12 +6,61 @@ from typing import Any
 import pixelscope.app.application as application_module
 
 
+def test_main_injects_result_pool_before_composition(monkeypatch: Any) -> None:
+    events: list[str] = []
+    result_pool = object()
+    repository = object()
+    application_settings = object()
+    performance_settings = object()
+    icon = object()
+    window = SimpleNamespace(
+        setWindowIcon=lambda value: events.append(f"icon:{value is icon}"),
+        show=lambda: events.append("show"),
+    )
+    app = SimpleNamespace(windowIcon=lambda: icon, exec=lambda: 17)
+
+    def build_window(
+        application_settings_arg: object,
+        performance_settings_arg: object,
+        repository_arg: object,
+        *,
+        iqa_result_pool: object,
+    ) -> object:
+        assert application_settings_arg is application_settings
+        assert performance_settings_arg is performance_settings
+        assert repository_arg is repository
+        assert iqa_result_pool is result_pool
+        events.append("window")
+        return window
+
+    def compose(window_arg: object) -> None:
+        assert window_arg is window
+        events.append("compose")
+
+    monkeypatch.setattr(application_module, "create_application", lambda _args: app)
+    monkeypatch.setattr(
+        application_module,
+        "load_startup_settings",
+        lambda: (repository, application_settings, performance_settings),
+    )
+    monkeypatch.setattr(
+        application_module,
+        "remote_iqa_thread_pool",
+        lambda: result_pool,
+    )
+    monkeypatch.setattr(application_module, "MainWindow", build_window)
+    monkeypatch.setattr(application_module, "_compose_main_window_presentation", compose)
+
+    assert application_module.main([]) == 17
+    assert events == ["window", "compose", "icon:True", "show"]
+
+
 def test_remote_iqa_composition_preserves_explicit_dependency_order(
     monkeypatch: Any,
 ) -> None:
     events: list[str] = []
     result_pool = object()
-    result_controller = SimpleNamespace(_pool=result_pool)
+    result_controller = SimpleNamespace(pool=result_pool)
     window = SimpleNamespace(iqa_controller=result_controller)
 
     def client_factory(_base_url: str) -> object:
@@ -20,8 +69,8 @@ def test_remote_iqa_composition_preserves_explicit_dependency_order(
     transport_pool = SimpleNamespace(client=client_factory)
     remote_workspace = object()
     remote_controller = SimpleNamespace(workspace=remote_workspace)
-    inspection_controller = SimpleNamespace(_pool=object())
-    historical_controller = SimpleNamespace(_pool=object())
+    inspection_controller = SimpleNamespace(pool=result_pool)
+    historical_controller = SimpleNamespace(pool=result_pool)
 
     def install_remote_iqa(window_arg: object, *, client_factory: object) -> object:
         assert window_arg is window
@@ -51,13 +100,15 @@ def test_remote_iqa_composition_preserves_explicit_dependency_order(
         assert workspace_arg is remote_workspace
         events.append("setup_presentation")
 
-    def install_inspection(window_arg: object) -> object:
+    def install_inspection(window_arg: object, *, pool: object) -> object:
         assert window_arg is window
+        assert pool is result_pool
         events.append("inspection")
         return inspection_controller
 
-    def install_historical(window_arg: object) -> object:
+    def install_historical(window_arg: object, *, pool: object) -> object:
         assert window_arg is window
+        assert pool is result_pool
         events.append("historical")
         return historical_controller
 
@@ -135,6 +186,6 @@ def test_remote_iqa_composition_preserves_explicit_dependency_order(
         "historical_lifecycle",
     ]
     assert window.remote_iqa_transport_pool is transport_pool
-    assert result_controller._pool is result_pool
-    assert inspection_controller._pool is result_pool
-    assert historical_controller._pool is result_pool
+    assert result_controller.pool is result_pool
+    assert inspection_controller.pool is result_pool
+    assert historical_controller.pool is result_pool

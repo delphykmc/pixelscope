@@ -9,7 +9,7 @@ from pathlib import Path
 from types import MethodType
 from typing import Any, cast
 
-from PySide6.QtCore import QObject, QSettings, Slot
+from PySide6.QtCore import QObject, QSettings, QThreadPool, Slot
 from PySide6.QtWidgets import (
     QLabel,
     QMenu,
@@ -257,21 +257,26 @@ class IqaProvenancePanel(QWidget):
 class HistoricalIqaResultsController(QObject):
     """Put logical/local history ahead of P5-B while consuming P5-D teardown."""
 
-    def __init__(self, window: Any, repository: RecentIqaResultsRepository) -> None:
+    def __init__(
+        self,
+        window: Any,
+        repository: RecentIqaResultsRepository,
+        *,
+        pool: QThreadPool | None = None,
+    ) -> None:
         super().__init__(window)
         self.window = window
         self.repository = repository
         self.result_controller = window.iqa_controller
         self.workspace = window.iqa_workspace
         self.remote_controller = window.remote_iqa_controller
-        self._pool = analysis_thread_pool()
+        self._pool = pool if pool is not None else analysis_thread_pool()
         self._active = True
         self._pending: dict[int, _PendingOpen] = {}
         self._resolve_generation = 0
         self._resolver: TaskWorker | None = None
         self._resolver_entry: RecentIqaResultEntry | None = None
         self._job_open_context: tuple[Path, LogicalIqaResultLocator] | None = None
-
         self.provenance = IqaProvenancePanel(self.workspace)
         self.workspace.pages.addTab(self.provenance, "Provenance")
         self.workspace.scene_requested.connect(self._scene_requested)
@@ -292,6 +297,12 @@ class HistoricalIqaResultsController(QObject):
         self._install_inspect_observer()
         self.result_controller.outcome_ready.connect(self._result_outcome)
         self.refresh_menu()
+
+    @property
+    def pool(self) -> QThreadPool:
+        """Return the worker pool fixed when this controller was constructed."""
+
+        return self._pool
 
     def _install_open_guard(self) -> None:
         def present(_controller: Any, value: object) -> VersionedResultLoadOutcome:
@@ -693,6 +704,8 @@ def _loaded_result(value: object) -> Result | ResultV2 | None:
 def install_historical_iqa_results(
     window: Any,
     repository: RecentIqaResultsRepository | None = None,
+    *,
+    pool: QThreadPool | None = None,
 ) -> HistoricalIqaResultsController:
     """Install after P5-D so every historical open consumes canonical teardown."""
 
@@ -704,6 +717,6 @@ def install_historical_iqa_results(
     settings = getattr(window, "settings", None)
     qsettings = settings if isinstance(settings, QSettings) else QSettings()
     repo = repository or RecentIqaResultsRepository(QSettingsAdapter(qsettings))
-    controller = HistoricalIqaResultsController(window, repo)
+    controller = HistoricalIqaResultsController(window, repo, pool=pool)
     window.historical_iqa_results_controller = controller
     return controller

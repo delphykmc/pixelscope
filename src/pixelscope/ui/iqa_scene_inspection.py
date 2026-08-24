@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from PySide6.QtCore import QObject, QPointF, QRectF, Qt, Slot
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QThreadPool, Slot
 from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QComboBox,
@@ -171,12 +171,12 @@ def _overlay_color(value: float, minimum: float, maximum: float) -> QColor:
 class IqaSceneInspectionController(QObject):
     """Compose explicit IQA Scene Inspect/Return with the canonical MainWindow workflow."""
 
-    def __init__(self, window: Any) -> None:
+    def __init__(self, window: Any, *, pool: QThreadPool | None = None) -> None:
         super().__init__(window)
         self.window = window
         self.workspace = window.iqa_workspace
         self.result_controller = window.iqa_controller
-        self._pool = analysis_thread_pool()
+        self._pool = pool if pool is not None else analysis_thread_pool()
         self._active = True
         self._result_opening = False
         self._inspect_generation = 0
@@ -206,6 +206,12 @@ class IqaSceneInspectionController(QObject):
         self._connect_workspace()
         self._connect_viewers()
         self._sync_controls()
+
+    @property
+    def pool(self) -> QThreadPool:
+        """Return the worker pool fixed when this controller was constructed."""
+
+        return self._pool
 
     @property
     def return_valid(self) -> bool:
@@ -943,12 +949,16 @@ class IqaSceneInspectionController(QObject):
         return (self.window.viewer, *tuple(self.window.multi_compare_view.viewers))
 
 
-def install_iqa_scene_inspection(window: Any) -> IqaSceneInspectionController:
+def install_iqa_scene_inspection(
+    window: Any,
+    *,
+    pool: QThreadPool | None = None,
+) -> IqaSceneInspectionController:
     """Install P5-D viewer-linked Scene inspection once per production MainWindow."""
 
     existing = getattr(window, "iqa_scene_inspection_controller", None)
     if isinstance(existing, IqaSceneInspectionController):
         return existing
-    controller = IqaSceneInspectionController(window)
+    controller = IqaSceneInspectionController(window, pool=pool)
     window.iqa_scene_inspection_controller = controller
     return controller

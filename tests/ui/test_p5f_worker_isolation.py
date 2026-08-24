@@ -56,17 +56,17 @@ def test_remote_iqa_pool_is_distinct_and_bounded(qtbot: object) -> None:
 def test_production_composition_binds_only_result_side_work_to_remote_iqa_pool(
     qtbot: object,
 ) -> None:
-    window = MainWindow()
+    remote = remote_iqa_thread_pool()
+    window = MainWindow(iqa_result_pool=remote)
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     _compose_main_window_presentation(window)
 
-    remote = remote_iqa_thread_pool()
     local_analysis = analysis_thread_pool()
     job_pool = window.remote_iqa_controller._pool
 
-    assert window.iqa_controller._pool is remote
-    assert window.iqa_scene_inspection_controller._pool is remote
-    assert window.historical_iqa_results_controller._pool is remote
+    assert window.iqa_controller.pool is remote
+    assert window.iqa_scene_inspection_controller.pool is remote
+    assert window.historical_iqa_results_controller.pool is remote
     assert job_pool is not remote
     assert job_pool is not local_analysis
     assert job_pool.maxThreadCount() == 2

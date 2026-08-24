@@ -110,10 +110,9 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_recent_entries(window)
     install_analysis_export(window)
 
-    # P5-F isolates result/reference/inspection/history file work from the
-    # application pool reserved for local Statistics/Difference calculations.
-    result_pool = remote_iqa_thread_pool()
-    window.iqa_controller._pool = result_pool
+    # Production injects the P5-F result/file pool when constructing MainWindow.
+    # The same dependency is forwarded to later result-side controllers here.
+    result_pool = window.iqa_controller.pool
     transport_pool = ReusableIqaClientPool()
     _compose_remote_iqa(
         window,
@@ -152,13 +151,11 @@ def _compose_remote_iqa(
 
     # P5-D owns the only native Inspect bridge and consumes the already-hardened
     # P5-C settings chain.
-    inspection = install_iqa_scene_inspection(window)
-    inspection._pool = result_pool
+    install_iqa_scene_inspection(window, pool=result_pool)
     install_iqa_scene_inspection_lifecycle(window)
 
     # P5-E deliberately wraps the P5-D open path rather than bypassing its teardown.
-    historical_iqa = install_historical_iqa_results(window)
-    historical_iqa._pool = result_pool
+    historical_iqa = install_historical_iqa_results(window, pool=result_pool)
     install_historical_iqa_results_lifecycle(window, historical_iqa)
 
 
@@ -169,7 +166,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     app = create_application(arguments)
     repository, application_settings, performance_settings = load_startup_settings()
-    window = MainWindow(application_settings, performance_settings, repository)
+    result_pool = remote_iqa_thread_pool()
+    window = MainWindow(
+        application_settings,
+        performance_settings,
+        repository,
+        iqa_result_pool=result_pool,
+    )
     _compose_main_window_presentation(window)
     window.setWindowIcon(app.windowIcon())
     window.show()
