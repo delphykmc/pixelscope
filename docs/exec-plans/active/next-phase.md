@@ -83,9 +83,10 @@ No P0 correctness defect was found during the initial repository-wide audit.
 - Problem: IQA controller installation relies on ordered `install_*` calls,
   `MethodType`, `_original_*` wrappers, signal reconnects, and dynamically attached
   controller attributes.
-- Evidence: `src/pixelscope/application.py` installs P5 controllers in a fixed sequence;
-  seven IQA controller modules contain roughly 27 `MethodType` bindings, including the
-  settings-change chain across result mapping, native Inspect, and historical Results.
+- Evidence: `src/pixelscope/app/application.py` installs P5 controllers in a fixed
+  sequence; seven IQA controller modules contain roughly 27 `MethodType` bindings,
+  including the settings-change chain across result mapping, native Inspect, and
+  historical Results.
 - Impact: dependencies and shutdown/settings ownership are hard to review; reordering a
   seemingly independent installer can silently change behavior.
 - Recommended correction: expose the existing order and dependencies through the
@@ -98,9 +99,9 @@ No P0 correctness defect was found during the initial repository-wide audit.
 
 - Problem: P5-B/P5-D/P5-E controllers are constructed with the local analysis pool and
   later rebound by direct private `_pool` assignment to the P5-F Remote IQA pool.
-- Evidence: production composition in `application.py` performs the rebind after
-  controller installation; the separate local-analysis, Remote-IQA file/result, and
-  P5-C job-operation pools otherwise have correct bounded policies.
+- Evidence: production composition in `src/pixelscope/app/application.py` performs the
+  rebind after controller installation; the separate local-analysis, Remote-IQA
+  file/result, and P5-C job-operation pools otherwise have correct bounded policies.
 - Impact: construction-time ownership is misleading and a future installer/test can
   accidentally run remote file work on the wrong pool.
 - Recommended correction: make the already-established pool dependency explicit at
@@ -210,7 +211,8 @@ read-only review of its latest whole head before merge.
 ### R1 — Explicit application/IQA composition seam
 
 - Goal: make installer order and cross-controller dependencies visible and testable.
-- Expected areas: `application.py`, IQA install/composition modules, focused composition
+- Expected areas: `src/pixelscope/app/application.py`, IQA install/composition modules,
+  focused composition
   tests, ARCHITECTURE/DECISIONS.
 - Contract/non-goal: preserve every public action/signal/wrapper order, initialization,
   settings change, teardown, and UI behavior; no container/framework.
@@ -361,6 +363,11 @@ baseline or environment-dependent debt is never called full PASS.
   and no stale current-status pattern. The staged set contains 15 documentation files,
   including a 320-line retained P5 archive and an 83-line deferred P5-G plan; no source,
   test, or owner untracked artifact is staged.
+- 2026-08-24: independent latest-head review requested one P2 correction: two audit
+  references and the R1 expected area named the wrong composition-root path. Corrected
+  them to `src/pixelscope/app/application.py` and aligned the execution-plan template
+  with the new Deferred status; focused docs validation remained PASS. Latest-head
+  re-review is pending.
 
 ## Completion summary
 

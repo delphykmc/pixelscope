@@ -1,6 +1,6 @@
 # Execution plan: <title>
 
-Status: Draft | Active | Blocked | Complete  
+Status: Draft | Active | Blocked | Deferred | Complete
 Owner: <human or agent>  
 Branch/PR: <link or name>  
 Last updated: YYYY-MM-DD
@@ -71,4 +71,7 @@ Fill in at completion:
 - Follow-up issues:
 - Durable docs updated:
 
-Move substantial completed plans to `docs/exec-plans/completed/` when their rationale remains useful. Delete trivial or obsolete plans rather than accumulating stale context.
+Move substantial completed plans to `docs/exec-plans/completed/` when their rationale
+remains useful. Move plans whose explicit environment or authority prerequisite is
+unavailable to `docs/exec-plans/deferred/`; Deferred is not PASS. Delete trivial or
+obsolete plans rather than accumulating stale context.
