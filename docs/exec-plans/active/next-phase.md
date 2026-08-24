@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R0 State Reconciliation & Program Setup**
+Status: Active — **R0 review gate satisfied; R1 Application Composition next after merge**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r0-refactoring-program`
+Branch/PR: [`PR #46`](https://github.com/delphykmc/pixelscope/pull/46)
 Last updated: 2026-08-24
 
 ## Goal
@@ -196,7 +196,7 @@ Each slice is a separate small PR. Focused checks run during implementation; ful
 run before major integration points and R closeout. Every PR receives independent
 read-only review of its latest whole head before merge.
 
-### R0 — State reconciliation and executable program plan
+### R0 — State reconciliation and executable program plan — review PASS / merge pending
 
 - Goal: make the P5-F merge, deferred P5-G gate, and active R program unambiguous.
 - Expected areas: durable status documents and execution-plan directories only.
@@ -366,8 +366,10 @@ baseline or environment-dependent debt is never called full PASS.
 - 2026-08-24: independent latest-head review requested one P2 correction: two audit
   references and the R1 expected area named the wrong composition-root path. Corrected
   them to `src/pixelscope/app/application.py` and aligned the execution-plan template
-  with the new Deferred status; focused docs validation remained PASS. Latest-head
-  re-review is pending.
+  with the new Deferred status; focused docs validation remained PASS.
+- 2026-08-24: independent reviewer rechecked the full PR at
+  `9d677aaf69fea1e9a3e42073a4e951081b960cfa`, confirmed the P2 finding closed, and
+  reported PASS with no remaining actionable finding. R0 merge is pending.
 
 ## Completion summary
 
