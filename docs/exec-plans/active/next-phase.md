@@ -2,7 +2,7 @@
 
 Status: Active — **R6 implementation validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r6-harness-architecture-guardrails` / pending
+Branch/PR: `codex/r6-harness-architecture-guardrails` / #54
 Last updated: 2026-08-24
 
 ## Goal
