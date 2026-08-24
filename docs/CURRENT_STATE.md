@@ -1,7 +1,7 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-24
-Current merged `main`: `45e718abe28ab600edab41cf04a998029f6fc5f7`
+Current merged `main`: `7c3dbe386aaff900f0accc7ce460759df80f14e0`
 
 `main` includes:
 
@@ -34,16 +34,20 @@ Current merged `main`: `45e718abe28ab600edab41cf04a998029f6fc5f7`
   `39b8c77fbf8a497d2787f33b8e119d2ddbed9604`.
 - R5 / PR #53 — Windows/offscreen validation hardening, merged at
   `45e718abe28ab600edab41cf04a998029f6fc5f7`.
+- R6 / PR #54 — harness and architecture guardrails, merged at
+  `7c3dbe386aaff900f0accc7ce460759df80f14e0`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
-real environment is available. The current active repository program is **R —
-Repository Refactoring & Validation Hardening**; it adds no product behavior.
-R6 **Harness and Architecture Guardrails** is active on
-`codex/r6-harness-architecture-guardrails`.
+real environment is available. R **Repository Refactoring & Validation Hardening**
+closeout is independently reviewed on PR #55 with merge pending; no repository
+implementation program is active. R adds no product behavior.
 
-Active plan:
+Current execution pointer:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
+
+Completed R program record:
+[`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md).
 
 Durable P5 product/transport contract:
 [`REMOTE_IQA_CONTRACT.md`](REMOTE_IQA_CONTRACT.md).

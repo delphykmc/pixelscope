@@ -671,11 +671,11 @@ git diff --check
 PR #42 completed its merge process. P5-D/E/F subsequently merged; their focused and
 full validation evidence remains in their durable contract/characterization documents.
 
-## R Repository Refactoring & Validation Hardening quality gate — Active
+## R Repository Refactoring & Validation Hardening quality gate — Closeout reviewed
 
-R uses focused validation per small slice and reserves full repository validation for
+R used focused validation per small slice and reserved full repository validation for
 major integration points and final closeout. Behavior, numerical/schema/session/source/
-residency, concurrency, retry, and polling contracts remain frozen.
+residency, concurrency, retry, and polling contracts remained frozen.
 
 The three Windows offscreen nodes carried from P5-F were explicit validation debt:
 
@@ -695,6 +695,13 @@ implementation branch. Independent latest-head review passed, and PR #53 merged 
 tolerance changed.
 
 ## Completion evidence
+
+R7 final integration validation on `main@7c3dbe386aaff900f0accc7ce460759df80f14e0`
+observed the documentation contract pass, `933 passed` with one Windows
+directory-symlink privilege skip in 295.96 seconds, Ruff check/format pass, mypy pass
+for 117 source files, pip check pass, and diff check pass. Independent review reproduced
+the final gates; PR #55 merge and its latest archive-head review remain the closeout
+gate. No repository implementation program is active.
 
 Every agent-assisted change reports:
 

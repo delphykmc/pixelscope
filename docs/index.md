@@ -52,9 +52,10 @@ knowledge belongs in focused documents under `docs/`.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
-- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): current
-  Repository Refactoring & Validation Hardening program; it is the required active
-  execution plan.
+- [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): required current
+  pointer; no repository implementation program is active after R closeout.
+- [`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md):
+  retained R0–R7 plan, findings, validation, review, and closeout evidence.
 - [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md):
   authoritative unobserved external GPU/SMB validation and final P5 closeout gate.
 - [`exec-plans/completed/p5-remote-iqa-platform-through-p5f.md`](exec-plans/completed/p5-remote-iqa-platform-through-p5f.md):
