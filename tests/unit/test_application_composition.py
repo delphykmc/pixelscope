@@ -4,6 +4,72 @@ from types import SimpleNamespace
 from typing import Any
 
 import pixelscope.app.application as application_module
+import pixelscope.workers.iqa_thread_pool as iqa_thread_pool_module
+import pixelscope.workers.thread_pools as thread_pools_module
+
+
+def test_fresh_pool_registration_preserves_shutdown_clear_wait_order(
+    monkeypatch: Any,
+) -> None:
+    events: list[str] = []
+
+    class FakeSignal:
+        def __init__(self) -> None:
+            self.slots: list[Any] = []
+
+        def connect(self, slot: Any) -> None:
+            self.slots.append(slot)
+
+        def emit(self) -> None:
+            for slot in self.slots:
+                slot()
+
+    class FakeApplication:
+        current: FakeApplication
+
+        def __init__(self) -> None:
+            self.aboutToQuit = FakeSignal()
+
+        @classmethod
+        def instance(cls) -> FakeApplication:
+            return cls.current
+
+    class FakePool:
+        labels = iter(("analysis", "remote"))
+
+        def __init__(self, _parent: object) -> None:
+            self.label = next(self.labels)
+
+        def setMaxThreadCount(self, _count: int) -> None:
+            pass
+
+        def clear(self) -> None:
+            events.append(f"{self.label}:clear")
+
+        def waitForDone(self, timeout_ms: int) -> bool:
+            events.append(f"{self.label}:wait:{timeout_ms}")
+            return True
+
+    app = FakeApplication()
+    FakeApplication.current = app
+    for module in (thread_pools_module, iqa_thread_pool_module):
+        monkeypatch.setattr(module, "QApplication", FakeApplication)
+        monkeypatch.setattr(module, "QThreadPool", FakePool)
+
+    thread_pools_module.analysis_thread_pool()
+    iqa_thread_pool_module.remote_iqa_thread_pool()
+
+    assert app.aboutToQuit.slots == [
+        thread_pools_module.shutdown_background_thread_pools,
+        iqa_thread_pool_module.shutdown_remote_iqa_thread_pool,
+    ]
+    app.aboutToQuit.emit()
+    assert events == [
+        "analysis:clear",
+        "analysis:wait:3000",
+        "remote:clear",
+        "remote:wait:3000",
+    ]
 
 
 def test_main_injects_result_pool_before_composition(monkeypatch: Any) -> None:
@@ -45,14 +111,27 @@ def test_main_injects_result_pool_before_composition(monkeypatch: Any) -> None:
     )
     monkeypatch.setattr(
         application_module,
-        "remote_iqa_thread_pool",
-        lambda: result_pool,
+        "analysis_thread_pool",
+        lambda: events.append("analysis_pool"),
     )
+
+    def build_result_pool() -> object:
+        events.append("result_pool")
+        return result_pool
+
+    monkeypatch.setattr(application_module, "remote_iqa_thread_pool", build_result_pool)
     monkeypatch.setattr(application_module, "MainWindow", build_window)
     monkeypatch.setattr(application_module, "_compose_main_window_presentation", compose)
 
     assert application_module.main([]) == 17
-    assert events == ["window", "compose", "icon:True", "show"]
+    assert events == [
+        "analysis_pool",
+        "result_pool",
+        "window",
+        "compose",
+        "icon:True",
+        "show",
+    ]
 
 
 def test_remote_iqa_composition_preserves_explicit_dependency_order(

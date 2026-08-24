@@ -711,6 +711,10 @@ def install_historical_iqa_results(
 
     existing = getattr(window, "historical_iqa_results_controller", None)
     if isinstance(existing, HistoricalIqaResultsController):
+        if pool is not None and existing.pool is not pool:
+            raise RuntimeError(
+                "P5-E historical Results is already installed with a different worker pool"
+            )
         return existing
     if getattr(window, "iqa_scene_inspection_controller", None) is None:
         raise RuntimeError("P5-D Scene inspection must be installed before P5-E history")

@@ -42,6 +42,7 @@ from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.session import install_session
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
+from pixelscope.workers.thread_pools import analysis_thread_pool
 
 LOGGER = logging.getLogger(__name__)
 WINDOWS_APP_USER_MODEL_ID = "PixelScope.PixelScope"
@@ -166,6 +167,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     app = create_application(arguments)
     repository, application_settings, performance_settings = load_startup_settings()
+    # Preserve the pre-R2 aboutToQuit order: local background pools register before
+    # the Remote IQA result/file pool, even though both now precede MainWindow.
+    analysis_thread_pool()
     result_pool = remote_iqa_thread_pool()
     window = MainWindow(
         application_settings,

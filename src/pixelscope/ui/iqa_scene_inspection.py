@@ -958,6 +958,10 @@ def install_iqa_scene_inspection(
 
     existing = getattr(window, "iqa_scene_inspection_controller", None)
     if isinstance(existing, IqaSceneInspectionController):
+        if pool is not None and existing.pool is not pool:
+            raise RuntimeError(
+                "P5-D Scene inspection is already installed with a different worker pool"
+            )
         return existing
     controller = IqaSceneInspectionController(window, pool=pool)
     window.iqa_scene_inspection_controller = controller
