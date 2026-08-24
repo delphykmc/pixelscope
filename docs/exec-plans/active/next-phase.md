@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R4-B independent review PASS / merge pending**
+Status: Active — **R5 implementation validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r4b-smoke-suite-decomposition` / #52
+Branch/PR: `codex/r5-offscreen-validation-hardening` / pending
 Last updated: 2026-08-24
 
 ## Goal
@@ -287,7 +287,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1/R2 stable composition.
 - Merge criterion: fixture duplication reduced; isolation/order characterization PASS.
 
-### R4-B — Smoke suite decomposition — review PASS / merge pending
+### R4-B — Smoke suite decomposition — Complete / PR #52
 
 - Goal: split the oversized smoke module along existing product-contract boundaries.
 - Expected areas: UI test modules/helpers only.
@@ -298,7 +298,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: same contract coverage and deterministic collection with clearer
   failure ownership; reviewer finds no lost regression.
 
-### R5 — Windows/offscreen validation hardening
+### R5 — Windows/offscreen validation hardening — review pending
 
 - Goal: deterministically resolve or precisely constrain the three known failures.
 - Expected areas: affected UI tests/harness, possibly test-only Qt helpers and QUALITY.
@@ -559,6 +559,21 @@ baseline or environment-dependent debt is never called full PASS.
   in 274.33 seconds. Ruff, format, pip, docs, docs-contract, and diff gates passed.
   Full repository pytest, mypy, interactive UI, packaging, and GPU/SMB remain
   unverified and are not claimed. Reviewer reported PASS.
+- 2026-08-24: R4-B closure head `e370f5a7a1efbdf11bd7eec3fc738f8e87b49a2d`
+  passed final docs-only review, and PR #52 merged at
+  `main@39b8c77fbf8a497d2787f33b8e119d2ddbed9604`.
+- 2026-08-24: started R5 from the R4-B merge. Characterization confirmed the histogram
+  test targeted exact bin edge 21 while production intentionally uses right-side bin
+  selection; using interior point 20.5 preserves the expected Code 20.5 contract. The
+  Bayer hover test mapped a hidden line-profile plot; explicitly showing the window and
+  target tab makes its scene transform valid. The offscreen plugin cannot reproduce
+  floating-window placement across restart, so the test now always verifies persisted
+  QByteArray restore authority and retains actual geometry equality on window-manager
+  platforms; same-process hide/show geometry remains asserted everywhere. No production
+  source, expected numerical value, tolerance, skip, or xfail changed. The three debt
+  nodes passed five consecutive runs (15/15), related modules passed 19 tests, and the
+  full Windows offscreen UI suite passed all 467 tests in 268.42 seconds. Ruff and diff
+  gates passed. Independent latest-whole-head review remains the merge gate.
 
 ## Completion summary
 

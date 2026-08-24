@@ -676,16 +676,21 @@ R uses focused validation per small slice and reserves full repository validatio
 major integration points and final closeout. Behavior, numerical/schema/session/source/
 residency, concurrency, retry, and polling contracts remain frozen.
 
-The three Windows offscreen nodes carried from P5-F are explicit validation debt:
+The three Windows offscreen nodes carried from P5-F were explicit validation debt:
 
 - `test_floating_plots_geometry_survives_hide_show_and_restart`;
 - `test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips`;
 - `test_bayer_statistics_profiles_status_and_channel_split`.
 
-R5 must characterize them before correction. Skip/xfail, arbitrary tolerance loosening,
-and unproven production changes are not acceptable dispositions. Reports classify every
-observed result as PASS, regression, reproduced baseline failure, or environment-
-dependent validation debt. See the active execution plan for slice-specific gates.
+R5 characterization found two test-harness causes: hover tests mapped exact bin-edge or
+hidden-plot scene coordinates, and the offscreen platform cannot apply floating-window
+geometry even though persisted geometry bytes are loaded correctly. R5 keeps numerical
+expectations and same-process geometry checks, uses an interior histogram coordinate,
+shows the plot under test, and separates persisted restore authority from unsupported
+offscreen window-manager placement. The three nodes passed five consecutive runs, their
+related modules passed 19 tests, and the full UI suite passed all 467 tests on the R5
+implementation branch. Independent review remains the merge gate; no product source,
+skip/xfail, or tolerance changed.
 
 ## Completion evidence
 
