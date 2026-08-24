@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R4-B implementation validation complete / independent review pending**
+Status: Active — **R4-B independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r4b-smoke-suite-decomposition` / #52
 Last updated: 2026-08-24
@@ -287,7 +287,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1/R2 stable composition.
 - Merge criterion: fixture duplication reduced; isolation/order characterization PASS.
 
-### R4-B — Smoke suite decomposition — review pending
+### R4-B — Smoke suite decomposition — review PASS / merge pending
 
 - Goal: split the oversized smoke module along existing product-contract boundaries.
 - Expected areas: UI test modules/helpers only.
@@ -549,6 +549,16 @@ baseline or environment-dependent debt is never called full PASS.
   Ruff check/format and diff check passed. No production source, assertion,
   parametrization, skip, or xfail changed. Independent latest-whole-head review remains
   the merge gate.
+- 2026-08-24: independent review of latest whole head
+  `fe252eacae2d3846f3f036ba0c389db9ca073ae0` found no actionable issue. The
+  reviewer confirmed a one-to-one 39-function AST mapping with no missing, duplicate,
+  or changed body; preserved fixtures/assertions/parametrization/skip/xfail; cohesive
+  six-module boundaries; and no QSettings/order or durable-history regression.
+  Independent validation observed 39 collected with 37 passed plus two known failures,
+  and all UI observed 467 collected with 464 passed plus the exact three known failures
+  in 274.33 seconds. Ruff, format, pip, docs, docs-contract, and diff gates passed.
+  Full repository pytest, mypy, interactive UI, packaging, and GPU/SMB remain
+  unverified and are not claimed. Reviewer reported PASS.
 
 ## Completion summary
 
