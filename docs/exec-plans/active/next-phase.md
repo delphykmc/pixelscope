@@ -2,7 +2,7 @@
 
 Status: Active — **R7 final validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r7-refactoring-closeout` / pending
+Branch/PR: `codex/r7-refactoring-closeout` / #55
 Last updated: 2026-08-24
 
 ## Goal
