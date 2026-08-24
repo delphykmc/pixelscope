@@ -1,228 +1,329 @@
-# Execution plan: P5 — Remote IQA Platform
+# Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **P5-F Integration & Performance Hardening**, followed by **P5-G External GPU/SMB Validation & Closeout** when the environment is available
-Owner: repository owner + P5 orchestrator + slice implementation/review agents
+Status: Active — **R0 review gate satisfied; R1 Application Composition next after merge**
+Owner: repository owner + refactoring implementation/review agents
+Branch/PR: [`PR #46`](https://github.com/delphykmc/pixelscope/pull/46)
 Last updated: 2026-08-24
-Current merged main: `6a0a334d61a7495b9c3433edfcbd537c8df59468`
 
-Authoritative P5 documents:
+## Goal
 
-- product/transport/ownership contract:
-  [`docs/REMOTE_IQA_CONTRACT.md`](../../REMOTE_IQA_CONTRACT.md)
-- current numerical/result contract:
-  [`docs/REMOTE_IQA_V2_SPEC.md`](../../REMOTE_IQA_V2_SPEC.md)
-- completed P5-D viewer-linked inspection contract:
-  [`docs/P5D_VIEWER_INSPECTION.md`](../../P5D_VIEWER_INSPECTION.md)
-- completed P5-E historical-result contract:
-  [`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md)
-- P5-F integration characterization:
-  [`docs/P5F_INTEGRATION_CHARACTERIZATION.md`](../../P5F_INTEGRATION_CHARACTERIZATION.md)
-- historical schema-v1 compatibility:
-  [`docs/REMOTE_IQA_V1_SPEC.md`](../../REMOTE_IQA_V1_SPEC.md)
-- current repository snapshot:
-  [`docs/CURRENT_STATE.md`](../../CURRENT_STATE.md)
-- program roadmap:
-  [`docs/ROADMAP.md`](../../ROADMAP.md)
+Simplify PixelScope's repository structure, make dependency/resource ownership explicit,
+and improve validation reliability without changing product behavior, numerical
+semantics, persisted contracts, compatibility, or history. Completion is observed as a
+sequence of small independently reviewed PRs, followed by exact final repository gates
+and a durable closeout record.
 
-## Program governance
+This program is named **R**, not P6. P6 remains the future Identity, Access & Remote
+Operations product program. P5-G remains a deferred external GPU/SMB validation gate.
 
-P5 remains an orchestrated multi-PR program.
+## Scope
 
-- **P5 orchestrator** owns cross-slice contracts, execution order, durable docs,
-  owner-decision gates, and evaluation of implementation/review evidence.
-- **Implementation agents** modify only the delegated slice and do not redefine
-  numerical/source/session authorities ad hoc.
-- **Independent reviewers** inspect the latest full PR head without modifying the branch.
-- **Repository owner** runs requested local Windows validation and approves merge.
+### In scope
 
-Observed evidence and planned validation remain separate. A PASS from P5-C/P5-D/P5-E
-or an older P5-F head is not validation of the latest P5-F head. Localhost/mock evidence
-never substitutes for an unobserved external GPU/SMB environment.
+- current-state and harness reconciliation;
+- application/controller composition seams;
+- worker/executor/resource ownership clarity;
+- bounded generation/revision/stale-work cleanup where it demonstrably simplifies code;
+- obsolete compatibility scaffold and duplicated helper review;
+- test fixture/suite organization and Windows offscreen hardening;
+- durable documentation and mechanical architecture/validation guardrails;
+- final integration validation and closeout.
 
-## Product flow
+### Out of scope
 
-```text
-local inspection
-    ↓ optional remote work
-Current Pair / Folder Pair submit
-    ↓
-non-modal durable job
-    ↓
-continue local work
-    ↓
-explicit Open Result
-    ↓
-Absolute / Relative result exploration
-    ↓
-Recent IQA Result historical reopen
-    ↓ optional
-explicit Inspect in Viewer
-    ↓
-verified native Scene sources + spatial grid inspection
-    ↓
-explicit Return to prior local comparison
-```
+- new UI/UX or IQA calculations;
+- schema, Session format, numerical, source, residency, cache, preload, concurrency,
+  retry, polling, or server API policy changes;
+- authentication/SSO, credentials, permission policy, or administration;
+- real GPU server or SMB integration and any fabricated external PASS;
+- a DI framework, service container, generic lifecycle framework, broad MainWindow
+  split, or directory reshuffle without demonstrated value.
 
-The external GPU model/server remains outside this repository. PixelScope owns client
-preparation, transport contract, portable storage identity, stable result parsing,
-local reference-dependent exploration, historical-result discovery, and viewer-linked
-inspection.
+Behavior-change needs discovered during R are findings/deferred work, not implicit
+authorization to implement them.
 
-## Inherited authority
+## Current state
 
-The sole local runtime/source hierarchy remains:
+R begins from `main@6634447fc3c48545a2482718dd3f444928806218`, the P5-F / PR #45 merge.
+P5-A through P5-F repository-side client work is complete. Overall P5 remains Active
+because the real P5-G external GPU/SMB gate is unobserved and deferred in
+[`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](../deferred/p5g-external-gpu-smb-validation.md).
 
-```text
-Registered
-    ↓
-Selected
-    ↓
-Current Comparison Page
-    ↓
-Presented
-    ↓
-Resident when required
-```
+At R0 start the GitHub repository is public, the default branch is `main`, and no PR is
+open. Repository-owner issue-creation restrictions are operational GitHub policy; R does
+not mutate repository visibility, collaboration, issue, or branch-protection settings.
 
-`Analysis Working Set = Current Comparison Page`.
+## Non-regression authority
 
-P5-F and P5-G must not create another authority for Files/Selected/Current Comparison
-Page, source residency/protection/preload, Difference/cache, Display Gain, native
-analysis, or Session v1.
+The following contracts are frozen throughout R:
 
-The canonical Result path remains P5-B with P5-A2/v1 reader dispatch. P5-D remains the
-only explicit native source verification/Inspect bridge. P5-E remains the historical
-locator/identity/provenance authority.
+- `Registered → Selected → Current Comparison Page → Presented → Resident`;
+- `Analysis Working Set = Current Comparison Page`;
+- native `ImageDocument.source` authority;
+- Display Gain presentation-only behavior and canonical Difference semantics;
+- P2 residency/cache/preload ownership;
+- P4 curation, Session v1, Recent, and historical workflow semantics;
+- P5 schema-v2 server-measurement/local-comparison authority;
+- P5-B canonical IQA Results workspace and reader dispatch;
+- P5-C submission/job/shared-storage contracts;
+- P5-D explicit native Inspect authority;
+- P5-E historical Result authority;
+- P5-F bounded worker/transport lifetime contracts;
+- schema-v1 read-only and legacy Comparison Set compatibility.
 
-## Completed P5 baseline
+Target remains CPython 3.10 x64 and PyInstaller exactly 5.7 `onedir`. R does not run or
+change packaging unless separately authorized.
 
-| Slice | Status | Authority |
-|---|---|---|
-| P5-0 | Complete — PR #36 | program setup/contracts |
-| P5-A | Complete — PR #37 | historical executable schema v1 |
-| P5-A2 Stage 1 | Complete — PR #39 | durable schema-v2 model |
-| P5-A2 Stage 2 | Complete — PR #40 | executable schema-v2 reader/math/artifacts |
-| P5-B | Complete — PR #38 | canonical local IQA Results workspace |
-| P5-C | Complete — PR #42 | submission/shared storage/jobs/PARTIAL |
-| P5-D | Complete — PR #43 | verified viewer-linked Scene Inspect/Return |
-| P5-E | **Complete — PR #44** | historical locator/identity/Provenance/result-only mode |
+## Audit findings
 
-P5-B merged at `a44978db783ebcecb0d55f8abb52b583e0fdc47c`.
-P5-D merged at `b086443d188eb9daae4bbf4f0faab3ff1d114f93`.
-P5-E merged as current `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`.
+No P0 correctness defect was found during the initial repository-wide audit.
 
-## Current executable schema-v2 contract
+### P1 — implicit IQA composition and wrapper order
 
-> **Server owns measurement; PixelScope owns reference-dependent comparison,
-> reductions, and visualization.**
+- Problem: IQA controller installation relies on ordered `install_*` calls,
+  `MethodType`, `_original_*` wrappers, signal reconnects, and dynamically attached
+  controller attributes.
+- Evidence: `src/pixelscope/app/application.py` installs P5 controllers in a fixed
+  sequence; seven IQA controller modules contain roughly 27 `MethodType` bindings,
+  including the settings-change chain across result mapping, native Inspect, and
+  historical Results.
+- Impact: dependencies and shutdown/settings ownership are hard to review; reordering a
+  seemingly independent installer can silently change behavior.
+- Recommended correction: expose the existing order and dependencies through the
+  smallest explicit application-owned composition seam; retain controller-local
+  behavior and signal/public method contracts.
+- Risk: high blast radius if wrapper order or initialization timing changes.
+- Proposed slice: R1.
 
-Schema v2 separates stable `variant_id`, concrete `source_id`, evaluation `scene_id`,
-and `measurement_context_id`. Server-authored W/S1/S2/count/valid remain measurement
-authority. PixelScope derives pair-valid comparisons with canonical helpers.
+### P1 — correct pool policy, implicit pool injection
 
-Optional `storage_root_id` is source-location metadata only and is excluded from
-immutable source equality and measurement-context identity. Schema v1 remains explicit
-read-only compatibility.
+- Problem: P5-B/P5-D/P5-E controllers are constructed with the local analysis pool and
+  later rebound by direct private `_pool` assignment to the P5-F Remote IQA pool.
+- Evidence: production composition in `src/pixelscope/app/application.py` performs the
+  rebind after controller installation; the separate local-analysis, Remote-IQA
+  file/result, and P5-C job-operation pools otherwise have correct bounded policies.
+- Impact: construction-time ownership is misleading and a future installer/test can
+  accidentally run remote file work on the wrong pool.
+- Recommended correction: make the already-established pool dependency explicit at
+  construction/install time; do not change pool counts, cancellation, or shutdown.
+- Risk: lifecycle/stale callback regression if cancellation order moves.
+- Proposed slice: R2.
 
-## P5-E completed scope
+### P1 — obsolete pre-P5 Remote scaffold
 
-P5-E delivered the historical-result layer without changing canonical Result or source
-authority:
+- Problem: the initial `remote/evaluation_client.py`, `mock_client.py`, and `schemas.py`
+  scaffold forms a self-contained `/v1/jobs` contract that is not used by the canonical
+  P5 `/v1/iqa/jobs` implementation.
+- Evidence: production imports do not reach it; `tests/unit/test_remote.py` only tests
+  the scaffold, while current quality text mislabels it as P5-A schema-v1 coverage.
+- Impact: two apparent Remote APIs confuse navigation and can be mistaken for supported
+  compatibility.
+- Recommended correction: confirm history and all imports, then remove only the dead
+  scaffold/test while explicitly retaining schema-v1 result compatibility coverage.
+- Risk: an undocumented external importer may exist outside the repository.
+- Proposed slice: R3-A; removal requires independent compatibility review.
 
-- typed logical/local historical locators;
-- independent max-10 Recent IQA Results observer metadata;
-- `result_id + schema_version` historical identity gate before presentation;
-- current-mapping logical root resolution and remap handling;
-- result-only mode when native Scene sources are unavailable;
-- passive Provenance in the existing Results workspace;
-- explicit schema-v1 historical/read-only treatment;
-- stale resolver rejection across File/Jobs/Recent open intents;
-- Session v1 unchanged.
+### P1 — Session authority split
 
-The detailed merged P5-E authority remains in
-[`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md). Its validation is
-historical evidence only and is not carried forward as P5-F PASS.
+- Problem: Comparison Set persistence is divided between a base class, Session subclass,
+  and facade, making current Session v1 versus legacy compatibility ownership indirect.
+- Evidence: `ui/comparison_set.py`, `ui/session.py`, and their facade/call sites share the
+  boundary.
+- Impact: persistence refactors are difficult to review and risk accidental legacy or
+  Recent behavior changes.
+- Recommended correction: document and minimally expose the boundary; consolidate only
+  duplicated mechanics proven by tests.
+- Risk: persisted-data and transactional restore regression.
+- Proposed slice: R3-B.
 
-## P5-F active scope — repository-side integration hardening
+### P1 — duplicated UI test harness and oversized smoke module
 
-P5-F is the repository-side integration/characterization/hardening slice that can be
-completed without access to the external GPU/SMB environment. It is not a new Remote
-IQA architecture phase. The governing loop is:
+- Problem: 29 UI modules duplicate QSettings isolation/setup, and
+  `tests/ui/test_ui_smoke.py` contains unrelated feature contracts in about 1,900 lines.
+- Evidence: repository-wide fixture and test-file inventory.
+- Impact: setup drift, brittle maintenance, and poor failure localization.
+- Recommended correction: first centralize behavior-identical fixtures, then split smoke
+  tests by existing product contract without deleting or weakening assertions.
+- Risk: hidden fixture-scope/order changes.
+- Proposed slices: R4-A and R4-B.
 
-```text
-existing behavior
-    ↓
-characterize deterministic ownership/lifetime
-    ↓
-identify demonstrated duplicate work or contention
-    ↓
-minimal bounded correction
-    ↓
-regression evidence
-```
+### P1 — Windows offscreen validation debt
 
-No fixed wall-clock value is a correctness contract.
+- Problem: three Qt/pyqtgraph UI nodes fail under the recorded Windows offscreen setup.
+- Evidence: `test_floating_plots_geometry_survives_hide_show_and_restart` times out on
+  restored geometry; histogram hover expects Code 20.5 but observes 21.5; Bayer line
+  hover expects `Gr@1` but observes no sample. The first emits unsupported offscreen
+  window-operation warnings; the two hover tests map coordinates without first showing
+  and laying out the window.
+- Impact: full-suite status is noisy and can conceal a real regression.
+- Recommended correction: characterize product behavior versus offscreen artifacts and
+  fix deterministic harness setup when possible. Do not skip/xfail, loosen thresholds,
+  or change production behavior without evidence.
+- Risk: platform/plugin differences may not be fully deterministic.
+- Proposed slice: R5.
 
-### P5-F1 — deterministic transport compatibility tooling
+### P1 — durable semantic drift not caught mechanically
 
-- preserve the frozen P5-C create/status/result/cancel state machine;
-- keep CREATE single-shot/no-blind-retry semantics;
-- model non-terminal cancel responses and completion/cancel races correctly;
-- provide a bounded compatibility probe that can later be pointed at the real service;
-- reuse localhost/debug harnesses for deterministic client-side evidence only.
+- Problem: ROADMAP/CURRENT_STATE/contracts still describe P5-F or older P5 slices as
+  active even though PR #45 is merged; the docs checker validates paths/links, not
+  cross-document phase semantics.
+- Impact: a new worker starts from contradictory authority despite a passing docs check.
+- Recommended correction: preserve the old P5 plan as completed history, split P5-G to
+  deferred, activate R, and narrowly reconcile status lines. Later add bounded semantic
+  guardrails where stable.
+- Risk: broad documentation churn/history loss.
+- Proposed slices: R0 now, R6 guardrails later.
 
-### P5-F2 — worker and HTTP lifetime hardening
+### P2 — navigation and mechanical boundary clarity
 
-- isolate P5-B Result/Reference, P5-D verification/spatial, and P5-E historical resolver
-  file/grid work from the local Statistics/Difference analysis pool;
-- retain the existing separate max-two P5-C job-operation pool;
-- reuse HTTP connection pools through the existing `client_factory` seam;
-- use lazy physical HTTP checkout so queued/cleared workers own no client resource;
-- keep idle clients bounded and close active clients deterministically after their worker
-  returns during shutdown;
-- extend the existing Copy Diagnostics surface with bounded worker/transport counters.
+- Problem: `MainWindow` and several domain trees are large, while import/layer rules are
+  mostly prose rather than executable checks.
+- Impact: navigation cost and implicit dependency risk.
+- Recommended correction: add targeted import/ownership checks only for stable seams;
+  split large files only when a later concrete change proves a cohesive extraction.
+- Risk: file-move/format churn can exceed the structural value.
+- Proposed slice: R6 or Deferred, based on evidence.
 
-### P5-F3 — deterministic stress / lifecycle regressions
+### Deferred — speculative abstraction and policy changes
 
-Exercise representative generated workloads for 1, ~10, ~50, ~150, and around ~300
-Scenes without committed huge binaries. Structural assertions cover bounded ownership
-rather than brittle timing thresholds.
+Generic generation frameworks, DI/service containers, broad source moves, MainWindow
+rewrites, cache/preload/retry/concurrency changes, and production GPU/SMB/auth work are
+not justified by current evidence and remain outside R.
 
-Cover:
+## Implementation slices
 
-- COMPLETE/PARTIAL/failure/cancel state handling through inherited P5 suites;
-- cancel response races in the compatibility probe;
-- more queued HTTP operations than physical P5-C worker slots;
-- shutdown while workers are running and additional work is queued;
-- Remote IQA/local Statistics-Difference coexistence;
-- production P5-B/P5-D/P5-E pool rebinding;
-- stale callbacks, root remap, source verification, and no batch-owned residency through
-  inherited regressions.
+Each slice is a separate small PR. Focused checks run during implementation; full gates
+run before major integration points and R closeout. Every PR receives independent
+read-only review of its latest whole head before merge.
 
-### P5-F4 — optimization decisions
+### R0 — State reconciliation and executable program plan — review PASS / merge pending
 
-P5-F does **not** add a raw-grid cache, speculative grid preload, adaptive polling,
-generalized retries, new performance Settings, WebSocket, or optional detail viewer
-without environment evidence that justifies the permanent product/resource contract.
+- Goal: make the P5-F merge, deferred P5-G gate, and active R program unambiguous.
+- Expected areas: durable status documents and execution-plan directories only.
+- Contract/non-goal: documentation-only; preserve all historical rationale and make no
+  product, code, test, GitHub-setting, or external-environment claim.
+- Focused validation: docs contract, docs unit test, stale-status search, Markdown link
+  check, `git diff --check`, and base-to-head deletion/rename audit.
+- Dependency: PR #45 merged.
+- Merge criterion: all current-status authorities agree; no broken link or unexplained
+  documentation contraction; independent latest-head PASS.
 
-Optional `detail_artifacts[]` remain opaque/deferred unless a stable typed server
-contract and clear product need are observed. Filename conventions do not create a
-contract.
+### R1 — Explicit application/IQA composition seam
 
-## P5-F validation direction
+- Goal: make installer order and cross-controller dependencies visible and testable.
+- Expected areas: `src/pixelscope/app/application.py`, IQA install/composition modules,
+  focused composition
+  tests, ARCHITECTURE/DECISIONS.
+- Contract/non-goal: preserve every public action/signal/wrapper order, initialization,
+  settings change, teardown, and UI behavior; no container/framework.
+- Focused validation: application construction, IQA workspace/settings/open/Inspect/
+  history/shutdown tests plus Ruff/mypy for changed modules.
+- Dependency: R0.
+- Merge criterion: explicit dependency graph with behavior-equivalent focused evidence
+  and reviewer confirmation of wrapper/shutdown order.
 
-Focused P5-F automated coverage prioritizes deterministic structure and lifecycle:
+### R2 — Worker and resource ownership injection
 
-1. endpoint/state/result-reference regression and no blind create retry;
-2. cancel-at-most-once with non-terminal cancel response races;
-3. lazy/bounded HTTP client lifetime under queued work and shutdown;
-4. production Result/Inspect/history worker ownership;
-5. Remote IQA/local-analysis coexistence;
-6. representative synthetic Scene counts;
-7. diagnostics bounds/redaction;
-8. inherited P5-B/C/D/E and schema-v1 regressions.
+- Goal: remove private post-construction pool rebinding and state ownership explicitly.
+- Expected areas: P5-B/D/E controller constructors/installers, application Remote IQA
+  pool composition, lifetime tests, architecture docs.
+- Contract/non-goal: unchanged fixed max-two pools, job pool separation, cancel/clear/
+  wait/shutdown ordering, lazy HTTP checkout, and stale callback rules.
+- Focused validation: P5-F pool-binding/four-job shutdown, Result/Inspect/history stale
+  intent tests, diagnostics, Ruff/mypy.
+- Dependency: R1.
+- Merge criterion: no controller temporarily owns the wrong pool; exact lifetime tests
+  and independent race/ownership review PASS.
 
-The repository-standard Windows validation remains:
+### R3-A — Obsolete Remote scaffold disposition
+
+- Goal: eliminate the misleading pre-P5 client only if repository/history evidence
+  confirms it has no supported consumer.
+- Expected areas: three legacy Remote modules, their isolated test, QUALITY/docs.
+- Contract/non-goal: retain schema-v1 read-only result compatibility and every canonical
+  P5 transport/result module; do not redesign APIs.
+- Focused validation: import/reference inventory, all Remote unit/integration tests,
+  package/import smoke, Ruff/mypy.
+- Dependency: R0; may follow R2 to minimize composition overlap.
+- Merge criterion: documented removal rationale, equivalent current-contract coverage,
+  and compatibility reviewer PASS; otherwise record and retain it.
+
+### R3-B — Session and legacy boundary clarification
+
+- Goal: make Session v1 authority and legacy Comparison Set adapter ownership explicit.
+- Expected areas: comparison/session modules, facade/call sites, persistence tests/docs.
+- Contract/non-goal: byte/field-compatible Session v1, unchanged transactional restore,
+  Recent ownership, and legacy read behavior; no schema migration.
+- Focused validation: Session/Comparison Set round-trip, missing/partial restore, Recent,
+  UI integration, Ruff/mypy.
+- Dependency: R1; independent of R3-A.
+- Merge criterion: simpler boundary with identical persisted fixtures and reviewer PASS.
+
+### R4-A — Common UI test fixtures
+
+- Goal: centralize behavior-identical QSettings/UI setup without changing test scope.
+- Expected areas: `tests/ui/conftest.py` and affected UI tests.
+- Contract/non-goal: no assertion deletion, scope broadening, global state leakage, or
+  production change.
+- Focused validation: representative settings-sensitive groups, then all UI tests once
+  at slice completion.
+- Dependency: R1/R2 stable composition.
+- Merge criterion: fixture duplication reduced; isolation/order characterization PASS.
+
+### R4-B — Smoke suite decomposition
+
+- Goal: split the oversized smoke module along existing product-contract boundaries.
+- Expected areas: UI test modules/helpers only.
+- Contract/non-goal: test-only moves with node coverage and assertions preserved; no
+  cleanup by deletion.
+- Focused validation: collected-node comparison, moved modules, all UI tests, diff audit.
+- Dependency: R4-A.
+- Merge criterion: same contract coverage and deterministic collection with clearer
+  failure ownership; reviewer finds no lost regression.
+
+### R5 — Windows/offscreen validation hardening
+
+- Goal: deterministically resolve or precisely constrain the three known failures.
+- Expected areas: affected UI tests/harness, possibly test-only Qt helpers and QUALITY.
+- Contract/non-goal: characterize first; no skip/xfail, arbitrary tolerance loosening,
+  or production behavior change unless a separately justified product defect is found.
+- Focused validation: repeated three-node runs under recorded platform/plugin/font
+  conditions, related UI tests, base/current comparison where necessary.
+- Dependency: R4 test harness stabilization.
+- Merge criterion: deterministic PASS or exact documented environment constraint with
+  no hidden failure and independent product-vs-harness review.
+
+### R6 — Harness and architecture guardrails
+
+- Goal: make stable ownership/status rules mechanically visible without building a new
+  framework.
+- Expected areas: docs checker, narrow import/architecture tests, QUALITY/index/harness
+  notes.
+- Contract/non-goal: enforce only durable proven rules; no speculative layer taxonomy or
+  replacement of reviewer judgment.
+- Focused validation: guardrail unit tests, docs contract, affected imports, Ruff/mypy.
+- Dependency: R1–R5 reveal stable seams.
+- Merge criterion: each rule has a concrete past failure/drift case and actionable output.
+
+### R7 — Final integration validation and closeout
+
+- Goal: verify all R slices together and leave one accurate repository state.
+- Expected areas: validation evidence and narrow durable closeout updates.
+- Contract/non-goal: no opportunistic feature/refactor work; P5-G remains deferred.
+- Focused validation: `scripts/check_docs.py`, full pytest, Ruff check/format, mypy,
+  pip check, `git diff --check`, and relevant manual Windows checks.
+- Dependency: all accepted R slices.
+- Merge criterion: exact results classified as PASS/regression/reproduced baseline/
+  environment debt, independent latest-head review PASS, R archived Complete.
+
+## Validation policy
+
+For each slice run changed-file format/lint, directly affected tests, and the smallest
+necessary regression set. Expand only for shared composition, worker infrastructure,
+persistence/settings, or widely imported seam changes. Do not repeat full pytest at
+every commit.
+
+The final gate is:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -234,66 +335,43 @@ The repository-standard Windows validation remains:
 git diff --check
 ```
 
-Only exact-head observed results may be recorded as PASS. A failing exact-head node may
-be dispositioned as pre-existing/environmental debt only when that exact node reproduces
-with the same failure on the recorded implementation base under the same environment.
-That disposition is not a full-suite PASS and must remain explicit in validation reports.
+Report only observed output and classify known failures explicitly. A reproduced
+baseline or environment-dependent debt is never called full PASS.
 
-## P5-F merge gate
+## Risks and mitigations
 
-P5-F merge recommendation requires:
+| Risk | Detection | Mitigation |
+|---|---|---|
+| hidden wrapper-order change | composition/open/settings/shutdown tests and review | R1 exposes order before changing ownership |
+| pool/lifetime race | queued-worker, stale-intent, shutdown tests | preserve policies; change injection only |
+| compatibility/history loss | fixture/import/history and base-to-head diff audit | separate deletion/move PRs; retain archives |
+| test weakening | node/assertion comparison and independent review | split fixtures/moves before any harness correction |
+| offscreen artifact mistaken for product bug | repeated characterized runs | prefer test harness correction and document environment |
+| documentation contraction | numstat/status/link checks | narrow edits from merged baseline; stop on unexplained deletions |
 
-- repository-side implementation completion;
-- focused deterministic P5-F regression PASS on the exact head;
-- exact-head full repository/static validation execution, with either PASS or an
-  independently reviewed base-main disposition for every identical failing node;
-- independent latest-head whole-PR PASS;
-- no unresolved correctness/lifetime/resource blocker;
-- truthful characterization docs;
-- owner approval.
+## Progress log
 
-**Real external GPU/SMB access is not a P5-F PR merge gate when that environment is
-unavailable.** This is an explicit scheduling split, not a substitute PASS. Merging
-P5-F may mark P5-F Complete, but it must **not** mark the overall P5 program Complete.
+- 2026-08-24: audited `main@6634447fc3c48545a2482718dd3f444928806218`,
+  PR #45 merged, no open PR, and a dirty tree containing owner untracked artifacts that
+  are explicitly excluded from all R commits.
+- 2026-08-24: reproduced the three known Windows offscreen nodes as three failures;
+  no skip/xfail/tolerance or production change was made.
+- 2026-08-24: started R0 on `codex/r0-refactoring-program`; archived the P5-through-P5-F
+  plan and separated unobserved P5-G into a deferred plan.
+- 2026-08-24: R0 focused validation observed `scripts/check_docs.py` PASS,
+  `tests/unit/test_docs_contract.py` 1 passed, staged/unstaged `git diff --check` PASS,
+  and no stale current-status pattern. The staged set contains 15 documentation files,
+  including a 320-line retained P5 archive and an 83-line deferred P5-G plan; no source,
+  test, or owner untracked artifact is staged.
+- 2026-08-24: independent latest-head review requested one P2 correction: two audit
+  references and the R1 expected area named the wrong composition-root path. Corrected
+  them to `src/pixelscope/app/application.py` and aligned the execution-plan template
+  with the new Deferred status; focused docs validation remained PASS.
+- 2026-08-24: independent reviewer rechecked the full PR at
+  `9d677aaf69fea1e9a3e42073a4e951081b960cfa`, confirmed the P2 finding closed, and
+  reported PASS with no remaining actionable finding. R0 merge is pending.
 
-## P5-G — External GPU/SMB Validation & Closeout — pending environment access
+## Completion summary
 
-P5-G is the final P5 program gate and begins only after P5-F is merged and an external
-environment is realistically available. It owns observation, not speculative redesign.
-
-Required real-environment validation:
-
-- actual external GPU API/result-writer compatibility against the frozen P5-C transport
-  and schema-v2 publication contracts;
-- Current Pair and Folder Pair end-to-end execution;
-- COMPLETE and PARTIAL publication behavior;
-- early/late cancel and completion races;
-- historical logical Result reopen/root remap;
-- real shared-root/staging/SMB access;
-- manifest/summary/Reference/Scene-grid/source verification/spatial-load timing and byte
-  observations;
-- concurrent local Statistics/Difference/Display Gain/ROI/Line/page navigation;
-- close/reopen and rapid Result/Scene intents;
-- server build/algorithm identity and storage topology capture where available.
-
-Any performance correction in P5-G must still be measurement-backed and bounded. Real
-timing observations do not become correctness thresholds unless a concrete regression
-is intentionally frozen.
-
-P5-G is also the only slice allowed to perform final P5 closeout:
-
-1. record P5-F and P5-G merge/evidence identities;
-2. mark the overall P5 Remote IQA Platform Complete;
-3. archive this active plan under `docs/exec-plans/completed/`;
-4. update ROADMAP/CURRENT_STATE/UI implementation status;
-5. make P6 **Identity, Access & Remote Operations** the active/next program.
-
-The implementation agent must never fabricate a live GPU/SMB PASS. Localhost/mock PASS
-and compatibility tooling are preparation/evidence only.
-
-## P6 boundary
-
-P6 **Identity, Access & Remote Operations** is the next major program only after P5-G
-and final P5 closeout. P5-F/P5-G do not implement authentication/SSO, credential
-lifecycle, permission policy, audit, or result administration merely because a
-production server may require those later.
+Active. Fill this section at R7 closeout with delivered behavior, changed files, exact
+validation, manual checks, constraints, deferred work, and agent attribution.

@@ -1,6 +1,6 @@
 # Remote IQA schema v2 source-measurement specification
 
-Status: Executable schema-v2 authority; P5-C PARTIAL merged; P5-D source-locator extension active in PR #43
+Status: Executable schema-v2 authority; repository client extensions merged through P5-F / PR #45
 Owner: PixelScope P5 program + external IQA server contract
 Historical executable baseline: P5-A / PR #37 / schema v1
 Durable schema-v2 contract baseline: P5-A2 Stage 1 / PR #39
@@ -537,8 +537,9 @@ metadata, and array contents are deferred.
 
 `load_grid_scene()` is the boundary that resolves and opens one requested published
 Scene grid. Therefore ordinary result open does not perform O(Scene) stat/resolve
-operations over SMB merely to establish the overview. P5-F still owns measured
-cache/preload and network-I/O policy.
+operations over SMB merely to establish the overview. No speculative result-grid cache
+or preload was added in P5-F; any future network-I/O correction requires measured P5-G
+evidence and a separately reviewed contract.
 
 A missing/corrupt deferred grid does not prevent the absolute summary-first result
 from opening; requesting that Scene grid returns a corrupt grid-load outcome.

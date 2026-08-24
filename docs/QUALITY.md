@@ -488,8 +488,12 @@ historical aggregation behavior is not changed to match v2.
 Historical focused command:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_remote_iqa_v1.py tests\unit\test_remote.py
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_remote_iqa_v1.py
 ```
+
+`tests/unit/test_remote.py` covers an isolated pre-P5 `/v1/jobs` scaffold, not the
+schema-v1 Result compatibility oracle. R3-A owns its history/import audit and removal or
+explicit retention decision.
 
 ## P5-A2 executable schema-v2 contract — Complete / PR #40
 
@@ -527,7 +531,7 @@ P5-B quality coverage establishes:
 
 P5-B is merged and is now the Results authority consumed by P5-C.
 
-## P5-C Submission & Shared Storage quality gate — Active / PR #42
+## P5-C Submission & Shared Storage quality gate — Complete / PR #42
 
 P5-C acceptance is contract/transaction/lifecycle/resource based, not timing based.
 
@@ -644,11 +648,10 @@ Observed evidence is recorded without extrapolation:
   newly-created job and again observed `succeeded`, enabled Open Result, and successful
   result browsing.
 
-Stage-4 formatting findings were mechanically repaired afterward. A post-format and
-post-doc latest-head static/full PASS has **not yet been observed** and must not be
-claimed.
+Stage-4 formatting findings were mechanically repaired afterward. This list is retained
+as historical P5-C evidence and is not a current-head validation claim.
 
-### P5-C final merge gate
+### P5-C final merge gate — historical
 
 After all lifecycle/storage blockers are fixed:
 
@@ -662,9 +665,25 @@ After all lifecycle/storage blockers are fixed:
 git diff --check
 ```
 
-Then perform independent latest-head whole-PR review. PR #42 must remain unmerged and
-P5-D must remain blocked until both the owner validation and independent review gates
-are clean.
+PR #42 completed its merge process. P5-D/E/F subsequently merged; their focused and
+full validation evidence remains in their durable contract/characterization documents.
+
+## R Repository Refactoring & Validation Hardening quality gate — Active
+
+R uses focused validation per small slice and reserves full repository validation for
+major integration points and final closeout. Behavior, numerical/schema/session/source/
+residency, concurrency, retry, and polling contracts remain frozen.
+
+The three Windows offscreen nodes carried from P5-F are explicit validation debt:
+
+- `test_floating_plots_geometry_survives_hide_show_and_restart`;
+- `test_single_view_plots_cover_all_selected_images_with_legends_and_tooltips`;
+- `test_bayer_statistics_profiles_status_and_channel_split`.
+
+R5 must characterize them before correction. Skip/xfail, arbitrary tolerance loosening,
+and unproven production changes are not acceptable dispositions. Reports classify every
+observed result as PASS, regression, reproduced baseline failure, or environment-
+dependent validation debt. See the active execution plan for slice-specific gates.
 
 ## Completion evidence
 
