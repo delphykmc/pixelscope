@@ -406,6 +406,13 @@ baseline or environment-dependent debt is never called full PASS.
   the P4/P5 UI selection. The skip is the existing Windows directory-symlink privilege
   constraint. No full-suite PASS is claimed; independent latest-whole-head review is
   pending.
+- 2026-08-24: independent review of `d917e9ac...` found the implementation order,
+  wrapper chains, pool policies, tests, and validation scope sound, and requested one
+  P2 documentation correction: PRODUCT_SPEC and UI status still named the P5-F merge
+  as the current baseline. Updated both current-status authorities to the R0 merge
+  `a25b3ee1...` while retaining historical P5-F identities. Although the reviewer found
+  the transport-construction/pool-bind reordering unobservable, R1 also restored the
+  original relative order because no change was required.
 
 ## Completion summary
 
