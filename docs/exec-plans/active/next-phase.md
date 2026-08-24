@@ -2,7 +2,7 @@
 
 Status: Active — **R5 implementation validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r5-offscreen-validation-hardening` / pending
+Branch/PR: `codex/r5-offscreen-validation-hardening` / #53
 Last updated: 2026-08-24
 
 ## Goal
