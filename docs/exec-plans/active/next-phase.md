@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R1 Application Composition implementation complete / review pending**
+Status: Active — **R1 Application Composition review gate satisfied / merge pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r1-application-composition`
 Last updated: 2026-08-24
@@ -225,7 +225,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: all current-status authorities agree; no broken link or unexplained
   documentation contraction; independent latest-head PASS.
 
-### R1 — Explicit application/IQA composition seam
+### R1 — Explicit application/IQA composition seam — review PASS / merge pending
 
 - Goal: make installer order and cross-controller dependencies visible and testable.
 - Expected areas: `src/pixelscope/app/application.py`, IQA install/composition modules,
@@ -413,6 +413,11 @@ baseline or environment-dependent debt is never called full PASS.
   `a25b3ee1...` while retaining historical P5-F identities. Although the reviewer found
   the transport-construction/pool-bind reordering unobservable, R1 also restored the
   original relative order because no change was required.
+- 2026-08-24: independent reviewer rechecked latest whole head
+  `33ebd9cf3720bf18e5eac7d22765ca08d8e45bcb`, confirmed the P2 finding and exact-order
+  remediation closed, independently observed 32 focused tests plus static/docs/diff
+  gates passing, and reported PASS with no remaining actionable finding. R1 merge is
+  pending.
 
 ## Completion summary
 
