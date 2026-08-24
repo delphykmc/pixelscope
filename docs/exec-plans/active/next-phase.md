@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R5 implementation validation complete / independent review pending**
+Status: Active — **R5 independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r5-offscreen-validation-hardening` / #53
 Last updated: 2026-08-24
@@ -298,7 +298,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: same contract coverage and deterministic collection with clearer
   failure ownership; reviewer finds no lost regression.
 
-### R5 — Windows/offscreen validation hardening — review pending
+### R5 — Windows/offscreen validation hardening — review PASS / merge pending
 
 - Goal: deterministically resolve or precisely constrain the three known failures.
 - Expected areas: affected UI tests/harness, possibly test-only Qt helpers and QUALITY.
@@ -574,6 +574,18 @@ baseline or environment-dependent debt is never called full PASS.
   nodes passed five consecutive runs (15/15), related modules passed 19 tests, and the
   full Windows offscreen UI suite passed all 467 tests in 268.42 seconds. Ruff and diff
   gates passed. Independent latest-whole-head review remains the merge gate.
+- 2026-08-24: independent review of latest whole head
+  `0a13040aec9929a5f272831ba8c7c275a265b9d1` confirmed the interior histogram point,
+  visible-plot preconditions, and capability-specific geometry assertion preserve the
+  intended contracts without hiding a product defect. Persisted geometry, restored
+  floating state, and same-process geometry remain unconditional; restart coordinates
+  remain asserted on non-offscreen platforms. The reviewer observed 15/15 repeated
+  debt-node passes, 19 related passes, and all 467 UI tests passing in 272.57 seconds;
+  Ruff, format, pip, docs, docs-contract, and diff gates passed. No production source,
+  expectation, tolerance, skip, xfail, dependency, or packaging change was found.
+  Actual restart placement on window-manager platforms, full repository pytest, mypy,
+  interactive UI, packaging, and external GPU/SMB remain unverified and are not claimed.
+  Reviewer reported PASS.
 
 ## Completion summary
 
