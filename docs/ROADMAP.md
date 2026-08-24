@@ -373,7 +373,7 @@ P5-F merged as PR #45 at
 independent review. The unavailable external environment was not treated as PASS, so
 the overall **P5 program remains Active**.
 
-## R — Repository Refactoring & Validation Hardening — Closeout review PASS / PR #55 merge pending
+## R — Repository Refactoring & Validation Hardening — Complete / PR #55
 
 R is a behavior-preserving repository program between repository-side P5-F completion
 and production-shaped P5-G integration. It owns small independently reviewed slices for
@@ -396,7 +396,7 @@ The authoritative R plan is
 | R4-B | Smoke suite decomposition | **Complete — PR #52 · `39b8c77fbf8a497d2787f33b8e119d2ddbed9604`** |
 | R5 | Windows/offscreen validation hardening | **Complete — PR #53 · `45e718abe28ab600edab41cf04a998029f6fc5f7`** |
 | R6 | Harness and architecture guardrails | **Complete — PR #54 · `7c3dbe386aaff900f0accc7ce460759df80f14e0`** |
-| R7 | Final integration validation and closeout | **Review PASS — PR #55 merge pending** |
+| R7 | Final integration validation and closeout | **Complete — PR #55 · `2f29bf95b8d51c470534cf6decda3033681c75bf`** |
 
 ## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 

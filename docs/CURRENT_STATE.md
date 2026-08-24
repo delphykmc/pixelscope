@@ -1,7 +1,7 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-24
-Current merged `main`: `7c3dbe386aaff900f0accc7ce460759df80f14e0`
+Current merged `main`: `2f29bf95b8d51c470534cf6decda3033681c75bf`
 
 `main` includes:
 
@@ -36,12 +36,15 @@ Current merged `main`: `7c3dbe386aaff900f0accc7ce460759df80f14e0`
   `45e718abe28ab600edab41cf04a998029f6fc5f7`.
 - R6 / PR #54 — harness and architecture guardrails, merged at
   `7c3dbe386aaff900f0accc7ce460759df80f14e0`.
+- R7 / PR #55 — final integration validation and R-program closeout, merged at
+  `2f29bf95b8d51c470534cf6decda3033681c75bf`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
 real environment is available. R **Repository Refactoring & Validation Hardening**
-closeout is independently reviewed on PR #55 with merge pending; no repository
-implementation program is active. R adds no product behavior.
+completed through independently reviewed PR #55, merged at
+`2f29bf95b8d51c470534cf6decda3033681c75bf`; no repository implementation program is
+active. R added no product behavior.
 
 Current execution pointer:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
