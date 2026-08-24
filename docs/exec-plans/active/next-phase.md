@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R3-A implementation/validation complete; independent review pending**
+Status: Active — **R3-A independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r3a-obsolete-remote-scaffold`
 Last updated: 2026-08-24
@@ -252,7 +252,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: no controller temporarily owns the wrong pool; exact lifetime tests
   and independent race/ownership review PASS.
 
-### R3-A — Obsolete Remote scaffold disposition — review pending
+### R3-A — Obsolete Remote scaffold disposition — review PASS / merge pending
 
 - Goal: eliminate the misleading pre-P5 client only if repository/history evidence
   confirms it has no supported consumer.
@@ -467,6 +467,15 @@ baseline or environment-dependent debt is never called full PASS.
   tests, mypy passed all 29 remaining Remote source files, pip check reported no broken
   requirements, docs checker/contract passed, and diff check passed. No full-suite PASS
   is claimed; independent compatibility review remains the merge gate.
+- 2026-08-24: independent compatibility review of latest whole head
+  `94f56e1225be109f53731d3da3ab2a20e485602a` confirmed the four removed files have
+  no post-initial history, production/script/test/export consumer, Git tag, or GitHub
+  Release commitment. The reviewer verified canonical schema-v1 and `/v1/iqa/jobs`
+  sources remain byte-identical, package discovery finds 7 packages and 28 supported
+  Remote modules with the legacy modules absent, independently reproduced the 212/1/237
+  unit result plus import/package/static/docs/diff gates, and reported PASS. The only
+  residual compatibility risk is an undocumented repository-external deep importer;
+  R3-A merge is pending.
 
 ## Completion summary
 
