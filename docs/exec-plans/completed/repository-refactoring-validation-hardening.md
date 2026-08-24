@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Complete on reviewed PR head — **PR #55 merge pending**
+Status: Complete — **PR #55 · `2f29bf95b8d51c470534cf6decda3033681c75bf`**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r7-refactoring-closeout` / #55
 Last updated: 2026-08-24
@@ -324,7 +324,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1–R5 reveal stable seams.
 - Merge criterion: each rule has a concrete past failure/drift case and actionable output.
 
-### R7 — Final integration validation and closeout — review PASS / merge pending
+### R7 — Final integration validation and closeout — Complete / PR #55
 
 - Goal: verify all R slices together and leave one accurate repository state.
 - Expected areas: validation evidence and narrow durable closeout updates.
@@ -624,7 +624,8 @@ baseline or environment-dependent debt is never called full PASS.
   in DECISIONS was corrected. Latest whole-head re-review at
   `0e5a74e1f98a17fe024abaf25449ccea24c8a4e9` confirmed the finding closed and
   reported PASS. The plan was then moved intact to completed history and replaced by a
-  short active pointer; final archive-head review remains the PR #55 merge gate.
+  short active pointer. Final archive-head review passed, and PR #55 merged at
+  `main@2f29bf95b8d51c470534cf6decda3033681c75bf`.
 
 ## Completion summary
 

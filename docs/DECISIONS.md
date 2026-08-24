@@ -644,8 +644,9 @@ schema-v1 baseline. P5-A2 Stage 1 / PR #39 established the durable schema-v2 mod
 Stage 2 / PR #40 is the executable schema-v2 authority. P5-B / PR #38 is merged at
 `a44978db783ebcecb0d55f8abb52b583e0fdc47c` and owns the canonical local Results
 workspace. P5-C / PR #42, P5-D / PR #43, P5-E / PR #44, and P5-F / PR #45 are merged.
-P5-G remains an unobserved external validation gate. R closeout is independently
-reviewed on PR #55 with merge pending; no repository implementation program is active.
+P5-G remains an unobserved external validation gate. R completed through independently
+reviewed PR #55 at `main@2f29bf95b8d51c470534cf6decda3033681c75bf`; no repository
+implementation program is active.
 
 `docs/REMOTE_IQA_CONTRACT.md` is the product/transport ownership authority.
 `docs/REMOTE_IQA_V2_SPEC.md` is the current numerical/artifact authority.
@@ -916,10 +917,9 @@ reviewed on PR #55 with merge pending; no repository implementation program is a
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. R0–R6 merged as PR #46–#54. Current
-main is `7c3dbe386aaff900f0accc7ce460759df80f14e0`; R7 closeout is independently
-reviewed on PR #55 with merge pending, and no repository implementation program is
-active.
+client work is complete through P5-F / PR #45. R0–R7 merged as PR #46–#55. Current
+main is `2f29bf95b8d51c470534cf6decda3033681c75bf`; R is complete, and no repository
+implementation program is active.
 
 Observed P5-C evidence includes:
 
