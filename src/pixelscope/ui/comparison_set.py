@@ -26,7 +26,10 @@ SESSION_FILTER = "PixelScope Session (*.pixelscope)"
 
 
 class SessionController:
-    """Bridge durable Session artifacts to existing MainWindow runtime authorities."""
+    """Shared Session capture/menu base plus the retained legacy restore path.
+
+    Production installs the transactional subclass from ``pixelscope.ui.session``.
+    """
 
     def __init__(
         self,
@@ -473,10 +476,13 @@ class SessionController:
         self.window._update_document_item(document)
 
 
+SessionControllerBase = SessionController
 ComparisonSetController = SessionController
 
 
 def install_comparison_set(window: Any) -> SessionController:
+    """Install the legacy P4-B controller; production uses ``install_session``."""
+
     existing = getattr(window, "session_controller", None)
     if isinstance(existing, SessionController):
         return existing

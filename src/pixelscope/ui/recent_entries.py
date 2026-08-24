@@ -15,8 +15,8 @@ from pixelscope.app.settings import QSettingsAdapter
 from pixelscope.core.comparison_set import ComparisonSetError
 from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
-from pixelscope.ui.comparison_set import SessionController
 from pixelscope.ui.design_tokens import menu_style
+from pixelscope.ui.session import SessionController
 
 LOGGER = logging.getLogger(__name__)
 
