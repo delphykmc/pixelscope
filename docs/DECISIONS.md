@@ -866,7 +866,7 @@ repository program.
   historical/unsupported status and link the server directory to the current durable
   contract. Do not silently rewrite it as a production server specification.
 
-### R3-B Session/legacy adapter decisions — active
+### R3-B Session/legacy adapter decisions — complete / PR #50
 
 - `ui.session.SessionController` installed by `install_session` is the sole production
   transactional Session restore authority and owns `window.session_controller`.
@@ -880,6 +880,18 @@ repository program.
   shared-base predicate retains `install_comparison_set` + Recent compatibility. Session
   v1 writes, legacy Comparison Set v1 reads, repository payloads, transactional restore,
   menu order, Recent behavior, and return semantics are unchanged.
+
+### R6 harness and durable-document decisions — active
+
+- Mechanically forbid PySide6 and pyqtgraph imports from `src/pixelscope/core/` and
+  `src/pixelscope/io/`. This enforces the existing numerical/presentation boundary; it
+  does not introduce a broader speculative layer framework.
+- Retain `REMOTE_IQA_V1_SPEC.md` and `REMOTE_IQA_V2_SPEC.md` because version identity is
+  part of persisted compatibility authority.
+- Retain the phase-named P5-D/P5-E/P5-F root documents. Their names preserve additive
+  contract and closure-evidence scope, while moving them would churn roughly twenty
+  durable links without improving current authority. `docs/index.md` now states each
+  role explicitly.
 
 ## Current resource policy
 
@@ -904,8 +916,8 @@ repository program.
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. R0–R3-A merged as PR #46–#49. Current
-main is `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`; R3-B is active.
+client work is complete through P5-F / PR #45. R0–R5 merged as PR #46–#53. Current
+main is `45e718abe28ab600edab41cf04a998029f6fc5f7`; R6 is active.
 
 Observed P5-C evidence includes:
 

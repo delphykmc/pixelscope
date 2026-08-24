@@ -48,6 +48,7 @@ ownership assertions rather than an elapsed-time threshold.
 | Public workflow/terminology | Product/user documentation update and UI assertions |
 | Dependency/packaging | Python 3.10 evidence, `pip check`, packaging-constraint review, and explicit authorization before packaging tools run |
 | Documentation/harness | `scripts/check_docs.py`, consistency with current code/PR scope, provenance disclosure when agent-assisted, and diff inspection |
+| Numerical/UI architecture boundary | `tests/unit/test_architecture_boundaries.py`; actionable file/line diagnostics for forbidden PySide6 or pyqtgraph imports from `core/` and `io/` |
 
 For application identity changes, run the generator in check mode and verify the
 built wheel contains the canonical triplet:

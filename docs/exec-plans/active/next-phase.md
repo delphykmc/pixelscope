@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R5 independent review PASS / merge pending**
+Status: Active — **R6 implementation validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r5-offscreen-validation-hardening` / #53
+Branch/PR: `codex/r6-harness-architecture-guardrails` / pending
 Last updated: 2026-08-24
 
 ## Goal
@@ -298,7 +298,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: same contract coverage and deterministic collection with clearer
   failure ownership; reviewer finds no lost regression.
 
-### R5 — Windows/offscreen validation hardening — review PASS / merge pending
+### R5 — Windows/offscreen validation hardening — Complete / PR #53
 
 - Goal: deterministically resolve or precisely constrain the three known failures.
 - Expected areas: affected UI tests/harness, possibly test-only Qt helpers and QUALITY.
@@ -310,7 +310,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: deterministic PASS or exact documented environment constraint with
   no hidden failure and independent product-vs-harness review.
 
-### R6 — Harness and architecture guardrails
+### R6 — Harness and architecture guardrails — review pending
 
 - Goal: make stable ownership/status rules mechanically visible and evaluate a bounded
   phase-neutral current-contract versus historical-evidence document structure without
@@ -586,6 +586,18 @@ baseline or environment-dependent debt is never called full PASS.
   Actual restart placement on window-manager platforms, full repository pytest, mypy,
   interactive UI, packaging, and external GPU/SMB remain unverified and are not claimed.
   Reviewer reported PASS.
+- 2026-08-24: R5 closure head `be73bf4802cc215ce262357bafb50c65d013a224`
+  passed final docs-only review, and PR #53 merged at
+  `main@45e718abe28ab600edab41cf04a998029f6fc5f7`.
+- 2026-08-24: started R6 from the R5 merge. The stable existing rule that numerical
+  `core/` and `io/` remain independent of PySide6/pyqtgraph now has an AST-based
+  repository guardrail with actionable file/line diagnostics; its repository and
+  negative-diagnostic tests observed 2 passed. Document-structure evaluation retained
+  explicit schema-v1/v2 filenames as compatibility authority and retained phase-named
+  P5-D/P5-E/P5-F root documents because they preserve historical scope and moving them
+  would churn roughly twenty durable links. `docs/index.md` now makes their current
+  contract versus closure-evidence roles explicit. No production source or document was
+  moved. Independent latest-whole-head review remains the merge gate.
 
 ## Completion summary
 
