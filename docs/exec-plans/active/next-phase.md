@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R3-B independent review PASS / merge pending**
+Status: Active — **R4-A implementation validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r3b-session-authority`
+Branch/PR: `codex/r4a-common-ui-fixtures` / pending
 Last updated: 2026-08-24
 
 ## Goal
@@ -265,7 +265,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: documented removal rationale, equivalent current-contract coverage,
   and compatibility reviewer PASS; otherwise record and retain it.
 
-### R3-B — Session and legacy boundary clarification — review PASS / merge pending
+### R3-B — Session and legacy boundary clarification — Complete / PR #50
 
 - Goal: make Session v1 authority and legacy Comparison Set adapter ownership explicit.
 - Expected areas: comparison/session modules, facade/call sites, persistence tests/docs.
@@ -276,7 +276,7 @@ read-only review of its latest whole head before merge.
 - Dependency: R1; independent of R3-A.
 - Merge criterion: simpler boundary with identical persisted fixtures and reviewer PASS.
 
-### R4-A — Common UI test fixtures
+### R4-A — Common UI test fixtures — review pending
 
 - Goal: centralize behavior-identical QSettings/UI setup without changing test scope.
 - Expected areas: `tests/ui/conftest.py` and affected UI tests.
@@ -506,6 +506,21 @@ baseline or environment-dependent debt is never called full PASS.
   domain/repository byte identity and facade selected-count adaptation remain unchanged.
   The reviewer observed 79 focused tests plus Ruff/format/mypy/docs/diff gates passing
   and reported PASS with no remaining actionable finding. R3-B merge is pending.
+- 2026-08-24: R3-B closure head `27227271defd61f411214aee2594324f3d5da849`
+  passed final docs-only review, and PR #50 merged at
+  `main@6e98baea425f3dfbfacc1140370a77e889673a76`.
+- 2026-08-24: started R4-A from the R3-B merge. The audit classified 28 module-level
+  autouse QSettings fixtures into three behavior-distinct groups: clear under
+  `tmp_path`, clear plus explicit `sync()`, and P5-E clear under
+  `tmp_path / "settings"`. R4-A centralizes those exact operations as opt-in fixtures
+  in `tests/ui/conftest.py`; modules opt in with `pytest.mark.usefixtures`, so the
+  fixture does not broaden to unrelated UI tests. Inline mid-test clears and the
+  P5-D stale-inspection setup remain untouched because their timing or scope differs.
+  A representative pre-change run observed 103 passed and the two known pyqtgraph
+  hover failures; the same selection after migration observed the identical result.
+  The full post-change UI run observed 464 passed and the exact three carried Windows
+  offscreen failures in 273.54 seconds. Repository Ruff check/format and diff check
+  passed. Independent latest-whole-head review remains the merge gate.
 
 ## Completion summary
 
