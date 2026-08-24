@@ -1,4 +1,4 @@
-# P5-F — Remote IQA Integration & Performance Characterization
+# Remote IQA Integration & Performance Characterization
 
 Status: **Complete — PR #45**
 

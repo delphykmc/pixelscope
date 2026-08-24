@@ -1,4 +1,4 @@
-# P5-D — Viewer-linked Scene Inspection Contract
+# Remote IQA Viewer-linked Scene Inspection Contract
 
 Status: **Complete — PR #43**
 

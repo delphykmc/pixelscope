@@ -18,11 +18,11 @@ Authoritative P5 documents:
 - current numerical/result contract:
   [`docs/REMOTE_IQA_V2_SPEC.md`](../../REMOTE_IQA_V2_SPEC.md)
 - completed P5-D viewer-linked inspection contract:
-  [`docs/P5D_VIEWER_INSPECTION.md`](../../P5D_VIEWER_INSPECTION.md)
+  [`docs/REMOTE_IQA_VIEWER_INSPECTION.md`](../../REMOTE_IQA_VIEWER_INSPECTION.md)
 - completed P5-E historical-result contract:
-  [`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md)
+  [`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](../../REMOTE_IQA_HISTORICAL_RESULTS.md)
 - P5-F integration characterization:
-  [`docs/P5F_INTEGRATION_CHARACTERIZATION.md`](../../P5F_INTEGRATION_CHARACTERIZATION.md)
+  [`docs/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](../../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md)
 - historical schema-v1 compatibility:
   [`docs/REMOTE_IQA_V1_SPEC.md`](../../REMOTE_IQA_V1_SPEC.md)
 - current repository snapshot:
@@ -146,7 +146,7 @@ authority:
 - Session v1 unchanged.
 
 The detailed merged P5-E authority remains in
-[`docs/P5E_HISTORICAL_RESULTS.md`](../../P5E_HISTORICAL_RESULTS.md). Its validation is
+[`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](../../REMOTE_IQA_HISTORICAL_RESULTS.md). Its validation is
 historical evidence only and is not carried forward as P5-F PASS.
 
 ## P5-F completed scope — repository-side integration hardening

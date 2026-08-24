@@ -59,13 +59,13 @@ Current numerical/result contract:
 [`REMOTE_IQA_V2_SPEC.md`](REMOTE_IQA_V2_SPEC.md).
 
 P5-D viewer-linked inspection contract:
-[`P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
+[`REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md).
 
 P5-E historical-result contract:
-[`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
+[`REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 P5-F integration characterization:
-[`P5F_INTEGRATION_CHARACTERIZATION.md`](P5F_INTEGRATION_CHARACTERIZATION.md).
+[`REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
 
 Deferred P5-G external validation plan:
 [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
@@ -413,7 +413,7 @@ tests/ui/test_p5d_alias_spatial_binding.py
 ```
 
 The complete contract and historical validation matrix remain in
-[`P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md). P5-D PASS is not inferred as
+[`REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md). P5-D PASS is not inferred as
 P5-F PASS.
 
 ## P5-E completed historical workflow
@@ -428,7 +428,7 @@ protection while preserving P5-B canonical opening, P5-D Inspect, Session v1, an
 Recent ownership.
 
 Its exact durable contract is
-[`P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md). P5-E validation remains
+[`REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md). P5-E validation remains
 historical evidence only.
 
 ## P5-F completed repository-side hardening state

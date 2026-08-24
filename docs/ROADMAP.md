@@ -94,13 +94,13 @@ Current schema-v2 result contract:
 [`docs/REMOTE_IQA_V2_SPEC.md`](REMOTE_IQA_V2_SPEC.md).
 
 P5-D completed implementation contract:
-[`docs/P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
+[`docs/REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md).
 
 P5-E historical-result contract:
-[`docs/P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
+[`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 P5-F integration characterization:
-[`docs/P5F_INTEGRATION_CHARACTERIZATION.md`](P5F_INTEGRATION_CHARACTERIZATION.md).
+[`docs/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
 
 Historical schema-v1 compatibility contract:
 [`docs/REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
@@ -311,7 +311,7 @@ Results browsing mutate local comparison state.
   feature-local work.
 
 Detailed contract and manual-validation matrix:
-[`docs/P5D_VIEWER_INSPECTION.md`](P5D_VIEWER_INSPECTION.md).
+[`docs/REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md).
 
 ### P5-D completion
 
@@ -326,7 +326,7 @@ P5-E extends the canonical P5-B result-open path with bounded historical discove
 passive provenance while preserving P5-C logical storage and P5-D explicit Inspect.
 
 Focused contract:
-[`docs/P5E_HISTORICAL_RESULTS.md`](P5E_HISTORICAL_RESULTS.md).
+[`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 Delivered scope:
 

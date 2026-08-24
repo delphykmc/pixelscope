@@ -1,4 +1,4 @@
-# P5-E — Historical Remote IQA Results
+# Remote IQA Historical Results Contract
 
 Status: **Complete — PR #44**
 

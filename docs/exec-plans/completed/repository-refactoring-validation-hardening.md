@@ -626,6 +626,13 @@ baseline or environment-dependent debt is never called full PASS.
   reported PASS. The plan was then moved intact to completed history and replaced by a
   short active pointer. Final archive-head review passed, and PR #55 merged at
   `main@2f29bf95b8d51c470534cf6decda3033681c75bf`.
+- 2026-08-24: after closeout, the owner clarified that the R6 document-retention
+  decision did not satisfy the intended top-level naming cleanup. A bounded docs-only
+  correction renamed the current P5-D/P5-E/P5-F root documents to
+  `REMOTE_IQA_VIEWER_INSPECTION.md`, `REMOTE_IQA_HISTORICAL_RESULTS.md`, and
+  `REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`, and updated durable links. Phase
+  identity remains in document content and this completed history; schema-v1/v2
+  filenames remain unchanged because their version identity is compatibility authority.
 
 ## Completion summary
 
@@ -633,6 +640,8 @@ R0–R7 delivered explicit application/Remote-IQA composition, injected worker/r
 ownership, removal of the unsupported pre-P5 Remote scaffold, clarified Session/legacy
 ownership, shared opt-in UI settings fixtures, domain-oriented UI contract modules,
 deterministic Windows offscreen validation, and a bounded numerical/UI import guardrail.
+Current Remote IQA contracts and characterization use phase-neutral root filenames while
+preserving their P5-D/P5-E/P5-F history inside the documents and completed plans.
 All changes preserved product behavior, numerical/schema/Session/source/residency/
 worker contracts, and deferred real GPU/SMB authority.
 
