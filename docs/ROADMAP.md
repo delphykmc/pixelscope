@@ -392,8 +392,9 @@ The authoritative R plan is
 | R2 | Worker and resource ownership injection | **Complete — PR #48 · `7c0d326fd2a8ff767ac916d29af1c7d5ee44abd6`** |
 | R3-A | Obsolete Remote scaffold disposition | **Complete — PR #49 · `a97bfb68e1113afea4ea905d7ccbbb1f67a9bde1`** |
 | R3-B | Session and legacy boundary clarification | **Complete — PR #50 · `6e98baea425f3dfbfacc1140370a77e889673a76`** |
-| R4-A | Common UI test fixtures | **Active** |
-| R4-B–R7 | Cleanup, validation, guardrails, closeout | Planned |
+| R4-A | Common UI test fixtures | **Complete — PR #51 · `336a27e5e10e3d5e8d83bc18046bec837daa5b96`** |
+| R4-B | Smoke suite decomposition | **Active** |
+| R5–R7 | Validation, guardrails, closeout | Planned |
 
 ## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 
