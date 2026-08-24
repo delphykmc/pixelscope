@@ -379,7 +379,9 @@ At the UI boundary, `ui.comparison_set.SessionController` retains shared capture
 mechanics and the legacy restore implementation. `SessionControllerBase` names that
 role explicitly. Production composition calls only `ui.session.install_session`, which
 installs the transactional `ui.session.SessionController` as
-`window.session_controller`. `RecentEntriesController` depends on that production type.
+`window.session_controller`. Production composition coverage locks that concrete type.
+`RecentEntriesController` accepts the shared base so the retained P4-B
+`install_comparison_set` compatibility composition remains valid.
 
 `window.comparison_set_controller` remains a narrow P4-B compatibility facade over the
 same production controller. It shares the repository and all operations but preserves

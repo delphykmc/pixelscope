@@ -876,7 +876,8 @@ repository program.
 - `window.comparison_set_controller` remains a facade over the same production
   controller only to preserve the P4-B selected-count `open_from_path` view. It has no
   independent repository or runtime ownership.
-- Recent Sessions type-check and delegate to the production Session controller. Session
+- Production Recent Sessions delegate to the production Session controller, while the
+  shared-base predicate retains `install_comparison_set` + Recent compatibility. Session
   v1 writes, legacy Comparison Set v1 reads, repository payloads, transactional restore,
   menu order, Recent behavior, and return semantics are unchanged.
 

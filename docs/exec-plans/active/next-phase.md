@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R3-B implementation/validation complete; independent review pending**
+Status: Active — **R3-B reviewer remediation; re-review pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r3b-session-authority`
 Last updated: 2026-08-24
@@ -265,7 +265,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: documented removal rationale, equivalent current-contract coverage,
   and compatibility reviewer PASS; otherwise record and retain it.
 
-### R3-B — Session and legacy boundary clarification — review pending
+### R3-B — Session and legacy boundary clarification — reviewer remediation complete / re-review pending
 
 - Goal: make Session v1 authority and legacy Comparison Set adapter ownership explicit.
 - Expected areas: comparison/session modules, facade/call sites, persistence tests/docs.
@@ -493,6 +493,13 @@ baseline or environment-dependent debt is never called full PASS.
   reported no broken requirements, docs checker/contract passed, and diff check passed.
   No full-suite PASS is claimed; independent persisted-data/compatibility review remains
   the merge gate.
+- 2026-08-24: independent review of `64a0fdbc44dd1266ba7e3519ebfca4a35a67bcf3`
+  found one P1 compatibility regression: narrowing Recent to the production subclass
+  rejected the retained `install_comparison_set` + `install_recent_entries` composition.
+  Recent now checks `SessionControllerBase`, production composition remains locked to
+  the transactional subclass, and a focused regression covers successful legacy
+  installer/Recent composition. Persisted and facade behavior remain unchanged;
+  latest-head re-review is pending.
 
 ## Completion summary
 
