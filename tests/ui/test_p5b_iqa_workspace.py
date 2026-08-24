@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pyqtgraph as pg
 import pytest
-from PySide6.QtCore import QRect, QSettings, Qt, QThreadPool
+from PySide6.QtCore import QRect, Qt, QThreadPool
 from PySide6.QtWidgets import QFileDialog, QLabel
 
 from pixelscope.app.application import _compose_main_window_presentation
@@ -27,16 +27,7 @@ from pixelscope.ui.iqa_workspace import (
 )
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 @pytest.fixture()

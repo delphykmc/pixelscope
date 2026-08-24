@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.main_window import MainWindow
@@ -14,12 +13,7 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.preload import PreloadMemberRequest
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
-
-@pytest.fixture(autouse=True)
-def isolated_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _task_error(message: str, *, exception_type: str = "RuntimeError") -> TaskError:

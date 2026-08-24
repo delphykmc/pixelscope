@@ -17,18 +17,7 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
 
-
-@pytest.fixture(autouse=True)
-def isolated_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    settings = QSettings()
-    settings.clear()
-    settings.sync()
+pytestmark = pytest.mark.usefixtures("isolated_synced_qsettings")
 
 
 def _repository() -> SettingsRepository:

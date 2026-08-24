@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
-from PySide6.QtCore import QSettings
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -11,16 +8,7 @@ from pixelscope.remote.iqa_submission import IqaResultReference, JobState
 from pixelscope.ui.iqa_result_retry import RESULT_REFERENCE_RETRY_DELAYS_SECONDS
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def test_terminal_result_reference_failure_reenters_with_bounded_backoff(

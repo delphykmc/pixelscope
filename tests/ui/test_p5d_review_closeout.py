@@ -8,7 +8,6 @@ from typing import Any
 import cv2
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
 
 import pixelscope.ui.iqa_scene_inspection as inspection_module
 from pixelscope.app.application import _compose_main_window_presentation
@@ -26,16 +25,7 @@ from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_reader import load_result_v2
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _result(tmp_path: Path) -> ResultV2:

@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import pyqtgraph as pg
 import pytest
-from PySide6.QtCore import QPointF, QSettings, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QKeySequence, QPalette
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog
 
@@ -27,12 +27,7 @@ from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.pixel_inspector import PixelInspector
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def test_application_and_selection_driven_main_window(qtbot: object) -> None:

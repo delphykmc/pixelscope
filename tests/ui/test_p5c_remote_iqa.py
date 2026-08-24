@@ -22,16 +22,7 @@ from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.ui.iqa_remote_settings import RemoteIqaSettingsDialog
 from pixelscope.ui.iqa_submission import RemoteIqaWorkspace, RemoteJobRecord
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _repository() -> SettingsRepository:

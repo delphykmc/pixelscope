@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from pixelscope.app.application import _compose_main_window_presentation
@@ -23,16 +22,7 @@ from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_partial import PartialResultV2
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path / "settings"),
-    )
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings_subdirectory")
 
 
 def _set_result_id(root: Path, result_id: str) -> Path:

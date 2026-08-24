@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from PySide6.QtCore import QByteArray, QRect, QSettings, Qt
 
@@ -11,12 +9,7 @@ from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.image_viewer import RoiViewBox
 from pixelscope.ui.plots_dock_title import PLOTS_FLOATING_GEOMETRY_SETTING
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _geometry_close(actual: QRect, expected: QRect, tolerance: int = 16) -> bool:

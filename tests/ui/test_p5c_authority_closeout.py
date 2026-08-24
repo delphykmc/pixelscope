@@ -7,7 +7,6 @@ from typing import Any
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
 
 import pixelscope.ui.iqa_preview_lifecycle as preview_lifecycle_module
 import pixelscope.ui.iqa_submission as iqa_submission_module
@@ -22,16 +21,7 @@ from pixelscope.remote.iqa_submission import (
 from pixelscope.ui.iqa_preview_lifecycle import RemoteIqaPreviewLifecycle
 from pixelscope.ui.iqa_submission import _FolderPreviewPayload
 
-
-@pytest.fixture(autouse=True)
-def isolated_ui_settings(tmp_path: Path) -> None:
-    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
-    QSettings.setPath(
-        QSettings.Format.IniFormat,
-        QSettings.Scope.UserScope,
-        str(tmp_path),
-    )
-    QSettings().clear()
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _documents(tmp_path: Path, count: int = 2) -> list[ImageDocument]:
