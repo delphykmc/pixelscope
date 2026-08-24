@@ -911,9 +911,21 @@ P5-E historical open + Provenance observer
 ```
 
 This seam does not replace `MethodType` wrappers, reconnect signals, change any
-controller method, or alter settings/open/shutdown order. R2 separately owns replacing
-the remaining post-construction private result-pool assignments with explicit
-constructor/install dependencies while preserving the same three pool domains.
+controller method, or alter settings/open/shutdown order.
+
+## R2 explicit Remote IQA result-pool ownership
+
+Production creates the fixed max-two Remote IQA result/file pool before `MainWindow`.
+`MainWindow` passes that pool into the P5-B Result controller constructor, and the R1
+composition seam forwards the same dependency into the P5-D Inspect and P5-E history
+installers. Each controller therefore has its final pool from construction; application
+composition no longer mutates private `_pool` state after installation.
+
+The controllers retain a read-only `pool` ownership view for composition and contract
+tests. Direct non-production construction may still omit the dependency and use the
+established analysis-pool fallback. R2 does not change pool sizes, the separate P5-C
+job-operation pool, worker start/cancel behavior, stale-result guards, shutdown hooks,
+HTTP checkout, or installer/wrapper order.
 
 ## Runtime diagnostics and release boundaries
 

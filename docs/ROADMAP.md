@@ -388,8 +388,9 @@ The authoritative R plan is
 | Order | Slice | Status |
 |---|---|---|
 | R0 | State reconciliation and executable program | **Complete — PR #46 · `a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`** |
-| R1 | Application composition | **Active** |
-| R2–R7 | Ownership, cleanup, validation, guardrails, closeout | Planned |
+| R1 | Application composition | **Complete — PR #47 · `808f1e6bccd67e649be71b03798a1a1f407628f8`** |
+| R2 | Worker and resource ownership injection | **Active** |
+| R3–R7 | Cleanup, validation, guardrails, closeout | Planned |
 
 ## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 
