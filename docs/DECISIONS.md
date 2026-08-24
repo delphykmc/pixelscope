@@ -881,7 +881,7 @@ repository program.
   v1 writes, legacy Comparison Set v1 reads, repository payloads, transactional restore,
   menu order, Recent behavior, and return semantics are unchanged.
 
-### R6 harness and durable-document decisions — active
+### R6 harness and durable-document decisions — complete / PR #54
 
 - Mechanically forbid PySide6 and pyqtgraph imports from `src/pixelscope/core/` and
   `src/pixelscope/io/`. This enforces the existing numerical/presentation boundary; it
@@ -916,8 +916,8 @@ repository program.
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. R0–R5 merged as PR #46–#53. Current
-main is `45e718abe28ab600edab41cf04a998029f6fc5f7`; R6 is active.
+client work is complete through P5-F / PR #45. R0–R6 merged as PR #46–#54. Current
+main is `7c3dbe386aaff900f0accc7ce460759df80f14e0`; R7 is active.
 
 Observed P5-C evidence includes:
 
