@@ -12,6 +12,9 @@ registered document catalog, ordered selection, Current Comparison Page derivati
 presentation orchestration, settings composition, load identity, source residency
 integration, and window lifecycle.
 
+`core/` and `io/` must not import PySide6 or pyqtgraph. The repository enforces this
+stable numerical/presentation boundary in `tests/unit/test_architecture_boundaries.py`.
+
 Native `ImageDocument.source` remains authoritative for analysis. Viewer preview
 is derived presentation and must not redefine source, Difference, Statistics,
 Histogram, Line Profile, Split Channel, or residency domains.

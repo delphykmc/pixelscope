@@ -48,6 +48,7 @@ ownership assertions rather than an elapsed-time threshold.
 | Public workflow/terminology | Product/user documentation update and UI assertions |
 | Dependency/packaging | Python 3.10 evidence, `pip check`, packaging-constraint review, and explicit authorization before packaging tools run |
 | Documentation/harness | `scripts/check_docs.py`, consistency with current code/PR scope, provenance disclosure when agent-assisted, and diff inspection |
+| Numerical/UI architecture boundary | `tests/unit/test_architecture_boundaries.py`; actionable file/line diagnostics for forbidden PySide6 or pyqtgraph imports from `core/` and `io/` |
 
 For application identity changes, run the generator in check mode and verify the
 built wheel contains the canonical triplet:
@@ -689,8 +690,9 @@ expectations and same-process geometry checks, uses an interior histogram coordi
 shows the plot under test, and separates persisted restore authority from unsupported
 offscreen window-manager placement. The three nodes passed five consecutive runs, their
 related modules passed 19 tests, and the full UI suite passed all 467 tests on the R5
-implementation branch. Independent review remains the merge gate; no product source,
-skip/xfail, or tolerance changed.
+implementation branch. Independent latest-head review passed, and PR #53 merged at
+`main@45e718abe28ab600edab41cf04a998029f6fc5f7`; no product source, skip/xfail, or
+tolerance changed.
 
 ## Completion evidence
 

@@ -1,7 +1,7 @@
 # PixelScope current state
 
 Snapshot date: 2026-08-24
-Current merged `main`: `39b8c77fbf8a497d2787f33b8e119d2ddbed9604`
+Current merged `main`: `45e718abe28ab600edab41cf04a998029f6fc5f7`
 
 `main` includes:
 
@@ -32,13 +32,15 @@ Current merged `main`: `39b8c77fbf8a497d2787f33b8e119d2ddbed9604`
   `336a27e5e10e3d5e8d83bc18046bec837daa5b96`.
 - R4-B / PR #52 — smoke-suite decomposition, merged at
   `39b8c77fbf8a497d2787f33b8e119d2ddbed9604`.
+- R5 / PR #53 — Windows/offscreen validation hardening, merged at
+  `45e718abe28ab600edab41cf04a998029f6fc5f7`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
 real environment is available. The current active repository program is **R —
 Repository Refactoring & Validation Hardening**; it adds no product behavior.
-R5 **Windows/Offscreen Validation Hardening** is active on
-`codex/r5-offscreen-validation-hardening`.
+R6 **Harness and Architecture Guardrails** is active on
+`codex/r6-harness-architecture-guardrails`.
 
 Active plan:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).

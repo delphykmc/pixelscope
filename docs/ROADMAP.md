@@ -394,8 +394,9 @@ The authoritative R plan is
 | R3-B | Session and legacy boundary clarification | **Complete — PR #50 · `6e98baea425f3dfbfacc1140370a77e889673a76`** |
 | R4-A | Common UI test fixtures | **Complete — PR #51 · `336a27e5e10e3d5e8d83bc18046bec837daa5b96`** |
 | R4-B | Smoke suite decomposition | **Complete — PR #52 · `39b8c77fbf8a497d2787f33b8e119d2ddbed9604`** |
-| R5 | Windows/offscreen validation hardening | **Active** |
-| R6–R7 | Guardrails and closeout | Planned |
+| R5 | Windows/offscreen validation hardening | **Complete — PR #53 · `45e718abe28ab600edab41cf04a998029f6fc5f7`** |
+| R6 | Harness and architecture guardrails | **Active** |
+| R7 | Final integration validation and closeout | Planned |
 
 ## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
 
