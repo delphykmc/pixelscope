@@ -2,7 +2,7 @@
 
 Status: Active — **R4-A implementation validation complete / independent review pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r4a-common-ui-fixtures` / pending
+Branch/PR: `codex/r4a-common-ui-fixtures` / #51
 Last updated: 2026-08-24
 
 ## Goal
