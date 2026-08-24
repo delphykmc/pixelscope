@@ -1,6 +1,6 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R3-B reviewer remediation; re-review pending**
+Status: Active — **R3-B independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
 Branch/PR: `codex/r3b-session-authority`
 Last updated: 2026-08-24
@@ -265,7 +265,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: documented removal rationale, equivalent current-contract coverage,
   and compatibility reviewer PASS; otherwise record and retain it.
 
-### R3-B — Session and legacy boundary clarification — reviewer remediation complete / re-review pending
+### R3-B — Session and legacy boundary clarification — review PASS / merge pending
 
 - Goal: make Session v1 authority and legacy Comparison Set adapter ownership explicit.
 - Expected areas: comparison/session modules, facade/call sites, persistence tests/docs.
@@ -500,6 +500,12 @@ baseline or environment-dependent debt is never called full PASS.
   the transactional subclass, and a focused regression covers successful legacy
   installer/Recent composition. Persisted and facade behavior remain unchanged;
   latest-head re-review is pending.
+- 2026-08-24: independent reviewer rechecked latest whole head
+  `734b633af4a89555cda19ccfee7a808fbed72279`, confirmed the P1 closed, verified both
+  legacy and production compositions plus both import orders, and confirmed Session
+  domain/repository byte identity and facade selected-count adaptation remain unchanged.
+  The reviewer observed 79 focused tests plus Ruff/format/mypy/docs/diff gates passing
+  and reported PASS with no remaining actionable finding. R3-B merge is pending.
 
 ## Completion summary
 
