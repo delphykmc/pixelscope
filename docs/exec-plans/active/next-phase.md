@@ -1,8 +1,8 @@
 # Execution plan: R — Repository Refactoring & Validation Hardening
 
-Status: Active — **R1 Application Composition review gate satisfied / merge pending**
+Status: Active — **R2 independent review PASS / merge pending**
 Owner: repository owner + refactoring implementation/review agents
-Branch/PR: `codex/r1-application-composition`
+Branch/PR: `codex/r2-worker-resource-ownership`
 Last updated: 2026-08-24
 
 ## Goal
@@ -225,7 +225,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: all current-status authorities agree; no broken link or unexplained
   documentation contraction; independent latest-head PASS.
 
-### R1 — Explicit application/IQA composition seam — review PASS / merge pending
+### R1 — Explicit application/IQA composition seam — Complete / PR #47
 
 - Goal: make installer order and cross-controller dependencies visible and testable.
 - Expected areas: `src/pixelscope/app/application.py`, IQA install/composition modules,
@@ -239,7 +239,7 @@ read-only review of its latest whole head before merge.
 - Merge criterion: explicit dependency graph with behavior-equivalent focused evidence
   and reviewer confirmation of wrapper/shutdown order.
 
-### R2 — Worker and resource ownership injection
+### R2 — Worker and resource ownership injection — review PASS / merge pending
 
 - Goal: remove private post-construction pool rebinding and state ownership explicitly.
 - Expected areas: P5-B/D/E controller constructors/installers, application Remote IQA
@@ -416,8 +416,38 @@ baseline or environment-dependent debt is never called full PASS.
 - 2026-08-24: independent reviewer rechecked latest whole head
   `33ebd9cf3720bf18e5eac7d22765ca08d8e45bcb`, confirmed the P2 finding and exact-order
   remediation closed, independently observed 32 focused tests plus static/docs/diff
-  gates passing, and reported PASS with no remaining actionable finding. R1 merge is
-  pending.
+  gates passing, and reported PASS with no remaining actionable finding. Closure head
+  `1e222d1dfe3cd4a85178ddc98c7d3cd780b1c99c` also passed whole-head review; PR #47
+  merged at `main@808f1e6bccd67e649be71b03798a1a1f407628f8`.
+- 2026-08-24: started R2 from the R1 merge. The pre-change ownership/lifecycle selection
+  observed 42 passed. Production now creates the existing Remote IQA result/file pool
+  before `MainWindow`, injects it into P5-B construction, and forwards the same pool to
+  P5-D/P5-E installers. Private post-install `_pool` assignments were removed; pool
+  counts, worker operations, HTTP lifetime, stale guards, and composition order were
+  not changed. Initial composition/ownership tests observed 6 passed, changed-source
+  mypy passed, and the full focused selection observed 42 passed after implementation.
+- 2026-08-24: expanded R2 validation observed 212 passed, 1 skipped, and 238 deselected
+  for P5/Remote-IQA unit coverage plus 62 passed and 403 deselected for P5 UI coverage.
+  The skip is the existing Windows directory-symlink privilege constraint. Changed-file
+  Ruff check/format and five-module mypy passed; docs checker, docs contract test, and
+  diff check passed. No full-suite PASS is claimed; independent latest-whole-head review
+  remains the merge gate.
+- 2026-08-24: independent review of `5533fc4f527e30a559ad7e5b2b45474c3386ebdc`
+  requested two P1 lifecycle corrections and one P2 PR-attribution correction. R2 now
+  initializes the analysis pool before the Remote IQA pool to preserve the existing Qt
+  shutdown-hook clear/wait order, and P5-D/P5-E idempotent installers reject a different
+  explicit pool while retaining same-pool idempotency. Focused regressions cover the
+  fresh registration/clear/wait sequence and both installer outcomes; the remediated
+  focused selection observed 44 passed and changed-file Ruff/format/mypy passed. The PR
+  body records the actual owner-authenticated Git/GitHub attribution and non-rewrite of
+  human commits. Latest-whole-head re-review remains pending.
+- 2026-08-24: independent reviewer rechecked latest whole head
+  `a1c18d0ccb2820b9cba163df18c3f725495a6c64`, confirmed both P1 lifecycle findings
+  and the P2 attribution finding closed, independently observed 40 focused tests plus
+  changed-file Ruff/format/mypy, docs checker/contract, and base-to-head diff gates
+  passing, and reported PASS with no remaining actionable finding. Latest implementer
+  broad reruns observed 212 passed, 1 skipped, and 239 deselected for P5/Remote-IQA
+  units plus 62 passed and 403 deselected for P5 UI. R2 merge is pending.
 
 ## Completion summary
 

@@ -3,6 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from threading import Event, Lock
 
+import pytest
+from PySide6.QtCore import QThreadPool
+
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.remote.iqa_client import IqaJobClient
@@ -14,6 +17,8 @@ from pixelscope.remote.iqa_submission import (
     JobState,
 )
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
+from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
+from pixelscope.ui.iqa_scene_inspection import install_iqa_scene_inspection
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 from pixelscope.workers.iqa_thread_pool import REMOTE_IQA_MAX_THREADS, remote_iqa_thread_pool
 from pixelscope.workers.task_worker import TaskWorker
@@ -56,21 +61,33 @@ def test_remote_iqa_pool_is_distinct_and_bounded(qtbot: object) -> None:
 def test_production_composition_binds_only_result_side_work_to_remote_iqa_pool(
     qtbot: object,
 ) -> None:
-    window = MainWindow()
+    remote = remote_iqa_thread_pool()
+    window = MainWindow(iqa_result_pool=remote)
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     _compose_main_window_presentation(window)
 
-    remote = remote_iqa_thread_pool()
     local_analysis = analysis_thread_pool()
     job_pool = window.remote_iqa_controller._pool
 
-    assert window.iqa_controller._pool is remote
-    assert window.iqa_scene_inspection_controller._pool is remote
-    assert window.historical_iqa_results_controller._pool is remote
+    assert window.iqa_controller.pool is remote
+    assert window.iqa_scene_inspection_controller.pool is remote
+    assert window.historical_iqa_results_controller.pool is remote
     assert job_pool is not remote
     assert job_pool is not local_analysis
     assert job_pool.maxThreadCount() == 2
     assert remote is not local_analysis
+
+    assert install_iqa_scene_inspection(window, pool=remote) is (
+        window.iqa_scene_inspection_controller
+    )
+    assert install_historical_iqa_results(window, pool=remote) is (
+        window.historical_iqa_results_controller
+    )
+    unexpected_pool = QThreadPool(window)
+    with pytest.raises(RuntimeError, match="different worker pool"):
+        install_iqa_scene_inspection(window, pool=unexpected_pool)
+    with pytest.raises(RuntimeError, match="different worker pool"):
+        install_historical_iqa_results(window, pool=unexpected_pool)
 
     window.close()
 

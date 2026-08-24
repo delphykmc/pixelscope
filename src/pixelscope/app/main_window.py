@@ -134,6 +134,8 @@ class MainWindow(QMainWindow):
         application_settings: ApplicationSettings | None = None,
         performance_settings: PerformanceSettings | None = None,
         settings_repository: SettingsRepository | None = None,
+        *,
+        iqa_result_pool: QThreadPool | None = None,
     ) -> None:
         super().__init__()
         self.setWindowTitle("PixelScope")
@@ -231,7 +233,11 @@ class MainWindow(QMainWindow):
         self.analysis_tabs.addTab(self.comparison_analysis_panel, "Statistics")
         self.analysis_tabs.addTab(self.difference_panel, "Difference")
         self.iqa_workspace = IqaWorkspaceWidget()
-        self.iqa_controller = IqaWorkspaceController(self.iqa_workspace, self)
+        self.iqa_controller = IqaWorkspaceController(
+            self.iqa_workspace,
+            self,
+            pool=iqa_result_pool,
+        )
         self._build_layout()
 
         self.viewer.cursor_moved.connect(self._inspect_pixel)

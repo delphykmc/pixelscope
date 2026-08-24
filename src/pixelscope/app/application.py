@@ -42,6 +42,7 @@ from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.session import install_session
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
+from pixelscope.workers.thread_pools import analysis_thread_pool
 
 LOGGER = logging.getLogger(__name__)
 WINDOWS_APP_USER_MODEL_ID = "PixelScope.PixelScope"
@@ -110,10 +111,9 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_recent_entries(window)
     install_analysis_export(window)
 
-    # P5-F isolates result/reference/inspection/history file work from the
-    # application pool reserved for local Statistics/Difference calculations.
-    result_pool = remote_iqa_thread_pool()
-    window.iqa_controller._pool = result_pool
+    # Production injects the P5-F result/file pool when constructing MainWindow.
+    # The same dependency is forwarded to later result-side controllers here.
+    result_pool = window.iqa_controller.pool
     transport_pool = ReusableIqaClientPool()
     _compose_remote_iqa(
         window,
@@ -152,13 +152,11 @@ def _compose_remote_iqa(
 
     # P5-D owns the only native Inspect bridge and consumes the already-hardened
     # P5-C settings chain.
-    inspection = install_iqa_scene_inspection(window)
-    inspection._pool = result_pool
+    install_iqa_scene_inspection(window, pool=result_pool)
     install_iqa_scene_inspection_lifecycle(window)
 
     # P5-E deliberately wraps the P5-D open path rather than bypassing its teardown.
-    historical_iqa = install_historical_iqa_results(window)
-    historical_iqa._pool = result_pool
+    historical_iqa = install_historical_iqa_results(window, pool=result_pool)
     install_historical_iqa_results_lifecycle(window, historical_iqa)
 
 
@@ -169,7 +167,16 @@ def main(arguments: Sequence[str] | None = None) -> int:
     )
     app = create_application(arguments)
     repository, application_settings, performance_settings = load_startup_settings()
-    window = MainWindow(application_settings, performance_settings, repository)
+    # Preserve the pre-R2 aboutToQuit order: local background pools register before
+    # the Remote IQA result/file pool, even though both now precede MainWindow.
+    analysis_thread_pool()
+    result_pool = remote_iqa_thread_pool()
+    window = MainWindow(
+        application_settings,
+        performance_settings,
+        repository,
+        iqa_result_pool=result_pool,
+    )
     _compose_main_window_presentation(window)
     window.setWindowIcon(app.windowIcon())
     window.show()

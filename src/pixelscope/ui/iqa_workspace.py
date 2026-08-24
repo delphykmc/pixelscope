@@ -1091,12 +1091,18 @@ class IqaWorkspaceController(QObject):
         super().__init__(parent)
         self.workspace = workspace
         self._loader = loader or _load_workspace_result
-        self._pool = pool or analysis_thread_pool()
+        self._pool = pool if pool is not None else analysis_thread_pool()
         self._generation = 0
         self._active = True
         self._worker: TaskWorker | None = None
         self._relative_worker: TaskWorker | None = None
         workspace.relative_requested.connect(self.prepare_relative)
+
+    @property
+    def pool(self) -> QThreadPool:
+        """Return the worker pool fixed when this controller was constructed."""
+
+        return self._pool
 
     def open_result(self, root: Path | str) -> int:
         path = Path(root)

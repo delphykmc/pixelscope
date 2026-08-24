@@ -823,18 +823,35 @@ repository program.
 - R may clarify construction, dependency, and shutdown seams but may not change these
   pool counts, retry/polling, cancellation, or stale-callback semantics.
 
-### R1 application composition decisions — active
+### R1 application composition decisions — complete / PR #47
 
 - The production application keeps one small `_compose_remote_iqa` seam rather than a
   DI framework, service container, or new controller hierarchy.
 - Application ownership of the Remote IQA result pool and reusable transport pool is
-  explicit at the seam. Final result-side pool binding behavior remains unchanged in
-  R1; constructor/install injection belongs to R2.
+  explicit at the seam.
 - Installer order remains P5-C mapping/retry and lifecycle hardening, then P5-D native
   Inspect, then P5-E history/Provenance. The nested settings/open/teardown chains are
   preserved and covered by focused composition and inherited semantic tests.
 - Existing controller attributes, `MethodType` wrappers, signal reconnections,
   shutdown behavior, debug gating, and UI layout remain unchanged.
+
+### R2 result-pool injection decisions — active
+
+- Production constructs the Remote IQA result/file pool before `MainWindow` and injects
+  it into P5-B at controller construction time.
+- The R1 composition seam passes that same pool explicitly to the P5-D and P5-E
+  installers. No result-side controller is constructed against one pool and privately
+  rebound to another.
+- A read-only controller `pool` property exposes the fixed dependency without granting
+  rebinding authority. The existing analysis-pool fallback remains available to direct
+  non-production controller construction.
+- Production initializes the local analysis pool before the Remote IQA pool so Qt
+  shutdown retains its existing local-background then Remote-IQA clear/wait order.
+- Reinstalling P5-D or P5-E with the same explicit pool is idempotent; supplying a
+  different pool fails explicitly rather than hiding split ownership.
+- Fixed max-two Remote IQA result/file and P5-C job pools, local analysis separation,
+  lazy HTTP checkout, cancellation, stale-callback, and shutdown semantics are
+  unchanged.
 
 ## Current resource policy
 
@@ -859,8 +876,8 @@ repository program.
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. R0 merged as PR #46. Current main is
-`a25b3ee1b08dc26b57776fd2a24c3b751f13ebfc`; R1 is active.
+client work is complete through P5-F / PR #45. R0 merged as PR #46 and R1 merged as
+PR #47. Current main is `808f1e6bccd67e649be71b03798a1a1f407628f8`; R2 is active.
 
 Observed P5-C evidence includes:
 
