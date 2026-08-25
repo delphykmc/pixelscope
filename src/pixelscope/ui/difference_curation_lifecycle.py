@@ -48,8 +48,21 @@ class DifferenceCurationLifecycle:
         )
 
     def _cached_result_available(self) -> bool:
+        """Return whether the current page owns an actionable cached A/B pair."""
+
         panel = getattr(self.window, "difference_panel", None)
-        return bool(panel is not None and panel.has_cached_map())
+        if panel is None or not panel.has_cached_map():
+            return False
+        pair = panel.selected_documents()
+        if pair is None:
+            return False
+        page_ids = {
+            document.document_id for document in self.window.current_comparison_documents()
+        }
+        if len(page_ids) < 2:
+            return False
+        pair_ids = {pair[0].document_id, pair[1].document_id}
+        return len(pair_ids) == 2 and pair_ids.issubset(page_ids)
 
     def _active_sources_still_selected(self) -> bool:
         source_ids = getattr(self.window, "_difference_source_ids", None)
@@ -117,6 +130,9 @@ class DifferenceCurationLifecycle:
 
         difference = getattr(self.window, "_difference_document", None)
         if not self._active_result_bound():
+            if not self._cached_result_available():
+                self._enforce_action_state()
+                return
             cached = self.window.difference_panel.cached_display_for_current()
             if cached is None:
                 self._enforce_action_state()
@@ -207,7 +223,7 @@ class DifferenceCurationLifecycle:
     def _difference_tooltip(self) -> str:
         source_ids = getattr(self.window, "_difference_source_ids", None)
         if not isinstance(source_ids, tuple) or len(source_ids) != 2:
-            return "Derived from source images. " "Keep Selection closes the active Difference."
+            return "Derived from source images. Keep Selection closes the active Difference."
         names: list[str] = []
         for document_id in source_ids:
             document = self.window.documents.get(document_id)
