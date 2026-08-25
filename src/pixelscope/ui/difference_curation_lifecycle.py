@@ -25,9 +25,8 @@ class DifferenceCurationLifecycle:
             self.review_controller.keep_button.clicked.disconnect()
         self.review_controller.keep_button.clicked.connect(self.keep_picked)
 
-        # Calculate is the only operation allowed to establish an active Difference.
-        # Normal selection/page renders may still rebind DifferencePanel inputs and
-        # metrics, but cannot promote a cached map or start an implicit calculation.
+        # Passive selection/page renders may rebind DifferencePanel inputs and
+        # metrics, but do not automatically show cached Difference results.
         self.window._render_selection = self._render_selection
         self.window._difference_result_matches_current_pair = self._active_result_bound
 
@@ -47,6 +46,10 @@ class DifferenceCurationLifecycle:
             and isinstance(source_ids, tuple)
             and len(source_ids) == 2
         )
+
+    def _cached_result_available(self) -> bool:
+        panel = getattr(self.window, "difference_panel", None)
+        return bool(panel is not None and panel.has_cached_map())
 
     def _active_sources_still_selected(self) -> bool:
         source_ids = getattr(self.window, "_difference_source_ids", None)
@@ -86,16 +89,19 @@ class DifferenceCurationLifecycle:
         try:
             action = self.window.diff_action
             active = self._active_result_bound()
+            cached = self._cached_result_available()
             action.blockSignals(True)
             if not active:
                 action.setChecked(False)
-            action.setEnabled(active)
+            action.setEnabled(active or cached)
             action.blockSignals(False)
             tooltip = (
                 "Hide active Difference"
                 if active and action.isChecked()
                 else "Show active Difference"
                 if active
+                else "Show cached Difference for current pair"
+                if cached
                 else "Calculate Difference in Analysis first"
             )
             action.setToolTip(tooltip)
@@ -110,12 +116,22 @@ class DifferenceCurationLifecycle:
             return
 
         difference = getattr(self.window, "_difference_document", None)
+        if not self._active_result_bound():
+            cached = self.window.difference_panel.cached_display_for_current()
+            if cached is None:
+                self._enforce_action_state()
+                return
+            # Toolbar activation is an explicit user command, but it never computes a
+            # new Difference map. It may only bind and display the current cached map.
+            self.window._store_difference_document(*cached, switch_to_result=False)
+            difference = getattr(self.window, "_difference_document", None)
+
         if not self._active_result_bound() or not isinstance(difference, ImageDocument):
             self._enforce_action_state()
             return
 
-        # Re-show the established result itself. Toolbar UI never consults current
-        # selectors/cache to infer another pair and never starts numerical work.
+        # Re-show the established result itself. Toolbar UI never infers another pair
+        # and never starts numerical Difference work.
         if len(self.window.current_comparison_documents()) >= 6:
             self.window._capture_six_image_diff_restore_state()
             self.window._navigate_single_view("difference")
