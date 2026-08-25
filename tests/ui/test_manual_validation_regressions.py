@@ -168,7 +168,7 @@ def test_folder_display_tags_disambiguate_same_folder_and_file_names(
     assert any("[REF] frame.png" in text for text in line_titles)
     assert any("[TEST] frame.png" in text for text in line_titles)
 
-    stored = str(QSettings().value(tags.SETTINGS_KEY, ""))
+    stored = str(window.settings.value(tags.SETTINGS_KEY, ""))
     assert "REF" in stored and "TEST" in stored
     window.close()
 
