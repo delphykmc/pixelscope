@@ -268,10 +268,12 @@ existing panel/MainWindow paths.
 When Keep succeeds, any active Difference is closed unconditionally before Selected
 mutates. The adapter first delegates visible-result teardown to the existing PR #32
 path, then clears active Difference document/provenance bindings and stale reusable
-viewer references, applies the ordered kept IDs through the inherited
-`_select_document_ids()` lifecycle, and leaves toolbar `Diff` unchecked and disabled.
-The decision does not inspect whether old A/B survived or where they would appear in
-the resulting Current Comparison Page.
+viewer references and applies the ordered kept IDs through the inherited
+`_select_document_ids()` lifecycle. Toolbar `Diff` remains unchecked after the
+mutation. It is then re-evaluated against the resulting Current Comparison Page:
+if the panel's current A/B pair is still page-owned and its generation-keyed map is
+cached, `Diff` is enabled for explicit cache reactivation; otherwise it is disabled.
+No cached result is shown merely because Keep or selection rebinding retained A/B.
 
 Keep is a presentation/binding reset, not a cache invalidation. It never purges the
 generation-aware Difference Map Cache, changes source generations, or adds
@@ -280,19 +282,24 @@ derivation, stale-slot clearing, source loading/residency, Files selection,
 first-result Active state, and analysis rebinding remain ordinary selection behavior.
 Zero picks prevent the Selected mutation.
 
-The same lifecycle adapter makes explicit Difference calculation the only path that
-may establish a new active Difference result. During passive selection/page renders,
-it suppresses MainWindow's legacy cached-display promotion and implicit calculation
-hooks while still allowing DifferencePanel inputs/metrics to rebind. The
-DifferencePanel remains the cache/numerical owner: explicit **Calculate** performs
-normal pair validation and generation-aware cache lookup, reuses a hit or runs the
-existing asynchronous calculation on a miss, and `result_ready` then establishes
-the active Difference document/provenance.
+The same lifecycle adapter separates passive selection from the two explicit ways an
+active Difference may be established. During passive selection/page renders, it
+suppresses MainWindow's legacy cached-display promotion and implicit calculation hooks
+while still allowing DifferencePanel inputs/metrics to rebind; pair selection alone
+never displays a Difference. Explicit **Calculate** remains the numerical command: it
+validates the current A/B pair, performs generation-aware cache lookup, reuses a hit or
+runs the asynchronous calculation on a miss, and `result_ready` establishes the active
+Difference document/provenance. Separately, when an already-cached panel A/B pair is
+owned by the actual Current Comparison Page, an explicit toolbar **Diff** click may
+bind and display that cached map without calling the numerical Calculate path.
 
-Toolbar `Diff` enablement is derived from that explicit active binding, not from
-mere cache availability. Once a result is established, the toolbar is
-visibility-only: uncheck hides the same active result, recheck shows the same result,
-and neither operation infers another A/B pair or starts numerical work.
+Toolbar `Diff` therefore has three states. With no active result and no actionable
+current-page cache it is disabled. With an actionable cached current-page pair it is
+enabled and unchecked; checking it explicitly binds/displays the cached result without
+map recomputation. Once an active result is bound, the toolbar is visibility-only:
+uncheck hides that same result and recheck shows it again. A stale DifferencePanel pair
+from a previous selection is never actionable when Current Comparison Page has fewer
+than two sources or does not contain both A/B documents.
 
 External selection-oriented mutation is the invalidation boundary. Programmatic
 `_select_document_ids()` / selected-document removal adapters and the
@@ -628,10 +635,17 @@ Difference is a derived presentation rather than a Registered/Selected/Pick iden
 closes any active Difference before Selected changes, clears active
 `_difference_document` / `_difference_source_ids` binding, and preserves the
 Difference Map Cache and source generations. Passive rerenders cannot promote a
-cached map or implicitly calculate Difference. After a successful explicit
-Calculate, toolbar `Diff` is enabled because an active result is bound and then
-acts only as hide/show visibility for that exact result. It never guesses a new A/B
-pair from Current Comparison Page state.
+cached map or implicitly calculate Difference. After rebinding, an unbound cached
+Difference is actionable only when the panel has a valid A/B pair and both pair
+sources belong to the actual Current Comparison Page; zero Selected, a one-source
+page, or stale off-page selector state cannot enable toolbar `Diff`.
+
+An explicit **Calculate** may establish an active result from either a cache hit or a
+fresh calculation. In addition, toolbar `Diff` may establish an active presentation
+only from an already-cached actionable current-page pair: the click binds/renders the
+cached map and never dispatches Difference numerical work. Pair selection alone remains
+passive and never displays the cached map. Once a result is active, toolbar `Diff` is
+visibility-only for that exact bound result.
 
 No curation-specific Difference numerical algorithm, cache, source generation, or
 residency owner is introduced. Comparison Set persistence does not serialize or
