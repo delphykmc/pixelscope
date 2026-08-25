@@ -8,6 +8,7 @@ from PySide6.QtCore import QSettings
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.display_gain import display_gain_state
 
 
@@ -96,6 +97,19 @@ def test_folder_display_tags_disambiguate_same_folder_and_file_names(
     second = _gray(right_folder / "frame.png", 20)
     for document in (first, second):
         window.add_document(document, select=False)
+    window._select_document_ids([first.document_id, second.document_id])
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(window.comparison_analysis_panel.last_results) == 2,
+        timeout=5000,
+    )
+    window.line_profile_panel.view_mode.setCurrentText("Separate by image")
+    window._shared_line = LineSelection(0, 0, 7, 0)
+    window._render_selection(preserve_view=True)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(window.line_profile_panel.last_results) == 2,
+        timeout=5000,
+    )
 
     tags = window.folder_display_tag_controller
     first_folder_item = window.document_list.topLevelItem(0)
@@ -105,7 +119,6 @@ def test_folder_display_tags_disambiguate_same_folder_and_file_names(
 
     tags.set_tag(left_folder, "REF")
     tags.set_tag(right_folder, "TEST")
-    window._select_document_ids([first.document_id, second.document_id])
 
     assert first.display_name == "[REF] frame.png"
     assert second.display_name == "[TEST] frame.png"
@@ -131,16 +144,29 @@ def test_folder_display_tags_disambiguate_same_folder_and_file_names(
     assert any("[REF] frame.png" in text for text in selector_labels)
     assert any("[TEST] frame.png" in text for text in selector_labels)
 
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: len(window.comparison_analysis_panel.last_results) == 2,
-        timeout=5000,
-    )
     analysis_labels = {
         window.comparison_analysis_panel.image_summary.item(row, 1).text()
         for row in range(window.comparison_analysis_panel.image_summary.rowCount())
     }
     assert any("[REF] frame.png" in text for text in analysis_labels)
     assert any("[TEST] frame.png" in text for text in analysis_labels)
+
+    histogram_titles = {
+        str(plot.getPlotItem().titleLabel.text)
+        for plot in window.comparison_analysis_panel.plots[:2]
+    }
+    assert any("[REF] frame.png" in text for text in histogram_titles)
+    assert any("[TEST] frame.png" in text for text in histogram_titles)
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(window.line_profile_panel.last_results) == 2,
+        timeout=5000,
+    )
+    line_titles = {
+        str(plot.getPlotItem().titleLabel.text) for plot in window.line_profile_panel.plots[:2]
+    }
+    assert any("[REF] frame.png" in text for text in line_titles)
+    assert any("[TEST] frame.png" in text for text in line_titles)
 
     stored = str(QSettings().value(tags.SETTINGS_KEY, ""))
     assert "REF" in stored and "TEST" in stored
@@ -173,7 +199,10 @@ def test_cached_difference_can_be_explicitly_reactivated_from_toolbar(
         lambda: window._difference_document is None,
         timeout=3000,
     )
+    assert window.current_comparison_documents() == []
+    assert window.difference_panel.has_cached_map()
     assert not window.diff_action.isEnabled()
+    assert not window.diff_action.isChecked()
 
     window._select_document_ids(ids)
     assert window._difference_document is None
