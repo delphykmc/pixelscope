@@ -16,6 +16,7 @@ class DifferenceCurationLifecycle:
         self._resetting_difference = False
         self._original_render_selection = window._render_selection
         self._original_set_difference_visible = window._set_difference_visible
+        self._original_update_action_states = window._update_action_states
         self._install()
 
     def _install(self) -> None:
@@ -29,6 +30,7 @@ class DifferenceCurationLifecycle:
         # metrics, but do not automatically show cached Difference results.
         self.window._render_selection = self._render_selection
         self.window._difference_result_matches_current_pair = self._active_result_bound
+        self.window._update_action_states = self._update_action_states
 
         action = self.window.diff_action
         try:
@@ -36,7 +38,6 @@ class DifferenceCurationLifecycle:
         except (RuntimeError, TypeError):
             action.toggled.disconnect()
         action.toggled.connect(self._set_difference_visible)
-        action.changed.connect(self._enforce_action_state)
         self._enforce_action_state()
 
     def _active_result_bound(self) -> bool:
@@ -93,6 +94,12 @@ class DifferenceCurationLifecycle:
         finally:
             panel.cached_display_for_current = cached_display
             panel.calculate_difference = calculate
+        self._enforce_action_state()
+
+    def _update_action_states(self) -> None:
+        """Apply the Difference lifecycle gate after the base action-state update."""
+
+        self._original_update_action_states()
         self._enforce_action_state()
 
     def _enforce_action_state(self) -> None:
