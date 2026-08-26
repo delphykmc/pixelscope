@@ -229,8 +229,8 @@ display = anchor + gain * (source - anchor)
   worker;
 - gain >1 derives a viewer-local preview from resident source on the shared
   numerical worker pool;
-- result acceptance checks task/request/document/source/preview/
-  generation/gain/visibility identity;
+- result acceptance checks task/request/document/source/generation/gain/visibility
+  identity;
 - hidden viewers release gain>1 derived buffers and regenerate current gain when
   shown;
 - `+` / `-` Display Gain command ownership is the image-presentation subtree,
