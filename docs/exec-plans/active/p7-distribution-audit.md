@@ -111,9 +111,12 @@ or user-data deletion rules for those settings.
 
 The installer uses packed-version Pascal support functions introduced in Inno Setup
 6.1.0. P7-B therefore supports `>=6.1,<8` for owner/manual validation. The build script
-reads the `ISCC.exe` Windows file-version resource and rejects 6.0.x, versions older
-than 6.1, and future major 8+ before compiling. The `.iss` file also has a compile-time
-`Ver` guard as defense in depth.
+reads `ISCC.exe` PE version metadata through pinned `pefile`, preferring the
+`StringFileInfo` `FileVersion`/`ProductVersion` values. A non-zero
+`VS_FIXEDFILEINFO` file version is used only as fallback because some valid Inno
+installations expose a zeroed fixed-version block. Versions older than 6.1 and future
+major 8+ are rejected before compilation. The `.iss` file also has a compile-time `Ver`
+guard as defense in depth.
 
 Compiler discovery remains external to the Python release environment. The build script:
 
