@@ -15,7 +15,8 @@ from scripts.build_third_party_notices import write_third_party_notices  # noqa:
 from scripts.distribution_contract import (  # noqa: E402
     RELEASE_ROOT,
     installer_path,
-    release_stem,
+    manifest_path,
+    notice_path,
     write_payload_manifest,
 )
 from scripts.release_contract import (  # noqa: E402
@@ -98,8 +99,8 @@ def installer_command(iscc: Path) -> list[str]:
         _ispp_define("AppVersion", version),
         _ispp_define("AppFileVersion", file_version),
         _ispp_define("AppSource", str(APP_DIR.resolve())),
-        _ispp_define("ManifestFile", str(write_payload_manifest(APP_DIR).resolve())),
-        _ispp_define("NoticeFile", str(write_third_party_notices().resolve())),
+        _ispp_define("ManifestFile", str(manifest_path(version).resolve())),
+        _ispp_define("NoticeFile", str(notice_path(version).resolve())),
         _ispp_define("OutputDir", str(RELEASE_ROOT.resolve())),
         _ispp_define("OutputBaseFilename", output.stem),
         _ispp_define("SetupIconFile", str(SETUP_ICON.resolve())),
@@ -114,6 +115,8 @@ def build_installer_release(iscc: Path | None = None) -> Path:
     compiler = find_iscc(iscc)
     validate_iscc(compiler)
     RELEASE_ROOT.mkdir(parents=True, exist_ok=True)
+    write_payload_manifest(APP_DIR)
+    write_third_party_notices()
     output = installer_path()
     output.unlink(missing_ok=True)
     subprocess.run(installer_command(compiler), cwd=REPO_ROOT, check=True)
