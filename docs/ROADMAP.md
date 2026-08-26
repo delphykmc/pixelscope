@@ -74,19 +74,26 @@ Deferred from P4:
 
 P5-G and P6 remain externally gated, but the release work that is independent of those
 contracts may proceed first. This is a dependency exception, not a P5-G bypass.
+Corporate release preparation is owner-local: repository automation may prepare and
+validate a release candidate, while privileged production publication remains an
+authorized human action across the corporate security boundary.
 
 ```text
 P5 Remote IQA Platform complete through P5-F
     ↓
 R Repository Refactoring & Validation Hardening
     ↓
-P7 Release Foundation                           # active while external gates are blocked
+P7-A/P7-B Release Foundation                  # complete
     ↓
-P5-G External GPU/SMB Validation & Closeout     # resume when environment is available
+P7-C Owner-local Release Candidate Build & Validation
     ↓
-P6 Identity, Access & Remote Operations          # after server/auth contracts are authoritative
+P7-D Metadata / Manual Publication / Notification-only Update Foundation
     ↓
-P7 Final Release Qualification                   # SSO-aware clean-PC/signing closeout
+P5-G External GPU/SMB Validation & Closeout   # resume when environment is available
+    ↓
+P6 Identity, Access & Remote Operations       # SSO implementation after contracts are authoritative
+    ↓
+P7-E Final Release Qualification              # packaged verification of P5-G/P6 + release closeout
 ```
 
 Active execution plan:
@@ -452,22 +459,49 @@ P7 is split into an externally independent foundation and a final qualification 
 The active foundation is defined in
 [`docs/exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md).
 
+The corporate release environment fixes an explicit ownership boundary: repository
+logic may validate/build/smoke/stage a candidate on the authorized Windows owner PC,
+but production publication, restricted-folder transfer, and privileged signing remain
+authorized human/security-boundary operations. Neither GitHub-hosted nor self-hosted
+Actions are required release architecture.
+
 ## P7 Release Foundation — Active
 
-- exactly PyInstaller 5.7 `onedir` on Windows/Python 3.10;
-- one canonical application/release version authority;
-- validated canonical `onedir` artifact tree;
-- portable ZIP generated from that same tree;
-- Inno Setup installer generated from that same tree;
-- Windows CI artifact build/validation;
-- explicit release publication/version-metadata foundation;
-- notification-only update strategy boundary;
-- signing hook/policy boundary without production credentials;
-- repeatable release process and artifact-level smoke validation.
+- **P7-0 — Release/packaging contract audit — Complete.**
+- **P7-A — PyInstaller `onedir` executable foundation — Complete / PR #61.**
+- **P7-B — Portable ZIP + Inno Setup distribution — Complete / PR #62.**
+- **P7-C — Owner-local Release Candidate Build & Validation — Active.**
+  - one repository-owned Windows entry point;
+  - repository checks + canonical P7-A/P7-B build/smoke reuse;
+  - strict four-file production-bundle validation;
+  - exact source/tool/artifact provenance;
+  - dated/versioned release-note source and rendered candidate notes;
+  - no mandatory GitHub Actions runner and no production publication.
+- **P7-D — Release metadata / manual publication / update foundation — Planned.**
+  - version/artifact/release-note metadata consistency;
+  - authorized manual GitHub Release publication procedure;
+  - notification-only update metadata/provider boundary;
+  - no automatic/self updater and no privileged upload requirement.
+
+Canonical foundation flow:
+
+```text
+repository test/build/smoke/validate
+    ↓
+owner-local validated release candidate
+    ↓
+CORPORATE SECURITY BOUNDARY
+    ↓
+authorized manual publication
+```
 
 ## P7 Final Release Qualification — Deferred until P5-G/P6 complete
 
-- SSO-aware packaged-runtime validation;
+P7-E does **not** implement SSO. P6 owns Identity & Access / SSO implementation. P7-E
+qualifies the already-integrated packaged product:
+
+- packaged verification of P5-G real external GPU/SMB behavior;
+- packaged verification of already-implemented P6 authentication/remote behavior;
 - clean-PC install/upgrade/uninstall qualification;
 - production signing/certificate policy validation;
 - final update endpoint/publication policy;
