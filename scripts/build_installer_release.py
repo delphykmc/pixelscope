@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -15,6 +14,7 @@ from scripts.build_third_party_notices import write_third_party_notices  # noqa:
 from scripts.distribution_contract import (  # noqa: E402
     RELEASE_ROOT,
     installer_path,
+    release_stem,
     write_payload_manifest,
 )
 from scripts.release_contract import (  # noqa: E402
@@ -26,7 +26,14 @@ from scripts.release_contract import (  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
-_SUPPORTED_INNO_MAJORS = frozenset({6, 7})
+PRODUCTION_APP_ID = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
+SMOKE_APP_ID = "PixelScope.P7B.Smoke"
+_MIN_INNO_VERSION = (6, 1, 0, 0)
+_MAX_INNO_VERSION_EXCLUSIVE = (8, 0, 0, 0)
+
+
+def smoke_installer_path(version: str | None = None) -> Path:
+    return RELEASE_ROOT / f"{release_stem(version)}-smoke-setup.exe"
 
 
 def _candidate_iscc_paths() -> tuple[Path, ...]:
@@ -41,7 +48,7 @@ def _candidate_iscc_paths() -> tuple[Path, ...]:
         root = os.environ.get(env_name)
         if not root:
             continue
-        for major in sorted(_SUPPORTED_INNO_MAJORS, reverse=True):
+        for major in (7, 6):
             candidates.append(Path(root) / f"Inno Setup {major}" / "ISCC.exe")
     return tuple(candidates)
 
@@ -60,29 +67,39 @@ def find_iscc(explicit: Path | None = None) -> Path:
     )
 
 
-def inno_major_version(iscc: Path) -> int:
-    result = subprocess.run(
-        [str(iscc), "/?"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        errors="replace",
-        check=False,
-    )
-    text = f"{result.stdout}\n{result.stderr}"
-    match = re.search(r"Inno Setup\s+(\d+)", text, flags=re.IGNORECASE)
-    if match is None:
-        raise RuntimeError(f"Unable to determine Inno Setup version from {iscc}")
-    return int(match.group(1))
+def _inno_file_version(iscc: Path) -> tuple[int, int, int, int]:
+    try:
+        import pefile
+    except ImportError as exc:
+        raise RuntimeError(
+            "pefile is required to validate the Inno Setup compiler version; "
+            "install requirements/release.txt"
+        ) from exc
+
+    pe = pefile.PE(str(iscc), fast_load=False)
+    try:
+        fixed = getattr(pe, "VS_FIXEDFILEINFO", None) or []
+        if not fixed:
+            raise RuntimeError(f"Unable to read Inno Setup file version from {iscc}")
+        info = fixed[0]
+        return (
+            (int(info.FileVersionMS) >> 16) & 0xFFFF,
+            int(info.FileVersionMS) & 0xFFFF,
+            (int(info.FileVersionLS) >> 16) & 0xFFFF,
+            int(info.FileVersionLS) & 0xFFFF,
+        )
+    finally:
+        pe.close()
+
+
+def validate_inno_version(version: tuple[int, int, int, int]) -> None:
+    if not _MIN_INNO_VERSION <= version < _MAX_INNO_VERSION_EXCLUSIVE:
+        found = ".".join(str(part) for part in version)
+        raise RuntimeError(f"P7-B requires Inno Setup >=6.1,<8; found {found}")
 
 
 def validate_iscc(iscc: Path) -> None:
-    major = inno_major_version(iscc)
-    if major not in _SUPPORTED_INNO_MAJORS:
-        supported = ", ".join(str(value) for value in sorted(_SUPPORTED_INNO_MAJORS))
-        raise RuntimeError(
-            f"P7-B requires Inno Setup major {supported}; found major version {major}"
-        )
+    validate_inno_version(_inno_file_version(iscc))
 
 
 def _ispp_define(name: str, value: str) -> str:
@@ -91,36 +108,58 @@ def _ispp_define(name: str, value: str) -> str:
     return f"-d{name}={value}"
 
 
-def installer_command(iscc: Path) -> list[str]:
+def installer_command(
+    iscc: Path,
+    *,
+    app_id: str | None = None,
+    smoke_build: bool = False,
+) -> list[str]:
     version = release_version()
-    version_components = windows_version_tuple(version)
-    file_version = ".".join(str(part) for part in version_components)
-    major, minor, revision, build = version_components
-    return [
+    version_parts = windows_version_tuple(version)
+    file_version = ".".join(str(part) for part in version_parts)
+    command = [
         str(iscc),
         "/Qp",
         _ispp_define("AppVersion", version),
         _ispp_define("AppFileVersion", file_version),
-        _ispp_define("AppVersionMajor", str(major)),
-        _ispp_define("AppVersionMinor", str(minor)),
-        _ispp_define("AppVersionRevision", str(revision)),
-        _ispp_define("AppVersionBuild", str(build)),
-        str(INNO_SCRIPT.resolve()),
+        _ispp_define("AppVersionMajor", str(version_parts[0])),
+        _ispp_define("AppVersionMinor", str(version_parts[1])),
+        _ispp_define("AppVersionRevision", str(version_parts[2])),
+        _ispp_define("AppVersionBuild", str(version_parts[3])),
     ]
+    if app_id is not None:
+        command.append(_ispp_define("AppIdValue", app_id))
+    if smoke_build:
+        command.append(_ispp_define("SmokeBuild", "1"))
+    command.append(str(INNO_SCRIPT.resolve()))
+    return command
 
 
-def build_installer_release(iscc: Path | None = None) -> Path:
+def build_installer_release(
+    iscc: Path | None = None,
+    *,
+    app_id: str | None = None,
+    smoke_build: bool = False,
+) -> Path:
     if sys.platform != "win32":
         raise RuntimeError("P7-B installer compilation is supported only on Windows")
+    if smoke_build and app_id is None:
+        raise ValueError("Smoke installer builds require a disposable AppId override")
+
     validate_artifact(APP_DIR)
     compiler = find_iscc(iscc)
     validate_iscc(compiler)
     RELEASE_ROOT.mkdir(parents=True, exist_ok=True)
     write_payload_manifest(APP_DIR)
     write_third_party_notices()
-    output = installer_path()
+
+    output = smoke_installer_path() if smoke_build else installer_path()
     output.unlink(missing_ok=True)
-    subprocess.run(installer_command(compiler), cwd=REPO_ROOT, check=True)
+    subprocess.run(
+        installer_command(compiler, app_id=app_id, smoke_build=smoke_build),
+        cwd=REPO_ROOT,
+        check=True,
+    )
     if not output.is_file() or output.stat().st_size == 0:
         raise RuntimeError(f"Inno Setup did not produce the expected installer: {output}")
     return output
