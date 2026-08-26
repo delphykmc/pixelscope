@@ -4,6 +4,18 @@
 #ifndef AppFileVersion
   #error AppFileVersion must be supplied by scripts/build_installer_release.py
 #endif
+#ifndef AppVersionMajor
+  #error AppVersionMajor must be supplied by scripts/build_installer_release.py
+#endif
+#ifndef AppVersionMinor
+  #error AppVersionMinor must be supplied by scripts/build_installer_release.py
+#endif
+#ifndef AppVersionRevision
+  #error AppVersionRevision must be supplied by scripts/build_installer_release.py
+#endif
+#ifndef AppVersionBuild
+  #error AppVersionBuild must be supplied by scripts/build_installer_release.py
+#endif
 
 #define AppName "PixelScope"
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
@@ -48,3 +60,129 @@ Source: "{#NoticeFile}"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; 
 
 [Icons]
 Name: "{userprograms}\PixelScope"; Filename: "{app}\PixelScope.exe"; WorkingDir: "{app}"
+
+[Run]
+Filename: "{app}\PixelScope.exe"; Description: "Launch PixelScope"; Flags: postinstall nowait skipifsilent
+
+[Code]
+const
+  PixelScopeUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}_is1';
+  CurrentVersionText = '{#AppVersion}';
+
+function ReadExistingInstall(
+  var InstalledVersion: Int64;
+  var InstalledVersionText: String;
+  var VersionKnown: Boolean
+): Boolean;
+var
+  InstallLocation: String;
+  HasInstallLocation: Boolean;
+  HasDisplayVersion: Boolean;
+  InstalledExecutable: String;
+begin
+  HasInstallLocation := RegQueryStringValue(
+    HKCU64,
+    PixelScopeUninstallKey,
+    'InstallLocation',
+    InstallLocation
+  );
+  HasDisplayVersion := RegQueryStringValue(
+    HKCU64,
+    PixelScopeUninstallKey,
+    'DisplayVersion',
+    InstalledVersionText
+  );
+
+  Result := HasInstallLocation or HasDisplayVersion;
+  VersionKnown := False;
+  if not Result then
+    Exit;
+
+  if HasInstallLocation then
+  begin
+    InstalledExecutable := AddBackslash(InstallLocation) + 'PixelScope.exe';
+    VersionKnown := GetPackedVersion(InstalledExecutable, InstalledVersion);
+  end;
+
+  if VersionKnown and (not HasDisplayVersion) then
+    InstalledVersionText := VersionToStr(InstalledVersion)
+  else if not HasDisplayVersion then
+    InstalledVersionText := 'unknown';
+end;
+
+function ConfirmExistingInstall: Boolean;
+var
+  InstalledVersion: Int64;
+  CurrentVersion: Int64;
+  InstalledVersionText: String;
+  VersionKnown: Boolean;
+  Comparison: Integer;
+  PromptText: String;
+begin
+  Result := True;
+  if not ReadExistingInstall(InstalledVersion, InstalledVersionText, VersionKnown) then
+    Exit;
+
+  if not VersionKnown then
+  begin
+    PromptText :=
+      'An existing PixelScope installation was found, but its version could not be verified. ' +
+      'Continue with PixelScope ' + CurrentVersionText + '?';
+    Result := SuppressibleMsgBox(
+      PromptText,
+      mbConfirmation,
+      MB_YESNO or MB_DEFBUTTON2,
+      IDNO
+    ) = IDYES;
+    Exit;
+  end;
+
+  CurrentVersion := PackVersionComponents(
+    {#AppVersionMajor},
+    {#AppVersionMinor},
+    {#AppVersionRevision},
+    {#AppVersionBuild}
+  );
+  Comparison := ComparePackedVersion(InstalledVersion, CurrentVersion);
+
+  if Comparison > 0 then
+  begin
+    PromptText :=
+      'PixelScope ' + InstalledVersionText + ' is already installed, which is newer than ' +
+      CurrentVersionText + '. Install the older version anyway?';
+    Result := SuppressibleMsgBox(
+      PromptText,
+      mbConfirmation,
+      MB_YESNO or MB_DEFBUTTON2,
+      IDNO
+    ) = IDYES;
+  end
+  else if Comparison = 0 then
+  begin
+    PromptText :=
+      'PixelScope ' + InstalledVersionText + ' is already installed. Reinstall this version?';
+    Result := SuppressibleMsgBox(
+      PromptText,
+      mbConfirmation,
+      MB_YESNO or MB_DEFBUTTON2,
+      IDYES
+    ) = IDYES;
+  end
+  else
+  begin
+    PromptText :=
+      'PixelScope ' + InstalledVersionText + ' is installed. Upgrade to ' +
+      CurrentVersionText + '?';
+    Result := SuppressibleMsgBox(
+      PromptText,
+      mbConfirmation,
+      MB_YESNO,
+      IDYES
+    ) = IDYES;
+  end;
+end;
+
+function InitializeSetup: Boolean;
+begin
+  Result := ConfirmExistingInstall;
+end;
