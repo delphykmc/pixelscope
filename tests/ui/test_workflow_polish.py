@@ -269,6 +269,7 @@ def test_files_context_menu_reuses_open_actions_and_batches_folder_removal(
         "Open Images...",
         "Open Folder...",
         "Remove Folder from Files",
+        "Set Display Tag...",
     ]
     remove_folder = next(
         action for action in folder_menu.actions() if action.text() == "Remove Folder from Files"
