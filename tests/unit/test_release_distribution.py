@@ -118,12 +118,15 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
     script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(
         encoding="utf-8"
     )
+    expected_default_app_id = (
+        '#define AppIdValue "' + "{" + installer_module.PRODUCTION_APP_ID + '"'
+    )
 
     assert "PrivilegesRequired=lowest" in script
     assert r"DefaultDirName={localappdata}\Programs\PixelScope" in script
     assert "ArchitecturesAllowed=x64" in script
     assert "ArchitecturesInstallIn64BitMode=x64" in script
-    assert 'DefaultAppId "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"' in script
+    assert expected_default_app_id in script
     assert "AppId={#AppIdValue}" in script
     assert '#define RepoRoot AddBackslash(SourcePath) + "..\\.."' in script
     assert '#define AppSource AddBackslash(RepoRoot) + "dist\\PixelScope"' in script
