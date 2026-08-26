@@ -96,7 +96,7 @@ P5-G External GPU/SMB Validation & Closeout        DEFERRED — real environment
     ↓
 P6 Identity, Access & Remote Operations            PLANNED / production integration gated
     ↓
-P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+P7-D Stage 2 Notification-only Update Discovery    DEFERRED — provider/access authority pending
     ↓
 P7-E Final Release Qualification                   DEFERRED
 ```
@@ -462,11 +462,11 @@ Do not preselect OIDC/OAuth/SAML details, Remote IQA bearer-token semantics, SMB
 behavior, credential storage, GitHub API credentials, or signing policy without the
 corresponding server/SSO authority.
 
-If authoritative corporate SSO documentation becomes available before the real P5-G
-environment, **P6-0 authentication contract audit/research** may proceed early. P6-0
-research does not implement production SSO, alter Remote IQA authorization, issue/store
-tokens, or invent server contracts; it exists to establish the actual corporate
-identity architecture for later P6 and P7-D Stage 2 decisions.
+If authoritative corporate identity/authentication documentation becomes available
+before the real P5-G environment, **P6-0 authentication contract audit/research** may
+proceed early. P6-0 research does not implement production SSO, alter Remote IQA
+authorization, issue/store tokens, or invent server contracts; it exists to establish
+the actual corporate identity architecture for later P6 and P7-D Stage 2 decisions.
 
 # P7 — Release Engineering & Distribution — P7-D Stage 1 active
 
@@ -490,18 +490,24 @@ architecture.
   - one repository-owned Windows entry point;
   - repository checks + canonical P7-A/P7-B build/smoke reuse;
   - strict four-file production-bundle validation;
-  - exact source/tool/artifact provenance;
+  - exact source/tool/artifact provenance through one shared executable schema;
   - dated/versioned release-note source and rendered candidate notes;
   - no mandatory GitHub Actions runner and no production publication.
 - **P7-D Stage 1 — Release Metadata & Manual Publication Foundation — Active.**
   - canonical version/tag/title/note/artifact/provenance consistency;
   - provider-neutral publication metadata and local validation;
-  - authorized manual corporate GitHub Enterprise Release publication procedure;
+  - authorized manual corporate GitHub Enterprise Release publication procedure,
+    including remote release/tag-to-source post-publication verification;
   - no runtime/network authentication behavior and no privileged upload automation.
-- **P7-D Stage 2 — Authenticated Update Notification Integration — Deferred until P6.**
+- **P7-D Stage 2 — Notification-only Update Discovery/Integration — Deferred.**
   - update discovery must never initiate authentication;
-  - same corporate SSO identity does not imply a shared IQA/GitHub token;
-  - provider and authentication mechanism remain unselected until P6 authority exists;
+  - Stage 1 does not establish whether the eventual provider requires authentication;
+  - if authentication is required, only an already-established approved P6 capability
+    may be used and discovery otherwise skips silently;
+  - an authoritative provider explicitly usable without application authentication
+    remains permitted;
+  - provider and authentication mechanism remain unselected until their contracts are
+    authoritative;
   - notification-only integration is optional and does not imply self-update.
 
 Canonical Stage 1 flow:
@@ -516,6 +522,8 @@ provider-neutral publication validation / metadata staging
 CORPORATE SECURITY BOUNDARY
     ↓
 authorized manual corporate publication
+    ↓
+remote release/tag + asset/hash + visibility/access verification
 ```
 
 ## P7 Final Release Qualification — Deferred
@@ -526,7 +534,7 @@ P7-D Stage 2 integration:
 
 - packaged verification of P5-G real external GPU/SMB behavior;
 - packaged verification of already-implemented P6 authentication/remote behavior;
-- packaged verification of selected authenticated update notification if Stage 2 is
+- packaged verification of selected notification-only update discovery if Stage 2 is
   implemented;
 - clean-PC install/upgrade/uninstall qualification;
 - production signing/certificate policy validation;
