@@ -48,6 +48,14 @@ def _wait_for_payload_removal(executable: Path, timeout: float = 10.0) -> None:
         raise RuntimeError(f"Installer uninstall left the application payload behind: {executable}")
 
 
+def _installer_owned_files(install_root: Path) -> frozenset[str]:
+    return frozenset(
+        path.relative_to(install_root).as_posix()
+        for path in install_root.glob("unins*")
+        if path.is_file()
+    )
+
+
 def smoke_installer_release(setup_path: Path) -> None:
     if sys.platform != "win32":
         raise RuntimeError("P7-B installer smoke is supported only on Windows")
@@ -86,6 +94,7 @@ def smoke_installer_release(setup_path: Path) -> None:
                 install_root,
                 manifest,
                 allow_distribution_metadata=True,
+                allowed_extra_names=_installer_owned_files(install_root),
             )
             validate_artifact(install_root)
             smoke_executable(executable)
