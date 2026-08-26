@@ -34,11 +34,16 @@ def release_version() -> str:
     return version.strip()
 
 
-def release_note_source(version: str | None = None) -> Path:
+def release_note_source(
+    version: str | None = None,
+    *,
+    root: Path | None = None,
+) -> Path:
     """Return the one dated durable release-note source for a release version."""
 
     value = version or release_version()
-    matches = sorted(RELEASE_NOTES_ROOT.glob(f"*-v{value}.md"))
+    notes_root = root or RELEASE_NOTES_ROOT
+    matches = sorted(notes_root.glob(f"*-v{value}.md"))
     if len(matches) != 1:
         raise RuntimeError(
             f"Expected exactly one dated release-note source for v{value}; found {matches}"
