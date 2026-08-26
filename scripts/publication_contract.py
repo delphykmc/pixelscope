@@ -22,6 +22,11 @@ from scripts.distribution_contract import (  # noqa: E402
     release_stem,
     sha256_file,
 )
+from scripts.release_candidate_contract import (  # noqa: E402
+    CANDIDATE_PROVENANCE_NAME,
+    CandidateProvenanceError,
+    validate_candidate_provenance,
+)
 from scripts.release_contract import (  # noqa: E402
     REPO_ROOT,
     SOURCE_COMMIT_MARKER,
@@ -33,7 +38,6 @@ from scripts.release_contract import (  # noqa: E402
 PUBLICATION_SCHEMA_VERSION: Final = 1
 PRODUCT_NAME: Final = "PixelScope"
 RELEASE_NOTES_NAME: Final = "RELEASE_NOTES.md"
-CANDIDATE_PROVENANCE_NAME: Final = "release-provenance.json"
 PUBLICATION_METADATA_NAME: Final = "release-publication.json"
 _DATE_NOTE_RE: Final = re.compile(r"^\d{4}-\d{2}-\d{2}-v(?P<version>.+)\.md$")
 _COMMIT_RE: Final = re.compile(r"^[0-9a-f]{40}$")
@@ -164,27 +168,20 @@ def validate_candidate(
 
     provenance_path = stage / CANDIDATE_PROVENANCE_NAME
     provenance = _load_json_object(provenance_path, label="candidate provenance")
-    if provenance.get("schema_version") != 1:
-        raise PublicationValidationError("candidate provenance schema mismatch")
-    if provenance.get("product") != PRODUCT_NAME:
-        raise PublicationValidationError("candidate provenance product mismatch")
-    if provenance.get("version") != value:
-        raise PublicationValidationError("candidate provenance version mismatch")
-
-    source_commit = _validate_source_commit(
-        provenance.get("source_commit"),
-        label="candidate provenance source_commit",
-    )
-
     source = _validate_release_note_source(value)
     expected_source = source.relative_to(REPO_ROOT).as_posix()
-    if provenance.get("release_note_source") != expected_source:
-        raise PublicationValidationError("candidate release-note source identity mismatch")
-
     artifact_names = production_artifact_names(value)
     expected_inventory = _artifact_inventory(stage, artifact_names)
-    if provenance.get("artifacts") != expected_inventory:
-        raise PublicationValidationError("candidate artifact provenance does not match files")
+    try:
+        provenance = validate_candidate_provenance(
+            provenance,
+            expected_version=value,
+            expected_release_note_source=expected_source,
+            expected_artifacts=expected_inventory,
+        )
+    except CandidateProvenanceError as exc:
+        raise PublicationValidationError(str(exc)) from exc
+    source_commit = str(provenance["source_commit"])
 
     manifest = load_payload_manifest(stage / manifest_path(value).name)
     if manifest.get("schema_version") != 1:
