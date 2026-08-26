@@ -80,11 +80,20 @@ Repository policy:
 - per-user install under `{localappdata}\Programs\PixelScope`;
 - `PrivilegesRequired=lowest`; normal installation does not require administrator
   rights;
-- stable, non-versioned `AppId` so a newer PixelScope installer upgrades the existing
-  installation rather than creating a parallel product identity;
+- stable, non-versioned `AppId` so newer PixelScope installers reuse the same upgrade
+  and uninstall lineage rather than creating a parallel product identity;
 - 64-bit install mode for the x64 application;
 - Start Menu shortcut only; no automatic desktop shortcut and no file association;
-- installer does not launch PixelScope automatically after install;
+- interactive Setup Completed page offers the standard `Launch PixelScope` post-install
+  checkbox; silent installs do not launch the application;
+- an existing installation is detected from the per-user uninstall registration and
+  its installed `PixelScope.exe` Windows file version is compared with the canonical
+  installer version;
+- older installed version -> explicit upgrade confirmation, default Yes;
+- same installed version -> explicit reinstall confirmation, interactive default No;
+- newer installed version -> explicit downgrade warning, default No;
+- silent/suppressed same-version reinstall and normal upgrade may continue, while a
+  downgrade or unverifiable existing version is rejected by default;
 - uninstall removes installed application/distribution files but does not delete
   PixelScope QSettings/user state;
 - no signing tool, certificate, key, or production signing claim in P7-B.
@@ -136,6 +145,10 @@ setup.exe /VERYSILENT ... /DIR=<temporary path>
     -> verify application payload was removed
 ```
 
+The launch checkbox is skipped in silent mode. Existing-version confirmation uses
+suppressible messages so automated same-version repair/upgrade can proceed while silent
+downgrade remains fail-safe by default.
+
 This proves compile/install/run/uninstall mechanics without introducing a test-only
 application mode. The smoke harness must not intentionally clear existing PixelScope
 QSettings.
@@ -150,7 +163,8 @@ Windows evidence for:
 - P7-A onedir build/validation at the exact artifact-affecting source state;
 - portable ZIP build and portable smoke;
 - Inno Setup compile;
-- installer install/run/uninstall smoke.
+- installer install/run/uninstall smoke;
+- interactive installer confirmation for existing-version and post-install launch UX.
 
 If only tests/docs change after the final artifact-affecting commit, artifact evidence
 may be reused only when review confirms those later commits cannot change distribution
