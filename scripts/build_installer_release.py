@@ -88,7 +88,7 @@ def validate_iscc(iscc: Path) -> None:
 def _ispp_define(name: str, value: str) -> str:
     if '"' in value or "\n" in value or "\r" in value:
         raise ValueError(f"Unsafe Inno Setup define value for {name}")
-    return f'-d{name}="{value}"'
+    return f"-d{name}={value}"
 
 
 def installer_command(iscc: Path) -> list[str]:
