@@ -136,8 +136,14 @@ def test_installer_command_only_injects_version_metadata() -> None:
     command = installer_command(Path("C:/Inno Setup 6/ISCC.exe"))
 
     assert command[1] == "/Qp"
-    assert any(argument.startswith('-dAppVersion="') for argument in command)
-    assert any(argument.startswith('-dAppFileVersion="') for argument in command)
+    app_version = next(argument for argument in command if argument.startswith("-dAppVersion="))
+    file_version = next(
+        argument for argument in command if argument.startswith("-dAppFileVersion=")
+    )
+    assert app_version == "-dAppVersion=0.1.0"
+    assert file_version == "-dAppFileVersion=0.1.0.0"
+    assert '"' not in app_version
+    assert '"' not in file_version
     assert all("AppSource" not in argument for argument in command)
     assert all("OutputDir" not in argument for argument in command)
     assert str(installer_module.INNO_SCRIPT.resolve()) == command[-1]
