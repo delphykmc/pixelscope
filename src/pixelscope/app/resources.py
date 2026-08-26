@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import logging
+import sys
 from importlib.resources import files
 
 from PySide6.QtGui import QIcon, QPixmap
 
 LOGGER = logging.getLogger(__name__)
 _ICON_PARTS = ("assets", "icons", "pixelscope.png")
+
+
+def _icon_failure(message: str) -> QIcon:
+    """Keep source-run fallback, but fail frozen startup when a core resource is broken."""
+
+    if getattr(sys, "frozen", False):
+        raise RuntimeError(message)
+    LOGGER.warning(message)
+    return QIcon()
 
 
 def load_application_icon() -> QIcon:
@@ -19,11 +29,9 @@ def load_application_icon() -> QIcon:
     try:
         icon_bytes = resource.read_bytes()
     except OSError:
-        LOGGER.warning("PixelScope application icon resource is unavailable")
-        return QIcon()
+        return _icon_failure("PixelScope application icon resource is unavailable")
 
     pixmap = QPixmap()
     if not pixmap.loadFromData(icon_bytes):
-        LOGGER.warning("PixelScope application icon resource is invalid")
-        return QIcon()
+        return _icon_failure("PixelScope application icon resource is invalid")
     return QIcon(pixmap)
