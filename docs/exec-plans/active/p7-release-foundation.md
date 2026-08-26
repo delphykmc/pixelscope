@@ -6,24 +6,30 @@ Baseline: `main@62258d24305b8d4974419aba8f9d2b2ed9c7a965`
 
 ## 1. Purpose
 
-P7 Release Foundation establishes a repeatable Windows distribution pipeline while
-P5-G waits for the real external GPU/SMB environment and P6 waits for authoritative
-corporate SSO/authentication contracts.
+P7 Release Foundation establishes a repeatable Windows distribution and release-candidate
+process while P5-G waits for the real external GPU/SMB environment and P6 waits for
+authoritative corporate SSO/authentication contracts.
 
 This is an explicit dependency exception. It does **not** mark P5-G complete, activate
 production SSO, or declare PixelScope release-ready. It advances only work that is
 independent of those external contracts.
 
+The corporate release boundary confirmed during P7-C means repository automation owns
+candidate preparation, but production publication remains an authorized human action.
+Neither GitHub-hosted nor self-hosted Actions are required for P7 completion.
+
 Current intended sequence:
 
 ```text
-P7 Release Foundation
+P7-C Owner-local Release Candidate Build & Validation
+    ↓
+P7-D Metadata / Manual Publication / Notification-only Update Foundation
     ↓
 P5-G External GPU/SMB Validation        # when environment becomes available
     ↓
-P6 Identity, Access & Remote Operations # when auth contracts are authoritative
+P6 Identity, Access & Remote Operations # SSO implementation when auth contracts are authoritative
     ↓
-P7 Final Release Qualification          # SSO-aware clean-PC closeout
+P7-E Final Release Qualification        # packaged verification of P5-G/P6 + release closeout
 ```
 
 ## 2. Repository baseline
@@ -39,8 +45,9 @@ At activation time:
 - ROADMAP requires exactly PyInstaller 5.7 `onedir`, portable ZIP, Inno Setup,
   clean-PC smoke testing, signing, update strategy, and a repeatable release process.
 
-The implementation agent must re-check these facts at its exact starting HEAD rather
-than assuming this activation snapshot is still current.
+Those are activation-time facts only. P7-A/P7-B have since established the executable
+and distribution foundations. Every implementation slice must re-check the exact merged
+state rather than treating this activation snapshot as current implementation status.
 
 ## 3. Release-foundation contract
 
@@ -58,15 +65,15 @@ The first supported Windows executable build is:
   applicable;
 - generated files kept out of source-controlled runtime/package directories.
 
-A build must start from a clean/reproducible environment and must not depend on a
-particular developer machine's absolute paths.
+A build must start from a clean/reproducible repository state and must not encode a
+particular developer machine's absolute paths into shipped artifacts.
 
 ### 3.2 Version authority
 
 P7 must establish one documented canonical application/release version authority.
-Build, portable ZIP, installer metadata, release artifact names, and update metadata
-must derive from that authority rather than carrying independently edited version
-strings.
+Build, portable ZIP, installer metadata, release artifact names, release-note metadata,
+and update metadata must derive from that authority rather than carrying independently
+edited version strings.
 
 Do not invent semantic-version bump policy beyond what is needed to make the authority
 single-source and executable.
@@ -84,7 +91,7 @@ source + pinned release tooling
           ↓
 PyInstaller 5.7 onedir
           ↓ validate
-canonical dist/pixelscope/
+canonical dist/PixelScope/
       ├── portable ZIP
       └── Inno Setup installer
 ```
@@ -103,16 +110,34 @@ P7 foundation must preserve existing application contracts:
 
 The installer scope and installation directory policy must be explicit and testable.
 
-### 3.5 Release automation boundary
+### 3.5 Release-candidate and publication boundary
 
-GitHub automation may build and validate release artifacts before P6 is complete.
-Foundation automation should support repeatable Windows builds and artifact retention.
+The repository owns deterministic validation/build/smoke logic and preparation of a
+release candidate on the authorized Windows development PC. P7-C must remain complete
+without a configured GitHub Actions runner.
 
-Automatic production publication must remain an explicit release action. Do not make
-an ordinary branch push silently publish a production release.
+The canonical ownership split is:
 
-A tag/release-triggered path may be introduced once version/tag consistency is enforced
-and artifacts are built from the tagged commit.
+```text
+Repository-owned / agent-safe
+    test
+    build
+    smoke
+    validate
+    prepare candidate bundle
+    prepare release notes / provenance
+              ↓
+CORPORATE SECURITY BOUNDARY
+              ↓
+authorized human publication / restricted-folder transfer / privileged signing
+```
+
+Production GitHub Release upload is not a repository automation requirement. Manual
+authorized upload is the supported production publication path unless a later
+corporate-approved mechanism explicitly changes that contract.
+
+An ordinary branch push, merge, or local candidate build must never silently publish a
+production release.
 
 ### 3.6 Update strategy boundary
 
@@ -152,7 +177,9 @@ Release Foundation does not implement or redefine:
 - production code-signing credentials;
 - automatic/self update;
 - Microsoft Store/MSIX migration;
-- a switch from PyInstaller 5.7 `onedir` to another bundler.
+- a switch from PyInstaller 5.7 `onedir` to another bundler;
+- a mandatory GitHub-hosted or self-hosted release runner;
+- automated privileged production publication.
 
 If packaging exposes an application defect, fix only the smallest repository-owned
 issue necessary and preserve existing runtime contracts. Do not use P7 as a general
@@ -165,12 +192,15 @@ implementation audit proves two adjacent slices are inseparable.
 
 | Order | Slice | Goal | Exit evidence |
 |---|---|---|---|
-| P7-0 | Release contract & packaging audit | Reconcile current entry point, resources, versioning, dependency/runtime assumptions and freeze the executable release contract | docs/checks PASS; no runtime behavior change |
-| P7-A | PyInstaller onedir foundation | Add pinned PyInstaller 5.7 release tooling, deterministic spec/build entry point, required data/hidden-import handling, and executable smoke validation | clean Windows build; executable starts and core packaged resources resolve |
-| P7-B | Portable ZIP & Inno Setup | Produce both distribution forms from the same validated onedir tree; define install/uninstall/upgrade and artifact naming rules | ZIP smoke + installer compile/install/run/uninstall smoke |
-| P7-C | Windows CI artifact pipeline | Add reproducible GitHub Actions Windows build/validation with retained artifacts and cache-independent correctness | clean hosted build PASS; generated artifact structure validated |
-| P7-D | Release metadata & publication foundation | Enforce version/tag/artifact consistency; add explicit release packaging/publication path and notification-only update metadata/provider boundary if justified | dry-run/release workflow evidence; no automatic updater |
-| P7-E | Final Release Qualification | After P5-G and P6, validate SSO-aware packaged behavior, clean-PC install/upgrade/uninstall, signing, and production release policy | deferred until dependencies complete |
+| P7-0 | Release contract & packaging audit | Reconcile current entry point, resources, versioning, dependency/runtime assumptions and freeze the executable release contract | Complete; docs/checks PASS; no runtime behavior change |
+| P7-A | PyInstaller onedir foundation | Add pinned PyInstaller 5.7 release tooling, deterministic spec/build entry point, required data/hidden-import handling, and executable smoke validation | Complete; owner clean Windows build and packaged-resource smoke |
+| P7-B | Portable ZIP & Inno Setup | Produce both distribution forms from the same validated onedir tree; define install/uninstall/upgrade and artifact naming rules | Complete; ZIP + installer compile/install/run/uninstall smoke |
+| P7-C | Owner-local Release Candidate Build & Validation | Provide one repository-owned Windows entry point that reuses P7-A/P7-B checks/build/smoke, validates the strict production bundle, and stages exact provenance/release notes | owner-local pipeline implemented/reviewed; selected merged candidate run produces validated staging output |
+| P7-D | Release metadata, manual publication & update foundation | Enforce version/artifact/release-note metadata consistency, document the authorized manual publication procedure, and add notification-only update metadata/provider boundary if justified | dry-run/local metadata checks + documented manual publication contract; no automatic updater or privileged upload requirement |
+| P7-E | Final Release Qualification | After P5-G and P6, validate the already-implemented remote/auth behavior in the packaged product plus clean-PC install/upgrade/uninstall, signing, and final release policy | deferred until dependencies complete |
+
+P7-E does **not** implement SSO. P6 owns Identity & Access / SSO implementation. P7-E
+only qualifies the integrated packaged result.
 
 ## 6. P7-0 audit questions
 
@@ -210,8 +240,8 @@ changes.
 ### Source/build/test/tooling changes
 
 When Python source, tests, dependency files, packaging scripts/specs, installer files,
-or workflows change, run the normal repository validation applicable to that change,
-including at minimum:
+or release-candidate tooling change, run the normal repository validation applicable
+to that change, including at minimum:
 
 - documentation contract checks when durable docs changed;
 - focused tests for changed behavior/tooling;
@@ -225,9 +255,13 @@ pytest passes. P7 requires artifact-level validation.
 
 ### External/manual evidence
 
-Do not fabricate clean-PC, Inno Setup, signing, or hosted-CI PASS evidence. If an agent
-environment cannot execute a required Windows/manual gate, automate everything it can,
-record the exact remaining owner validation, and leave that gate pending.
+Do not fabricate clean-PC, Inno Setup, signing, corporate publication, or external
+environment PASS evidence. If an agent environment cannot execute a required
+Windows/manual gate, automate everything it can, record the exact remaining owner
+validation, and leave that gate pending.
+
+No hosted/self-hosted Actions run is required to substitute for the authorized owner
+Windows candidate build.
 
 ## 8. Review and merge policy
 
@@ -244,14 +278,20 @@ For every implementation slice:
 
 Do not carry PASS evidence from an earlier slice to a later changed HEAD.
 
+For P7-C specifically, the branch/PR proves the release-candidate machinery. The
+candidate itself is built only after merge from the exact source commit selected by an
+explicit owner release decision.
+
 ## 9. Completion boundary
 
 Release Foundation is complete when P7-A through P7-D have established a repeatable,
-version-consistent Windows `onedir` build and distribution pipeline with artifact-level
-validation and an explicit publication/update-metadata boundary.
+version-consistent Windows `onedir` build/distribution/candidate process with
+artifact-level validation, exact provenance, an explicit manual-publication boundary,
+and a notification-only update-metadata boundary.
 
 That completion does **not** mean PixelScope is production-release complete.
 
 Final P7 closeout remains blocked on P7-E, which follows real P5-G validation and P6
-identity/access integration. P7-E owns the final SSO-aware clean-PC qualification,
-production signing/policy validation, and release closeout.
+identity/access integration. P7-E owns final packaged verification of those already
+implemented behaviors, clean-PC qualification, production signing/policy validation,
+and release closeout.
