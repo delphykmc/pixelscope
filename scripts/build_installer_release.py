@@ -77,7 +77,13 @@ def _parse_version_text(value: str | bytes) -> tuple[int, int, int, int] | None:
     match = _VERSION_TEXT_RE.search(text)
     if match is None:
         return None
-    return tuple(int(part or 0) for part in match.groups())  # type: ignore[return-value]
+    major, minor, revision, build = match.groups()
+    return (
+        int(major),
+        int(minor),
+        int(revision or 0),
+        int(build or 0),
+    )
 
 
 def _version_from_pe_info(pe: Any) -> tuple[int, int, int, int] | None:
