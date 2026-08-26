@@ -20,6 +20,7 @@ MANIFEST_SCHEMA_VERSION: Final = 1
 _DISTRIBUTION_METADATA_NAMES: Final = frozenset(
     {MANIFEST_MEMBER_NAME, NOTICE_MEMBER_NAME}
 )
+_HEX_DIGITS: Final = frozenset("0123456789abcdefABCDEF")
 
 
 class DistributionValidationError(RuntimeError):
@@ -120,6 +121,7 @@ def validate_payload_manifest(
     *,
     allow_distribution_metadata: bool = False,
     allowed_extra_names: frozenset[str] = frozenset(),
+    expected_version: str | None = None,
 ) -> None:
     root = root.resolve()
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
@@ -128,6 +130,16 @@ def validate_payload_manifest(
         raise DistributionValidationError("release manifest product mismatch")
     if manifest.get("target") != TARGET_ID:
         raise DistributionValidationError("release manifest target mismatch")
+    if manifest.get("payload_root") != "PixelScope":
+        raise DistributionValidationError("release manifest payload root mismatch")
+
+    manifest_version = manifest.get("version")
+    if not isinstance(manifest_version, str) or not manifest_version.strip():
+        raise DistributionValidationError("release manifest version is invalid")
+    if expected_version is not None and manifest_version != expected_version:
+        raise DistributionValidationError(
+            f"release manifest version mismatch: {manifest_version!r} != {expected_version!r}"
+        )
 
     raw_files = manifest.get("files")
     if not isinstance(raw_files, list) or not raw_files:
@@ -147,7 +159,11 @@ def validate_payload_manifest(
             raise DistributionValidationError(f"unsafe manifest path: {relative!r}")
         if not isinstance(size, int) or size < 0:
             raise DistributionValidationError(f"invalid manifest size for {relative!r}")
-        if not isinstance(digest, str) or len(digest) != 64:
+        if (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(char not in _HEX_DIGITS for char in digest)
+        ):
             raise DistributionValidationError(f"invalid SHA-256 for {relative!r}")
         if relative in expected:
             raise DistributionValidationError(f"duplicate manifest path: {relative!r}")
