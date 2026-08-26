@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -30,11 +29,7 @@ from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
 PRODUCTION_APP_ID = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 SMOKE_APP_ID = "PixelScope.P7B.Smoke"
-_MIN_INNO_VERSION = (6, 1, 0, 0)
-_MAX_INNO_VERSION_EXCLUSIVE = (8, 0, 0, 0)
-_VERSION_TEXT_RE = re.compile(
-    r"(?<!\d)(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?(?!\d)"
-)
+_SUPPORTED_INNO_MAJORS = frozenset({6, 7})
 
 
 def smoke_installer_path(version: str | None = None) -> Path:
@@ -53,7 +48,7 @@ def _candidate_iscc_paths() -> tuple[Path, ...]:
         root = os.environ.get(env_name)
         if not root:
             continue
-        for major in (7, 6):
+        for major in sorted(_SUPPORTED_INNO_MAJORS, reverse=True):
             candidates.append(Path(root) / f"Inno Setup {major}" / "ISCC.exe")
     return tuple(candidates)
 
@@ -72,82 +67,32 @@ def find_iscc(explicit: Path | None = None) -> Path:
     )
 
 
-def _parse_version_text(value: str | bytes) -> tuple[int, int, int, int] | None:
-    text = value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
-    match = _VERSION_TEXT_RE.search(text)
-    if match is None:
-        return None
-    major, minor, revision, build = match.groups()
-    return (
-        int(major),
-        int(minor),
-        int(revision or 0),
-        int(build or 0),
+def inno_major_version(iscc: Path) -> int:
+    result = subprocess.run(
+        [str(iscc), "/?"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
     )
-
-
-def _version_from_pe_info(pe: Any) -> tuple[int, int, int, int] | None:
-    for group in getattr(pe, "FileInfo", None) or ():
-        file_infos = group if isinstance(group, (list, tuple)) else (group,)
-        for file_info in file_infos:
-            key = getattr(file_info, "Key", None)
-            if key not in (b"StringFileInfo", "StringFileInfo"):
-                continue
-            for table in getattr(file_info, "StringTable", None) or ():
-                entries = getattr(table, "entries", None) or {}
-                for entry_name in (
-                    b"FileVersion",
-                    "FileVersion",
-                    b"ProductVersion",
-                    "ProductVersion",
-                ):
-                    if entry_name not in entries:
-                        continue
-                    parsed = _parse_version_text(entries[entry_name])
-                    if parsed is not None and any(parsed):
-                        return parsed
-
-    fixed_entries = getattr(pe, "VS_FIXEDFILEINFO", None) or ()
-    if fixed_entries:
-        info = fixed_entries[0]
-        fixed_version = (
-            (int(info.FileVersionMS) >> 16) & 0xFFFF,
-            int(info.FileVersionMS) & 0xFFFF,
-            (int(info.FileVersionLS) >> 16) & 0xFFFF,
-            int(info.FileVersionLS) & 0xFFFF,
-        )
-        if any(fixed_version):
-            return fixed_version
-    return None
-
-
-def _inno_file_version(iscc: Path) -> tuple[int, int, int, int]:
-    try:
-        import pefile
-    except ImportError as exc:
+    text = f"{result.stdout}\n{result.stderr}"
+    match = re.search(r"Inno Setup\s+(\d+)\s+Command-Line Compiler", text, re.IGNORECASE)
+    if match is None:
         raise RuntimeError(
-            "pefile is required to validate the Inno Setup compiler version; "
-            "install requirements/release.txt"
-        ) from exc
-
-    pe = pefile.PE(str(iscc), fast_load=False)
-    try:
-        version = _version_from_pe_info(pe)
-        if version is None:
-            raise RuntimeError(f"Unable to read Inno Setup file version from {iscc}")
-        return version
-    finally:
-        pe.close()
-
-
-def validate_inno_version(version: tuple[int, int, int, int]) -> None:
-    if not _MIN_INNO_VERSION <= version < _MAX_INNO_VERSION_EXCLUSIVE:
-        found = ".".join(str(part) for part in version)
-        raise RuntimeError(f"P7-B requires Inno Setup >=6.1,<8; found {found}")
+            f"Unable to identify Inno Setup Command-Line Compiler from {iscc}"
+        )
+    return int(match.group(1))
 
 
 def validate_iscc(iscc: Path) -> None:
-    validate_inno_version(_inno_file_version(iscc))
+    major = inno_major_version(iscc)
+    if major not in _SUPPORTED_INNO_MAJORS:
+        supported = ", ".join(str(value) for value in sorted(_SUPPORTED_INNO_MAJORS))
+        raise RuntimeError(
+            f"P7-B accepts Inno Setup major {supported} for compiler discovery; "
+            f"found major {major}. The canonical .iss enforces the exact >=6.1,<8 range."
+        )
 
 
 def _ispp_define(name: str, value: str) -> str:
