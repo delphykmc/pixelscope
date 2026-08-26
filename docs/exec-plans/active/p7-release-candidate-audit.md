@@ -81,7 +81,8 @@ P7-C does not introduce a CI-only compiler stack.
   installation discovery.
 - The candidate process resolves one `ISCC.exe`, passes that same compiler explicitly
   to the production installer build, exports it through `ISCC_PATH` for disposable
-  smoke, and records its path, major version, and SHA-256 in candidate provenance.
+  smoke, and records its executable name, major version, and SHA-256 in candidate
+  provenance. Local absolute tool paths are deliberately not persisted.
 - No network download or installation of an artificial exact Inno version is required
   by the release contract.
 
@@ -159,8 +160,9 @@ release/candidate/PixelScope-<version>-windows-x64/
 The staging directory contains the four validated production artifacts plus:
 
 - `release-provenance.json` — canonical version, exact source commit, build timestamp,
-  release Python identity, PyInstaller version, actual Inno compiler path/major/SHA-256,
-  release-note source, and staged artifact size/SHA-256 inventory;
+  release Python executable name/version, PyInstaller version, actual Inno compiler
+  executable name/major/SHA-256, release-note source, and staged artifact
+  size/SHA-256 inventory. Local absolute machine paths are excluded;
 - `RELEASE_NOTES.md` — rendered from the repository's dated/versioned release-note
   source with the exact source commit substituted.
 
