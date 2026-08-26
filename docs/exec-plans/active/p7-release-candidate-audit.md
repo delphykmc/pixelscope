@@ -171,18 +171,28 @@ The staging directory contains the four validated production artifacts plus:
 - `RELEASE_NOTES.md` — rendered from the repository's dated/versioned release-note
   source with the exact source commit substituted.
 
-Focused regression coverage directly verifies that candidate staging replaces stale
-same-version contents, copies only the four validated production artifacts, preserves
-artifact bytes/sizes/SHA-256 values, renders the selected source commit without leaving
-a `{{SOURCE_COMMIT}}` marker, records the expected Python/PyInstaller/Inno identities,
-and does not persist local absolute Python/Inno paths.
+`scripts/release_candidate_contract.py` is the shared executable provenance schema
+authority. `build_release_candidate.py` uses it when writing the candidate and P7-D uses
+the same validator before copying candidate provenance into publication staging. The
+current field set is exact: missing or unknown fields are rejected; executable identity
+fields are basenames rather than local paths; `release_note_source` is a repository-
+relative POSIX path; Git and SHA-256 identities are canonical; and the artifact map must
+exactly match the staged production files.
+
+Focused regression coverage verifies that candidate staging replaces stale same-version
+contents, copies only the four validated production artifacts, preserves artifact bytes/
+sizes/SHA-256 values, renders the selected source commit without leaving a
+`{{SOURCE_COMMIT}}` marker, records the expected Python/PyInstaller/Inno identities,
+does not persist local absolute Python/Inno paths, and satisfies the shared provenance
+validator.
 
 The durable source for the current `0.1.0` candidate is
 `docs/releases/2026-08-26-v0.1.0.md`.
 
 P7-D Stage 1 owns the next provider-neutral metadata/tag/manual-publication validation
-layer. Authenticated update notification is separately deferred to P7-D Stage 2 after
-P6 establishes authentication authority.
+layer. Notification-only update discovery/integration is separately deferred to P7-D
+Stage 2 until the relevant provider/access and, where applicable, P6 authentication
+contracts are authoritative.
 
 ## Corporate publication boundary
 
@@ -223,12 +233,12 @@ P5-G External GPU/SMB Validation                   DEFERRED
     ↓
 P6 Identity & Access / SSO                         PLANNED / production integration gated
     ↓
-P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+P7-D Stage 2 Notification-only Update Discovery    DEFERRED — provider/access authority pending
     ↓
 P7-E Final packaged-product qualification          DEFERRED
 ```
 
 P7-E does not implement SSO. P6 owns Identity & Access. P7-D Stage 2 owns any later
-selected authenticated update-notification integration. P7-E only verifies the
-already-implemented P6 behavior, P5-G real-environment behavior, any selected Stage 2
-behavior, and final install/upgrade/uninstall/signing policy in the packaged product.
+selected notification-only update-discovery/integration behavior. P7-E only verifies
+the already-implemented P6 behavior, P5-G real-environment behavior, any selected Stage
+2 behavior, and final install/upgrade/uninstall/signing policy in the packaged product.
