@@ -43,12 +43,14 @@
   that manifest plus `THIRD_PARTY_NOTICES.txt` as distribution-only metadata.
 - P7-B portable ZIP creation is deterministic for identical input payloads: archive
   paths are sorted and ZIP member timestamps are fixed.
-- P7-B keeps its installer definition compatible with the Inno Setup 6 syntax baseline
-  and accepts Inno Setup major 6 or 7 for owner/manual validation. P7-C owns the exact
-  hosted compiler version pin for CI reproducibility.
+- P7-B uses Inno Setup APIs introduced in 6.1.0 and therefore supports local/manual
+  installer compilation with **Inno Setup `>=6.1,<8`**. The build script validates the
+  `ISCC.exe` Windows file-version resource before compilation, and the canonical `.iss`
+  adds a compile-time `Ver` guard as defense in depth. P7-C owns the exact hosted
+  compiler version pin for CI reproducibility.
 - Installer scope is per-user/no-admin: `PrivilegesRequired=lowest`, install under
-  `{localappdata}\Programs\PixelScope`, stable non-versioned `AppId`, x64 install
-  mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
+  `{localappdata}\Programs\PixelScope`, stable non-versioned production `AppId`, x64
+  install mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
   installation.
 - Interactive installer completion offers a standard `Launch PixelScope` post-install
   checkbox. The entry uses Inno Setup `postinstall` semantics and is skipped for silent
@@ -58,9 +60,25 @@
   older -> explicit upgrade confirmation, same -> reinstall confirmation, newer ->
   downgrade warning. Interactive same-version and downgrade prompts default to No;
   upgrade defaults to Yes.
-- Suppressed/silent installer behavior is fail-safe for downgrade or unverifiable
-  existing versions. Same-version repair and normal upgrade may proceed without an
-  interactive prompt.
+- Suppressed/silent production-installer behavior is fail-safe for downgrade or
+  unverifiable existing versions. Same-version repair and normal upgrade may proceed
+  without an interactive prompt.
+- Automated installer smoke must be safe while a real PixelScope installation remains
+  installed. It compiles the **same canonical `packaging/installer/pixelscope.iss`** and
+  consumes the same `dist/PixelScope/` payload, but injects a dedicated disposable smoke
+  `AppId`. The production stable AppId remains the default for release builds.
+- The disposable smoke build suppresses the production Start Menu shortcut so it cannot
+  replace or remove the real user's shortcut. It uses a distinct intermediate
+  `PixelScope-<version>-windows-x64-smoke-setup.exe`, which is deleted after the smoke
+  and is not a release artifact.
+- Installer smoke must prove full cleanup, not only `PixelScope.exe` removal. After
+  uninstall it verifies every manifest-owned payload file, `release-manifest.json`,
+  `THIRD_PARTY_NOTICES.txt`, Inno-owned `unins*` files, the disposable uninstall
+  registration, and the temporary install directory are gone. A stale disposable
+  registration is a failed precondition.
+- Production stable-AppId upgrade/reinstall/downgrade semantics remain covered by
+  static contract tests plus owner interactive validation. Final clean-PC production
+  qualification remains P7-E.
 - Installer upgrade/uninstall must not intentionally delete PixelScope QSettings or
   other user state. The installer definition must not introduce settings-registry
   cleanup, file associations, credential handling, or unconditional post-install launch.
@@ -117,13 +135,13 @@ as a clear owner/reviewer evidence step.
 ## P7-B Windows validation
 
 P7-B uses the already-isolated `.venv-release` for Python release tooling and an
-external supported Inno Setup installation for installer compilation.
+external supported Inno Setup installation.
 
 ```powershell
 # focused distribution contract
 .\.venv\Scripts\python.exe -m pytest -q tests\unit\test_release_distribution.py
 
-# rebuild/validate canonical onedir when artifact-affecting source changed
+# rebuild/validate canonical onedir only when payload-affecting source changed
 .\.venv-release\Scripts\python.exe scripts\build_release.py
 .\.venv-release\Scripts\python.exe scripts\validate_release_artifact.py
 
@@ -132,17 +150,24 @@ external supported Inno Setup installation for installer compilation.
 .\.venv-release\Scripts\python.exe scripts\build_portable_release.py
 .\.venv-release\Scripts\python.exe scripts\smoke_portable_release.py
 
-# Inno Setup 6/7 compiler can be found from PATH/common install paths,
-# supplied with ISCC_PATH, or supplied explicitly with --iscc.
+# production installer compile; ISCC may come from PATH/common install paths,
+# ISCC_PATH, or --iscc. Supported compiler range is >=6.1,<8.
 .\.venv-release\Scripts\python.exe scripts\build_installer_release.py
+
+# automated smoke compiles a disposable-AppId installer from the same canonical .iss,
+# installs/runs/uninstalls it, verifies full cleanup, then deletes the smoke setup EXE.
 .\.venv-release\Scripts\python.exe scripts\smoke_installer_release.py
 ```
 
-For interactive validation, also verify that the Setup Completed page offers `Launch
-PixelScope`, and that rerunning Setup detects the existing installation and asks for
-reinstall/upgrade/downgrade confirmation according to version ordering.
+For interactive production-installer validation, also verify that the Setup Completed
+page offers `Launch PixelScope`, and that rerunning Setup detects the existing
+installation and asks for reinstall/upgrade/downgrade confirmation according to version
+ordering. The real PixelScope installation may remain installed while the automated
+smoke runs because the smoke uses a disposable AppId and does not create the production
+Start Menu shortcut.
 
-Expected P7-B outputs derive from the canonical version, for example at `0.1.0`:
+Expected P7-B production outputs derive from the canonical version, for example at
+`0.1.0`:
 
 ```text
 release/PixelScope-0.1.0-windows-x64.manifest.json
