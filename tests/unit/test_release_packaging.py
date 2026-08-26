@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 import pixelscope
-import pixelscope.app.resources as resources_module
+from pixelscope.app import resources as resources_module
 from pixelscope.version import __version__
 from scripts.build_release import pyinstaller_command
 from scripts.release_contract import (
@@ -113,7 +113,9 @@ def test_release_scripts_support_repo_root_file_execution_imports() -> None:
         assert "main" in namespace
 
 
-def test_frozen_application_requires_packaged_icon_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_frozen_application_requires_packaged_icon_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(resources_module.sys, "frozen", True, raising=False)
     monkeypatch.setattr(resources_module, "files", lambda _package: _MissingIconResource())
 
