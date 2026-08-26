@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import sys
 import tempfile
@@ -114,10 +115,8 @@ def smoke_installer_release(setup_path: Path) -> None:
             _wait_for_payload_removal(executable)
         finally:
             if installed and uninstaller.is_file():
-                try:
+                with contextlib.suppress(RuntimeError):
                     _silent_uninstall(uninstaller, install_root)
-                except RuntimeError:
-                    pass
 
 
 def main() -> int:
