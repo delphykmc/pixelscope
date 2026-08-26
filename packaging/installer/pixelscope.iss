@@ -26,7 +26,7 @@
 
 #define AppName "PixelScope"
 #ifndef AppIdValue
-  #define AppIdValue "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
+  #define AppIdValue "{{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 #endif
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
 #define AppSource AddBackslash(RepoRoot) + "dist\PixelScope"
@@ -73,8 +73,10 @@ Source: "{#AppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Source: "{#ManifestFile}"; DestDir: "{app}"; DestName: "release-manifest.json"; Flags: ignoreversion
 Source: "{#NoticeFile}"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; Flags: ignoreversion
 
+#ifndef SmokeBuild
 [Icons]
 Name: "{userprograms}\PixelScope"; Filename: "{app}\PixelScope.exe"; WorkingDir: "{app}"
+#endif
 
 [Run]
 Filename: "{app}\PixelScope.exe"; Description: "Launch PixelScope"; Flags: postinstall nowait skipifsilent
