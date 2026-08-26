@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -30,6 +32,9 @@ PRODUCTION_APP_ID = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 SMOKE_APP_ID = "PixelScope.P7B.Smoke"
 _MIN_INNO_VERSION = (6, 1, 0, 0)
 _MAX_INNO_VERSION_EXCLUSIVE = (8, 0, 0, 0)
+_VERSION_TEXT_RE = re.compile(
+    r"(?<!\d)(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?(?!\d)"
+)
 
 
 def smoke_installer_path(version: str | None = None) -> Path:
@@ -67,6 +72,49 @@ def find_iscc(explicit: Path | None = None) -> Path:
     )
 
 
+def _parse_version_text(value: str | bytes) -> tuple[int, int, int, int] | None:
+    text = value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+    match = _VERSION_TEXT_RE.search(text)
+    if match is None:
+        return None
+    return tuple(int(part or 0) for part in match.groups())  # type: ignore[return-value]
+
+
+def _version_from_pe_info(pe: Any) -> tuple[int, int, int, int] | None:
+    for group in getattr(pe, "FileInfo", None) or ():
+        file_infos = group if isinstance(group, (list, tuple)) else (group,)
+        for file_info in file_infos:
+            key = getattr(file_info, "Key", None)
+            if key not in (b"StringFileInfo", "StringFileInfo"):
+                continue
+            for table in getattr(file_info, "StringTable", None) or ():
+                entries = getattr(table, "entries", None) or {}
+                for entry_name in (
+                    b"FileVersion",
+                    "FileVersion",
+                    b"ProductVersion",
+                    "ProductVersion",
+                ):
+                    if entry_name not in entries:
+                        continue
+                    parsed = _parse_version_text(entries[entry_name])
+                    if parsed is not None and any(parsed):
+                        return parsed
+
+    fixed_entries = getattr(pe, "VS_FIXEDFILEINFO", None) or ()
+    if fixed_entries:
+        info = fixed_entries[0]
+        fixed_version = (
+            (int(info.FileVersionMS) >> 16) & 0xFFFF,
+            int(info.FileVersionMS) & 0xFFFF,
+            (int(info.FileVersionLS) >> 16) & 0xFFFF,
+            int(info.FileVersionLS) & 0xFFFF,
+        )
+        if any(fixed_version):
+            return fixed_version
+    return None
+
+
 def _inno_file_version(iscc: Path) -> tuple[int, int, int, int]:
     try:
         import pefile
@@ -78,16 +126,10 @@ def _inno_file_version(iscc: Path) -> tuple[int, int, int, int]:
 
     pe = pefile.PE(str(iscc), fast_load=False)
     try:
-        fixed = getattr(pe, "VS_FIXEDFILEINFO", None) or []
-        if not fixed:
+        version = _version_from_pe_info(pe)
+        if version is None:
             raise RuntimeError(f"Unable to read Inno Setup file version from {iscc}")
-        info = fixed[0]
-        return (
-            (int(info.FileVersionMS) >> 16) & 0xFFFF,
-            int(info.FileVersionMS) & 0xFFFF,
-            (int(info.FileVersionLS) >> 16) & 0xFFFF,
-            int(info.FileVersionLS) & 0xFFFF,
-        )
+        return version
     finally:
         pe.close()
 
