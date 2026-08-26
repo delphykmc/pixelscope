@@ -122,7 +122,7 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
     assert r"DefaultDirName={localappdata}\Programs\PixelScope" in script
     assert "ArchitecturesAllowed=x64" in script
     assert "ArchitecturesInstallIn64BitMode=x64" in script
-    assert '#define AppIdValue "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"' in script
+    assert '#define AppIdValue "{{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"' in script
     assert "AppId={#AppIdValue}" in script
     assert '#define RepoRoot AddBackslash(SourcePath) + "..\\.."' in script
     assert '#define AppSource AddBackslash(RepoRoot) + "dist\\PixelScope"' in script
@@ -161,6 +161,7 @@ def test_inno_script_isolates_smoke_identity_and_requires_61_plus() -> None:
     assert "#if Ver >= 0x08000000" in script
     assert "#ifdef SmokeBuild" in script
     assert 'SetupOutputBase ReleaseStem + "-smoke-setup"' in script
+    assert "#ifndef SmokeBuild\n[Icons]" in script
     assert "Result := True;" in script
     assert "Result := ConfirmExistingInstall;" in script
 
