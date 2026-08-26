@@ -10,7 +10,7 @@ import pytest
 from scripts import build_installer_release as installer_module
 from scripts import build_portable_release as portable_module
 from scripts import smoke_installer_release as installer_smoke_module
-from scripts.build_installer_release import installer_command, validate_inno_version
+from scripts.build_installer_release import installer_command
 from scripts.build_third_party_notices import required_runtime_distributions
 from scripts.distribution_contract import (
     DistributionValidationError,
@@ -156,7 +156,7 @@ def test_inno_script_offers_launch_and_existing_version_confirmation() -> None:
     assert "Upgrade to " in script
 
 
-def test_inno_script_isolates_smoke_identity_and_requires_61_plus() -> None:
+def test_inno_script_isolates_smoke_identity_and_enforces_version_range() -> None:
     script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(
         encoding="utf-8"
     )
@@ -208,36 +208,31 @@ def test_smoke_installer_command_uses_disposable_app_id() -> None:
     assert installer_module.smoke_installer_path().name.endswith("-smoke-setup.exe")
 
 
-def test_supported_inno_version_contract_rejects_60_and_8() -> None:
-    with pytest.raises(RuntimeError, match=r">=6\.1,<8"):
-        validate_inno_version((6, 0, 5, 0))
-    validate_inno_version((6, 1, 0, 0))
-    validate_inno_version((6, 5, 4, 0))
-    validate_inno_version((7, 0, 1, 0))
-    with pytest.raises(RuntimeError, match=r">=6\.1,<8"):
-        validate_inno_version((8, 0, 0, 0))
-
-
-def test_inno_version_prefers_string_metadata_when_fixed_info_is_zero() -> None:
-    string_table = SimpleNamespace(entries={b"FileVersion": b"6.4.3.0"})
-    string_info = SimpleNamespace(Key=b"StringFileInfo", StringTable=[string_table])
-    fixed_info = SimpleNamespace(FileVersionMS=0, FileVersionLS=0)
-    pe = SimpleNamespace(
-        FileInfo=[[string_info]],
-        VS_FIXEDFILEINFO=[fixed_info],
+def test_inno_major_version_parses_command_line_compiler_banner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        installer_module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout="Inno Setup 6 Command-Line Compiler\n",
+            stderr="",
+            returncode=0,
+        ),
     )
 
-    assert installer_module._version_from_pe_info(pe) == (6, 4, 3, 0)
+    assert installer_module.inno_major_version(Path("ISCC.exe")) == 6
 
 
-def test_inno_version_uses_nonzero_fixed_info_as_fallback() -> None:
-    fixed_info = SimpleNamespace(
-        FileVersionMS=(6 << 16) | 1,
-        FileVersionLS=(2 << 16) | 3,
-    )
-    pe = SimpleNamespace(FileInfo=[], VS_FIXEDFILEINFO=[fixed_info])
+def test_validate_iscc_accepts_supported_major_and_rejects_other_major(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(installer_module, "inno_major_version", lambda _path: 6)
+    installer_module.validate_iscc(Path("ISCC.exe"))
 
-    assert installer_module._version_from_pe_info(pe) == (6, 1, 2, 3)
+    monkeypatch.setattr(installer_module, "inno_major_version", lambda _path: 8)
+    with pytest.raises(RuntimeError, match="exact >=6.1,<8 range"):
+        installer_module.validate_iscc(Path("ISCC.exe"))
 
 
 def test_installer_smoke_tracks_manifest_owned_cleanup_paths(tmp_path: Path) -> None:
