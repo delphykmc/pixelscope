@@ -36,6 +36,7 @@ RELEASE_NOTES_NAME: Final = "RELEASE_NOTES.md"
 CANDIDATE_PROVENANCE_NAME: Final = "release-provenance.json"
 PUBLICATION_METADATA_NAME: Final = "release-publication.json"
 _DATE_NOTE_RE: Final = re.compile(r"^\d{4}-\d{2}-\d{2}-v(?P<version>.+)\.md$")
+_COMMIT_RE: Final = re.compile(r"^[0-9a-f]{40}$")
 
 
 class PublicationValidationError(RuntimeError):
@@ -123,7 +124,10 @@ def _artifact_inventory(root: Path, names: tuple[str, ...]) -> dict[str, dict[st
 
 
 def _validate_release_note_source(version: str) -> Path:
-    source = release_note_source(version)
+    try:
+        source = release_note_source(version)
+    except RuntimeError as exc:
+        raise PublicationValidationError(str(exc)) from exc
     match = _DATE_NOTE_RE.match(source.name)
     if match is None or match.group("version") != version:
         raise PublicationValidationError(
@@ -139,6 +143,12 @@ def _validate_release_note_source(version: str) -> Path:
             "release-note source must contain exactly one source-commit marker"
         )
     return source
+
+
+def _validate_source_commit(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or _COMMIT_RE.fullmatch(value) is None:
+        raise PublicationValidationError(f"{label} must be a full lowercase Git commit SHA")
+    return value
 
 
 def validate_candidate(
@@ -161,9 +171,10 @@ def validate_candidate(
     if provenance.get("version") != value:
         raise PublicationValidationError("candidate provenance version mismatch")
 
-    source_commit = provenance.get("source_commit")
-    if not isinstance(source_commit, str) or not source_commit.strip():
-        raise PublicationValidationError("candidate provenance source commit is invalid")
+    source_commit = _validate_source_commit(
+        provenance.get("source_commit"),
+        label="candidate provenance source_commit",
+    )
 
     source = _validate_release_note_source(value)
     expected_source = source.relative_to(REPO_ROOT).as_posix()
@@ -279,9 +290,7 @@ def resolve_tag_commit(tag: str) -> str:
     except subprocess.CalledProcessError as exc:
         raise PublicationValidationError(f"release tag is missing or invalid: {tag}") from exc
     commit = result.stdout.strip()
-    if not commit:
-        raise PublicationValidationError(f"release tag resolved to no commit: {tag}")
-    return commit
+    return _validate_source_commit(commit, label=f"release tag {tag} commit")
 
 
 def validate_release_tag(
@@ -289,10 +298,11 @@ def validate_release_tag(
     *,
     version: str | None = None,
 ) -> str:
+    expected_commit = _validate_source_commit(source_commit, label="expected source_commit")
     tag = release_tag(version)
     tag_commit = resolve_tag_commit(tag)
-    if tag_commit != source_commit:
+    if tag_commit != expected_commit:
         raise PublicationValidationError(
-            f"release tag {tag} points to {tag_commit}, expected {source_commit}"
+            f"release tag {tag} points to {tag_commit}, expected {expected_commit}"
         )
     return tag_commit
