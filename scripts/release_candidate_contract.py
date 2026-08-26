@@ -30,6 +30,7 @@ _PROVENANCE_FIELDS: Final = frozenset(
 _ARTIFACT_FIELDS: Final = frozenset({"size", "sha256"})
 _COMMIT_RE: Final = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE: Final = re.compile(r"^[0-9a-f]{64}$")
+_RELEASE_PYTHON_RE: Final = re.compile(r"^Python 3\.10\.(?P<micro>\d+)$")
 _SUPPORTED_INNO_MAJORS: Final = frozenset({6, 7})
 
 
@@ -88,6 +89,16 @@ def _require_utc_timestamp(value: object) -> str:
         ) from exc
     if timestamp.tzinfo is None or timestamp.utcoffset() != timedelta(0):
         raise CandidateProvenanceError("candidate provenance built_at_utc must identify UTC")
+    return text
+
+
+def _require_release_python_version(value: object) -> str:
+    text = _require_text(value, label="candidate provenance release_python_version")
+    match = _RELEASE_PYTHON_RE.fullmatch(text)
+    if match is None or int(match.group("micro")) < 8:
+        raise CandidateProvenanceError(
+            "candidate provenance release_python_version must be CPython >=3.10.8,<3.11"
+        )
     return text
 
 
@@ -158,10 +169,7 @@ def validate_candidate_provenance(
         provenance.get("release_python_executable"),
         label="candidate provenance release_python_executable",
     )
-    _require_text(
-        provenance.get("release_python_version"),
-        label="candidate provenance release_python_version",
-    )
+    _require_release_python_version(provenance.get("release_python_version"))
     pyinstaller_version = _require_text(
         provenance.get("pyinstaller_version"),
         label="candidate provenance pyinstaller_version",
