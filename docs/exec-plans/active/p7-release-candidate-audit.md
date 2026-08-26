@@ -102,9 +102,11 @@ It defaults to:
 and accepts explicit `--dev-python`, `--release-python`, and `--iscc` paths when the
 corporate workstation layout differs.
 
-Before building it requires a clean source worktree and captures the exact Git commit.
-It removes only the ignored generated `release/` output before starting a fresh
-candidate run.
+Before validation it requires a clean source worktree and captures the exact Git
+commit. After repository validation completes, it checks the worktree again immediately
+before artifact generation so packaging cannot silently proceed from source mutated by
+a test/check step. It removes only the ignored generated `release/` output before
+starting a fresh candidate run.
 
 The entry point reuses existing P7-A/P7-B scripts rather than duplicating packaging
 logic. Any command failure aborts the candidate:
@@ -165,6 +167,12 @@ The staging directory contains the four validated production artifacts plus:
   size/SHA-256 inventory. Local absolute machine paths are excluded;
 - `RELEASE_NOTES.md` — rendered from the repository's dated/versioned release-note
   source with the exact source commit substituted.
+
+Focused regression coverage directly verifies that candidate staging replaces stale
+same-version contents, copies only the four validated production artifacts, preserves
+artifact bytes/sizes/SHA-256 values, renders the selected source commit without leaving
+a `{{SOURCE_COMMIT}}` marker, records the expected Python/PyInstaller/Inno identities,
+and does not persist local absolute Python/Inno paths.
 
 The durable source for the current `0.1.0` candidate is
 `docs/releases/2026-08-26-v0.1.0.md`.
