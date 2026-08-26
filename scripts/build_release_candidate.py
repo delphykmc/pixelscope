@@ -205,6 +205,7 @@ def build_release_candidate(
         shutil.rmtree(RELEASE_ROOT)
 
     _run_repository_validation(dev_python)
+    _require_clean_worktree()
     artifacts = _run_release_pipeline(release_python, compiler)
     stage_root = _stage_candidate(
         artifacts,
