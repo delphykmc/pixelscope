@@ -6,13 +6,13 @@
 #endif
 
 #define AppName "PixelScope"
-#define RepoRoot SourcePath + "..\.."
-#define AppSource RepoRoot + "\dist\PixelScope"
-#define ReleaseRoot RepoRoot + "\release"
+#define RepoRoot AddBackslash(SourcePath) + "..\.."
+#define AppSource AddBackslash(RepoRoot) + "dist\PixelScope"
+#define ReleaseRoot AddBackslash(RepoRoot) + "release"
 #define ReleaseStem "PixelScope-" + AppVersion + "-windows-x64"
-#define ManifestFile ReleaseRoot + "\" + ReleaseStem + ".manifest.json"
-#define NoticeFile ReleaseRoot + "\" + ReleaseStem + "-THIRD_PARTY_NOTICES.txt"
-#define SetupIconFile RepoRoot + "\src\pixelscope\assets\icons\pixelscope.ico"
+#define ManifestFile AddBackslash(ReleaseRoot) + ReleaseStem + ".manifest.json"
+#define NoticeFile AddBackslash(ReleaseRoot) + ReleaseStem + "-THIRD_PARTY_NOTICES.txt"
+#define SetupIconFile AddBackslash(RepoRoot) + "src\pixelscope\assets\icons\pixelscope.ico"
 
 [Setup]
 AppId={{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}
