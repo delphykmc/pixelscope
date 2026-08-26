@@ -17,7 +17,7 @@
   bootstrap for packaging.
 - Canonical generated paths are `build/pyinstaller/` for PyInstaller work files,
   `build/release/` for generated executable metadata, `dist/PixelScope/` for the
-  validated `onedir` tree, and ignored `release/` for P7-B distribution artifacts.
+  validated `onedir` tree, and ignored `release/` for distribution/candidate artifacts.
   Generated release output must not be written into `src/pixelscope/`.
 - `scripts/build_release.py` is the canonical Windows executable build entry. It
   rejects non-Windows, non-x64, Python outside `>=3.10.8,<3.11`, and PyInstaller
@@ -50,8 +50,9 @@
   banner only to identify a supported Inno command-line compiler major (6 or 7). The
   authoritative exact range check is the canonical `.iss` compile-time guard using
   Inno's own `Ver`/`PREPROCVER` value: `<6.1` and `>=8` abort compilation before setup
-  generation. P7-C pins the hosted compiler to exact Inno Setup `6.2.1` for CI
-  reproducibility.
+  generation. P7-C preserves this range and records the actual owner-local compiler
+  path, major, and SHA-256 in release-candidate provenance rather than introducing a
+  CI-only exact compiler pin.
 - Installer scope is per-user/no-admin: `PrivilegesRequired=lowest`, install under
   `{localappdata}\Programs\PixelScope`, stable non-versioned production `AppId`, x64
   install mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
@@ -82,8 +83,9 @@
 - Installer upgrade/uninstall must not intentionally delete PixelScope QSettings or
   other user state. The installer definition must not introduce settings-registry
   cleanup, file associations, credential handling, or unconditional post-install launch.
-- Production signing remains deferred. P7-B must not commit certificates/keys, invoke a
-  production SignTool, or describe unsigned artifacts as signed.
+- Production signing remains deferred. P7 foundation must not commit certificates/keys,
+  invoke a privileged production SignTool without an authoritative policy, or describe
+  unsigned artifacts as signed.
 - Third-party notices are generated from the isolated release environment. The payload
   includes the CPython runtime license plus installed release-environment package
   license metadata/files, and direct runtime requirements must be present. This is
@@ -176,44 +178,64 @@ re-run the applicable build/smoke validation rather than carrying stale evidence
 forward. Test/docs-only commits may reuse artifact evidence only when review confirms
 they cannot alter generated distribution contents.
 
-## P7-C hosted Windows CI
+## P7-C owner-local Release Candidate Build & Validation
 
-The canonical hosted release-validation workflow is
-`.github/workflows/windows-release-ci.yml`.
+P7-C has no mandatory GitHub-hosted or self-hosted runner. The canonical
+release-candidate entry point is `scripts/build_release_candidate.py`, executed by the
+authorized owner on the Windows development PC after the candidate source commit is
+selected.
 
-Hosted toolchain pins:
-
-- `windows-2022` x64 runner;
-- CPython `3.10.11` x64;
-- PyInstaller exactly `5.7` through `requirements/release.txt`;
-- Inno Setup exactly `6.2.1` from the vendor distribution URL with SHA-256
-  `50D21AAB83579245F88E2632A61B943AD47557E42B0F02E6CE2AFEF4CDD8DEB1`;
-- GitHub Actions referenced by immutable commit SHA.
-
-The workflow intentionally uses no dependency cache. A successful run must work on a
-fresh hosted VM from fresh dependency installation. It creates separate `.venv` and
-`.venv-release` environments so development-tool dependency pins cannot replace the
-release-tool pins.
-
-The workflow uses only `contents: read`, uses `pull_request` rather than
-`pull_request_target`, and introduces no release/signing/authentication secrets.
-It runs source checks plus the P7-A/P7-B artifact build and smoke sequence, then runs
-`scripts/validate_ci_release_bundle.py` before upload.
-
-The retained Actions artifact contains exactly:
+Default environment split:
 
 ```text
-release/PixelScope-<version>-windows-x64.manifest.json
-release/PixelScope-<version>-windows-x64-THIRD_PARTY_NOTICES.txt
-release/PixelScope-<version>-windows-x64-portable.zip
-release/PixelScope-<version>-windows-x64-setup.exe
+.venv\Scripts\python.exe          # docs/tests/ruff/mypy/repository validation
+.venv-release\Scripts\python.exe  # PyInstaller/distribution build + artifact smoke
 ```
 
-The disposable `*-smoke-setup.exe` is forbidden from the retained bundle. CI artifact
-retention is 14 days. The retained artifact is validation evidence only; ordinary PR or
-`main` builds must not create a GitHub Release or publish production assets. P7-D owns
-explicit publication/version-tag consistency.
+The entry point accepts `--dev-python`, `--release-python`, and `--iscc` when explicit
+paths are required. It resolves one supported Inno Setup compiler under the existing
+P7-B `>=6.1,<8` contract, reuses that compiler for production installer build and
+smoke, and records the compiler path/major/SHA-256 in provenance. It does not download
+or install an Inno compiler from the network.
 
-P7-C closeout requires a clean hosted workflow PASS and successful artifact upload on
-the exact reviewed branch state. Local Windows validation cannot substitute for that
-hosted evidence.
+The owner-local command is:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_release_candidate.py
+```
+
+or, when an explicit compiler is desired:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_release_candidate.py `
+    --iscc "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+```
+
+The command requires a clean source worktree and fails immediately when any repository,
+build, smoke, or bundle-validation step fails. It reuses the P7-A/P7-B scripts rather
+than maintaining a second packaging implementation.
+
+`scripts/validate_release_bundle.py` requires the generated `release/` root to contain
+exactly the four current-version production distribution files, rejects missing/extra
+or empty files and disposable smoke installers, and revalidates the payload manifest
+against `dist/PixelScope/`.
+
+After bundle validation succeeds, the candidate is staged under:
+
+```text
+release/candidate/PixelScope-<version>-windows-x64/
+```
+
+with the four validated production artifacts plus `release-provenance.json` and a
+rendered `RELEASE_NOTES.md`. Provenance records the canonical version, exact source
+commit, build timestamp, release Python/PyInstaller identity, actual Inno compiler
+identity/SHA-256, release-note source, and artifact SHA-256 inventory.
+
+The durable current release-note source is
+`docs/releases/2026-08-26-v0.1.0.md`; the candidate command renders the exact source
+commit into its staged copy.
+
+Repository automation stops at candidate preparation. Production GitHub Release upload,
+restricted-folder transfer/publication, and signing credentials are beyond this
+automation authority and require an authorized human procedure. Manual authorized
+publication is a supported production path, not a fallback failure.
