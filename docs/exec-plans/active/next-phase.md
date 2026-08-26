@@ -1,72 +1,79 @@
 # Active execution plan
 
-Status: P7 Release Foundation active
-Last updated: 2026-08-26
-Baseline: `main@10294295f57a051b00ba205016c5318b6764ee66`
+Status: P7-D Stage 1 active
+Last updated: 2026-08-27
+Baseline: `main@1fa6d278fcb16ed5170c3a21fc8cb31119f6e7e2`
 
-Repository Refactoring & Validation Hardening is complete through PR #55, the
-manual-validation workflow regression fix is merged through PR #59, PR #60 activated
-the dependency-independent P7 Release Foundation sequence, PR #61 completed the P7-A
-PyInstaller `onedir` foundation, and PR #62 completed P7-B portable ZIP + Inno Setup
-distribution with owner Windows artifact evidence and independent review.
+Repository Refactoring & Validation Hardening is complete through PR #55. PR #60
+activated the dependency-independent P7 Release Foundation sequence, PR #61 completed
+P7-A PyInstaller `onedir`, PR #62 completed P7-B portable ZIP + Inno Setup, and PR #63
+completed P7-C Owner-local Release Candidate Build & Validation at merge commit
+`f3b1437b478e119c425dbf00d627b37f0371889e`.
 
 P5-G remains **deferred** until the real external GPU server and SMB environment are
 available:
 [`../deferred/p5g-external-gpu-smb-validation.md`](../deferred/p5g-external-gpu-smb-validation.md).
+No P5-G PASS is inferred from release work.
 
-P6 Identity, Access & Remote Operations also remains **planned / blocked for production
-integration** until the external authentication and Remote IQA authority are known.
-Do not infer P5-G PASS or activate production SSO from this plan.
+P6 Identity, Access & Remote Operations remains **planned / production-integration
+gated** until the external authentication and Remote IQA authority are known. If
+authoritative corporate SSO documentation becomes available earlier, a P6-0
+authentication contract audit/research slice may proceed before P5-G, but it must not
+implement production SSO, alter Remote IQA authorization, issue/store tokens, or invent
+server contracts.
 
-While those external dependencies are unavailable, the repository may advance the
-independent part of P7 as **P7 Release Foundation**. This is an explicit dependency
-exception, not a P5-G bypass: packaging, installer, owner-local release-candidate
-preparation, release metadata/manual-publication procedure, and notification-only
-update foundations may proceed now. Production SSO and final packaged qualification
-remain externally gated.
+The current independently executable work is **P7-D Stage 1 — Release Metadata & Manual
+Publication Foundation**. It consumes the P7-C validated release candidate and adds
+provider-neutral publication metadata, version/tag/note/artifact consistency checks,
+and an explicit authorized manual publication procedure. It does not publish a release,
+use production credentials, or change runtime/network behavior.
 
-Authoritative active plan:
+Authoritative P7 plan:
 [`p7-release-foundation.md`](p7-release-foundation.md).
-
-P7-0 packaging audit:
-[`p7-packaging-audit.md`](p7-packaging-audit.md).
-
-P7-B distribution audit:
-[`p7-distribution-audit.md`](p7-distribution-audit.md).
 
 P7-C owner-local release-candidate audit:
 [`p7-release-candidate-audit.md`](p7-release-candidate-audit.md).
 
-Current implementation slice: **P7-C — Owner-local Release Candidate Build & Validation**.
-The implementation starts from the merged P7-B distribution contract and adds one
-repository-owned Windows entry point that the authorized owner runs locally. It reuses
-existing source checks and P7-A/P7-B build/smoke scripts, validates the strict final
-production bundle, records exact source/tool/artifact provenance, and stages rendered
-release notes beside the validated candidate artifacts.
-
-P7-C does **not** require GitHub-hosted or self-hosted Actions and does not publish a
-GitHub Release. Production publication, restricted-folder transfer, and signing
-credentials remain beyond the repository automation boundary.
+P7-D Stage 1 publication audit:
+[`p7-release-publication-audit.md`](p7-release-publication-audit.md).
 
 Current release sequence:
 
 ```text
-P7-C Owner-local Release Candidate Build & Validation
+P7-A PyInstaller Foundation                         COMPLETE
     ↓
-P7-D Metadata / Manual Publication / Notification-only Update Foundation
+P7-B Portable ZIP / Inno Setup                     COMPLETE
     ↓
-P5-G External GPU/SMB Validation        # resume when environment is available
+P7-C Owner-local Release Candidate                 COMPLETE — PR #63
     ↓
-P6 Identity, Access & Remote Operations # SSO implementation after contracts are authoritative
+P7-D Stage 1 Release Metadata & Manual Publication ACTIVE
     ↓
-P7-E Final Release Qualification        # packaged verification of P5-G/P6 + final release policy
+P5-G External GPU/SMB Validation                   DEFERRED — real environment required
+    ↓
+P6 Identity, Access & Remote Operations            PLANNED / production integration gated
+    ↓
+P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+    ↓
+P7-E Final Release Qualification                   DEFERRED
 ```
 
-P7-E does not implement SSO. P6 owns Identity & Access. P7-E only verifies the
-already-implemented P6 authentication/remote behavior in the final packaged/installed
-product together with P5-G real-environment behavior and final
-install/upgrade/uninstall/signing checks.
+P7-D Stage 2 is deliberately outside the current implementation slice. The durable
+update rule is:
 
-The active P7 work must preserve existing application/runtime behavior and must not
-invent SSO, API-authentication, SMB-authentication, signing-certificate, or privileged
-corporate publication contracts that are not yet available.
+> **Update discovery must never initiate authentication.**
+
+A future update check may use an already-authenticated approved application session,
+but it must not trigger SSO/login/browser authentication merely to discover updates.
+Corporate systems may share one SSO/IdP ecosystem without sharing access tokens. Do not
+assume an IQA token is a GitHub Enterprise API credential. Provider selection and any
+GitHub/API authentication mechanism remain deferred until P6 establishes the actual
+corporate authentication authority.
+
+P7-E does not implement SSO. P6 owns Identity & Access. P7-E only verifies the
+already-implemented P6 authentication/remote behavior in the final packaged product,
+together with P5-G real-environment behavior and final install/upgrade/uninstall,
+signing, and release-policy checks.
+
+The active work must preserve existing application/runtime behavior and must not invent
+SSO, API-authentication, SMB-authentication, signing-certificate, privileged corporate
+publication, or update-provider contracts that are not yet authoritative.
