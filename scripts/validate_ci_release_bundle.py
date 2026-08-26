@@ -45,6 +45,12 @@ def validate_ci_release_bundle(
     if not release_root.is_dir():
         raise CiReleaseBundleError(f"release directory does not exist: {release_root}")
 
+    smoke_setup = release_root / f"{release_stem(expected_version)}-smoke-setup.exe"
+    if smoke_setup.exists():
+        raise CiReleaseBundleError(
+            f"disposable smoke installer must not be retained: {smoke_setup.name}"
+        )
+
     expected_paths = _expected_paths(release_root, expected_version)
     expected_names = {path.name for path in expected_paths}
     actual_names = {path.name for path in release_root.iterdir() if path.is_file()}
@@ -66,12 +72,6 @@ def validate_ci_release_bundle(
         manifest,
         expected_version=expected_version,
     )
-
-    smoke_setup = release_root / f"{release_stem(expected_version)}-smoke-setup.exe"
-    if smoke_setup.exists():
-        raise CiReleaseBundleError(
-            f"disposable smoke installer must not be retained: {smoke_setup.name}"
-        )
 
     return expected_paths
 
