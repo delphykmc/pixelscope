@@ -50,10 +50,20 @@
   `{localappdata}\Programs\PixelScope`, stable non-versioned `AppId`, x64 install
   mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
   installation.
+- Interactive installer completion offers a standard `Launch PixelScope` post-install
+  checkbox. The entry uses Inno Setup `postinstall` semantics and is skipped for silent
+  installs.
+- Existing-install version UX derives from the installed `PixelScope.exe` Windows file
+  version and the same canonical release-version components used for installer metadata:
+  older -> explicit upgrade confirmation, same -> reinstall confirmation, newer ->
+  downgrade warning. Interactive same-version and downgrade prompts default to No;
+  upgrade defaults to Yes.
+- Suppressed/silent installer behavior is fail-safe for downgrade or unverifiable
+  existing versions. Same-version repair and normal upgrade may proceed without an
+  interactive prompt.
 - Installer upgrade/uninstall must not intentionally delete PixelScope QSettings or
   other user state. The installer definition must not introduce settings-registry
-  cleanup, file associations, automatic post-install application launch, or credential
-  handling.
+  cleanup, file associations, credential handling, or unconditional post-install launch.
 - Production signing remains deferred. P7-B must not commit certificates/keys, invoke a
   production SignTool, or describe unsigned artifacts as signed.
 - Third-party notices are generated from the isolated release environment. The payload
@@ -127,6 +137,10 @@ external supported Inno Setup installation for installer compilation.
 .\.venv-release\Scripts\python.exe scripts\build_installer_release.py
 .\.venv-release\Scripts\python.exe scripts\smoke_installer_release.py
 ```
+
+For interactive validation, also verify that the Setup Completed page offers `Launch
+PixelScope`, and that rerunning Setup detects the existing installation and asks for
+reinstall/upgrade/downgrade confirmation according to version ordering.
 
 Expected P7-B outputs derive from the canonical version, for example at `0.1.0`:
 
