@@ -1,11 +1,43 @@
 # Packaging constraints
 
-- The build environment and source target are CPython 3.10.x x64 on Windows.
+- The Windows release build environment is CPython `>=3.10.8,<3.11` x64.
 - The executable builder is **exactly `PyInstaller==5.7`**.
 - PyInstaller 6.x is prohibited by internal security and installation policy,
   not merely discouraged.
-- Prefer a PyInstaller `onedir` build. Do not silently switch to `onefile`.
+- The canonical executable build is PyInstaller `onedir`. Do not switch to `onefile`.
+- Release/build-only dependencies live in `requirements/release.txt`; PyInstaller is
+  not an application runtime dependency. The PyInstaller 5.7-era hook/tool dependency
+  set is pinned rather than resolved to arbitrary future releases.
+- The release version authority is
+  `src/pixelscope/version.py::__version__`. Python package metadata, executable
+  metadata, and future ZIP/installer/tag/update metadata must derive from it.
+- The canonical PyInstaller spec is `packaging/pixelscope.spec` and reuses
+  `src/pixelscope/__main__.py`, which delegates to the existing
+  `pixelscope.app.application.main` composition root. Do not add a second application
+  bootstrap for packaging.
+- Canonical generated paths are `build/pyinstaller/` for PyInstaller work files,
+  `build/release/` for generated release metadata, and `dist/PixelScope/` for the
+  validated `onedir` tree. These locations are ignored and must not write generated
+  content into `src/pixelscope/`.
+- `scripts/build_release.py` is the canonical Windows build entry. It rejects
+  non-Windows, non-x64, Python outside `>=3.10.8,<3.11`, and PyInstaller versions other
+  than 5.7; it generates executable version metadata, runs the spec, and then runs
+  structural artifact validation.
+- `scripts/validate_release_artifact.py` validates the canonical onedir structure,
+  application icon resources, Python/Qt/PySide6/NumPy/OpenCV runtime components, and
+  absence of top-level source/dev-tree leakage.
+- `scripts/smoke_packaged_release.py` is the Windows executable smoke harness. It
+  launches the real `PixelScope.exe`, waits for the process-owned visible PixelScope
+  window, requests normal close, and requires bounded clean termination. It does not
+  add test-only behavior to the production application.
+- In a normal source run, failure to read/decode the application icon remains a warning
+  with the existing empty-icon fallback. In a PyInstaller frozen process, the canonical
+  application icon is a required core packaged resource: read/decode failure aborts
+  startup. Therefore a PASSing packaged executable smoke proves both application startup
+  and successful runtime resolution/decode of the icon through `importlib.resources`.
 - Inno Setup is the planned installer layer after the validated `onedir` output.
+  Portable ZIP and Inno Setup must consume that same validated tree rather than
+  rebuilding the application independently.
 - User configuration/data must live outside installed application resources.
 - Resource lookup must not depend on the source tree or current working directory.
 - Canonical application-icon assets live at
@@ -24,13 +56,35 @@
   to both `QApplication` and the main window. This source-run shell identity is a
   P2-A1 runtime requirement, not a substitute for packaged executable metadata.
 - The Windows ICO contains transparent 16, 20, 24, 32, 40, 48, 64, 128, and
-  256 px frames. Future PyInstaller and Inno Setup definitions must use that ICO.
+  256 px frames. PyInstaller uses that ICO; future Inno Setup definitions must use the
+  same canonical asset.
 - A wheel/package-content smoke check must verify the SVG, PNG, and ICO are
   present and nonempty before an identity/resource PR is complete.
-- Executable-file icon binding, pinned shortcuts, installer shortcuts, final
-  packaged-shell grouping, signing, and release naming remain P7.
+- Pinned/installer shortcuts, final installed-shell grouping, production signing, and
+  final release publication remain later P7 work.
 - Freeze the verified dependency set before packaging and do not change the lock
   during a packaging run.
-- Packaging, portable ZIP creation, signing, and installer creation were not
-  performed in the MVP phase.
-- A clean Windows 10/11 PC smoke test is mandatory before release.
+- Third-party redistribution/license notices must be resolved before P7-B produces
+  distributable portable ZIP or installer artifacts.
+- A clean Windows 10/11 PC smoke test is mandatory before final release.
+
+## P7-A Windows validation
+
+Create a release-only environment so release-tool pins do not alter the normal
+repository development environment:
+
+```powershell
+py -3.10 -m venv .venv-release
+.\.venv-release\Scripts\python.exe -m pip install -r requirements\release.txt
+.\.venv-release\Scripts\python.exe scripts\build_release.py
+.\.venv-release\Scripts\python.exe scripts\validate_release_artifact.py
+.\.venv-release\Scripts\python.exe scripts\smoke_packaged_release.py
+```
+
+`scripts/build_release.py` already invokes structural artifact validation after a
+successful PyInstaller build. Running the validator explicitly afterward is retained
+as a clear owner/reviewer evidence step.
+
+Windows evidence is exact-HEAD evidence. If source, packaging scripts/specs, release
+requirements, or packaging tests change after a PASS, rebuild and re-run the applicable
+validation rather than carrying the previous artifact PASS forward.

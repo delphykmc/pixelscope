@@ -2,10 +2,11 @@
 
 Status: P7 Release Foundation active
 Last updated: 2026-08-26
-Baseline: `main@62258d24305b8d4974419aba8f9d2b2ed9c7a965`
+Baseline: `main@8648b88ed7fd3a0af75013dd31633c48ccbce3e5`
 
-Repository Refactoring & Validation Hardening is complete through PR #55, and the
-manual-validation workflow regression fix is merged through PR #59.
+Repository Refactoring & Validation Hardening is complete through PR #55, the
+manual-validation workflow regression fix is merged through PR #59, and PR #60
+activated the dependency-independent P7 Release Foundation sequence.
 
 P5-G remains **deferred** until the real external GPU server and SMB environment are
 available:
@@ -23,6 +24,16 @@ remains deferred until P6 is complete.
 
 Authoritative active plan:
 [`p7-release-foundation.md`](p7-release-foundation.md).
+
+P7-0 packaging audit:
+[`p7-packaging-audit.md`](p7-packaging-audit.md).
+
+Current implementation slice: **P7-A — PyInstaller onedir foundation**.
+The implementation branch establishes the canonical version authority, pinned release
+tooling, PyInstaller 5.7 windowed `onedir` spec, deterministic build/output paths,
+structural artifact validator, and external packaged-executable smoke harness.
+Repository/source-level review can proceed independently, but P7-A cannot be closed
+until the Windows artifact build/validation evidence is actually observed.
 
 Current execution order:
 

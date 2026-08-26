@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pixelscope"
-version = "0.1.0"
+dynamic = ["version"]
 description = "CPU-only Windows image inspection and comparison MVP"
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
@@ -25,6 +25,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 pixelscope = ["assets/icons/*.svg", "assets/icons/*.png", "assets/icons/*.ico"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pixelscope.version.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

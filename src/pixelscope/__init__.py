@@ -1,3 +1,5 @@
 """PixelScope local image analysis package."""
 
-__version__ = "0.1.0"
+from pixelscope.version import __version__
+
+__all__ = ["__version__"]
