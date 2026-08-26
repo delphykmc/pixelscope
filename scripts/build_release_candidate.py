@@ -30,10 +30,13 @@ from scripts.release_contract import (  # noqa: E402
 )
 from scripts.validate_release_bundle import validate_release_bundle  # noqa: E402
 
-# Preserve the existing P7-C test/private-call seam while keeping one implementation.
+# Preserve the existing P7-C test/private-call seams while keeping shared helpers.
 _sha256 = sha256_file
-_release_note_source = release_note_source
 _render_release_notes = render_release_notes
+
+
+def _release_note_source(version: str) -> Path:
+    return release_note_source(version, root=REPO_ROOT / "docs" / "releases")
 
 
 def _run(command: list[str], *, env: dict[str, str] | None = None) -> None:
@@ -136,11 +139,11 @@ def _stage_candidate(
         shutil.copy2(artifact, destination)
         staged_artifacts[artifact.name] = {
             "size": destination.stat().st_size,
-            "sha256": sha256_file(destination),
+            "sha256": _sha256(destination),
         }
 
-    notes_source = release_note_source(version)
-    render_release_notes(notes_source, stage_root / "RELEASE_NOTES.md", commit=commit)
+    notes_source = _release_note_source(version)
+    _render_release_notes(notes_source, stage_root / "RELEASE_NOTES.md", commit=commit)
 
     provenance = {
         "schema_version": 1,
@@ -155,7 +158,7 @@ def _stage_candidate(
         ),
         "inno_compiler_executable": compiler.name,
         "inno_compiler_major": inno_major_version(compiler),
-        "inno_compiler_sha256": sha256_file(compiler),
+        "inno_compiler_sha256": _sha256(compiler),
         "release_note_source": notes_source.relative_to(REPO_ROOT).as_posix(),
         "artifacts": staged_artifacts,
     }
@@ -183,7 +186,7 @@ def build_release_candidate(
     _require_clean_worktree()
     commit = _source_commit()
     version = release_version()
-    release_note_source(version)
+    _release_note_source(version)
 
     if RELEASE_ROOT.exists():
         shutil.rmtree(RELEASE_ROOT)
