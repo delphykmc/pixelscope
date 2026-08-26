@@ -910,12 +910,17 @@ repository implementation program; this does not advance P5-G or P6.
   automation validates/builds/smokes the canonical artifacts and stages exact source,
   tool, release-note, and artifact provenance; mandatory hosted/self-hosted Actions are
   not release architecture.
+- `scripts/release_candidate_contract.py` is the executable candidate-provenance schema
+  authority shared by P7-C writing and P7-D reading. All current fields are required,
+  unknown fields are rejected, tool identities are basenames rather than local paths,
+  release-note identity is repository-relative, Git/SHA-256 identities are canonical,
+  and the artifact map must exactly match staged production files.
 - `src/pixelscope/version.py::__version__` is the canonical release-version authority.
   Runtime/package metadata, Windows executable metadata, distribution names, release
   tag/title, release-note identity, and publication metadata derive from it.
 - P7-C candidate staging is the sole P7-D Stage 1 input authority. Stage 1 must not
-  rebuild the application, invent a second payload manifest, or weaken the strict
-  P7-C production-bundle contract.
+  rebuild the application, invent a second payload/provenance authority, or weaken the
+  strict P7-C production-bundle contract.
 - The canonical publication tag is `v<version>` and title is `PixelScope v<version>`.
   A release tag must resolve to the exact full source commit recorded in candidate
   provenance. Repository tooling may validate that relation but does not create or push
@@ -924,21 +929,29 @@ repository implementation program; this does not advance P5-G or P6.
   version/target/tag/title, exact source commit, durable/rendered release-note identity
   and hashes, candidate-provenance identity/hash, and exact production artifact
   filenames/sizes/SHA-256. It must not contain credentials, browser cookies, local
-  absolute machine paths, or a hard-coded corporate GitHub host/repository URL.
+  absolute machine paths, arbitrary private fields, or a hard-coded corporate GitHub
+  host/repository URL.
 - Repository publication tooling stops at validate/prepare/render/hash/stage. Corporate
   GitHub Enterprise Release creation, privileged upload, restricted-folder transfer,
   production signing, and release visibility/access confirmation remain explicit
   authorized-human actions across the corporate security boundary.
+- Manual publication uses both local and remote identity evidence: local tag-to-source
+  validation before publication, then an authorized-human post-publication check that
+  the remote corporate release/tag resolves to the same exact candidate
+  `source_commit`, plus uploaded asset filename/hash and visibility/access checks.
 - P7-D Stage 1 adds no startup/periodic update check, notification UI, GitHub API client,
   OAuth/GitHub App/PAT flow, SSO/token storage, browser-cookie access, IQA auth changes,
   automatic download/install, rollback, or installer-launching updater.
 - Future update discovery obeys: **Update discovery must never initiate
-  authentication.** Same corporate SSO/IdP participation does not imply credential
-  interchangeability: `same SSO identity != same access token`, and an IQA access token
-  is not assumed to be a GitHub API credential.
-- P7-D Stage 2 runtime notification/provider work is deferred until P6 establishes the
-  actual authentication/capability contract. Stage 1 does not preselect a GitHub,
-  backend, or corporate-platform provider.
+  authentication.** Stage 1 does not establish whether the eventual authoritative
+  provider requires application authentication and establishes no common-IdP topology.
+  If authentication is required, only an already-established approved P6 capability may
+  be used and discovery otherwise skips silently. If an authoritative provider is
+  explicitly usable without application authentication, that path remains permitted.
+- P7-D Stage 2 notification-only update discovery/integration is deferred until the
+  relevant provider/access and, where applicable, P6 authentication contracts are
+  authoritative. Stage 1 does not preselect a GitHub, backend, or corporate-platform
+  provider or authentication mechanism.
 - P5-G remains an unobserved external GPU/SMB validation gate. P6 production
   Identity/Access integration remains gated on P5-G and authoritative corporate auth
   contracts; an earlier P6-0 contract/research audit may proceed only without production
