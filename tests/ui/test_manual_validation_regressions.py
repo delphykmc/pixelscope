@@ -91,6 +91,8 @@ def test_folder_display_tags_disambiguate_same_folder_and_file_names(
     tmp_path: Path,
 ) -> None:
     window = _window(qtbot)
+    settings_path = tmp_path / "folder-display-tags.ini"
+    window.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
     left_folder = tmp_path / "left" / "scene"
     right_folder = tmp_path / "right" / "scene"
     first = _gray(left_folder / "frame.png", 10)
@@ -168,7 +170,9 @@ def test_folder_display_tags_disambiguate_same_folder_and_file_names(
     assert any("[REF] frame.png" in text for text in line_titles)
     assert any("[TEST] frame.png" in text for text in line_titles)
 
-    stored = str(window.settings.value(tags.SETTINGS_KEY, ""))
+    window.settings.sync()
+    persisted_settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+    stored = str(persisted_settings.value(tags.SETTINGS_KEY, ""))
     assert "REF" in stored and "TEST" in stored
     window.close()
 
