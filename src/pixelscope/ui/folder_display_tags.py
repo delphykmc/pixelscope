@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QInputDialog
@@ -79,7 +79,7 @@ class FolderDisplayTagController:
             self._original_update_document_item(document)
 
         def register_input(*args: Any, **kwargs: Any) -> str | None:
-            document_id = self._original_register_input(*args, **kwargs)
+            document_id = cast(str | None, self._original_register_input(*args, **kwargs))
             if document_id is not None:
                 document = self.window.documents.get(document_id)
                 if document is not None:
