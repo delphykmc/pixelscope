@@ -164,12 +164,12 @@ def _stage_candidate(
         "version": version,
         "source_commit": commit,
         "built_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        "release_python": str(release_python),
+        "release_python_executable": release_python.name,
         "release_python_version": _capture([str(release_python), "--version"]),
         "pyinstaller_version": _capture(
             [str(release_python), "-m", "PyInstaller", "--version"]
         ),
-        "inno_compiler": str(compiler),
+        "inno_compiler_executable": compiler.name,
         "inno_compiler_major": inno_major_version(compiler),
         "inno_compiler_sha256": _sha256(compiler),
         "release_note_source": notes_source.relative_to(REPO_ROOT).as_posix(),
