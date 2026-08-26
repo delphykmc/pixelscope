@@ -16,6 +16,7 @@ from scripts.distribution_contract import (  # noqa: E402
     release_stem,
     validate_payload_manifest,
 )
+from scripts.release_contract import release_version  # noqa: E402
 from scripts.smoke_packaged_release import smoke_executable  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
@@ -58,6 +59,7 @@ def smoke_portable_release(archive_path: Path) -> None:
             app_root,
             manifest,
             allow_distribution_metadata=True,
+            expected_version=release_version(),
         )
         validate_artifact(app_root)
         smoke_executable(app_root / "PixelScope.exe")
