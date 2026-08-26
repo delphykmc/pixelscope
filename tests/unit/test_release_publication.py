@@ -235,6 +235,22 @@ def test_candidate_validation_rejects_local_tool_path(
         publication_module.validate_candidate(candidate, version=version)
 
 
+def test_candidate_validation_rejects_private_release_python_value(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version, _commit, candidate, _note_source = _publication_fixture(tmp_path, monkeypatch)
+    provenance_path, provenance = _read_provenance(candidate)
+    provenance["release_python_version"] = r"C:\private\Python 3.10.11"
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    with pytest.raises(
+        publication_module.PublicationValidationError,
+        match="CPython >=3.10.8,<3.11",
+    ):
+        publication_module.validate_candidate(candidate, version=version)
+
+
 def test_candidate_validation_rejects_artifact_tamper(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
