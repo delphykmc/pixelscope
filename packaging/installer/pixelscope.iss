@@ -4,26 +4,15 @@
 #ifndef AppFileVersion
   #error AppFileVersion must be supplied by scripts/build_installer_release.py
 #endif
-#ifndef AppSource
-  #error AppSource must be supplied by scripts/build_installer_release.py
-#endif
-#ifndef ManifestFile
-  #error ManifestFile must be supplied by scripts/build_installer_release.py
-#endif
-#ifndef NoticeFile
-  #error NoticeFile must be supplied by scripts/build_installer_release.py
-#endif
-#ifndef OutputDir
-  #error OutputDir must be supplied by scripts/build_installer_release.py
-#endif
-#ifndef OutputBaseFilename
-  #error OutputBaseFilename must be supplied by scripts/build_installer_release.py
-#endif
-#ifndef SetupIconFile
-  #error SetupIconFile must be supplied by scripts/build_installer_release.py
-#endif
 
 #define AppName "PixelScope"
+#define RepoRoot SourcePath + "..\.."
+#define AppSource RepoRoot + "\dist\PixelScope"
+#define ReleaseRoot RepoRoot + "\release"
+#define ReleaseStem "PixelScope-" + AppVersion + "-windows-x64"
+#define ManifestFile ReleaseRoot + "\" + ReleaseStem + ".manifest.json"
+#define NoticeFile ReleaseRoot + "\" + ReleaseStem + "-THIRD_PARTY_NOTICES.txt"
+#define SetupIconFile RepoRoot + "\src\pixelscope\assets\icons\pixelscope.ico"
 
 [Setup]
 AppId={{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}
@@ -39,8 +28,8 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 MinVersion=10.0
-OutputDir={#OutputDir}
-OutputBaseFilename={#OutputBaseFilename}
+OutputDir={#ReleaseRoot}
+OutputBaseFilename={#ReleaseStem}-setup
 SetupIconFile={#SetupIconFile}
 Compression=lzma2
 SolidCompression=yes
