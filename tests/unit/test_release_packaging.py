@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ctypes
 import runpy
 import sys
+from ctypes import wintypes
 from pathlib import Path
 
 import pytest
@@ -18,6 +20,7 @@ from scripts.release_contract import (
     validate_release_python,
     windows_version_tuple,
 )
+from scripts.smoke_packaged_release import _configure_user32
 from scripts.validate_release_artifact import ArtifactValidationError, validate_artifact
 
 
@@ -97,6 +100,40 @@ def test_release_scripts_support_repo_root_file_execution_imports() -> None:
     ):
         namespace = runpy.run_path(str(REPO_ROOT / "scripts" / script_name))
         assert "main" in namespace
+
+
+def test_win32_smoke_uses_pointer_width_safe_handle_signatures() -> None:
+    class FakeFunction:
+        argtypes: object = None
+        restype: object = None
+
+    class FakeUser32:
+        EnumWindows = FakeFunction()
+        GetWindowThreadProcessId = FakeFunction()
+        IsWindowVisible = FakeFunction()
+        GetWindowTextLengthW = FakeFunction()
+        GetWindowTextW = FakeFunction()
+        PostMessageW = FakeFunction()
+
+    enum_proc_type = object()
+    user32 = FakeUser32()
+
+    _configure_user32(user32, enum_proc_type)
+
+    assert user32.EnumWindows.argtypes == [enum_proc_type, wintypes.LPARAM]
+    assert user32.GetWindowThreadProcessId.argtypes == [
+        wintypes.HWND,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    assert user32.IsWindowVisible.argtypes == [wintypes.HWND]
+    assert user32.GetWindowTextLengthW.argtypes == [wintypes.HWND]
+    assert user32.GetWindowTextW.argtypes == [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    assert user32.PostMessageW.argtypes == [
+        wintypes.HWND,
+        wintypes.UINT,
+        wintypes.WPARAM,
+        wintypes.LPARAM,
+    ]
 
 
 def test_spec_is_canonical_windowed_onedir_without_collect_all() -> None:
