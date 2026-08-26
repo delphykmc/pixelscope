@@ -8,7 +8,7 @@ Current baseline: `main@1fa6d278fcb16ed5170c3a21fc8cb31119f6e7e2`
 
 P7 Release Foundation establishes a repeatable Windows distribution, release-candidate,
 and manual-publication preparation process while P5-G waits for the real external
-GPU/SMB environment and P6 waits for authoritative corporate SSO/authentication
+GPU/SMB environment and P6 waits for authoritative corporate identity/authentication
 contracts.
 
 This is an explicit dependency exception. It does **not** mark P5-G complete, activate
@@ -35,7 +35,7 @@ P5-G External GPU/SMB Validation                   DEFERRED — real environment
     ↓
 P6 Identity, Access & Remote Operations            PLANNED / production integration gated
     ↓
-P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+P7-D Stage 2 Notification-only Update Discovery    DEFERRED — provider/auth authority pending
     ↓
 P7-E Final Release Qualification                   DEFERRED
 ```
@@ -109,8 +109,11 @@ canonical dist/PixelScope/
       └── Inno Setup installer
 ```
 
-P7-C owns the strict production distribution set and candidate staging. P7-D Stage 1
-must consume that candidate and must not redefine the four-file distribution bundle.
+P7-C owns the strict production distribution set and candidate staging. The shared
+`scripts/release_candidate_contract.py` owns the exact current candidate provenance
+schema consumed by both P7-C writing and P7-D validation. P7-D Stage 1 must consume that
+candidate and must not redefine either the four-file distribution bundle or candidate
+provenance schema.
 
 ### 3.4 Installed and portable behavior
 
@@ -158,35 +161,41 @@ corporate-approved mechanism explicitly changes that contract.
 An ordinary branch push, merge, local candidate build, or P7-D preparation command must
 never silently create/publish a production release.
 
-### 3.6 Authenticated update boundary — deferred P7-D Stage 2
+The manual production procedure must verify both sides of release identity: local
+pre-publication tag validation and, after publication, an authorized-human check that
+the remote corporate release/tag resolves to the same exact candidate provenance
+`source_commit`, together with uploaded asset filename/hash and visibility/access checks.
 
-P7-D Stage 1 does **not** implement runtime update discovery. That behavior depends on
-the actual P6 authentication authority and is deferred to P7-D Stage 2 after P6.
+### 3.6 Notification-only update discovery boundary — deferred P7-D Stage 2
+
+P7-D Stage 1 does **not** implement runtime update discovery. The eventual provider and
+its access requirements are not authoritative yet, so runtime integration is deferred
+to P7-D Stage 2 after the relevant P6/provider contracts are known.
 
 The durable rule is:
 
 > **Update discovery must never initiate authentication.**
 
-A future update check may run only when an approved, already-authenticated application
-session provides the required capability. Lack of authentication or authorization must
-not cause startup SSO/login/browser prompts merely to discover an update.
+Stage 1 does not establish whether the selected update-metadata provider requires
+application authentication. If the provider requires authentication, a future update
+check may use only an already-established approved P6 capability and must silently skip
+discovery when that capability is unavailable. If an authoritative provider is
+explicitly usable without application authentication, this contract does not prohibit
+that path.
 
-The corporate GitHub, Confluence, internal platforms, and future IQA service may share
-one corporate SSO/IdP ecosystem, but shared identity does **not** imply shared tokens.
-Never infer that an IQA access token is a GitHub Enterprise API credential.
-
-P7-D Stage 1 does not select OAuth App, GitHub App, PAT, bearer-token reuse, token
-exchange, or browser-cookie reuse. After P6 establishes the authoritative
-authentication architecture, Stage 2 may compare provider options such as:
+P7-D Stage 1 establishes no common-IdP topology and does not select OAuth App, GitHub App,
+PAT, bearer-token reuse, token exchange, or browser-cookie reuse. After the relevant
+P6/provider contracts are authoritative, Stage 2 may compare provider options such as:
 
 - an IQA/PixelScope backend release-metadata endpoint;
 - an approved corporate platform metadata endpoint;
 - the corporate GitHub Enterprise Releases API with an approved GitHub authentication
-  mechanism.
+  mechanism when that provider actually requires it.
 
 An explicit future **View Release** action may open an approved release page in the
-system browser. Browser SSO and repository/release authorization remain browser/platform
-responsibilities. PixelScope must not read, copy, or persist browser SSO cookies.
+system browser. Browser authentication and repository/release authorization, if
+required, remain browser/platform responsibilities. PixelScope must not read, copy, or
+persist browser SSO cookies.
 
 PixelScope/IQA application entitlement and GitHub source/release repository membership
 must not be assumed to be the same authorization domain.
@@ -243,7 +252,7 @@ with two stages rather than becoming additional numbered phases.
 | P7-B | Portable ZIP & Inno Setup | Produce both distribution forms from the same validated onedir tree; define install/uninstall/upgrade and artifact naming rules | Complete — PR #62; ZIP + installer compile/install/run/uninstall smoke |
 | P7-C | Owner-local Release Candidate Build & Validation | Reuse P7-A/P7-B checks/build/smoke, validate the strict production bundle, and stage exact provenance/release notes | Complete — PR #63; owner-local pipeline implemented/reviewed |
 | P7-D Stage 1 | Release Metadata & Manual Publication Foundation | Enforce version/tag/title/note/artifact/provenance consistency and prepare provider-neutral publication metadata plus the authorized manual publication procedure | Active; focused publication tests + documented manual publication contract; no runtime/network auth behavior |
-| P7-D Stage 2 | Authenticated Update Notification Integration | After P6 auth authority, optionally integrate notification-only update discovery without initiating authentication | Deferred until P6; provider/auth contract must be authoritative before implementation |
+| P7-D Stage 2 | Notification-only Update Discovery/Integration | After provider/P6 authority, optionally integrate notification-only update discovery without initiating authentication | Deferred; provider/access contract must be authoritative before implementation |
 | P7-E | Final Release Qualification | After P5-G, P6, and any selected P7-D Stage 2 work, validate the integrated remote/auth behavior in the packaged product plus clean-PC install/upgrade/uninstall, signing, and final release policy | Deferred until dependencies complete |
 
 P7-E does **not** implement SSO. P6 owns Identity & Access / SSO implementation. P7-E
@@ -251,12 +260,12 @@ only qualifies the integrated packaged result.
 
 ### P6-0 research exception
 
-P6 production integration remains sequenced after P5-G. If authoritative corporate SSO
-documentation becomes available earlier, a P6-0 authentication contract audit/research
-may proceed before production integration. P6-0 research must not implement production
-SSO, modify Remote IQA authorization, issue/store credentials, or invent server/API
-contracts. Its purpose is to establish the real corporate identity architecture for
-later P6 and P7-D Stage 2 decisions.
+P6 production integration remains sequenced after P5-G. If authoritative corporate
+identity/authentication documentation becomes available earlier, a P6-0 contract
+audit/research may proceed before production integration. P6-0 research must not
+implement production SSO, modify Remote IQA authorization, issue/store credentials, or
+invent server/API contracts. Its purpose is to establish the real corporate identity
+architecture for later P6 and P7-D Stage 2 decisions.
 
 ## 6. P7-0 audit questions — historical foundation
 
@@ -345,8 +354,9 @@ build/distribution/candidate/publication-preparation process with artifact-level
 validation, exact provenance, and an explicit manual-publication boundary.
 
 P7-D Stage 2 is not part of that dependency-independent completion gate. It remains an
-optional authenticated update-notification integration decision after P6 authentication
-authority is known.
+optional notification-only update-discovery/integration decision after the relevant
+P6/provider authority is known; authentication is not assumed to be an inherent
+provider requirement.
 
 Foundation completion does **not** mean PixelScope is production-release complete.
 Final P7 closeout remains blocked on P7-E, which follows real P5-G validation and P6
