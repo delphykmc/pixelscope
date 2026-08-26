@@ -8,7 +8,10 @@ import time
 from ctypes import wintypes
 from pathlib import Path
 
-from scripts.release_contract import EXECUTABLE_PATH
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.release_contract import EXECUTABLE_PATH  # noqa: E402
 
 WM_CLOSE = 0x0010
 
@@ -83,7 +86,9 @@ def smoke_executable(executable: Path, *, startup_timeout: float = 20.0) -> None
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Smoke-test the packaged PixelScope executable")
+    parser = argparse.ArgumentParser(
+        description="Smoke-test the packaged PixelScope executable"
+    )
     parser.add_argument(
         "executable",
         nargs="?",

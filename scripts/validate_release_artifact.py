@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-from scripts.release_contract import APP_DIR
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.release_contract import APP_DIR  # noqa: E402
 
 
 class ArtifactValidationError(RuntimeError):
@@ -77,7 +81,9 @@ def validate_artifact(root: Path = APP_DIR) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate the PixelScope PyInstaller onedir tree")
+    parser = argparse.ArgumentParser(
+        description="Validate the PixelScope PyInstaller onedir tree"
+    )
     parser.add_argument(
         "artifact",
         nargs="?",

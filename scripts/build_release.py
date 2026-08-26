@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
-from scripts.release_contract import (
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.release_contract import (  # noqa: E402
     BUILD_ROOT,
     DIST_ROOT,
     REPO_ROOT,
@@ -11,7 +15,7 @@ from scripts.release_contract import (
     validate_release_host,
     write_windows_version_info,
 )
-from scripts.validate_release_artifact import validate_artifact
+from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 
 def pyinstaller_command() -> list[str]:

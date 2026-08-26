@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import runpy
 import sys
 from pathlib import Path
 
@@ -86,6 +87,16 @@ def test_release_requirements_keep_pyinstaller_out_of_runtime() -> None:
     assert "pyinstaller-hooks-contrib==2022.14" in release
     assert "PyInstaller" not in runtime
     assert "PyInstaller" not in dev
+
+
+def test_release_scripts_support_repo_root_file_execution_imports() -> None:
+    for script_name in (
+        "build_release.py",
+        "validate_release_artifact.py",
+        "smoke_packaged_release.py",
+    ):
+        namespace = runpy.run_path(str(REPO_ROOT / "scripts" / script_name))
+        assert "main" in namespace
 
 
 def test_spec_is_canonical_windowed_onedir_without_collect_all() -> None:
