@@ -90,6 +90,7 @@ def _run_repository_validation(dev_python: Path) -> None:
             "pytest",
             "-q",
             "tests/unit/test_release_candidate.py",
+            "tests/unit/test_release_candidate_provenance.py",
             "tests/unit/test_release_distribution.py",
         ]
     )
