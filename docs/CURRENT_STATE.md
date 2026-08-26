@@ -144,7 +144,9 @@ P5 does not redesign:
 - native `ImageDocument.source` authority for local Statistics, Histogram, Line
   Profile, Difference, and Split Channels;
 - Display Gain as presentation-only state;
-- explicit Difference Calculate as the only active-Difference establishment path;
+- explicit Difference commands: Calculate may reuse or compute the current pair, while
+  toolbar Diff may reactivate only an already-cached pair owned by the Current
+  Comparison Page; passive pair selection never displays a Difference;
 - P4-A temporary Pick/Keep curation;
 - Session v1 and typed Recent Images/Folders/Sessions.
 

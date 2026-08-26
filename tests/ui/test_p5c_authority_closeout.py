@@ -132,7 +132,7 @@ def test_current_pair_submission_keeps_page_order_after_primary_and_active_reord
 
     window._set_focus_document(documents[1])
     window._set_active_document(documents[1])
-    assert window.multi_compare_view.viewers[0].document is documents[1]
+    assert window.multi_compare_view.visible_viewers[0].document is documents[1]
     assert window.current_comparison_documents() == documents
 
     captured_paths: list[tuple[Path, Path]] = []

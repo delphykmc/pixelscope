@@ -249,7 +249,8 @@ def test_keep_preserves_generation_keyed_difference_cache(
     assert window._difference_document is None
     assert window._difference_source_ids is None
     assert not window.diff_action.isChecked()
-    assert not window.diff_action.isEnabled()
+    assert window.diff_action.isEnabled()
+    assert "cached" in window.diff_action.toolTip().casefold()
     window.close()
 
 

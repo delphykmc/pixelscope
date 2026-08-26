@@ -53,7 +53,7 @@ def _difference_key(
     return (left, right) if left <= right else (right, left)
 
 
-def test_keep_requires_explicit_calculate_to_establish_next_active_difference(
+def test_keep_requires_explicit_user_action_to_reactivate_cached_difference(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -76,7 +76,8 @@ def test_keep_requires_explicit_calculate_to_establish_next_active_difference(
     assert window._difference_document is None
     assert window._difference_source_ids is None
     assert not window.diff_action.isChecked()
-    assert not window.diff_action.isEnabled()
+    assert window.diff_action.isEnabled()
+    assert window.difference_panel.has_cached_map()
 
     window.difference_panel.calculate_difference()
     qtbot.waitUntil(  # type: ignore[attr-defined]
