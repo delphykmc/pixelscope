@@ -119,7 +119,8 @@ def _validate_runtime_inventory(distributions: tuple[metadata.Distribution, ...]
 def render_third_party_notices() -> str:
     distributions = _installed_distributions()
     _validate_runtime_inventory(distributions)
-    python_license = _python_license_path().read_text(encoding="utf-8", errors="replace")
+    python_license_path = _python_license_path()
+    python_license = python_license_path.read_text(encoding="utf-8", errors="replace")
 
     lines = [
         "PixelScope Third-Party Notices",
@@ -130,7 +131,7 @@ def render_third_party_notices() -> str:
         "final corporate legal or release-policy approval.",
         "",
         f"CPython runtime: Python {platform.python_version()}",
-        f"Source license file: {_python_license_path()}",
+        f"Bundled license file: {python_license_path.name}",
         "",
         python_license.rstrip(),
         "",
