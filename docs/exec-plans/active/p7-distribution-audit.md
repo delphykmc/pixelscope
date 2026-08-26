@@ -126,7 +126,7 @@ Compiler discovery remains external to the Python release environment. The build
 
 - accepts an explicit `--iscc` path or `ISCC_PATH` environment override;
 - otherwise discovers common Inno Setup 6/7 install locations / PATH;
-- verifies the command-line compiler major from its `/ ?`-style help banner;
+- verifies the command-line compiler major from its `/?` help banner;
 - invokes `ISCC.exe` directly and fails on a non-zero compile exit, including an exact
   version-range rejection from the `.iss` `Ver` guard.
 
