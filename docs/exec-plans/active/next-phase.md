@@ -2,12 +2,13 @@
 
 Status: P7 Release Foundation active
 Last updated: 2026-08-26
-Baseline: `main@9b9cd28a10e599659e8485fadddf8b6ac948fc7f`
+Baseline: `main@10294295f57a051b00ba205016c5318b6764ee66`
 
 Repository Refactoring & Validation Hardening is complete through PR #55, the
 manual-validation workflow regression fix is merged through PR #59, PR #60 activated
-the dependency-independent P7 Release Foundation sequence, and PR #61 completed the
-P7-A PyInstaller `onedir` foundation with owner Windows artifact evidence.
+the dependency-independent P7 Release Foundation sequence, PR #61 completed the P7-A
+PyInstaller `onedir` foundation, and PR #62 completed P7-B portable ZIP + Inno Setup
+distribution with owner Windows artifact evidence and independent review.
 
 P5-G remains **deferred** until the real external GPU server and SMB environment are
 available:
@@ -32,13 +33,20 @@ P7-0 packaging audit:
 P7-B distribution audit:
 [`p7-distribution-audit.md`](p7-distribution-audit.md).
 
-Current implementation slice: **P7-B — Portable ZIP & Inno Setup**.
-The implementation branch consumes the validated P7-A `dist/PixelScope/` tree to
-produce a deterministic portable ZIP and a per-user/no-admin Inno Setup installer.
-Both distribution forms share the same version-derived naming, SHA-256 payload
-manifest, and generated third-party notice payload. P7-B closes only after owner
-Windows evidence covers portable ZIP smoke and installer compile/install/run/uninstall
-smoke.
+P7-C hosted CI audit:
+[`p7-ci-audit.md`](p7-ci-audit.md).
+
+Current implementation slice: **P7-C — Windows CI Artifact Pipeline**.
+The implementation starts from the merged P7-B distribution contract and adds a
+cache-independent GitHub-hosted Windows build that repeats source checks, PyInstaller
+build/smoke, portable build/smoke, Inno installer build/smoke, and strict release-bundle
+validation before retaining CI artifacts. The hosted toolchain is pinned and the
+workflow has read-only repository permission. It does not publish a GitHub Release or
+use production signing credentials.
+
+P7-C closes only after a hosted `windows-2022` workflow run on the exact reviewed branch
+state passes and the validated production distribution bundle is retained as a GitHub
+Actions artifact.
 
 Current execution order:
 
