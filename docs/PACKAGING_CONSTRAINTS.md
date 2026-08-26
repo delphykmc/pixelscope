@@ -44,13 +44,13 @@
 - P7-B portable ZIP creation is deterministic for identical input payloads: archive
   paths are sorted and ZIP member timestamps are fixed.
 - P7-B uses Inno Setup APIs introduced in 6.1.0 and therefore supports local/manual
-  installer compilation with **Inno Setup `>=6.1,<8`**. The build script validates the
-  `ISCC.exe` PE version metadata before compilation, preferring `StringFileInfo`
-  `FileVersion`/`ProductVersion` values and using a non-zero fixed file version only as
-  fallback. This avoids treating an environment-specific zeroed fixed-version block as
-  compiler version `0.0.0.0`. The canonical `.iss` also adds a compile-time `Ver` guard
-  as defense in depth. P7-C owns the exact hosted compiler version pin for CI
-  reproducibility.
+  installer compilation with **Inno Setup `>=6.1,<8`**. `ISCC.exe` PE version metadata
+  is not a reliable compiler-version authority in the supported corporate environment
+  and may legitimately report `0.0.0.0`. Python tooling therefore uses the `ISCC /?`
+  banner only to identify a supported Inno command-line compiler major (6 or 7). The
+  authoritative exact range check is the canonical `.iss` compile-time guard using
+  Inno's own `Ver`/`PREPROCVER` value: `<6.1` and `>=8` abort compilation before setup
+  generation. P7-C owns the exact hosted compiler version pin for CI reproducibility.
 - Installer scope is per-user/no-admin: `PrivilegesRequired=lowest`, install under
   `{localappdata}\Programs\PixelScope`, stable non-versioned production `AppId`, x64
   install mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
@@ -150,7 +150,8 @@ external supported Inno Setup installation for installer compilation.
 .\.venv-release\Scripts\python.exe scripts\smoke_portable_release.py
 
 # Inno Setup >=6.1,<8 compiler can be found from PATH/common install paths,
-# supplied with ISCC_PATH, or supplied explicitly with --iscc.
+# supplied with ISCC_PATH, or supplied explicitly with --iscc. Exact range
+# enforcement happens inside the canonical .iss using the compiler's Ver value.
 .\.venv-release\Scripts\python.exe scripts\build_installer_release.py
 .\.venv-release\Scripts\python.exe scripts\smoke_installer_release.py
 ```
