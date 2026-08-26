@@ -111,7 +111,11 @@ def test_release_pipeline_reuses_existing_p7_scripts_and_one_compiler(
 
     assert candidate._run_release_pipeline(release_python, compiler) == expected
 
-    scripts = [command[1] for command, _ in commands if len(command) > 1 and command[1].endswith(".py")]
+    scripts = [
+        command[1]
+        for command, _ in commands
+        if len(command) > 1 and command[1].endswith(".py")
+    ]
     assert scripts == [
         "scripts/build_release.py",
         "scripts/validate_release_artifact.py",
@@ -126,7 +130,9 @@ def test_release_pipeline_reuses_existing_p7_scripts_and_one_compiler(
         command for command, _ in commands if "scripts/build_installer_release.py" in command
     )
     assert installer_command[-2:] == ["--iscc", str(compiler)]
-    assert all(env is not None and env["ISCC_PATH"] == str(compiler) for _, env in commands)
+    assert all(
+        env is not None and env["ISCC_PATH"] == str(compiler) for _, env in commands
+    )
 
 
 def test_release_note_source_is_dated_versioned_and_has_commit_marker() -> None:
