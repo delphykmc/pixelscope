@@ -119,6 +119,7 @@ def validate_payload_manifest(
     manifest: dict[str, object],
     *,
     allow_distribution_metadata: bool = False,
+    allowed_extra_names: frozenset[str] = frozenset(),
 ) -> None:
     root = root.resolve()
     if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
@@ -156,6 +157,7 @@ def validate_payload_manifest(
     actual_relative = {path.relative_to(root).as_posix() for path in actual_files}
     if allow_distribution_metadata:
         actual_relative.difference_update(_DISTRIBUTION_METADATA_NAMES)
+    actual_relative.difference_update(allowed_extra_names)
 
     expected_relative = set(expected)
     missing = sorted(expected_relative - actual_relative)
