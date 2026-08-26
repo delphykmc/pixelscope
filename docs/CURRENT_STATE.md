@@ -1,9 +1,10 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-24
-Current merged `main`: `2f29bf95b8d51c470534cf6decda3033681c75bf`
+Snapshot date: 2026-08-27
+Current merged `main`: `1fa6d278fcb16ed5170c3a21fc8cb31119f6e7e2`
 
-`main` includes:
+`main` includes the cumulative P5/R history below plus the release-foundation work
+merged after R closeout:
 
 - P5-A / PR #37 — historical executable schema-v1 compatibility;
 - P5-A2 Stage 1 / PR #39 — durable schema-v2 contract;
@@ -38,13 +39,20 @@ Current merged `main`: `2f29bf95b8d51c470534cf6decda3033681c75bf`
   `7c3dbe386aaff900f0accc7ce460759df80f14e0`.
 - R7 / PR #55 — final integration validation and R-program closeout, merged at
   `2f29bf95b8d51c470534cf6decda3033681c75bf`.
+- PR #60 — activated the dependency-independent P7 Release Foundation sequence;
+- P7-A / PR #61 — PyInstaller 5.7 `onedir` executable foundation;
+- P7-B / PR #62 — portable ZIP + Inno Setup distribution;
+- P7-C / PR #63 — Owner-local Release Candidate Build & Validation, merged at
+  `f3b1437b478e119c425dbf00d627b37f0371889e`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
 real environment is available. R **Repository Refactoring & Validation Hardening**
-completed through independently reviewed PR #55, merged at
-`2f29bf95b8d51c470534cf6decda3033681c75bf`; no repository implementation program is
-active. R added no product behavior.
+completed through independently reviewed PR #55 and remains historical completed work.
+P7 Release Foundation is now the active repository implementation program: P7-C is
+Complete and **P7-D Stage 1 — Release Metadata & Manual Publication Foundation** is
+active. P7-D Stage 2 authenticated update notification is deferred until P6 establishes
+authoritative authentication contracts.
 
 Current execution pointer:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -72,6 +80,12 @@ Deferred P5-G external validation plan:
 
 Historical schema-v1 compatibility contract:
 [`REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
+
+P7 release-foundation plan:
+[`exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md).
+
+P7-D Stage 1 publication audit:
+[`exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md).
 
 ## Authoritative local workspace model
 
@@ -485,16 +499,37 @@ measurement-backed and bounded.
 
 No real GPU/SMB PASS has been observed or claimed.
 
+## P7 release-foundation state
+
+P7-0/P7-A/P7-B/P7-C are complete. PR #63 merged P7-C's repository-owned Windows
+candidate pipeline and preserved the corporate security boundary around production
+publication. P7-D is intentionally split rather than expanded into new phases:
+
+- **P7-D Stage 1 — Release Metadata & Manual Publication Foundation — Active.**
+- **P7-D Stage 2 — Authenticated Update Notification Integration — Deferred until P6
+  authentication authority.**
+
+Stage 1 adds no runtime/network behavior. Stage 2 must obey the durable rule **Update
+discovery must never initiate authentication** and must not assume that common corporate
+SSO identity implies a shared GitHub/IQA token.
+
+P6 production integration remains sequenced after P5-G. A P6-0 authentication contract
+audit/research may begin earlier if authoritative corporate SSO documentation becomes
+available, but that research must not implement production authentication or invent
+server/token contracts.
+
 ## Forward sequence
 
 ```text
-R Repository Refactoring & Validation Hardening
+P7-C Owner-local Release Candidate                 COMPLETE — PR #63
     ↓
-P5-G External GPU/SMB Validation & Closeout when the environment is available
+P7-D Stage 1 Release Metadata & Manual Publication ACTIVE
     ↓
-P5 Complete
+P5-G External GPU/SMB Validation                   DEFERRED — real environment required
     ↓
-P6 Identity, Access & Remote Operations
+P6 Identity, Access & Remote Operations            PLANNED / production integration gated
     ↓
-P7 Release Engineering & Distribution
+P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+    ↓
+P7-E Final Release Qualification                   DEFERRED
 ```
