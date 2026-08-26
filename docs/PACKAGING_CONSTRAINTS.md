@@ -51,8 +51,8 @@
   authoritative exact range check is the canonical `.iss` compile-time guard using
   Inno's own `Ver`/`PREPROCVER` value: `<6.1` and `>=8` abort compilation before setup
   generation. P7-C preserves this range and records the actual owner-local compiler
-  path, major, and SHA-256 in release-candidate provenance rather than introducing a
-  CI-only exact compiler pin.
+  executable name, major, and SHA-256 in release-candidate provenance rather than
+  introducing a CI-only exact compiler pin or persisting local absolute tool paths.
 - Installer scope is per-user/no-admin: `PrivilegesRequired=lowest`, install under
   `{localappdata}\Programs\PixelScope`, stable non-versioned production `AppId`, x64
   install mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
@@ -195,8 +195,9 @@ Default environment split:
 The entry point accepts `--dev-python`, `--release-python`, and `--iscc` when explicit
 paths are required. It resolves one supported Inno Setup compiler under the existing
 P7-B `>=6.1,<8` contract, reuses that compiler for production installer build and
-smoke, and records the compiler path/major/SHA-256 in provenance. It does not download
-or install an Inno compiler from the network.
+smoke, and records the compiler executable name/major/SHA-256 in provenance. It does
+not persist local absolute Python/Inno paths and does not download or install an Inno
+compiler from the network.
 
 The owner-local command is:
 
@@ -228,8 +229,9 @@ release/candidate/PixelScope-<version>-windows-x64/
 
 with the four validated production artifacts plus `release-provenance.json` and a
 rendered `RELEASE_NOTES.md`. Provenance records the canonical version, exact source
-commit, build timestamp, release Python/PyInstaller identity, actual Inno compiler
-identity/SHA-256, release-note source, and artifact SHA-256 inventory.
+commit, build timestamp, release Python executable name/version, PyInstaller version,
+actual Inno compiler executable name/major/SHA-256, release-note source, and artifact
+SHA-256 inventory without local absolute machine paths.
 
 The durable current release-note source is
 `docs/releases/2026-08-26-v0.1.0.md`; the candidate command renders the exact source
