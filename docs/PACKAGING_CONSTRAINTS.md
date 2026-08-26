@@ -30,6 +30,11 @@
   launches the real `PixelScope.exe`, waits for the process-owned visible PixelScope
   window, requests normal close, and requires bounded clean termination. It does not
   add test-only behavior to the production application.
+- In a normal source run, failure to read/decode the application icon remains a warning
+  with the existing empty-icon fallback. In a PyInstaller frozen process, the canonical
+  application icon is a required core packaged resource: read/decode failure aborts
+  startup. Therefore a PASSing packaged executable smoke proves both application startup
+  and successful runtime resolution/decode of the icon through `importlib.resources`.
 - Inno Setup is the planned installer layer after the validated `onedir` output.
   Portable ZIP and Inno Setup must consume that same validated tree rather than
   rebuilding the application independently.
@@ -79,3 +84,7 @@ py -3.10 -m venv .venv-release
 `scripts/build_release.py` already invokes structural artifact validation after a
 successful PyInstaller build. Running the validator explicitly afterward is retained
 as a clear owner/reviewer evidence step.
+
+Windows evidence is exact-HEAD evidence. If source, packaging scripts/specs, release
+requirements, or packaging tests change after a PASS, rebuild and re-run the applicable
+validation rather than carrying the previous artifact PASS forward.
