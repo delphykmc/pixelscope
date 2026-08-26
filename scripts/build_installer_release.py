@@ -15,8 +15,6 @@ from scripts.build_third_party_notices import write_third_party_notices  # noqa:
 from scripts.distribution_contract import (  # noqa: E402
     RELEASE_ROOT,
     installer_path,
-    manifest_path,
-    notice_path,
     write_payload_manifest,
 )
 from scripts.release_contract import (  # noqa: E402
@@ -28,7 +26,6 @@ from scripts.release_contract import (  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
-SETUP_ICON = REPO_ROOT / "src" / "pixelscope" / "assets" / "icons" / "pixelscope.ico"
 _INNO_MAJOR = 6
 
 
@@ -92,18 +89,11 @@ def _ispp_define(name: str, value: str) -> str:
 def installer_command(iscc: Path) -> list[str]:
     version = release_version()
     file_version = ".".join(str(part) for part in windows_version_tuple(version))
-    output = installer_path(version)
     return [
         str(iscc),
         "/Qp",
         _ispp_define("AppVersion", version),
         _ispp_define("AppFileVersion", file_version),
-        _ispp_define("AppSource", str(APP_DIR.resolve())),
-        _ispp_define("ManifestFile", str(manifest_path(version).resolve())),
-        _ispp_define("NoticeFile", str(notice_path(version).resolve())),
-        _ispp_define("OutputDir", str(RELEASE_ROOT.resolve())),
-        _ispp_define("OutputBaseFilename", output.stem),
-        _ispp_define("SetupIconFile", str(SETUP_ICON.resolve())),
         str(INNO_SCRIPT.resolve()),
     ]
 
