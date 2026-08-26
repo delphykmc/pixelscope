@@ -21,7 +21,7 @@ from scripts.distribution_contract import (
     release_stem,
     validate_payload_manifest,
 )
-from scripts.release_contract import REPO_ROOT
+from scripts.release_contract import REPO_ROOT, release_version, windows_version_tuple
 
 
 def _write(path: Path, data: bytes = b"x") -> Path:
@@ -134,16 +134,18 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
 
 def test_installer_command_only_injects_version_metadata() -> None:
     command = installer_command(Path("C:/Inno Setup 6/ISCC.exe"))
+    version = release_version()
+    file_version = ".".join(str(part) for part in windows_version_tuple(version))
 
     assert command[1] == "/Qp"
     app_version = next(argument for argument in command if argument.startswith("-dAppVersion="))
-    file_version = next(
+    file_version_argument = next(
         argument for argument in command if argument.startswith("-dAppFileVersion=")
     )
-    assert app_version == "-dAppVersion=0.1.0"
-    assert file_version == "-dAppFileVersion=0.1.0.0"
+    assert app_version == f"-dAppVersion={version}"
+    assert file_version_argument == f"-dAppFileVersion={file_version}"
     assert '"' not in app_version
-    assert '"' not in file_version
+    assert '"' not in file_version_argument
     assert all("AppSource" not in argument for argument in command)
     assert all("OutputDir" not in argument for argument in command)
     assert str(installer_module.INNO_SCRIPT.resolve()) == command[-1]
