@@ -115,7 +115,8 @@ def validate_release_host() -> None:
 
     if sys.platform != "win32":
         raise RuntimeError("P7-A release builds are supported only on Windows")
-    validate_release_python(sys.version_info[:3])
+    version = (sys.version_info.major, sys.version_info.minor, sys.version_info.micro)
+    validate_release_python(version)
     if struct.calcsize("P") * 8 != 64:
         raise RuntimeError("P7-A release builds require a 64-bit Python interpreter")
     installed = pyinstaller_version()
