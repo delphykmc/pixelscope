@@ -46,7 +46,7 @@ knowledge belongs in focused documents under `docs/`.
 - `BRANDING.md`: canonical application identity, asset roles, visual constraints,
   supported icon sizes, and release-tool consumption rules.
 - `PACKAGING_CONSTRAINTS.md`: deployment environment, fixed packaging rules, release
-  candidate lineage, and publication-boundary constraints.
+  candidate/provenance lineage, and publication-boundary constraints.
 - `USER_GUIDE.md`: end-user workflows, including Remote IQA configuration,
   submission, Jobs, explicit Open Result, and result exploration.
 - `QUALITY.md`: change-to-check matrix and completion evidence.
@@ -59,8 +59,8 @@ knowledge belongs in focused documents under `docs/`.
 - [`exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md):
   active P7 foundation sequence, including the P7-D Stage 1/Stage 2 boundary.
 - [`exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md):
-  current P7-D Stage 1 publication metadata, tag, manual-publication, and auth/update
-  separation contract.
+  current P7-D Stage 1 publication metadata, provenance, tag/manual-publication, and
+  provider-neutral update-discovery separation contract.
 - [`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md):
   retained R0–R7 plan, findings, validation, review, and closeout evidence.
 - [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md):
