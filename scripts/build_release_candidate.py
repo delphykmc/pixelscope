@@ -38,7 +38,7 @@ def _capture(command: list[str], *, env: dict[str, str] | None = None) -> str:
         errors="replace",
         check=True,
     )
-    return result.stdout.strip()
+    return result.stdout.strip() or result.stderr.strip()
 
 
 def _sha256(path: Path) -> str:
@@ -166,7 +166,9 @@ def _stage_candidate(
         "built_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "release_python": str(release_python),
         "release_python_version": _capture([str(release_python), "--version"]),
-        "pyinstaller_version": _capture([str(release_python), "-m", "PyInstaller", "--version"]),
+        "pyinstaller_version": _capture(
+            [str(release_python), "-m", "PyInstaller", "--version"]
+        ),
         "inno_compiler": str(compiler),
         "inno_compiler_major": inno_major_version(compiler),
         "inno_compiler_sha256": _sha256(compiler),
