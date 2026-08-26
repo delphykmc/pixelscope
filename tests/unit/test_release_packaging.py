@@ -7,10 +7,6 @@ from ctypes import wintypes
 from pathlib import Path
 
 import pytest
-
-import pixelscope
-from pixelscope.app import resources as resources_module
-from pixelscope.version import __version__
 from scripts.build_release import pyinstaller_command
 from scripts.release_contract import (
     BUILD_ROOT,
@@ -23,6 +19,10 @@ from scripts.release_contract import (
 )
 from scripts.smoke_packaged_release import _configure_user32
 from scripts.validate_release_artifact import ArtifactValidationError, validate_artifact
+
+import pixelscope
+from pixelscope.app import resources as resources_module
+from pixelscope.version import __version__
 
 
 def _write(path: Path, data: bytes = b"x") -> None:
