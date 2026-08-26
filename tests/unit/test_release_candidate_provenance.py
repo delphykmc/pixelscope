@@ -8,11 +8,14 @@ from scripts.release_candidate_contract import (
 
 
 def _valid_provenance() -> tuple[dict[str, object], dict[str, dict[str, object]]]:
-    artifacts = {
+    expected_artifacts = {
         "PixelScope-1.2.3-windows-x64.manifest.json": {
             "size": 10,
             "sha256": "1" * 64,
         }
+    }
+    provenance_artifacts = {
+        name: dict(entry) for name, entry in expected_artifacts.items()
     }
     provenance: dict[str, object] = {
         "schema_version": 1,
@@ -27,12 +30,15 @@ def _valid_provenance() -> tuple[dict[str, object], dict[str, dict[str, object]]
         "inno_compiler_major": 6,
         "inno_compiler_sha256": "2" * 64,
         "release_note_source": "docs/releases/2026-08-27-v1.2.3.md",
-        "artifacts": artifacts,
+        "artifacts": provenance_artifacts,
     }
-    return provenance, artifacts
+    return provenance, expected_artifacts
 
 
-def _validate(provenance: dict[str, object], artifacts: dict[str, dict[str, object]]) -> None:
+def _validate(
+    provenance: dict[str, object],
+    artifacts: dict[str, dict[str, object]],
+) -> None:
     validate_candidate_provenance(
         provenance,
         expected_version="1.2.3",
