@@ -44,6 +44,14 @@ def _valid_artifact(root: Path) -> Path:
     return root
 
 
+class _MissingIconResource:
+    def joinpath(self, _part: str) -> _MissingIconResource:
+        return self
+
+    def read_bytes(self) -> bytes:
+        raise OSError("missing packaged icon")
+
+
 def test_release_version_has_one_authority() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     project_section = pyproject.split("[project]", 1)[1].split("\n[", 1)[0]
@@ -106,18 +114,18 @@ def test_release_scripts_support_repo_root_file_execution_imports() -> None:
 
 
 def test_frozen_application_requires_packaged_icon_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
-    class MissingResource:
-        def joinpath(self, _part: str) -> MissingResource:
-            return self
-
-        def read_bytes(self) -> bytes:
-            raise OSError("missing packaged icon")
-
     monkeypatch.setattr(resources_module.sys, "frozen", True, raising=False)
-    monkeypatch.setattr(resources_module, "files", lambda _package: MissingResource())
+    monkeypatch.setattr(resources_module, "files", lambda _package: _MissingIconResource())
 
     with pytest.raises(RuntimeError, match="application icon resource is unavailable"):
         resources_module.load_application_icon()
+
+
+def test_source_application_keeps_missing_icon_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delattr(resources_module.sys, "frozen", raising=False)
+    monkeypatch.setattr(resources_module, "files", lambda _package: _MissingIconResource())
+
+    assert resources_module.load_application_icon().isNull()
 
 
 def test_win32_smoke_uses_pointer_width_safe_handle_signatures() -> None:
