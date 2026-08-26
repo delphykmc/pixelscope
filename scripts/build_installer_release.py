@@ -26,7 +26,7 @@ from scripts.release_contract import (  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
-_INNO_MAJOR = 6
+_SUPPORTED_INNO_MAJORS = frozenset({6, 7})
 
 
 def _candidate_iscc_paths() -> tuple[Path, ...]:
@@ -39,8 +39,10 @@ def _candidate_iscc_paths() -> tuple[Path, ...]:
         candidates.append(Path(path_hit))
     for env_name in ("ProgramFiles(x86)", "ProgramFiles"):
         root = os.environ.get(env_name)
-        if root:
-            candidates.append(Path(root) / "Inno Setup 6" / "ISCC.exe")
+        if not root:
+            continue
+        for major in sorted(_SUPPORTED_INNO_MAJORS, reverse=True):
+            candidates.append(Path(root) / f"Inno Setup {major}" / "ISCC.exe")
     return tuple(candidates)
 
 
@@ -53,8 +55,8 @@ def find_iscc(explicit: Path | None = None) -> Path:
         if resolved.is_file():
             return resolved
     raise FileNotFoundError(
-        "Inno Setup 6 ISCC.exe was not found; pass --iscc, set ISCC_PATH, "
-        "or install Inno Setup 6"
+        "Inno Setup ISCC.exe was not found; pass --iscc, set ISCC_PATH, "
+        "or install a supported Inno Setup compiler"
     )
 
 
@@ -76,8 +78,11 @@ def inno_major_version(iscc: Path) -> int:
 
 def validate_iscc(iscc: Path) -> None:
     major = inno_major_version(iscc)
-    if major != _INNO_MAJOR:
-        raise RuntimeError(f"P7-B requires Inno Setup 6; found major version {major}")
+    if major not in _SUPPORTED_INNO_MAJORS:
+        supported = ", ".join(str(value) for value in sorted(_SUPPORTED_INNO_MAJORS))
+        raise RuntimeError(
+            f"P7-B requires Inno Setup major {supported}; found major version {major}"
+        )
 
 
 def _ispp_define(name: str, value: str) -> str:
@@ -121,7 +126,7 @@ def main() -> int:
         "--iscc",
         type=Path,
         default=None,
-        help="path to Inno Setup 6 ISCC.exe (otherwise ISCC_PATH/PATH/common paths)",
+        help="path to ISCC.exe (otherwise ISCC_PATH/PATH/common install paths)",
     )
     args = parser.parse_args()
     output = build_installer_release(args.iscc)
