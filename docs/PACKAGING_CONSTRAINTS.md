@@ -50,7 +50,8 @@
   banner only to identify a supported Inno command-line compiler major (6 or 7). The
   authoritative exact range check is the canonical `.iss` compile-time guard using
   Inno's own `Ver`/`PREPROCVER` value: `<6.1` and `>=8` abort compilation before setup
-  generation. P7-C owns the exact hosted compiler version pin for CI reproducibility.
+  generation. P7-C pins the hosted compiler to exact Inno Setup `6.2.1` for CI
+  reproducibility.
 - Installer scope is per-user/no-admin: `PrivilegesRequired=lowest`, install under
   `{localappdata}\Programs\PixelScope`, stable non-versioned production `AppId`, x64
   install mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
@@ -174,3 +175,45 @@ release requirements, installer files, or distribution tooling change after a PA
 re-run the applicable build/smoke validation rather than carrying stale evidence
 forward. Test/docs-only commits may reuse artifact evidence only when review confirms
 they cannot alter generated distribution contents.
+
+## P7-C hosted Windows CI
+
+The canonical hosted release-validation workflow is
+`.github/workflows/windows-release-ci.yml`.
+
+Hosted toolchain pins:
+
+- `windows-2022` x64 runner;
+- CPython `3.10.11` x64;
+- PyInstaller exactly `5.7` through `requirements/release.txt`;
+- Inno Setup exactly `6.2.1` from the vendor distribution URL with SHA-256
+  `50D21AAB83579245F88E2632A61B943AD47557E42B0F02E6CE2AFEF4CDD8DEB1`;
+- GitHub Actions referenced by immutable commit SHA.
+
+The workflow intentionally uses no dependency cache. A successful run must work on a
+fresh hosted VM from fresh dependency installation. It creates separate `.venv` and
+`.venv-release` environments so development-tool dependency pins cannot replace the
+release-tool pins.
+
+The workflow uses only `contents: read`, uses `pull_request` rather than
+`pull_request_target`, and introduces no release/signing/authentication secrets.
+It runs source checks plus the P7-A/P7-B artifact build and smoke sequence, then runs
+`scripts/validate_ci_release_bundle.py` before upload.
+
+The retained Actions artifact contains exactly:
+
+```text
+release/PixelScope-<version>-windows-x64.manifest.json
+release/PixelScope-<version>-windows-x64-THIRD_PARTY_NOTICES.txt
+release/PixelScope-<version>-windows-x64-portable.zip
+release/PixelScope-<version>-windows-x64-setup.exe
+```
+
+The disposable `*-smoke-setup.exe` is forbidden from the retained bundle. CI artifact
+retention is 14 days. The retained artifact is validation evidence only; ordinary PR or
+`main` builds must not create a GitHub Release or publish production assets. P7-D owns
+explicit publication/version-tag consistency.
+
+P7-C closeout requires a clean hosted workflow PASS and successful artifact upload on
+the exact reviewed branch state. Local Windows validation cannot substitute for that
+hosted evidence.
