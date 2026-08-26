@@ -72,20 +72,28 @@ Deferred from P4:
 
 ## Forward sequence
 
+P5-G and P6 remain externally gated, but the release work that is independent of those
+contracts may proceed first. This is a dependency exception, not a P5-G bypass.
+
 ```text
 P5 Remote IQA Platform complete through P5-F
     ↓
 R Repository Refactoring & Validation Hardening
     ↓
-P5-G External GPU/SMB Validation & Closeout when environment is available
+P7 Release Foundation                           # active while external gates are blocked
     ↓
-P6 Identity, Access & Remote Operations
+P5-G External GPU/SMB Validation & Closeout     # resume when environment is available
     ↓
-P7 Release Engineering & Distribution
+P6 Identity, Access & Remote Operations          # after server/auth contracts are authoritative
+    ↓
+P7 Final Release Qualification                   # SSO-aware clean-PC/signing closeout
 ```
 
 Active execution plan:
 [`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
+
+P7 Release Foundation plan:
+[`docs/exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md).
 
 P5 durable contract:
 [`docs/REMOTE_IQA_CONTRACT.md`](REMOTE_IQA_CONTRACT.md).
@@ -382,8 +390,8 @@ debt, and harness/documentation hardening. It does not change user-visible behav
 schema, Session format, numerical semantics, source/residency policy, retry/polling,
 worker concurrency, or server APIs.
 
-The authoritative R plan is
-[`docs/exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
+The authoritative R plan is retained in
+[`docs/exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md).
 
 | Order | Slice | Status |
 |---|---|---|
@@ -417,10 +425,16 @@ Only observed real-server/SMB evidence may be recorded as PASS. Any follow-up
 optimization remains measurement-backed and bounded. P5-G performs the final P5 docs
 closeout and activates P6 only after the external gate is actually observed.
 
+P5-G does not block the independently scoped P7 Release Foundation work defined below.
+That work must not invent or validate any missing remote/authentication contract.
+
 The authoritative deferred gate is
 [`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
-# P6 — Identity, Access & Remote Operations — Planned / next after P5 closure
+# P6 — Identity, Access & Remote Operations — Planned / externally gated
+
+P6 begins production integration only after P5-G and the corporate authentication
+contracts required by the client/server boundary are authoritative.
 
 - Login / SSO;
 - token and credential lifecycle;
@@ -428,15 +442,39 @@ The authoritative deferred gate is
 - audit integration;
 - operational administration and controlled result cleanup.
 
-# P7 — Release Engineering & Distribution — Planned
+Do not preselect OIDC/OAuth/SAML details, Remote IQA bearer-token semantics, SMB identity
+behavior, credential storage, or signing policy without the corresponding server/SSO
+authority.
 
-- exactly PyInstaller 5.7 `onedir`;
-- portable ZIP;
-- Inno Setup;
-- clean-PC smoke testing;
-- signing;
-- update strategy;
-- repeatable release process.
+# P7 — Release Engineering & Distribution — Release Foundation active
+
+P7 is split into an externally independent foundation and a final qualification gate.
+The active foundation is defined in
+[`docs/exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md).
+
+## P7 Release Foundation — Active
+
+- exactly PyInstaller 5.7 `onedir` on Windows/Python 3.10;
+- one canonical application/release version authority;
+- validated canonical `onedir` artifact tree;
+- portable ZIP generated from that same tree;
+- Inno Setup installer generated from that same tree;
+- Windows CI artifact build/validation;
+- explicit release publication/version-metadata foundation;
+- notification-only update strategy boundary;
+- signing hook/policy boundary without production credentials;
+- repeatable release process and artifact-level smoke validation.
+
+## P7 Final Release Qualification — Deferred until P5-G/P6 complete
+
+- SSO-aware packaged-runtime validation;
+- clean-PC install/upgrade/uninstall qualification;
+- production signing/certificate policy validation;
+- final update endpoint/publication policy;
+- production release closeout.
+
+Release Foundation completion must not be described as full P7 completion or production
+release readiness.
 
 ## Deferred optimization outside the phase sequence
 
