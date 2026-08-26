@@ -75,25 +75,30 @@ Deferred from P4:
 P5-G and P6 remain externally gated, but the release work that is independent of those
 contracts may proceed first. This is a dependency exception, not a P5-G bypass.
 Corporate release preparation is owner-local: repository automation may prepare and
-validate a release candidate, while privileged production publication remains an
-authorized human action across the corporate security boundary.
+validate a release candidate and provider-neutral publication staging, while privileged
+production publication remains an authorized human action across the corporate
+security boundary.
 
 ```text
 P5 Remote IQA Platform complete through P5-F
     ↓
 R Repository Refactoring & Validation Hardening
     ↓
-P7-A/P7-B Release Foundation                  # complete
+P7-A PyInstaller Foundation                         COMPLETE
     ↓
-P7-C Owner-local Release Candidate Build & Validation
+P7-B Portable ZIP / Inno Setup                     COMPLETE
     ↓
-P7-D Metadata / Manual Publication / Notification-only Update Foundation
+P7-C Owner-local Release Candidate                 COMPLETE — PR #63
     ↓
-P5-G External GPU/SMB Validation & Closeout   # resume when environment is available
+P7-D Stage 1 Release Metadata & Manual Publication ACTIVE
     ↓
-P6 Identity, Access & Remote Operations       # SSO implementation after contracts are authoritative
+P5-G External GPU/SMB Validation & Closeout        DEFERRED — real environment required
     ↓
-P7-E Final Release Qualification              # packaged verification of P5-G/P6 + release closeout
+P6 Identity, Access & Remote Operations            PLANNED / production integration gated
+    ↓
+P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+    ↓
+P7-E Final Release Qualification                   DEFERRED
 ```
 
 Active execution plan:
@@ -101,6 +106,9 @@ Active execution plan:
 
 P7 Release Foundation plan:
 [`docs/exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md).
+
+P7-D Stage 1 publication audit:
+[`docs/exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md).
 
 P5 durable contract:
 [`docs/REMOTE_IQA_CONTRACT.md`](REMOTE_IQA_CONTRACT.md).
@@ -430,17 +438,18 @@ validate:
 
 Only observed real-server/SMB evidence may be recorded as PASS. Any follow-up
 optimization remains measurement-backed and bounded. P5-G performs the final P5 docs
-closeout and activates P6 only after the external gate is actually observed.
+closeout and activates P6 production integration only after the external gate is
+actually observed.
 
-P5-G does not block the independently scoped P7 Release Foundation work defined below.
-That work must not invent or validate any missing remote/authentication contract.
+P5-G does not block the independently scoped P7-D Stage 1 work defined below. That work
+must not invent or validate missing remote/authentication contracts.
 
 The authoritative deferred gate is
 [`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 # P6 — Identity, Access & Remote Operations — Planned / externally gated
 
-P6 begins production integration only after P5-G and the corporate authentication
+P6 production integration begins only after P5-G and the corporate authentication
 contracts required by the client/server boundary are authoritative.
 
 - Login / SSO;
@@ -450,65 +459,82 @@ contracts required by the client/server boundary are authoritative.
 - operational administration and controlled result cleanup.
 
 Do not preselect OIDC/OAuth/SAML details, Remote IQA bearer-token semantics, SMB identity
-behavior, credential storage, or signing policy without the corresponding server/SSO
-authority.
+behavior, credential storage, GitHub API credentials, or signing policy without the
+corresponding server/SSO authority.
 
-# P7 — Release Engineering & Distribution — Release Foundation active
+If authoritative corporate SSO documentation becomes available before the real P5-G
+environment, **P6-0 authentication contract audit/research** may proceed early. P6-0
+research does not implement production SSO, alter Remote IQA authorization, issue/store
+tokens, or invent server contracts; it exists to establish the actual corporate
+identity architecture for later P6 and P7-D Stage 2 decisions.
+
+# P7 — Release Engineering & Distribution — P7-D Stage 1 active
 
 P7 is split into an externally independent foundation and a final qualification gate.
 The active foundation is defined in
 [`docs/exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md).
 
 The corporate release environment fixes an explicit ownership boundary: repository
-logic may validate/build/smoke/stage a candidate on the authorized Windows owner PC,
-but production publication, restricted-folder transfer, and privileged signing remain
-authorized human/security-boundary operations. Neither GitHub-hosted nor self-hosted
-Actions are required release architecture.
+logic may validate/build/smoke/stage a candidate and provider-neutral publication
+metadata on the authorized Windows owner PC, but production publication,
+restricted-folder transfer, and privileged signing remain authorized human/security-
+boundary operations. Neither GitHub-hosted nor self-hosted Actions are required release
+architecture.
 
 ## P7 Release Foundation — Active
 
 - **P7-0 — Release/packaging contract audit — Complete.**
 - **P7-A — PyInstaller `onedir` executable foundation — Complete / PR #61.**
 - **P7-B — Portable ZIP + Inno Setup distribution — Complete / PR #62.**
-- **P7-C — Owner-local Release Candidate Build & Validation — Active.**
+- **P7-C — Owner-local Release Candidate Build & Validation — Complete / PR #63.**
   - one repository-owned Windows entry point;
   - repository checks + canonical P7-A/P7-B build/smoke reuse;
   - strict four-file production-bundle validation;
   - exact source/tool/artifact provenance;
   - dated/versioned release-note source and rendered candidate notes;
   - no mandatory GitHub Actions runner and no production publication.
-- **P7-D — Release metadata / manual publication / update foundation — Planned.**
-  - version/artifact/release-note metadata consistency;
-  - authorized manual GitHub Release publication procedure;
-  - notification-only update metadata/provider boundary;
-  - no automatic/self updater and no privileged upload requirement.
+- **P7-D Stage 1 — Release Metadata & Manual Publication Foundation — Active.**
+  - canonical version/tag/title/note/artifact/provenance consistency;
+  - provider-neutral publication metadata and local validation;
+  - authorized manual corporate GitHub Enterprise Release publication procedure;
+  - no runtime/network authentication behavior and no privileged upload automation.
+- **P7-D Stage 2 — Authenticated Update Notification Integration — Deferred until P6.**
+  - update discovery must never initiate authentication;
+  - same corporate SSO identity does not imply a shared IQA/GitHub token;
+  - provider and authentication mechanism remain unselected until P6 authority exists;
+  - notification-only integration is optional and does not imply self-update.
 
-Canonical foundation flow:
+Canonical Stage 1 flow:
 
 ```text
 repository test/build/smoke/validate
     ↓
 owner-local validated release candidate
     ↓
+provider-neutral publication validation / metadata staging
+    ↓
 CORPORATE SECURITY BOUNDARY
     ↓
-authorized manual publication
+authorized manual corporate publication
 ```
 
-## P7 Final Release Qualification — Deferred until P5-G/P6 complete
+## P7 Final Release Qualification — Deferred
 
 P7-E does **not** implement SSO. P6 owns Identity & Access / SSO implementation. P7-E
-qualifies the already-integrated packaged product:
+qualifies the already-integrated packaged product after P5-G, P6, and any selected
+P7-D Stage 2 integration:
 
 - packaged verification of P5-G real external GPU/SMB behavior;
 - packaged verification of already-implemented P6 authentication/remote behavior;
+- packaged verification of selected authenticated update notification if Stage 2 is
+  implemented;
 - clean-PC install/upgrade/uninstall qualification;
 - production signing/certificate policy validation;
-- final update endpoint/publication policy;
+- final publication/update policy;
 - production release closeout.
 
-Release Foundation completion must not be described as full P7 completion or production
-release readiness.
+Completion of P7-D Stage 1 must not be described as runtime update notification
+completion, full P7 completion, or production release readiness.
 
 ## Deferred optimization outside the phase sequence
 
