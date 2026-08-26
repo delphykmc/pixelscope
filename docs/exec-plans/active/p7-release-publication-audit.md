@@ -39,16 +39,18 @@ The merged P7-C implementation already owns the authorities P7-D must reuse:
 - `scripts/release_contract.py::release_version()` — release-version reader;
 - `scripts/distribution_contract.py` — target identity, canonical artifact naming,
   payload manifest, and file SHA-256 logic;
+- `scripts/release_candidate_contract.py` — exact current P7-C candidate provenance
+  schema, field constraints, and validator shared by candidate writing/publication;
 - `scripts/validate_release_bundle.py` — exact four-file production bundle validation;
 - `scripts/build_release_candidate.py` — exact source commit capture, release-note
   source/rendering, candidate staging, provenance, and P7-A/P7-B build/smoke reuse;
 - `tests/unit/test_release_candidate.py` and P7-B release tests — executable regression
   coverage for those contracts.
 
-P7-D Stage 1 therefore must not introduce a second candidate builder, version parser,
-manifest authority, release-note renderer, or artifact hashing implementation. Small
-shared helpers may be promoted from P7-C modules where publication tooling needs the
-same behavior.
+P7-D Stage 1 therefore must not introduce a second candidate builder, provenance schema,
+version parser, manifest authority, release-note renderer, or artifact hashing
+implementation. Small shared helpers may be promoted from P7-C modules where publication
+tooling needs the same behavior.
 
 ## P7-C contract preservation
 
@@ -70,7 +72,13 @@ release/candidate/PixelScope-<version>-windows-x64/
 which adds the rendered `RELEASE_NOTES.md` and `release-provenance.json` beside those
 four production artifacts. Stage 1 may create a separate provider-neutral
 `release/publication/...` staging layer, but it must not weaken or redefine P7-C's
-four-file release-root validation.
+four-file release-root validation or provenance schema.
+
+Before `release-provenance.json` crosses into publication staging, the shared P7-C
+validator requires the complete current field set, rejects unknown fields, keeps tool
+executable identities basename-only, requires repository-relative release-note identity,
+requires canonical lowercase hashes/full Git commit identity, and requires an exact
+production-artifact map matching staged files.
 
 ## Canonical publication identity
 
@@ -142,55 +150,57 @@ Authorized publication checklist:
 2. run the P7-C owner-local candidate build and require PASS;
 3. prepare and validate P7-D publication staging;
 4. confirm `v<canonical-version>` and `PixelScope v<canonical-version>` identities;
-5. verify the release tag resolves to the candidate provenance `source_commit` before
+5. verify the local release tag resolves to candidate provenance `source_commit` before
    publication;
 6. use the rendered candidate `RELEASE_NOTES.md` as the release note body/source;
 7. upload only the approved production release assets defined by the publication
    metadata/checklist;
-8. verify filenames, sizes/hashes, and candidate/publication provenance;
-9. verify the corporate GitHub Enterprise release visibility/access policy using the
-   authorized human account;
-10. record publication completion separately from the implementation PR evidence.
+8. verify uploaded filenames, sizes/hashes, and candidate/publication provenance;
+9. verify through the authorized corporate GitHub Enterprise UI/process that the remote
+   release/tag resolves to the same exact candidate provenance `source_commit`;
+10. verify the corporate GitHub Enterprise release visibility/access policy using the
+    authorized human account;
+11. record publication completion separately from the implementation PR evidence.
+
+The local `--require-tag` check is pre-publication evidence only. It does not replace the
+post-publication remote release/tag-to-source verification above.
 
 Repository tooling stops at validate/prepare/render/hash/stage. It does not create the
 production GitHub Enterprise Release, upload privileged artifacts, transfer restricted
 files, use production credentials, or sign production binaries.
 
-## Authenticated update dependency — P7-D Stage 2
+## Notification-only update discovery dependency — P7-D Stage 2
 
 Runtime update notification is not part of Stage 1. The governing future rule is:
 
 > **Update discovery must never initiate authentication.**
 
-A future PixelScope startup/update path without an already-authenticated approved
-application session must silently skip update discovery rather than trigger SSO/login.
-An already-authenticated session may enable update discovery only after P6 establishes
-the actual credential/capability contract.
+Stage 1 does not establish whether the eventual authoritative update-metadata provider
+requires application authentication. If the selected provider requires authentication,
+a future implementation may use only an already-established approved P6 capability and
+must silently skip discovery when that capability is unavailable. If an authoritative
+provider is explicitly usable without application authentication, this contract does not
+prohibit that path.
 
-The owner has confirmed that corporate GitHub, Confluence, internal platforms, and the
-future IQA service participate in the same corporate SSO/IdP ecosystem. This does not
-establish token interchangeability:
+Stage 1 establishes no common-IdP topology and no token interchangeability assumption
+between corporate services. It therefore does not choose OAuth App, GitHub App, PAT,
+bearer-token reuse, token exchange, browser-cookie reuse, or any other authentication
+mechanism.
 
-```text
-same SSO identity != same access token
-IQA access token   != assumed GitHub API credential
-```
-
-Stage 1 therefore does not choose OAuth App, GitHub App, PAT, bearer-token reuse, token
-exchange, or browser-cookie reuse.
-
-After P6, Stage 2 may compare:
+After the relevant P6/provider contracts are authoritative, Stage 2 may compare options
+such as:
 
 - IQA/PixelScope backend `GET /app/releases/latest` or equivalent;
 - approved corporate platform metadata endpoint;
 - corporate GitHub Enterprise Releases API using an approved GitHub authentication
-  mechanism.
+  mechanism when that provider actually requires it.
 
 No provider is selected by Stage 1.
 
 An explicit future **View Release** user action may open an approved corporate release
-page in the system browser. Browser SSO and repository authorization determine access;
-PixelScope must not read/copy/store browser SSO cookies.
+page in the system browser. Browser authentication and repository authorization, if
+required by that page, remain browser/provider concerns; PixelScope must not read/copy/
+store browser SSO cookies.
 
 PixelScope/IQA entitlement must not be equated with source/release repository
 collaborator membership. A broader-access release repository or backend/platform
@@ -198,10 +208,10 @@ metadata endpoint may therefore be preferable later, but Stage 1 does not select
 
 ## P6 sequencing clarification
 
-P6 production integration remains after P5-G. If authoritative corporate SSO guidance
-becomes available before the real P5-G environment, a P6-0 authentication contract
-audit/research may proceed early. It must not implement production SSO, modify Remote
-IQA authentication, issue/store tokens, or invent server contracts.
+P6 production integration remains after P5-G. If authoritative corporate identity/
+authentication guidance becomes available before the real P5-G environment, a P6-0
+contract audit/research may proceed early. It must not implement production SSO, modify
+Remote IQA authentication, issue/store tokens, or invent server contracts.
 
 ## Stage 1 non-goals
 
