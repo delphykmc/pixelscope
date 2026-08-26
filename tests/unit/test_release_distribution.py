@@ -123,21 +123,22 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
     assert "ArchitecturesAllowed=x64" in script
     assert "ArchitecturesInstallIn64BitMode=x64" in script
     assert "AppId={{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}" in script
+    assert '#define AppSource RepoRoot + "\\dist\\PixelScope"' in script
+    assert '#define ReleaseRoot RepoRoot + "\\release"' in script
     assert "[Registry]" not in script
     assert "deletekey" not in script.casefold()
     assert "SignTool=" not in script
     assert "[Run]" not in script
 
 
-def test_installer_command_uses_same_payload_and_versioned_outputs() -> None:
+def test_installer_command_only_injects_version_metadata() -> None:
     command = installer_command(Path("C:/Inno Setup 6/ISCC.exe"))
-    joined = "\n".join(command)
 
     assert command[1] == "/Qp"
-    assert str(installer_module.APP_DIR.resolve()) in joined
-    assert str(installer_module.manifest_path().resolve()) in joined
-    assert str(installer_module.notice_path().resolve()) in joined
-    assert installer_module.installer_path().stem in joined
+    assert any(argument.startswith('-dAppVersion="') for argument in command)
+    assert any(argument.startswith('-dAppFileVersion="') for argument in command)
+    assert all("AppSource" not in argument for argument in command)
+    assert all("OutputDir" not in argument for argument in command)
     assert str(installer_module.INNO_SCRIPT.resolve()) == command[-1]
 
 
