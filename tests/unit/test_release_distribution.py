@@ -4,12 +4,12 @@ import os
 import runpy
 import zipfile
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from scripts import build_installer_release as installer_module
 from scripts import build_portable_release as portable_module
-from scripts.build_installer_release import inno_major_version, installer_command
+from scripts import smoke_installer_release as installer_smoke_module
+from scripts.build_installer_release import installer_command, validate_inno_version
 from scripts.build_third_party_notices import required_runtime_distributions
 from scripts.distribution_contract import (
     DistributionValidationError,
@@ -122,7 +122,8 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
     assert r"DefaultDirName={localappdata}\Programs\PixelScope" in script
     assert "ArchitecturesAllowed=x64" in script
     assert "ArchitecturesInstallIn64BitMode=x64" in script
-    assert "AppId={{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}" in script
+    assert '#define AppIdValue "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"' in script
+    assert "AppId={#AppIdValue}" in script
     assert '#define RepoRoot AddBackslash(SourcePath) + "..\\.."' in script
     assert '#define AppSource AddBackslash(RepoRoot) + "dist\\PixelScope"' in script
     assert '#define ReleaseRoot AddBackslash(RepoRoot) + "release"' in script
@@ -151,7 +152,20 @@ def test_inno_script_offers_launch_and_existing_version_confirmation() -> None:
     assert "Upgrade to " in script
 
 
-def test_installer_command_only_injects_version_metadata() -> None:
+def test_inno_script_isolates_smoke_identity_and_requires_61_plus() -> None:
+    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(
+        encoding="utf-8"
+    )
+
+    assert "#if Ver < 0x06010000" in script
+    assert "#if Ver >= 0x08000000" in script
+    assert "#ifdef SmokeBuild" in script
+    assert 'SetupOutputBase ReleaseStem + "-smoke-setup"' in script
+    assert "Result := True;" in script
+    assert "Result := ConfirmExistingInstall;" in script
+
+
+def test_installer_command_injects_canonical_version_metadata() -> None:
     command = installer_command(Path("C:/Inno Setup 6/ISCC.exe"))
     version = release_version()
     version_components = windows_version_tuple(version)
@@ -171,21 +185,49 @@ def test_installer_command_only_injects_version_metadata() -> None:
     assert all('"' not in argument for argument in command if argument.startswith("-dApp"))
     assert all("AppSource" not in argument for argument in command)
     assert all("OutputDir" not in argument for argument in command)
+    assert all("AppIdValue" not in argument for argument in command)
+    assert all("SmokeBuild" not in argument for argument in command)
     assert str(installer_module.INNO_SCRIPT.resolve()) == command[-1]
 
 
-def test_inno_major_version_parses_compiler_banner(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        installer_module.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(
-            stdout="Inno Setup 6 Command-Line Compiler\n",
-            stderr="",
-            returncode=0,
-        ),
+def test_smoke_installer_command_uses_disposable_app_id() -> None:
+    command = installer_command(
+        Path("C:/Inno Setup 6/ISCC.exe"),
+        app_id=installer_module.SMOKE_APP_ID,
+        smoke_build=True,
     )
 
-    assert inno_major_version(Path("ISCC.exe")) == 6
+    assert f"-dAppIdValue={installer_module.SMOKE_APP_ID}" in command
+    assert "-dSmokeBuild=1" in command
+    assert installer_module.SMOKE_APP_ID != installer_module.PRODUCTION_APP_ID
+    assert installer_module.smoke_installer_path().name.endswith("-smoke-setup.exe")
+
+
+def test_supported_inno_version_contract_rejects_60_and_8() -> None:
+    with pytest.raises(RuntimeError, match=r">=6\.1,<8"):
+        validate_inno_version((6, 0, 5, 0))
+    validate_inno_version((6, 1, 0, 0))
+    validate_inno_version((6, 5, 4, 0))
+    validate_inno_version((7, 0, 1, 0))
+    with pytest.raises(RuntimeError, match=r">=6\.1,<8"):
+        validate_inno_version((8, 0, 0, 0))
+
+
+def test_installer_smoke_tracks_manifest_owned_cleanup_paths(tmp_path: Path) -> None:
+    install_root = tmp_path / "PixelScope"
+    manifest = {
+        "files": [
+            {"path": "PixelScope.exe"},
+            {"path": "nested/runtime.dll"},
+        ]
+    }
+
+    owned = installer_smoke_module._manifest_owned_paths(install_root, manifest)
+
+    assert owned == (
+        install_root / "PixelScope.exe",
+        install_root / "nested" / "runtime.dll",
+    )
 
 
 def test_runtime_notice_inventory_tracks_pinned_runtime_requirements() -> None:
