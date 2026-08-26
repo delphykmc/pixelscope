@@ -16,6 +16,7 @@ from scripts.distribution_contract import (  # noqa: E402
     load_payload_manifest,
     validate_payload_manifest,
 )
+from scripts.release_contract import release_version  # noqa: E402
 from scripts.smoke_packaged_release import smoke_executable  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
@@ -45,7 +46,9 @@ def _wait_for_payload_removal(executable: Path, timeout: float = 10.0) -> None:
     while executable.exists() and time.monotonic() < deadline:
         time.sleep(0.1)
     if executable.exists():
-        raise RuntimeError(f"Installer uninstall left the application payload behind: {executable}")
+        raise RuntimeError(
+            f"Installer uninstall left the application payload behind: {executable}"
+        )
 
 
 def _installer_owned_files(install_root: Path) -> frozenset[str]:
@@ -87,7 +90,9 @@ def smoke_installer_release(setup_path: Path) -> None:
             if not manifest_path.is_file():
                 raise RuntimeError("Installed PixelScope is missing release-manifest.json")
             if not notice_path.is_file() or notice_path.stat().st_size == 0:
-                raise RuntimeError("Installed PixelScope is missing THIRD_PARTY_NOTICES.txt")
+                raise RuntimeError(
+                    "Installed PixelScope is missing THIRD_PARTY_NOTICES.txt"
+                )
 
             manifest = load_payload_manifest(manifest_path)
             validate_payload_manifest(
@@ -95,12 +100,15 @@ def smoke_installer_release(setup_path: Path) -> None:
                 manifest,
                 allow_distribution_metadata=True,
                 allowed_extra_names=_installer_owned_files(install_root),
+                expected_version=release_version(),
             )
             validate_artifact(install_root)
             smoke_executable(executable)
 
             if not uninstaller.is_file():
-                raise RuntimeError("Installed PixelScope is missing the Inno Setup uninstaller")
+                raise RuntimeError(
+                    "Installed PixelScope is missing the Inno Setup uninstaller"
+                )
             _silent_uninstall(uninstaller, install_root)
             installed = False
             _wait_for_payload_removal(executable)
