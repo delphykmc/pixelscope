@@ -110,20 +110,25 @@ or user-data deletion rules for those settings.
 ## Inno Setup compiler boundary
 
 The installer uses packed-version Pascal support functions introduced in Inno Setup
-6.1.0. P7-B therefore supports `>=6.1,<8` for owner/manual validation. The build script
-reads `ISCC.exe` PE version metadata through pinned `pefile`, preferring the
-`StringFileInfo` `FileVersion`/`ProductVersion` values. A non-zero
-`VS_FIXEDFILEINFO` file version is used only as fallback because some valid Inno
-installations expose a zeroed fixed-version block. Versions older than 6.1 and future
-major 8+ are rejected before compilation. The `.iss` file also has a compile-time `Ver`
-guard as defense in depth.
+6.1.0, so P7-B supports `>=6.1,<8` for owner/manual validation. In the supported
+corporate environment, `ISCC.exe` and `Compil32.exe` PE version metadata may report
+`0.0.0.0`; file metadata is therefore not treated as a reliable compiler-version
+authority.
+
+The Python build script uses `ISCC.exe /?` only to verify that the selected executable
+is an Inno Setup command-line compiler from supported major family 6 or 7. The exact
+version gate is owned by the canonical `.iss`, which checks Inno's predefined
+`Ver`/`PREPROCVER` value at compile time and aborts when `Ver < 0x06010000` or
+`Ver >= 0x08000000`. Thus 6.0.x cannot produce an installer even though its command-line
+banner identifies only major 6.
 
 Compiler discovery remains external to the Python release environment. The build script:
 
 - accepts an explicit `--iscc` path or `ISCC_PATH` environment override;
 - otherwise discovers common Inno Setup 6/7 install locations / PATH;
-- requires `pefile` from the pinned release requirements to inspect compiler metadata;
-- invokes `ISCC.exe` directly and fails on a non-zero compile exit.
+- verifies the command-line compiler major from its `/ ?`-style help banner;
+- invokes `ISCC.exe` directly and fails on a non-zero compile exit, including an exact
+  version-range rejection from the `.iss` `Ver` guard.
 
 P7-C owns the exact hosted Inno Setup version pin when Windows CI is introduced. This
 avoids inventing a local exact-version contract before the hosted toolchain exists.
