@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import os
 import runpy
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
-import zipfile
 
 import pytest
 from scripts import build_installer_release as installer_module
