@@ -51,8 +51,9 @@ real environment is available. R **Repository Refactoring & Validation Hardening
 completed through independently reviewed PR #55 and remains historical completed work.
 P7 Release Foundation is now the active repository implementation program: P7-C is
 Complete and **P7-D Stage 1 — Release Metadata & Manual Publication Foundation** is
-active. P7-D Stage 2 authenticated update notification is deferred until P6 establishes
-authoritative authentication contracts.
+active. P7-D Stage 2 notification-only update discovery/integration is deferred until
+the relevant provider/access and, when required, P6 authentication contracts are
+authoritative.
 
 Current execution pointer:
 [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md).
@@ -506,17 +507,20 @@ candidate pipeline and preserved the corporate security boundary around producti
 publication. P7-D is intentionally split rather than expanded into new phases:
 
 - **P7-D Stage 1 — Release Metadata & Manual Publication Foundation — Active.**
-- **P7-D Stage 2 — Authenticated Update Notification Integration — Deferred until P6
-  authentication authority.**
+- **P7-D Stage 2 — Notification-only Update Discovery/Integration — Deferred pending
+  provider/access authority.**
 
 Stage 1 adds no runtime/network behavior. Stage 2 must obey the durable rule **Update
-discovery must never initiate authentication** and must not assume that common corporate
-SSO identity implies a shared GitHub/IQA token.
+discovery must never initiate authentication**. Stage 1 does not establish whether the
+eventual provider requires application authentication. If it does, only an already-
+established approved P6 capability may be used and discovery otherwise skips silently;
+if an authoritative provider is usable without application authentication, that path
+remains permitted. No common-IdP topology is established by Stage 1.
 
-P6 production integration remains sequenced after P5-G. A P6-0 authentication contract
-audit/research may begin earlier if authoritative corporate SSO documentation becomes
-available, but that research must not implement production authentication or invent
-server/token contracts.
+P6 production integration remains sequenced after P5-G. A P6-0 contract audit/research
+may begin earlier if authoritative corporate identity/authentication documentation
+becomes available, but that research must not implement production authentication or
+invent server/token contracts.
 
 ## Forward sequence
 
@@ -529,7 +533,7 @@ P5-G External GPU/SMB Validation                   DEFERRED — real environment
     ↓
 P6 Identity, Access & Remote Operations            PLANNED / production integration gated
     ↓
-P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+P7-D Stage 2 Notification-only Update Discovery    DEFERRED — provider/access authority pending
     ↓
 P7-E Final Release Qualification                   DEFERRED
 ```
