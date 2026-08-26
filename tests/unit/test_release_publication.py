@@ -51,7 +51,13 @@ def _publication_fixture(
                 "version": version,
                 "target": TARGET_ID,
                 "payload_root": "PixelScope",
-                "files": [{"path": "PixelScope.exe", "size": 3, "sha256": "0" * 64}],
+                "files": [
+                    {
+                        "path": "PixelScope.exe",
+                        "size": 3,
+                        "sha256": "0" * 64,
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -119,9 +125,8 @@ def test_prepare_publication_stages_exact_candidate_and_provider_neutral_metadat
     result = prepare_module.prepare_release_publication(current_commit=commit)
 
     assert result == destination.resolve()
-    assert {path.name for path in destination.iterdir()} == publication_module.publication_file_names(
-        version
-    )
+    actual_names = {path.name for path in destination.iterdir()}
+    assert actual_names == publication_module.publication_file_names(version)
     for name in publication_module.candidate_file_names(version):
         assert (destination / name).read_bytes() == (candidate / name).read_bytes()
 
@@ -130,8 +135,12 @@ def test_prepare_publication_stages_exact_candidate_and_provider_neutral_metadat
     assert metadata["release_tag"] == f"v{version}"
     assert metadata["release_title"] == f"PixelScope v{version}"
     assert metadata["source_commit"] == commit
-    assert set(metadata["artifacts"]) == set(publication_module.production_artifact_names(version))
-    assert metadata["release_note"]["source"] == note_source.relative_to(tmp_path).as_posix()
+    assert set(metadata["artifacts"]) == set(
+        publication_module.production_artifact_names(version)
+    )
+    assert metadata["release_note"]["source"] == (
+        note_source.relative_to(tmp_path).as_posix()
+    )
 
     serialized = json.dumps(metadata, sort_keys=True)
     assert str(tmp_path) not in serialized
@@ -148,6 +157,23 @@ def test_prepare_publication_requires_current_checkout_to_match_candidate(
 
     with pytest.raises(RuntimeError, match="exact candidate source commit"):
         prepare_module.prepare_release_publication(current_commit="b" * 40)
+
+
+def test_candidate_validation_rejects_non_commit_source_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version, _commit, candidate, _note_source = _publication_fixture(tmp_path, monkeypatch)
+    provenance_path = candidate / publication_module.CANDIDATE_PROVENANCE_NAME
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["source_commit"] = "abc123"
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    with pytest.raises(
+        publication_module.PublicationValidationError,
+        match="full lowercase Git commit SHA",
+    ):
+        publication_module.validate_candidate(candidate, version=version)
 
 
 def test_candidate_validation_rejects_artifact_tamper(
@@ -205,7 +231,11 @@ def test_release_tag_validation_requires_exact_source_commit(
     monkeypatch.setattr(
         publication_module.subprocess,
         "run",
-        lambda *args, **kwargs: SimpleNamespace(stdout=f"{commit}\n", stderr="", returncode=0),
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout=f"{commit}\n",
+            stderr="",
+            returncode=0,
+        ),
     )
 
     assert publication_module.validate_release_tag(commit, version="1.2.3") == commit
