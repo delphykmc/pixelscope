@@ -7,6 +7,7 @@ import sys
 import time
 from ctypes import wintypes
 from pathlib import Path
+from typing import Any
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -16,6 +17,32 @@ from scripts.release_contract import EXECUTABLE_PATH  # noqa: E402
 WM_CLOSE = 0x0010
 
 
+def _configure_user32(user32: Any, enum_proc_type: Any | None = None) -> None:
+    """Declare pointer-width-safe Win32 signatures used by the smoke harness."""
+
+    if enum_proc_type is not None:
+        user32.EnumWindows.argtypes = [enum_proc_type, wintypes.LPARAM]
+        user32.EnumWindows.restype = wintypes.BOOL
+    user32.GetWindowThreadProcessId.argtypes = [
+        wintypes.HWND,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.PostMessageW.argtypes = [
+        wintypes.HWND,
+        wintypes.UINT,
+        wintypes.WPARAM,
+        wintypes.LPARAM,
+    ]
+    user32.PostMessageW.restype = wintypes.BOOL
+
+
 def _find_visible_window(process_id: int, title_fragment: str = "PixelScope") -> int | None:
     if sys.platform != "win32":
         raise RuntimeError("Packaged executable smoke is supported only on Windows")
@@ -23,6 +50,7 @@ def _find_visible_window(process_id: int, title_fragment: str = "PixelScope") ->
     user32 = ctypes.windll.user32
     matches: list[int] = []
     enum_proc_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    _configure_user32(user32, enum_proc_type)
 
     def callback(hwnd: int, _lparam: int) -> bool:
         window_pid = wintypes.DWORD()
@@ -68,7 +96,10 @@ def smoke_executable(executable: Path, *, startup_timeout: float = 20.0) -> None
         if window is None:
             raise RuntimeError("Timed out waiting for the packaged PixelScope main window")
 
-        ctypes.windll.user32.PostMessageW(window, WM_CLOSE, 0, 0)
+        user32 = ctypes.windll.user32
+        _configure_user32(user32)
+        if not user32.PostMessageW(window, WM_CLOSE, 0, 0):
+            raise RuntimeError("Unable to request packaged PixelScope shutdown")
         try:
             return_code = process.wait(timeout=12.0)
         except subprocess.TimeoutExpired as exc:
