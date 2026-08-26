@@ -17,10 +17,10 @@ No P5-G PASS is inferred from release work.
 
 P6 Identity, Access & Remote Operations remains **planned / production-integration
 gated** until the external authentication and Remote IQA authority are known. If
-authoritative corporate SSO documentation becomes available earlier, a P6-0
-authentication contract audit/research slice may proceed before P5-G, but it must not
-implement production SSO, alter Remote IQA authorization, issue/store tokens, or invent
-server contracts.
+authoritative corporate identity/authentication documentation becomes available earlier,
+a P6-0 contract audit/research slice may proceed before P5-G, but it must not implement
+production SSO, alter Remote IQA authorization, issue/store tokens, or invent server
+contracts.
 
 The current independently executable work is **P7-D Stage 1 — Release Metadata & Manual
 Publication Foundation**. It consumes the P7-C validated release candidate and adds
@@ -52,7 +52,7 @@ P5-G External GPU/SMB Validation                   DEFERRED — real environment
     ↓
 P6 Identity, Access & Remote Operations            PLANNED / production integration gated
     ↓
-P7-D Stage 2 Authenticated Update Notification     DEFERRED — requires P6 auth authority
+P7-D Stage 2 Notification-only Update Discovery    DEFERRED — provider/auth authority pending
     ↓
 P7-E Final Release Qualification                   DEFERRED
 ```
@@ -62,14 +62,14 @@ update rule is:
 
 > **Update discovery must never initiate authentication.**
 
-A future update check may use an already-authenticated approved application session,
-but it must not trigger SSO/login/browser authentication merely to discover updates.
-Corporate systems may share one SSO/IdP ecosystem without sharing access tokens. Do not
-assume an IQA token is a GitHub Enterprise API credential. Provider selection and any
-GitHub/API authentication mechanism remain deferred until P6 establishes the actual
-corporate authentication authority.
+Stage 1 does not establish whether the eventual authoritative update provider requires
+application authentication. If it does, a future implementation may use only an
+already-established approved P6 capability and otherwise skips discovery silently. If
+an authoritative provider is explicitly usable without application authentication,
+that path remains permitted. Provider selection and any authentication mechanism remain
+deferred until the relevant P6/provider contracts are authoritative.
 
-P7-E does not implement SSO. P6 owns Identity & Access. P7-E only verifies the
+P7-E does not implement SSO. P6 owns Identity & Access. P7-E only verifies any
 already-implemented P6 authentication/remote behavior in the final packaged product,
 together with P5-G real-environment behavior and final install/upgrade/uninstall,
 signing, and release-policy checks.
