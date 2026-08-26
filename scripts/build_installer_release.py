@@ -93,12 +93,18 @@ def _ispp_define(name: str, value: str) -> str:
 
 def installer_command(iscc: Path) -> list[str]:
     version = release_version()
-    file_version = ".".join(str(part) for part in windows_version_tuple(version))
+    version_components = windows_version_tuple(version)
+    file_version = ".".join(str(part) for part in version_components)
+    major, minor, revision, build = version_components
     return [
         str(iscc),
         "/Qp",
         _ispp_define("AppVersion", version),
         _ispp_define("AppFileVersion", file_version),
+        _ispp_define("AppVersionMajor", str(major)),
+        _ispp_define("AppVersionMinor", str(minor)),
+        _ispp_define("AppVersionRevision", str(revision)),
+        _ispp_define("AppVersionBuild", str(build)),
         str(INNO_SCRIPT.resolve()),
     ]
 
