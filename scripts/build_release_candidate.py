@@ -22,6 +22,10 @@ from scripts.distribution_contract import (  # noqa: E402
     release_stem,
     sha256_file,
 )
+from scripts.release_candidate_contract import (  # noqa: E402
+    CANDIDATE_PROVENANCE_NAME,
+    build_candidate_provenance,
+)
 from scripts.release_contract import (  # noqa: E402
     REPO_ROOT,
     release_note_source,
@@ -144,25 +148,24 @@ def _stage_candidate(
 
     notes_source = _release_note_source(version)
     _render_release_notes(notes_source, stage_root / "RELEASE_NOTES.md", commit=commit)
+    release_note_identity = notes_source.relative_to(REPO_ROOT).as_posix()
 
-    provenance = {
-        "schema_version": 1,
-        "product": "PixelScope",
-        "version": version,
-        "source_commit": commit,
-        "built_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        "release_python_executable": release_python.name,
-        "release_python_version": _capture([str(release_python), "--version"]),
-        "pyinstaller_version": _capture(
+    provenance = build_candidate_provenance(
+        version=version,
+        source_commit=commit,
+        built_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        release_python_executable=release_python.name,
+        release_python_version=_capture([str(release_python), "--version"]),
+        pyinstaller_version=_capture(
             [str(release_python), "-m", "PyInstaller", "--version"]
         ),
-        "inno_compiler_executable": compiler.name,
-        "inno_compiler_major": inno_major_version(compiler),
-        "inno_compiler_sha256": _sha256(compiler),
-        "release_note_source": notes_source.relative_to(REPO_ROOT).as_posix(),
-        "artifacts": staged_artifacts,
-    }
-    (stage_root / "release-provenance.json").write_text(
+        inno_compiler_executable=compiler.name,
+        inno_compiler_major=inno_major_version(compiler),
+        inno_compiler_sha256=_sha256(compiler),
+        release_note_source=release_note_identity,
+        artifacts=staged_artifacts,
+    )
+    (stage_root / CANDIDATE_PROVENANCE_NAME).write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
