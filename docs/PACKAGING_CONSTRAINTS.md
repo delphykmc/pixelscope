@@ -43,9 +43,9 @@
   that manifest plus `THIRD_PARTY_NOTICES.txt` as distribution-only metadata.
 - P7-B portable ZIP creation is deterministic for identical input payloads: archive
   paths are sorted and ZIP member timestamps are fixed.
-- P7-B uses Inno Setup 6-compatible script syntax. The local/manual build contract
-  requires an Inno Setup 6 `ISCC.exe`; P7-C may later pin the exact hosted compiler
-  version for CI reproducibility.
+- P7-B keeps its installer definition compatible with the Inno Setup 6 syntax baseline
+  and accepts Inno Setup major 6 or 7 for owner/manual validation. P7-C owns the exact
+  hosted compiler version pin for CI reproducibility.
 - Installer scope is per-user/no-admin: `PrivilegesRequired=lowest`, install under
   `{localappdata}\Programs\PixelScope`, stable non-versioned `AppId`, x64 install
   mode, and a Start Menu shortcut. Do not silently switch to machine-wide/admin
@@ -107,7 +107,7 @@ as a clear owner/reviewer evidence step.
 ## P7-B Windows validation
 
 P7-B uses the already-isolated `.venv-release` for Python release tooling and an
-external Inno Setup 6 installation for installer compilation.
+external supported Inno Setup installation for installer compilation.
 
 ```powershell
 # focused distribution contract
@@ -122,7 +122,7 @@ external Inno Setup 6 installation for installer compilation.
 .\.venv-release\Scripts\python.exe scripts\build_portable_release.py
 .\.venv-release\Scripts\python.exe scripts\smoke_portable_release.py
 
-# Inno Setup 6 compiler can be found from PATH/common install paths,
+# Inno Setup 6/7 compiler can be found from PATH/common install paths,
 # supplied with ISCC_PATH, or supplied explicitly with --iscc.
 .\.venv-release\Scripts\python.exe scripts\build_installer_release.py
 .\.venv-release\Scripts\python.exe scripts\smoke_installer_release.py
