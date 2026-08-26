@@ -123,8 +123,9 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
     assert "ArchitecturesAllowed=x64" in script
     assert "ArchitecturesInstallIn64BitMode=x64" in script
     assert "AppId={{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}" in script
-    assert '#define AppSource RepoRoot + "\\dist\\PixelScope"' in script
-    assert '#define ReleaseRoot RepoRoot + "\\release"' in script
+    assert '#define RepoRoot AddBackslash(SourcePath) + "..\\.."' in script
+    assert '#define AppSource AddBackslash(RepoRoot) + "dist\\PixelScope"' in script
+    assert '#define ReleaseRoot AddBackslash(RepoRoot) + "release"' in script
     assert "[Registry]" not in script
     assert "deletekey" not in script.casefold()
     assert "SignTool=" not in script
