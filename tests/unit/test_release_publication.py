@@ -84,6 +84,13 @@ def _publication_fixture(
                 "product": "PixelScope",
                 "version": version,
                 "source_commit": commit,
+                "built_at_utc": "2026-08-27T00:00:00+00:00",
+                "release_python_executable": "python.exe",
+                "release_python_version": "Python 3.10.11",
+                "pyinstaller_version": "5.7",
+                "inno_compiler_executable": "ISCC.exe",
+                "inno_compiler_major": 6,
+                "inno_compiler_sha256": "1" * 64,
                 "release_note_source": note_source.relative_to(tmp_path).as_posix(),
                 "artifacts": inventory,
             },
@@ -94,6 +101,11 @@ def _publication_fixture(
         encoding="utf-8",
     )
     return version, commit, candidate, note_source
+
+
+def _read_provenance(candidate: Path) -> tuple[Path, dict[str, object]]:
+    path = candidate / publication_module.CANDIDATE_PROVENANCE_NAME
+    return path, json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_release_tag_and_title_derive_from_canonical_version() -> None:
@@ -164,14 +176,61 @@ def test_candidate_validation_rejects_non_commit_source_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     version, _commit, candidate, _note_source = _publication_fixture(tmp_path, monkeypatch)
-    provenance_path = candidate / publication_module.CANDIDATE_PROVENANCE_NAME
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance_path, provenance = _read_provenance(candidate)
     provenance["source_commit"] = "abc123"
     provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
 
     with pytest.raises(
         publication_module.PublicationValidationError,
         match="full lowercase Git commit SHA",
+    ):
+        publication_module.validate_candidate(candidate, version=version)
+
+
+def test_candidate_validation_rejects_missing_tool_provenance_field(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version, _commit, candidate, _note_source = _publication_fixture(tmp_path, monkeypatch)
+    provenance_path, provenance = _read_provenance(candidate)
+    del provenance["inno_compiler_sha256"]
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    with pytest.raises(
+        publication_module.PublicationValidationError,
+        match="fields mismatch.*inno_compiler_sha256",
+    ):
+        publication_module.validate_candidate(candidate, version=version)
+
+
+def test_candidate_validation_rejects_unexpected_private_field(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version, _commit, candidate, _note_source = _publication_fixture(tmp_path, monkeypatch)
+    provenance_path, provenance = _read_provenance(candidate)
+    provenance["private_local_path"] = r"C:\Users\owner\release"
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    with pytest.raises(
+        publication_module.PublicationValidationError,
+        match="fields mismatch.*private_local_path",
+    ):
+        publication_module.validate_candidate(candidate, version=version)
+
+
+def test_candidate_validation_rejects_local_tool_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version, _commit, candidate, _note_source = _publication_fixture(tmp_path, monkeypatch)
+    provenance_path, provenance = _read_provenance(candidate)
+    provenance["inno_compiler_executable"] = r"C:\Program Files\Inno Setup 6\ISCC.exe"
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+
+    with pytest.raises(
+        publication_module.PublicationValidationError,
+        match="basename, not a path",
     ):
         publication_module.validate_candidate(candidate, version=version)
 
@@ -186,7 +245,7 @@ def test_candidate_validation_rejects_artifact_tamper(
 
     with pytest.raises(
         publication_module.PublicationValidationError,
-        match="artifact provenance",
+        match="artifact identity does not match staged file",
     ):
         publication_module.validate_candidate(candidate, version=version)
 
@@ -196,8 +255,7 @@ def test_candidate_validation_rejects_release_note_commit_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     version, _commit, candidate, _note_source = _publication_fixture(tmp_path, monkeypatch)
-    provenance_path = candidate / publication_module.CANDIDATE_PROVENANCE_NAME
-    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance_path, provenance = _read_provenance(candidate)
     provenance["source_commit"] = "c" * 40
     provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
 
