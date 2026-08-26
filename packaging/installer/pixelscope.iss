@@ -17,7 +17,17 @@
   #error AppVersionBuild must be supplied by scripts/build_installer_release.py
 #endif
 
+#if Ver < 0x06010000
+  #error P7-B requires Inno Setup 6.1 or newer
+#endif
+#if Ver >= 0x08000000
+  #error P7-B does not support Inno Setup 8 or newer
+#endif
+
 #define AppName "PixelScope"
+#ifndef AppIdValue
+  #define AppIdValue "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
+#endif
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
 #define AppSource AddBackslash(RepoRoot) + "dist\PixelScope"
 #define ReleaseRoot AddBackslash(RepoRoot) + "release"
@@ -25,9 +35,14 @@
 #define ManifestFile AddBackslash(ReleaseRoot) + ReleaseStem + ".manifest.json"
 #define NoticeFile AddBackslash(ReleaseRoot) + ReleaseStem + "-THIRD_PARTY_NOTICES.txt"
 #define SetupIconFile AddBackslash(RepoRoot) + "src\pixelscope\assets\icons\pixelscope.ico"
+#ifdef SmokeBuild
+  #define SetupOutputBase ReleaseStem + "-smoke-setup"
+#else
+  #define SetupOutputBase ReleaseStem + "-setup"
+#endif
 
 [Setup]
-AppId={{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}
+AppId={#AppIdValue}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
@@ -41,7 +56,7 @@ ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 MinVersion=10.0
 OutputDir={#ReleaseRoot}
-OutputBaseFilename={#ReleaseStem}-setup
+OutputBaseFilename={#SetupOutputBase}
 SetupIconFile={#SetupIconFile}
 Compression=lzma2
 SolidCompression=yes
@@ -184,5 +199,9 @@ end;
 
 function InitializeSetup: Boolean;
 begin
+#ifdef SmokeBuild
+  Result := True;
+#else
   Result := ConfirmExistingInstall;
+#endif
 end;
