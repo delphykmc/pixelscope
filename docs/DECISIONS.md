@@ -229,8 +229,8 @@ display = anchor + gain * (source - anchor)
   worker;
 - gain >1 derives a viewer-local preview from resident source on the shared
   numerical worker pool;
-- result acceptance checks task/request/document/source/generation/gain/visibility
-  identity;
+- result acceptance checks task/request/document/source/preview/
+  generation/gain/visibility identity;
 - hidden viewers release gain>1 derived buffers and regenerate current gain when
   shown;
 - `+` / `-` Display Gain command ownership is the image-presentation subtree,
@@ -647,8 +647,9 @@ Stage 2 / PR #40 is the executable schema-v2 authority. P5-B / PR #38 is merged 
 `a44978db783ebcecb0d55f8abb52b583e0fdc47c` and owns the canonical local Results
 workspace. P5-C / PR #42, P5-D / PR #43, P5-E / PR #44, and P5-F / PR #45 are merged.
 P5-G remains an unobserved external validation gate. R completed through independently
-reviewed PR #55 at `main@2f29bf95b8d51c470534cf6decda3033681c75bf`; no repository
-implementation program is active.
+reviewed PR #55 at `main@2f29bf95b8d51c470534cf6decda3033681c75bf`. P7 Release
+Foundation subsequently completed P7-A/P7-B/P7-C, and P7-D Stage 1 is the current
+repository implementation program; this does not advance P5-G or P6.
 
 `docs/REMOTE_IQA_CONTRACT.md` is the product/transport ownership authority.
 `docs/REMOTE_IQA_V2_SPEC.md` is the current numerical/artifact authority.
@@ -898,6 +899,53 @@ implementation program is active.
   `REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md` for current navigation; preserve P5-D,
   P5-E, and P5-F identity inside the documents and completed execution history.
 
+## P7 release-engineering decisions — foundation active through P7-D Stage 1
+
+- P7-A / PR #61 established the Windows x64 CPython `>=3.10.8,<3.11`, exact
+  `PyInstaller==5.7`, `onedir` executable foundation while preserving the existing
+  application composition root.
+- P7-B / PR #62 established portable ZIP and per-user Inno Setup distribution from the
+  same validated `dist/PixelScope/` payload. Production signing remains deferred.
+- P7-C / PR #63 established the owner-local release-candidate pipeline. Repository
+  automation validates/builds/smokes the canonical artifacts and stages exact source,
+  tool, release-note, and artifact provenance; mandatory hosted/self-hosted Actions are
+  not release architecture.
+- `src/pixelscope/version.py::__version__` is the canonical release-version authority.
+  Runtime/package metadata, Windows executable metadata, distribution names, release
+  tag/title, release-note identity, and publication metadata derive from it.
+- P7-C candidate staging is the sole P7-D Stage 1 input authority. Stage 1 must not
+  rebuild the application, invent a second payload manifest, or weaken the strict
+  P7-C production-bundle contract.
+- The canonical publication tag is `v<version>` and title is `PixelScope v<version>`.
+  A release tag must resolve to the exact full source commit recorded in candidate
+  provenance. Repository tooling may validate that relation but does not create or push
+  a production tag automatically.
+- P7-D Stage 1 publication metadata is provider-neutral. It may contain canonical
+  version/target/tag/title, exact source commit, durable/rendered release-note identity
+  and hashes, candidate-provenance identity/hash, and exact production artifact
+  filenames/sizes/SHA-256. It must not contain credentials, browser cookies, local
+  absolute machine paths, or a hard-coded corporate GitHub host/repository URL.
+- Repository publication tooling stops at validate/prepare/render/hash/stage. Corporate
+  GitHub Enterprise Release creation, privileged upload, restricted-folder transfer,
+  production signing, and release visibility/access confirmation remain explicit
+  authorized-human actions across the corporate security boundary.
+- P7-D Stage 1 adds no startup/periodic update check, notification UI, GitHub API client,
+  OAuth/GitHub App/PAT flow, SSO/token storage, browser-cookie access, IQA auth changes,
+  automatic download/install, rollback, or installer-launching updater.
+- Future update discovery obeys: **Update discovery must never initiate
+  authentication.** Same corporate SSO/IdP participation does not imply credential
+  interchangeability: `same SSO identity != same access token`, and an IQA access token
+  is not assumed to be a GitHub API credential.
+- P7-D Stage 2 runtime notification/provider work is deferred until P6 establishes the
+  actual authentication/capability contract. Stage 1 does not preselect a GitHub,
+  backend, or corporate-platform provider.
+- P5-G remains an unobserved external GPU/SMB validation gate. P6 production
+  Identity/Access integration remains gated on P5-G and authoritative corporate auth
+  contracts; an earlier P6-0 contract/research audit may proceed only without production
+  auth changes when authoritative guidance becomes available.
+- P7-E remains the final packaged qualification after P5-G/P6. P7-D Stage 1 completion
+  must not be described as overall P7 completion or production release readiness.
+
 ## Current resource policy
 
 - Difference Map Cache remains byte-budgeted and persistence-free with default
@@ -921,9 +969,12 @@ implementation program is active.
 ## Validation and merge state
 
 P3 is Complete through PR #27. P4 is Complete through PR #35. P5 repository-side
-client work is complete through P5-F / PR #45. R0–R7 merged as PR #46–#55. Current
-main is `2f29bf95b8d51c470534cf6decda3033681c75bf`; R is complete, and no repository
-implementation program is active.
+client work is complete through P5-F / PR #45. R0–R7 merged as PR #46–#55. P7-A,
+P7-B, and P7-C merged as PR #61–#63. Current merged `main` is
+`1fa6d278fcb16ed5170c3a21fc8cb31119f6e7e2`. P7-D Stage 1 publication-foundation
+implementation is active on its dedicated branch and has not yet completed owner
+validation or independent review. P5-G remains deferred/unobserved, P6 production
+integration remains gated, and no production release publication is claimed.
 
 Observed P5-C evidence includes:
 
@@ -945,7 +996,7 @@ Independent whole-PR review at `177078f...` confirmed the earlier architecture
 blockers closed and requested only narrow preview-lifecycle, authority-regression,
 and stale-status-doc closeout. That evidence is historical P5-C evidence; PR #42 later
 merged. P5-D/E/F subsequently merged as PR #43/#44/#45. Their exact evidence remains in
-the corresponding durable contracts/characterization and is not inferred as current R
-validation.
+the corresponding durable contracts/characterization and is not inferred as current
+P7-D validation.
 
 Only validation actually observed for a named head may be recorded as PASS.
