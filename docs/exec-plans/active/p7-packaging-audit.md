@@ -58,20 +58,21 @@ The existing `.gitignore` already excludes `build/` and `dist/`.
 
 ## Dependency and hook strategy
 
-Runtime remains the pinned Python 3.10 x64 set in `requirements/runtime.txt`, including
-PySide6 6.4.2, pyqtgraph 0.13.3, OpenCV 4.8.1.78, NumPy 1.24.4, httpx 0.24.1, and
-Pydantic 1.10.13.
+Release builds use the owner-selected Windows x64 CPython baseline
+`>=3.10.8,<3.11`. Runtime remains the pinned dependency set in
+`requirements/runtime.txt`, including PySide6 6.4.2, pyqtgraph 0.13.3,
+OpenCV 4.8.1.78, NumPy 1.24.4, httpx 0.24.1, and Pydantic 1.10.13.
 
 PyInstaller is release tooling rather than an application runtime dependency. P7-A
 will add a separate `requirements/release.txt` with exactly `PyInstaller==5.7` and a
 pinned compatible community-hook layer.
 
 P7-A will rely on PyInstaller package hooks for ordinary PySide6, NumPy, and OpenCV
-binary discovery while explicitly adding PixelScope-owned package data. Broad
-`collect_all()` calls are prohibited. Artifact validation must prove that the
-canonical artifact contains at minimum the Windows Qt platform plugin (`qwindows.dll`),
-PySide6 runtime modules, NumPy native extension, OpenCV native extension/binaries, and
-PixelScope icon resources.
+binary discovery while explicitly adding only the three canonical PixelScope icon
+assets. Broad `collect_all()` calls are prohibited. Artifact validation must prove
+that the canonical artifact contains at minimum the Windows Qt platform plugin
+(`qwindows.dll`), PySide6 runtime modules, NumPy native extension, OpenCV native
+extension/binaries, and PixelScope icon resources.
 
 No repository evidence requires speculative hidden imports before a real Windows build.
 Concrete missing imports/plugins should be handled by the smallest explicit spec/hook

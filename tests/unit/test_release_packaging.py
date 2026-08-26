@@ -14,6 +14,7 @@ from scripts.release_contract import (
     REPO_ROOT,
     release_version,
     render_windows_version_info,
+    validate_release_python,
     windows_version_tuple,
 )
 from scripts.validate_release_artifact import ArtifactValidationError, validate_artifact
@@ -65,6 +66,16 @@ def test_windows_version_tuple_rejects_invalid_or_oversized_values() -> None:
         windows_version_tuple("70000.1.2")
 
 
+def test_release_python_baseline_is_3_10_8_or_newer_within_3_10() -> None:
+    validate_release_python((3, 10, 8))
+    validate_release_python((3, 10, 15))
+
+    with pytest.raises(RuntimeError, match=">=3.10.8,<3.11"):
+        validate_release_python((3, 10, 7))
+    with pytest.raises(RuntimeError, match=">=3.10.8,<3.11"):
+        validate_release_python((3, 11, 0))
+
+
 def test_release_requirements_keep_pyinstaller_out_of_runtime() -> None:
     release = (REPO_ROOT / "requirements" / "release.txt").read_text(encoding="utf-8")
     runtime = (REPO_ROOT / "requirements" / "runtime.txt").read_text(encoding="utf-8")
@@ -85,6 +96,10 @@ def test_spec_is_canonical_windowed_onedir_without_collect_all() -> None:
     assert "exclude_binaries=True" in spec
     assert "console=False" in spec
     assert "upx=False" in spec
+    assert "datas=icon_data" in spec
+    assert '"pixelscope.svg"' in spec
+    assert '"pixelscope.png"' in spec
+    assert '"pixelscope.ico"' in spec
     assert 'icon=str(icon_root / "pixelscope.ico")' in spec
     assert "version=str(version_info)" in spec
     assert "collect_all" not in spec

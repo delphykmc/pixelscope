@@ -7,12 +7,16 @@ repo_root = Path(SPECPATH).resolve().parent
 source_root = repo_root / "src"
 icon_root = source_root / "pixelscope" / "assets" / "icons"
 version_info = repo_root / "build" / "release" / "PixelScope.version.txt"
+icon_data = [
+    (str(icon_root / filename), "pixelscope/assets/icons")
+    for filename in ("pixelscope.svg", "pixelscope.png", "pixelscope.ico")
+]
 
 analysis = Analysis(
     [str(source_root / "pixelscope" / "__main__.py")],
     pathex=[str(source_root)],
     binaries=[],
-    datas=[(str(icon_root), "pixelscope/assets/icons")],
+    datas=icon_data,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

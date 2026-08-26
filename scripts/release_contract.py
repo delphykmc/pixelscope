@@ -18,6 +18,8 @@ APP_DIR: Final = DIST_ROOT / "PixelScope"
 EXECUTABLE_PATH: Final = APP_DIR / "PixelScope.exe"
 VERSION_SOURCE: Final = SOURCE_ROOT / "pixelscope" / "version.py"
 EXPECTED_PYINSTALLER_VERSIONS: Final = frozenset({"5.7", "5.7.0"})
+MIN_RELEASE_PYTHON: Final = (3, 10, 8)
+MAX_RELEASE_PYTHON_EXCLUSIVE: Final = (3, 11, 0)
 
 
 def release_version() -> str:
@@ -101,17 +103,21 @@ def pyinstaller_version() -> str:
     return str(PyInstaller.__version__)
 
 
+def validate_release_python(version: tuple[int, int, int]) -> None:
+    """Enforce the owner-selected CPython 3.10.8+ release-build baseline."""
+
+    if not MIN_RELEASE_PYTHON <= version < MAX_RELEASE_PYTHON_EXCLUSIVE:
+        raise RuntimeError("P7-A release builds require CPython >=3.10.8,<3.11")
+
+
 def validate_release_host() -> None:
-    """Enforce the supported Windows x64 / Python 3.10 / PyInstaller 5.7 build host."""
+    """Enforce the supported Windows x64 / Python / PyInstaller build host."""
 
     if sys.platform != "win32":
         raise RuntimeError("P7-A release builds are supported only on Windows")
-    if sys.version_info[:2] != (3, 10):
-        raise RuntimeError("P7-A release builds require CPython 3.10")
+    validate_release_python(sys.version_info[:3])
     if struct.calcsize("P") * 8 != 64:
         raise RuntimeError("P7-A release builds require a 64-bit Python interpreter")
     installed = pyinstaller_version()
     if installed not in EXPECTED_PYINSTALLER_VERSIONS:
-        raise RuntimeError(
-            f"P7-A requires exactly PyInstaller 5.7; found {installed}"
-        )
+        raise RuntimeError(f"P7-A requires exactly PyInstaller 5.7; found {installed}")
