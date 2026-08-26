@@ -4,6 +4,7 @@ import os
 import runpy
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from scripts import build_installer_release as installer_module
@@ -122,7 +123,7 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
     assert r"DefaultDirName={localappdata}\Programs\PixelScope" in script
     assert "ArchitecturesAllowed=x64" in script
     assert "ArchitecturesInstallIn64BitMode=x64" in script
-    assert '#define AppIdValue "{{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"' in script
+    assert 'DefaultAppId "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"' in script
     assert "AppId={#AppIdValue}" in script
     assert '#define RepoRoot AddBackslash(SourcePath) + "..\\.."' in script
     assert '#define AppSource AddBackslash(RepoRoot) + "dist\\PixelScope"' in script
@@ -212,6 +213,28 @@ def test_supported_inno_version_contract_rejects_60_and_8() -> None:
     validate_inno_version((7, 0, 1, 0))
     with pytest.raises(RuntimeError, match=r">=6\.1,<8"):
         validate_inno_version((8, 0, 0, 0))
+
+
+def test_inno_version_prefers_string_metadata_when_fixed_info_is_zero() -> None:
+    string_table = SimpleNamespace(entries={b"FileVersion": b"6.4.3.0"})
+    string_info = SimpleNamespace(Key=b"StringFileInfo", StringTable=[string_table])
+    fixed_info = SimpleNamespace(FileVersionMS=0, FileVersionLS=0)
+    pe = SimpleNamespace(
+        FileInfo=[[string_info]],
+        VS_FIXEDFILEINFO=[fixed_info],
+    )
+
+    assert installer_module._version_from_pe_info(pe) == (6, 4, 3, 0)
+
+
+def test_inno_version_uses_nonzero_fixed_info_as_fallback() -> None:
+    fixed_info = SimpleNamespace(
+        FileVersionMS=(6 << 16) | 1,
+        FileVersionLS=(2 << 16) | 3,
+    )
+    pe = SimpleNamespace(FileInfo=[], VS_FIXEDFILEINFO=[fixed_info])
+
+    assert installer_module._version_from_pe_info(pe) == (6, 1, 2, 3)
 
 
 def test_installer_smoke_tracks_manifest_owned_cleanup_paths(tmp_path: Path) -> None:
