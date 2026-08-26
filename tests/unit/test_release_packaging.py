@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import pixelscope
+import pixelscope.app.resources as resources_module
 from pixelscope.version import __version__
 from scripts.build_release import pyinstaller_command
 from scripts.release_contract import (
@@ -45,13 +46,15 @@ def _valid_artifact(root: Path) -> Path:
 
 def test_release_version_has_one_authority() -> None:
     pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    project_section = pyproject.split("[project]", 1)[1].split("\n[", 1)[0]
 
-    assert __version__ == "0.1.0"
+    assert __version__
     assert pixelscope.__version__ == __version__
     assert release_version() == __version__
-    assert 'dynamic = ["version"]' in pyproject
+    assert windows_version_tuple(__version__)
+    assert 'dynamic = ["version"]' in project_section
+    assert "\nversion =" not in project_section
     assert 'version = {attr = "pixelscope.version.__version__"}' in pyproject
-    assert 'version = "0.1.0"' not in pyproject
 
 
 def test_windows_version_info_derives_from_canonical_value() -> None:
@@ -100,6 +103,21 @@ def test_release_scripts_support_repo_root_file_execution_imports() -> None:
     ):
         namespace = runpy.run_path(str(REPO_ROOT / "scripts" / script_name))
         assert "main" in namespace
+
+
+def test_frozen_application_requires_packaged_icon_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MissingResource:
+        def joinpath(self, _part: str) -> MissingResource:
+            return self
+
+        def read_bytes(self) -> bytes:
+            raise OSError("missing packaged icon")
+
+    monkeypatch.setattr(resources_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(resources_module, "files", lambda _package: MissingResource())
+
+    with pytest.raises(RuntimeError, match="application icon resource is unavailable"):
+        resources_module.load_application_icon()
 
 
 def test_win32_smoke_uses_pointer_width_safe_handle_signatures() -> None:
