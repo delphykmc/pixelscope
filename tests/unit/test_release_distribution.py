@@ -129,23 +129,46 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
     assert "[Registry]" not in script
     assert "deletekey" not in script.casefold()
     assert "SignTool=" not in script
-    assert "[Run]" not in script
+
+
+def test_inno_script_offers_launch_and_existing_version_confirmation() -> None:
+    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(
+        encoding="utf-8"
+    )
+
+    assert "[Run]" in script
+    assert 'Description: "Launch PixelScope"' in script
+    assert "Flags: postinstall nowait skipifsilent" in script
+    assert "unchecked" not in script
+    assert "PixelScopeUninstallKey" in script
+    assert "HKCU64" in script
+    assert "GetPackedVersion" in script
+    assert "PackVersionComponents" in script
+    assert "ComparePackedVersion" in script
+    assert "SuppressibleMsgBox" in script
+    assert "Reinstall this version?" in script
+    assert "Install the older version anyway?" in script
+    assert "Upgrade to " in script
 
 
 def test_installer_command_only_injects_version_metadata() -> None:
     command = installer_command(Path("C:/Inno Setup 6/ISCC.exe"))
     version = release_version()
-    file_version = ".".join(str(part) for part in windows_version_tuple(version))
+    version_components = windows_version_tuple(version)
+    file_version = ".".join(str(part) for part in version_components)
+    major, minor, revision, build = version_components
 
     assert command[1] == "/Qp"
-    app_version = next(argument for argument in command if argument.startswith("-dAppVersion="))
-    file_version_argument = next(
-        argument for argument in command if argument.startswith("-dAppFileVersion=")
-    )
-    assert app_version == f"-dAppVersion={version}"
-    assert file_version_argument == f"-dAppFileVersion={file_version}"
-    assert '"' not in app_version
-    assert '"' not in file_version_argument
+    expected_defines = {
+        f"-dAppVersion={version}",
+        f"-dAppFileVersion={file_version}",
+        f"-dAppVersionMajor={major}",
+        f"-dAppVersionMinor={minor}",
+        f"-dAppVersionRevision={revision}",
+        f"-dAppVersionBuild={build}",
+    }
+    assert expected_defines.issubset(command)
+    assert all('"' not in argument for argument in command if argument.startswith("-dApp"))
     assert all("AppSource" not in argument for argument in command)
     assert all("OutputDir" not in argument for argument in command)
     assert str(installer_module.INNO_SCRIPT.resolve()) == command[-1]
