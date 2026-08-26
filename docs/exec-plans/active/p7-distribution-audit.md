@@ -130,8 +130,11 @@ Compiler discovery remains external to the Python release environment. The build
 - invokes `ISCC.exe` directly and fails on a non-zero compile exit, including an exact
   version-range rejection from the `.iss` `Ver` guard.
 
-P7-C owns the exact hosted Inno Setup version pin when Windows CI is introduced. This
-avoids inventing a local exact-version contract before the hosted toolchain exists.
+The original P7-B audit expected a later hosted CI slice to introduce an exact hosted
+Inno pin. That forward-looking assumption was superseded during P7-C after the
+corporate release boundary was confirmed. P7-C now preserves the same owner-local
+`>=6.1,<8` contract and records the actual selected compiler binary identity/SHA-256 in
+release-candidate provenance; no hosted or CI-only exact Inno pin is required.
 
 ## Third-party notice boundary
 
