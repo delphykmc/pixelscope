@@ -71,8 +71,8 @@ harness.
 ## Installer contract
 
 The installer is an Inno Setup installer for the existing Windows x64 application.
-P7-B intentionally uses Inno Setup 6-compatible script syntax; it does not adopt Inno
-Setup 7-only directives as part of this slice.
+P7-B intentionally uses Inno Setup 6-compatible script syntax and does not require
+Inno Setup 7-only directives as part of this slice.
 
 Repository policy:
 
@@ -96,16 +96,18 @@ or user-data deletion rules for those settings.
 
 ## Inno Setup compiler boundary
 
-The active P7 plan does not specify an exact Inno Setup minor version. P7-B therefore
-uses the Inno Setup 6 compiler family as the local/manual installer contract and keeps
-compiler discovery external to the Python release environment. The build script:
+The active P7 plan does not specify an exact Inno Setup version. P7-B keeps its script
+compatible with the Inno Setup 6 syntax baseline and accepts current major 6 or 7
+compilers for owner/manual validation. Compiler discovery remains external to the
+Python release environment. The build script:
 
 - accepts an explicit `--iscc` path or `ISCC_PATH` environment override;
-- otherwise discovers common Inno Setup 6 install locations / PATH;
-- verifies the compiler reports major version 6 before compiling;
+- otherwise discovers common Inno Setup 6/7 install locations / PATH;
+- verifies the compiler reports a supported major before compiling;
 - invokes `ISCC.exe` directly and fails on a non-zero compile exit.
 
-P7-C may pin the exact hosted Inno Setup version when Windows CI is introduced.
+P7-C owns the exact hosted Inno Setup version pin when Windows CI is introduced. This
+avoids inventing a local exact-version contract before the hosted toolchain exists.
 
 ## Third-party notice boundary
 
