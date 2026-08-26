@@ -2,11 +2,12 @@
 
 Status: P7 Release Foundation active
 Last updated: 2026-08-26
-Baseline: `main@8648b88ed7fd3a0af75013dd31633c48ccbce3e5`
+Baseline: `main@9b9cd28a10e599659e8485fadddf8b6ac948fc7f`
 
 Repository Refactoring & Validation Hardening is complete through PR #55, the
-manual-validation workflow regression fix is merged through PR #59, and PR #60
-activated the dependency-independent P7 Release Foundation sequence.
+manual-validation workflow regression fix is merged through PR #59, PR #60 activated
+the dependency-independent P7 Release Foundation sequence, and PR #61 completed the
+P7-A PyInstaller `onedir` foundation with owner Windows artifact evidence.
 
 P5-G remains **deferred** until the real external GPU server and SMB environment are
 available:
@@ -28,12 +29,16 @@ Authoritative active plan:
 P7-0 packaging audit:
 [`p7-packaging-audit.md`](p7-packaging-audit.md).
 
-Current implementation slice: **P7-A — PyInstaller onedir foundation**.
-The implementation branch establishes the canonical version authority, pinned release
-tooling, PyInstaller 5.7 windowed `onedir` spec, deterministic build/output paths,
-structural artifact validator, and external packaged-executable smoke harness.
-Repository/source-level review can proceed independently, but P7-A cannot be closed
-until the Windows artifact build/validation evidence is actually observed.
+P7-B distribution audit:
+[`p7-distribution-audit.md`](p7-distribution-audit.md).
+
+Current implementation slice: **P7-B — Portable ZIP & Inno Setup**.
+The implementation branch consumes the validated P7-A `dist/PixelScope/` tree to
+produce a deterministic portable ZIP and a per-user/no-admin Inno Setup installer.
+Both distribution forms share the same version-derived naming, SHA-256 payload
+manifest, and generated third-party notice payload. P7-B closes only after owner
+Windows evidence covers portable ZIP smoke and installer compile/install/run/uninstall
+smoke.
 
 Current execution order:
 

@@ -1,0 +1,176 @@
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.build_third_party_notices import write_third_party_notices  # noqa: E402
+from scripts.distribution_contract import (  # noqa: E402
+    RELEASE_ROOT,
+    installer_path,
+    release_stem,
+    write_payload_manifest,
+)
+from scripts.release_contract import (  # noqa: E402
+    APP_DIR,
+    REPO_ROOT,
+    release_version,
+    windows_version_tuple,
+)
+from scripts.validate_release_artifact import validate_artifact  # noqa: E402
+
+INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
+PRODUCTION_APP_ID = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
+SMOKE_APP_ID = "PixelScope.P7B.Smoke"
+_SUPPORTED_INNO_MAJORS = frozenset({6, 7})
+
+
+def smoke_installer_path(version: str | None = None) -> Path:
+    return RELEASE_ROOT / f"{release_stem(version)}-smoke-setup.exe"
+
+
+def _candidate_iscc_paths() -> tuple[Path, ...]:
+    candidates: list[Path] = []
+    env_path = os.environ.get("ISCC_PATH")
+    if env_path:
+        candidates.append(Path(env_path))
+    path_hit = shutil.which("ISCC.exe") or shutil.which("iscc")
+    if path_hit:
+        candidates.append(Path(path_hit))
+    for env_name in ("ProgramFiles(x86)", "ProgramFiles"):
+        root = os.environ.get(env_name)
+        if not root:
+            continue
+        for major in sorted(_SUPPORTED_INNO_MAJORS, reverse=True):
+            candidates.append(Path(root) / f"Inno Setup {major}" / "ISCC.exe")
+    return tuple(candidates)
+
+
+def find_iscc(explicit: Path | None = None) -> Path:
+    candidates = (explicit,) if explicit is not None else _candidate_iscc_paths()
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        resolved = candidate.expanduser().resolve()
+        if resolved.is_file():
+            return resolved
+    raise FileNotFoundError(
+        "Inno Setup ISCC.exe was not found; pass --iscc, set ISCC_PATH, "
+        "or install a supported Inno Setup compiler"
+    )
+
+
+def inno_major_version(iscc: Path) -> int:
+    result = subprocess.run(
+        [str(iscc), "/?"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+    )
+    text = f"{result.stdout}\n{result.stderr}"
+    match = re.search(r"Inno Setup\s+(\d+)\s+Command-Line Compiler", text, re.IGNORECASE)
+    if match is None:
+        raise RuntimeError(
+            f"Unable to identify Inno Setup Command-Line Compiler from {iscc}"
+        )
+    return int(match.group(1))
+
+
+def validate_iscc(iscc: Path) -> None:
+    major = inno_major_version(iscc)
+    if major not in _SUPPORTED_INNO_MAJORS:
+        supported = ", ".join(str(value) for value in sorted(_SUPPORTED_INNO_MAJORS))
+        raise RuntimeError(
+            f"P7-B accepts Inno Setup major {supported} for compiler discovery; "
+            f"found major {major}. The canonical .iss enforces the exact >=6.1,<8 range."
+        )
+
+
+def _ispp_define(name: str, value: str) -> str:
+    if '"' in value or "\n" in value or "\r" in value:
+        raise ValueError(f"Unsafe Inno Setup define value for {name}")
+    return f"-d{name}={value}"
+
+
+def installer_command(
+    iscc: Path,
+    *,
+    app_id: str | None = None,
+    smoke_build: bool = False,
+) -> list[str]:
+    version = release_version()
+    version_parts = windows_version_tuple(version)
+    file_version = ".".join(str(part) for part in version_parts)
+    command = [
+        str(iscc),
+        "/Qp",
+        _ispp_define("AppVersion", version),
+        _ispp_define("AppFileVersion", file_version),
+        _ispp_define("AppVersionMajor", str(version_parts[0])),
+        _ispp_define("AppVersionMinor", str(version_parts[1])),
+        _ispp_define("AppVersionRevision", str(version_parts[2])),
+        _ispp_define("AppVersionBuild", str(version_parts[3])),
+    ]
+    if app_id is not None:
+        command.append(_ispp_define("AppIdValue", app_id))
+    if smoke_build:
+        command.append(_ispp_define("SmokeBuild", "1"))
+    command.append(str(INNO_SCRIPT.resolve()))
+    return command
+
+
+def build_installer_release(
+    iscc: Path | None = None,
+    *,
+    app_id: str | None = None,
+    smoke_build: bool = False,
+) -> Path:
+    if sys.platform != "win32":
+        raise RuntimeError("P7-B installer compilation is supported only on Windows")
+    if smoke_build and app_id is None:
+        raise ValueError("Smoke installer builds require a disposable AppId override")
+
+    validate_artifact(APP_DIR)
+    compiler = find_iscc(iscc)
+    validate_iscc(compiler)
+    RELEASE_ROOT.mkdir(parents=True, exist_ok=True)
+    write_payload_manifest(APP_DIR)
+    write_third_party_notices()
+
+    output = smoke_installer_path() if smoke_build else installer_path()
+    output.unlink(missing_ok=True)
+    subprocess.run(
+        installer_command(compiler, app_id=app_id, smoke_build=smoke_build),
+        cwd=REPO_ROOT,
+        check=True,
+    )
+    if not output.is_file() or output.stat().st_size == 0:
+        raise RuntimeError(f"Inno Setup did not produce the expected installer: {output}")
+    return output
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build the PixelScope Inno Setup installer")
+    parser.add_argument(
+        "--iscc",
+        type=Path,
+        default=None,
+        help="path to ISCC.exe (otherwise ISCC_PATH/PATH/common install paths)",
+    )
+    args = parser.parse_args()
+    output = build_installer_release(args.iscc)
+    print(f"PixelScope installer written: {output}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
