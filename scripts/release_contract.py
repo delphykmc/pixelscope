@@ -17,6 +17,8 @@ DIST_ROOT: Final = REPO_ROOT / "dist"
 APP_DIR: Final = DIST_ROOT / "PixelScope"
 EXECUTABLE_PATH: Final = APP_DIR / "PixelScope.exe"
 VERSION_SOURCE: Final = SOURCE_ROOT / "pixelscope" / "version.py"
+RELEASE_NOTES_ROOT: Final = REPO_ROOT / "docs" / "releases"
+SOURCE_COMMIT_MARKER: Final = "{{SOURCE_COMMIT}}"
 EXPECTED_PYINSTALLER_VERSIONS: Final = frozenset({"5.7", "5.7.0"})
 MIN_RELEASE_PYTHON: Final = (3, 10, 8)
 MAX_RELEASE_PYTHON_EXCLUSIVE: Final = (3, 11, 0)
@@ -30,6 +32,39 @@ def release_version() -> str:
     if not isinstance(version, str) or not version.strip():
         raise RuntimeError(f"Invalid release version in {VERSION_SOURCE}")
     return version.strip()
+
+
+def release_note_source(version: str | None = None) -> Path:
+    """Return the one dated durable release-note source for a release version."""
+
+    value = version or release_version()
+    matches = sorted(RELEASE_NOTES_ROOT.glob(f"*-v{value}.md"))
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"Expected exactly one dated release-note source for v{value}; found {matches}"
+        )
+    return matches[0]
+
+
+def render_release_note_text(source: Path, *, commit: str) -> str:
+    """Render the exact source commit into a durable release-note source."""
+
+    text = source.read_text(encoding="utf-8")
+    if SOURCE_COMMIT_MARKER not in text:
+        raise RuntimeError(f"Release-note source is missing {SOURCE_COMMIT_MARKER}: {source}")
+    rendered = text.replace(SOURCE_COMMIT_MARKER, commit)
+    if SOURCE_COMMIT_MARKER in rendered:
+        raise RuntimeError("Release-note source commit marker was not fully rendered")
+    return rendered
+
+
+def render_release_notes(source: Path, destination: Path, *, commit: str) -> None:
+    """Write release notes rendered from the canonical durable source."""
+
+    destination.write_text(
+        render_release_note_text(source, commit=commit),
+        encoding="utf-8",
+    )
 
 
 def windows_version_tuple(version: str | None = None) -> tuple[int, int, int, int]:
