@@ -1,26 +1,17 @@
 from __future__ import annotations
 
-from pixelscope.remote.iqa_client import IqaClientError, IqaClientErrorKind, IqaJobClient
-from pixelscope.remote.iqa_submission import (
-    IqaJobCreated,
-    IqaJobRequest,
-    IqaJobStatus,
-    IqaResultReference,
-    JobState,
-    PortableSourceRequest,
-    SceneRequest,
-)
-from scripts.p5g_iqa_preflight import run_p5g_preflight_validation
+from pixelscope.remote import iqa_client, iqa_submission
+from scripts import p5g_iqa_preflight
 
 
-class _PreflightClient(IqaJobClient):
+class _PreflightClient(iqa_client.IqaJobClient):
     def __init__(
         self,
-        status_states: list[JobState],
+        status_states: list[iqa_submission.JobState],
         *,
-        cancel_state: JobState = JobState.CANCELLED,
+        cancel_state: iqa_submission.JobState = iqa_submission.JobState.CANCELLED,
         result_status: int = 409,
-        published_result: IqaResultReference | None = None,
+        published_result: iqa_submission.IqaResultReference | None = None,
     ) -> None:
         self.status_states = list(status_states)
         self.cancel_state = cancel_state
@@ -31,63 +22,87 @@ class _PreflightClient(IqaJobClient):
         self.cancel_calls = 0
         self.result_calls = 0
 
-    def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
+    def create_job(
+        self,
+        request: iqa_submission.IqaJobRequest,
+    ) -> iqa_submission.IqaJobCreated:
         self.create_calls += 1
-        return IqaJobCreated("job-1", JobState.QUEUED)
+        return iqa_submission.IqaJobCreated("job-1", iqa_submission.JobState.QUEUED)
 
-    def get_status(self, job_id: str) -> IqaJobStatus:
+    def get_status(self, job_id: str) -> iqa_submission.IqaJobStatus:
         self.status_calls += 1
         state = self.status_states.pop(0)
-        return IqaJobStatus(job_id, state, 0, 1, "preflight source verification passed")
+        return iqa_submission.IqaJobStatus(
+            job_id,
+            state,
+            0,
+            1,
+            "preflight source verification passed",
+        )
 
-    def get_result(self, job_id: str) -> IqaResultReference:
+    def get_result(self, job_id: str) -> iqa_submission.IqaResultReference:
         self.result_calls += 1
         if self.published_result is not None:
             return self.published_result
-        raise IqaClientError(
-            IqaClientErrorKind.HTTP,
+        raise iqa_client.IqaClientError(
+            iqa_client.IqaClientErrorKind.HTTP,
             f"HTTP {self.result_status}",
             status_code=self.result_status,
         )
 
-    def cancel_job(self, job_id: str) -> IqaJobStatus:
+    def cancel_job(self, job_id: str) -> iqa_submission.IqaJobStatus:
         self.cancel_calls += 1
-        return IqaJobStatus(job_id, self.cancel_state, 0, 1, "cancel observed")
+        return iqa_submission.IqaJobStatus(
+            job_id,
+            self.cancel_state,
+            0,
+            1,
+            "cancel observed",
+        )
 
 
-def _request(relative_path: str = "project/A/image.png") -> IqaJobRequest:
-    source_a = PortableSourceRequest(
+def _request(relative_path: str = "project/A/image.png") -> iqa_submission.IqaJobRequest:
+    source_a = iqa_submission.PortableSourceRequest(
         "iqadata",
         relative_path,
         "a" * 64,
         1920,
         1080,
     )
-    source_b = PortableSourceRequest(
+    source_b = iqa_submission.PortableSourceRequest(
         "iqadata",
         "project/B/image.png",
         "b" * 64,
         1920,
         1080,
     )
-    return IqaJobRequest(
+    return iqa_submission.IqaJobRequest(
         "current_pair",
         ("A", "B"),
-        (SceneRequest("scene_000000", (("A", source_a), ("B", source_b))),),
+        (
+            iqa_submission.SceneRequest(
+                "scene_000000",
+                (("A", source_a), ("B", source_b)),
+            ),
+        ),
     )
 
 
-def _check_status(report: object, name: str) -> str:
-    checks = getattr(report, "checks")
-    return next(check.status for check in checks if check.name == name)
+def _check_status(report: p5g_iqa_preflight.P5gPreflightReport, name: str) -> str:
+    return next(check.status for check in report.checks if check.name == name)
 
 
 def test_failed_preflight_requires_stable_terminal_and_unpublished_result() -> None:
     client = _PreflightClient(
-        [JobState.PREPARING, JobState.FAILED, JobState.FAILED, JobState.FAILED]
+        [
+            iqa_submission.JobState.PREPARING,
+            iqa_submission.JobState.FAILED,
+            iqa_submission.JobState.FAILED,
+            iqa_submission.JobState.FAILED,
+        ]
     )
 
-    report = run_p5g_preflight_validation(
+    report = p5g_iqa_preflight.run_p5g_preflight_validation(
         client,
         _request(),
         mode="failed",
@@ -112,11 +127,19 @@ def test_failed_preflight_requires_stable_terminal_and_unpublished_result() -> N
 
 def test_cancel_preflight_accepts_cancelled_and_rechecks_terminal_state() -> None:
     client = _PreflightClient(
-        [JobState.PREPARING, JobState.CANCELLED, JobState.CANCELLED],
-        cancel_state=JobState.CANCELLED,
+        [
+            iqa_submission.JobState.PREPARING,
+            iqa_submission.JobState.CANCELLED,
+            iqa_submission.JobState.CANCELLED,
+        ],
+        cancel_state=iqa_submission.JobState.CANCELLED,
     )
 
-    report = run_p5g_preflight_validation(client, _request(), mode="cancel")
+    report = p5g_iqa_preflight.run_p5g_preflight_validation(
+        client,
+        _request(),
+        mode="cancel",
+    )
 
     assert report.passed
     assert report.terminal_state == "cancelled"
@@ -127,7 +150,7 @@ def test_cancel_preflight_accepts_cancelled_and_rechecks_terminal_state() -> Non
 
 
 def test_preflight_rejects_result_publication_for_failed_job() -> None:
-    reference = IqaResultReference(
+    reference = iqa_submission.IqaResultReference(
         "job-1",
         "iqadata",
         "results/job-1",
@@ -135,11 +158,19 @@ def test_preflight_rejects_result_publication_for_failed_job() -> None:
         "complete",
     )
     client = _PreflightClient(
-        [JobState.FAILED, JobState.FAILED, JobState.FAILED],
+        [
+            iqa_submission.JobState.FAILED,
+            iqa_submission.JobState.FAILED,
+            iqa_submission.JobState.FAILED,
+        ],
         published_result=reference,
     )
 
-    report = run_p5g_preflight_validation(client, _request(), mode="failed")
+    report = p5g_iqa_preflight.run_p5g_preflight_validation(
+        client,
+        _request(),
+        mode="failed",
+    )
 
     assert not report.passed
     assert report.result.fetch_attempted
@@ -152,10 +183,18 @@ def test_preflight_rejects_result_publication_for_failed_job() -> None:
 
 def test_preflight_rejects_terminal_state_that_is_not_stable() -> None:
     client = _PreflightClient(
-        [JobState.FAILED, JobState.PREPARING, JobState.FAILED],
+        [
+            iqa_submission.JobState.FAILED,
+            iqa_submission.JobState.PREPARING,
+            iqa_submission.JobState.FAILED,
+        ],
     )
 
-    report = run_p5g_preflight_validation(client, _request(), mode="failed")
+    report = p5g_iqa_preflight.run_p5g_preflight_validation(
+        client,
+        _request(),
+        mode="failed",
+    )
 
     assert not report.passed
     assert report.terminal_state == "failed"
@@ -166,7 +205,7 @@ def test_preflight_rejects_terminal_state_that_is_not_stable() -> None:
 def test_preflight_rejects_nonportable_request_before_create() -> None:
     client = _PreflightClient([])
 
-    report = run_p5g_preflight_validation(
+    report = p5g_iqa_preflight.run_p5g_preflight_validation(
         client,
         _request("../outside/image.png"),
         mode="failed",
