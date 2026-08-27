@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import shutil
@@ -18,9 +17,30 @@ from scripts.build_installer_release import (  # noqa: E402
     inno_major_version,
     validate_iscc,
 )
-from scripts.distribution_contract import RELEASE_ROOT, release_stem  # noqa: E402
-from scripts.release_contract import REPO_ROOT, release_version  # noqa: E402
+from scripts.distribution_contract import (  # noqa: E402
+    RELEASE_ROOT,
+    release_stem,
+    sha256_file,
+)
+from scripts.release_candidate_contract import (  # noqa: E402
+    CANDIDATE_PROVENANCE_NAME,
+    build_candidate_provenance,
+)
+from scripts.release_contract import (  # noqa: E402
+    REPO_ROOT,
+    release_note_source,
+    release_version,
+    render_release_notes,
+)
 from scripts.validate_release_bundle import validate_release_bundle  # noqa: E402
+
+# Preserve the existing P7-C test/private-call seams while keeping shared helpers.
+_sha256 = sha256_file
+_render_release_notes = render_release_notes
+
+
+def _release_note_source(version: str) -> Path:
+    return release_note_source(version, root=REPO_ROOT / "docs" / "releases")
 
 
 def _run(command: list[str], *, env: dict[str, str] | None = None) -> None:
@@ -39,14 +59,6 @@ def _capture(command: list[str], *, env: dict[str, str] | None = None) -> str:
         check=True,
     )
     return result.stdout.strip() or result.stderr.strip()
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _resolve_python(path: Path, *, label: str) -> Path:
@@ -69,27 +81,6 @@ def _require_clean_worktree() -> None:
         )
 
 
-def _release_note_source(version: str) -> Path:
-    releases_dir = REPO_ROOT / "docs" / "releases"
-    matches = sorted(releases_dir.glob(f"*-v{version}.md"))
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"Expected exactly one dated release-note source for v{version}; found {matches}"
-        )
-    return matches[0]
-
-
-def _render_release_notes(source: Path, destination: Path, *, commit: str) -> None:
-    text = source.read_text(encoding="utf-8")
-    marker = "{{SOURCE_COMMIT}}"
-    if marker not in text:
-        raise RuntimeError(f"Release-note source is missing {marker}: {source}")
-    rendered = text.replace(marker, commit)
-    if marker in rendered:
-        raise RuntimeError("Release-note source commit marker was not fully rendered")
-    destination.write_text(rendered, encoding="utf-8")
-
-
 def _run_repository_validation(dev_python: Path) -> None:
     _run([str(dev_python), "scripts/check_docs.py"])
     _run(
@@ -99,6 +90,7 @@ def _run_repository_validation(dev_python: Path) -> None:
             "pytest",
             "-q",
             "tests/unit/test_release_candidate.py",
+            "tests/unit/test_release_candidate_provenance.py",
             "tests/unit/test_release_distribution.py",
         ]
     )
@@ -157,25 +149,24 @@ def _stage_candidate(
 
     notes_source = _release_note_source(version)
     _render_release_notes(notes_source, stage_root / "RELEASE_NOTES.md", commit=commit)
+    release_note_identity = notes_source.relative_to(REPO_ROOT).as_posix()
 
-    provenance = {
-        "schema_version": 1,
-        "product": "PixelScope",
-        "version": version,
-        "source_commit": commit,
-        "built_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-        "release_python_executable": release_python.name,
-        "release_python_version": _capture([str(release_python), "--version"]),
-        "pyinstaller_version": _capture(
+    provenance = build_candidate_provenance(
+        version=version,
+        source_commit=commit,
+        built_at_utc=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        release_python_executable=release_python.name,
+        release_python_version=_capture([str(release_python), "--version"]),
+        pyinstaller_version=_capture(
             [str(release_python), "-m", "PyInstaller", "--version"]
         ),
-        "inno_compiler_executable": compiler.name,
-        "inno_compiler_major": inno_major_version(compiler),
-        "inno_compiler_sha256": _sha256(compiler),
-        "release_note_source": notes_source.relative_to(REPO_ROOT).as_posix(),
-        "artifacts": staged_artifacts,
-    }
-    (stage_root / "release-provenance.json").write_text(
+        inno_compiler_executable=compiler.name,
+        inno_compiler_major=inno_major_version(compiler),
+        inno_compiler_sha256=_sha256(compiler),
+        release_note_source=release_note_identity,
+        artifacts=staged_artifacts,
+    )
+    (stage_root / CANDIDATE_PROVENANCE_NAME).write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )

@@ -15,7 +15,7 @@ knowledge belongs in focused documents under `docs/`.
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
 | Branding/application identity | `BRANDING.md`, `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Product mark, canonical assets, resource loading, or release-icon use changes |
-| Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Runtime, dependency, installer, or resource-loading constraints change |
+| Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Runtime, dependency, installer, release metadata, publication, or resource-loading constraints change |
 | Test/validation | `QUALITY.md` | Required checks, fixtures, smoke paths, or evidence standards change |
 | Agent-assisted workflow | `AGENT_HARNESS_NOTES.md` | A durable harness lesson or guardrail changes |
 
@@ -45,7 +45,8 @@ knowledge belongs in focused documents under `docs/`.
   contract.
 - `BRANDING.md`: canonical application identity, asset roles, visual constraints,
   supported icon sizes, and release-tool consumption rules.
-- `PACKAGING_CONSTRAINTS.md`: deployment environment and fixed packaging rules.
+- `PACKAGING_CONSTRAINTS.md`: deployment environment, fixed packaging rules, release
+  candidate/provenance lineage, and publication-boundary constraints.
 - `USER_GUIDE.md`: end-user workflows, including Remote IQA configuration,
   submission, Jobs, explicit Open Result, and result exploration.
 - `QUALITY.md`: change-to-check matrix and completion evidence.
@@ -53,7 +54,13 @@ knowledge belongs in focused documents under `docs/`.
 - `ui/implementation_status.md`: detailed UI iteration audit.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
 - [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): required current
-  pointer; no repository implementation program is active after R closeout.
+  pointer; P7-D Stage 1 Release Metadata & Manual Publication Foundation is active
+  while P5-G and P6 production integration remain externally gated.
+- [`exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md):
+  active P7 foundation sequence, including the P7-D Stage 1/Stage 2 boundary.
+- [`exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md):
+  current P7-D Stage 1 publication metadata, provenance, tag/manual-publication, and
+  provider-neutral update-discovery separation contract.
 - [`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md):
   retained R0–R7 plan, findings, validation, review, and closeout evidence.
 - [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md):

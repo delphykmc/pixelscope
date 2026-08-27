@@ -50,7 +50,9 @@ def installer_path(version: str | None = None) -> Path:
     return RELEASE_ROOT / f"{release_stem(version)}-setup.exe"
 
 
-def _sha256(path: Path) -> str:
+def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest for a release/distribution file."""
+
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -78,7 +80,7 @@ def build_payload_manifest(
         {
             "path": path.relative_to(root).as_posix(),
             "size": path.stat().st_size,
-            "sha256": _sha256(path),
+            "sha256": sha256_file(path),
         }
         for path in _payload_files(root)
     ]
@@ -187,5 +189,5 @@ def validate_payload_manifest(
         path = root / Path(*PurePosixPath(relative).parts)
         if path.stat().st_size != expected_size:
             raise DistributionValidationError(f"payload size mismatch: {relative}")
-        if _sha256(path).casefold() != expected_digest:
+        if sha256_file(path).casefold() != expected_digest:
             raise DistributionValidationError(f"payload SHA-256 mismatch: {relative}")

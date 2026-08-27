@@ -1,7 +1,8 @@
 # P7-C Owner-local Release Candidate Audit
 
-Status: Complete for repository-owned assumptions
+Status: Complete — PR #63
 Audited base: `main@10294295f57a051b00ba205016c5318b6764ee66`
+Merged as: `f3b1437b478e119c425dbf00d627b37f0371889e`
 
 P7-B is merged through PR #62. The repository has a validated Windows x64 PyInstaller
 5.7 `onedir` build, deterministic portable ZIP, per-user Inno Setup installer, payload
@@ -43,7 +44,7 @@ failure mode.
 
 ## Canonical candidate flow
 
-The intended operational sequence is:
+The operational sequence established by P7-C is:
 
 ```text
 Issue / implementation
@@ -65,7 +66,7 @@ Issue / implementation
     → authorized user manually publishes approved artifacts
 ```
 
-P7-C therefore establishes the candidate machinery before merge, but authoritative
+P7-C therefore establishes the candidate machinery before merge, while authoritative
 candidate evidence is produced only when the owner explicitly runs it on the selected
 merged source commit.
 
@@ -135,9 +136,8 @@ separate deferred cleanup item and is not silently relabeled as PASS by P7-C.
 
 ## Strict production bundle
 
-`scripts/validate_release_bundle.py` is the generalized P7-C form of the useful bundle
-validation originally prototyped for CI. It requires the generated `release/` root to
-contain exactly the current-version production file set:
+`scripts/validate_release_bundle.py` requires the generated `release/` root to contain
+exactly the current-version production file set:
 
 ```text
 PixelScope-<version>-windows-x64.manifest.json
@@ -149,6 +149,9 @@ PixelScope-<version>-windows-x64-setup.exe
 It rejects missing, extra, or empty files, rejects a disposable
 `*-smoke-setup.exe`, and revalidates the payload manifest against the canonical
 `dist/PixelScope/` tree.
+
+P7-D Stage 1 consumes this contract. It must not weaken or redefine the four-file
+production bundle merely to add publication metadata.
 
 ## Candidate provenance and release-note staging
 
@@ -168,18 +171,28 @@ The staging directory contains the four validated production artifacts plus:
 - `RELEASE_NOTES.md` — rendered from the repository's dated/versioned release-note
   source with the exact source commit substituted.
 
-Focused regression coverage directly verifies that candidate staging replaces stale
-same-version contents, copies only the four validated production artifacts, preserves
-artifact bytes/sizes/SHA-256 values, renders the selected source commit without leaving
-a `{{SOURCE_COMMIT}}` marker, records the expected Python/PyInstaller/Inno identities,
-and does not persist local absolute Python/Inno paths.
+`scripts/release_candidate_contract.py` is the shared executable provenance schema
+authority. `build_release_candidate.py` uses it when writing the candidate and P7-D uses
+the same validator before copying candidate provenance into publication staging. The
+current field set is exact: missing or unknown fields are rejected; executable identity
+fields are basenames rather than local paths; `release_note_source` is a repository-
+relative POSIX path; Git and SHA-256 identities are canonical; and the artifact map must
+exactly match the staged production files.
+
+Focused regression coverage verifies that candidate staging replaces stale same-version
+contents, copies only the four validated production artifacts, preserves artifact bytes/
+sizes/SHA-256 values, renders the selected source commit without leaving a
+`{{SOURCE_COMMIT}}` marker, records the expected Python/PyInstaller/Inno identities,
+does not persist local absolute Python/Inno paths, and satisfies the shared provenance
+validator.
 
 The durable source for the current `0.1.0` candidate is
 `docs/releases/2026-08-26-v0.1.0.md`.
 
-P7-D owns the longer-term metadata/tag/manual-publication/update-provider contract. P7-C
-only ensures a candidate can carry exact source provenance and a publication-ready note
-source without publishing anything.
+P7-D Stage 1 owns the next provider-neutral metadata/tag/manual-publication validation
+layer. Notification-only update discovery/integration is separately deferred to P7-D
+Stage 2 until the relevant provider/access and, where applicable, P6 authentication
+contracts are authoritative.
 
 ## Corporate publication boundary
 
@@ -197,27 +210,35 @@ repository automation boundary.
 
 ## P7-C exit evidence
 
-Repository implementation review should prove the owner-local pipeline and contracts
-are correct. Before this PR can be merged, the owner should run applicable repository
-and release-tooling validation on the branch.
+The implementation branch closed its repository implementation/review/owner-validation
+gates and merged as PR #63. That merge proves the release-candidate machinery and
+contracts on its reviewed head.
 
-A production release candidate itself is intentionally created only after merge and an
-explicit owner release decision. For a selected merged source commit, P7-C candidate
-PASS requires `scripts/build_release_candidate.py` to complete successfully and produce
-the staged artifacts, rendered release notes, and provenance described above.
+A production release candidate itself remains source-commit-specific evidence. For a
+selected merged source commit, candidate PASS still requires
+`scripts/build_release_candidate.py` to complete successfully and produce the staged
+artifacts, rendered release notes, and provenance described above. No previous
+candidate PASS is carried to a changed source HEAD.
 
 No GitHub-hosted or self-hosted workflow PASS is a P7-C exit criterion.
 
 ## Remaining release sequence
 
 ```text
-P7-C owner-local release-candidate foundation
-    → P7-D metadata / manual publication / notification-only update foundation
-    → P5-G external GPU/SMB validation when environment is available
-    → P6 Identity & Access / SSO implementation
-    → P7-E final packaged-product qualification
+P7-C Owner-local Release Candidate                 COMPLETE — PR #63
+    ↓
+P7-D Stage 1 Release Metadata & Manual Publication ACTIVE
+    ↓
+P5-G External GPU/SMB Validation                   DEFERRED
+    ↓
+P6 Identity & Access / SSO                         PLANNED / production integration gated
+    ↓
+P7-D Stage 2 Notification-only Update Discovery    DEFERRED — provider/access authority pending
+    ↓
+P7-E Final packaged-product qualification          DEFERRED
 ```
 
-P7-E does not implement SSO. P6 owns Identity & Access. P7-E only verifies the
-already-implemented P6 behavior, P5-G real-environment behavior, and final
-install/upgrade/uninstall/signing policy in the packaged product.
+P7-E does not implement SSO. P6 owns Identity & Access. P7-D Stage 2 owns any later
+selected notification-only update-discovery/integration behavior. P7-E only verifies
+the already-implemented P6 behavior, P5-G real-environment behavior, any selected Stage
+2 behavior, and final install/upgrade/uninstall/signing policy in the packaged product.

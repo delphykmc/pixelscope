@@ -14,6 +14,7 @@ from scripts.distribution_contract import (
     release_stem,
     write_payload_manifest,
 )
+from scripts.release_candidate_contract import validate_candidate_provenance
 from scripts.validate_release_bundle import ReleaseBundleError, validate_release_bundle
 
 
@@ -101,7 +102,7 @@ def test_stage_candidate_copies_exact_artifacts_and_records_safe_provenance(
     tmp_path: Path,
 ) -> None:
     version = "1.2.3"
-    commit = "abc123def456"
+    commit = "a" * 40
     repo_root = tmp_path / "repo"
     release_root = repo_root / "release"
     source_root = tmp_path / "validated"
@@ -181,13 +182,25 @@ def test_stage_candidate_copies_exact_artifacts_and_records_safe_provenance(
     assert provenance["inno_compiler_sha256"] == hashlib.sha256(
         b"inno-compiler"
     ).hexdigest()
-    assert provenance["release_note_source"] == "docs/releases/2026-08-26-v1.2.3.md"
+    release_note_identity = "docs/releases/2026-08-26-v1.2.3.md"
+    assert provenance["release_note_source"] == release_note_identity
 
-    for name, payload in artifact_payloads.items():
-        assert provenance["artifacts"][name] == {
+    expected_artifacts = {
+        name: {
             "size": len(payload),
             "sha256": hashlib.sha256(payload).hexdigest(),
         }
+        for name, payload in artifact_payloads.items()
+    }
+    for name, expected in expected_artifacts.items():
+        assert provenance["artifacts"][name] == expected
+
+    assert validate_candidate_provenance(
+        provenance,
+        expected_version=version,
+        expected_release_note_source=release_note_identity,
+        expected_artifacts=expected_artifacts,
+    ) == provenance
 
     assert str(release_python) not in provenance_text
     assert str(compiler) not in provenance_text

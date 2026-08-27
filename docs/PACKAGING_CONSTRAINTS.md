@@ -10,15 +10,17 @@
   set is pinned rather than resolved to arbitrary future releases.
 - The release version authority is
   `src/pixelscope/version.py::__version__`. Python package metadata, executable
-  metadata, ZIP/installer names, and later tag/update metadata must derive from it.
+  metadata, ZIP/installer names, release tag/title, candidate provenance, and
+  publication metadata must derive from it.
 - The canonical PyInstaller spec is `packaging/pixelscope.spec` and reuses
   `src/pixelscope/__main__.py`, which delegates to the existing
   `pixelscope.app.application.main` composition root. Do not add a second application
   bootstrap for packaging.
 - Canonical generated paths are `build/pyinstaller/` for PyInstaller work files,
   `build/release/` for generated executable metadata, `dist/PixelScope/` for the
-  validated `onedir` tree, and ignored `release/` for distribution/candidate artifacts.
-  Generated release output must not be written into `src/pixelscope/`.
+  validated `onedir` tree, and ignored `release/` for distribution/candidate/publication
+  staging artifacts. Generated release output must not be written into
+  `src/pixelscope/`.
 - `scripts/build_release.py` is the canonical Windows executable build entry. It
   rejects non-Windows, non-x64, Python outside `>=3.10.8,<3.11`, and PyInstaller
   versions other than 5.7; it generates executable version metadata, runs the spec,
@@ -228,10 +230,15 @@ release/candidate/PixelScope-<version>-windows-x64/
 ```
 
 with the four validated production artifacts plus `release-provenance.json` and a
-rendered `RELEASE_NOTES.md`. Provenance records the canonical version, exact source
-commit, build timestamp, release Python executable name/version, PyInstaller version,
-actual Inno compiler executable name/major/SHA-256, release-note source, and artifact
-SHA-256 inventory without local absolute machine paths.
+rendered `RELEASE_NOTES.md`. `scripts/release_candidate_contract.py` is the executable
+P7-C provenance authority. Candidate writing and P7-D reading use the same exact schema:
+all current fields are required, unknown fields are rejected, tool executable identities
+are basenames rather than local paths, `release_note_source` is repository-relative,
+Git/SHA-256 identities are canonical, and the artifact map must exactly match the staged
+production files. Provenance records the canonical version, exact source commit, build
+timestamp, release Python executable name/version, PyInstaller version, actual Inno
+compiler executable name/major/SHA-256, release-note source, and artifact SHA-256
+inventory without local absolute machine paths.
 
 The durable current release-note source is
 `docs/releases/2026-08-26-v0.1.0.md`; the candidate command renders the exact source
@@ -241,3 +248,77 @@ Repository automation stops at candidate preparation. Production GitHub Release 
 restricted-folder transfer/publication, and signing credentials are beyond this
 automation authority and require an authorized human procedure. Manual authorized
 publication is a supported production path, not a fallback failure.
+
+## P7-D Stage 1 Release Metadata & Manual Publication Foundation
+
+P7-D Stage 1 consumes the canonical P7-C candidate. It does **not** rebuild the
+application, redefine the strict four-file P7-C production bundle, or re-specify the
+candidate provenance schema.
+
+Provider-neutral publication staging is prepared under:
+
+```text
+release/publication/PixelScope-<version>-windows-x64/
+```
+
+It contains exact copies of the candidate's four production artifacts,
+`RELEASE_NOTES.md`, `release-provenance.json`, plus
+`release-publication.json`. The publication metadata derives from the same canonical
+version and records only provider-neutral identity/provenance: product, target, version,
+`v<version>` release tag, `PixelScope v<version>` release title, exact source commit,
+release-note identity/hash, candidate-provenance identity/hash, and exact production
+artifact sizes/SHA-256 values.
+
+The canonical commands are:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\prepare_release_publication.py
+.\.venv\Scripts\python.exe scripts\validate_release_publication.py
+```
+
+Immediately before authorized publication, after the canonical tag exists locally, the
+exact local tag/source relationship may also be checked without creating or pushing a
+tag:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\validate_release_publication.py --require-tag
+```
+
+The tag contract is `v<canonical-version>` and it must resolve to the exact
+`source_commit` recorded by candidate provenance. Repository tooling validates but does
+not create/push the production tag.
+
+Publication preparation requires the current checkout commit to equal candidate
+provenance, replaces stale same-version publication staging, and validates exact copies
+and metadata hashes. It never creates a GitHub Enterprise Release, uploads assets,
+transfers restricted files, uses credentials, or performs signing.
+
+Publication metadata and copied candidate provenance must not contain credentials,
+access tokens, browser cookies, local absolute tool paths, corporate secrets, or an
+unnecessary hard-coded corporate GitHub host/repository URL. The exact shared P7-C
+provenance schema prevents arbitrary extra/private fields from crossing through the
+copied `release-provenance.json`.
+
+Actual corporate GitHub Enterprise Release creation and approved asset upload remain an
+authorized human action across the corporate security boundary. After publication, the
+authorized procedure must verify that the remote corporate release/tag resolves to the
+same exact candidate provenance `source_commit`, then verify uploaded asset filename/
+hash identity and release visibility/access. The local `--require-tag` check does not
+replace this remote-side post-publication verification.
+
+## Notification-only update discovery — deferred P7-D Stage 2
+
+Runtime update discovery is not part of Stage 1. The governing rule is:
+
+> **Update discovery must never initiate authentication.**
+
+Stage 1 does not establish whether the eventual authoritative provider requires
+application authentication. If it does, a future implementation may use only an
+already-established approved P6 capability and otherwise skips discovery silently. If
+an authoritative provider is explicitly usable without application authentication,
+that path remains permitted.
+
+Stage 1 establishes no common-IdP topology and selects no OAuth App, GitHub App, PAT,
+bearer-token reuse, token exchange, browser-cookie reuse, or update metadata provider.
+Those choices remain P6/P7-D Stage 2 work after the relevant provider/access contracts
+are authoritative.
