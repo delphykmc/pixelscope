@@ -1,138 +1,128 @@
-# P5-G Temporary External IQA Server Handoff
+# Temporary PixelScope IQA Preflight Server — Self-contained Implementation Request
 
-Status: **Temporary integration-preflight contract; not production IQA**  
-PixelScope source baseline: `main@70205acdb25099dbe807347df3f8906c62938156`  
-Handoff branch: `handoff/p5g-temporary-server-contract`  
-Audience: engineer / internal GPT building a short-lived server for PixelScope P5-G external connectivity and shared-storage validation
+## 0. Read this first
 
-## 1. Purpose
+You are being asked to **design and write the code for a small temporary HTTP server**.
 
-The real GPU IQA service and schema-v2 result writer are still under development. PixelScope must not wait for the numerical IQA implementation before validating the parts of P5-G that can be observed independently in the real corporate network/server/storage environment.
+Assume you know nothing about PixelScope, its repository, its development phases, or any previous conversations. Everything you need is in this document.
 
-Build a **small temporary external server** that implements the already-frozen PixelScope P5-C job transport contract closely enough to validate:
+You also have **no Git connector, no terminal, and no ability to read or modify local files**. Therefore:
 
-1. Windows PixelScope PC → external server DNS/routing/TCP/HTTP(S) connectivity;
-2. the real `POST create → GET status` job protocol over the external network;
-3. cancellation over the real network;
-4. parsing of the exact current PixelScope request JSON;
-5. server-side resolution of `storage_root_id + relative_path` into the server's mounted shared-storage path;
-6. server read access to submitted image files;
-7. SHA-256 and image-dimension agreement between PixelScope request metadata and the bytes visible to the server.
+- do not say that you created, edited, committed, or tested files;
+- do not ask to inspect a repository;
+- do not ask for earlier PixelScope documents or Phase history;
+- do not depend on files that are not described here;
+- instead, produce the implementation in the normal chat style used when the user must create files manually;
+- show the project tree first;
+- then show the **complete contents of every required file** in separate code blocks;
+- then show dependency-install, run, curl/manual-check, and pytest commands;
+- if a correction is requested later, return the complete replacement content of each changed file rather than an inaccessible patch.
 
-This project is deliberately **not** an IQA implementation. A successful preflight job should normally end in the canonical terminal `failed` state with a bounded message explaining that IQA computation is not implemented. It must not fabricate `succeeded`, `partial`, schema-v2 measurements, or a result artifact merely to make PixelScope appear to pass.
+The output should be directly usable by an engineer who will manually create the files on an internal server.
 
-The evidence produced by this temporary server is **P5-G preflight evidence only**. It must not be recorded as overall P5-G PASS or P5 completion.
+---
 
-## 2. Authoritative PixelScope sources
+# 1. Goal
 
-Do not infer the current API from the historical `server/api_contract.md`; that file is explicitly unsupported history.
+Build a **temporary external preflight server** for a Windows desktop application named PixelScope.
 
-Use these files as authority, in this order:
+PixelScope will eventually submit image pairs to a real GPU-based IQA service. That IQA algorithm does **not** exist in this temporary project.
 
-- `docs/REMOTE_IQA_CONTRACT.md`
-  - durable product/transport/storage ownership;
-  - current `/v1/iqa/jobs` endpoint family;
-  - job states and result-reference rules;
-  - logical shared-storage contract.
-- `src/pixelscope/remote/iqa_submission.py`
-  - exact request JSON produced by the current client;
-  - ordered variants A/B;
-  - 1..512 Scene limits;
-  - deterministic Scene IDs;
-  - source locator/hash/dimension fields.
-- `src/pixelscope/remote/iqa_client.py`
-  - exact response fields accepted by `HttpIqaJobClient`;
-  - status/protocol validation;
-  - HTTP/TLS behavior.
-- `src/pixelscope/remote/iqa_storage.py`
-  - portable POSIX `relative_path` rules;
-  - client-side logical-root semantics.
-- `src/pixelscope/remote/iqa_compatibility_probe.py`
-  - bounded create/status/result/cancel probe semantics.
-- `scripts/p5f_iqa_probe.py`
-  - owner-facing live-server probe command.
-- `docs/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`
-  - P5-F evidence boundary and P5-G live-server characterization plan.
-- `docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`
-  - final P5-G observation matrix and the rule that mock/localhost evidence is not external PASS.
-
-The existing `src/pixelscope/remote/iqa_localhost_server.py` may be read as a **debug/fault-harness example only**. Do not treat its internal design as the required production server architecture.
-
-## 3. Scope boundary
-
-### Required now
-
-The temporary server must provide:
-
-- one externally reachable server process;
-- the canonical P5-C job endpoints;
-- exact request-shape validation for the current two-variant client contract;
-- durable-enough in-process job state for polling during one test session;
-- server-side logical shared-root configuration;
-- contained path resolution;
-- read-only source verification;
-- deterministic `queued → preparing → failed` behavior after successful preflight;
-- a real cancellation path that can end a non-terminal job as `cancelled`;
-- bounded logs/diagnostics sufficient to correlate a PixelScope job with server observations.
-
-### Explicitly not required now
-
-Do **not** implement or fake:
-
-- IQA algorithms, GPU inference, feature extraction, or numerical measurement;
-- schema-v2 `manifest.json`, `summary.npz`, Scene grid NPZs, or detail artifacts;
-- `succeeded` or `partial` jobs;
-- a fake Result reference;
-- Reference switching, Dataset/Scene reductions, spatial IQA grids, or Viewer inspection results;
-- historical Result persistence/reopen;
-- production database/queue/scheduler architecture;
-- P6 SSO, OAuth/OIDC/SAML, token storage, token refresh, permissions, or audit policy;
-- automatic retries beyond the existing client behavior;
-- WebSocket transport;
-- a new PixelScope request field just for this temporary server.
-
-Authentication/SSO is a P6 concern. Do not invent an auth header or login flow for this temporary project. If corporate policy requires access restriction, use an approved environment/network control or other explicitly approved test mechanism without changing the PixelScope P5-C API contract.
-
-## 4. Target topology
-
-Conceptually:
+The purpose of this temporary server is only to prove that the following real integration path works:
 
 ```text
 PixelScope on Windows
-    │
-    │  HTTP(S), canonical /v1/iqa/jobs API
-    ▼
-Temporary external IQA preflight server
-    │
-    │  storage_root_id + relative_path
-    ▼
-Server-side configured shared root
-    │
-    ▼
-Mounted/shared image bytes
+    |
+    | HTTP
+    v
+Temporary preflight server
+    |
+    | storage_root_id + relative_path
+    v
+Server-side shared-storage mount
+    |
+    v
+Actual image bytes
 ```
 
-Client and server physical paths are intentionally different.
+The temporary server must validate:
 
-Example only:
+1. Windows client -> server network connectivity;
+2. exact REST request/response compatibility;
+3. create -> status polling lifecycle;
+4. cancellation;
+5. server-side mapping of a logical storage root;
+6. server read access to the submitted files;
+7. SHA-256 agreement between client metadata and server-visible bytes;
+8. image width/height agreement.
+
+After those checks succeed, the job must deliberately end as `failed` because IQA computation is not implemented.
+
+The server must **not fabricate a successful IQA result** merely to make the client appear to pass.
+
+---
+
+# 2. Required implementation style
+
+Use a small, readable Python project.
+
+Recommended fixed stack:
+
+- Python 3.10 or newer;
+- FastAPI;
+- Uvicorn;
+- Pydantic models through FastAPI;
+- Pillow only for image dimension validation;
+- pytest;
+- httpx/FastAPI TestClient for tests.
+
+Keep the implementation intentionally small. This is a temporary integration server, not production infrastructure.
+
+Do not add:
+
+- database;
+- Redis;
+- Celery;
+- message broker;
+- GPU framework;
+- Docker/Kubernetes requirement;
+- authentication/SSO;
+- WebSocket;
+- production queue architecture.
+
+An in-memory job registry plus a background thread/task is sufficient.
+
+---
+
+# 3. Required project deliverable
+
+Design a compact project approximately like this:
 
 ```text
-portable identity
-    storage_root_id = iqadata
-    relative_path   = project42/A/0001.png
-
-Windows client mapping
-    iqadata -> <CLIENT_SHARED_ROOT>
-
-server mapping
-    iqadata -> <SERVER_SHARED_ROOT>
+pixelscope_iqa_preflight/
+  README.md
+  requirements.txt
+  app/
+    __init__.py
+    main.py
+    models.py
+    settings.py
+    jobs.py
+    storage.py
+  tests/
+    test_api.py
+    test_storage.py
 ```
 
-`<CLIENT_SHARED_ROOT>`, `<SERVER_SHARED_ROOT>`, hostnames, ports, credentials, and real corporate paths are deployment-specific values. **Do not commit real internal secrets or sensitive paths to this handoff branch.**
+You may adjust the exact file split if there is a concrete technical reason, but keep it similarly small.
 
-## 5. Canonical HTTP endpoints
+Your answer must include the **entire content** of every file needed to run and test the server.
 
-Implement this endpoint family exactly:
+---
+
+# 4. Canonical HTTP API
+
+PixelScope uses exactly these endpoints:
 
 ```text
 POST /v1/iqa/jobs
@@ -141,25 +131,25 @@ GET  /v1/iqa/jobs/{job_id}/result
 POST /v1/iqa/jobs/{job_id}/cancel
 ```
 
-An optional operational endpoint such as:
+Also implement this operational endpoint:
 
 ```text
 GET /health
 ```
 
-is useful for curl/browser/process monitoring, but it is **not part of the PixelScope P5-C product contract** and PixelScope does not depend on it.
+`/health` is only for server/operator checks. PixelScope does not depend on it.
 
-Use JSON objects for canonical endpoint responses. Normal successful API responses should use an HTTP 2xx status.
+All API payloads are JSON objects.
 
-`HttpIqaJobClient` accepts `http` and `https`. TLS verification is always enabled for HTTPS. Do not disable certificate verification in PixelScope. Prefer a corporate-approved HTTPS endpoint when available. If an approved internal HTTP endpoint is used temporarily, record that only as transport/connectivity preflight; it is not production TLS qualification.
+---
 
-## 6. Exact create-job request shape
+# 5. Exact create-job request
 
-PixelScope serializes the current P5-C request as:
+PixelScope sends this JSON shape:
 
 ```json
 {
-  "submission_kind": "<opaque-current-client-value>",
+  "submission_kind": "current_pair",
   "variants": [
     {"variant_id": "A"},
     {"variant_id": "B"}
@@ -172,7 +162,7 @@ PixelScope serializes the current P5-C request as:
           "variant_id": "A",
           "storage_root_id": "iqadata",
           "relative_path": "project42/A/image_0001.png",
-          "sha256": "<64-lowercase-hex-sha256>",
+          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "width": 1920,
           "height": 1080
         },
@@ -180,7 +170,7 @@ PixelScope serializes the current P5-C request as:
           "variant_id": "B",
           "storage_root_id": "iqadata",
           "relative_path": "project42/B/image_0001.png",
-          "sha256": "<64-lowercase-hex-sha256>",
+          "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
           "width": 1920,
           "height": 1080
         }
@@ -190,29 +180,55 @@ PixelScope serializes the current P5-C request as:
 }
 ```
 
-Important details:
+## Request rules
 
-- the current initial client submission contract is exactly two ordered variants: `A`, then `B`;
-- `variants` is an array of objects, not an array of strings;
-- every Scene contains exactly one A source followed by exactly one B source;
-- Scene IDs are deterministic and contiguous:
+The server must validate all of the following:
+
+- `submission_kind` is a non-empty string. Treat its value as opaque; do not invent behavior based on it.
+- `variants` must be exactly:
+
+```json
+[
+  {"variant_id": "A"},
+  {"variant_id": "B"}
+]
+```
+
+- request contains between 1 and 512 scenes inclusive;
+- scene IDs must be deterministic, contiguous, and ordered:
   - `scene_000000`
   - `scene_000001`
+  - `scene_000002`
   - ...
-- valid request size is 1..512 Scenes;
-- source fields are exactly the portable locator/identity data shown above;
-- **there is no `source_id` in the current P5-C request**;
-- current remote-eligible source formats are PNG, JPG/JPEG, and BMP;
-- PixelScope client preflight already requires A/B dimensions to match inside each Scene, but the server should independently reject/terminal-fail inconsistent or corrupt external input rather than trusting the client blindly;
-- `submission_kind` should be accepted as the current client-provided non-empty identity. The temporary server does not need to invent new behavior based on it.
+- every scene must contain exactly two sources in this exact order:
+  - first `variant_id = "A"`
+  - second `variant_id = "B"`
+- every source contains:
+  - `variant_id`
+  - `storage_root_id`
+  - `relative_path`
+  - `sha256`
+  - `width`
+  - `height`
+- there is **no `source_id` field** in this request contract;
+- `width` and `height` must be positive integers;
+- `sha256` must be exactly 64 hexadecimal characters;
+- the A and B sources inside a scene must declare equal width and height;
+- currently expected source file extensions are `.png`, `.jpg`, `.jpeg`, and `.bmp`.
 
-Do not add temporary control fields such as `test_mode`, `force_failure`, or `delay_seconds` to this request. If the temporary server needs test timing/mode controls, configure those on the **server process/environment**, not in the frozen PixelScope request schema.
+Do not add temporary fields to this request such as `test_mode`, `delay_seconds`, `force_failure`, or server-local paths.
 
-## 7. Create-job response
+Test controls belong in server configuration, not in the API contract.
 
-For a structurally valid request that the server accepts for preflight work, return a real unique job ID and a **non-terminal** state.
+Malformed request structure should return HTTP 4xx and must not create a job.
 
-Recommended response:
+---
+
+# 6. Create-job response
+
+For a valid request, create a unique job and return immediately.
+
+Required example:
 
 ```json
 {
@@ -221,23 +237,22 @@ Recommended response:
 }
 ```
 
-Client constraints that matter:
+Rules:
 
 - `job_id` must be non-empty;
-- keep it at most 128 characters;
+- maximum 128 characters;
 - do not include `/`, `\\`, or NUL;
-- create response must not report a terminal state;
-- if `state` is omitted PixelScope defaults it to `queued`, but explicitly returning `queued` is clearer.
+- create response must be non-terminal;
+- use `queued` for the initial state;
+- do not perform slow storage verification before returning the create response.
 
-The create POST is intentionally non-idempotent from the client's perspective and is **never blindly retried** after an ambiguous timeout/connection/5xx outcome. Therefore the temporary server should return the accepted `job_id` promptly and perform storage verification asynchronously or after the create response rather than blocking the create request for a long time.
+The background worker should perform storage verification after the job has been accepted.
 
-Malformed JSON, malformed request structure, unsupported cardinality/order, or clearly invalid protocol data may be rejected with a normal 4xx response before a job is created.
+---
 
-Environment/data problems discovered after accepting a valid request should normally become a terminal job status rather than creating a second ad-hoc API.
+# 7. Job states
 
-## 8. Job states and temporary state machine
-
-PixelScope recognizes exactly these states:
+PixelScope understands these exact state strings:
 
 ```text
 queued
@@ -251,7 +266,7 @@ failed
 cancelled
 ```
 
-Terminal states:
+Terminal states are:
 
 ```text
 succeeded
@@ -260,38 +275,77 @@ failed
 cancelled
 ```
 
-For this temporary server, use only states that reflect real work. Because no IQA exists yet, the preferred normal preflight lifecycle is:
+This temporary server should normally use only:
 
 ```text
-POST create
-    ↓
 queued
-    ↓
 preparing
-    ↓
-verify logical roots / source bytes / SHA / dimensions
-    ↓
 failed
-    message = "temporary preflight server: IQA computation is not implemented"
+cancelled
 ```
 
-Do **not** transition through `extracting`, `aggregating`, or `writing` merely to simulate production progress.
+Do not pretend to perform IQA by moving through `extracting`, `aggregating`, or `writing`.
 
-Do **not** finish as `succeeded` or `partial` unless a real schema-v2 result writer later exists and the corresponding result is actually published.
+Do not produce `succeeded` or `partial` because no actual IQA result is generated.
 
-Once a job reaches a terminal state, subsequent status reads should remain stable for that job during the lifetime of the test server.
+---
 
-For this temporary project, in-memory job storage is acceptable. A server restart may lose jobs, provided this is clearly documented as a temporary limitation. Production durability is not being designed here.
+# 8. Normal temporary-server lifecycle
 
-## 9. Status response
+The intended lifecycle is:
 
-Canonical endpoint:
+```text
+POST /v1/iqa/jobs
+    |
+    v
+queued
+    |
+    v
+preparing
+    |
+    +--> validate logical storage-root mapping
+    +--> validate contained relative path
+    +--> open actual image file read-only
+    +--> stream SHA-256
+    +--> compare expected SHA-256
+    +--> read actual image dimensions
+    +--> compare expected width/height
+    |
+    v
+failed
+```
+
+If every preflight check succeeded, use a bounded message such as:
+
+```text
+preflight source verification passed; IQA computation is not implemented
+```
+
+This `failed` state is intentional and means the temporary server reached the boundary where the future IQA implementation would begin.
+
+If preflight itself fails, use a short non-sensitive reason, for example:
+
+```text
+source verification failed: unknown storage root
+source verification failed: file not found
+source verification failed: SHA-256 mismatch
+source verification failed: image dimensions mismatch
+source verification failed: invalid relative path
+```
+
+Do not expose full local filesystem paths or Python stack traces in the client-facing status message.
+
+---
+
+# 9. Status endpoint
+
+Endpoint:
 
 ```text
 GET /v1/iqa/jobs/{job_id}
 ```
 
-Return:
+Non-terminal example:
 
 ```json
 {
@@ -303,7 +357,7 @@ Return:
 }
 ```
 
-or terminal preflight completion:
+Intentional terminal example after successful preflight:
 
 ```json
 {
@@ -311,46 +365,45 @@ or terminal preflight completion:
   "state": "failed",
   "completed_scenes": 0,
   "total_scenes": 1,
-  "message": "temporary preflight server: IQA computation is not implemented"
+  "message": "preflight source verification passed; IQA computation is not implemented"
 }
 ```
 
-Response rules enforced by PixelScope:
+Rules:
 
-- returned `job_id` must exactly match the requested ID;
-- `state` must be one of the canonical values above;
-- `completed_scenes` and `total_scenes`, when supplied, must be non-negative integers;
+- returned `job_id` must exactly equal the requested job ID;
+- `state` must be one of the canonical state strings;
+- `completed_scenes` and `total_scenes` must be non-negative integers;
 - `completed_scenes <= total_scenes`;
-- `message` is optional and should be a short human-readable string;
-- do not return secrets, physical local paths, stack traces, or unbounded exception text in `message`.
+- keep `message` short;
+- status for a terminal job must remain stable during the lifetime of the process;
+- unknown job ID should return HTTP 404 with a small JSON error.
 
-For storage validation failure, a bounded example is:
+For this temporary server it is acceptable to use `completed_scenes = 0` throughout because no IQA scene has actually been computed.
 
-```json
-{
-  "job_id": "job_preflight_000001",
-  "state": "failed",
-  "completed_scenes": 0,
-  "total_scenes": 1,
-  "message": "source verification failed: unknown storage root"
-}
-```
+---
 
-The server may retain more detailed diagnostics internally, but PixelScope status messages should remain bounded and non-sensitive.
+# 10. Cancellation
 
-## 10. Cancel behavior
-
-Canonical endpoint:
+Endpoint:
 
 ```text
 POST /v1/iqa/jobs/{job_id}/cancel
 ```
 
-The temporary server must make cancellation observable while a job is still `queued` or `preparing`.
+Cancellation must be observable while a job is still `queued` or `preparing`.
 
-A simple deterministic mechanism is to configure a server-side preflight hold/delay so an operator can run a cancel probe before the job reaches its deliberate `failed` terminal state. The delay belongs to server configuration, not the PixelScope request JSON.
+Implement a server-side configurable hold interval so the operator can reliably test cancellation.
 
-A direct terminal cancel response is acceptable:
+Recommended environment variable:
+
+```text
+PIXELSCOPE_PREFLIGHT_HOLD_SECONDS=3.0
+```
+
+The worker should check cancellation during this hold and between source-verification operations.
+
+Direct cancellation response:
 
 ```json
 {
@@ -362,23 +415,29 @@ A direct terminal cancel response is acceptable:
 }
 ```
 
-The returned job ID must match. After cancellation, subsequent status reads should report `cancelled` consistently.
+After cancellation:
 
-The durable P5 contract allows server-owned cancellation semantics; the temporary server does not need to design GPU-kernel cancellation. It only needs a truthful queued/preparing cancellation path.
+- subsequent status requests must continue to return `cancelled`;
+- the background worker must not later overwrite the job as `failed`;
+- unknown job ID should return HTTP 404.
 
-## 11. Result endpoint behavior while IQA is unavailable
+Cancelling an already terminal job may simply return its current terminal state.
 
-The endpoint path should exist:
+---
+
+# 11. Result endpoint
+
+Endpoint:
 
 ```text
 GET /v1/iqa/jobs/{job_id}/result
 ```
 
-However, normal PixelScope/probe behavior calls it only after `succeeded` or `partial` has been observed.
+This temporary server does **not** publish an IQA result.
 
-Because this temporary server must not emit those states, **normal preflight runs will not call the Result endpoint**.
+Therefore this endpoint must never fabricate a success response.
 
-If it is called for a job with no published result, return a clear non-2xx response such as HTTP 409 with a small JSON error object, for example:
+For an existing job with no published result, return HTTP 409:
 
 ```json
 {
@@ -386,411 +445,541 @@ If it is called for a job with no published result, return a clear non-2xx respo
 }
 ```
 
-This mirrors the repository's existing debug server behavior and, more importantly, avoids fabricating a result reference.
+For an unknown job ID, return HTTP 404.
 
-When the real server later implements a published Result, the canonical successful Result reference must have:
+Do not create fake schema-v2 results, fake result directories, fake metrics, fake NPZ files, fake manifests, or fake publication state.
 
-```json
-{
-  "job_id": "<same-job-id>",
-  "storage_root_id": "<logical-root-id>",
-  "relative_path": "<portable-result-relative-path>",
-  "schema_version": 2,
-  "publication_state": "complete"
-}
-```
+The client normally calls the result endpoint only after `succeeded` or `partial`, which this temporary server never emits.
 
-or `publication_state = "partial"` for a real `partial` terminal job. That future result-writer work is **not part of this temporary project**.
+---
 
-## 12. Shared-storage contract
+# 12. Shared-storage configuration
 
-The API never uses a Windows mapped drive or a Linux mount path as portable identity.
+PixelScope does not send the server's physical filesystem path.
 
-The server needs deployment configuration conceptually equivalent to:
+It sends:
 
 ```text
-storage root mapping
-    "iqadata" -> <SERVER_MOUNT_PATH_FOR_IQADATA>
-    "another_root" -> <SERVER_MOUNT_PATH_FOR_ANOTHER_ROOT>
+storage_root_id + relative_path
 ```
 
-The exact config format is implementation-specific (environment variable, JSON/YAML config, CLI option, etc.). Keep configuration outside request identity.
+Example portable identity:
 
-For every submitted source:
+```text
+storage_root_id = iqadata
+relative_path   = project42/A/image_0001.png
+```
 
-1. read `storage_root_id`;
-2. find the corresponding configured **server-local** root;
-3. validate `relative_path` as a contained portable POSIX path;
-4. join/resolve it under that root without allowing escape;
-5. ensure the resolved target is a readable regular file;
-6. read the file without modifying it;
-7. compute SHA-256 in a streaming/bounded-memory manner;
-8. compare it to the request `sha256`;
-9. read image dimensions and compare them to request `width` / `height`;
-10. record only bounded verification status for the job.
+The server must map the logical root ID to a server-local mount path.
 
-PixelScope's portable path rules reject:
+Use an environment variable containing JSON, for example:
 
-- empty paths;
-- NUL;
+```text
+PIXELSCOPE_STORAGE_ROOTS_JSON={"iqadata":"/mnt/iqadata"}
+```
+
+On a Windows-hosted test server an equivalent value may be:
+
+```text
+PIXELSCOPE_STORAGE_ROOTS_JSON={"iqadata":"D:/shared/iqadata"}
+```
+
+The mapping is deployment configuration and must not be embedded into request identity.
+
+At startup:
+
+- parse the environment variable;
+- require a JSON object mapping non-empty logical IDs to non-empty physical directory paths;
+- resolve/normalize the configured root paths;
+- fail startup clearly if configuration is malformed;
+- document whether a configured-but-missing root is rejected at startup or when first used.
+
+Never log credentials or secret values. There are no credentials in this temporary API contract.
+
+---
+
+# 13. Safe relative-path rules
+
+`relative_path` is a portable POSIX-style relative path.
+
+Valid example:
+
+```text
+project42/A/image_0001.png
+```
+
+Reject values that are:
+
+- empty;
+- longer than 2048 characters;
+- contain NUL;
 - absolute POSIX paths;
-- Windows absolute/drive paths;
-- `.` or `..` path components;
-- backslash-based paths.
+- Windows absolute paths;
+- contain a drive prefix such as `C:`;
+- contain backslashes;
+- contain `.` or `..` path components;
+- resolve outside the configured storage root.
 
-The server must enforce equivalent containment independently. Do not trust a relative-looking string and concatenate it without containment checking.
-
-Where feasible, reject a symlink/junction/path-resolution escape from the configured root. At minimum, the final resolved file must remain under the configured root before opening it.
-
-The temporary server has **read-only** responsibility for input sources. It must not rename, delete, overwrite, normalize, transcode, resize, or otherwise mutate PixelScope-submitted files.
-
-## 13. Source verification and image formats
-
-The current client submits only:
+The implementation must prevent traversal such as:
 
 ```text
-.png
-.jpg
-.jpeg
-.bmp
+../secret.txt
+folder/../../secret.txt
+C:/secret.txt
+\\server\share\secret.txt
 ```
 
-For each source, verify at least:
+When resolving:
+
+1. validate the portable relative path;
+2. combine it with the configured physical root;
+3. resolve the candidate path;
+4. verify the resolved candidate is still contained under the resolved root;
+5. require a regular readable file;
+6. reject obvious symlink/escape cases rather than following a path outside the logical root.
+
+Do not modify, rename, delete, chmod, or rewrite submitted image files.
+
+---
+
+# 14. Source-byte verification
+
+For every submitted source, independently verify the bytes visible to the server.
+
+## SHA-256
+
+Compute SHA-256 in chunks, not by loading an entire image into memory. A 1 MiB chunk is reasonable.
+
+Compare against the lowercase hexadecimal digest supplied in the request.
+
+If it differs, terminal-fail the job with:
 
 ```text
-file exists/readable
-SHA-256 matches request
-width matches request
-height matches request
+source verification failed: SHA-256 mismatch
 ```
 
-A standard image decoder/library may be used for dimension verification. The temporary server does not need to perform color conversion or decode the full image into GPU tensors merely for this preflight.
+Do not include the physical path in the client-facing message.
 
-For a Scene, also verify that the two submitted sources have equal requested/observed dimensions. A real PixelScope client should already have enforced this, so a mismatch is useful evidence of transport/storage corruption or a noncanonical request.
+## Dimensions
 
-A successful source/storage verification still ends in deliberate `failed` because IQA is absent. The distinction should be visible in the server logs and/or bounded status message:
+Open the image using Pillow only to inspect dimensions.
+
+Compare the actual image `(width, height)` with the request metadata.
+
+If they differ, terminal-fail with:
 
 ```text
-transport accepted           PASS
-request schema               PASS
-storage root resolution      PASS
-source byte verification     PASS
-image dimension verification PASS
-IQA computation              NOT IMPLEMENTED
-job terminal state           failed (intentional preflight terminal)
+source verification failed: image dimensions mismatch
 ```
 
-## 14. Request validation expectations
+Do not resize, decode for IQA, normalize, or otherwise process image content.
 
-The temporary server should reject clearly malformed create requests rather than silently repairing them.
+## A/B pair
 
-At minimum validate:
+The server must reject request metadata where A/B dimensions differ within a scene.
 
-- JSON root is an object;
-- `submission_kind` is present and non-empty;
-- `variants` is exactly ordered A/B for the current initial client contract;
-- `scenes` is an array with 1..512 entries;
-- Scene IDs are exactly `scene_000000 ... scene_<N-1>` in order;
-- each Scene has exactly two sources in ordered A/B variant order;
-- every source has non-empty `storage_root_id` and portable `relative_path`;
-- every source has a canonical SHA-256 string;
-- `width` and `height` are positive integers.
+---
 
-Do not resize, reorder, renumber, invent missing variants, or synthesize a Scene to make malformed input succeed.
+# 15. Background execution and thread safety
 
-The HTTP body-size safety limit is implementation-specific, but it must be high enough to accept a valid current-client request at the supported maximum of 512 Scenes. The repository's localhost fault harness uses an 8 MiB cap as a debug safeguard; this is not a new production limit contract.
+`POST /v1/iqa/jobs` must return promptly.
 
-## 15. Concurrency and lifecycle requirements
+After creating the job:
 
-A heavyweight production scheduler is unnecessary. The temporary server only needs safe behavior for a few concurrent test jobs/polls.
+- store it in an in-memory registry;
+- start one background worker for the job;
+- worker changes state from `queued` to `preparing`;
+- worker performs the optional hold interval and storage checks;
+- worker checks a cancellation flag repeatedly;
+- worker finishes as either `cancelled` or `failed`;
+- terminal state must never be overwritten later.
 
-Minimum expectations:
+Protect shared job state with a lock or another clearly correct synchronization mechanism.
 
-- create returns promptly;
-- storage verification does not block all status/cancel handling;
-- per-job state updates are thread-safe/consistent;
-- a job has one stable ID;
-- status reads do not advance the job by accidentally creating duplicate work;
-- cancel does not create another job;
-- terminal state is stable;
-- server shutdown is clean enough for repeated test sessions.
+The project does not need high-throughput scheduling. Correctness and observability are more important than throughput.
 
-It is acceptable to use an in-memory map guarded by the framework/runtime's normal synchronization primitives.
+A process restart may lose all jobs. Document that explicitly in README.
 
-Do not introduce automatic duplicate create retries on the server/client boundary as a workaround for failed tests. PixelScope intentionally treats ambiguous CREATE outcome as special.
+---
 
-## 16. Network / deployment requirements
+# 16. Job identity
 
-The process must be reachable from the actual PixelScope Windows validation PC, not only from `127.0.0.1` on the server.
-
-Before PixelScope integration, establish and record:
-
-- server host identity used by the test environment;
-- listening port;
-- whether transport is HTTP or HTTPS;
-- whether the Windows PC can resolve/reach the host;
-- firewall/network rule approval as applicable;
-- server process start/restart procedure;
-- shared-root IDs configured on the server;
-- server process read access to the mounted roots.
-
-Do not put actual credentials, tokens, secret URLs, private certificates, or protected path values in this public/source handoff document. Keep those values in the authorized internal deployment environment.
-
-## 17. Logging and diagnostics
-
-Logging exists to correlate external evidence, not to create a new product telemetry system.
-
-Recommended bounded fields:
+Generate server-side IDs such as:
 
 ```text
-timestamp
-server build/commit identity
-job_id
-operation/endpoint
-state transition
-scene count
-storage_root_id
-source verification PASS/FAIL counts
-cancel observed yes/no
-bounded failure category
-operation duration
+job_preflight_000001
+job_preflight_000002
 ```
 
-Avoid logging:
+or UUID-based IDs.
 
-- image bytes/content;
-- bearer/session tokens;
-- browser cookies;
-- authorization headers;
-- full request bodies in normal operation;
-- unrestricted exception traces into client-visible messages;
-- unnecessary client-local physical paths.
+Requirements:
 
-If request capture is temporarily useful for server debugging, make it an explicit internal debug option and protect it according to corporate policy. It is not part of the PixelScope contract.
+- unique for the current process;
+- non-empty;
+- <= 128 characters;
+- no `/`;
+- no backslash;
+- no NUL.
 
-## 18. Optional health endpoint
+Do not derive job IDs from file names or sensitive paths.
 
-An optional endpoint is useful before testing the job protocol:
+---
+
+# 17. Health endpoint
+
+Implement:
 
 ```text
 GET /health
 ```
 
-Example:
+Suggested response:
 
 ```json
 {
   "status": "ok",
   "service": "pixelscope-iqa-preflight",
-  "iqa_available": false
+  "iqa_implemented": false
 }
 ```
 
-This must not be mistaken for P5 job compatibility. `/health` PASS proves only that an HTTP process is reachable.
+Optionally include a simple application version such as `0.1.0`.
 
-## 19. Required acceptance scenarios for the temporary server
+Do not include physical storage-root paths in `/health`.
 
-### Scenario A — external connectivity
+---
 
-From the PixelScope Windows PC:
+# 18. Logging
 
-- server hostname resolves/reaches;
-- TCP/HTTP(S) request succeeds;
-- optional `/health` returns expected response.
+Use ordinary Python logging.
 
-Evidence label:
+Useful server-side information:
 
-```text
-External connectivity: PASS
-```
+- job ID;
+- lifecycle transition;
+- number of scenes;
+- logical `storage_root_id`;
+- scene ID;
+- variant ID;
+- whether verification passed/failed;
+- bounded exception category.
 
-Not:
+Avoid logging:
 
-```text
-P5-G: PASS
-```
+- image bytes;
+- request body in full;
+- full physical filesystem paths by default;
+- secrets/credentials;
+- unbounded tracebacks into API responses.
 
-### Scenario B — real create/status/source preflight
+---
 
-Use a real PixelScope-shaped request whose files are visible through the shared-root mapping.
+# 19. Error handling
 
-Expected flow:
+Use normal HTTP errors for request/API problems discovered before job acceptance.
 
-```text
-POST /v1/iqa/jobs -> queued + real job_id
-GET status        -> queued/preparing
-server verifies all source locators/hashes/dimensions
-GET status        -> failed
-message           -> IQA not implemented
-```
+Examples:
 
-Required observed server evidence:
+- malformed JSON/model validation -> 400/422;
+- unknown job -> 404;
+- result unavailable -> 409.
 
-- exact Scene count accepted;
-- ordered A/B sources accepted;
-- every logical root resolved;
-- every source readable;
-- every SHA-256 matched;
-- every dimension matched;
-- deliberate terminal failure occurred only because IQA is unavailable.
+For a valid accepted job, storage/environment verification errors should become terminal `failed` state with a bounded message.
 
-### Scenario C — cancellation
+The server process itself should remain alive after one job fails.
 
-Configure enough server-side preflight delay to cancel while non-terminal.
+---
 
-Run create/status/cancel and observe:
+# 20. Required automated tests
 
-```text
-queued/preparing -> cancel -> cancelled
-```
+Provide pytest coverage for at least the following.
 
-Subsequent status must remain `cancelled`.
+## API/request tests
 
-### Scenario D — storage error classification
+1. `/health` returns 200.
+2. valid create request returns a non-terminal `queued` job.
+3. variants other than exact ordered A/B are rejected.
+4. zero scenes rejected.
+5. more than 512 scenes rejected.
+6. non-contiguous/wrong scene IDs rejected.
+7. wrong source order rejected.
+8. malformed SHA-256 rejected.
+9. A/B metadata dimension mismatch rejected.
+10. unknown status job returns 404.
+11. result endpoint for an existing non-result job returns 409.
 
-Temporarily use a controlled bad mapping or unavailable test source and confirm that the server does **not** crash or fabricate a result. The accepted job should reach `failed` with a bounded non-sensitive storage/source verification message.
+## Storage tests
 
-Do not use protected production data merely to force an error scenario.
-
-## 20. PixelScope-side probe after the server is ready
-
-PixelScope already contains a bounded compatibility probe. Do not create another client protocol solely for this temporary server.
-
-Command:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\p5f_iqa_probe.py `
-    <server-base-url> <request.json>
-```
-
-The request file must follow the exact shape in Section 6. Prefer a request generated from the real current PixelScope request-building path rather than a permanently hand-maintained parallel schema.
-
-For cancellation:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\p5f_iqa_probe.py `
-    <server-base-url> <request.json> `
-    --cancel-after-status-requests 1
-```
-
-The probe intentionally records bounded protocol metadata and excludes the server URL, request body, credentials, source content, and detailed transport exception text.
-
-A normal temporary-server run ending in canonical `failed` is a valid **transport/job-lifecycle preflight observation** when the server evidence proves storage/source checks passed. It is not a numerical/result PASS.
-
-After command-level probes, exercise the PixelScope IQA Jobs UI against the same server to verify the user-visible create/poll/failed/cancel behavior over the real environment.
-
-## 21. Evidence that PixelScope should record from this temporary server
-
-When the temporary server is deployed, P5-G preflight should record:
+12. valid contained relative path resolves under the configured root.
+13. `../` traversal rejected.
+14. absolute path rejected.
+15. Windows drive path rejected.
+16. backslash path rejected.
+17. missing logical root produces verification failure.
+18. missing file produces verification failure.
+19. SHA mismatch produces verification failure.
+20. image dimension mismatch produces verification failure.
+21. valid image bytes + matching SHA + matching dimensions reach the intentional terminal state with message indicating:
 
 ```text
-PixelScope client exact commit
-Temporary server exact project commit/build identity
-Test date/time
-Windows environment
-Server environment/runtime
-Transport scheme
-Server host/port identity (in the authorized internal evidence location)
-Configured logical storage_root_id values
-Shared-storage topology description
-Request type: Current Pair or Folder Pair
-Scene count
-Create/status/cancel observations
-Source verification counts
-Operation timings as observations only
-Any environment failure
+preflight source verification passed; IQA computation is not implemented
 ```
 
-Do not convert observed timings into correctness thresholds yet.
+## Cancellation tests
 
-Recommended status matrix after this temporary-server phase:
+22. configure a sufficiently long preflight hold.
+23. create a valid job.
+24. cancel before verification completes.
+25. cancel response is `cancelled`.
+26. later status remains `cancelled`.
+27. background worker does not overwrite it with `failed`.
+
+Tests should use temporary directories and generated tiny images. Do not require access to real corporate shared storage.
+
+---
+
+# 21. README requirements
+
+The generated README must explain:
+
+- this is a temporary preflight server, not an IQA implementation;
+- supported Python version;
+- how to create a virtual environment;
+- how to install requirements;
+- how to configure `PIXELSCOPE_STORAGE_ROOTS_JSON`;
+- how to configure `PIXELSCOPE_PREFLIGHT_HOLD_SECONDS`;
+- how to start Uvicorn listening on a chosen interface/port;
+- firewall/network exposure is environment-specific and must follow internal policy;
+- how to call `/health`;
+- how to create a sample job with curl or PowerShell;
+- how to poll status;
+- how to cancel;
+- how to run pytest;
+- jobs are in-memory only and disappear on process restart;
+- no IQA result is produced;
+- a normal fully verified preflight job intentionally ends as `failed` with the IQA-not-implemented message.
+
+Give Linux shell examples and, where quoting differs materially, PowerShell examples.
+
+Do not hard-code any real internal hostname, mount path, share path, credential, or IP address.
+
+Use placeholders such as:
 
 ```text
-External network connectivity      OBSERVABLE NOW
-Canonical REST create/status       OBSERVABLE NOW
-Cancel lifecycle                   OBSERVABLE NOW
-Logical shared-root mapping        OBSERVABLE NOW
-Server source read                 OBSERVABLE NOW
-SHA-256 identity                   OBSERVABLE NOW
-Source dimensions                  OBSERVABLE NOW
-IQA measurement                    NOT AVAILABLE
-extracting/aggregating/writing     NOT VALIDATED
-COMPLETE/PARTIAL publication       NOT VALIDATED
-schema-v2 Result writer            NOT VALIDATED
-Result open/Reference/grid         NOT VALIDATED
-Historical result reopen           NOT VALIDATED
-P5-G overall                       NOT COMPLETE
+<SERVER_HOST>
+<SERVER_PORT>
+<SERVER_SHARED_ROOT>
 ```
 
-## 22. What the internal GPT implementation should deliver
+---
 
-The internal implementation project should be small and disposable, but reproducible.
+# 22. Suggested manual acceptance sequence
 
-Please deliver at least:
+The final answer should include a concise operator sequence equivalent to this.
 
-1. a standalone temporary server project/repository or clearly isolated internal project directory;
-2. README with environment setup and one launch command;
-3. dependency file/lock mechanism appropriate to the internal environment;
-4. server configuration for logical storage-root mapping without committed secrets;
-5. canonical four P5-C endpoints;
-6. optional `/health` endpoint clearly labeled non-contract;
-7. in-memory job lifecycle implementation;
-8. read-only shared-storage source verification;
-9. configurable preflight delay/hold to make cancel testing deterministic;
-10. focused tests for:
-    - exact request acceptance;
-    - malformed request rejection;
-    - A/B and Scene ordering;
-    - unknown/escaping relative paths;
-    - SHA mismatch;
-    - dimension mismatch;
-    - normal deliberate-failed lifecycle;
-    - cancellation;
-    - unknown job;
-    - result-not-published behavior;
-11. a way to report the server git commit/build identity for P5-G evidence;
-12. no IQA/result fabrication.
-
-Framework choice is not part of the PixelScope contract. Use a simple internal-approved Python HTTP framework/runtime that can expose these semantics clearly. Do not spend time reproducing the full production GPU architecture.
-
-## 23. Completion criterion for this temporary project
-
-The temporary server is ready for handoff when all of the following are true:
-
-- it runs on the intended external test server;
-- PixelScope's Windows validation PC can reach it;
-- it accepts the exact current P5-C request JSON;
-- it returns a real non-terminal create response;
-- status polling works;
-- logical-root + relative-path resolution reaches the intended shared files;
-- SHA-256 and dimensions are verified server-side;
-- the successful preflight path deliberately ends `failed` only because IQA is not implemented;
-- cancellation can produce stable `cancelled`;
-- no fake schema-v2 result is published;
-- the exact temporary-server commit/build identity can be recorded.
-
-At that point, PixelScope can begin P5-G external **preflight** validation while the real IQA computation/result-writer work continues separately.
-
-## 24. Future replacement by the real IQA server
-
-The temporary server is intentionally disposable. The real GPU IQA server should later replace it behind the same frozen P5-C transport/storage boundary.
-
-The intended progression is:
+## Step 1 — environment
 
 ```text
-Temporary external preflight server
-    ↓
-P5-G connectivity / REST / storage evidence
-    ↓
-real GPU IQA + schema-v2 result writer becomes available
-    ↓
-1-Scene COMPLETE end-to-end validation
-    ↓
-Folder Pair / PARTIAL / cancellation race / historical reopen / performance matrix
-    ↓
-P5-G external PASS
-    ↓
-P5 Complete
+create venv
+install requirements
+set logical storage-root mapping
+set preflight hold interval
+start server
 ```
 
-Do not change PixelScope's frozen request/job/storage contract merely because the temporary implementation is easier with another shape. If an actual incompatibility is found, report the concrete mismatch back to the PixelScope P5-G owner and reconcile it deliberately against `docs/REMOTE_IQA_CONTRACT.md` rather than silently creating a forked server contract.
+## Step 2 — health
+
+```text
+GET http://<SERVER_HOST>:<SERVER_PORT>/health
+```
+
+Expected conceptually:
+
+```json
+{
+  "status": "ok",
+  "service": "pixelscope-iqa-preflight",
+  "iqa_implemented": false
+}
+```
+
+## Step 3 — prepare real shared source
+
+The engineer places or identifies A/B images that are visible both to the PixelScope Windows machine and the server through their respective mappings of the same logical root.
+
+The request must contain the real SHA-256 and real dimensions.
+
+## Step 4 — create
+
+```text
+POST /v1/iqa/jobs
+```
+
+Expected initial state:
+
+```text
+queued
+```
+
+## Step 5 — poll
+
+```text
+GET /v1/iqa/jobs/<job_id>
+```
+
+Expected progression:
+
+```text
+queued -> preparing -> failed
+```
+
+Expected final message when storage/source validation succeeded:
+
+```text
+preflight source verification passed; IQA computation is not implemented
+```
+
+This is the key proof that network + API + shared-storage source verification worked.
+
+## Step 6 — cancel test
+
+Increase the hold interval if necessary, create another job, then call:
+
+```text
+POST /v1/iqa/jobs/<job_id>/cancel
+```
+
+Expected stable terminal state:
+
+```text
+cancelled
+```
+
+---
+
+# 23. Security boundary
+
+This temporary implementation must not attempt to solve enterprise identity/authentication.
+
+Specifically, do not add:
+
+- SSO;
+- OAuth;
+- OIDC;
+- SAML;
+- bearer token requirement;
+- credential persistence;
+- custom certificate bypass;
+- TLS verification disablement.
+
+If the internal environment requires access restriction, deployment/network policy can restrict who can reach the temporary server without changing this API contract.
+
+For real production deployment, HTTPS and corporate security requirements will be handled separately.
+
+---
+
+# 24. Explicit non-goals
+
+Do not implement or simulate any of the following:
+
+- IQA scoring;
+- CNN/Transformer inference;
+- GPU processing;
+- feature extraction;
+- weighted IQA aggregation;
+- reference/target quality comparison;
+- schema-v2 result generation;
+- result manifest;
+- NPZ artifacts;
+- spatial grid result;
+- historical result database;
+- production scheduler;
+- production persistence;
+- production authorization;
+- PixelScope desktop code.
+
+The server stops at verified source accessibility.
+
+---
+
+# 25. Definition of done
+
+The implementation is complete when all of the following are true:
+
+1. server starts from documented commands;
+2. `/health` responds;
+3. exact valid PixelScope request can create a job;
+4. create returns promptly as `queued`;
+5. status polling works;
+6. logical root + portable path is safely resolved;
+7. server reads source bytes read-only;
+8. SHA-256 is independently validated;
+9. image dimensions are independently validated;
+10. successful preflight deliberately terminates as `failed` with the exact semantic meaning that IQA is not implemented;
+11. invalid storage/source data terminates with bounded diagnostic messages;
+12. cancellation is observable and stable;
+13. result endpoint does not fabricate a result;
+14. automated tests cover protocol, storage containment, source verification, and cancellation;
+15. README lets an engineer create the files and run the project without any other PixelScope documentation.
+
+---
+
+# 26. Required response format from you
+
+Because you cannot modify files yourself, answer in this exact workflow.
+
+### A. Short implementation summary
+
+Explain the architecture in no more than a few paragraphs.
+
+### B. Project tree
+
+Show the complete file tree.
+
+### C. Complete files
+
+For every file, use this pattern:
+
+```text
+File: app/main.py
+```
+
+followed by one code block containing the **complete file contents**.
+
+Do this for every file required to run the project.
+
+Do not omit boilerplate by saying `same as above`, `etc.`, or `rest unchanged`.
+
+### D. Installation commands
+
+Give commands for creating the virtual environment and installing dependencies.
+
+### E. Configuration commands
+
+Show example environment variables using placeholders only.
+
+### F. Server run command
+
+Show the exact Uvicorn command.
+
+### G. Manual API verification
+
+Show `/health`, create, poll, result-unavailable, and cancel examples.
+
+### H. Test command
+
+Show the exact pytest command.
+
+### I. Expected behavior
+
+State clearly that a correctly verified normal preflight request ends as:
+
+```text
+failed
+preflight source verification passed; IQA computation is not implemented
+```
+
+and that this is expected because the IQA algorithm is intentionally outside this project.
+
+Do not claim that you executed or tested any command. The engineer will do that manually and report the results back to you.
