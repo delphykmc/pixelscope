@@ -395,7 +395,10 @@ def main() -> int:
 
     request = _parse_request(args.request_json)
     client = HttpIqaJobClient(args.server_base_url, timeout_seconds=args.timeout_seconds)
-    pause = lambda: time.sleep(args.poll_interval_seconds)
+
+    def pause() -> None:
+        time.sleep(args.poll_interval_seconds)
+
     allowed_statuses = frozenset(args.allowed_result_http_statuses or [409])
     try:
         report = run_p5g_preflight_validation(
