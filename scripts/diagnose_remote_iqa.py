@@ -102,20 +102,21 @@ class RemoteIqaDiagnosticReport:
     network: NetworkObservation | None
 
     @property
-    def passed(self) -> bool:
-        """Whether the current PixelScope production transport is usable.
-
-        The explicit environment-aware and direct HTTP probes are comparative diagnostics,
-        not independent readiness gates. A failed proxy path therefore does not make the
-        report fail when the actual production client can reach the endpoint.
-        """
-
-        if any(
-            check.status == "FAIL" and check.name in _BLOCKING_RUNTIME_CHECKS
+    def blocking_failures(self) -> tuple[str, ...]:
+        failures = [
+            check.name
             for check in self.checks
-        ):
-            return False
-        return self.network is not None and self.network.production_client.status != "FAIL"
+            if check.status == "FAIL" and check.name in _BLOCKING_RUNTIME_CHECKS
+        ]
+        if self.network is None or self.network.production_client.status == "FAIL":
+            failures.append("production_client")
+        return tuple(dict.fromkeys(failures))
+
+    @property
+    def passed(self) -> bool:
+        """Whether the current PixelScope production transport is usable."""
+
+        return not self.blocking_failures
 
 
 def _repo_root() -> Path:
@@ -209,7 +210,7 @@ def _python_under_virtual_env() -> bool | None:
 def _runtime_environment() -> RuntimeEnvironment:
     repo_root = _repo_root()
     repo_src = repo_root / "src"
-    module_file = getattr(iqa_client, "__file__", None)
+    module_file = iqa_client.__file__
     import_source = (
         _classify_module_path(Path(module_file), repo_src)
         if isinstance(module_file, str)
@@ -399,7 +400,7 @@ def _production_client_probe(
 ) -> tuple[DiagnosticCheck, bool | None]:
     started = time.monotonic()
     client = HttpIqaJobClient(base_url, timeout_seconds=timeout_seconds)
-    raw_trust_env = getattr(client._client, "_trust_env", None)
+    raw_trust_env = vars(client._client).get("_trust_env")
     trust_env = raw_trust_env if isinstance(raw_trust_env, bool) else None
     try:
         status = client.get_status(DIAGNOSTIC_JOB_ID)
@@ -410,37 +411,45 @@ def _production_client_probe(
                 if error.status_code is not None
                 else "http_error"
             )
-            check = DiagnosticCheck(
-                "production_client",
-                "PASS",
-                detail,
-                _duration_ms(started),
+            return (
+                DiagnosticCheck(
+                    "production_client",
+                    "PASS",
+                    detail,
+                    _duration_ms(started),
+                ),
+                trust_env,
             )
-            return check, trust_env
         if error.kind is IqaClientErrorKind.PROTOCOL:
-            check = DiagnosticCheck(
-                "production_client",
-                "WARN",
-                "protocol_response_received",
-                _duration_ms(started),
+            return (
+                DiagnosticCheck(
+                    "production_client",
+                    "WARN",
+                    "protocol_response_received",
+                    _duration_ms(started),
+                ),
+                trust_env,
             )
-            return check, trust_env
-        check = DiagnosticCheck(
-            "production_client",
-            "FAIL",
-            error.kind.value,
-            _duration_ms(started),
+        return (
+            DiagnosticCheck(
+                "production_client",
+                "FAIL",
+                error.kind.value,
+                _duration_ms(started),
+            ),
+            trust_env,
         )
-        return check, trust_env
     finally:
         client.close()
-    check = DiagnosticCheck(
-        "production_client",
-        "WARN",
-        f"diagnostic_job_unexpectedly_exists:{status.state.value}",
-        _duration_ms(started),
+    return (
+        DiagnosticCheck(
+            "production_client",
+            "WARN",
+            f"diagnostic_job_unexpectedly_exists:{status.state.value}",
+            _duration_ms(started),
+        ),
+        trust_env,
     )
-    return check, trust_env
 
 
 def _interpret_network(
@@ -547,12 +556,7 @@ def run_diagnostics(
     http_direct = _http_probe(raw_target, timeout_seconds, trust_env=False)
     production, production_trust_env = _production_client_probe(raw_target, timeout_seconds)
     checks.extend((http_environment, http_direct, production))
-    interpretation = _interpret_network(
-        tcp_reachable,
-        http_environment,
-        http_direct,
-        production,
-    )
+
     network = NetworkObservation(
         dns_address_count=dns_count,
         dns_families=dns_families,
@@ -561,7 +565,12 @@ def run_diagnostics(
         http_direct=http_direct,
         production_client=production,
         production_client_trust_env=production_trust_env,
-        interpretation=interpretation,
+        interpretation=_interpret_network(
+            tcp_reachable,
+            http_environment,
+            http_direct,
+            production,
+        ),
     )
     return RemoteIqaDiagnosticReport(runtime, target, proxy, tuple(checks), network)
 
@@ -586,6 +595,7 @@ def main() -> int:
 
     report = run_diagnostics(args.server_base_url, args.timeout_seconds)
     payload: dict[str, Any] = asdict(report)
+    payload["blocking_failures"] = report.blocking_failures
     payload["passed"] = report.passed
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0 if report.passed else 2
