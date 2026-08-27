@@ -412,7 +412,9 @@ def main() -> int:
     finally:
         client.close()
 
-    print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
+    payload = asdict(report)
+    payload["passed"] = report.passed
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0 if report.passed else 2
 
 
