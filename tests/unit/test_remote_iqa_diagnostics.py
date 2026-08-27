@@ -18,8 +18,14 @@ def _check(name: str, status: str) -> DiagnosticCheck:
 
 
 def test_target_metadata_redacts_host_but_preserves_comparison_fingerprint() -> None:
-    first, parsed_first = _parse_target("http://secret.internal.example:8001", "argument")
-    second, parsed_second = _parse_target("http://secret.internal.example:8001", "argument")
+    first, parsed_first = _parse_target(
+        "http://secret.internal.example:8001",
+        "argument",
+    )
+    second, parsed_second = _parse_target(
+        "http://secret.internal.example:8001",
+        "argument",
+    )
 
     assert parsed_first is not None
     assert parsed_second is not None
@@ -32,7 +38,10 @@ def test_target_metadata_redacts_host_but_preserves_comparison_fingerprint() -> 
 
 
 def test_proxy_environment_reports_presence_without_values(monkeypatch) -> None:
-    monkeypatch.setenv("HTTP_PROXY", "http://user:password@secret-proxy.internal:8080")
+    monkeypatch.setenv(
+        "HTTP_PROXY",
+        "http://user:password@secret-proxy.internal:8080",
+    )
     monkeypatch.setenv("NO_PROXY", "secret-target.internal")
 
     proxy = _proxy_environment()
@@ -111,11 +120,18 @@ def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> 
     )
     monkeypatch.setattr(
         "scripts.diagnose_remote_iqa._dns_probe",
-        lambda _host, _port: (1, ("IPv4",), DiagnosticCheck("dns_resolution", "PASS", "addresses=1")),
+        lambda _host, _port: (
+            1,
+            ("IPv4",),
+            DiagnosticCheck("dns_resolution", "PASS", "addresses=1"),
+        ),
     )
     monkeypatch.setattr(
         "scripts.diagnose_remote_iqa._tcp_probe",
-        lambda _host, _port, _timeout: (True, DiagnosticCheck("tcp_connect", "PASS", "connected")),
+        lambda _host, _port, _timeout: (
+            True,
+            DiagnosticCheck("tcp_connect", "PASS", "connected"),
+        ),
     )
     monkeypatch.setattr(
         "scripts.diagnose_remote_iqa._http_probe",
@@ -127,7 +143,11 @@ def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> 
     )
     monkeypatch.setattr(
         "scripts.diagnose_remote_iqa._production_client_probe",
-        lambda _url, _timeout: DiagnosticCheck("production_client", "PASS", "HTTP 404"),
+        lambda _url, _timeout: DiagnosticCheck(
+            "production_client",
+            "PASS",
+            "HTTP 404",
+        ),
     )
 
     report = run_diagnostics(secret_server, 1.0)
