@@ -2,27 +2,39 @@ from __future__ import annotations
 
 import json
 
-from scripts.diagnose_remote_iqa import (
-    DiagnosticCheck,
-    RuntimeEnvironment,
-    _interpret_network,
-    _parse_target,
-    _proxy_environment,
-    _runtime_checks,
-    run_diagnostics,
-)
+from scripts import diagnose_remote_iqa as diagnostics
 
 
-def _check(name: str, status: str) -> DiagnosticCheck:
-    return DiagnosticCheck(name, status, "safe")
+def _check(name: str, status: str) -> diagnostics.DiagnosticCheck:
+    return diagnostics.DiagnosticCheck(name, status, "safe")
+
+
+def _runtime(
+    *,
+    import_source: str = "current_repo",
+    candidate_count: int = 1,
+    current_first: bool | None = True,
+) -> diagnostics.RuntimeEnvironment:
+    return diagnostics.RuntimeEnvironment(
+        python_version="3.10.0",
+        cwd_is_repo_root=True,
+        virtual_env_set=True,
+        python_under_virtual_env=True,
+        pythonpath_set=True,
+        pixelscope_import_source=import_source,
+        pixelscope_candidate_count=candidate_count,
+        current_repo_candidate_first=current_first,
+        editable_install=False,
+        editable_target=None,
+    )
 
 
 def test_target_metadata_redacts_host_but_preserves_comparison_fingerprint() -> None:
-    first, parsed_first = _parse_target(
+    first, parsed_first = diagnostics._parse_target(
         "http://secret.internal.example:8001",
         "argument",
     )
-    second, parsed_second = _parse_target(
+    second, parsed_second = diagnostics._parse_target(
         "http://secret.internal.example:8001",
         "argument",
     )
@@ -44,7 +56,7 @@ def test_proxy_environment_reports_presence_without_values(monkeypatch) -> None:
     )
     monkeypatch.setenv("NO_PROXY", "secret-target.internal")
 
-    proxy = _proxy_environment()
+    proxy = diagnostics._proxy_environment()
     serialized = json.dumps(proxy.__dict__)
 
     assert proxy.any_proxy_set
@@ -57,7 +69,7 @@ def test_proxy_environment_reports_presence_without_values(monkeypatch) -> None:
 
 
 def test_network_interpretation_identifies_environment_proxy_interference() -> None:
-    interpretation = _interpret_network(
+    interpretation = diagnostics._interpret_network(
         True,
         _check("http_environment", "FAIL"),
         _check("http_direct", "PASS"),
@@ -68,7 +80,7 @@ def test_network_interpretation_identifies_environment_proxy_interference() -> N
 
 
 def test_network_interpretation_identifies_bypassed_proxy_interference() -> None:
-    interpretation = _interpret_network(
+    interpretation = diagnostics._interpret_network(
         True,
         _check("http_environment", "FAIL"),
         _check("http_direct", "PASS"),
@@ -79,7 +91,7 @@ def test_network_interpretation_identifies_bypassed_proxy_interference() -> None
 
 
 def test_network_interpretation_identifies_proxy_requirement() -> None:
-    interpretation = _interpret_network(
+    interpretation = diagnostics._interpret_network(
         True,
         _check("http_environment", "PASS"),
         _check("http_direct", "FAIL"),
@@ -90,20 +102,9 @@ def test_network_interpretation_identifies_proxy_requirement() -> None:
 
 
 def test_runtime_checks_warn_for_duplicate_package_candidates_when_current_is_first() -> None:
-    runtime = RuntimeEnvironment(
-        python_version="3.10.0",
-        cwd_is_repo_root=True,
-        virtual_env_set=True,
-        python_under_virtual_env=True,
-        pythonpath_set=True,
-        pixelscope_import_source="current_repo",
-        pixelscope_candidate_count=2,
-        current_repo_candidate_first=True,
-        editable_install=True,
-        editable_target="external_repo",
+    checks = diagnostics._runtime_checks(
+        _runtime(candidate_count=2, current_first=True),
     )
-
-    checks = _runtime_checks(runtime)
     shadowing = next(check for check in checks if check.name == "pixelscope_path_shadowing")
 
     assert shadowing.status == "WARN"
@@ -111,51 +112,32 @@ def test_runtime_checks_warn_for_duplicate_package_candidates_when_current_is_fi
 
 
 def _patch_reachable_runtime(monkeypatch, *, environment_status: str = "PASS") -> None:
-    monkeypatch.setattr(
-        "scripts.diagnose_remote_iqa._runtime_environment",
-        lambda: RuntimeEnvironment(
-            python_version="3.10.0",
-            cwd_is_repo_root=True,
-            virtual_env_set=True,
-            python_under_virtual_env=True,
-            pythonpath_set=True,
-            pixelscope_import_source="current_repo",
-            pixelscope_candidate_count=1,
-            current_repo_candidate_first=True,
-            editable_install=False,
-            editable_target=None,
-        ),
-    )
-    monkeypatch.setattr(
-        "scripts.diagnose_remote_iqa._dns_probe",
-        lambda _host, _port: (
+    monkeypatch.setattr(diagnostics, "_runtime_environment", _runtime)
+
+    def dns_probe(_host: str, _port: int):
+        return (
             1,
             ("IPv4",),
-            DiagnosticCheck("dns_resolution", "PASS", "addresses=1"),
-        ),
-    )
-    monkeypatch.setattr(
-        "scripts.diagnose_remote_iqa._tcp_probe",
-        lambda _host, _port, _timeout: (
-            True,
-            DiagnosticCheck("tcp_connect", "PASS", "connected"),
-        ),
-    )
-    monkeypatch.setattr(
-        "scripts.diagnose_remote_iqa._http_probe",
-        lambda _url, _timeout, *, trust_env: DiagnosticCheck(
+            diagnostics.DiagnosticCheck("dns_resolution", "PASS", "addresses=1"),
+        )
+
+    def tcp_probe(_host: str, _port: int, _timeout: float):
+        return True, diagnostics.DiagnosticCheck("tcp_connect", "PASS", "connected")
+
+    def http_probe(_url: str, _timeout: float, *, trust_env: bool):
+        return diagnostics.DiagnosticCheck(
             "http_environment" if trust_env else "http_direct",
             environment_status if trust_env else "PASS",
             "timeout" if trust_env and environment_status == "FAIL" else "HTTP 404",
-        ),
-    )
-    monkeypatch.setattr(
-        "scripts.diagnose_remote_iqa._production_client_probe",
-        lambda _url, _timeout: (
-            DiagnosticCheck("production_client", "PASS", "HTTP 404"),
-            False,
-        ),
-    )
+        )
+
+    def production_probe(_url: str, _timeout: float):
+        return diagnostics.DiagnosticCheck("production_client", "PASS", "HTTP 404"), False
+
+    monkeypatch.setattr(diagnostics, "_dns_probe", dns_probe)
+    monkeypatch.setattr(diagnostics, "_tcp_probe", tcp_probe)
+    monkeypatch.setattr(diagnostics, "_http_probe", http_probe)
+    monkeypatch.setattr(diagnostics, "_production_client_probe", production_probe)
 
 
 def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> None:
@@ -164,10 +146,11 @@ def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> 
     monkeypatch.setenv("HTTP_PROXY", secret_proxy)
     _patch_reachable_runtime(monkeypatch)
 
-    report = run_diagnostics(secret_server, 1.0)
+    report = diagnostics.run_diagnostics(secret_server, 1.0)
     serialized = json.dumps(report, default=lambda value: value.__dict__)
 
     assert report.passed
+    assert report.blocking_failures == ()
     assert report.network is not None
     assert report.network.production_client_trust_env is False
     assert report.network.interpretation == "transport_reachable"
@@ -181,12 +164,27 @@ def test_environment_proxy_failure_is_warning_when_production_direct_transport_p
 ) -> None:
     _patch_reachable_runtime(monkeypatch, environment_status="FAIL")
 
-    report = run_diagnostics("http://secret.internal.example:8001", 1.0)
+    report = diagnostics.run_diagnostics("http://secret.internal.example:8001", 1.0)
 
     assert report.passed
+    assert report.blocking_failures == ()
     assert report.network is not None
     assert report.network.http_with_environment.status == "FAIL"
     assert report.network.http_direct.status == "PASS"
     assert report.network.production_client.status == "PASS"
     assert report.network.production_client_trust_env is False
     assert report.network.interpretation == "proxy_or_environment_interference_bypassed"
+
+
+def test_wrong_import_source_remains_a_readiness_blocker(monkeypatch) -> None:
+    _patch_reachable_runtime(monkeypatch)
+    monkeypatch.setattr(
+        diagnostics,
+        "_runtime_environment",
+        lambda: _runtime(import_source="external_path", current_first=False),
+    )
+
+    report = diagnostics.run_diagnostics("http://secret.internal.example:8001", 1.0)
+
+    assert not report.passed
+    assert "pixelscope_import_source" in report.blocking_failures
