@@ -102,7 +102,10 @@ def test_failed_preflight_requires_stable_terminal_and_unpublished_result() -> N
     assert report.result.http_status == 409
     assert report.result.schema_version is None
     assert report.result.publication_state is None
-    assert _check_status(report, "terminal_message_evidence") == "PASS"
+    assert _check_status(report, "server_preflight_message_evidence") == "PASS"
+    assert _check_status(report, "status_job_identity") == "PASS"
+    assert _check_status(report, "canonical_state_parsing") == "PASS"
+    assert _check_status(report, "progress_contract") == "PASS"
     assert _check_status(report, "result_not_published") == "PASS"
     assert client.result_calls == 1
 
@@ -142,6 +145,8 @@ def test_preflight_rejects_result_publication_for_failed_job() -> None:
     assert report.result.fetch_attempted
     assert report.result.reference_seen
     assert report.result.schema_version == 2
+    assert report.result.storage_root_id == "<redacted>"
+    assert report.result.relative_path == "<redacted>"
     assert _check_status(report, "result_not_published") == "FAIL"
 
 
