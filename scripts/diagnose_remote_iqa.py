@@ -32,6 +32,14 @@ PROXY_ENV_NAMES = (
     "all_proxy",
     "no_proxy",
 )
+_BLOCKING_RUNTIME_CHECKS = frozenset(
+    {
+        "pixelscope_import_source",
+        "python_under_virtual_env",
+        "pixelscope_path_shadowing",
+        "server_target",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -81,6 +89,7 @@ class NetworkObservation:
     http_with_environment: DiagnosticCheck
     http_direct: DiagnosticCheck
     production_client: DiagnosticCheck
+    production_client_trust_env: bool | None
     interpretation: str
 
 
@@ -94,7 +103,19 @@ class RemoteIqaDiagnosticReport:
 
     @property
     def passed(self) -> bool:
-        return all(check.status != "FAIL" for check in self.checks)
+        """Whether the current PixelScope production transport is usable.
+
+        The explicit environment-aware and direct HTTP probes are comparative diagnostics,
+        not independent readiness gates. A failed proxy path therefore does not make the
+        report fail when the actual production client can reach the endpoint.
+        """
+
+        if any(
+            check.status == "FAIL" and check.name in _BLOCKING_RUNTIME_CHECKS
+            for check in self.checks
+        ):
+            return False
+        return self.network is not None and self.network.production_client.status != "FAIL"
 
 
 def _repo_root() -> Path:
@@ -128,13 +149,11 @@ def _package_candidates(repo_src: Path) -> tuple[int, bool | None]:
     current_index: int | None = None
     current_src = repo_src.resolve()
     for entry in sys.path:
-        if not entry:
-            entry_path = Path.cwd()
-        else:
-            try:
-                entry_path = Path(entry).expanduser().resolve()
-            except OSError:
-                continue
+        entry_path = Path.cwd() if not entry else Path(entry).expanduser()
+        try:
+            entry_path = entry_path.resolve()
+        except OSError:
+            continue
         if not (entry_path / "pixelscope").is_dir():
             continue
         index = len(candidates)
@@ -257,22 +276,14 @@ def _parse_target(
     scheme = str(parsed.scheme)
     host = parsed.host
     if scheme not in {"http", "https"} or not host:
-        metadata = TargetMetadata(
-            source,
-            scheme or None,
-            bool(host),
-            None,
-            parsed.port,
+        return (
+            TargetMetadata(source, scheme or None, bool(host), None, parsed.port, None),
             None,
         )
-        return metadata, None
     port = parsed.port or (443 if scheme == "https" else 80)
     fingerprint_input = f"{scheme}://{host.casefold()}:{port}"
     fingerprint = hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()[:12]
-    return (
-        TargetMetadata(source, scheme, True, _host_kind(host), port, fingerprint),
-        parsed,
-    )
+    return TargetMetadata(source, scheme, True, _host_kind(host), port, fingerprint), parsed
 
 
 def _duration_ms(started: float) -> float:
@@ -287,21 +298,17 @@ def _dns_probe(
     try:
         addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror:
-        check = DiagnosticCheck(
-            "dns_resolution",
-            "FAIL",
-            "gaierror",
-            _duration_ms(started),
+        return (
+            None,
+            (),
+            DiagnosticCheck("dns_resolution", "FAIL", "gaierror", _duration_ms(started)),
         )
-        return None, (), check
     except OSError:
-        check = DiagnosticCheck(
-            "dns_resolution",
-            "FAIL",
-            "oserror",
-            _duration_ms(started),
+        return (
+            None,
+            (),
+            DiagnosticCheck("dns_resolution", "FAIL", "oserror", _duration_ms(started)),
         )
-        return None, (), check
     families: set[str] = set()
     for family, *_rest in addresses:
         if family == socket.AF_INET:
@@ -310,13 +317,16 @@ def _dns_probe(
             families.add("IPv6")
         else:
             families.add("other")
-    check = DiagnosticCheck(
-        "dns_resolution",
-        "PASS",
-        f"addresses={len(addresses)}",
-        _duration_ms(started),
+    return (
+        len(addresses),
+        tuple(sorted(families)),
+        DiagnosticCheck(
+            "dns_resolution",
+            "PASS",
+            f"addresses={len(addresses)}",
+            _duration_ms(started),
+        ),
     )
-    return len(addresses), tuple(sorted(families)), check
 
 
 def _tcp_probe(
@@ -328,16 +338,14 @@ def _tcp_probe(
     try:
         connection = socket.create_connection((host, port), timeout=timeout_seconds)
     except TimeoutError:
-        check = DiagnosticCheck("tcp_connect", "FAIL", "timeout", _duration_ms(started))
-        return False, check
+        return False, DiagnosticCheck("tcp_connect", "FAIL", "timeout", _duration_ms(started))
     except OSError as exc:
-        check = DiagnosticCheck(
+        return False, DiagnosticCheck(
             "tcp_connect",
             "FAIL",
             exc.__class__.__name__,
             _duration_ms(started),
         )
-        return False, check
     connection.close()
     return True, DiagnosticCheck(
         "tcp_connect",
@@ -388,9 +396,11 @@ def _http_probe(
 def _production_client_probe(
     base_url: str,
     timeout_seconds: float,
-) -> DiagnosticCheck:
+) -> tuple[DiagnosticCheck, bool | None]:
     started = time.monotonic()
     client = HttpIqaJobClient(base_url, timeout_seconds=timeout_seconds)
+    raw_trust_env = getattr(client._client, "_trust_env", None)
+    trust_env = raw_trust_env if isinstance(raw_trust_env, bool) else None
     try:
         status = client.get_status(DIAGNOSTIC_JOB_ID)
     except IqaClientError as error:
@@ -400,33 +410,37 @@ def _production_client_probe(
                 if error.status_code is not None
                 else "http_error"
             )
-            return DiagnosticCheck(
+            check = DiagnosticCheck(
                 "production_client",
                 "PASS",
                 detail,
                 _duration_ms(started),
             )
+            return check, trust_env
         if error.kind is IqaClientErrorKind.PROTOCOL:
-            return DiagnosticCheck(
+            check = DiagnosticCheck(
                 "production_client",
                 "WARN",
                 "protocol_response_received",
                 _duration_ms(started),
             )
-        return DiagnosticCheck(
+            return check, trust_env
+        check = DiagnosticCheck(
             "production_client",
             "FAIL",
             error.kind.value,
             _duration_ms(started),
         )
+        return check, trust_env
     finally:
         client.close()
-    return DiagnosticCheck(
+    check = DiagnosticCheck(
         "production_client",
         "WARN",
         f"diagnostic_job_unexpectedly_exists:{status.state.value}",
         _duration_ms(started),
     )
+    return check, trust_env
 
 
 def _interpret_network(
@@ -438,6 +452,10 @@ def _interpret_network(
     env_ok = http_environment.status != "FAIL"
     direct_ok = http_direct.status != "FAIL"
     production_ok = production_client.status != "FAIL"
+    if production_ok and direct_ok and not env_ok:
+        return "proxy_or_environment_interference_bypassed"
+    if not tcp_reachable and production_ok:
+        return "proxy_transport_reachable_direct_tcp_unavailable"
     if not tcp_reachable:
         return "tcp_unreachable"
     if direct_ok and not env_ok:
@@ -527,7 +545,7 @@ def run_diagnostics(
 
     http_environment = _http_probe(raw_target, timeout_seconds, trust_env=True)
     http_direct = _http_probe(raw_target, timeout_seconds, trust_env=False)
-    production = _production_client_probe(raw_target, timeout_seconds)
+    production, production_trust_env = _production_client_probe(raw_target, timeout_seconds)
     checks.extend((http_environment, http_direct, production))
     interpretation = _interpret_network(
         tcp_reachable,
@@ -542,6 +560,7 @@ def run_diagnostics(
         http_with_environment=http_environment,
         http_direct=http_direct,
         production_client=production,
+        production_client_trust_env=production_trust_env,
         interpretation=interpretation,
     )
     return RemoteIqaDiagnosticReport(runtime, target, proxy, tuple(checks), network)
