@@ -13,6 +13,6 @@ def test_http_iqa_client_does_not_inherit_environment_proxy_settings() -> None:
     )
 
     try:
-        assert client._client._trust_env is False
+        assert vars(client._client).get("_trust_env") is False
     finally:
         client.close()
