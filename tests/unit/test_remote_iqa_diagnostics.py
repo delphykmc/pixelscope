@@ -67,6 +67,17 @@ def test_network_interpretation_identifies_environment_proxy_interference() -> N
     assert interpretation == "proxy_or_environment_interference"
 
 
+def test_network_interpretation_identifies_bypassed_proxy_interference() -> None:
+    interpretation = _interpret_network(
+        True,
+        _check("http_environment", "FAIL"),
+        _check("http_direct", "PASS"),
+        _check("production_client", "PASS"),
+    )
+
+    assert interpretation == "proxy_or_environment_interference_bypassed"
+
+
 def test_network_interpretation_identifies_proxy_requirement() -> None:
     interpretation = _interpret_network(
         True,
@@ -99,10 +110,7 @@ def test_runtime_checks_warn_for_duplicate_package_candidates_when_current_is_fi
     assert "current repo first" in (shadowing.detail or "")
 
 
-def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> None:
-    secret_server = "http://very-secret-iqa.internal:8001"
-    secret_proxy = "http://user:password@very-secret-proxy.internal:8080"
-    monkeypatch.setenv("HTTP_PROXY", secret_proxy)
+def _patch_reachable_runtime(monkeypatch, *, environment_status: str = "PASS") -> None:
     monkeypatch.setattr(
         "scripts.diagnose_remote_iqa._runtime_environment",
         lambda: RuntimeEnvironment(
@@ -137,25 +145,48 @@ def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> 
         "scripts.diagnose_remote_iqa._http_probe",
         lambda _url, _timeout, *, trust_env: DiagnosticCheck(
             "http_environment" if trust_env else "http_direct",
-            "PASS",
-            "HTTP 404",
+            environment_status if trust_env else "PASS",
+            "timeout" if trust_env and environment_status == "FAIL" else "HTTP 404",
         ),
     )
     monkeypatch.setattr(
         "scripts.diagnose_remote_iqa._production_client_probe",
-        lambda _url, _timeout: DiagnosticCheck(
-            "production_client",
-            "PASS",
-            "HTTP 404",
+        lambda _url, _timeout: (
+            DiagnosticCheck("production_client", "PASS", "HTTP 404"),
+            False,
         ),
     )
+
+
+def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> None:
+    secret_server = "http://very-secret-iqa.internal:8001"
+    secret_proxy = "http://user:password@very-secret-proxy.internal:8080"
+    monkeypatch.setenv("HTTP_PROXY", secret_proxy)
+    _patch_reachable_runtime(monkeypatch)
 
     report = run_diagnostics(secret_server, 1.0)
     serialized = json.dumps(report, default=lambda value: value.__dict__)
 
     assert report.passed
     assert report.network is not None
+    assert report.network.production_client_trust_env is False
     assert report.network.interpretation == "transport_reachable"
     assert "very-secret-iqa.internal" not in serialized
     assert "very-secret-proxy.internal" not in serialized
     assert "password" not in serialized
+
+
+def test_environment_proxy_failure_is_warning_when_production_direct_transport_passes(
+    monkeypatch,
+) -> None:
+    _patch_reachable_runtime(monkeypatch, environment_status="FAIL")
+
+    report = run_diagnostics("http://secret.internal.example:8001", 1.0)
+
+    assert report.passed
+    assert report.network is not None
+    assert report.network.http_with_environment.status == "FAIL"
+    assert report.network.http_direct.status == "PASS"
+    assert report.network.production_client.status == "PASS"
+    assert report.network.production_client_trust_env is False
+    assert report.network.interpretation == "proxy_or_environment_interference_bypassed"
