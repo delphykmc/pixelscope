@@ -165,11 +165,16 @@ def run_p5g_preflight_validation(
             )
 
         terminal_state = observed_state
-        checks.append(PreflightCheck("terminal_reached", "PASS"))
-        checks.append(
-            PreflightCheck(
-                "expected_terminal_state",
-                "PASS" if terminal_state is expected_terminal else "FAIL",
+        checks.extend(
+            (
+                PreflightCheck("status_job_identity", "PASS"),
+                PreflightCheck("canonical_state_parsing", "PASS"),
+                PreflightCheck("progress_contract", "PASS"),
+                PreflightCheck("terminal_reached", "PASS"),
+                PreflightCheck(
+                    "expected_terminal_state",
+                    "PASS" if terminal_state is expected_terminal else "FAIL",
+                ),
             )
         )
 
@@ -200,7 +205,7 @@ def run_p5g_preflight_validation(
             )
 
         if required_terminal_message_substring is None:
-            checks.append(PreflightCheck("terminal_message_evidence", "NOT_REQUESTED"))
+            checks.append(PreflightCheck("server_preflight_message_evidence", "NOT_REQUESTED"))
         else:
             message_match = (
                 terminal_message is not None
@@ -208,16 +213,12 @@ def run_p5g_preflight_validation(
             )
             checks.append(
                 PreflightCheck(
-                    "terminal_message_evidence",
+                    "server_preflight_message_evidence",
                     "PASS" if message_match else "FAIL",
                 )
             )
 
-        result_evidence = _verify_result_not_published(
-            client,
-            job_id,
-            allowed_result_http_statuses,
-        )
+        result_evidence = _verify_result_not_published(client, job_id)
         checks.append(
             PreflightCheck(
                 "result_not_published",
@@ -265,7 +266,6 @@ def run_p5g_preflight_validation(
 def _verify_result_not_published(
     client: IqaJobClient,
     job_id: str,
-    allowed_result_http_statuses: frozenset[int],
 ) -> PreflightResultEvidence:
     try:
         reference = client.get_result(job_id)
@@ -288,8 +288,8 @@ def _verify_result_not_published(
         None,
         reference.schema_version,
         reference.publication_state,
-        reference.storage_root_id,
-        reference.relative_path,
+        "<redacted>",
+        "<redacted>",
     )
 
 
@@ -299,7 +299,10 @@ def _validate_portable_request(request: IqaJobRequest) -> None:
     for scene in request.scenes:
         for _variant_id, source in scene.sources:
             validate_relative_path(source.relative_path)
-            if len(source.sha256) != 64 or any(char not in string.hexdigits for char in source.sha256):
+            invalid_sha = len(source.sha256) != 64 or any(
+                char not in string.hexdigits for char in source.sha256
+            )
+            if invalid_sha:
                 raise ValueError("source sha256 must be a 64-character hexadecimal digest")
             if source.width <= 0 or source.height <= 0:
                 raise ValueError("source dimensions must be positive")
