@@ -98,6 +98,7 @@ class HttpIqaJobClient(IqaJobClient):
             timeout=httpx.Timeout(timeout_seconds),
             verify=True,
             transport=transport,
+            trust_env=False,
         )
 
     def close(self) -> None:
