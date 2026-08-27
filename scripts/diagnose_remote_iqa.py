@@ -203,7 +203,9 @@ def _runtime_environment() -> RuntimeEnvironment:
     except OSError:
         cwd_is_repo_root = False
     return RuntimeEnvironment(
-        python_version=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        python_version=(
+            f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        ),
         cwd_is_repo_root=cwd_is_repo_root,
         virtual_env_set=bool(os.environ.get("VIRTUAL_ENV")),
         python_under_virtual_env=_python_under_virtual_env(),
@@ -218,7 +220,14 @@ def _runtime_environment() -> RuntimeEnvironment:
 
 def _proxy_environment() -> ProxyEnvironment:
     flags = {name: bool(os.environ.get(name)) for name in PROXY_ENV_NAMES}
-    proxy_names = {"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"}
+    proxy_names = {
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    }
     no_proxy_names = {"NO_PROXY", "no_proxy"}
     return ProxyEnvironment(
         variables_set=flags,
@@ -235,7 +244,10 @@ def _host_kind(host: str) -> str:
     return "ipv4" if address.version == 4 else "ipv6"
 
 
-def _parse_target(value: str | None, source: str) -> tuple[TargetMetadata, httpx.URL | None]:
+def _parse_target(
+    value: str | None,
+    source: str,
+) -> tuple[TargetMetadata, httpx.URL | None]:
     if not value:
         return TargetMetadata(source, None, False, None, None, None), None
     try:
@@ -245,7 +257,15 @@ def _parse_target(value: str | None, source: str) -> tuple[TargetMetadata, httpx
     scheme = str(parsed.scheme)
     host = parsed.host
     if scheme not in {"http", "https"} or not host:
-        return TargetMetadata(source, scheme or None, bool(host), None, parsed.port, None), None
+        metadata = TargetMetadata(
+            source,
+            scheme or None,
+            bool(host),
+            None,
+            parsed.port,
+            None,
+        )
+        return metadata, None
     port = parsed.port or (443 if scheme == "https" else 80)
     fingerprint_input = f"{scheme}://{host.casefold()}:{port}"
     fingerprint = hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()[:12]
@@ -259,14 +279,29 @@ def _duration_ms(started: float) -> float:
     return round(max(0.0, (time.monotonic() - started) * 1000.0), 2)
 
 
-def _dns_probe(host: str, port: int) -> tuple[int | None, tuple[str, ...], DiagnosticCheck]:
+def _dns_probe(
+    host: str,
+    port: int,
+) -> tuple[int | None, tuple[str, ...], DiagnosticCheck]:
     started = time.monotonic()
     try:
         addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror:
-        return None, (), DiagnosticCheck("dns_resolution", "FAIL", "gaierror", _duration_ms(started))
+        check = DiagnosticCheck(
+            "dns_resolution",
+            "FAIL",
+            "gaierror",
+            _duration_ms(started),
+        )
+        return None, (), check
     except OSError:
-        return None, (), DiagnosticCheck("dns_resolution", "FAIL", "oserror", _duration_ms(started))
+        check = DiagnosticCheck(
+            "dns_resolution",
+            "FAIL",
+            "oserror",
+            _duration_ms(started),
+        )
+        return None, (), check
     families: set[str] = set()
     for family, *_rest in addresses:
         if family == socket.AF_INET:
@@ -275,31 +310,49 @@ def _dns_probe(host: str, port: int) -> tuple[int | None, tuple[str, ...], Diagn
             families.add("IPv6")
         else:
             families.add("other")
-    return (
-        len(addresses),
-        tuple(sorted(families)),
-        DiagnosticCheck("dns_resolution", "PASS", f"addresses={len(addresses)}", _duration_ms(started)),
+    check = DiagnosticCheck(
+        "dns_resolution",
+        "PASS",
+        f"addresses={len(addresses)}",
+        _duration_ms(started),
     )
+    return len(addresses), tuple(sorted(families)), check
 
 
-def _tcp_probe(host: str, port: int, timeout_seconds: float) -> tuple[bool, DiagnosticCheck]:
+def _tcp_probe(
+    host: str,
+    port: int,
+    timeout_seconds: float,
+) -> tuple[bool, DiagnosticCheck]:
     started = time.monotonic()
     try:
         connection = socket.create_connection((host, port), timeout=timeout_seconds)
     except TimeoutError:
-        return False, DiagnosticCheck("tcp_connect", "FAIL", "timeout", _duration_ms(started))
+        check = DiagnosticCheck("tcp_connect", "FAIL", "timeout", _duration_ms(started))
+        return False, check
     except OSError as exc:
-        return False, DiagnosticCheck(
+        check = DiagnosticCheck(
             "tcp_connect",
             "FAIL",
             exc.__class__.__name__,
             _duration_ms(started),
         )
+        return False, check
     connection.close()
-    return True, DiagnosticCheck("tcp_connect", "PASS", "connected", _duration_ms(started))
+    return True, DiagnosticCheck(
+        "tcp_connect",
+        "PASS",
+        "connected",
+        _duration_ms(started),
+    )
 
 
-def _http_probe(base_url: str, timeout_seconds: float, *, trust_env: bool) -> DiagnosticCheck:
+def _http_probe(
+    base_url: str,
+    timeout_seconds: float,
+    *,
+    trust_env: bool,
+) -> DiagnosticCheck:
     started = time.monotonic()
     name = "http_environment" if trust_env else "http_direct"
     try:
@@ -317,20 +370,42 @@ def _http_probe(base_url: str, timeout_seconds: float, *, trust_env: bool) -> Di
     except httpx.ConnectError:
         return DiagnosticCheck(name, "FAIL", "connect_error", _duration_ms(started))
     except httpx.HTTPError as exc:
-        return DiagnosticCheck(name, "FAIL", exc.__class__.__name__, _duration_ms(started))
+        return DiagnosticCheck(
+            name,
+            "FAIL",
+            exc.__class__.__name__,
+            _duration_ms(started),
+        )
     status = "WARN" if response.status_code >= 500 else "PASS"
-    return DiagnosticCheck(name, status, f"HTTP {response.status_code}", _duration_ms(started))
+    return DiagnosticCheck(
+        name,
+        status,
+        f"HTTP {response.status_code}",
+        _duration_ms(started),
+    )
 
 
-def _production_client_probe(base_url: str, timeout_seconds: float) -> DiagnosticCheck:
+def _production_client_probe(
+    base_url: str,
+    timeout_seconds: float,
+) -> DiagnosticCheck:
     started = time.monotonic()
     client = HttpIqaJobClient(base_url, timeout_seconds=timeout_seconds)
     try:
         status = client.get_status(DIAGNOSTIC_JOB_ID)
     except IqaClientError as error:
         if error.kind is IqaClientErrorKind.HTTP:
-            detail = f"HTTP {error.status_code}" if error.status_code is not None else "http_error"
-            return DiagnosticCheck("production_client", "PASS", detail, _duration_ms(started))
+            detail = (
+                f"HTTP {error.status_code}"
+                if error.status_code is not None
+                else "http_error"
+            )
+            return DiagnosticCheck(
+                "production_client",
+                "PASS",
+                detail,
+                _duration_ms(started),
+            )
         if error.kind is IqaClientErrorKind.PROTOCOL:
             return DiagnosticCheck(
                 "production_client",
@@ -398,9 +473,13 @@ def _runtime_checks(runtime: RuntimeEnvironment) -> list[DiagnosticCheck]:
             )
         )
     else:
-        checks.append(DiagnosticCheck("python_under_virtual_env", "WARN", "VIRTUAL_ENV unset"))
+        checks.append(
+            DiagnosticCheck("python_under_virtual_env", "WARN", "VIRTUAL_ENV unset")
+        )
     if runtime.pixelscope_candidate_count <= 1:
-        checks.append(DiagnosticCheck("pixelscope_path_shadowing", "PASS", "single_candidate"))
+        checks.append(
+            DiagnosticCheck("pixelscope_path_shadowing", "PASS", "single_candidate")
+        )
     elif runtime.current_repo_candidate_first:
         checks.append(
             DiagnosticCheck(
@@ -420,7 +499,10 @@ def _runtime_checks(runtime: RuntimeEnvironment) -> list[DiagnosticCheck]:
     return checks
 
 
-def run_diagnostics(server_base_url: str | None, timeout_seconds: float) -> RemoteIqaDiagnosticReport:
+def run_diagnostics(
+    server_base_url: str | None,
+    timeout_seconds: float,
+) -> RemoteIqaDiagnosticReport:
     runtime = _runtime_environment()
     proxy = _proxy_environment()
     source = "argument" if server_base_url else "PIXELSCOPE_P5G_SERVER"
