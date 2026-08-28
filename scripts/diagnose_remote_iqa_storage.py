@@ -6,6 +6,9 @@ import os
 from dataclasses import asdict, dataclass
 from pathlib import Path, PureWindowsPath
 
+from PySide6.QtCore import QCoreApplication, QSettings
+
+from pixelscope.app.settings import QSettingsAdapter, SettingsRepository
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.remote.iqa_storage import StorageResolutionError, resolve_existing_source
 from pixelscope.remote.iqa_submission import SUPPORTED_REMOTE_SUFFIXES
@@ -24,10 +27,13 @@ class SourceObservation:
 
 @dataclass(frozen=True)
 class StorageDiagnosticReport:
+    mode: str
     root_exists: bool
     root_is_directory: bool
     eligible_source_count: int
     checked_source_count: int
+    configured_root_count: int
+    configured_root_match_count: int
     observations: tuple[SourceObservation, ...]
 
     @property
@@ -36,14 +42,23 @@ class StorageDiagnosticReport:
             self.root_exists
             and self.root_is_directory
             and self.checked_source_count > 0
+            and self.configured_root_match_count > 0
             and all(item.resolver_match for item in self.observations)
         )
 
 
+def _windows_parts(path: Path | str) -> tuple[str, ...]:
+    return tuple(part.casefold() for part in PureWindowsPath(str(path)).parts)
+
+
 def _windows_lexically_contains(root: Path, source: Path) -> bool:
-    root_parts = tuple(part.casefold() for part in PureWindowsPath(str(root)).parts)
-    source_parts = tuple(part.casefold() for part in PureWindowsPath(str(source)).parts)
+    root_parts = _windows_parts(root)
+    source_parts = _windows_parts(source)
     return len(source_parts) > len(root_parts) and source_parts[: len(root_parts)] == root_parts
+
+
+def _same_windows_path(first: Path | str, second: Path | str) -> bool:
+    return _windows_parts(first) == _windows_parts(second)
 
 
 def _resolved_contains(root: Path, source: Path) -> bool:
@@ -56,11 +71,45 @@ def _resolved_contains(root: Path, source: Path) -> bool:
     return os.path.normcase(common) == os.path.normcase(os.fspath(root_resolved))
 
 
-def run_storage_diagnostics(root: Path, *, max_sources: int = 16) -> StorageDiagnosticReport:
+def _persisted_remote_iqa_settings() -> RemoteIqaSettings:
+    QCoreApplication.setOrganizationName("PixelScope")
+    QCoreApplication.setApplicationName("PixelScope")
+    repository = SettingsRepository(QSettingsAdapter(QSettings()))
+    return repository.load().remote_iqa
+
+
+def run_storage_diagnostics(
+    root: Path,
+    *,
+    max_sources: int = 16,
+    settings: RemoteIqaSettings | None = None,
+) -> StorageDiagnosticReport:
+    mode = "persisted_settings" if settings is not None else "synthetic_root"
     root_exists = root.exists()
     root_is_directory = root.is_dir()
+    if settings is None:
+        effective_settings = RemoteIqaSettings(
+            server_base_url="http://diagnostic.invalid",
+            storage_roots=(RemoteIqaStorageRoot("diagnostic-root", str(root)),),
+        )
+    else:
+        effective_settings = settings
+    configured_root_count = len(effective_settings.storage_roots)
+    configured_root_match_count = sum(
+        _same_windows_path(root, item.client_path) for item in effective_settings.storage_roots
+    )
+
     if not root_is_directory:
-        return StorageDiagnosticReport(root_exists, False, 0, 0, ())
+        return StorageDiagnosticReport(
+            mode,
+            root_exists,
+            False,
+            0,
+            0,
+            configured_root_count,
+            configured_root_match_count,
+            (),
+        )
 
     try:
         sources = tuple(
@@ -71,16 +120,21 @@ def run_storage_diagnostics(root: Path, *, max_sources: int = 16) -> StorageDiag
             and item.suffix.casefold() in SUPPORTED_REMOTE_SUFFIXES
         )
     except OSError:
-        return StorageDiagnosticReport(True, True, 0, 0, ())
+        return StorageDiagnosticReport(
+            mode,
+            True,
+            True,
+            0,
+            0,
+            configured_root_count,
+            configured_root_match_count,
+            (),
+        )
 
-    settings = RemoteIqaSettings(
-        server_base_url="http://diagnostic.invalid",
-        storage_roots=(RemoteIqaStorageRoot("diagnostic-root", str(root)),),
-    )
     observations: list[SourceObservation] = []
     for index, source in enumerate(sources[:max_sources], start=1):
         try:
-            resolved = resolve_existing_source(source, settings)
+            resolved = resolve_existing_source(source, effective_settings)
         except StorageResolutionError as exc:
             observations.append(
                 SourceObservation(
@@ -107,10 +161,13 @@ def run_storage_diagnostics(root: Path, *, max_sources: int = 16) -> StorageDiag
         )
 
     return StorageDiagnosticReport(
+        mode=mode,
         root_exists=True,
         root_is_directory=True,
         eligible_source_count=len(sources),
         checked_source_count=len(observations),
+        configured_root_count=configured_root_count,
+        configured_root_match_count=configured_root_match_count,
         observations=tuple(observations),
     )
 
@@ -123,11 +180,21 @@ def main() -> int:
     )
     parser.add_argument("root", type=Path)
     parser.add_argument("--max-sources", type=int, default=16)
+    parser.add_argument(
+        "--saved-settings",
+        action="store_true",
+        help="Use PixelScope's persisted Remote IQA settings instead of a synthetic root mapping.",
+    )
     args = parser.parse_args()
     if args.max_sources < 1:
         parser.error("--max-sources must be positive")
 
-    report = run_storage_diagnostics(args.root, max_sources=args.max_sources)
+    settings = _persisted_remote_iqa_settings() if args.saved_settings else None
+    report = run_storage_diagnostics(
+        args.root,
+        max_sources=args.max_sources,
+        settings=settings,
+    )
     payload = asdict(report)
     payload["passed"] = report.passed
     print(json.dumps(payload, ensure_ascii=False, indent=2))
