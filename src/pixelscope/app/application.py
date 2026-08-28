@@ -17,6 +17,7 @@ from pixelscope.app.settings import (
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
 from pixelscope.ui.analysis_export import install_analysis_export
+from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
 from pixelscope.ui.display_gain import install_display_gain_control
@@ -128,6 +129,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_multiview_reorder_stability(window)
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
+    install_beta_workspace_hardening(window)
     return gain_control
 
 
