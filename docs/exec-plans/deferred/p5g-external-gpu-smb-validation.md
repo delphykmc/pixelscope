@@ -1,6 +1,6 @@
 # Execution plan: P5-G — External GPU/SMB Validation & Closeout
 
-Status: In progress — temporary external-server preflight available; full GPU/result environment still unavailable
+Status: In progress — temporary external-server preflight observed; full GPU/result environment still unavailable
 Owner: repository owner + P5-G implementation/review agents
 Branch/PR: `validation/p5g-external-preflight` / PR #65
 Last updated: 2026-08-28
@@ -50,10 +50,11 @@ not a COMPLETE/PARTIAL publication substitute.
 - External server measurements remain authoritative; PixelScope owns local
   reference-dependent comparison, reduction, and visualization.
 - Remote IQA is an explicitly configured internal endpoint transport. Production
-  `HttpIqaJobClient` does not inherit process `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`
-  behavior; it uses direct HTTP transport (`trust_env=False`). This prevents unrelated
-  corporate proxy environment settings from silently intercepting the configured IQA
-  endpoint. Authentication/identity remain P6 concerns.
+  `HttpIqaJobClient` explicitly bypasses process proxy routing (`HTTP_PROXY`,
+  `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY`) by supplying an empty HTTPX proxy map.
+  HTTPX environment trust remains enabled so HTTPS CA configuration such as
+  `SSL_CERT_FILE` / `SSL_CERT_DIR` is not silently redefined by this proxy policy.
+  Authentication/identity remain P6 concerns.
 
 ## Required observation matrix
 
@@ -73,17 +74,19 @@ specific regression is deliberately frozen with evidence.
 
 ## Temporary external-server preflight boundary
 
-Currently observable:
+Observed in the temporary external environment:
 
 - external TCP/HTTP reachability;
 - create/status transport and real job identity;
 - serial polling to server-owned terminal state;
 - cancellation lifecycle;
 - logical-root/relative-path source identity;
-- server-side source access, SHA-256, and dimension verification when redacted server
-  evidence is available;
-- Jobs/UI lifecycle integration;
-- failed/cancelled Result non-publication.
+- mapped-drive/canonical-path shared-root resolution on the client;
+- server-side logical-root resolution and source verification;
+- Jobs/UI Current Pair lifecycle integration;
+- failed/cancelled Result non-publication;
+- expected terminal `failed` after source verification because IQA computation is not
+  implemented by the temporary server.
 
 Not currently observable and never inferred from the temporary server:
 
@@ -105,8 +108,8 @@ Not currently observable and never inferred from the temporary server:
    environment-dependent validation debt. Unobserved items remain NOT OBSERVED or
    NOT VALIDATED.
 4. Obtain independent latest-whole-head review.
-5. Only after observed external PASS, update ROADMAP/CURRENT_STATE/UI status, mark P5
-   Complete, archive this plan, and make P6 the active/next program.
+5. Only after observed full external PASS, update ROADMAP/CURRENT_STATE/UI status, mark
+   P5 Complete, archive this plan, and make P6 the active/next program.
 
 ## Progress log
 
@@ -117,14 +120,19 @@ Not currently observable and never inferred from the temporary server:
   polling to expected terminal `failed`, and a cancellation path reaching `cancelled`.
   These are partial preflight observations only and do not validate IQA computation or
   schema-v2 Result publication.
-- 2026-08-28: owner reproduced a corporate-proxy environment issue: DNS/TCP and direct
-  HTTP reached the configured external server while environment-aware HTTP timed out.
-  `HttpIqaJobClient` with direct transport succeeded under the same shell. PR #65 adds a
-  redacted read-only connectivity diagnostic and freezes production Remote IQA transport
-  at `trust_env=False` with regression coverage.
+- 2026-08-28: owner reproduced a corporate-proxy issue: DNS/TCP and explicit direct
+  proxy routing reached the configured external server while environment-proxy routing
+  timed out. PR #65 therefore gives Remote IQA an explicit no-proxy policy while keeping
+  HTTPX environment trust enabled for HTTPS CA configuration.
+- 2026-08-28: owner reproduced and corrected a mapped-drive canonical-path mismatch in
+  shared-root resolution. With matching client/server logical root IDs, Current Pair UI
+  submission reached the temporary server, server-side source verification passed, and
+  the job then reached the expected `failed` terminal because IQA computation is not
+  implemented. Focused and full repository validation were reported PASS before the
+  independent latest-head review; affected gates must be rerun after review fixes.
 
 ## Completion summary
 
-Not complete. External transport/preflight evidence is partially observed, but no real
-GPU computation, schema-v2 COMPLETE/PARTIAL Result publication, or full external GPU/SMB
-qualification PASS is claimed.
+Not complete. Temporary external transport/job/shared-source preflight is observed, but
+no real GPU computation, schema-v2 COMPLETE/PARTIAL Result publication, or full external
+GPU/SMB qualification PASS is claimed.
