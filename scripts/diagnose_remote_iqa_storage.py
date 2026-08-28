@@ -9,6 +9,7 @@ from pathlib import Path, PureWindowsPath
 from PySide6.QtCore import QCoreApplication, QSettings
 
 from pixelscope.app.settings import QSettingsAdapter, SettingsRepository
+from pixelscope.io.path_discovery import discover_image_inputs
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.remote.iqa_storage import StorageResolutionError, resolve_existing_source
 from pixelscope.remote.iqa_submission import SUPPORTED_REMOTE_SUFFIXES
@@ -28,6 +29,7 @@ class SourceObservation:
 @dataclass(frozen=True)
 class StorageDiagnosticReport:
     mode: str
+    source_mode: str
     root_exists: bool
     root_is_directory: bool
     eligible_source_count: int
@@ -78,13 +80,27 @@ def _persisted_remote_iqa_settings() -> RemoteIqaSettings:
     return repository.load().remote_iqa
 
 
+def _diagnostic_sources(root: Path, *, use_ui_discovery: bool) -> tuple[Path, ...]:
+    if use_ui_discovery:
+        return tuple(item.path for item in discover_image_inputs((root,), recursive=False))
+    return tuple(
+        item
+        for item in root.iterdir()
+        if item.is_file()
+        and not item.is_symlink()
+        and item.suffix.casefold() in SUPPORTED_REMOTE_SUFFIXES
+    )
+
+
 def run_storage_diagnostics(
     root: Path,
     *,
     max_sources: int = 16,
     settings: RemoteIqaSettings | None = None,
+    use_ui_discovery: bool = False,
 ) -> StorageDiagnosticReport:
     mode = "persisted_settings" if settings is not None else "synthetic_root"
+    source_mode = "ui_discovery" if use_ui_discovery else "direct_directory"
     root_exists = root.exists()
     root_is_directory = root.is_dir()
 
@@ -100,6 +116,7 @@ def run_storage_diagnostics(
     if not root_is_directory:
         return StorageDiagnosticReport(
             mode,
+            source_mode,
             root_exists,
             False,
             0,
@@ -118,16 +135,11 @@ def run_storage_diagnostics(
         effective_settings = settings
 
     try:
-        sources = tuple(
-            item
-            for item in root.iterdir()
-            if item.is_file()
-            and not item.is_symlink()
-            and item.suffix.casefold() in SUPPORTED_REMOTE_SUFFIXES
-        )
+        sources = _diagnostic_sources(root, use_ui_discovery=use_ui_discovery)
     except OSError:
         return StorageDiagnosticReport(
             mode,
+            source_mode,
             True,
             True,
             0,
@@ -168,6 +180,7 @@ def run_storage_diagnostics(
 
     return StorageDiagnosticReport(
         mode=mode,
+        source_mode=source_mode,
         root_exists=True,
         root_is_directory=True,
         eligible_source_count=len(sources),
@@ -191,6 +204,11 @@ def main() -> int:
         action="store_true",
         help="Use PixelScope's persisted Remote IQA settings instead of a synthetic root mapping.",
     )
+    parser.add_argument(
+        "--ui-discovery",
+        action="store_true",
+        help="Mirror PixelScope file discovery, including Path.resolve(), before root matching.",
+    )
     args = parser.parse_args()
     if args.max_sources < 1:
         parser.error("--max-sources must be positive")
@@ -200,6 +218,7 @@ def main() -> int:
         args.root,
         max_sources=args.max_sources,
         settings=settings,
+        use_ui_discovery=args.ui_discovery,
     )
     payload = asdict(report)
     payload["passed"] = report.passed
