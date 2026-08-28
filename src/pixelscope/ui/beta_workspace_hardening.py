@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, QTimer, Qt
+from PySide6.QtCore import QObject, QPointF, QRectF, QTimer, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -15,43 +15,8 @@ from PySide6.QtWidgets import (
 
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
-from pixelscope.ui.tile_header import TileHeader
 
-_TILE_HEADER_COMPACT_ENTER_WIDTH = TileHeader.COMPACT_WIDTH
-_TILE_HEADER_COMPACT_EXIT_WIDTH = TileHeader.COMPACT_WIDTH + 32
 _DISABLED_ICON_COLOR = "#737980"
-
-
-def tile_header_compact_for_width(*, compact: bool, width: int) -> bool:
-    """Return a stable compact-mode decision with resize hysteresis."""
-
-    if compact:
-        return width < _TILE_HEADER_COMPACT_EXIT_WIDTH
-    return width < _TILE_HEADER_COMPACT_ENTER_WIDTH
-
-
-def _apply_tile_header_width(header: TileHeader, width: int) -> None:
-    compact = tile_header_compact_for_width(compact=header._compact, width=width)
-    if compact != header._compact:
-        header._compact = compact
-        header.meta.setVisible(not compact)
-    header._elide_name()
-
-
-class _TileHeaderResizeFilter(QObject):
-    """Keep responsive header visibility from changing geometry at one threshold."""
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if isinstance(watched, TileHeader) and event.type() == QEvent.Type.Resize:
-            resize_event = event
-            size = getattr(resize_event, "size", None)
-            width = int(size().width()) if callable(size) else watched.width()
-            _apply_tile_header_width(watched, width)
-            # QWidget.resizeEvent has no additional PixelScope behavior. Consuming
-            # it prevents TileHeader's legacy single-threshold layout activation
-            # from re-entering the splitter/layout geometry pass.
-            return True
-        return super().eventFilter(watched, event)
 
 
 def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
@@ -106,6 +71,7 @@ class _WorkspaceDockTopLevelController(QObject):
         self._docked_title_bar = docked_title_bar
         self._normalizing = False
         dock.topLevelChanged.connect(self._top_level_changed)  # type: ignore[attr-defined]
+        dock.visibilityChanged.connect(self._visibility_changed)  # type: ignore[attr-defined]
         if dock.isFloating():
             self._top_level_changed(True)
 
@@ -117,13 +83,20 @@ class _WorkspaceDockTopLevelController(QObject):
             return
         self._restore_docked_title_bar()
 
+    def _visibility_changed(self, visible: bool) -> None:
+        if visible and self._dock.isFloating():
+            # IQA installs its custom dock title lazily on first show. Normalize
+            # again after that show so floating mode always returns to native chrome.
+            QTimer.singleShot(0, self._normalize_floating)
+
     def _normalize_floating(self) -> None:
         if self._normalizing or not self._dock.isFloating():
             return
         self._normalizing = True
         try:
+            was_hidden = self._dock.isHidden()
             title_bar = self._dock.titleBarWidget()
-            if title_bar is not None:
+            if isinstance(title_bar, PlotsDockTitleBar):
                 self._docked_title_bar = title_bar
                 self._dock.setTitleBarWidget(None)
 
@@ -141,13 +114,14 @@ class _WorkspaceDockTopLevelController(QObject):
             )
             if self._dock.windowFlags() != flags:
                 self._dock.setWindowFlags(flags)
-            self._dock.show()
-            QTimer.singleShot(0, self._detach_transient_parent)
+            if not was_hidden:
+                self._dock.show()
+                QTimer.singleShot(0, self._detach_transient_parent)
         finally:
             self._normalizing = False
 
     def _detach_transient_parent(self) -> None:
-        if not self._dock.isFloating():
+        if not self._dock.isFloating() or self._dock.isHidden():
             return
         handle = self._dock.windowHandle()
         if handle is not None and handle.transientParent() is not None:
@@ -156,14 +130,9 @@ class _WorkspaceDockTopLevelController(QObject):
     def _restore_docked_title_bar(self) -> None:
         if self._dock.isFloating():
             return
-        title_bar = self._docked_title_bar
-        if title_bar is None:
-            # IQA installs its title bar lazily on first show. It remains a dock
-            # child when native chrome temporarily replaces it while floating.
-            child = self._dock.findChild(PlotsDockTitleBar)
-            if child is not None:
-                title_bar = child
-                self._docked_title_bar = child
+        title_bar = self._docked_title_bar or PlotsDockTitleBar.controller_for_dock(self._dock)
+        if title_bar is not None:
+            self._docked_title_bar = title_bar
         if title_bar is not None and self._dock.titleBarWidget() is not title_bar:
             self._dock.setTitleBarWidget(title_bar)
             title_bar.show()
@@ -175,10 +144,8 @@ class BetaWorkspaceHardeningController(QObject):
     def __init__(self, window: QMainWindow) -> None:
         super().__init__(window)
         self.window = window
-        self._tile_header_filters: list[_TileHeaderResizeFilter] = []
         self._dock_controllers: list[_WorkspaceDockTopLevelController] = []
         self._install_layout_policy()
-        self._install_tile_header_hysteresis()
         self._install_workspace_windows()
         self._install_iqa_toolbar_action()
 
@@ -265,13 +232,6 @@ class BetaWorkspaceHardeningController(QObject):
 
         if isinstance(main_splitter, QWidget):
             _set_vertical_policy(main_splitter, QSizePolicy.Policy.Ignored)
-
-    def _install_tile_header_hysteresis(self) -> None:
-        for header in self.window.findChildren(TileHeader):
-            resize_filter = _TileHeaderResizeFilter(header)
-            header.installEventFilter(resize_filter)
-            self._tile_header_filters.append(resize_filter)
-            _apply_tile_header_width(header, header.width())
 
     def _install_workspace_windows(self) -> None:
         plots = getattr(self.window, "bottom_dock", None)
