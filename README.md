@@ -112,6 +112,13 @@ Deterministic manual fixtures are documented in
 [`test_data/README.md`](test_data/README.md). The RAW chart set covers unpacked
 8/10/12/14/16-bit data and MIPI RAW10/12/14 equivalence.
 
+## Build and release
+
+Use [`docs/BUILD_AND_RELEASE.md`](docs/BUILD_AND_RELEASE.md) for the human-facing
+owner-local Windows Beta build, installer/portable handoff, release-candidate, and
+publication-staging procedure. Normative deployment and packaging constraints remain in
+[`docs/PACKAGING_CONSTRAINTS.md`](docs/PACKAGING_CONSTRAINTS.md).
+
 ## Current scope and documentation
 
 The authoritative current baseline and verified backlog are in
@@ -119,6 +126,8 @@ The authoritative current baseline and verified backlog are in
 [`docs/index.md`](docs/index.md) to locate product, architecture, decision,
 quality, roadmap, packaging, UI, and execution-plan documents.
 
-Standalone distribution, installer signing, live GPU IQA, heatmap overlays,
-persistent comparison sessions, saved ROI management, alpha overlay, and RAW
-demosaic remain future work.
+Portable ZIP/Inno Setup distribution and owner-local candidate/publication staging are
+implemented. Current Beta qualification does not include production Remote IQA
+server/GPU/SSO integration, production signing or privileged corporate publication,
+notification/self-update integration, saved ROI management, alpha overlay, or RAW
+demosaic.
