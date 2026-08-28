@@ -90,6 +90,7 @@ class NetworkObservation:
     http_direct: DiagnosticCheck
     production_client: DiagnosticCheck
     production_client_trust_env: bool | None
+    production_client_proxy_policy: str | None
     interpretation: str
 
 
@@ -360,16 +361,18 @@ def _http_probe(
     base_url: str,
     timeout_seconds: float,
     *,
-    trust_env: bool,
+    use_environment_proxy: bool,
 ) -> DiagnosticCheck:
     started = time.monotonic()
-    name = "http_environment" if trust_env else "http_direct"
+    name = "http_environment" if use_environment_proxy else "http_direct"
+    proxies = None if use_environment_proxy else {}
     try:
         with httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=httpx.Timeout(timeout_seconds),
             verify=True,
-            trust_env=trust_env,
+            proxies=proxies,
+            trust_env=True,
         ) as client:
             response = client.get(DIAGNOSTIC_PATH)
     except httpx.TimeoutException:
@@ -397,11 +400,12 @@ def _http_probe(
 def _production_client_probe(
     base_url: str,
     timeout_seconds: float,
-) -> tuple[DiagnosticCheck, bool | None]:
+) -> tuple[DiagnosticCheck, bool | None, str | None]:
     started = time.monotonic()
     client = HttpIqaJobClient(base_url, timeout_seconds=timeout_seconds)
     raw_trust_env = vars(client._client).get("_trust_env")
     trust_env = raw_trust_env if isinstance(raw_trust_env, bool) else None
+    proxy_policy = client.proxy_policy
     try:
         status = client.get_status(DIAGNOSTIC_JOB_ID)
     except IqaClientError as error:
@@ -419,6 +423,7 @@ def _production_client_probe(
                     _duration_ms(started),
                 ),
                 trust_env,
+                proxy_policy,
             )
         if error.kind is IqaClientErrorKind.PROTOCOL:
             return (
@@ -429,6 +434,7 @@ def _production_client_probe(
                     _duration_ms(started),
                 ),
                 trust_env,
+                proxy_policy,
             )
         return (
             DiagnosticCheck(
@@ -438,6 +444,7 @@ def _production_client_probe(
                 _duration_ms(started),
             ),
             trust_env,
+            proxy_policy,
         )
     finally:
         client.close()
@@ -449,6 +456,7 @@ def _production_client_probe(
             _duration_ms(started),
         ),
         trust_env,
+        proxy_policy,
     )
 
 
@@ -552,9 +560,20 @@ def run_diagnostics(
     tcp_reachable, tcp_check = _tcp_probe(host, port, timeout_seconds)
     checks.append(tcp_check)
 
-    http_environment = _http_probe(raw_target, timeout_seconds, trust_env=True)
-    http_direct = _http_probe(raw_target, timeout_seconds, trust_env=False)
-    production, production_trust_env = _production_client_probe(raw_target, timeout_seconds)
+    http_environment = _http_probe(
+        raw_target,
+        timeout_seconds,
+        use_environment_proxy=True,
+    )
+    http_direct = _http_probe(
+        raw_target,
+        timeout_seconds,
+        use_environment_proxy=False,
+    )
+    production, production_trust_env, production_proxy_policy = _production_client_probe(
+        raw_target,
+        timeout_seconds,
+    )
     checks.extend((http_environment, http_direct, production))
 
     network = NetworkObservation(
@@ -565,6 +584,7 @@ def run_diagnostics(
         http_direct=http_direct,
         production_client=production,
         production_client_trust_env=production_trust_env,
+        production_client_proxy_policy=production_proxy_policy,
         interpretation=_interpret_network(
             tcp_reachable,
             http_environment,
