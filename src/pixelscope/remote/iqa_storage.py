@@ -39,6 +39,13 @@ class ResolvedSource:
     staged: bool
 
 
+@dataclass(frozen=True)
+class _StorageRootMatch:
+    root: RemoteIqaStorageRoot
+    relative_path: str
+    specificity: tuple[int, int]
+
+
 class _CheckpointReader:
     def __init__(self, stream: BinaryIO) -> None:
         self._stream = stream
@@ -96,12 +103,11 @@ def resolve_existing_source(
     source_path = Path(source)
     if not source_path.is_file():
         raise StorageResolutionError(f"source is missing or not a regular file: {source_path.name}")
-    candidate = _longest_matching_root(source_path, settings.storage_roots)
-    if candidate is None:
+    match = _longest_matching_root(source_path, settings.storage_roots)
+    if match is None:
         return None
-    relative = _windows_relative(str(source_path), candidate.client_path)
     return ResolvedSource(
-        LogicalStoragePath(candidate.storage_root_id, relative),
+        LogicalStoragePath(match.root.storage_root_id, match.relative_path),
         sha256_file(source_path),
         source_path,
         False,
@@ -232,37 +238,69 @@ def resolve_result_reference(
 def _longest_matching_root(
     source: Path,
     roots: tuple[RemoteIqaStorageRoot, ...],
-) -> RemoteIqaStorageRoot | None:
-    """Choose the longest lexical Windows root whose resolved path contains source."""
+) -> _StorageRootMatch | None:
+    """Choose the most specific root whose resolved path safely contains source."""
 
     cancellation_checkpoint()
-    source_windows = PureWindowsPath(str(source))
     source_resolved = _resolve_for_containment(source, strict=True)
-    matches: list[tuple[int, RemoteIqaStorageRoot]] = []
+    matches: list[_StorageRootMatch] = []
     for root in roots:
         cancellation_checkpoint()
         root_windows = PureWindowsPath(root.client_path)
-        try:
-            relative = source_windows.relative_to(root_windows)
-        except ValueError:
-            source_parts = tuple(part.casefold() for part in source_windows.parts)
-            root_parts = tuple(part.casefold() for part in root_windows.parts)
-            if source_parts[: len(root_parts)] != root_parts:
-                continue
-            relative = PureWindowsPath(*source_windows.parts[len(root_windows.parts) :])
-        if not relative.parts:
-            continue
-
         try:
             root_resolved = _resolve_for_containment(Path(root.client_path), strict=True)
         except StorageResolutionError:
             continue
         if not _resolved_is_within(root_resolved, source_resolved):
             continue
-        matches.append((len(root_windows.parts), root))
+        relative_path = _relative_for_matching_root(
+            source,
+            root.client_path,
+            source_resolved,
+            root_resolved,
+        )
+        matches.append(
+            _StorageRootMatch(
+                root=root,
+                relative_path=relative_path,
+                specificity=(len(root_resolved.parts), len(root_windows.parts)),
+            )
+        )
     if not matches:
         return None
-    return max(matches, key=lambda item: item[0])[1]
+    return max(matches, key=lambda item: item.specificity)
+
+
+def _relative_for_matching_root(
+    source: Path,
+    root: str,
+    source_resolved: Path,
+    root_resolved: Path,
+) -> str:
+    try:
+        return _windows_relative(str(source), root)
+    except StorageResolutionError:
+        return _resolved_relative(source_resolved, root_resolved)
+
+
+def _resolved_relative(source_resolved: Path, root_resolved: Path) -> str:
+    try:
+        relative = source_resolved.relative_to(root_resolved)
+    except ValueError:
+        try:
+            relative = Path(
+                os.path.relpath(
+                    os.fspath(source_resolved),
+                    os.fspath(root_resolved),
+                )
+            )
+        except ValueError as exc:
+            raise StorageResolutionError(
+                "source is not contained by configured root"
+            ) from exc
+    value = PurePosixPath(*relative.parts).as_posix()
+    validate_relative_path(value)
+    return value
 
 
 def _windows_relative(source: str, root: str) -> str:

@@ -108,6 +108,70 @@ def test_staging_rejects_escaping_directory_link_before_external_mutation(
     assert list(outside.iterdir()) == []
 
 
+def test_existing_source_accepts_different_lexical_alias_when_resolved_inside_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    physical_root = tmp_path / "share"
+    source = physical_root / "scene" / "sample.png"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"pixelscope")
+    configured_root = Path(r"X:\iqa-server")
+    settings = RemoteIqaSettings(
+        storage_roots=(RemoteIqaStorageRoot("shared", str(configured_root)),),
+    )
+    original_resolve = iqa_storage._resolve_for_containment
+
+    def resolve_alias(path: Path, *, strict: bool) -> Path:
+        if path == configured_root:
+            return physical_root.resolve(strict=True)
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(iqa_storage, "_resolve_for_containment", resolve_alias)
+
+    resolved = resolve_existing_source(source.resolve(), settings)
+
+    assert resolved is not None
+    assert not resolved.staged
+    assert resolved.logical_path.storage_root_id == "shared"
+    assert resolved.logical_path.relative_path == "scene/sample.png"
+
+
+def test_resolved_alias_matching_preserves_longest_root_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    physical_root = tmp_path / "share"
+    physical_nested = physical_root / "nested"
+    source = physical_nested / "sample.png"
+    physical_nested.mkdir(parents=True)
+    source.write_bytes(b"pixelscope")
+    configured_root = Path(r"X:\iqa-server")
+    configured_nested = Path(r"Y:\nested-alias")
+    settings = RemoteIqaSettings(
+        storage_roots=(
+            RemoteIqaStorageRoot("shared", str(configured_root)),
+            RemoteIqaStorageRoot("nested", str(configured_nested)),
+        ),
+    )
+    original_resolve = iqa_storage._resolve_for_containment
+
+    def resolve_alias(path: Path, *, strict: bool) -> Path:
+        if path == configured_root:
+            return physical_root.resolve(strict=True)
+        if path == configured_nested:
+            return physical_nested.resolve(strict=True)
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(iqa_storage, "_resolve_for_containment", resolve_alias)
+
+    resolved = resolve_existing_source(source.resolve(), settings)
+
+    assert resolved is not None
+    assert resolved.logical_path.storage_root_id == "nested"
+    assert resolved.logical_path.relative_path == "sample.png"
+
+
 @pytest.mark.skipif(
     os.name != "nt",
     reason="client storage mappings intentionally require drive/UNC paths",
