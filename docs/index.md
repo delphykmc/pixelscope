@@ -56,6 +56,8 @@ knowledge belongs in focused documents under `docs/`.
 - `QUALITY.md`: change-to-check matrix and completion evidence.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
+- `ui/beta_workspace_hardening.md`: Beta layout/floating-window contract, root causes,
+  focused regression coverage, and Windows/multi-monitor manual checklist.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
 - [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): required current
   pointer; P7-D Stage 1 Release Metadata & Manual Publication Foundation is active
