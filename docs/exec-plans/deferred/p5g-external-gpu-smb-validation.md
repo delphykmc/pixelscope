@@ -98,6 +98,63 @@ Not currently observable and never inferred from the temporary server:
 - historical Result reopen/remap;
 - full P5-G qualification.
 
+### Remaining temporary-server closeout — Folder Pair multi-Scene
+
+Current Pair already covers one-Scene production request preparation and external
+lifecycle. Before moving exclusively to the real IQA server, one additional low-cost
+observation is useful: submit a production-generated deterministic Folder Pair request
+containing two or three Scenes and verify that the temporary server accepts the whole
+multi-Scene source manifest, completes its source-preflight boundary, and then reaches
+the same expected `failed` terminal because IQA computation is unavailable.
+
+This is a **pending owner external observation**, not PASS evidence yet. The dedicated
+`scripts/p5g_folder_pair_preflight.py` wrapper reuses the existing P5-G lifecycle
+validator and adds pre-POST proof that the supplied request is:
+
+- `submission_kind = folder_pair`;
+- multi-Scene (`>= 2`);
+- exact ordered A/B source shape for every Scene;
+- the exact expected Scene count when `--expect-scene-count` is supplied.
+
+The exact production request JSON already has a debug-only generation path; no second
+request builder is introduced. With `PIXELSCOPE_REMOTE_IQA_DEBUG=1`, use IQA Setup to
+validate the intended Folder Pair, then use its `Inspect JSON · DEBUG` action and copy
+the generated request. Request JSON contains portable relative source identities and
+hashes, so keep it as local validation material and do not commit it.
+
+Example for a three-Scene temporary preflight:
+
+```powershell
+python -m scripts.p5g_folder_pair_preflight `
+    $env:PIXELSCOPE_P5G_SERVER `
+    .\p5g-folder-pair-request.json `
+    --expect-scene-count 3 `
+    --mode failed `
+    --terminal-stability-requests 2
+```
+
+If the temporary server has a known non-sensitive terminal message token whose semantics
+mean that its complete source-preflight phase passed, the existing optional
+`--require-terminal-message-substring` check may also be used. Do not encode or publish
+sensitive server text merely to satisfy this optional evidence.
+
+Expected evidence is bounded to:
+
+- request Scene count equals the locally expected count;
+- request source count is two per Scene and A/B ordered;
+- create returns a real non-terminal job identity;
+- polling reaches the expected terminal `failed` and remains stable;
+- failed Result remains unpublished;
+- the server reaches its documented source-preflight-complete boundary before the
+  expected not-implemented IQA failure.
+
+This does **not** turn the temporary server into a COMPLETE/PARTIAL test environment and
+does not justify fabricated schema-v2 Results.
+
+Staging-root validation is not required merely to close this temporary-server pass. Run
+it only if the intended deployment actually submits sources outside configured shared
+roots and therefore depends on the P5-C staging path.
+
 ## Validation and review gate
 
 1. Record the exact client head, server build/algorithm identity, storage topology,
@@ -130,9 +187,13 @@ Not currently observable and never inferred from the temporary server:
   the job then reached the expected `failed` terminal because IQA computation is not
   implemented. Focused and full repository validation were reported PASS before the
   independent latest-head review; affected gates must be rerun after review fixes.
+- 2026-08-28: follow-up validation work prepared a dedicated Folder Pair multi-Scene
+  preflight wrapper over the already merged P5-G lifecycle validator. External execution
+  remains pending and no Folder Pair PASS is claimed by this repository change alone.
 
 ## Completion summary
 
-Not complete. Temporary external transport/job/shared-source preflight is observed, but
-no real GPU computation, schema-v2 COMPLETE/PARTIAL Result publication, or full external
-GPU/SMB qualification PASS is claimed.
+Not complete. Temporary external transport/job/shared-source Current Pair preflight is
+observed and a final Folder Pair multi-Scene temporary check is pending. No real GPU
+computation, schema-v2 COMPLETE/PARTIAL Result publication, or full external GPU/SMB
+qualification PASS is claimed.
