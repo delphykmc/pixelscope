@@ -32,6 +32,7 @@ def test_missing_root_reports_failure_without_exposing_path(tmp_path: Path) -> N
 
     assert not report.passed
     assert report.mode == "synthetic_root"
+    assert report.source_mode == "direct_directory"
     assert not report.root_exists
     assert not report.root_is_directory
     assert report.configured_root_count == 1
@@ -50,5 +51,19 @@ def test_persisted_settings_mode_reports_missing_configured_root_match(tmp_path:
 
     assert not report.passed
     assert report.mode == "persisted_settings"
+    assert report.source_mode == "direct_directory"
     assert report.configured_root_count == 1
     assert report.configured_root_match_count == 0
+
+
+def test_ui_discovery_mode_uses_discovered_source_paths(tmp_path: Path) -> None:
+    source = tmp_path / "source.png"
+    source.write_bytes(b"fixture")
+
+    report = run_storage_diagnostics(tmp_path, use_ui_discovery=True)
+
+    assert report.passed
+    assert report.source_mode == "ui_discovery"
+    assert report.eligible_source_count == 1
+    assert report.checked_source_count == 1
+    assert report.observations[0].resolver_match
