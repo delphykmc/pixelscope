@@ -72,12 +72,12 @@ Deferred from P4:
 
 ## Forward sequence
 
-P5-G and P6 remain externally gated, but the release work that is independent of those
-contracts may proceed first. This is a dependency exception, not a P5-G bypass.
-Corporate release preparation is owner-local: repository automation may prepare and
-validate a release candidate and provider-neutral publication staging, while privileged
-production publication remains an authorized human action across the corporate
-security boundary.
+P5-G temporary external preflight is now observed, while full GPU/result qualification
+and P6 remain externally gated. Release work that is independent of those contracts may
+proceed first. This is a dependency exception, not a P5-G bypass. Corporate release
+preparation is owner-local: repository automation may prepare and validate a release
+candidate and provider-neutral publication staging, while privileged production
+publication remains an authorized human action across the corporate security boundary.
 
 ```text
 P5 Remote IQA Platform complete through P5-F
@@ -92,7 +92,7 @@ P7-C Owner-local Release Candidate                 COMPLETE — PR #63
     ↓
 P7-D Stage 1 Release Metadata & Manual Publication ACTIVE
     ↓
-P5-G External GPU/SMB Validation & Closeout        DEFERRED — real environment required
+P5-G External GPU/SMB Validation & Closeout        IN PROGRESS — temporary preflight observed; full qualification deferred
     ↓
 P6 Identity, Access & Remote Operations            PLANNED / production integration gated
     ↓
@@ -217,7 +217,7 @@ P5-0
 | 5 | P5-D Viewer-linked Scene Inspection | **Complete — PR #43 · `b086443d188eb9daae4bbf4f0faab3ff1d114f93`** |
 | 6 | P5-E Historical Result Workflow | **Complete — PR #44 · `6a0a334d61a7495b9c3433edfcbd537c8df59468`** |
 | 7 | P5-F Integration & Performance Hardening | **Complete — PR #45 · `6634447fc3c48545a2482718dd3f444928806218`** |
-| 8 | P5-G External GPU/SMB Validation & Closeout | **Deferred — pending environment access** |
+| 8 | P5-G External GPU/SMB Validation & Closeout | **In progress — temporary preflight observed; full qualification deferred** |
 
 ## P5-0 / P5-A / P5-A2 — Complete
 
@@ -421,30 +421,37 @@ The authoritative R plan is retained in
 | R6 | Harness and architecture guardrails | **Complete — PR #54 · `7c3dbe386aaff900f0accc7ce460759df80f14e0`** |
 | R7 | Final integration validation and closeout | **Complete — PR #55 · `2f29bf95b8d51c470534cf6decda3033681c75bf`** |
 
-## P5-G — External GPU/SMB Validation & Closeout — Deferred / pending environment access
+## P5-G — External GPU/SMB Validation & Closeout — In progress / temporary preflight observed
 
-P5-G is the final P5 program gate. When the real environment becomes available it will
+P5-G is the final P5 program gate. The available temporary external server has now
+provided observed evidence for external connectivity, Current Pair job creation/status,
+cancellation, failed/cancelled Result non-publication, mapped-drive shared-root
+resolution, logical root mapping, server-side source verification, and Jobs/UI lifecycle.
+The temporary server then reaches the expected terminal `failed` because IQA computation
+is not implemented.
+
+Full P5-G qualification remains deferred until the real GPU/result environment can
 validate:
 
-- external GPU API/result-writer compatibility;
-- Current Pair and Folder Pair end-to-end behavior;
-- COMPLETE/PARTIAL and cancel/completion races;
+- real IQA/GPU computation and external result-writer compatibility;
+- Current Pair and Folder Pair COMPLETE/PARTIAL end-to-end behavior;
+- completion races and successful/partial publication;
 - historical Result reopen/root remap;
-- shared-root/staging/SMB behavior;
+- full shared-root/staging/SMB behavior beyond the observed preflight;
 - manifest/summary/Reference/grid/native verification/spatial-load timing and byte
   observations;
 - concurrent local analysis/navigation while remote work is active;
 - close/reopen and rapid Result/Scene intents.
 
-Only observed real-server/SMB evidence may be recorded as PASS. Any follow-up
-optimization remains measurement-backed and bounded. P5-G performs the final P5 docs
-closeout and activates P6 production integration only after the external gate is
-actually observed.
+Only observed external evidence may be recorded as PASS. Any follow-up optimization
+remains measurement-backed and bounded. P5-G performs the final P5 docs closeout and
+activates P6 production integration only after the full external gate is actually
+observed.
 
 P5-G does not block the independently scoped P7-D Stage 1 work defined below. That work
 must not invent or validate missing remote/authentication contracts.
 
-The authoritative deferred gate is
+The authoritative gate is
 [`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 # P6 — Identity, Access & Remote Operations — Planned / externally gated
