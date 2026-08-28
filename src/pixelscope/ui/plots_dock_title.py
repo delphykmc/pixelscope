@@ -25,6 +25,7 @@ from pixelscope.ui.design_tokens import TOKENS, dock_title_button_style
 
 PLOTS_FLOATING_GEOMETRY_SETTING = "ui/plots_floating_geometry"
 IQA_FLOATING_GEOMETRY_SETTING = "ui/iqa_floating_geometry"
+_CONTROLLER_ATTRIBUTE = "_pixelscope_workspace_title_controller"
 
 
 def _title_icon(kind: str) -> QIcon:
@@ -82,6 +83,19 @@ class PlotsDockTitleBar(QWidget):
 
         cls._known_geometry_settings.add(setting)
 
+    @classmethod
+    def controller_for_dock(cls, dock: QDockWidget) -> PlotsDockTitleBar | None:
+        """Return the retained title controller even while native floating chrome is active."""
+
+        title_bar = dock.titleBarWidget()
+        if isinstance(title_bar, cls):
+            return title_bar
+        retained = dock.__dict__.get(_CONTROLLER_ATTRIBUTE)
+        if isinstance(retained, cls):
+            return retained
+        child = dock.findChild(cls)
+        return child if isinstance(child, cls) else None
+
     def __init__(
         self,
         dock: QDockWidget,
@@ -94,6 +108,7 @@ class PlotsDockTitleBar(QWidget):
         self._panel_title = title
         self._geometry_setting = geometry_setting
         self.register_geometry_setting(geometry_setting)
+        dock.__dict__[_CONTROLLER_ATTRIBUTE] = self
         self._restore_to_docked = False
         self._restore_area = Qt.DockWidgetArea.BottomDockWidgetArea
         self._settings = QSettings()
@@ -219,10 +234,11 @@ class PlotsDockTitleBar(QWidget):
             self._floating_geometry = QByteArray()
             return
         for dock in window.findChildren(QDockWidget):
-            title_bar = dock.titleBarWidget()
-            managed = (
-                isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() == "iqaWorkspaceDock"
-            )
+            title_bar = self.controller_for_dock(dock)
+            managed = isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() in {
+                "plotsPanel",
+                "iqaWorkspaceDock",
+            }
             if not managed:
                 continue
             if isinstance(title_bar, PlotsDockTitleBar):
@@ -231,7 +247,7 @@ class PlotsDockTitleBar(QWidget):
                 title_bar._remember_dock_area()
             if not dock.isFloating():
                 continue
-            was_visible = dock.isVisible()
+            was_hidden = dock.isHidden()
             area = (
                 title_bar._restore_area
                 if isinstance(title_bar, PlotsDockTitleBar)
@@ -239,7 +255,7 @@ class PlotsDockTitleBar(QWidget):
             )
             window.addDockWidget(area, dock)
             dock.setFloating(False)
-            dock.setVisible(was_visible)
+            dock.setVisible(not was_hidden)
 
     def _remember_dock_area(self) -> None:
         window = self._main_window()
