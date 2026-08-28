@@ -87,17 +87,15 @@ def run_storage_diagnostics(
     mode = "persisted_settings" if settings is not None else "synthetic_root"
     root_exists = root.exists()
     root_is_directory = root.is_dir()
+
     if settings is None:
-        effective_settings = RemoteIqaSettings(
-            server_base_url="http://diagnostic.invalid",
-            storage_roots=(RemoteIqaStorageRoot("diagnostic-root", str(root)),),
-        )
+        configured_root_count = 1
+        configured_root_match_count = 1
     else:
-        effective_settings = settings
-    configured_root_count = len(effective_settings.storage_roots)
-    configured_root_match_count = sum(
-        _same_windows_path(root, item.client_path) for item in effective_settings.storage_roots
-    )
+        configured_root_count = len(settings.storage_roots)
+        configured_root_match_count = sum(
+            _same_windows_path(root, item.client_path) for item in settings.storage_roots
+        )
 
     if not root_is_directory:
         return StorageDiagnosticReport(
@@ -110,6 +108,14 @@ def run_storage_diagnostics(
             configured_root_match_count,
             (),
         )
+
+    if settings is None:
+        effective_settings = RemoteIqaSettings(
+            server_base_url="http://diagnostic.invalid",
+            storage_roots=(RemoteIqaStorageRoot("diagnostic-root", str(root)),),
+        )
+    else:
+        effective_settings = settings
 
     try:
         sources = tuple(
