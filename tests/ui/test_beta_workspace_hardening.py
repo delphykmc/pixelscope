@@ -1,26 +1,53 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QByteArray, QSettings, Qt
 from PySide6.QtWidgets import QSizePolicy
 
 from pixelscope.app.main_window import MainWindow
-from pixelscope.ui.beta_workspace_hardening import (
-    install_beta_workspace_hardening,
-    tile_header_compact_for_width,
+from pixelscope.core.image_document import ImageDocument
+from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
+from pixelscope.ui.plots_dock_title import (
+    IQA_FLOATING_GEOMETRY_SETTING,
+    PLOTS_FLOATING_GEOMETRY_SETTING,
+    PlotsDockTitleBar,
 )
-from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+from pixelscope.ui.tile_header import TileHeader
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def test_tile_header_compact_mode_uses_resize_hysteresis() -> None:
-    assert tile_header_compact_for_width(compact=False, width=479)
-    assert not tile_header_compact_for_width(compact=False, width=480)
+    assert TileHeader.compact_for_width(compact=False, width=479)
+    assert not TileHeader.compact_for_width(compact=False, width=480)
 
-    assert tile_header_compact_for_width(compact=True, width=480)
-    assert tile_header_compact_for_width(compact=True, width=511)
-    assert not tile_header_compact_for_width(compact=True, width=512)
+    assert TileHeader.compact_for_width(compact=True, width=480)
+    assert TileHeader.compact_for_width(compact=True, width=511)
+    assert not TileHeader.compact_for_width(compact=True, width=512)
+
+
+def test_tile_header_document_refresh_preserves_hysteresis_band(qtbot: object) -> None:
+    header = TileHeader()
+    qtbot.addWidget(header)  # type: ignore[attr-defined]
+    header.show()
+    header.resize(470, header.height())
+    qtbot.waitUntil(lambda: header.compact)  # type: ignore[attr-defined]
+
+    header.resize(500, header.height())
+    qtbot.waitUntil(lambda: header.width() == 500)  # type: ignore[attr-defined]
+    assert header.compact
+
+    document = ImageDocument.from_array(
+        np.zeros((8, 8), dtype=np.uint8),
+        "refresh.png",
+    )
+    header.set_document(document)
+    assert header.compact
+
+    header.resize(TileHeader.COMPACT_EXIT_WIDTH, header.height())
+    qtbot.waitUntil(lambda: not header.compact)  # type: ignore[attr-defined]
+    header.close()
 
 
 def test_beta_layout_policy_removes_accumulated_workspace_floors(qtbot: object) -> None:
@@ -93,6 +120,27 @@ def _assert_regular_top_level_window(dock: object) -> None:
     assert flags & Qt.WindowType.WindowMaximizeButtonHint
 
 
+def _show_workspace(window: MainWindow, workspace: str) -> object:
+    if workspace == "plots":
+        window._set_plots_visible(True)
+        return window.bottom_dock
+    window.iqa_workspace_action.trigger()
+    return window.iqa_dock
+
+
+def _prepare_native_floating(window: MainWindow, workspace: str, qtbot: object) -> object:
+    dock = _show_workspace(window, workspace)
+    qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
+    if workspace == "iqa":
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: isinstance(window.iqa_dock.titleBarWidget(), PlotsDockTitleBar)
+        )
+    dock.setFloating(True)
+    qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: dock.titleBarWidget() is None)  # type: ignore[attr-defined]
+    return dock
+
+
 def test_floating_plots_use_native_top_level_chrome_and_redock(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -101,27 +149,19 @@ def test_floating_plots_use_native_top_level_chrome_and_redock(qtbot: object) ->
     assert isinstance(original_title, PlotsDockTitleBar)
 
     window.show()
-    window._set_plots_visible(True)
-    window.bottom_dock.setFloating(True)
-    qtbot.waitUntil(window.bottom_dock.isFloating)  # type: ignore[attr-defined]
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.bottom_dock.titleBarWidget() is None
-    )
+    dock = _prepare_native_floating(window, "plots", qtbot)
 
-    _assert_regular_top_level_window(window.bottom_dock)
-    handle = window.bottom_dock.windowHandle()
+    _assert_regular_top_level_window(dock)
+    handle = dock.windowHandle()
     if handle is not None:
         qtbot.waitUntil(lambda: handle.transientParent() is None)  # type: ignore[attr-defined]
 
-    window.bottom_dock.setFloating(False)
-    qtbot.waitUntil(lambda: not window.bottom_dock.isFloating())  # type: ignore[attr-defined]
+    dock.setFloating(False)
+    qtbot.waitUntil(lambda: not dock.isFloating())  # type: ignore[attr-defined]
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.bottom_dock.titleBarWidget() is original_title
+        lambda: dock.titleBarWidget() is original_title
     )
-    assert (
-        window.dockWidgetArea(window.bottom_dock)
-        == Qt.DockWidgetArea.BottomDockWidgetArea
-    )
+    assert window.dockWidgetArea(dock) == Qt.DockWidgetArea.BottomDockWidgetArea
 
     window.close()
 
@@ -132,32 +172,109 @@ def test_floating_iqa_uses_native_top_level_chrome_and_redock(qtbot: object) -> 
     install_beta_workspace_hardening(window)
     window.show()
 
-    window.iqa_workspace_action.trigger()
-    qtbot.waitUntil(window.iqa_dock.isVisible)  # type: ignore[attr-defined]
+    dock = _show_workspace(window, "iqa")
+    qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: isinstance(window.iqa_dock.titleBarWidget(), PlotsDockTitleBar)
+        lambda: isinstance(dock.titleBarWidget(), PlotsDockTitleBar)
     )
-    original_title = window.iqa_dock.titleBarWidget()
+    original_title = dock.titleBarWidget()
 
-    window.iqa_dock.setFloating(True)
-    qtbot.waitUntil(window.iqa_dock.isFloating)  # type: ignore[attr-defined]
+    dock.setFloating(True)
+    qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: dock.titleBarWidget() is None)  # type: ignore[attr-defined]
+    _assert_regular_top_level_window(dock)
+
+    dock.showMaximized()
+    qtbot.waitUntil(dock.isMaximized)  # type: ignore[attr-defined]
+    dock.showNormal()
+    qtbot.waitUntil(lambda: not dock.isMaximized())  # type: ignore[attr-defined]
+
+    dock.setFloating(False)
+    qtbot.waitUntil(lambda: not dock.isFloating())  # type: ignore[attr-defined]
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.iqa_dock.titleBarWidget() is None
-    )
-    _assert_regular_top_level_window(window.iqa_dock)
-
-    window.iqa_dock.showMaximized()
-    qtbot.waitUntil(window.iqa_dock.isMaximized)  # type: ignore[attr-defined]
-    window.iqa_dock.showNormal()
-    qtbot.waitUntil(lambda: not window.iqa_dock.isMaximized())  # type: ignore[attr-defined]
-
-    window.iqa_dock.setFloating(False)
-    qtbot.waitUntil(lambda: not window.iqa_dock.isFloating())  # type: ignore[attr-defined]
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.iqa_dock.titleBarWidget() is original_title
+        lambda: dock.titleBarWidget() is original_title
     )
     assert window.iqa_workspace_action.isChecked()
 
-    window.iqa_dock.hide()
+    dock.hide()
     assert not window.iqa_workspace_action.isChecked()
+    window.close()
+
+
+@pytest.mark.parametrize("workspace", ["plots", "iqa"])
+def test_late_install_preserves_hidden_floating_workspace(
+    qtbot: object,
+    workspace: str,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.show()
+
+    dock = _show_workspace(window, workspace)
+    qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
+    if workspace == "iqa":
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: isinstance(dock.titleBarWidget(), PlotsDockTitleBar)
+        )
+    dock.setFloating(True)
+    qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
+    dock.hide()
+    qtbot.waitUntil(dock.isHidden)  # type: ignore[attr-defined]
+
+    install_beta_workspace_hardening(window)
+    qtbot.wait(20)  # type: ignore[attr-defined]
+
+    assert dock.isFloating()
+    assert dock.isHidden()
+    action = window.plots_action if workspace == "plots" else window.iqa_workspace_action
+    assert not action.isChecked()
+
+    dock.show()
+    qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: dock.titleBarWidget() is None)  # type: ignore[attr-defined]
+    _assert_regular_top_level_window(dock)
+    window.close()
+
+
+@pytest.mark.parametrize(
+    ("workspace", "setting"),
+    [
+        ("plots", PLOTS_FLOATING_GEOMETRY_SETTING),
+        ("iqa", IQA_FLOATING_GEOMETRY_SETTING),
+    ],
+)
+def test_reset_workspace_clears_retained_native_floating_geometry(
+    qtbot: object,
+    workspace: str,
+    setting: str,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    install_beta_workspace_hardening(window)
+    window.show()
+    dock = _prepare_native_floating(window, workspace, qtbot)
+
+    title = PlotsDockTitleBar.controller_for_dock(dock)
+    assert isinstance(title, PlotsDockTitleBar)
+    stale_geometry = QByteArray(f"stale-{workspace}".encode())
+    title._floating_geometry = QByteArray(stale_geometry)
+    QSettings().setValue(setting, stale_geometry)
+
+    window.action_map["Reset Workspace Layout"].trigger()
+
+    assert QSettings().value(setting) is None
+    assert title._floating_geometry.isEmpty()
+    assert not dock.isFloating()
+    assert dock.isHidden()
+
+    dock.setFloating(True)
+    qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
+    dock.show()
+    qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: dock.titleBarWidget() is None)  # type: ignore[attr-defined]
+    assert title._floating_geometry != stale_geometry
+    persisted = QSettings().value(setting)
+    if isinstance(persisted, QByteArray | bytes):
+        assert QByteArray(persisted) != stale_geometry
+
     window.close()
