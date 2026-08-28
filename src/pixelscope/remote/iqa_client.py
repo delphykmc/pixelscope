@@ -17,6 +17,8 @@ from pixelscope.remote.iqa_submission import (
     JobState,
 )
 
+REMOTE_IQA_PROXY_POLICY = "direct"
+
 
 class IqaClientErrorKind(str, Enum):
     """Stable error classes suitable for UI diagnostics and localhost fault tests."""
@@ -98,8 +100,15 @@ class HttpIqaJobClient(IqaJobClient):
             timeout=httpx.Timeout(timeout_seconds),
             verify=True,
             transport=transport,
-            trust_env=False,
+            proxies={},
+            trust_env=True,
         )
+
+    @property
+    def proxy_policy(self) -> str:
+        """Return the stable proxy-routing policy used by Remote IQA transport."""
+
+        return REMOTE_IQA_PROXY_POLICY
 
     def close(self) -> None:
         self._client.close()
