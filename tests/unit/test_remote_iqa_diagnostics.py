@@ -124,15 +124,21 @@ def _patch_reachable_runtime(monkeypatch, *, environment_status: str = "PASS") -
     def tcp_probe(_host: str, _port: int, _timeout: float):
         return True, diagnostics.DiagnosticCheck("tcp_connect", "PASS", "connected")
 
-    def http_probe(_url: str, _timeout: float, *, trust_env: bool):
+    def http_probe(_url: str, _timeout: float, *, use_environment_proxy: bool):
         return diagnostics.DiagnosticCheck(
-            "http_environment" if trust_env else "http_direct",
-            environment_status if trust_env else "PASS",
-            "timeout" if trust_env and environment_status == "FAIL" else "HTTP 404",
+            "http_environment" if use_environment_proxy else "http_direct",
+            environment_status if use_environment_proxy else "PASS",
+            "timeout"
+            if use_environment_proxy and environment_status == "FAIL"
+            else "HTTP 404",
         )
 
     def production_probe(_url: str, _timeout: float):
-        return diagnostics.DiagnosticCheck("production_client", "PASS", "HTTP 404"), False
+        return (
+            diagnostics.DiagnosticCheck("production_client", "PASS", "HTTP 404"),
+            True,
+            "direct",
+        )
 
     monkeypatch.setattr(diagnostics, "_dns_probe", dns_probe)
     monkeypatch.setattr(diagnostics, "_tcp_probe", tcp_probe)
@@ -152,7 +158,8 @@ def test_run_diagnostics_never_emits_raw_server_or_proxy_values(monkeypatch) -> 
     assert report.passed
     assert report.blocking_failures == ()
     assert report.network is not None
-    assert report.network.production_client_trust_env is False
+    assert report.network.production_client_trust_env is True
+    assert report.network.production_client_proxy_policy == "direct"
     assert report.network.interpretation == "transport_reachable"
     assert "very-secret-iqa.internal" not in serialized
     assert "very-secret-proxy.internal" not in serialized
@@ -172,7 +179,8 @@ def test_environment_proxy_failure_is_warning_when_production_direct_transport_p
     assert report.network.http_with_environment.status == "FAIL"
     assert report.network.http_direct.status == "PASS"
     assert report.network.production_client.status == "PASS"
-    assert report.network.production_client_trust_env is False
+    assert report.network.production_client_trust_env is True
+    assert report.network.production_client_proxy_policy == "direct"
     assert report.network.interpretation == "proxy_or_environment_interference_bypassed"
 
 
