@@ -1,6 +1,6 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-27
+Snapshot date: 2026-08-28
 Current merged `main`: `1fa6d278fcb16ed5170c3a21fc8cb31119f6e7e2`
 
 `main` includes the cumulative P5/R history below plus the release-foundation work
@@ -46,8 +46,10 @@ merged after R closeout:
   `f3b1437b478e119c425dbf00d627b37f0371889e`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
-P5-G **External GPU/SMB Validation & Closeout** is unobserved and deferred until the
-real environment is available. R **Repository Refactoring & Validation Hardening**
+P5-G **External GPU/SMB Validation & Closeout** is only partially observed: temporary
+external transport/job/shared-source preflight is now validated, while real GPU/IQA
+computation, schema-v2 result publication, and full GPU/result-writer/SMB qualification
+remain deferred and NOT VALIDATED. R **Repository Refactoring & Validation Hardening**
 completed through independently reviewed PR #55 and remains historical completed work.
 P7 Release Foundation is now the active repository implementation program: P7-C is
 Complete and **P7-D Stage 1 — Release Metadata & Manual Publication Foundation** is
@@ -76,7 +78,7 @@ P5-E historical-result contract:
 P5-F integration characterization:
 [`REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
 
-Deferred P5-G external validation plan:
+P5-G external validation plan:
 [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 Historical schema-v1 compatibility contract:
@@ -485,20 +487,31 @@ than a P5-F regression. No full-suite PASS is claimed. Independent implementatio
 architecture review passed, and P5-F merged as PR #45 at
 `main@6634447fc3c48545a2482718dd3f444928806218`.
 
-## P5-G deferred external validation state
+## P5-G external validation state — temporary preflight observed / full qualification deferred
 
-P5-G **External GPU/SMB Validation & Closeout** is the final P5 program gate and is
-deferred for realistic environment availability, not because repository-side client
-implementation is missing. Its authoritative deferred execution plan is
+P5-G **External GPU/SMB Validation & Closeout** is the final P5 program gate. The
+temporary external server has now provided observed evidence for:
+
+- external connectivity and production create/status transport;
+- expected failed terminal stability and cancellation lifecycle;
+- failed/cancelled Result non-publication;
+- Current Pair Jobs/UI integration;
+- mapped-drive/canonical-path shared-root resolution on the client;
+- logical root-ID mapping and server-side source verification.
+
+The temporary server then reaches the expected terminal `failed` because IQA computation
+is not implemented. This is successful temporary preflight evidence, not a substitute
+for real IQA or schema-v2 publication.
+
+The authoritative P5-G execution plan is
 [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
+Full qualification remains deferred until a real environment can validate IQA/GPU
+computation, COMPLETE/PARTIAL schema-v2 publication/result writer, Folder Pair full
+end-to-end behavior, historical reopen/remap, native Inspect/spatial flow, complete
+shared-root/staging/SMB behavior, coexistence/lifecycle behavior, and real
+network/grid/source timing observations.
 
-It will validate the real external GPU API/result writer, mapped/shared storage,
-Current Pair/Folder Pair, COMPLETE/PARTIAL, cancel/completion races, historical reopen,
-Inspect/spatial flow, concurrent local analysis, lifecycle behavior, and real
-network/grid/source timing observations. Any follow-up optimization must remain
-measurement-backed and bounded.
-
-No real GPU/SMB PASS has been observed or claimed.
+No full GPU/SMB P5-G PASS has been observed or claimed.
 
 ## P7 release-foundation state
 
@@ -529,7 +542,7 @@ P7-C Owner-local Release Candidate                 COMPLETE — PR #63
     ↓
 P7-D Stage 1 Release Metadata & Manual Publication ACTIVE
     ↓
-P5-G External GPU/SMB Validation                   DEFERRED — real environment required
+P5-G External GPU/SMB Validation                   IN PROGRESS — temporary preflight observed; full qualification deferred
     ↓
 P6 Identity, Access & Remote Operations            PLANNED / production integration gated
     ↓
