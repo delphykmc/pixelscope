@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import cast
 
-from PySide6.QtCore import QEvent, QObject, QPointF, QRectF, QTimer, Qt
+from PySide6.QtCore import QObject, QPointF, QRectF, QTimer, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QWindow
 from PySide6.QtWidgets import (
     QComboBox,
@@ -137,68 +137,6 @@ class _WorkspaceDockTopLevelController(QObject):
             title_bar.sync(False)
 
 
-class _HorizontalWorkspaceAllocationController(QObject):
-    """Keep Files width user-owned while the docked IQA width changes."""
-
-    def __init__(self, splitter: QSplitter, iqa_dock: QDockWidget) -> None:
-        super().__init__(splitter)
-        self._splitter = splitter
-        self._iqa_dock = iqa_dock
-        sizes = splitter.sizes()
-        self._preferred_sidebar_width = sizes[0] if sizes else 0
-        self._restoring = False
-        self._restore_pending = False
-        splitter.splitterMoved.connect(self._splitter_moved)  # type: ignore[attr-defined]
-        iqa_dock.installEventFilter(self)
-        iqa_dock.visibilityChanged.connect(self._schedule_restore)  # type: ignore[attr-defined]
-        iqa_dock.topLevelChanged.connect(self._schedule_restore)  # type: ignore[attr-defined]
-
-    @property
-    def preferred_sidebar_width(self) -> int:
-        return self._preferred_sidebar_width
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if (
-            watched is self._iqa_dock
-            and event.type() == QEvent.Type.Resize
-            and not self._iqa_dock.isFloating()
-        ):
-            self._schedule_restore()
-        return super().eventFilter(watched, event)
-
-    def _splitter_moved(self, _position: int, _index: int) -> None:
-        if self._restoring:
-            return
-        sizes = self._splitter.sizes()
-        if sizes:
-            self._preferred_sidebar_width = sizes[0]
-
-    def _schedule_restore(self, *_args: object) -> None:
-        if self._restore_pending:
-            return
-        self._restore_pending = True
-        QTimer.singleShot(0, self._restore_sidebar_width)
-
-    def _restore_sidebar_width(self) -> None:
-        self._restore_pending = False
-        if self._iqa_dock.isFloating():
-            return
-        sizes = self._splitter.sizes()
-        if len(sizes) < 2:
-            return
-        total = sum(sizes)
-        if total <= 0:
-            return
-        target = min(self._preferred_sidebar_width, total)
-        if sizes[0] == target:
-            return
-        self._restoring = True
-        try:
-            self._splitter.setSizes([target, max(0, total - target)])
-        finally:
-            self._restoring = False
-
-
 class BetaWorkspaceHardeningController(QObject):
     """Production-only UI geometry/window hardening without new state authority."""
 
@@ -206,10 +144,8 @@ class BetaWorkspaceHardeningController(QObject):
         super().__init__(window)
         self.window = window
         self._dock_controllers: list[_WorkspaceDockTopLevelController] = []
-        self._horizontal_allocation_controller: _HorizontalWorkspaceAllocationController | None = None
         self._install_layout_policy()
         self._install_workspace_windows()
-        self._install_horizontal_allocation()
         self._install_iqa_toolbar_action()
 
     def _install_layout_policy(self) -> None:
@@ -218,14 +154,14 @@ class BetaWorkspaceHardeningController(QObject):
         if main_splitter is not None and main_splitter.count() >= 2:
             sidebar = main_splitter.widget(0)
             presentation = main_splitter.widget(1)
-            # Remove the legacy blanket 320 px floor. Both panes may now yield at
-            # extreme widths; the allocation controller preserves the user's Files
-            # width during ordinary IQA dock resizing instead of using hard minima.
+            # Keep QSplitter's native allocation/collapse semantics. Files is a
+            # secondary pane and may collapse; the Image workspace is the primary
+            # surface and must never snap to zero width.
             sidebar.setMinimumWidth(0)
             presentation.setMinimumWidth(0)
             main_splitter.setChildrenCollapsible(True)
             main_splitter.setCollapsible(0, True)
-            main_splitter.setCollapsible(1, True)
+            main_splitter.setCollapsible(1, False)
 
         for widget_name in ("document_list", "analysis_tabs"):
             widget = getattr(window, widget_name, None)
@@ -355,15 +291,6 @@ class BetaWorkspaceHardeningController(QObject):
         iqa = getattr(self.window, "iqa_dock", None)
         if isinstance(iqa, QDockWidget):
             self._dock_controllers.append(_WorkspaceDockTopLevelController(iqa))
-
-    def _install_horizontal_allocation(self) -> None:
-        main_splitter = getattr(self.window, "main_splitter", None)
-        iqa = getattr(self.window, "iqa_dock", None)
-        if isinstance(main_splitter, QSplitter) and isinstance(iqa, QDockWidget):
-            self._horizontal_allocation_controller = _HorizontalWorkspaceAllocationController(
-                main_splitter,
-                iqa,
-            )
 
     def _install_iqa_toolbar_action(self) -> None:
         toolbar = getattr(self.window, "main_toolbar", None)
