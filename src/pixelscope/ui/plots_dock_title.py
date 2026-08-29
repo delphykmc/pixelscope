@@ -52,8 +52,6 @@ def _title_icon(kind: str) -> QIcon:
         painter.drawLine(QPointF(3.5, 10.5), QPointF(12.5, 10.5))
         painter.drawLine(QPointF(6.0, 8.0), QPointF(8.0, 10.0))
         painter.drawLine(QPointF(10.0, 8.0), QPointF(8.0, 10.0))
-    elif kind == "minimize":
-        painter.drawLine(QPointF(3.0, 12.0), QPointF(13.0, 12.0))
     elif kind == "maximize":
         painter.drawRect(QRectF(2.5, 2.5, 11.0, 11.0))
         painter.drawLine(QPointF(3.5, 5.0), QPointF(12.5, 5.0))
@@ -130,11 +128,9 @@ class PlotsDockTitleBar(QWidget):
         )
         self.title = QLabel(title)
         self.float_button = self._button("float")
-        self.minimize_button = self._button("minimize")
         self.maximize_button = self._button("maximize")
         self.close_button = self._button("hide")
         self.float_button.clicked.connect(self._toggle_floating)  # type: ignore[attr-defined]
-        self.minimize_button.clicked.connect(self._minimize_floating)  # type: ignore[attr-defined]
         self.maximize_button.clicked.connect(self._toggle_maximized)  # type: ignore[attr-defined]
         self.close_button.clicked.connect(dock.hide)  # type: ignore[attr-defined]
         self.close_button.setToolTip(f"Hide {self._panel_title}")
@@ -144,7 +140,6 @@ class PlotsDockTitleBar(QWidget):
         layout.setSpacing(TOKENS.spacing_xs)
         layout.addWidget(self.title, 1)
         layout.addWidget(self.float_button)
-        layout.addWidget(self.minimize_button)
         layout.addWidget(self.maximize_button)
         layout.addWidget(self.close_button)
         self._dock.installEventFilter(self)
@@ -166,8 +161,6 @@ class PlotsDockTitleBar(QWidget):
         self.float_button.setToolTip(
             f"Dock {self._panel_title}" if floating else f"Float {self._panel_title}"
         )
-        self.minimize_button.setVisible(floating)
-        self.minimize_button.setToolTip(f"Minimize {self._panel_title}")
         if not floating and not self._dock.isMaximized():
             self._set_maximize_state(False)
 
@@ -216,10 +209,6 @@ class PlotsDockTitleBar(QWidget):
         self._restore_to_docked = False
         self._dock.setFloating(not self._dock.isFloating())
         self._dock.show()
-
-    def _minimize_floating(self) -> None:
-        if self._dock.isFloating():
-            self._dock.showMinimized()
 
     def _toggle_maximized(self) -> None:
         maximized = self._dock.isMaximized()
