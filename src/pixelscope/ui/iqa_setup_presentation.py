@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -62,6 +63,8 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
         workspace.configuration_label,
         workspace.configure_button,
         workspace.current_pair_label,
+        workspace.current_pair_a,
+        workspace.current_pair_b,
         workspace.current_submit,
         workspace.folder_a,
         workspace.folder_b,
@@ -89,17 +92,40 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     current_group = QGroupBox("Current Pair", workspace.setup_page)
     current_group.setObjectName("remoteIqaCurrentPairGroup")
     current_group.setToolTip(
-        "Uses exactly the two native images on the Current Comparison Page, in A/B page order."
+        "Uses exactly the two native RGB images on the Current Comparison Page, "
+        "in A/B page order."
     )
-    current_actions = QHBoxLayout(current_group)
-    current_actions.setContentsMargins(8, 10, 8, 8)
+    current_layout = QVBoxLayout(current_group)
+    current_layout.setContentsMargins(8, 10, 8, 8)
+    current_layout.setSpacing(6)
+
+    for label_text, value in (
+        ("A", workspace.current_pair_a),
+        ("B", workspace.current_pair_b),
+    ):
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        label = QLabel(label_text, current_group)
+        label.setFixedWidth(14)
+        value.setMinimumWidth(0)
+        value_policy = value.sizePolicy()
+        value_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+        value.setSizePolicy(value_policy)
+        value.show()
+        row.addWidget(label)
+        row.addWidget(value, 1)
+        current_layout.addLayout(row)
+
+    current_actions = QHBoxLayout()
     current_actions.setSpacing(6)
     workspace.current_submit.setText("Submit Pair")
     workspace.current_submit.setToolTip(
-        "Prepare the current A/B pair and submit one Remote IQA job."
+        "Submit the current A/B pair. Both images must be RGB, have the same dimensions, "
+        "and use the same pixel format."
     )
     current_actions.addWidget(workspace.current_pair_label, 1)
     current_actions.addWidget(workspace.current_submit)
+    current_layout.addLayout(current_actions)
     layout.addWidget(current_group)
 
     folder_group = QGroupBox("Folder Pair", workspace.setup_page)
@@ -137,7 +163,8 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     )
     workspace.folder_submit.setText("Submit Pairs")
     workspace.folder_submit.setToolTip(
-        "Submit the currently validated Folder Pair. " "This is disabled until validation succeeds."
+        "Submit the currently validated Folder Pair. "
+        "This is disabled until validation succeeds."
     )
     folder_actions.addWidget(workspace.preview_button)
     folder_actions.addWidget(workspace.preview_status, 1)
@@ -146,6 +173,7 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     folder_layout.addWidget(workspace.preview_table, 1)
     layout.addWidget(folder_group, 1)
 
+    workspace.remote_iqa_current_layout = current_layout
     workspace.remote_iqa_current_actions = current_actions
     workspace.remote_iqa_folder_actions = folder_actions
     workspace.remote_iqa_setup_layout = layout
@@ -168,6 +196,14 @@ def _compact_configuration_status(text: str) -> str:
 
 def _compact_current_pair_status(text: str) -> str:
     folded = text.casefold()
+    if text.startswith("OK · "):
+        return text
+    if "rgb images" in folded:
+        return "Blocked · RGB images required"
+    if "size mismatch" in folded:
+        return "Blocked · size mismatch"
+    if "format mismatch" in folded:
+        return "Blocked · format mismatch"
     if "exactly two images" in folded or "not an eligible pair" in folded:
         return "Select 2 images in Comparison Page"
     if "configure" in folded and "remote iqa" in folded:
