@@ -4,6 +4,7 @@ import argparse
 
 import numpy as np
 from PySide6.QtCore import QSettings, QTimer, Qt
+from PySide6.QtWidgets import QWidget
 
 from pixelscope.app.application import create_application
 from pixelscope.app.main_window import MainWindow
@@ -56,7 +57,7 @@ def _sample_document() -> ImageDocument:
     return ImageDocument.from_array(pixels, "layout_probe.png")
 
 
-def _describe(label: str, widget: object) -> None:
+def _describe(label: str, widget: QWidget) -> None:
     minimum_width = widget.minimumWidth()
     minimum_hint = widget.minimumSizeHint().width()
     size_hint = widget.sizeHint().width()
@@ -66,15 +67,27 @@ def _describe(label: str, widget: object) -> None:
     )
 
 
-def _apply_initial_widths(window: MainWindow, files_width: int | None, iqa_width: int | None) -> None:
+def _apply_initial_widths(
+    window: MainWindow,
+    files_width: int | None,
+    iqa_width: int | None,
+) -> None:
     if files_width is not None:
         sizes = window.main_splitter.sizes()
         total = sum(sizes)
         if total > 0:
             target = min(files_width, total)
             window.main_splitter.setSizes([target, max(0, total - target)])
-    if iqa_width is not None and window.iqa_dock.isVisible() and not window.iqa_dock.isFloating():
-        window.resizeDocks([window.iqa_dock], [iqa_width], Qt.Orientation.Horizontal)
+    if (
+        iqa_width is not None
+        and window.iqa_dock.isVisible()
+        and not window.iqa_dock.isFloating()
+    ):
+        window.resizeDocks(
+            [window.iqa_dock],
+            [iqa_width],
+            Qt.Orientation.Horizontal,
+        )
 
 
 def main() -> int:
@@ -124,7 +137,10 @@ def main() -> int:
         f"Files={window.main_splitter.isCollapsible(0)}, "
         f"Image={window.main_splitter.isCollapsible(1)}"
     )
-    print("Drag the Files splitter and IQA dock divider; live widths are shown in the title bar.")
+    print(
+        "Drag the Files splitter and IQA dock divider; "
+        "live widths are shown in the title bar."
+    )
 
     def update_title() -> None:
         if window.iqa_dock.isFloating():
