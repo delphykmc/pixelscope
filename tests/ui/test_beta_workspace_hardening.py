@@ -57,11 +57,15 @@ def test_beta_layout_policy_removes_accumulated_workspace_floors(qtbot: object) 
     sidebar = window.main_splitter.widget(0)
     assert sidebar.minimumWidth() == 320
     assert window.iqa_workspace.attribute_filter.minimumWidth() == 150
+    assert window.iqa_workspace.attribute_filter.maximumWidth() == 230
 
     install_beta_workspace_hardening(window)
 
     assert sidebar.minimumWidth() == 0
+    assert window.main_splitter.isCollapsible(0)
+    assert window.main_splitter.isCollapsible(1)
     assert window.iqa_workspace.attribute_filter.minimumWidth() == 0
+    assert window.iqa_workspace.attribute_filter.maximumWidth() == window.maximumWidth()
     assert (
         window.iqa_workspace.sizePolicy().horizontalPolicy()
         == QSizePolicy.Policy.Ignored
@@ -131,7 +135,7 @@ def _assert_styled_floating_workspace(dock: object) -> PlotsDockTitleBar:
     title = dock.titleBarWidget()
     assert isinstance(title, PlotsDockTitleBar)
     assert TOKENS.workspace_background in title.styleSheet()
-    assert not title.minimize_button.isHidden()
+    assert not hasattr(title, "minimize_button")
     assert title.float_button.toolTip().startswith("Dock ")
     return title
 
@@ -170,7 +174,7 @@ def test_floating_plots_keep_styled_title_and_redock(qtbot: object) -> None:
     install_beta_workspace_hardening(window)
     original_title = window.bottom_dock.titleBarWidget()
     assert isinstance(original_title, PlotsDockTitleBar)
-    assert original_title.minimize_button.isHidden()
+    assert not hasattr(original_title, "minimize_button")
 
     window.show()
     dock = _prepare_styled_floating(window, "plots", qtbot)
@@ -181,7 +185,6 @@ def test_floating_plots_keep_styled_title_and_redock(qtbot: object) -> None:
     dock.setFloating(False)
     qtbot.waitUntil(lambda: not dock.isFloating())  # type: ignore[attr-defined]
     assert dock.titleBarWidget() is original_title
-    assert original_title.minimize_button.isHidden()
     assert original_title.float_button.toolTip().startswith("Float ")
     assert window.dockWidgetArea(dock) == Qt.DockWidgetArea.BottomDockWidgetArea
 
@@ -214,7 +217,6 @@ def test_floating_iqa_keeps_styled_title_and_redock(qtbot: object) -> None:
     dock.setFloating(False)
     qtbot.waitUntil(lambda: not dock.isFloating())  # type: ignore[attr-defined]
     assert dock.titleBarWidget() is original_title
-    assert original_title.minimize_button.isHidden()
     assert window.iqa_workspace_action.isChecked()
 
     dock.hide()
