@@ -79,7 +79,9 @@ Useful options:
 
 The script prints each pane's `minimumWidth()`, `minimumSizeHint().width()`, and
 `sizeHint().width()` and shows live Files/Image/IQA widths in the window title while the
-splitters are dragged.
+splitters are dragged. The probe intentionally changes only widget minimum widths; it
+does not add custom splitter/dock event handling, so the observed allocation remains the
+same Qt-native behavior used by production.
 
 ### Two Image resize stability
 
