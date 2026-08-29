@@ -130,10 +130,14 @@ Current Pair requires:
 
 - exactly two eligible source images;
 - PNG/JPG/JPEG/BMP input;
+- decoded RGB with exactly three channels (`H×W×3`);
+- 8-bit / `uint8` samples;
 - matching original image dimensions.
 
-Remote IQA currently does **not** accept RAW and PixelScope does not silently
-demosaic/convert RAW for submission.
+Remote IQA currently evaluates **RGB8 only**. PixelScope does not silently convert
+GRAY, RGBA, RAW, RGB16, or another unsupported decoded domain to RGB8, and it does
+not resize mismatched sources for submission. RGB16 normalization may be technically
+possible in a future version, but it is not current support.
 
 A/B submission identity does not change when you change:
 
@@ -160,12 +164,23 @@ The current pairing rules are:
 
 - immediate files only; no recursive subdirectory scan;
 - symlink inputs are excluded;
-- eligible types are PNG/JPG/JPEG/BMP;
+- eligible file envelope is PNG/JPG/JPEG/BMP;
 - each folder is normalized to deterministic Unicode-NFC lexical order;
 - both folders must have the same non-zero eligible file count;
 - maximum 512 pairs/Scenes;
 - sorted A and B entries pair by index;
 - every A/B pair must have matching original dimensions.
+
+The same Remote IQA evaluated-source capability applies to Folder Pair Scenes: each
+source must ultimately decode as RGB8 (`H×W×3`, `uint8`). The current client
+**Validate / Preview** remains a bounded pairing/header preflight and does not eagerly
+decode every file in a large folder. PixelScope also does not silently convert an
+unsupported decoded domain for Folder Pair evaluation.
+
+The production server-native two-folder validation/submission path is deferred until
+real server integration. That future path is expected to perform exhaustive folder
+enumeration, decode/RGB8 validation, and per-pair geometry validation asynchronously
+with visible progress rather than duplicating full-folder decode in the desktop client.
 
 The filenames do not have to be semantically equal. The validated deterministic
 sorted position is the pairing authority.

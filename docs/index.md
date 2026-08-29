@@ -15,7 +15,8 @@ knowledge belongs in focused documents under `docs/`.
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
 | Branding/application identity | `BRANDING.md`, `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Product mark, canonical assets, resource loading, or release-icon use changes |
-| Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Runtime, dependency, installer, release metadata, publication, or resource-loading constraints change |
+| Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `BUILD_AND_RELEASE.md`, `DECISIONS.md` | Runtime, dependency, installer, release metadata, publication, or resource-loading constraints change |
+| Owner-local Beta build/release | `BUILD_AND_RELEASE.md`, `PACKAGING_CONSTRAINTS.md` | Human build flow, candidate handoff, validation sequence, or publication procedure changes |
 | Test/validation | `QUALITY.md` | Required checks, fixtures, smoke paths, or evidence standards change |
 | Agent-assisted workflow | `AGENT_HARNESS_NOTES.md` | A durable harness lesson or guardrail changes |
 
@@ -47,11 +48,16 @@ knowledge belongs in focused documents under `docs/`.
   supported icon sizes, and release-tool consumption rules.
 - `PACKAGING_CONSTRAINTS.md`: deployment environment, fixed packaging rules, release
   candidate/provenance lineage, and publication-boundary constraints.
+- `BUILD_AND_RELEASE.md`: concise owner-local Windows Beta build, candidate handoff,
+  provider-neutral publication staging, and revalidation runbook; normative rules remain
+  in `PACKAGING_CONSTRAINTS.md`.
 - `USER_GUIDE.md`: end-user workflows, including Remote IQA configuration,
   submission, Jobs, explicit Open Result, and result exploration.
 - `QUALITY.md`: change-to-check matrix and completion evidence.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
+- `ui/beta_workspace_hardening.md`: Beta layout/floating-window contract, root causes,
+  focused regression coverage, and Windows/multi-monitor manual checklist.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
 - [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): required current
   pointer; P7-D Stage 1 Release Metadata & Manual Publication Foundation is active

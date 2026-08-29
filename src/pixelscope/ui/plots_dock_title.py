@@ -21,10 +21,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pixelscope.ui.design_tokens import TOKENS, dock_title_button_style
+from pixelscope.ui.design_tokens import (
+    TOKENS,
+    WORKSPACE_CHROME_HEIGHT,
+    dock_title_button_style,
+)
 
 PLOTS_FLOATING_GEOMETRY_SETTING = "ui/plots_floating_geometry"
 IQA_FLOATING_GEOMETRY_SETTING = "ui/iqa_floating_geometry"
+_CONTROLLER_ATTRIBUTE = "_pixelscope_workspace_title_controller"
 
 
 def _title_icon(kind: str) -> QIcon:
@@ -69,7 +74,7 @@ def _title_icon(kind: str) -> QIcon:
 
 
 class PlotsDockTitleBar(QWidget):
-    """Compact reusable controls for floating/docking and maximizing a dock."""
+    """PixelScope-styled controls that preserve QDockWidget-native drag semantics."""
 
     _known_geometry_settings = {
         PLOTS_FLOATING_GEOMETRY_SETTING,
@@ -81,6 +86,19 @@ class PlotsDockTitleBar(QWidget):
         """Register a workspace dock geometry key so Reset clears it even while hidden."""
 
         cls._known_geometry_settings.add(setting)
+
+    @classmethod
+    def controller_for_dock(cls, dock: QDockWidget) -> PlotsDockTitleBar | None:
+        """Return the retained title controller for either docked or floating state."""
+
+        title_bar = dock.titleBarWidget()
+        if isinstance(title_bar, cls):
+            return title_bar
+        retained = dock.__dict__.get(_CONTROLLER_ATTRIBUTE)
+        if isinstance(retained, cls):
+            return retained
+        child = dock.findChild(cls)
+        return child if isinstance(child, cls) else None
 
     def __init__(
         self,
@@ -94,6 +112,7 @@ class PlotsDockTitleBar(QWidget):
         self._panel_title = title
         self._geometry_setting = geometry_setting
         self.register_geometry_setting(geometry_setting)
+        dock.__dict__[_CONTROLLER_ATTRIBUTE] = self
         self._restore_to_docked = False
         self._restore_area = Qt.DockWidgetArea.BottomDockWidgetArea
         self._settings = QSettings()
@@ -104,6 +123,15 @@ class PlotsDockTitleBar(QWidget):
             else QByteArray()
         )
         self._restoring_floating_geometry = False
+
+        self.setObjectName("workspaceDockTitle")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFixedHeight(WORKSPACE_CHROME_HEIGHT)
+        self.setStyleSheet(
+            f"QWidget#workspaceDockTitle {{ background: {TOKENS.title_background}; "
+            f"border-bottom: 1px solid {TOKENS.border}; }}"
+            f"QLabel {{ color: {TOKENS.text_primary}; }}"
+        )
         self.title = QLabel(title)
         self.float_button = self._button("float")
         self.maximize_button = self._button("maximize")
@@ -135,12 +163,21 @@ class PlotsDockTitleBar(QWidget):
         return button
 
     def sync(self, floating: bool) -> None:
+        self._apply_dock_frame(floating)
         self.float_button.setIcon(_title_icon("dock" if floating else "float"))
         self.float_button.setToolTip(
             f"Dock {self._panel_title}" if floating else f"Float {self._panel_title}"
         )
         if not floating and not self._dock.isMaximized():
             self._set_maximize_state(False)
+
+    def _apply_dock_frame(self, floating: bool) -> None:
+        """Provide the frame native decorations would otherwise supply when floating."""
+
+        object_name = self._dock.objectName()
+        selector = f"QDockWidget#{object_name}" if object_name else "QDockWidget"
+        border = f"1px solid {TOKENS.border}" if floating else "0px"
+        self._dock.setStyleSheet(f"{selector} {{ border: {border}; }}")
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if (
@@ -156,12 +193,28 @@ class PlotsDockTitleBar(QWidget):
                 self._settings.setValue(self._geometry_setting, geometry)
         return super().eventFilter(watched, event)
 
-    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        # Qt documents that unhandled custom-title mouse events must be ignored
+        # so QDockWidget itself can own move/dock discovery and docking previews.
+        event.ignore()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        event.ignore()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        event.ignore()
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton and self._dock.isFloating():
-            self._toggle_maximized()
+            if self._dock.isMaximized():
+                self._dock.showNormal()
+            self._restore_to_docked = False
+            self._dock.setFloating(False)
+            self._dock.show()
             event.accept()
             return
-        super().mouseDoubleClickEvent(event)
+        # Docked double-click remains Qt-owned, including its standard float behavior.
+        event.ignore()
 
     def _toggle_floating(self) -> None:
         if self._dock.isMaximized():
@@ -219,10 +272,11 @@ class PlotsDockTitleBar(QWidget):
             self._floating_geometry = QByteArray()
             return
         for dock in window.findChildren(QDockWidget):
-            title_bar = dock.titleBarWidget()
-            managed = (
-                isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() == "iqaWorkspaceDock"
-            )
+            title_bar = self.controller_for_dock(dock)
+            managed = isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() in {
+                "plotsPanel",
+                "iqaWorkspaceDock",
+            }
             if not managed:
                 continue
             if isinstance(title_bar, PlotsDockTitleBar):
@@ -231,7 +285,7 @@ class PlotsDockTitleBar(QWidget):
                 title_bar._remember_dock_area()
             if not dock.isFloating():
                 continue
-            was_visible = dock.isVisible()
+            was_hidden = dock.isHidden()
             area = (
                 title_bar._restore_area
                 if isinstance(title_bar, PlotsDockTitleBar)
@@ -239,7 +293,7 @@ class PlotsDockTitleBar(QWidget):
             )
             window.addDockWidget(area, dock)
             dock.setFloating(False)
-            dock.setVisible(was_visible)
+            dock.setVisible(not was_hidden)
 
     def _remember_dock_area(self) -> None:
         window = self._main_window()

@@ -23,6 +23,7 @@ class TileHeader(QWidget):
     navigation_requested = Signal(str)
     pick_requested = Signal(bool)
     COMPACT_WIDTH = 480
+    COMPACT_EXIT_WIDTH = COMPACT_WIDTH + 32
     REVIEW_ROLE_WIDTH = 60
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -146,6 +147,14 @@ class TileHeader(QWidget):
     @property
     def compact(self) -> bool:
         return self._compact
+
+    @classmethod
+    def compact_for_width(cls, *, compact: bool, width: int) -> bool:
+        """Return the stable responsive mode for a width using hysteresis."""
+
+        if compact:
+            return width < cls.COMPACT_EXIT_WIDTH
+        return width < cls.COMPACT_WIDTH
 
     def set_document(
         self,
@@ -317,13 +326,10 @@ class TileHeader(QWidget):
 
     def _update_responsive_mode(self, available_width: int | None = None) -> None:
         width = self.width() if available_width is None else available_width
-        compact = width < self.COMPACT_WIDTH
+        compact = self.compact_for_width(compact=self._compact, width=width)
         if compact != self._compact:
             self._compact = compact
             self.meta.setVisible(not compact)
-            layout = self.layout()
-            if layout is not None:
-                layout.activate()
         self._elide_name()
 
     def _elide_name(self) -> None:

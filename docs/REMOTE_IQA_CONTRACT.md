@@ -134,13 +134,28 @@ power-ratio dB.
 
 ## 5. Remote analysis domain and geometry
 
-The GPU service operates on RGB-family encoded image inputs. P5-C submission accepts
-PNG/JPG/JPEG/BMP only. Local RAW support does not imply a silent remote RAW conversion
-path.
+The currently qualified IQA evaluated-source domain is **RGB8 only**: every evaluated
+source must decode to exactly `H×W×3` RGB with 8-bit / `uint8` samples. The P5-C file
+envelope accepts PNG/JPG/JPEG/BMP, but an accepted filename extension does not by
+itself make the decoded source eligible.
+
+PixelScope and the IQA service do not silently manufacture this domain from unsupported
+inputs. GRAY, RGBA, RAW, RGB16, or another decoded domain is not automatically converted,
+demosaiced, alpha-dropped, normalized, or tone-mapped for Remote IQA submission. RGB16
+normalization may be technically possible in a future implementation, but it is **not
+current support** and requires an explicit capability/contract revision before use.
 
 All sources in a comparable Scene must have equal original dimensions. Unevaluable
 cohorts are rejected/excluded by server evaluation under the applicable failure
 policy; PixelScope does not align or resize them to manufacture IQA comparisons.
+
+Current Pair can enforce the RGB8 requirement locally because both source images are
+already decoded in PixelScope. Folder Pair has the same semantic evaluated-source
+requirement, but the current P5-C folder preview intentionally does not eagerly decode
+an entire batch merely to duplicate server work. Exhaustive Folder Pair RGB8 validation
+is therefore an ownership item for the production server-native Folder API integration
+described in §10, not a reason to add synchronous full-folder decode to the current
+client.
 
 For performance, 4K-class inputs are normally downscaled to approximately 2K before
 structural/attribute maps and grid statistics are created.
@@ -316,9 +331,13 @@ user-facing submission workflow is exactly two variants**:
 - Current Pair submits the A/B pair of underlying Current Comparison Page documents;
 - A/B identity follows deterministic underlying page/source order and is independent
   from Primary, Active, view reorder, Display Gain, Difference, or Split presentation;
+- Current Pair locally requires each decoded source to be RGB8 (`H×W×3`, `uint8`) and
+  requires equal original dimensions; it does not normalize, convert, or resize;
 - Folder Pair uses immediate eligible files only, no recursion, no symlinks, Unicode
   NFC lexical ordering, equal eligible counts, and pair-by-index ordering;
-- each submitted pair must have equal original dimensions;
+- Folder Pair Scenes are subject to the same RGB8 evaluated-source capability and equal
+  original-dimension requirement, but the current client preview remains a bounded
+  transport/pairing/header preflight rather than an eager full-folder decoder;
 - request Scene IDs are deterministic `scene_000000...` and each Scene serializes A
   then B;
 - arbitrary three-or-more-variant submission UI is deferred to a later explicit
@@ -328,6 +347,29 @@ user-facing submission workflow is exactly two variants**:
 Client-known preflight errors block the request before job creation. Server-side
 per-Scene evaluation failures are represented by the terminal result taxonomy below.
 The client does not resize/align or synthesize a missing variant.
+
+### Deferred production Folder Pair API/validation migration
+
+The production IQA service is expected to expose a native two-folder submission path.
+Adopting that path changes validation and transport ownership and is deliberately
+**deferred from the Beta UI-hardening PR** until real server integration.
+
+When that migration is implemented:
+
+- the same RGB8 + equal-dimension Scene capability above remains normative;
+- PixelScope should not eagerly decode every folder source merely to duplicate server
+  validation;
+- the server should own exhaustive folder enumeration, count/pair validation, decoding,
+  RGB8 validation, and per-pair geometry validation;
+- client-visible Folder validation/preparation must remain asynchronous;
+- progress must remain visible so PixelScope never appears frozen: indeterminate while
+  total work is unknown, then determinate when the server exposes a known total;
+- the concrete server API/request contract must be versioned/updated explicitly rather
+  than silently reinterpreting the current P5-C Scene-manifest transport.
+
+Until that migration, the existing P5-C Folder Pair implementation remains the bounded
+client transport/pairing path; this note does not introduce a second eager local decode
+pipeline or change the current server API in this PR.
 
 Durable PARTIAL results are executable schema-v2 results with these rules:
 
