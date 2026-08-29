@@ -23,7 +23,6 @@ class DesignTokens:
     icon_size: int = 16
     panel_background: str = "#25282d"
     workspace_background: str = "#141619"
-    title_background: str = "#101215"
     raised_background: str = "#30343a"
     border: str = "#444950"
     text_primary: str = "#e7e9ec"
@@ -107,7 +106,7 @@ def menu_style() -> str:
 
 def panel_heading_style() -> str:
     return (
-        f"QLabel {{ background: {TOKENS.title_background}; color: {TOKENS.text_primary}; "
+        f"QLabel {{ background: {TOKENS.panel_background}; color: {TOKENS.text_primary}; "
         f"font-weight: 600; padding: {TOKENS.spacing_sm}px; "
         f"border-bottom: 1px solid {TOKENS.border}; }}"
     )
