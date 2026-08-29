@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QLabel, QDockWidget, QWidget
+from PySide6.QtWidgets import QDockWidget, QLabel, QWidget
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
