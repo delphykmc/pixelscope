@@ -48,24 +48,41 @@ toolbar/status controls retain their established size. The central viewer can yi
 height to the existing bottom Plots dock instead of making Plot maximize the practical
 only usable state.
 
+When IQA is docked left or right at the same time, the bottom dock owns both lower
+`QMainWindow` corners. IQA plot/tree/preview surfaces no longer contribute fixed
+minimum-height floors and their local splitters may collapse those detail regions. This
+allows the Viewer/Plots boundary to move substantially farther upward while keeping IQA
+available above the bottom dock.
+
 ### Floating workspace windows
 
 Docked Plots/IQA retain the existing `QDockWidget`, custom dock title controls, object
-names, geometry settings, `saveState`/`restoreState`, and re-docking contract.
+names, geometry settings, `saveState`/`restoreState`, and drag-to-dock contract.
 
 While floating, `QDockWidget.setFloating()` remains the sole docking/topology authority.
-Beta policy removes the custom title widget so Qt uses its documented native floating
-window decorations, then clears the visible floating window's transient-parent relation.
+Beta policy removes the custom title widget so Qt uses native floating-window
+non-client chrome, then clears the visible floating window's transient-parent relation.
 It deliberately does **not** rewrite `QWidget.windowFlags()`: Windows/PySide validation
-showed that changing the window type flags can silently collapse a floating
-`QDockWidget` back into docked/child topology. Re-docking restores the retained custom
-dock title widget.
+showed that changing the Qt window type can collapse floating topology and commonly
+break drag re-docking.
 
-The intended Windows behavior remains normal workspace interaction: independent
-z-order/task switching, monitor movement, native title-bar drag, Snap/drag-to-top
-maximize, maximize/restore, and later re-docking. Exact Windows DWM/taskbar behavior is
-a manual qualification item rather than something inferred from the Qt window-type bit
-mask in offscreen tests.
+On Windows only, after the dock is already floating, the existing native HWND frame is
+promoted at the Win32 style layer to expose normal minimize, maximize, system-menu, and
+close controls and to use app-window rather than tool-window presentation. Qt still
+owns the `QDockWidget` floating state, so the native frame treatment does not replace
+Qt's docking discovery or persistence authority. Re-docking restores the retained
+custom dock title widget.
+
+The docked maximize button intentionally means **float and maximize**. A docked panel
+cannot meaningfully maximize independently inside `QMainWindow`; converting it to a
+floating maximized workspace is therefore the explicit behavior. In floating native
+mode there is no separate programmatic Dock button: users re-dock by dragging the
+native title bar back to a valid dock area, preserving the visible docking preview.
+
+The intended Windows behavior is normal workspace interaction: independent z-order and
+task switching, monitor movement, native title-bar drag, Snap/drag-to-top maximize,
+minimize/maximize/restore, and later drag re-docking. Exact DWM behavior remains a
+manual qualification item.
 
 ### IQA toolbar authority
 
@@ -91,6 +108,10 @@ visibility changes converge on the same QAction checked state.
 restart path: save hidden/floating state, construct a new `MainWindow`, restore state,
 and only then install Beta hardening. Hidden/floating topology must remain unchanged.
 
+`tests/ui/test_beta_workspace_layout_allocation.py` covers bottom-corner ownership and
+the shrinkable IQA detail/splitter policy. `tests/ui/test_beta_workspace_native_frame.py`
+checks the Windows native style contract without replacing the `QDockWidget` topology.
+
 Existing workspace, IQA, Display Gain, Difference, and session tests remain regression
 coverage and must be included in normal repository validation.
 
@@ -101,15 +122,17 @@ coverage and must be included in normal repository validation.
    forced beyond the work area.
 2. Resize Two Image continuously around the point where tile metadata becomes compact;
    verify there is no persistent flicker or resize/render oscillation.
-3. Dock Plots at the bottom and resize the Viewer/Plots boundary; verify both remain
-   simultaneously usable at a normal desktop height without requiring maximize.
-4. Float Plots, move it to another monitor, drag the native title bar to the screen top
-   and Snap regions, maximize/restore, then re-dock it.
-5. Repeat the same float/move/Snap/maximize/restore/re-dock flow for IQA.
-6. With three monitors, maximize Main Viewer, Plots, and IQA independently on monitors
-   1/2/3 respectively.
-7. Switch among Main/Plots/IQA using normal click/task switching and confirm no floating
-   workspace is forced permanently above Main.
+3. Dock Plots at the bottom while IQA is also docked left/right. Drag the Viewer/Plots
+   boundary upward and verify Plots can take substantial height while IQA detail/table
+   regions compress rather than imposing a fixed vertical floor.
+4. Float Plots and confirm the native title bar exposes minimize, maximize/restore, and
+   close; move it to another monitor, use Snap/drag-to-top, then drag it back until the
+   dock target preview appears and re-dock it.
+5. Repeat the same native-frame and drag re-dock flow for IQA.
+6. From a docked state, use the custom maximize button and verify the documented
+   float-and-maximize transition, then restore/re-dock normally.
+7. With three monitors, maximize Main Viewer, Plots, and IQA independently on monitors
+   1/2/3 respectively, and switch among them using normal click/task switching.
 8. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
    visible states remain synchronized in both directions.
 
