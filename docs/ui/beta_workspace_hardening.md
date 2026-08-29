@@ -86,12 +86,18 @@ the same Qt-native behavior used by production.
 
 ### Workspace title hierarchy
 
-Files, Analysis, Plots, and IQA Results use the same neutral panel surface used by the
-main-window palette (`panel_background`). Files/Analysis headings keep a thin lower
-border, while Plots/IQA use the same panel surface in the custom dock title bar for both
-docked and floating states. The workspace body remains the darker
-`workspace_background`, so a floating dock has a clearly visible title/body boundary
-without making the heading resemble an editable text field.
+Files, Analysis, Plots, and IQA Results use the shared `title_background` surface
+(`#1e2023`). This tone was chosen from the neutral region of the owner-provided active
+Windows PixelScope caption and is intentionally darker than the main content surface.
+The native Windows caption itself may contain OS-controlled tint/gradient and is not
+reimplemented inside Qt.
+
+Files and Analysis use the caption-tone background without an added lower divider, so
+the headings do not resemble framed/editable fields. Plots and IQA Results use the same
+caption-tone background in their custom dock title bar in both docked and floating
+states; the custom title widget explicitly paints its styled background so the surface
+remains visible when it becomes a floating window. The existing thin dock-title lower
+border remains only on Plots/IQA to separate caption controls from dock contents.
 
 This is a visual-only distinction; dock, drag, resize, and topology behavior are unchanged.
 
@@ -164,7 +170,7 @@ visibility changes converge on the same QAction checked state.
 - flexible vertical workspace policy;
 - idempotent installation and single IQA QAction authority/order;
 - toolbar/dock-close visibility synchronization;
-- Plots/IQA retaining the PixelScope title controller and panel-colored title surface while
+- Plots/IQA retaining the PixelScope title controller and caption-tone title surface while
   floating;
 - Dock/Float state synchronization, transient-parent removal, maximize/restore, and
   title-controller persistence on re-dock;
@@ -214,9 +220,9 @@ Beta hardening work. A speculative numeric-key fallback was reverted.
 6. Use `scripts/probe_workspace_min_widths.py` to compare candidate Files/Image/IQA
    minimum widths in both empty and `--with-sample-image` states before fixing final
    values.
-7. Confirm Files, Analysis, Plots, and IQA Results titles use the neutral panel-colored
-   title surface and that floating Plots/IQA title boundaries remain visually distinct
-   from their darker workspace bodies.
+7. Confirm Files and Analysis use the caption-tone background without an added lower
+   divider. Confirm Plots and IQA Results use that same caption-tone surface while docked
+   and floating, visibly distinct from their content/background surface.
 8. Float Plots. Confirm the title remains PixelScope styled and exposes Dock,
    Maximize/Restore, and Close only. Drag it back until the docking target preview
    appears, drop it, and verify the dock reattaches and releases the mouse immediately.
