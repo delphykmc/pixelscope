@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ctypes
+import sys
 from typing import cast
 
 from PySide6.QtCore import QObject, QPointF, QRectF, QTimer, Qt
@@ -11,6 +13,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMainWindow,
     QSizePolicy,
+    QSplitter,
     QTabWidget,
     QWidget,
 )
@@ -25,6 +28,83 @@ def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
     size_policy = widget.sizePolicy()
     size_policy.setVerticalPolicy(policy)
     widget.setSizePolicy(size_policy)
+
+
+def _apply_windows_native_workspace_frame(dock: QDockWidget) -> None:
+    """Promote a floating dock's native Windows frame without changing Qt topology."""
+
+    if sys.platform != "win32":
+        return
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        return
+
+    from ctypes import wintypes
+
+    user32 = windll.user32
+    get_window_long = user32.GetWindowLongPtrW
+    set_window_long = user32.SetWindowLongPtrW
+    set_window_pos = user32.SetWindowPos
+    get_window_long.argtypes = [wintypes.HWND, ctypes.c_int]
+    get_window_long.restype = ctypes.c_ssize_t
+    set_window_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+    set_window_long.restype = ctypes.c_ssize_t
+    set_window_pos.argtypes = [
+        wintypes.HWND,
+        wintypes.HWND,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        wintypes.UINT,
+    ]
+    set_window_pos.restype = wintypes.BOOL
+
+    hwnd = wintypes.HWND(int(dock.winId()))
+    gwl_style = -16
+    gwl_exstyle = -20
+    ws_caption = 0x00C00000
+    ws_sysmenu = 0x00080000
+    ws_thickframe = 0x00040000
+    ws_minimizebox = 0x00020000
+    ws_maximizebox = 0x00010000
+    ws_ex_toolwindow = 0x00000080
+    ws_ex_appwindow = 0x00040000
+    swp_nosize = 0x0001
+    swp_nomove = 0x0002
+    swp_nozorder = 0x0004
+    swp_noactivate = 0x0010
+    swp_framechanged = 0x0020
+
+    style = int(get_window_long(hwnd, gwl_style))
+    ex_style = int(get_window_long(hwnd, gwl_exstyle))
+    promoted_style = (
+        style
+        | ws_caption
+        | ws_sysmenu
+        | ws_thickframe
+        | ws_minimizebox
+        | ws_maximizebox
+    )
+    promoted_ex_style = (ex_style & ~ws_ex_toolwindow) | ws_ex_appwindow
+    if promoted_style != style:
+        set_window_long(hwnd, gwl_style, promoted_style)
+    if promoted_ex_style != ex_style:
+        set_window_long(hwnd, gwl_exstyle, promoted_ex_style)
+    if promoted_style != style or promoted_ex_style != ex_style:
+        set_window_pos(
+            hwnd,
+            wintypes.HWND(),
+            0,
+            0,
+            0,
+            0,
+            swp_nosize
+            | swp_nomove
+            | swp_nozorder
+            | swp_noactivate
+            | swp_framechanged,
+        )
 
 
 def _draw_iqa_pixmap(color_name: str) -> QPixmap:
@@ -104,15 +184,15 @@ class _WorkspaceDockTopLevelController(QObject):
                 # dock title. PySide's type stub does not currently expose None.
                 self._dock.setTitleBarWidget(cast(QWidget, None))
 
-            # Do not rewrite QWidget window flags here. QDockWidget owns its
-            # floating/docked topology; changing those flags can silently turn a
-            # floating dock back into a normal child widget on Windows.
+            # QDockWidget remains the dock/floating topology authority. The native
+            # Windows frame is adjusted only after the dock is already floating so
+            # drag-to-dock discovery and QMainWindow save/restore stay intact.
             if not was_hidden:
-                QTimer.singleShot(0, self._detach_transient_parent)
+                QTimer.singleShot(0, self._finish_native_floating)
         finally:
             self._normalizing = False
 
-    def _detach_transient_parent(self) -> None:
+    def _finish_native_floating(self) -> None:
         if not self._dock.isFloating() or self._dock.isHidden():
             return
         handle = self._dock.windowHandle()
@@ -120,6 +200,7 @@ class _WorkspaceDockTopLevelController(QObject):
             # QWindow::setTransientParent accepts a null pointer to clear the
             # relation, although the PySide stub currently types it as non-null.
             handle.setTransientParent(cast(QWindow, None))
+        _apply_windows_native_workspace_frame(self._dock)
 
     def _restore_docked_title_bar(self) -> None:
         if self._dock.isFloating():
@@ -166,9 +247,10 @@ class BetaWorkspaceHardeningController(QObject):
         dock = getattr(window, "iqa_dock", None)
         if isinstance(workspace, QWidget):
             workspace.setMinimumWidth(0)
+            workspace.setMinimumHeight(0)
             workspace_policy = workspace.sizePolicy()
             workspace_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
-            workspace_policy.setVerticalPolicy(QSizePolicy.Policy.Expanding)
+            workspace_policy.setVerticalPolicy(QSizePolicy.Policy.Ignored)
             workspace.setSizePolicy(workspace_policy)
 
             for label_name in (
@@ -200,12 +282,52 @@ class BetaWorkspaceHardeningController(QObject):
             pages = getattr(workspace, "pages", None)
             if isinstance(pages, QTabWidget):
                 pages.setMinimumWidth(0)
+                pages.setMinimumHeight(0)
                 pages_policy = pages.sizePolicy()
                 pages_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+                pages_policy.setVerticalPolicy(QSizePolicy.Policy.Ignored)
                 pages.setSizePolicy(pages_policy)
+
+            # IQA's detail/tree/preview surfaces are inspectable regions, not
+            # application-wide height floors. Let their local splitters compress
+            # them so a bottom Plots dock can take useful vertical space.
+            for widget_name in (
+                "overview_page",
+                "scene_page",
+                "overview_chart_panel",
+                "overview_detail_panel",
+                "overview_plot",
+                "hierarchy",
+                "scene_trend_plot",
+                "preview_scroll",
+            ):
+                child = getattr(workspace, widget_name, None)
+                if isinstance(child, QWidget):
+                    child.setMinimumHeight(0)
+                    _set_vertical_policy(child, QSizePolicy.Policy.Ignored)
+
+            for splitter_name in ("overview_splitter", "scene_splitter"):
+                splitter = getattr(workspace, splitter_name, None)
+                if isinstance(splitter, QSplitter):
+                    splitter.setMinimumHeight(0)
+                    _set_vertical_policy(splitter, QSizePolicy.Policy.Ignored)
+                    splitter.setChildrenCollapsible(True)
+                    for index in range(splitter.count()):
+                        splitter.setCollapsible(index, True)
 
         if isinstance(dock, QDockWidget):
             dock.setMinimumWidth(0)
+
+        # Give the bottom workspace both lower corners. Otherwise a left/right IQA
+        # dock owns the full side height and its minimum can cap Plots growth.
+        window.setCorner(
+            Qt.Corner.BottomLeftCorner,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
+        )
+        window.setCorner(
+            Qt.Corner.BottomRightCorner,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
+        )
 
         # Let the central viewer yield vertical space to a bottom Plots dock.
         # Fixed-height headers/status controls remain fixed; only the large
