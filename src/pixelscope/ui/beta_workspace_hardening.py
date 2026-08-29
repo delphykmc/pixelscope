@@ -41,10 +41,14 @@ def _apply_windows_native_workspace_frame(dock: QDockWidget) -> None:
 
     from ctypes import wintypes
 
-    user32 = windll.user32
-    get_window_long = user32.GetWindowLongPtrW
-    set_window_long = user32.SetWindowLongPtrW
-    set_window_pos = user32.SetWindowPos
+    try:
+        user32 = windll.user32
+        get_window_long = user32.GetWindowLongPtrW
+        set_window_long = user32.SetWindowLongPtrW
+        set_window_pos = user32.SetWindowPos
+    except AttributeError:
+        return
+
     get_window_long.argtypes = [wintypes.HWND, ctypes.c_int]
     get_window_long.restype = ctypes.c_ssize_t
     set_window_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
