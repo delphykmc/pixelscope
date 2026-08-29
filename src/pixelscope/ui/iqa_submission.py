@@ -1110,35 +1110,29 @@ def install_remote_iqa(
 
 
 def _current_pair_image_contract(documents: list[Any]) -> tuple[bool, str]:
-    """Return the local RGB/geometry contract used before Current Pair submission."""
+    """Return the qualified local RGB8/geometry contract for Current Pair."""
 
     if len(documents) != 2:
         return False, "Current Comparison Page must contain exactly two images"
 
     sizes: list[tuple[int, int]] = []
-    formats: list[tuple[str, int, str]] = []
     for document in documents:
         shape = tuple(getattr(document, "shape", ()))
         channel_layout = str(getattr(document, "channel_layout", "")).upper()
         source = getattr(document, "source", None)
         if source is None or channel_layout != "RGB" or len(shape) != 3 or shape[2] != 3:
             return False, "IQA requires RGB images"
+        if int(getattr(document, "bit_depth", 0)) != 8 or str(
+            getattr(source, "dtype", "")
+        ) != "uint8":
+            return False, "IQA requires 8-bit RGB images"
         sizes.append((int(shape[0]), int(shape[1])))
-        formats.append(
-            (
-                channel_layout,
-                int(getattr(document, "bit_depth", 0)),
-                str(getattr(document, "original_dtype", None)),
-            )
-        )
 
-    if formats[0] != formats[1]:
-        return False, "image format mismatch"
     if sizes[0] != sizes[1]:
         return False, "image size mismatch"
 
     height, width = sizes[0]
-    return True, f"OK · RGB · {width}×{height}"
+    return True, f"OK · RGB8 · {width}×{height}"
 
 
 def _preview_signature(
