@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import cast
+
 from PySide6.QtCore import QObject, QPointF, QRectF, QTimer, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QWindow
 from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
@@ -63,7 +65,7 @@ def _iqa_toolbar_icon() -> QIcon:
 
 
 class _WorkspaceDockTopLevelController(QObject):
-    """Normalize a floating QDockWidget to a regular native top-level workspace."""
+    """Give floating QDockWidgets native chrome without changing dock topology."""
 
     def __init__(self, dock: QDockWidget, *, docked_title_bar: QWidget | None = None) -> None:
         super().__init__(dock)
@@ -98,24 +100,14 @@ class _WorkspaceDockTopLevelController(QObject):
             title_bar = self._dock.titleBarWidget()
             if isinstance(title_bar, PlotsDockTitleBar):
                 self._docked_title_bar = title_bar
-                self._dock.setTitleBarWidget(None)
+                # Qt documents nullptr as the way to restore the default/native
+                # dock title. PySide's type stub does not currently expose None.
+                self._dock.setTitleBarWidget(cast(QWidget, None))
 
-            flags = self._dock.windowFlags()
-            flags = (flags & ~Qt.WindowType.WindowType_Mask) | Qt.WindowType.Window
-            flags &= ~Qt.WindowType.Tool
-            flags &= ~Qt.WindowType.FramelessWindowHint
-            flags &= ~Qt.WindowType.WindowStaysOnTopHint
-            flags |= (
-                Qt.WindowType.WindowTitleHint
-                | Qt.WindowType.WindowSystemMenuHint
-                | Qt.WindowType.WindowMinimizeButtonHint
-                | Qt.WindowType.WindowMaximizeButtonHint
-                | Qt.WindowType.WindowCloseButtonHint
-            )
-            if self._dock.windowFlags() != flags:
-                self._dock.setWindowFlags(flags)
+            # Do not rewrite QWidget window flags here. QDockWidget owns its
+            # floating/docked topology; changing those flags can silently turn a
+            # floating dock back into a normal child widget on Windows.
             if not was_hidden:
-                self._dock.show()
                 QTimer.singleShot(0, self._detach_transient_parent)
         finally:
             self._normalizing = False
@@ -125,7 +117,9 @@ class _WorkspaceDockTopLevelController(QObject):
             return
         handle = self._dock.windowHandle()
         if handle is not None and handle.transientParent() is not None:
-            handle.setTransientParent(None)
+            # QWindow::setTransientParent accepts a null pointer to clear the
+            # relation, although the PySide stub currently types it as non-null.
+            handle.setTransientParent(cast(QWindow, None))
 
     def _restore_docked_title_bar(self) -> None:
         if self._dock.isFloating():
