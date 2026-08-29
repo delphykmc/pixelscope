@@ -4,7 +4,7 @@ import argparse
 
 import numpy as np
 from PySide6.QtCore import QSettings, QTimer, Qt
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QLabel, QWidget
 
 from pixelscope.app.application import create_application
 from pixelscope.app.main_window import MainWindow
@@ -90,6 +90,13 @@ def _apply_initial_widths(
         )
 
 
+def _live_panel_text(label: str, widget: QWidget) -> str:
+    return (
+        f"{label} {widget.width()} "
+        f"[min {widget.minimumWidth()} / hint {widget.minimumSizeHint().width()}]"
+    )
+
+
 def main() -> int:
     args = _parser().parse_args()
 
@@ -138,26 +145,50 @@ def main() -> int:
         f"Image={window.main_splitter.isCollapsible(1)}"
     )
     print(
-        "Drag the Files splitter and IQA dock divider; "
-        "live widths are shown in the title bar."
+        "Drag the Files splitter and IQA dock divider; live width/min/hint values "
+        "are shown in the status bar and updated in the console."
     )
 
-    def update_title() -> None:
-        if window.iqa_dock.isFloating():
-            iqa_text = "float"
-        elif window.iqa_dock.isVisible():
-            iqa_text = str(window.iqa_dock.width())
-        else:
-            iqa_text = "hidden"
-        window.setWindowTitle(
-            "PixelScope Layout Probe | "
-            f"Files {files.width()} | Image {image.width()} | IQA {iqa_text}"
+    live_label = QLabel(window)
+    live_label.setObjectName("layoutProbeLiveWidths")
+    live_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    window.statusBar().addPermanentWidget(live_label, 1)
+
+    previous_state: tuple[int, int, int | None] | None = None
+
+    def update_live_widths() -> None:
+        nonlocal previous_state
+        iqa_width = (
+            None
+            if window.iqa_dock.isFloating() or not window.iqa_dock.isVisible()
+            else window.iqa_dock.width()
         )
+        iqa_state = (
+            "IQA float"
+            if window.iqa_dock.isFloating()
+            else "IQA hidden"
+            if not window.iqa_dock.isVisible()
+            else _live_panel_text("IQA", window.iqa_dock)
+        )
+        text = " | ".join(
+            (
+                _live_panel_text("Files", files),
+                _live_panel_text("Image", image),
+                iqa_state,
+            )
+        )
+        live_label.setText(text)
+        window.setWindowTitle(f"PixelScope Layout Probe | {text}")
+
+        state = (files.width(), image.width(), iqa_width)
+        if state != previous_state:
+            print(text)
+            previous_state = state
 
     timer = QTimer(window)
-    timer.timeout.connect(update_title)  # type: ignore[attr-defined]
+    timer.timeout.connect(update_live_widths)  # type: ignore[attr-defined]
     timer.start(100)
-    update_title()
+    update_live_widths()
 
     return app.exec()
 
