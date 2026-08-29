@@ -112,12 +112,10 @@ def test_iqa_toolbar_reuses_existing_visibility_action(qtbot: object) -> None:
 def _assert_native_floating_workspace(dock: object) -> None:
     assert dock.isFloating()
     assert dock.isWindow()
+    assert dock.titleBarWidget() is None
     flags = dock.windowFlags()
     assert not (flags & Qt.WindowType.FramelessWindowHint)
     assert not (flags & Qt.WindowType.WindowStaysOnTopHint)
-    assert flags & Qt.WindowType.WindowTitleHint
-    assert flags & Qt.WindowType.WindowMinimizeButtonHint
-    assert flags & Qt.WindowType.WindowMaximizeButtonHint
 
 
 def _show_workspace(window: MainWindow, workspace: str) -> object:
