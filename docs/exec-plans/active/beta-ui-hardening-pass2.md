@@ -166,12 +166,35 @@ elided form inside allocated space.
   completed; 38 passed in 14.65 seconds.
 - 2026-08-29: initial global/IQA audits classified; no product/contract decision blocker
   was found. Remote production integration remains excluded.
+- 2026-08-30: package commits completed for workspace minimum-size hardening
+  (`f69a26f`), compact components/dialogs (`d245e6b`), and IQA stress readability
+  (`0aa5fe0`).
+- 2026-08-30: integrated focused validation passed 114 tests in 64.06 seconds. The
+  production FHD long-name probe accepted 1920 x 1080 with IQA hidden and docked; the
+  docked minimum hint was 985 px in the fontless offscreen environment.
+- 2026-08-30: identical existing review captures were generated before/after. Additional
+  1280 x 720 IQA small/normal/stress captures succeeded; stress presentation completed
+  in 0.600 seconds with 32 visible series and 128 materialized Scene rows. This elapsed
+  observation is not a test gate, and missing Qt fonts prevent Windows visual PASS.
+- 2026-08-30: full offscreen pytest completed with 1058 passed, one Windows
+  directory-symlink privilege skip, and two failures in 348.64 seconds. The protected
+  Bayer `Gr@1` failure reproduced. The Folder Display Tag/elided-header node also failed
+  unchanged on exact base `main@0ccb8b8` under the same environment, establishing it as
+  pre-existing offscreen debt rather than a Pass 2 regression.
+- 2026-08-30: `mypy src` passed for 122 files, `pip check` passed, and the documentation
+  contract passed. Changed-file Ruff check/format passed. Repository-wide Ruff remains
+  non-clean only for two unrelated import-order findings and 28 unrelated format-drift
+  files; no unrelated cleanup was performed.
 
 ## Completion summary
 
-- Delivered behavior: pending.
-- Changed files: pending.
-- Validation results: pending.
+- Delivered behavior: production-composed workspace, Plots/status/dialogs, and IQA stress
+  presentation hardening implemented; independent review pending.
+- Changed files: implementation/tests/docs are recorded in the branch diff; final list
+  pending closeout.
+- Validation results: focused 114 PASS; full pytest 1058 PASS / 1 SKIP / 2 proven
+  pre-existing failures; static/docs checks as recorded above; independent review pending.
 - Remaining limitations: owner Windows/DPI/multi-monitor qualification required.
 - Follow-up issues: pending.
-- Durable docs updated: this execution plan; Beta UI contract pending.
+- Durable docs updated: this execution plan and `docs/ui/beta_workspace_hardening.md`;
+  review closeout pending.
