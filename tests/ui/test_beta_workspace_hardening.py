@@ -134,7 +134,7 @@ def _assert_styled_floating_workspace(dock: object) -> PlotsDockTitleBar:
     assert dock.isWindow()
     title = dock.titleBarWidget()
     assert isinstance(title, PlotsDockTitleBar)
-    assert TOKENS.panel_background in title.styleSheet()
+    assert TOKENS.title_background in title.styleSheet()
     assert not hasattr(title, "minimize_button")
     assert title.float_button.toolTip().startswith("Dock ")
     return title
