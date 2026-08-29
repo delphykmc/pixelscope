@@ -63,7 +63,7 @@ def test_beta_layout_policy_removes_accumulated_workspace_floors(qtbot: object) 
 
     assert sidebar.minimumWidth() == 0
     assert window.main_splitter.isCollapsible(0)
-    assert window.main_splitter.isCollapsible(1)
+    assert not window.main_splitter.isCollapsible(1)
     assert window.iqa_workspace.attribute_filter.minimumWidth() == 0
     assert window.iqa_workspace.attribute_filter.maximumWidth() == window.maximumWidth()
     assert (
