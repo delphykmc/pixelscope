@@ -92,7 +92,7 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     current_group = QGroupBox("Current Pair", workspace.setup_page)
     current_group.setObjectName("remoteIqaCurrentPairGroup")
     current_group.setToolTip(
-        "Uses exactly the two native RGB images on the Current Comparison Page, "
+        "Uses exactly the two native RGB8 images on the Current Comparison Page, "
         "in A/B page order."
     )
     current_layout = QVBoxLayout(current_group)
@@ -120,8 +120,8 @@ def polish_remote_iqa_setup(workspace: Any) -> None:
     current_actions.setSpacing(6)
     workspace.current_submit.setText("Submit Pair")
     workspace.current_submit.setToolTip(
-        "Submit the current A/B pair. Both images must be RGB, have the same dimensions, "
-        "and use the same pixel format."
+        "Submit the current A/B pair. Both images must already be decoded RGB8 "
+        "(H×W×3 uint8) with the same dimensions; PixelScope does not convert or resize them."
     )
     current_actions.addWidget(workspace.current_pair_label, 1)
     current_actions.addWidget(workspace.current_submit)
@@ -198,6 +198,8 @@ def _compact_current_pair_status(text: str) -> str:
     folded = text.casefold()
     if text.startswith("OK · "):
         return text
+    if "8-bit rgb" in folded or "rgb8" in folded:
+        return "Blocked · RGB8 required"
     if "rgb images" in folded:
         return "Blocked · RGB images required"
     if "size mismatch" in folded:
