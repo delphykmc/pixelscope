@@ -77,11 +77,20 @@ Useful options:
   state;
 - `--hide-iqa`: start without IQA.
 
-The script prints each pane's `minimumWidth()`, `minimumSizeHint().width()`, and
-`sizeHint().width()` and shows live Files/Image/IQA widths in the window title while the
-splitters are dragged. The probe intentionally changes only widget minimum widths; it
-does not add custom splitter/dock event handling, so the observed allocation remains the
-same Qt-native behavior used by production.
+The script uses the same production presentation composition as the normal application,
+prints each pane's `minimumWidth()`, `minimumSizeHint().width()`, and `sizeHint().width()`,
+and shows live Files/Image/IQA width/minimum/hint values in the status bar and console
+while splitters are dragged. The probe intentionally changes only widget minimum widths;
+it does not add custom splitter/dock event handling, so the observed allocation remains
+the same Qt-native behavior used by production.
+
+### Workspace title hierarchy
+
+Files, Analysis, Plots, and IQA Results use one shared dark title surface that is one
+step darker than the workspace background. Files/Analysis headings receive the same
+background and lower border as the Plots/IQA custom dock title bar. The purpose is purely
+visual: title location and floating-window boundaries remain legible against the main
+frame without changing dock, drag, resize, or topology behavior.
 
 ### Two Image resize stability
 
@@ -152,7 +161,8 @@ visibility changes converge on the same QAction checked state.
 - flexible vertical workspace policy;
 - idempotent installation and single IQA QAction authority/order;
 - toolbar/dock-close visibility synchronization;
-- Plots/IQA retaining the PixelScope title controller while floating;
+- Plots/IQA retaining the PixelScope title controller and shared dark title surface while
+  floating;
 - Dock/Float state synchronization, transient-parent removal, maximize/restore, and
   title-controller persistence on re-dock;
 - late hardening of already hidden/floating workspaces;
@@ -201,17 +211,20 @@ Beta hardening work. A speculative numeric-key fallback was reverted.
 6. Use `scripts/probe_workspace_min_widths.py` to compare candidate Files/Image/IQA
    minimum widths in both empty and `--with-sample-image` states before fixing final
    values.
-7. Float Plots. Confirm the title remains PixelScope dark style and exposes Dock,
+7. Confirm Files, Analysis, Plots, and IQA Results titles use the same darker title
+   surface and that floating Plots/IQA title boundaries remain visually distinct from
+   their workspace bodies.
+8. Float Plots. Confirm the title remains PixelScope dark style and exposes Dock,
    Maximize/Restore, and Close only. Drag it back until the docking target preview
    appears, drop it, and verify the dock reattaches and releases the mouse immediately.
-8. Repeat the same styled-title and drag re-dock flow for IQA. From floating state,
+9. Repeat the same styled-title and drag re-dock flow for IQA. From floating state,
    double-click the title and verify it docks normally.
-9. From a docked state, use Maximize and verify the documented float-and-maximize
-   transition, then Restore and verify the dock returns to its remembered area.
-10. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
+10. From a docked state, use Maximize and verify the documented float-and-maximize
+    transition, then Restore and verify the dock returns to its remembered area.
+11. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
     verify normal click/task switching without a workspace being permanently forced above
     Main.
-11. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
+12. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
     visible states remain synchronized in both directions.
 
 Also confirm the PR #59 behaviors above have not regressed during the same pass.
