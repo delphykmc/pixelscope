@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from pydantic import ValidationError
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QStackedWidget,
@@ -91,8 +92,8 @@ class RawOpenDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("RAW profile")
-        self.setFixedWidth(RAW_DIALOG_WIDTH)
-        self.setSizeGripEnabled(False)
+        self.setSizeGripEnabled(True)
+        self._last_auto_fit_size: QSize | None = None
         self._profile_name = "unpacked_raw"
         self._source_path: Path | None = None
         self._actual_file_size: int | None = None
@@ -162,6 +163,12 @@ class RawOpenDialog(QDialog):
         )
         self.minimum_stride_value.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.minimum_stride_value.setWordWrap(True)
+        self.minimum_stride_value.setMinimumWidth(0)
+        self.minimum_stride_value.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Preferred,
         )
         self.minimum_stride_row = QWidget()
         minimum_stride_layout = QHBoxLayout(self.minimum_stride_row)
@@ -310,17 +317,42 @@ class RawOpenDialog(QDialog):
         self.dialog_actions_layout.addWidget(self.ok_button)
         self.dialog_actions_layout.addWidget(self.cancel_button)
 
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(10, 10, 10, 8)
+        body_layout.setSpacing(8)
+        body_layout.addWidget(data_layout_group)
+        body_layout.addWidget(file_size_group)
+        body_layout.addWidget(signal_levels_group)
+        body_layout.addSpacing(2)
+        body_layout.addLayout(self.json_actions_layout)
+        body_layout.addWidget(self.dont_show_json_profiles)
+        body_layout.addStretch(1)
+
+        self.body_scroll = QScrollArea()
+        self.body_scroll.setObjectName("rawProfileBodyScroll")
+        self.body_scroll.setWidgetResizable(True)
+        self.body_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.body_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.body_scroll.setWidget(body)
+        self.body_scroll.setMinimumSize(0, 0)
+        self.body_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+
+        self.footer = QWidget()
+        footer_layout = QVBoxLayout(self.footer)
+        footer_layout.setContentsMargins(10, 0, 10, 10)
+        footer_layout.setSpacing(8)
+        footer_layout.addWidget(separator)
+        footer_layout.addLayout(self.dialog_actions_layout)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
-        layout.addWidget(data_layout_group)
-        layout.addWidget(file_size_group)
-        layout.addWidget(signal_levels_group)
-        layout.addSpacing(2)
-        layout.addLayout(self.json_actions_layout)
-        layout.addWidget(self.dont_show_json_profiles)
-        layout.addWidget(separator)
-        layout.addLayout(self.dialog_actions_layout)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.body_scroll, 1)
+        layout.addWidget(self.footer)
 
         self.storage_format.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._storage_format_changed
@@ -356,6 +388,21 @@ class RawOpenDialog(QDialog):
         self._storage_format_changed()
         self._pixel_layout_changed(self.layout_kind.currentText())
         self._update_diagnostics()
+        self.resize(RAW_DIALOG_WIDTH, self.sizeHint().height())
+        self._last_auto_fit_size = self.size()
+        self._resize_dialog_to_content()
+
+    def sizeHint(self) -> QSize:
+        hint = super().sizeHint()
+        if not hasattr(self, "body_scroll") or not hasattr(self, "footer"):
+            return hint
+        body = self.body_scroll.widget()
+        if body is None:
+            return hint
+        return QSize(
+            hint.width(),
+            body.sizeHint().height() + self.footer.sizeHint().height(),
+        )
 
     @staticmethod
     def _spin(minimum: int, maximum: int, value: int) -> QSpinBox:
@@ -640,13 +687,21 @@ class RawOpenDialog(QDialog):
         QTimer.singleShot(0, self._resize_dialog_to_content)
 
     def _resize_dialog_to_content(self) -> None:
+        if self._last_auto_fit_size is not None and self.size() != self._last_auto_fit_size:
+            return
+        body = self.body_scroll.widget()
+        if body is not None:
+            body.adjustSize()
+            body.updateGeometry()
+        self.body_scroll.updateGeometry()
         dialog_layout = self.layout()
         if dialog_layout is not None:
             dialog_layout.invalidate()
             dialog_layout.activate()
-        target_height = self.sizeHint().height()
+        target_height = body.sizeHint().height() + self.footer.sizeHint().height()
         if self.height() != target_height:
             self.resize(self.width(), target_height)
+        self._last_auto_fit_size = self.size()
 
     def _set_form_row_visible(self, field: QWidget, visible: bool) -> None:
         label = self.form.labelForField(field)

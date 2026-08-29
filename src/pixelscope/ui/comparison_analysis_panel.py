@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QScrollArea,
+    QSizePolicy,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
@@ -323,29 +324,28 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_range.addItems(("Native range", "Normalized 0–1"))
         self.histogram_bins = QComboBox()
         self.histogram_bins.addItems(("Auto", "256", "1024", "4096"))
-        histogram_controls = QHBoxLayout()
-        histogram_controls.setSpacing(TOKENS.spacing_sm)
-        histogram_controls.addWidget(QLabel("View"))
-        histogram_controls.addWidget(self.histogram_mode)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addWidget(QLabel("Y"))
-        histogram_controls.addWidget(self.histogram_units)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addWidget(QLabel("X"))
-        histogram_controls.addWidget(self.histogram_range)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addWidget(QLabel("Bins"))
-        histogram_controls.addWidget(self.histogram_bins)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addLayout(channel_controls)
-        histogram_controls.addStretch(1)
-        for combo in (
-            self.histogram_mode,
-            self.histogram_units,
-            self.histogram_range,
-            self.histogram_bins,
+        histogram_primary_controls = QHBoxLayout()
+        histogram_primary_controls.setSpacing(TOKENS.spacing_sm)
+        histogram_secondary_controls = QHBoxLayout()
+        histogram_secondary_controls.setSpacing(TOKENS.spacing_sm)
+        for controls, label_text, combo in (
+            (histogram_primary_controls, "View", self.histogram_mode),
+            (histogram_primary_controls, "Y", self.histogram_units),
+            (histogram_secondary_controls, "X", self.histogram_range),
+            (histogram_secondary_controls, "Bins", self.histogram_bins),
         ):
+            controls.addWidget(QLabel(label_text))
+            controls.addWidget(combo, 1)
             combo.setMaximumWidth(170)
+            combo.setMinimumWidth(0)
+            combo.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Fixed,
+            )
+        histogram_primary_controls.addStretch(1)
+        histogram_secondary_controls.addSpacing(TOKENS.spacing_lg)
+        histogram_secondary_controls.addLayout(channel_controls)
+        histogram_secondary_controls.addStretch(1)
         for combo in (self.histogram_mode, self.histogram_units, self.histogram_range):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._histogram_options_changed
@@ -356,7 +356,9 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_panel = QWidget()
         histogram_panel_layout = QVBoxLayout(self.histogram_panel)
         histogram_panel_layout.setContentsMargins(4, 4, 4, 4)
-        histogram_panel_layout.addLayout(histogram_controls)
+        histogram_panel_layout.setSpacing(TOKENS.spacing_xs)
+        histogram_panel_layout.addLayout(histogram_primary_controls)
+        histogram_panel_layout.addLayout(histogram_secondary_controls)
         histogram_scroll = QScrollArea()
         histogram_scroll.setWidgetResizable(True)
         histogram_scroll.setFrameShape(QScrollArea.Shape.NoFrame)

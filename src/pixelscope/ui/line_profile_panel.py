@@ -29,6 +29,19 @@ from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
+class _WrappingStatusLabel(QLabel):
+    """Keep complete Line Profile status available when the row wraps."""
+
+    def __init__(self, text: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setText(text)
+
+    def setText(self, text: str) -> None:
+        super().setText(text)
+        self.setToolTip(text)
+        self.setAccessibleName(text)
+
+
 class LineProfilePanel(QWidget):
     """Full-width asynchronous profile plot for the shared Alt-drag line."""
 
@@ -50,7 +63,13 @@ class LineProfilePanel(QWidget):
         self._reference_priority_ids: tuple[str, ...] = ()
         self._reference_locked = False
 
-        self.status = QLabel("Alt+drag on an image to set a line profile")
+        self.status = _WrappingStatusLabel("Alt+drag on an image to set a line profile")
+        self.status.setWordWrap(True)
+        self.status.setMinimumWidth(0)
+        self.status.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Preferred,
+        )
         self.view_mode = QComboBox()
         self.view_mode.addItems(("Overlay", "Separate by image", "Separate by channel"))
         self.y_mode = QComboBox()
@@ -63,21 +82,39 @@ class LineProfilePanel(QWidget):
         self.reference_label.hide()
         self.reference_selector.hide()
         self.channel_buttons: dict[str, QToolButton] = {}
-        controls = QHBoxLayout()
-        controls.setSpacing(TOKENS.spacing_sm)
-        for label, combo in (
-            ("View", self.view_mode),
-            ("Y", self.y_mode),
-            ("X", self.x_mode),
-        ):
-            controls.addWidget(QLabel(label))
-            controls.addWidget(combo)
-            controls.addSpacing(TOKENS.spacing_lg)
+        primary_controls = QHBoxLayout()
+        primary_controls.setSpacing(TOKENS.spacing_sm)
+        for label, combo in (("View", self.view_mode), ("Y", self.y_mode)):
+            primary_controls.addWidget(QLabel(label))
+            primary_controls.addWidget(combo, 1)
             combo.setMaximumWidth(170)
-        controls.addWidget(self.reference_label)
-        controls.addWidget(self.reference_selector)
-        controls.addSpacing(TOKENS.spacing_lg)
-        controls.addWidget(QLabel("Channels"))
+            combo.setMinimumWidth(0)
+            combo.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Fixed,
+            )
+        primary_controls.addStretch(1)
+
+        secondary_controls = QHBoxLayout()
+        secondary_controls.setSpacing(TOKENS.spacing_sm)
+        secondary_controls.addWidget(QLabel("X"))
+        secondary_controls.addWidget(self.x_mode, 1)
+        self.x_mode.setMaximumWidth(170)
+        self.x_mode.setMinimumWidth(0)
+        self.x_mode.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
+        secondary_controls.addSpacing(TOKENS.spacing_lg)
+        secondary_controls.addWidget(self.reference_label)
+        secondary_controls.addWidget(self.reference_selector, 1)
+        self.reference_selector.setMinimumWidth(0)
+        self.reference_selector.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
+        secondary_controls.addSpacing(TOKENS.spacing_lg)
+        secondary_controls.addWidget(QLabel("Channels"))
         for name, color in (
             ("R", "#ff3b30"),
             ("G", "#24b34b"),
@@ -94,7 +131,7 @@ class LineProfilePanel(QWidget):
                 self._channels_changed
             )
             self.channel_buttons[name] = button
-            controls.addWidget(button)
+            secondary_controls.addWidget(button)
         for combo in (self.view_mode, self.y_mode, self.x_mode):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._plot_options_changed
@@ -102,8 +139,7 @@ class LineProfilePanel(QWidget):
         self.reference_selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._reference_changed
         )
-        controls.addStretch(1)
-        controls.addWidget(self.status)
+        secondary_controls.addStretch(1)
 
         self.plot_grid = QWidget()
         self.plot_grid.setSizePolicy(
@@ -137,7 +173,10 @@ class LineProfilePanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 4)
-        layout.addLayout(controls)
+        layout.setSpacing(TOKENS.spacing_xs)
+        layout.addLayout(primary_controls)
+        layout.addLayout(secondary_controls)
+        layout.addWidget(self.status)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -276,7 +315,7 @@ class LineProfilePanel(QWidget):
                     results.append(selected_line_profile(source, selection))
             return tuple(results)
 
-        self.status.setText("Calculating line profile...")
+        self._set_status("Calculating line profile...")
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
             lambda _task_id, _document_id, _generation, result: self._on_result(
@@ -312,7 +351,7 @@ class LineProfilePanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
-        self.status.setText(f"Error: {error.message}")
+        self._set_status(f"Error: {error.message}")
 
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
@@ -513,7 +552,7 @@ class LineProfilePanel(QWidget):
             self._create_hover_items(plot_index)
         selection = self._selection
         if selection is not None:
-            self.status.setText(
+            self._set_status(
                 f"({selection.x1}, {selection.y1}) to ({selection.x2}, {selection.y2})"
             )
 
@@ -577,7 +616,12 @@ class LineProfilePanel(QWidget):
         self._plot_channel_filters = [None] * 6
         self._profile_series = [[] for _index in range(6)]
         self._set_axes_visible(False)
-        self.status.setText("Alt+drag on an image to set a line profile")
+        self._set_status("Alt+drag on an image to set a line profile")
+
+    def _set_status(self, text: str) -> None:
+        self.status.setText(text)
+        self.status.setToolTip(text)
+        self.status.setAccessibleName(text)
 
     def _create_hover_items(self, plot_index: int) -> None:
         line = pg.InfiniteLine(
