@@ -2,7 +2,9 @@
 
 This note records the local desktop UI/window contract for Beta qualification. It does
 not change PixelScope source, numerical, session, cache, residency, or Remote IQA
-measurement/API authority.
+measurement/API authority. It does clarify the currently qualified Remote IQA client
+submission domain as decoded RGB8 (`H×W×3`, `uint8`) only; no normalization/conversion
+path is added.
 
 ## Scope
 
@@ -53,21 +55,20 @@ Therefore:
 This keeps the layout predictable and avoids replacing Qt's native splitter/dock
 allocation semantics with another state authority.
 
-### Docked IQA Current Pair width
+### Docked IQA Current Pair width and qualified input domain
 
 The P5-C Current Pair presentation previously placed the complete A/B pair summary and
 Submit button on one horizontal row. With long filenames that row could dominate the IQA
 `minimumSizeHint()` and make the total Files + Image + IQA desktop width unnecessarily
 large.
 
-The Beta presentation now mirrors the Folder Pair structure without changing Remote IQA
-submission authority:
+The Beta presentation now mirrors the Folder Pair structure:
 
 ```text
 Current Pair
 A  reference_name.png
 B  candidate_name.png
-OK · RGB · 1920×1080                         Submit Pair
+OK · RGB8 · 1920×1080                        Submit Pair
 ```
 
 - A and B use separate rows;
@@ -75,19 +76,33 @@ OK · RGB · 1920×1080                         Submit Pair
   tooltip, so filename length does not establish the dock minimum width;
 - the third row uses the space corresponding to Folder Pair validation for an immediate
   Current Pair eligibility status, with Submit Pair at the right;
-- the local Current Pair gate requires two native remote-eligible inputs, decoded
-  `H×W×3` RGB images, equal width/height, and the same pixel format (bit depth and decoded
-  dtype);
-- supported file extensions may differ when their decoded RGB pixel semantics satisfy
-  that contract; extension equality is not itself a requirement;
-- the same RGB/size/format helper is checked again immediately before Current Pair
+- Current Pair requires two native remote-eligible inputs that are already decoded as
+  exactly `H×W×3` RGB with 8-bit / `uint8` samples;
+- A/B original width/height must match;
+- PixelScope does not silently convert GRAY/RGBA/RAW/RGB16, drop alpha, normalize higher
+  bit depth, demosaic, tone-map, or resize an unsupported Current Pair merely to submit it;
+- supported file extensions may differ when both decoded sources satisfy the same RGB8
+  capability; extension equality is not itself a requirement;
+- the same RGB8/geometry helper is checked again immediately before Current Pair
   submission so the displayed state and submit path cannot diverge after a document
   change.
 
-The compact statuses are `OK · RGB · <width>×<height>`, `Blocked · RGB images required`,
-`Blocked · size mismatch`, and `Blocked · format mismatch`. This is a local Current Pair
-preflight/presentation change only. Folder Pair pairing/preflight, Remote IQA request
-schema, server behavior, and IQA numerical semantics are unchanged by this Beta PR.
+The compact statuses are `OK · RGB8 · <width>×<height>`,
+`Blocked · RGB images required`, `Blocked · RGB8 required`, and
+`Blocked · size mismatch`.
+
+This is a deliberate clarification/tightening of the **qualified client input
+capability**, not a Remote IQA schema/API or numerical-result contract change. The
+semantic evaluated-source capability is also RGB8 for Folder Pair Scenes, but PR #67
+does not rewrite the existing P5-C Folder transport/validation implementation.
+
+The production server-native two-folder API/validation migration is explicitly deferred
+to real server integration. At that point the server should own exhaustive folder
+enumeration/count/pair checks, decode/RGB8 validation, and per-pair geometry validation;
+PixelScope should avoid eager full-folder decode merely to duplicate server work. Long
+Folder validation must remain asynchronous with visible preparation/validation progress
+(indeterminate while total work is unknown, determinate once a total is known). The
+durable authority and follow-up boundary are recorded in `docs/REMOTE_IQA_CONTRACT.md`.
 
 ### Interactive minimum-width probe
 
@@ -251,9 +266,10 @@ visibility changes converge on the same QAction checked state.
 - floating Plots/IQA receive the explicit 1 px outer frame and remove it again on re-dock.
 
 `tests/ui/test_p5c_setup_presentation.py` covers the stacked A/B Current Pair presentation,
-yielding filename labels, compact eligibility statuses, and Submit Pair enablement.
-`tests/unit/test_iqa_current_pair_contract.py` covers matching RGB input, non-RGB input,
-size mismatch, and pixel-format mismatch.
+yielding filename labels, compact RGB8 eligibility statuses, and Submit Pair enablement.
+`tests/unit/test_iqa_current_pair_contract.py` freezes the qualified Current Pair domain:
+matching RGB8 is accepted; non-RGB, size mismatch, mixed RGB8/RGB16, and matching
+RGB16/RGB16 are rejected.
 
 `tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path.
 
@@ -296,10 +312,11 @@ Beta hardening work. A speculative numeric-key fallback was reverted.
    follows normal QMainWindow/QDockWidget behavior without a custom Files-width restore
    effect.
 6. With two native images on the Current Comparison Page, verify IQA Current Pair shows A
-   and B on separate rows. Matching RGB inputs show `OK · RGB · <W>×<H>` and enable
-   Submit Pair; non-RGB, size mismatch, or pixel-format mismatch shows the corresponding
-   Blocked status and disables Submit Pair. Long filenames must not force the IQA dock
-   wider than its normal control minimum.
+   and B on separate rows. Matching RGB8 (`H×W×3`, `uint8`) inputs show
+   `OK · RGB8 · <W>×<H>` and enable Submit Pair; non-RGB, RGB16, or size mismatch shows
+   the corresponding Blocked status and disables Submit Pair. Confirm no automatic
+   conversion/normalization/resize is performed. Long filenames must not force the IQA
+   dock wider than its normal control minimum.
 7. Use `scripts/probe_workspace_min_widths.py` to compare candidate Files/Image/IQA
    minimum widths in both empty and `--with-sample-image` states before fixing final
    values.
