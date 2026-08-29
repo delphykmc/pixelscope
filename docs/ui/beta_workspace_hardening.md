@@ -56,33 +56,34 @@ available above the bottom dock.
 
 ### Floating workspace windows
 
-Docked Plots/IQA retain the existing `QDockWidget`, custom dock title controls, object
-names, geometry settings, `saveState`/`restoreState`, and drag-to-dock contract.
+Plots and IQA remain ordinary `QDockWidget`s in both docked and floating states.
+`QDockWidget.setFloating()` remains the sole docking/topology authority, and the code
+does not rewrite Qt window flags or native Windows HWND style bits.
 
-While floating, `QDockWidget.setFloating()` remains the sole docking/topology authority.
-Beta policy removes the custom title widget so Qt uses native floating-window
-non-client chrome, then clears the visible floating window's transient-parent relation.
-It deliberately does **not** rewrite `QWidget.windowFlags()`: Windows/PySide validation
-showed that changing the Qt window type can collapse floating topology and commonly
-break drag re-docking.
+The earlier native-frame experiment was rejected after owner-local Windows validation:
+a floating dock could show a docking target preview, but after drop the window sometimes
+remained floating and continued following the cursor. The movement looked like a race
+between Qt's native move/dock loop and the Win32 frame mutation. That native-frame
+mutation has been removed.
 
-On Windows only, after the dock is already floating, the existing native HWND frame is
-promoted at the Win32 style layer to expose normal minimize, maximize, system-menu, and
-close controls and to use app-window rather than tool-window presentation. Qt still
-owns the `QDockWidget` floating state, so the native frame treatment does not replace
-Qt's docking discovery or persistence authority. Re-docking restores the retained
-custom dock title widget.
+PixelScope now keeps the same custom dark title bar while docked and floating. The title
+bar follows Qt's documented custom-title contract: mouse press/move/release events that
+are not handled by a title control are ignored so they propagate to `QDockWidget`, which
+owns dragging, docking discovery, and the docking preview.
 
-The docked maximize button intentionally means **float and maximize**. A docked panel
-cannot meaningfully maximize independently inside `QMainWindow`; converting it to a
-floating maximized workspace is therefore the explicit behavior. In floating native
-mode there is no separate programmatic Dock button: users re-dock by dragging the
-native title bar back to a valid dock area, preserving the visible docking preview.
+Title controls are state-specific but visually consistent:
 
-The intended Windows behavior is normal workspace interaction: independent z-order and
-task switching, monitor movement, native title-bar drag, Snap/drag-to-top maximize,
-minimize/maximize/restore, and later drag re-docking. Exact DWM behavior remains a
-manual qualification item.
+- docked: **Float / Maximize / Close**;
+- floating: **Dock / Minimize / Maximize / Close**.
+
+The docked Maximize button intentionally means **float and maximize**, because a docked
+child cannot independently maximize inside `QMainWindow`. Floating double-click docks
+back into the remembered dock area. Dragging the floating title bar back to a valid dock
+area remains the primary re-dock path and must preserve Qt's visible docking preview.
+
+The visible floating window's transient-parent relation is cleared after float so the
+workspace is not forced permanently above Main, without altering `QDockWidget` topology.
+Exact Windows taskbar/z-order behavior remains a manual qualification item.
 
 ### IQA toolbar authority
 
@@ -98,9 +99,9 @@ visibility changes converge on the same QAction checked state.
 - removal of accumulated sidebar/IQA layout floors and flexible vertical policy;
 - idempotent installation and single IQA QAction authority/order;
 - toolbar/dock-close visibility synchronization;
-- Plots/IQA remaining floating top-level `QDockWidget`s while native title chrome is
-  active, transient-parent removal, maximize/restore where applicable, and custom-title
-  restoration on re-dock;
+- Plots/IQA retaining the PixelScope title controller while floating;
+- floating-only minimize control, Dock/Float state synchronization, transient-parent
+  removal, maximize/restore, and title-controller persistence on re-dock;
 - late hardening of already hidden/floating workspaces;
 - Reset Workspace clearing both persisted and retained in-memory floating geometry.
 
@@ -109,8 +110,10 @@ restart path: save hidden/floating state, construct a new `MainWindow`, restore 
 and only then install Beta hardening. Hidden/floating topology must remain unchanged.
 
 `tests/ui/test_beta_workspace_layout_allocation.py` covers bottom-corner ownership and
-the shrinkable IQA detail/splitter policy. `tests/ui/test_beta_workspace_native_frame.py`
-checks the Windows native style contract without replacing the `QDockWidget` topology.
+the shrinkable IQA detail/splitter policy.
+
+Actual title-bar drag/drop docking is a Windows manual gate because offscreen Qt tests do
+not exercise the native move loop or docking target preview.
 
 Existing workspace, IQA, Display Gain, Difference, and session tests remain regression
 coverage and must be included in normal repository validation.
@@ -140,14 +143,15 @@ Beta hardening work. A speculative numeric-key fallback was therefore reverted a
 3. Dock Plots at the bottom while IQA is also docked left/right. Drag the Viewer/Plots
    boundary upward and verify Plots can take substantial height while IQA detail/table
    regions compress rather than imposing a fixed vertical floor.
-4. Float Plots and confirm the native title bar exposes minimize, maximize/restore, and
-   close; move it to another monitor, use Snap/drag-to-top, then drag it back until the
-   dock target preview appears and re-dock it.
-5. Repeat the same native-frame and drag re-dock flow for IQA.
-6. From a docked state, use the custom maximize button and verify the documented
-   float-and-maximize transition, then restore/re-dock normally.
-7. With three monitors, maximize Main Viewer, Plots, and IQA independently on monitors
-   1/2/3 respectively, and switch among them using normal click/task switching.
+4. Float Plots. Confirm the title remains PixelScope dark style and exposes Dock,
+   Minimize, Maximize/Restore, and Close. Drag it back until the docking target preview
+   appears, drop it, and verify the mouse is released and the dock actually reattaches.
+5. Repeat the same styled-title and drag re-dock flow for IQA.
+6. From floating state, double-click the title and verify it docks normally. From a
+   docked state, use Maximize and verify the documented float-and-maximize transition.
+7. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
+   verify normal click/task switching without a workspace being permanently forced above
+   Main.
 8. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
    visible states remain synchronized in both directions.
 
