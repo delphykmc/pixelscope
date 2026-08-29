@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import cast
 
-from PySide6.QtCore import QObject, QPointF, QRectF, QTimer, Qt
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QWindow
 from PySide6.QtWidgets import (
     QComboBox,
