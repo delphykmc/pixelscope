@@ -19,13 +19,13 @@ def _rgb(
     )
 
 
-def test_current_pair_contract_accepts_matching_rgb_images() -> None:
+def test_current_pair_contract_accepts_matching_rgb8_images() -> None:
     eligible, status = _current_pair_image_contract(
         [_rgb("a.png"), _rgb("b.png")]
     )
 
     assert eligible
-    assert status == "OK · RGB · 6×4"
+    assert status == "OK · RGB8 · 6×4"
 
 
 def test_current_pair_contract_rejects_non_rgb_images() -> None:
@@ -49,10 +49,19 @@ def test_current_pair_contract_rejects_size_mismatch() -> None:
     assert status == "image size mismatch"
 
 
-def test_current_pair_contract_rejects_pixel_format_mismatch() -> None:
+def test_current_pair_contract_rejects_mixed_rgb8_rgb16() -> None:
     eligible, status = _current_pair_image_contract(
         [_rgb("a.png", dtype=np.uint8), _rgb("b.png", dtype=np.uint16)]
     )
 
     assert not eligible
-    assert status == "image format mismatch"
+    assert status == "IQA requires 8-bit RGB images"
+
+
+def test_current_pair_contract_rejects_matching_rgb16_images() -> None:
+    eligible, status = _current_pair_image_contract(
+        [_rgb("a.png", dtype=np.uint16), _rgb("b.png", dtype=np.uint16)]
+    )
+
+    assert not eligible
+    assert status == "IQA requires 8-bit RGB images"
