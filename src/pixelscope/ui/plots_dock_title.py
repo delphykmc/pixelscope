@@ -21,7 +21,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pixelscope.ui.design_tokens import TOKENS, dock_title_button_style
+from pixelscope.ui.design_tokens import (
+    TOKENS,
+    WORKSPACE_CHROME_HEIGHT,
+    dock_title_button_style,
+)
 
 PLOTS_FLOATING_GEOMETRY_SETTING = "ui/plots_floating_geometry"
 IQA_FLOATING_GEOMETRY_SETTING = "ui/iqa_floating_geometry"
@@ -122,6 +126,7 @@ class PlotsDockTitleBar(QWidget):
 
         self.setObjectName("workspaceDockTitle")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFixedHeight(WORKSPACE_CHROME_HEIGHT)
         self.setStyleSheet(
             f"QWidget#workspaceDockTitle {{ background: {TOKENS.title_background}; "
             f"border-bottom: 1px solid {TOKENS.border}; }}"
@@ -158,12 +163,21 @@ class PlotsDockTitleBar(QWidget):
         return button
 
     def sync(self, floating: bool) -> None:
+        self._apply_dock_frame(floating)
         self.float_button.setIcon(_title_icon("dock" if floating else "float"))
         self.float_button.setToolTip(
             f"Dock {self._panel_title}" if floating else f"Float {self._panel_title}"
         )
         if not floating and not self._dock.isMaximized():
             self._set_maximize_state(False)
+
+    def _apply_dock_frame(self, floating: bool) -> None:
+        """Provide the frame native decorations would otherwise supply when floating."""
+
+        object_name = self._dock.objectName()
+        selector = f"QDockWidget#{object_name}" if object_name else "QDockWidget"
+        border = f"1px solid {TOKENS.border}" if floating else "0px"
+        self._dock.setStyleSheet(f"{selector} {{ border: {border}; }}")
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if (
