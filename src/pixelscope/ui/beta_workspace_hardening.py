@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import ctypes
-import sys
 from typing import cast
 
 from PySide6.QtCore import QObject, QPointF, QRectF, QTimer, Qt
@@ -28,87 +26,6 @@ def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
     size_policy = widget.sizePolicy()
     size_policy.setVerticalPolicy(policy)
     widget.setSizePolicy(size_policy)
-
-
-def _apply_windows_native_workspace_frame(dock: QDockWidget) -> None:
-    """Promote a floating dock's native Windows frame without changing Qt topology."""
-
-    if sys.platform != "win32":
-        return
-    windll = getattr(ctypes, "windll", None)
-    if windll is None:
-        return
-
-    from ctypes import wintypes
-
-    try:
-        user32 = windll.user32
-        get_window_long = user32.GetWindowLongPtrW
-        set_window_long = user32.SetWindowLongPtrW
-        set_window_pos = user32.SetWindowPos
-    except AttributeError:
-        return
-
-    get_window_long.argtypes = [wintypes.HWND, ctypes.c_int]
-    get_window_long.restype = ctypes.c_ssize_t
-    set_window_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
-    set_window_long.restype = ctypes.c_ssize_t
-    set_window_pos.argtypes = [
-        wintypes.HWND,
-        wintypes.HWND,
-        ctypes.c_int,
-        ctypes.c_int,
-        ctypes.c_int,
-        ctypes.c_int,
-        wintypes.UINT,
-    ]
-    set_window_pos.restype = wintypes.BOOL
-
-    hwnd = wintypes.HWND(int(dock.winId()))
-    gwl_style = -16
-    gwl_exstyle = -20
-    ws_caption = 0x00C00000
-    ws_sysmenu = 0x00080000
-    ws_thickframe = 0x00040000
-    ws_minimizebox = 0x00020000
-    ws_maximizebox = 0x00010000
-    ws_ex_toolwindow = 0x00000080
-    ws_ex_appwindow = 0x00040000
-    swp_nosize = 0x0001
-    swp_nomove = 0x0002
-    swp_nozorder = 0x0004
-    swp_noactivate = 0x0010
-    swp_framechanged = 0x0020
-
-    style = int(get_window_long(hwnd, gwl_style))
-    ex_style = int(get_window_long(hwnd, gwl_exstyle))
-    promoted_style = (
-        style
-        | ws_caption
-        | ws_sysmenu
-        | ws_thickframe
-        | ws_minimizebox
-        | ws_maximizebox
-    )
-    promoted_ex_style = (ex_style & ~ws_ex_toolwindow) | ws_ex_appwindow
-    if promoted_style != style:
-        set_window_long(hwnd, gwl_style, promoted_style)
-    if promoted_ex_style != ex_style:
-        set_window_long(hwnd, gwl_exstyle, promoted_ex_style)
-    if promoted_style != style or promoted_ex_style != ex_style:
-        set_window_pos(
-            hwnd,
-            wintypes.HWND(),
-            0,
-            0,
-            0,
-            0,
-            swp_nosize
-            | swp_nomove
-            | swp_nozorder
-            | swp_noactivate
-            | swp_framechanged,
-        )
 
 
 def _draw_iqa_pixmap(color_name: str) -> QPixmap:
@@ -149,7 +66,7 @@ def _iqa_toolbar_icon() -> QIcon:
 
 
 class _WorkspaceDockTopLevelController(QObject):
-    """Give floating QDockWidgets native chrome without changing dock topology."""
+    """Keep PixelScope dock chrome while QDockWidget owns floating topology."""
 
     def __init__(self, dock: QDockWidget, *, docked_title_bar: QWidget | None = None) -> None:
         super().__init__(dock)
@@ -163,16 +80,15 @@ class _WorkspaceDockTopLevelController(QObject):
 
     def _top_level_changed(self, floating: bool) -> None:
         if floating:
-            # Run after QDockWidget and the existing geometry/title controllers
-            # have completed their topLevelChanged handlers.
+            # Run after QDockWidget and the geometry/title controllers have
+            # completed their own topLevelChanged handlers.
             QTimer.singleShot(0, self._normalize_floating)
             return
         self._restore_docked_title_bar()
 
     def _visibility_changed(self, visible: bool) -> None:
         if visible and self._dock.isFloating():
-            # IQA installs its custom dock title lazily on first show. Normalize
-            # again after that show so floating mode always returns to native chrome.
+            # IQA installs its title lazily on first show.
             QTimer.singleShot(0, self._normalize_floating)
 
     def _normalize_floating(self) -> None:
@@ -180,23 +96,26 @@ class _WorkspaceDockTopLevelController(QObject):
             return
         self._normalizing = True
         try:
-            was_hidden = self._dock.isHidden()
             title_bar = self._dock.titleBarWidget()
             if isinstance(title_bar, PlotsDockTitleBar):
                 self._docked_title_bar = title_bar
-                # Qt documents nullptr as the way to restore the default/native
-                # dock title. PySide's type stub does not currently expose None.
-                self._dock.setTitleBarWidget(cast(QWidget, None))
+            else:
+                retained = PlotsDockTitleBar.controller_for_dock(self._dock)
+                if retained is not None:
+                    self._docked_title_bar = retained
+                    self._dock.setTitleBarWidget(retained)
+                    retained.show()
+                    retained.sync(True)
 
-            # QDockWidget remains the dock/floating topology authority. The native
-            # Windows frame is adjusted only after the dock is already floating so
-            # drag-to-dock discovery and QMainWindow save/restore stay intact.
-            if not was_hidden:
-                QTimer.singleShot(0, self._finish_native_floating)
+            # Do not rewrite Qt window flags or native HWND styles here. Those
+            # mutations race QDockWidget's native move/dock loop on Windows and
+            # can leave the window following the cursor after a docking drop.
+            if not self._dock.isHidden():
+                QTimer.singleShot(0, self._detach_transient_parent)
         finally:
             self._normalizing = False
 
-    def _finish_native_floating(self) -> None:
+    def _detach_transient_parent(self) -> None:
         if not self._dock.isFloating() or self._dock.isHidden():
             return
         handle = self._dock.windowHandle()
@@ -204,7 +123,6 @@ class _WorkspaceDockTopLevelController(QObject):
             # QWindow::setTransientParent accepts a null pointer to clear the
             # relation, although the PySide stub currently types it as non-null.
             handle.setTransientParent(cast(QWindow, None))
-        _apply_windows_native_workspace_frame(self._dock)
 
     def _restore_docked_title_bar(self) -> None:
         if self._dock.isFloating():
@@ -215,6 +133,8 @@ class _WorkspaceDockTopLevelController(QObject):
         if title_bar is not None and self._dock.titleBarWidget() is not title_bar:
             self._dock.setTitleBarWidget(title_bar)
             title_bar.show()
+        if isinstance(title_bar, PlotsDockTitleBar):
+            title_bar.sync(False)
 
 
 class BetaWorkspaceHardeningController(QObject):
