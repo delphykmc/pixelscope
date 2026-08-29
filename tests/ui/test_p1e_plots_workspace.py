@@ -120,7 +120,7 @@ def test_floating_plots_geometry_survives_hide_show_and_restart(qtbot: object) -
     restored.close()
 
 
-def test_floating_title_double_click_maximizes_and_restores(qtbot: object) -> None:
+def test_floating_title_double_click_docks_workspace(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     window.show()
@@ -132,16 +132,10 @@ def test_floating_title_double_click_maximizes_and_restores(qtbot: object) -> No
         window.plots_dock_title,
         Qt.MouseButton.LeftButton,
     )
-    qtbot.waitUntil(window.bottom_dock.isMaximized)  # type: ignore[attr-defined]
-    assert window.plots_dock_title.maximize_button.toolTip() == "Restore Plots"
-
-    qtbot.mouseDClick(  # type: ignore[attr-defined]
-        window.plots_dock_title,
-        Qt.MouseButton.LeftButton,
-    )
-    qtbot.waitUntil(lambda: not window.bottom_dock.isMaximized())  # type: ignore[attr-defined]
-    assert window.bottom_dock.isFloating()
-    assert window.plots_dock_title.maximize_button.toolTip() == "Maximize Plots"
+    qtbot.waitUntil(lambda: not window.bottom_dock.isFloating())  # type: ignore[attr-defined]
+    assert not window.bottom_dock.isMaximized()
+    assert window.plots_dock_title.float_button.toolTip() == "Float Plots"
+    assert window.dockWidgetArea(window.bottom_dock) == Qt.DockWidgetArea.BottomDockWidgetArea
 
     window.close()
 
