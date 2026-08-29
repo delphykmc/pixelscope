@@ -121,8 +121,9 @@ class PlotsDockTitleBar(QWidget):
         self._restoring_floating_geometry = False
 
         self.setObjectName("workspaceDockTitle")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(
-            f"QWidget#workspaceDockTitle {{ background: {TOKENS.panel_background}; "
+            f"QWidget#workspaceDockTitle {{ background: {TOKENS.title_background}; "
             f"border-bottom: 1px solid {TOKENS.border}; }}"
             f"QLabel {{ color: {TOKENS.text_primary}; }}"
         )
