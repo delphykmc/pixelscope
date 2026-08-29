@@ -4,12 +4,17 @@ import argparse
 
 import numpy as np
 from PySide6.QtCore import QSettings, QTimer, Qt
-from PySide6.QtWidgets import QLabel, QWidget
+from PySide6.QtWidgets import QWidget
 
-from pixelscope.app.application import create_application
+from pixelscope.app.application import (
+    _compose_main_window_presentation,
+    create_application,
+    load_startup_settings,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
+from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
+from pixelscope.workers.thread_pools import analysis_thread_pool
 
 
 def _non_negative(value: str) -> int:
@@ -22,8 +27,8 @@ def _non_negative(value: str) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Open an isolated PixelScope window for interactive Files/Image/IQA "
-            "minimum-width experiments. The production layout contract is unchanged."
+            "Open an isolated, production-composed PixelScope window for interactive "
+            "Files/Image/IQA minimum-width experiments. Production defaults are unchanged."
         )
     )
     parser.add_argument("--files-min", type=_non_negative, default=0)
@@ -90,24 +95,26 @@ def _apply_initial_widths(
         )
 
 
-def _live_panel_text(label: str, widget: QWidget) -> str:
-    return (
-        f"{label} {widget.width()} "
-        f"[min {widget.minimumWidth()} / hint {widget.minimumSizeHint().width()}]"
-    )
-
-
 def main() -> int:
     args = _parser().parse_args()
 
     app = create_application([])
-    # Keep the probe isolated from the normal PixelScope QSettings namespace.
+    # Keep the probe isolated from the normal PixelScope QSettings namespace while
+    # still composing the same controllers/presentation as the production entry point.
     app.setOrganizationName("PixelScopeLayoutProbe")
     app.setApplicationName("PixelScopeLayoutProbe")
     QSettings().clear()
 
-    window = MainWindow()
-    install_beta_workspace_hardening(window)
+    repository, application_settings, performance_settings = load_startup_settings()
+    analysis_thread_pool()
+    result_pool = remote_iqa_thread_pool()
+    window = MainWindow(
+        application_settings,
+        performance_settings,
+        repository,
+        iqa_result_pool=result_pool,
+    )
+    _compose_main_window_presentation(window)
 
     files = window.main_splitter.widget(0)
     image = window.presentation_panel
@@ -135,7 +142,7 @@ def main() -> int:
 
     print("Configured minimum widths")
     print(f" Files={args.files_min}  Image={args.image_min}  IQA={args.iqa_min}")
-    print("Effective Qt hints after Beta hardening + probe override")
+    print("Effective Qt hints after production composition + probe override")
     _describe("Files", files)
     _describe("Image", image)
     _describe("IQA", iqa)
@@ -145,50 +152,39 @@ def main() -> int:
         f"Image={window.main_splitter.isCollapsible(1)}"
     )
     print(
-        "Drag the Files splitter and IQA dock divider; live width/min/hint values "
-        "are shown in the status bar and updated in the console."
+        "Drag the Files splitter and IQA dock divider; "
+        "live width/min/hint values are shown in the status bar and updated in the console."
     )
 
-    live_label = QLabel(window)
-    live_label.setObjectName("layoutProbeLiveWidths")
-    live_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    window.statusBar().addPermanentWidget(live_label, 1)
+    last_status = ""
 
-    previous_state: tuple[int, int, int | None] | None = None
+    def update_status() -> None:
+        nonlocal last_status
+        if window.iqa_dock.isFloating():
+            iqa_width_text = "float"
+        elif window.iqa_dock.isVisible():
+            iqa_width_text = str(window.iqa_dock.width())
+        else:
+            iqa_width_text = "hidden"
 
-    def update_live_widths() -> None:
-        nonlocal previous_state
-        iqa_width = (
-            None
-            if window.iqa_dock.isFloating() or not window.iqa_dock.isVisible()
-            else window.iqa_dock.width()
+        status = (
+            f"Files {files.width()} [min {files.minimumWidth()} / hint {files.minimumSizeHint().width()}]"
+            " | "
+            f"Image {image.width()} [min {image.minimumWidth()} / hint {image.minimumSizeHint().width()}]"
+            " | "
+            f"IQA {iqa_width_text} [min {window.iqa_dock.minimumWidth()} / "
+            f"hint {window.iqa_dock.minimumSizeHint().width()}]"
         )
-        iqa_state = (
-            "IQA float"
-            if window.iqa_dock.isFloating()
-            else "IQA hidden"
-            if not window.iqa_dock.isVisible()
-            else _live_panel_text("IQA", window.iqa_dock)
-        )
-        text = " | ".join(
-            (
-                _live_panel_text("Files", files),
-                _live_panel_text("Image", image),
-                iqa_state,
-            )
-        )
-        live_label.setText(text)
-        window.setWindowTitle(f"PixelScope Layout Probe | {text}")
-
-        state = (files.width(), image.width(), iqa_width)
-        if state != previous_state:
-            print(text)
-            previous_state = state
+        window.statusBar().showMessage(status)
+        window.setWindowTitle(f"PixelScope Layout Probe | {status}")
+        if status != last_status:
+            print(status)
+            last_status = status
 
     timer = QTimer(window)
-    timer.timeout.connect(update_live_widths)  # type: ignore[attr-defined]
+    timer.timeout.connect(update_status)  # type: ignore[attr-defined]
     timer.start(100)
-    update_live_widths()
+    update_status()
 
     return app.exec()
 
