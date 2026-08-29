@@ -92,14 +92,26 @@ Windows PixelScope caption and is intentionally darker than the main content sur
 The native Windows caption itself may contain OS-controlled tint/gradient and is not
 reimplemented inside Qt.
 
-Files and Analysis use the caption-tone background without an added lower divider, so
-the headings do not resemble framed/editable fields. Plots and IQA Results use the same
-caption-tone background in their custom dock title bar in both docked and floating
-states; the custom title widget explicitly paints its styled background so the surface
-remains visible when it becomes a floating window. The existing thin dock-title lower
-border remains only on Plots/IQA to separate caption controls from dock contents.
+The initial caption-tone pass exposed a second problem: the left sidebar headings were
+still inside the original 4 px container inset, the Image presentation command bar used
+its own height, and the QDockWidget title bar used the 28 px control height. Their lower
+edges therefore landed on different Y coordinates even though their colors were related.
 
-This is a visual-only distinction; dock, drag, resize, and topology behavior are unchanged.
+Beta now treats the upper workspace edge as one continuous chrome baseline:
+
+- `WORKSPACE_CHROME_HEIGHT` is 34 px (`28 px` control height plus `3 px` top/bottom
+  command-bar breathing room);
+- Files and Analysis headings fill their container width rather than living inside the
+  old 4 px outer inset;
+- Files, Analysis, the Image presentation command bar, Plots, and IQA Results use the
+  same 34 px chrome height where they form a top workspace edge;
+- Files/Analysis use only a 1 px lower separator, not a framed box, so they do not read
+  as editable text fields;
+- the Image presentation bar and QDockWidget titles use the same 1 px separator token so
+  the docked top line lands on one Y coordinate across Files -> Image -> IQA.
+
+This is a visual/layout distinction only; dock, drag, resize, and topology behavior are
+unchanged.
 
 ### Two Image resize stability
 
@@ -132,9 +144,27 @@ a floating dock could show a docking target preview, but after drop the window s
 remained floating and continued following the cursor. That native-frame mutation has
 been removed.
 
-PixelScope keeps the same custom title bar while docked and floating. Mouse
-press/move/release events not consumed by a control are ignored so they propagate to
-`QDockWidget`, which owns dragging, docking discovery, the docking preview, and drop
+PixelScope keeps the same custom title bar while docked and floating. Qt documents that
+a `QDockWidget` with a custom title bar does not use native window decorations when it is
+floated. That means PixelScope must provide the minimal visual frame that native chrome
+would otherwise contribute.
+
+The Beta floating-window frame is therefore intentionally small and presentation-only:
+
+- docked Plots/IQA do not receive an extra outer frame;
+- floating Plots/IQA receive a 1 px `TOKENS.border` outline around the complete
+  `QDockWidget`;
+- the caption remains the shared 34 px `title_background` surface with its lower
+  separator;
+- no drop shadow, native HWND mutation, custom resize hit testing, or window-flag rewrite
+  is introduced.
+
+This follows the same tool-window principle used by commercial IDE shells: docked tool
+windows have a deliberate boundary, while floating tool windows need an explicit frame
+against the document/workspace background.
+
+Mouse press/move/release events not consumed by a control are ignored so they propagate
+to `QDockWidget`, which owns dragging, docking discovery, the docking preview, and drop
 completion.
 
 Title controls are intentionally minimal:
@@ -176,6 +206,13 @@ visibility changes converge on the same QAction checked state.
   title-controller persistence on re-dock;
 - late hardening of already hidden/floating workspaces;
 - Reset Workspace clearing both persisted and retained in-memory floating geometry.
+
+`tests/ui/test_beta_workspace_chrome.py` covers the visual frame contract directly:
+
+- Files, Image presentation controls, and docked IQA title lower edges map to the same
+  main-window Y coordinate;
+- Files/Analysis and dock titles share the 34 px chrome height and separator token;
+- floating Plots/IQA receive the explicit 1 px outer frame and remove it again on re-dock.
 
 `tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path.
 
@@ -220,20 +257,22 @@ Beta hardening work. A speculative numeric-key fallback was reverted.
 6. Use `scripts/probe_workspace_min_widths.py` to compare candidate Files/Image/IQA
    minimum widths in both empty and `--with-sample-image` states before fixing final
    values.
-7. Confirm Files and Analysis use the caption-tone background without an added lower
-   divider. Confirm Plots and IQA Results use that same caption-tone surface while docked
-   and floating, visibly distinct from their content/background surface.
-8. Float Plots. Confirm the title remains PixelScope styled and exposes Dock,
-   Maximize/Restore, and Close only. Drag it back until the docking target preview
-   appears, drop it, and verify the dock reattaches and releases the mouse immediately.
-9. Repeat the same styled-title and drag re-dock flow for IQA. From floating state,
-   double-click the title and verify it docks normally.
-10. From a docked state, use Maximize and verify the documented float-and-maximize
+7. With Files + Image + docked IQA visible, confirm the lower separator of the Files
+   heading, Image presentation bar, and IQA Results title forms one visually continuous
+   horizontal baseline. Files/Analysis must not have an outer framed-box appearance.
+8. Float Plots and IQA in turn. Confirm each floating window has a visible 1 px outer
+   frame against the Image workspace even when their body colors are identical or very
+   close, while the caption remains visibly distinct from the body.
+9. For each floating workspace, verify Dock / Maximize / Close only. Drag to a valid
+   docking preview, drop, and confirm immediate dock + mouse release; the floating-only
+   outer frame must disappear after re-dock.
+10. Repeat for IQA. Floating title double-click must dock.
+11. From docked state, use Maximize and verify the documented float-and-maximize
     transition, then Restore and verify the dock returns to its remembered area.
-11. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
+12. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
     verify normal click/task switching without a workspace being permanently forced above
     Main.
-12. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
+13. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
     visible states remain synchronized in both directions.
 
 Also confirm the PR #59 behaviors above have not regressed during the same pass.
