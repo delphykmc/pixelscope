@@ -36,9 +36,10 @@ request/generation identity. The geometry feedback risk is the tile header's res
 metadata transition: one 480 px threshold changed child visibility and immediately
 activated layout, allowing a resize near that threshold to change its own size hint.
 
-Beta policy adds a 32 px compact/expanded hysteresis band and consumes the legacy
-single-threshold resize path, so the header cannot toggle visibility back and forth at
-one boundary. No image render request identity or source/display semantics change.
+Beta policy makes `TileHeader` itself the single responsive authority, with a 32 px
+compact/expanded hysteresis band and no immediate layout activation. Document refresh
+and resize therefore use the same state transition rules. No image render request
+identity or source/display semantics change.
 
 ### Viewer + bottom Plots
 
@@ -52,15 +53,19 @@ only usable state.
 Docked Plots/IQA retain the existing `QDockWidget`, custom dock title controls, object
 names, geometry settings, `saveState`/`restoreState`, and re-docking contract.
 
-While floating, Beta policy temporarily uses normal top-level `Qt.Window` behavior,
-removes `Qt.Tool`, frameless, and always-on-top hints, detaches the transient window
-parent, and uses native OS title-bar chrome with minimize/maximize controls. Re-docking
-restores the existing custom dock title widget.
+While floating, `QDockWidget.setFloating()` remains the sole docking/topology authority.
+Beta policy removes the custom title widget so Qt uses its documented native floating
+window decorations, then clears the visible floating window's transient-parent relation.
+It deliberately does **not** rewrite `QWidget.windowFlags()`: Windows/PySide validation
+showed that changing the window type flags can silently collapse a floating
+`QDockWidget` back into docked/child topology. Re-docking restores the retained custom
+dock title widget.
 
-The intended Windows behavior is therefore ordinary workspace-window behavior:
-independent z-order/task switching, monitor movement, native title-bar drag,
-Snap/drag-to-top maximize, maximize/restore, and later re-docking. Native Windows DWM
-behavior remains a manual qualification item rather than an offscreen-test claim.
+The intended Windows behavior remains normal workspace interaction: independent
+z-order/task switching, monitor movement, native title-bar drag, Snap/drag-to-top
+maximize, maximize/restore, and later re-docking. Exact Windows DWM/taskbar behavior is
+a manual qualification item rather than something inferred from the Qt window-type bit
+mask in offscreen tests.
 
 ### IQA toolbar authority
 
@@ -72,13 +77,19 @@ visibility changes converge on the same QAction checked state.
 
 `tests/ui/test_beta_workspace_hardening.py` covers:
 
-- compact-mode hysteresis boundaries;
+- compact-mode hysteresis boundaries and document refresh inside the hysteresis band;
 - removal of accumulated sidebar/IQA layout floors and flexible vertical policy;
 - idempotent installation and single IQA QAction authority/order;
 - toolbar/dock-close visibility synchronization;
-- Plots/IQA floating normal-window flags, transient-parent removal, native title-bar
-  substitution, maximize/restore where applicable, and custom-title restoration on
-  re-dock.
+- Plots/IQA remaining floating top-level `QDockWidget`s while native title chrome is
+  active, transient-parent removal, maximize/restore where applicable, and custom-title
+  restoration on re-dock;
+- late hardening of already hidden/floating workspaces;
+- Reset Workspace clearing both persisted and retained in-memory floating geometry.
+
+`tests/ui/test_beta_workspace_persistence.py` additionally covers the production-order
+restart path: save hidden/floating state, construct a new `MainWindow`, restore state,
+and only then install Beta hardening. Hidden/floating topology must remain unchanged.
 
 Existing workspace, IQA, Display Gain, Difference, and session tests remain regression
 coverage and must be included in normal repository validation.
