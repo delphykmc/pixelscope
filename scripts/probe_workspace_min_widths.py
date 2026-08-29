@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 
 import numpy as np
-from PySide6.QtCore import QSettings, QTimer, Qt
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtWidgets import QWidget
 
 from pixelscope.app.application import (
@@ -167,10 +167,12 @@ def main() -> int:
         else:
             iqa_width_text = "hidden"
 
+        files_hint = files.minimumSizeHint().width()
+        image_hint = image.minimumSizeHint().width()
         status = (
-            f"Files {files.width()} [min {files.minimumWidth()} / hint {files.minimumSizeHint().width()}]"
+            f"Files {files.width()} [min {files.minimumWidth()} / hint {files_hint}]"
             " | "
-            f"Image {image.width()} [min {image.minimumWidth()} / hint {image.minimumSizeHint().width()}]"
+            f"Image {image.width()} [min {image.minimumWidth()} / hint {image_hint}]"
             " | "
             f"IQA {iqa_width_text} [min {window.iqa_dock.minimumWidth()} / "
             f"hint {window.iqa_dock.minimumSizeHint().width()}]"
