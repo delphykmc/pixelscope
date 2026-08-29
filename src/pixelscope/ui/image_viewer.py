@@ -773,11 +773,6 @@ class ImageViewer(QWidget):
             sequence = QKeySequence(Qt.Key.Key_PageUp)
         elif event.key() == Qt.Key.Key_PageDown:
             sequence = QKeySequence(Qt.Key.Key_PageDown)
-        elif (
-            event.modifiers() == Qt.KeyboardModifier.NoModifier
-            and Qt.Key.Key_1 <= event.key() <= Qt.Key.Key_6
-        ):
-            sequence = QKeySequence(str(int(event.key()) - int(Qt.Key.Key_0)))
         if sequence is not None:
             shortcut = next(
                 (
