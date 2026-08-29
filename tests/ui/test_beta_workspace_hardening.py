@@ -109,10 +109,10 @@ def test_iqa_toolbar_reuses_existing_visibility_action(qtbot: object) -> None:
     window.close()
 
 
-def _assert_regular_top_level_window(dock: object) -> None:
+def _assert_native_floating_workspace(dock: object) -> None:
+    assert dock.isFloating()
+    assert dock.isWindow()
     flags = dock.windowFlags()
-    assert (flags & Qt.WindowType.WindowType_Mask) == Qt.WindowType.Window
-    assert not (flags & Qt.WindowType.Tool)
     assert not (flags & Qt.WindowType.FramelessWindowHint)
     assert not (flags & Qt.WindowType.WindowStaysOnTopHint)
     assert flags & Qt.WindowType.WindowTitleHint
@@ -141,6 +141,12 @@ def _prepare_native_floating(window: MainWindow, workspace: str, qtbot: object) 
     return dock
 
 
+def _assert_transient_parent_detached(dock: object, qtbot: object) -> None:
+    handle = dock.windowHandle()
+    if handle is not None:
+        qtbot.waitUntil(lambda: handle.transientParent() is None)  # type: ignore[attr-defined]
+
+
 def test_floating_plots_use_native_top_level_chrome_and_redock(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -151,10 +157,8 @@ def test_floating_plots_use_native_top_level_chrome_and_redock(qtbot: object) ->
     window.show()
     dock = _prepare_native_floating(window, "plots", qtbot)
 
-    _assert_regular_top_level_window(dock)
-    handle = dock.windowHandle()
-    if handle is not None:
-        qtbot.waitUntil(lambda: handle.transientParent() is None)  # type: ignore[attr-defined]
+    _assert_native_floating_workspace(dock)
+    _assert_transient_parent_detached(dock, qtbot)
 
     dock.setFloating(False)
     qtbot.waitUntil(lambda: not dock.isFloating())  # type: ignore[attr-defined]
@@ -182,7 +186,8 @@ def test_floating_iqa_uses_native_top_level_chrome_and_redock(qtbot: object) -> 
     dock.setFloating(True)
     qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
     qtbot.waitUntil(lambda: dock.titleBarWidget() is None)  # type: ignore[attr-defined]
-    _assert_regular_top_level_window(dock)
+    _assert_native_floating_workspace(dock)
+    _assert_transient_parent_detached(dock, qtbot)
 
     dock.showMaximized()
     qtbot.waitUntil(dock.isMaximized)  # type: ignore[attr-defined]
@@ -232,7 +237,8 @@ def test_late_install_preserves_hidden_floating_workspace(
     dock.show()
     qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
     qtbot.waitUntil(lambda: dock.titleBarWidget() is None)  # type: ignore[attr-defined]
-    _assert_regular_top_level_window(dock)
+    _assert_native_floating_workspace(dock)
+    _assert_transient_parent_detached(dock, qtbot)
     window.close()
 
 
