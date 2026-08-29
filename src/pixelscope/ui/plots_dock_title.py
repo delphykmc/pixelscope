@@ -52,6 +52,8 @@ def _title_icon(kind: str) -> QIcon:
         painter.drawLine(QPointF(3.5, 10.5), QPointF(12.5, 10.5))
         painter.drawLine(QPointF(6.0, 8.0), QPointF(8.0, 10.0))
         painter.drawLine(QPointF(10.0, 8.0), QPointF(8.0, 10.0))
+    elif kind == "minimize":
+        painter.drawLine(QPointF(3.0, 12.0), QPointF(13.0, 12.0))
     elif kind == "maximize":
         painter.drawRect(QRectF(2.5, 2.5, 11.0, 11.0))
         painter.drawLine(QPointF(3.5, 5.0), QPointF(12.5, 5.0))
@@ -70,7 +72,7 @@ def _title_icon(kind: str) -> QIcon:
 
 
 class PlotsDockTitleBar(QWidget):
-    """Compact reusable controls for floating/docking and maximizing a dock."""
+    """PixelScope-styled controls that preserve QDockWidget-native drag semantics."""
 
     _known_geometry_settings = {
         PLOTS_FLOATING_GEOMETRY_SETTING,
@@ -85,7 +87,7 @@ class PlotsDockTitleBar(QWidget):
 
     @classmethod
     def controller_for_dock(cls, dock: QDockWidget) -> PlotsDockTitleBar | None:
-        """Return the retained title controller even while native floating chrome is active."""
+        """Return the retained title controller for either docked or floating state."""
 
         title_bar = dock.titleBarWidget()
         if isinstance(title_bar, cls):
@@ -119,11 +121,20 @@ class PlotsDockTitleBar(QWidget):
             else QByteArray()
         )
         self._restoring_floating_geometry = False
+
+        self.setObjectName("workspaceDockTitle")
+        self.setStyleSheet(
+            f"QWidget#workspaceDockTitle {{ background: {TOKENS.workspace_background}; "
+            f"border-bottom: 1px solid {TOKENS.border}; }}"
+            f"QLabel {{ color: {TOKENS.text_primary}; }}"
+        )
         self.title = QLabel(title)
         self.float_button = self._button("float")
+        self.minimize_button = self._button("minimize")
         self.maximize_button = self._button("maximize")
         self.close_button = self._button("hide")
         self.float_button.clicked.connect(self._toggle_floating)  # type: ignore[attr-defined]
+        self.minimize_button.clicked.connect(self._minimize_floating)  # type: ignore[attr-defined]
         self.maximize_button.clicked.connect(self._toggle_maximized)  # type: ignore[attr-defined]
         self.close_button.clicked.connect(dock.hide)  # type: ignore[attr-defined]
         self.close_button.setToolTip(f"Hide {self._panel_title}")
@@ -133,6 +144,7 @@ class PlotsDockTitleBar(QWidget):
         layout.setSpacing(TOKENS.spacing_xs)
         layout.addWidget(self.title, 1)
         layout.addWidget(self.float_button)
+        layout.addWidget(self.minimize_button)
         layout.addWidget(self.maximize_button)
         layout.addWidget(self.close_button)
         self._dock.installEventFilter(self)
@@ -154,6 +166,8 @@ class PlotsDockTitleBar(QWidget):
         self.float_button.setToolTip(
             f"Dock {self._panel_title}" if floating else f"Float {self._panel_title}"
         )
+        self.minimize_button.setVisible(floating)
+        self.minimize_button.setToolTip(f"Minimize {self._panel_title}")
         if not floating and not self._dock.isMaximized():
             self._set_maximize_state(False)
 
@@ -171,12 +185,28 @@ class PlotsDockTitleBar(QWidget):
                 self._settings.setValue(self._geometry_setting, geometry)
         return super().eventFilter(watched, event)
 
-    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        # Qt documents that unhandled custom-title mouse events must be ignored
+        # so QDockWidget itself can own move/dock discovery and docking previews.
+        event.ignore()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        event.ignore()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        event.ignore()
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton and self._dock.isFloating():
-            self._toggle_maximized()
+            if self._dock.isMaximized():
+                self._dock.showNormal()
+            self._restore_to_docked = False
+            self._dock.setFloating(False)
+            self._dock.show()
             event.accept()
             return
-        super().mouseDoubleClickEvent(event)
+        # Docked double-click remains Qt-owned, including its standard float behavior.
+        event.ignore()
 
     def _toggle_floating(self) -> None:
         if self._dock.isMaximized():
@@ -186,6 +216,10 @@ class PlotsDockTitleBar(QWidget):
         self._restore_to_docked = False
         self._dock.setFloating(not self._dock.isFloating())
         self._dock.show()
+
+    def _minimize_floating(self) -> None:
+        if self._dock.isFloating():
+            self._dock.showMinimized()
 
     def _toggle_maximized(self) -> None:
         maximized = self._dock.isMaximized()
