@@ -53,6 +53,42 @@ Therefore:
 This keeps the layout predictable and avoids replacing Qt's native splitter/dock
 allocation semantics with another state authority.
 
+### Docked IQA Current Pair width
+
+The P5-C Current Pair presentation previously placed the complete A/B pair summary and
+Submit button on one horizontal row. With long filenames that row could dominate the IQA
+`minimumSizeHint()` and make the total Files + Image + IQA desktop width unnecessarily
+large.
+
+The Beta presentation now mirrors the Folder Pair structure without changing Remote IQA
+submission authority:
+
+```text
+Current Pair
+A  reference_name.png
+B  candidate_name.png
+OK · RGB · 1920×1080                         Submit Pair
+```
+
+- A and B use separate rows;
+- filename labels may yield horizontally and retain the complete filename in their
+  tooltip, so filename length does not establish the dock minimum width;
+- the third row uses the space corresponding to Folder Pair validation for an immediate
+  Current Pair eligibility status, with Submit Pair at the right;
+- the local Current Pair gate requires two native remote-eligible inputs, decoded
+  `H×W×3` RGB images, equal width/height, and the same pixel format (bit depth and decoded
+  dtype);
+- supported file extensions may differ when their decoded RGB pixel semantics satisfy
+  that contract; extension equality is not itself a requirement;
+- the same RGB/size/format helper is checked again immediately before Current Pair
+  submission so the displayed state and submit path cannot diverge after a document
+  change.
+
+The compact statuses are `OK · RGB · <width>×<height>`, `Blocked · RGB images required`,
+`Blocked · size mismatch`, and `Blocked · format mismatch`. This is a local Current Pair
+preflight/presentation change only. Folder Pair pairing/preflight, Remote IQA request
+schema, server behavior, and IQA numerical semantics are unchanged by this Beta PR.
+
 ### Interactive minimum-width probe
 
 `scripts/probe_workspace_min_widths.py` is a development-only helper for choosing
@@ -214,6 +250,11 @@ visibility changes converge on the same QAction checked state.
 - Files/Analysis and dock titles share the 34 px chrome height and separator token;
 - floating Plots/IQA receive the explicit 1 px outer frame and remove it again on re-dock.
 
+`tests/ui/test_p5c_setup_presentation.py` covers the stacked A/B Current Pair presentation,
+yielding filename labels, compact eligibility statuses, and Submit Pair enablement.
+`tests/unit/test_iqa_current_pair_contract.py` covers matching RGB input, non-RGB input,
+size mismatch, and pixel-format mismatch.
+
 `tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path.
 
 `tests/ui/test_beta_workspace_layout_allocation.py` covers bottom-corner ownership,
@@ -254,25 +295,30 @@ Beta hardening work. A speculative numeric-key fallback was reverted.
 5. Drag the docked IQA divider through its range and confirm the central area/IQA sizing
    follows normal QMainWindow/QDockWidget behavior without a custom Files-width restore
    effect.
-6. Use `scripts/probe_workspace_min_widths.py` to compare candidate Files/Image/IQA
+6. With two native images on the Current Comparison Page, verify IQA Current Pair shows A
+   and B on separate rows. Matching RGB inputs show `OK · RGB · <W>×<H>` and enable
+   Submit Pair; non-RGB, size mismatch, or pixel-format mismatch shows the corresponding
+   Blocked status and disables Submit Pair. Long filenames must not force the IQA dock
+   wider than its normal control minimum.
+7. Use `scripts/probe_workspace_min_widths.py` to compare candidate Files/Image/IQA
    minimum widths in both empty and `--with-sample-image` states before fixing final
    values.
-7. With Files + Image + docked IQA visible, confirm the lower separator of the Files
+8. With Files + Image + docked IQA visible, confirm the lower separator of the Files
    heading, Image presentation bar, and IQA Results title forms one visually continuous
    horizontal baseline. Files/Analysis must not have an outer framed-box appearance.
-8. Float Plots and IQA in turn. Confirm each floating window has a visible 1 px outer
+9. Float Plots and IQA in turn. Confirm each floating window has a visible 1 px outer
    frame against the Image workspace even when their body colors are identical or very
    close, while the caption remains visibly distinct from the body.
-9. For each floating workspace, verify Dock / Maximize / Close only. Drag to a valid
-   docking preview, drop, and confirm immediate dock + mouse release; the floating-only
-   outer frame must disappear after re-dock.
-10. Repeat for IQA. Floating title double-click must dock.
-11. From docked state, use Maximize and verify the documented float-and-maximize
+10. For each floating workspace, verify Dock / Maximize / Close only. Drag to a valid
+    docking preview, drop, and confirm immediate dock + mouse release; the floating-only
+    outer frame must disappear after re-dock.
+11. Repeat for IQA. Floating title double-click must dock.
+12. From docked state, use Maximize and verify the documented float-and-maximize
     transition, then Restore and verify the dock returns to its remembered area.
-12. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
+13. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
     verify normal click/task switching without a workspace being permanently forced above
     Main.
-13. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
+14. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
     visible states remain synchronized in both directions.
 
 Also confirm the PR #59 behaviors above have not regressed during the same pass.
