@@ -16,7 +16,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.design_tokens import (
+    TOKENS,
+    WORKSPACE_CHROME_HEIGHT,
+    panel_heading_style,
+)
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 _DISABLED_ICON_COLOR = "#737980"
@@ -162,6 +166,28 @@ class BetaWorkspaceHardeningController(QObject):
             main_splitter.setChildrenCollapsible(True)
             main_splitter.setCollapsible(0, True)
             main_splitter.setCollapsible(1, False)
+
+        # Treat the upper edge as one continuous workspace chrome line. The
+        # original sidebar containers had a 4 px inset while the Image command
+        # bar and QDockWidget titles started at the main workspace edge, which
+        # made their lower separators land on different Y coordinates.
+        sidebar_splitter = getattr(window, "sidebar_splitter", None)
+        if isinstance(sidebar_splitter, QSplitter):
+            for index in range(min(2, sidebar_splitter.count())):
+                container = sidebar_splitter.widget(index)
+                layout = container.layout() if isinstance(container, QWidget) else None
+                if layout is None or layout.count() == 0:
+                    continue
+                layout.setContentsMargins(0, 0, 0, 0)
+                layout.setSpacing(0)
+                heading = layout.itemAt(0).widget()
+                if isinstance(heading, QLabel):
+                    heading.setFixedHeight(WORKSPACE_CHROME_HEIGHT)
+                    heading.setStyleSheet(panel_heading_style())
+
+        presentation_controls = getattr(window, "presentation_controls", None)
+        if isinstance(presentation_controls, QWidget):
+            presentation_controls.setFixedHeight(WORKSPACE_CHROME_HEIGHT)
 
         for widget_name in ("document_list", "analysis_tabs"):
             widget = getattr(window, widget_name, None)
