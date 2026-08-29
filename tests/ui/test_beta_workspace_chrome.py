@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QLabel, QDockWidget
+from PySide6.QtWidgets import QLabel, QDockWidget, QWidget
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope.ui.design_tokens import TOKENS, WORKSPACE_CHROME_HEIGHT
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+from pixelscope.ui.presentation_controls import polish_presentation_controls
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
@@ -21,13 +22,14 @@ def _sidebar_heading(window: MainWindow, index: int) -> QLabel:
     return heading
 
 
-def _bottom_y(widget: object, window: MainWindow) -> int:
+def _bottom_y(widget: QWidget, window: MainWindow) -> int:
     return widget.mapTo(window, QPoint(0, widget.height())).y()
 
 
 def test_docked_workspace_chrome_has_one_shared_baseline(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
+    polish_presentation_controls(window)
     install_beta_workspace_hardening(window)
     window.show()
     window.iqa_workspace_action.trigger()
