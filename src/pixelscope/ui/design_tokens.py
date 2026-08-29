@@ -36,6 +36,7 @@ class DesignTokens:
 
 
 TOKENS = DesignTokens()
+WORKSPACE_CHROME_HEIGHT = TOKENS.control_height + 2 * TOKENS.spacing_xs
 
 
 class EngineeringStyle(QProxyStyle):
@@ -108,7 +109,8 @@ def menu_style() -> str:
 def panel_heading_style() -> str:
     return (
         f"QLabel {{ background: {TOKENS.title_background}; color: {TOKENS.text_primary}; "
-        f"font-weight: 600; padding: {TOKENS.spacing_sm}px; }}"
+        f"font-weight: 600; padding: 0 {TOKENS.spacing_sm}px; "
+        f"border-bottom: 1px solid {TOKENS.border}; }}"
     )
 
 
