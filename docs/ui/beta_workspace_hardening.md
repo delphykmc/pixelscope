@@ -18,22 +18,68 @@ PR #59 behavior is baseline, not new scope here:
 
 ## Root causes and policy
 
-### Horizontal Two Image + IQA
+### Horizontal Files + Image + IQA
 
 The central sidebar carried a blanket 320 px minimum while IQA also contributed
 intrinsic widths from controls and long labels. Those independent minimums accumulated
 at the `QMainWindow` level.
 
 Beta policy removes the blanket sidebar floor, lets IQA labels/controls shrink or wrap,
-and removes the legacy 230 px Scene attribute-list maximum. The main Files/Viewer
-splitter may yield at extreme widths instead of imposing an artificial practical maximum
-on either Files or IQA.
+and removes the legacy 230 px Scene attribute-list maximum.
 
-Normal IQA resizing must not silently change the Files width selected by the user. A
-small allocation controller records Files width only when the main splitter itself is
-moved, then restores that preferred Files width after docked IQA resize/topology changes.
-If the remaining central width becomes smaller than the preference, Files may still
-shrink; the policy preserves preference without creating another hard minimum.
+Horizontal allocation intentionally remains Qt-native rather than introducing a custom
+three-pane resize controller. The actual hierarchy is:
+
+```text
+QMainWindow
+|- CentralWidget
+|  `- QSplitter
+|     |- Files
+|     `- Image workspace
+`- IQA QDockWidget
+```
+
+Therefore:
+
+- dragging the Files/Image splitter is owned by `QSplitter` and adjusts those two panes;
+- dragging the IQA dock divider is owned by `QMainWindow`/`QDockWidget` and resizes the
+  central area against IQA;
+- Files is a secondary splitter pane and remains collapsible using Qt's built-in
+  collapse/restore behavior;
+- the Image workspace is the primary surface and is explicitly non-collapsible;
+- no custom mouse handling, collapse threshold, or IQA-resize Files-width restoration is
+  installed.
+
+This keeps the layout predictable and avoids replacing Qt's native splitter/dock
+allocation semantics with another state authority.
+
+### Interactive minimum-width probe
+
+`scripts/probe_workspace_min_widths.py` is a development-only helper for choosing
+reasonable minimum widths. It does not modify the production defaults or normal
+QSettings namespace.
+
+Example:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\probe_workspace_min_widths.py `
+    --files-min 220 `
+    --image-min 280 `
+    --iqa-min 260
+```
+
+Useful options:
+
+- `--files-min`, `--image-min`, `--iqa-min`: temporary minimum widths;
+- `--files-width`, `--iqa-width`: optional repeatable starting widths;
+- `--window-width`, `--window-height`: initial main-window size;
+- `--with-sample-image`: compare the populated Image workspace with the default empty
+  state;
+- `--hide-iqa`: start without IQA.
+
+The script prints each pane's `minimumWidth()`, `minimumSizeHint().width()`, and
+`sizeHint().width()` and shows live Files/Image/IQA widths in the window title while the
+splitters are dragged.
 
 ### Two Image resize stability
 
@@ -101,7 +147,7 @@ visibility changes converge on the same QAction checked state.
 
 - compact-mode hysteresis boundaries and document refresh inside the hysteresis band;
 - removal of accumulated sidebar/IQA floors and legacy Scene attribute-list width cap;
-- flexible/collapsible horizontal and vertical workspace policy;
+- flexible vertical workspace policy;
 - idempotent installation and single IQA QAction authority/order;
 - toolbar/dock-close visibility synchronization;
 - Plots/IQA retaining the PixelScope title controller while floating;
@@ -113,10 +159,10 @@ visibility changes converge on the same QAction checked state.
 `tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path.
 
 `tests/ui/test_beta_workspace_layout_allocation.py` covers bottom-corner ownership,
-shrinkable IQA detail/splitter policy, Files-width preference restoration after IQA
-allocation changes, and relaxed horizontal collapse limits.
+shrinkable IQA detail/splitter policy, and the Qt-native horizontal contract: Files may
+collapse while the Image workspace may not.
 
-`tests/ui/test_p1e_plots_workspace.py` now treats floating-title double-click as a re-dock
+`tests/ui/test_p1e_plots_workspace.py` treats floating-title double-click as a re-dock
 contract rather than the superseded maximize/restore contract.
 
 Actual title-bar drag/drop docking is a Windows manual gate because offscreen Qt tests do
@@ -145,23 +191,25 @@ Beta hardening work. A speculative numeric-key fallback was reverted.
    persistent flicker or resize/render oscillation.
 3. Dock Plots at the bottom while IQA is also docked. Drag the Viewer/Plots boundary
    upward and verify IQA detail/table regions compress so Plots can take useful height.
-4. Resize Files wider/narrower and verify IQA width remains unchanged. Then resize docked
-   IQA wider/narrower and verify the chosen Files width stays stable until the overall
-   window becomes too narrow to honor it.
-5. Verify Files and IQA can both be enlarged substantially farther than before; extreme
-   resizing may collapse the Viewer/other pane rather than stopping at the former
-   practical limit.
-6. Float Plots. Confirm the title remains PixelScope dark style and exposes Dock,
+4. Drag the Files/Image splitter through its range. Files may collapse and restore using
+   Qt's native splitter behavior; the Image workspace must not snap to zero width.
+5. Drag the docked IQA divider through its range and confirm the central area/IQA sizing
+   follows normal QMainWindow/QDockWidget behavior without a custom Files-width restore
+   effect.
+6. Use `scripts/probe_workspace_min_widths.py` to compare candidate Files/Image/IQA
+   minimum widths in both empty and `--with-sample-image` states before fixing final
+   values.
+7. Float Plots. Confirm the title remains PixelScope dark style and exposes Dock,
    Maximize/Restore, and Close only. Drag it back until the docking target preview
    appears, drop it, and verify the dock reattaches and releases the mouse immediately.
-7. Repeat the same styled-title and drag re-dock flow for IQA. From floating state,
+8. Repeat the same styled-title and drag re-dock flow for IQA. From floating state,
    double-click the title and verify it docks normally.
-8. From a docked state, use Maximize and verify the documented float-and-maximize
+9. From a docked state, use Maximize and verify the documented float-and-maximize
    transition, then Restore and verify the dock returns to its remembered area.
-9. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
-   verify normal click/task switching without a workspace being permanently forced above
-   Main.
-10. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
+10. With multiple monitors, move/maximize Main Viewer, Plots, and IQA independently and
+    verify normal click/task switching without a workspace being permanently forced above
+    Main.
+11. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
     visible states remain synchronized in both directions.
 
 Also confirm the PR #59 behaviors above have not regressed during the same pass.
