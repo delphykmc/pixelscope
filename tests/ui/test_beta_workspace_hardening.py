@@ -65,11 +65,26 @@ def test_beta_layout_policy_removes_accumulated_workspace_floors(qtbot: object) 
         window.iqa_workspace.sizePolicy().horizontalPolicy()
         == QSizePolicy.Policy.Ignored
     )
+    assert (
+        window.iqa_workspace.sizePolicy().verticalPolicy()
+        == QSizePolicy.Policy.Ignored
+    )
     assert window.iqa_workspace.status_label.wordWrap()
     assert window.iqa_workspace.result_label.wordWrap()
     assert window.iqa_workspace.dataset_label.wordWrap()
     assert window.iqa_workspace.preview_caption.wordWrap()
+    assert window.iqa_workspace.overview_plot.minimumHeight() == 0
+    assert window.iqa_workspace.scene_trend_plot.minimumHeight() == 0
+    assert window.iqa_workspace.hierarchy.minimumHeight() == 0
 
+    assert (
+        window.corner(Qt.Corner.BottomLeftCorner)
+        == Qt.DockWidgetArea.BottomDockWidgetArea
+    )
+    assert (
+        window.corner(Qt.Corner.BottomRightCorner)
+        == Qt.DockWidgetArea.BottomDockWidgetArea
+    )
     assert (
         window.main_splitter.sizePolicy().verticalPolicy()
         == QSizePolicy.Policy.Ignored
