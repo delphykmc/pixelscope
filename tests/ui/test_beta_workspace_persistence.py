@@ -28,10 +28,9 @@ def test_hidden_floating_workspace_survives_restart_and_late_hardening(
 
     dock = _show_workspace(window, workspace)
     qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
-    if workspace == "iqa":
-        qtbot.waitUntil(  # type: ignore[attr-defined]
-            lambda: isinstance(dock.titleBarWidget(), PlotsDockTitleBar)
-        )
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: isinstance(dock.titleBarWidget(), PlotsDockTitleBar)
+    )
     dock.setFloating(True)
     qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
     dock.hide()
@@ -58,4 +57,13 @@ def test_hidden_floating_workspace_survives_restart_and_late_hardening(
     qtbot.wait(20)  # type: ignore[attr-defined]
     assert restored_dock.isHidden()
     assert not action.isChecked()
+
+    restored_dock.show()
+    qtbot.waitUntil(restored_dock.isVisible)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: isinstance(restored_dock.titleBarWidget(), PlotsDockTitleBar)
+    )
+    title = restored_dock.titleBarWidget()
+    assert isinstance(title, PlotsDockTitleBar)
+    assert not title.minimize_button.isHidden()
     restored.close()
