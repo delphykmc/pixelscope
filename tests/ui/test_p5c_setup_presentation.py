@@ -83,11 +83,11 @@ def test_compact_setup_status_keeps_full_text_in_tooltip(
     workspace.current_pair_label.setText("Unavailable · IQA requires RGB images")
     assert workspace.current_pair_label.text() == "Blocked · RGB images required"
 
+    workspace.current_pair_label.setText("Unavailable · IQA requires 8-bit RGB images")
+    assert workspace.current_pair_label.text() == "Blocked · RGB8 required"
+
     workspace.current_pair_label.setText("Unavailable · image size mismatch")
     assert workspace.current_pair_label.text() == "Blocked · size mismatch"
-
-    workspace.current_pair_label.setText("Unavailable · image format mismatch")
-    assert workspace.current_pair_label.text() == "Blocked · format mismatch"
 
     preview_full = "Validated full Pair Preview · 24 Scenes"
     workspace.preview_status.setText(preview_full)
@@ -107,7 +107,7 @@ def test_current_pair_presentation_shows_a_b_status_and_submit_rows(
     workspace = window.remote_iqa_workspace
 
     workspace.set_current_pair_state(
-        "OK · RGB · 1920×1080",
+        "OK · RGB8 · 1920×1080",
         True,
         None,
         names=("reference_with_a_long_name.png", "candidate_with_a_long_name.png"),
@@ -115,7 +115,7 @@ def test_current_pair_presentation_shows_a_b_status_and_submit_rows(
 
     assert workspace.current_pair_a.text() == "reference_with_a_long_name.png"
     assert workspace.current_pair_b.text() == "candidate_with_a_long_name.png"
-    assert workspace.current_pair_label.text() == "OK · RGB · 1920×1080"
+    assert workspace.current_pair_label.text() == "OK · RGB8 · 1920×1080"
     assert workspace.current_submit.isEnabled()
 
     workspace.set_current_pair_state(
