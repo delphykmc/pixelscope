@@ -163,6 +163,12 @@ class RemoteIqaWorkspace(QWidget):
         self.current_pair_label.setObjectName("remoteIqaCurrentPairSummary")
         self.current_pair_label.setWordWrap(True)
         layout.addWidget(self.current_pair_label)
+        self.current_pair_a = QLabel("—", self.setup_page)
+        self.current_pair_a.setObjectName("remoteIqaCurrentPairA")
+        self.current_pair_a.hide()
+        self.current_pair_b = QLabel("—", self.setup_page)
+        self.current_pair_b.setObjectName("remoteIqaCurrentPairB")
+        self.current_pair_b.hide()
         self.current_submit = QPushButton("Submit Current Pair", self.setup_page)
         self.current_submit.setObjectName("remoteIqaSubmitCurrentPair")
         self.current_submit.clicked.connect(  # type: ignore[attr-defined]
@@ -330,7 +336,14 @@ class RemoteIqaWorkspace(QWidget):
         summary: str,
         eligible: bool,
         reason: str | None,
+        *,
+        names: tuple[str, str] | None = None,
     ) -> None:
+        name_a, name_b = names or ("—", "—")
+        self.current_pair_a.setText(name_a)
+        self.current_pair_a.setToolTip("" if name_a == "—" else name_a)
+        self.current_pair_b.setText(name_b)
+        self.current_pair_b.setToolTip("" if name_b == "—" else name_b)
         self.current_pair_label.setText(
             summary if eligible else f"Unavailable · {reason or summary}"
         )
@@ -563,7 +576,18 @@ class RemoteIqaController(QObject):
         settings = self.window.application_settings.remote_iqa
         self.workspace.set_configuration_state(settings)
         documents = list(self.window.current_comparison_documents())
-        identity = tuple(getattr(item, "document_id", None) for item in documents)
+        identity = tuple(
+            (
+                getattr(item, "document_id", None),
+                getattr(item, "generation", None),
+                tuple(getattr(item, "shape", ())),
+                getattr(item, "channel_layout", None),
+                getattr(item, "bit_depth", None),
+                str(getattr(item, "original_dtype", None)),
+                getattr(item, "source_path", None),
+            )
+            for item in documents
+        )
         identity += (settings.submission_configured,)
         if identity == self._last_pair_identity:
             return
@@ -605,10 +629,21 @@ class RemoteIqaController(QObject):
                 )
                 return
             paths.append(path)
+        names = (paths[0].name, paths[1].name)
+        eligible, status = _current_pair_image_contract(documents)
+        if not eligible:
+            self.workspace.set_current_pair_state(
+                "Current Pair is not eligible.",
+                False,
+                status,
+                names=names,
+            )
+            return
         self.workspace.set_current_pair_state(
-            f"A: {paths[0].name}  ·  B: {paths[1].name}",
+            status,
             True,
             None,
+            names=names,
         )
 
     @Slot()
@@ -626,6 +661,10 @@ class RemoteIqaController(QObject):
         path_b = getattr(documents[1], "source_path", None)
         if not isinstance(path_a, Path) or not isinstance(path_b, Path):
             self.workspace.show_submission_error("Current Pair is not two native source paths")
+            return
+        eligible, status = _current_pair_image_contract(documents)
+        if not eligible:
+            self.workspace.show_submission_error(status)
             return
         self._start_submission(
             "current_pair",
@@ -1068,6 +1107,38 @@ def install_remote_iqa(
     window.installEventFilter(close_filter)
     window._remote_iqa_close_filter = close_filter
     return controller
+
+
+def _current_pair_image_contract(documents: list[Any]) -> tuple[bool, str]:
+    """Return the local RGB/geometry contract used before Current Pair submission."""
+
+    if len(documents) != 2:
+        return False, "Current Comparison Page must contain exactly two images"
+
+    sizes: list[tuple[int, int]] = []
+    formats: list[tuple[str, int, str]] = []
+    for document in documents:
+        shape = tuple(getattr(document, "shape", ()))
+        channel_layout = str(getattr(document, "channel_layout", "")).upper()
+        source = getattr(document, "source", None)
+        if source is None or channel_layout != "RGB" or len(shape) != 3 or shape[2] != 3:
+            return False, "IQA requires RGB images"
+        sizes.append((int(shape[0]), int(shape[1])))
+        formats.append(
+            (
+                channel_layout,
+                int(getattr(document, "bit_depth", 0)),
+                str(getattr(document, "original_dtype", None)),
+            )
+        )
+
+    if formats[0] != formats[1]:
+        return False, "image format mismatch"
+    if sizes[0] != sizes[1]:
+        return False, "image size mismatch"
+
+    height, width = sizes[0]
+    return True, f"OK · RGB · {width}×{height}"
 
 
 def _preview_signature(
