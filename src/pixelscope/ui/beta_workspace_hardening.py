@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import cast
+from types import MethodType
+from typing import Any, cast
 
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QWindow
@@ -30,6 +31,18 @@ def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
     size_policy = widget.sizePolicy()
     size_policy.setVerticalPolicy(policy)
     widget.setSizePolicy(size_policy)
+
+
+def _set_horizontal_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
+    size_policy = widget.sizePolicy()
+    size_policy.setHorizontalPolicy(policy)
+    widget.setSizePolicy(size_policy)
+
+
+def _sync_full_text_label(label: QLabel, description: str) -> None:
+    text = label.text()
+    label.setToolTip(text)
+    label.setAccessibleName(f"{description}: {text}")
 
 
 def _draw_iqa_pixmap(color_name: str) -> QPixmap:
@@ -162,6 +175,7 @@ class BetaWorkspaceHardeningController(QObject):
             # secondary pane and may collapse; the Image workspace is the primary
             # surface and must never snap to zero width.
             sidebar.setMinimumWidth(0)
+            _set_horizontal_policy(sidebar, QSizePolicy.Policy.Ignored)
             presentation.setMinimumWidth(0)
             main_splitter.setChildrenCollapsible(True)
             main_splitter.setCollapsible(0, True)
@@ -187,7 +201,10 @@ class BetaWorkspaceHardeningController(QObject):
 
         presentation_controls = getattr(window, "presentation_controls", None)
         if isinstance(presentation_controls, QWidget):
+            presentation_controls.setMinimumWidth(0)
             presentation_controls.setFixedHeight(WORKSPACE_CHROME_HEIGHT)
+
+        self._install_presentation_text_accessibility()
 
         for widget_name in ("document_list", "analysis_tabs"):
             widget = getattr(window, widget_name, None)
@@ -272,6 +289,8 @@ class BetaWorkspaceHardeningController(QObject):
         if isinstance(dock, QDockWidget):
             dock.setMinimumWidth(0)
 
+        self._relax_composed_iqa_shell()
+
         # Give the bottom workspace both lower corners. Otherwise a left/right IQA
         # dock owns the full side height and its minimum can cap Plots growth.
         window.setCorner(
@@ -300,8 +319,107 @@ class BetaWorkspaceHardeningController(QObject):
                 widget.setMinimumHeight(0)
                 _set_vertical_policy(widget, QSizePolicy.Policy.Expanding)
 
+        # Populated Files and Multi View surfaces may contain long document
+        # labels, but those labels must not become a desktop-wide minimum. Files
+        # remains the Qt-collapsible secondary pane and Image remains the
+        # non-collapsible primary pane established above.
+        for widget_name in ("central_stack", "viewer", "multi_compare_view"):
+            widget = getattr(window, widget_name, None)
+            if isinstance(widget, QWidget):
+                widget.setMinimumWidth(0)
+                _set_horizontal_policy(widget, QSizePolicy.Policy.Ignored)
+
         if isinstance(main_splitter, QWidget):
             _set_vertical_policy(main_splitter, QSizePolicy.Policy.Ignored)
+
+    def _install_presentation_text_accessibility(self) -> None:
+        window = self.window
+
+        page_label = getattr(window, "comparison_page_label", None)
+        range_label = getattr(window, "comparison_page_range_label", None)
+
+        def sync_page_labels() -> None:
+            if isinstance(page_label, QLabel):
+                _sync_full_text_label(page_label, "Comparison Page status")
+            if isinstance(range_label, QLabel):
+                _sync_full_text_label(range_label, "Comparison Page selected range")
+
+        page_group = getattr(window, "comparison_page_group", None)
+        update_page_controls = getattr(window, "_update_comparison_page_controls", None)
+        if (
+            isinstance(page_group, QWidget)
+            and callable(update_page_controls)
+            and not bool(page_group.property("betaFullTextAccessibility"))
+        ):
+            page_group.setProperty("betaFullTextAccessibility", True)
+
+            def update_with_accessibility(_window: Any) -> None:
+                update_page_controls()
+                sync_page_labels()
+
+            dynamic_window = cast(Any, window)
+            dynamic_window._update_comparison_page_controls = MethodType(
+                update_with_accessibility,
+                window,
+            )
+        sync_page_labels()
+
+        review = getattr(window, "review_selection_controller", None)
+        count_label = getattr(review, "count_label", None)
+        sync_review_controls = getattr(review, "_sync_controls", None)
+
+        def sync_review_label() -> None:
+            if isinstance(count_label, QLabel):
+                _sync_full_text_label(count_label, "Temporary Pick count")
+
+        if (
+            review is not None
+            and isinstance(count_label, QLabel)
+            and callable(sync_review_controls)
+            and not bool(count_label.property("betaFullTextAccessibility"))
+        ):
+            count_label.setProperty("betaFullTextAccessibility", True)
+
+            def sync_with_accessibility(_controller: Any) -> None:
+                sync_review_controls()
+                sync_review_label()
+
+            review._sync_controls = MethodType(sync_with_accessibility, review)
+        sync_review_label()
+
+    def _relax_composed_iqa_shell(self) -> None:
+        """Relax the final P5-C shell as well as the nested P5-B Results widget."""
+
+        remote_workspace = getattr(self.window, "remote_iqa_workspace", None)
+        if not isinstance(remote_workspace, QWidget):
+            return
+
+        remote_workspace.setMinimumWidth(0)
+        remote_workspace.setMinimumHeight(0)
+        _set_horizontal_policy(remote_workspace, QSizePolicy.Policy.Ignored)
+        _set_vertical_policy(remote_workspace, QSizePolicy.Policy.Ignored)
+
+        tabs = getattr(remote_workspace, "tabs", None)
+        if isinstance(tabs, QTabWidget):
+            tabs.setMinimumWidth(0)
+            tabs.setMinimumHeight(0)
+            _set_horizontal_policy(tabs, QSizePolicy.Policy.Ignored)
+            _set_vertical_policy(tabs, QSizePolicy.Policy.Ignored)
+            for index in range(tabs.count()):
+                page = tabs.widget(index)
+                if isinstance(page, QWidget):
+                    page.setMinimumWidth(0)
+                    page.setMinimumHeight(0)
+                    _set_horizontal_policy(page, QSizePolicy.Policy.Ignored)
+                    _set_vertical_policy(page, QSizePolicy.Policy.Ignored)
+
+        for label in remote_workspace.findChildren(QLabel):
+            label.setMinimumWidth(0)
+            label.setWordWrap(True)
+            if label.text() and not label.toolTip():
+                label.setToolTip(label.text())
+            if label.text() and not label.accessibleName():
+                label.setAccessibleName(label.text())
 
     def _install_workspace_windows(self) -> None:
         plots = getattr(self.window, "bottom_dock", None)

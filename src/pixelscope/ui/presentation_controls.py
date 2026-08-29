@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -17,6 +18,12 @@ from PySide6.QtWidgets import (
 
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.toolbar_icons import toolbar_icon
+
+_COMPACT_LAYOUT_GROUP_WIDTH = 100
+_COMPACT_PAGE_GROUP_WIDTH = 280
+_COMPACT_GAIN_GROUP_WIDTH = 90
+_COMPACT_PICK_COUNT_WIDTH = 50
+_COMPACT_CURATION_ACTION_WIDTH = 56
 
 
 def _presentation_controls_style() -> str:
@@ -93,6 +100,71 @@ def _set_bold_label(label: QLabel) -> None:
     font = label.font()
     font.setWeight(QFont.Weight.Bold)
     label.setFont(font)
+
+
+def _set_compact_command_width(widget: QWidget, minimum_width: int) -> None:
+    """Let a command group yield to the viewer while retaining a clickable floor."""
+
+    widget.setMinimumWidth(minimum_width)
+    policy = widget.sizePolicy()
+    policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+    widget.setSizePolicy(policy)
+
+
+def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
+    """Bound the composed Image command row without changing command ownership."""
+
+    layout.setSpacing(TOKENS.spacing_md)
+
+    layout_selector = getattr(window, "layout_selector", None)
+    layout_group = (
+        layout_selector.parentWidget() if isinstance(layout_selector, QComboBox) else None
+    )
+    page_group = getattr(window, "comparison_page_group", None)
+    gain_group = window.findChild(QWidget, "DisplayGainControl")
+    review = getattr(window, "review_selection_controller", None)
+    count_label = getattr(review, "count_label", None)
+    clear_button = getattr(review, "clear_button", None)
+    keep_button = getattr(review, "keep_button", None)
+
+    compact_groups = (
+        (layout_group, _COMPACT_LAYOUT_GROUP_WIDTH, 1),
+        (page_group, _COMPACT_PAGE_GROUP_WIDTH, 4),
+        (gain_group, _COMPACT_GAIN_GROUP_WIDTH, 1),
+        (count_label, _COMPACT_PICK_COUNT_WIDTH, 1),
+        (clear_button, _COMPACT_CURATION_ACTION_WIDTH, 1),
+        (keep_button, _COMPACT_CURATION_ACTION_WIDTH, 1),
+    )
+    for widget, minimum_width, stretch in compact_groups:
+        if not isinstance(widget, QWidget):
+            continue
+        _set_compact_command_width(widget, minimum_width)
+        index = layout.indexOf(widget)
+        if index >= 0:
+            layout.setStretch(index, stretch)
+
+    gain_label = window.findChild(QLabel, "DisplayGainLabel")
+    if gain_label is not None:
+        full_name = "Display Gain"
+        gain_label.setText("Gain")
+        gain_label.setAccessibleName(full_name)
+        gain_label.setToolTip(full_name)
+
+    if isinstance(clear_button, QAbstractButton):
+        clear_button.setAccessibleName("Clear Selection")
+        clear_button.setToolTip(
+            "Clear Selection: clear temporary Picks without changing Files Selected"
+        )
+    if isinstance(keep_button, QAbstractButton):
+        keep_button.setAccessibleName("Keep Selection")
+        keep_button.setToolTip(
+            "Keep Selection: replace Files Selected with temporary Picks in original order"
+        )
+
+    # Keep some ordinary trailing breathing room, while allowing command groups to
+    # receive surplus width again on a wide/FHD desktop.
+    if layout.count() > 0 and layout.itemAt(layout.count() - 1).spacerItem() is not None:
+        layout.setStretch(layout.count() - 1, 1)
 
 
 def _polish_analysis_export_controls(window: Any) -> None:
@@ -267,6 +339,7 @@ def polish_presentation_controls(window: Any) -> None:
     )
 
     _polish_analysis_export_controls(window)
+    _polish_compact_command_row(window, layout)
 
     # The controls-state cache predates the widget replacement. Reset it once so
     # the new buttons receive the same endpoint state as actions and shortcuts.
