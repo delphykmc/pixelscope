@@ -115,6 +115,21 @@ checks the Windows native style contract without replacing the `QDockWidget` top
 Existing workspace, IQA, Display Gain, Difference, and session tests remain regression
 coverage and must be included in normal repository validation.
 
+## Current owner-local unrelated/unknown failures
+
+During this Beta pass, three pytest failures are explicitly tracked as unrelated/unknown
+rather than being modified under PR #67 unless later evidence ties them to this branch:
+
+1. Bayer Line Profile hover: expected `Gr@1`, observed empty hover text.
+2. Workflow-polish page-label width: observed 67 px versus the font-metric expression.
+3. Difference single-view numeric shortcut: after showing the Difference document,
+   `Key_2` did not switch to the second selected source document.
+
+The third case was checked against this branch: the failing test constructs
+`MainWindow()` directly and the numeric shortcut/ImageViewer path was unchanged by the
+Beta hardening work. A speculative numeric-key fallback was therefore reverted and
+`src/pixelscope/ui/image_viewer.py` remains identical to the PR base.
+
 ## Windows manual Beta checklist
 
 1. **Single monitor:** enter Two Image, open IQA, then resize through narrow/wide widths
