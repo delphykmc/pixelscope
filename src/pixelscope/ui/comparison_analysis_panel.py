@@ -616,6 +616,20 @@ class ComparisonAnalysisPanel(QWidget):
     def _histogram_bins_changed(self, _index: int) -> None:
         if not self._documents:
             return
+        histogram_specs = [
+            automatic_histogram_spec(document, self._selected_histogram_bins())
+            for document in self._documents
+        ]
+        signature = self._analysis_request_signature(
+            self._documents,
+            self._bounds,
+            histogram_specs,
+        )
+        if self._worker is not None:
+            self._worker.cancel()
+        self._request_signature = signature
+        self._completed_signature = ()
+        self._histogram_specs = histogram_specs
         self._invalidate_histogram_presentation()
         self._set_activity("Preparing histogram...", busy=True)
         self._refresh_timer.start()

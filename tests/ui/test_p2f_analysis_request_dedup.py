@@ -153,3 +153,87 @@ def test_changed_request_and_error_do_not_describe_stale_histogram(qtbot: object
     assert panel.histogram_context.isHidden()
     assert all(plot.isHidden() for plot in panel.plots)
     panel.shutdown()
+
+
+def test_rapid_histogram_bin_round_trip_restores_cached_completed_result(
+    qtbot: object,
+) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    documents = [_rgb_document("a.png", 10)]
+    panel.set_documents(documents, None, "Full image")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(panel.last_results) == 1,
+        timeout=3000,
+    )
+    auto_result = panel.last_results[0]
+
+    panel.histogram_bins.setCurrentText("1024")
+    panel.histogram_bins.setCurrentText("Auto")
+
+    assert panel.last_results == ()
+    assert panel._completed_signature == ()
+    assert panel._refresh_timer.isActive()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(panel.last_results) == 1,
+        timeout=3000,
+    )
+    assert panel.last_results[0] is auto_result
+    assert not panel.histogram_context.isHidden()
+    assert any(not plot.isHidden() for plot in panel.plots)
+
+
+def test_histogram_bin_change_rejects_held_old_worker_result(qtbot: object) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    documents = [_rgb_document("a.png", 10)]
+    panel.set_documents(documents, None, "Full image")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(panel.last_results) == 1,
+        timeout=3000,
+    )
+    old_signature = panel._request_signature
+    old_result = panel.last_results
+    old_specs = list(panel._histogram_specs)
+    held_worker = TaskWorker(lambda: old_result)
+    panel._worker = held_worker
+
+    panel.histogram_bins.setCurrentText("1024")
+
+    assert held_worker.is_cancelled
+    assert panel._request_signature != old_signature
+    assert panel._completed_signature == ()
+    panel._on_result(old_signature, [], old_specs, old_result)
+    assert panel.last_results == ()
+    assert panel.histogram_context.isHidden()
+    assert all(plot.isHidden() for plot in panel.plots)
+    panel.shutdown()
+
+
+def test_changed_histogram_bins_compute_then_return_to_cached_bins(qtbot: object) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    documents = [_rgb_document("a.png", 10)]
+    panel.set_documents(documents, None, "Full image")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(panel.last_results) == 1,
+        timeout=3000,
+    )
+    auto_result = panel.last_results[0]
+
+    panel.histogram_bins.setCurrentText("1024")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(panel.last_results) == 1,
+        timeout=3000,
+    )
+    explicit_result = panel.last_results[0]
+    assert explicit_result is not auto_result
+    assert len(explicit_result.histogram.counts[0]) == 1024
+
+    panel.histogram_bins.setCurrentText("Auto")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(panel.last_results) == 1,
+        timeout=3000,
+    )
+    assert panel.last_results[0] is auto_result
+    assert not panel.histogram_context.isHidden()

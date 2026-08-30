@@ -126,9 +126,11 @@ The responsive layout also owns one elastic, right-aligned analysis-context slot
 Histogram derives that context from the completed results that own its visible series,
 using one bounds string when all results agree and explicit per-image bounds otherwise.
 A changed or failed request clears both the old chart and context until matching results
-complete. Line Profile shows progress/errors and selected endpoints there. When no line
-exists, the context is hidden and the existing plot-area hint remains the sole
-instructional surface.
+complete. Histogram Bin changes synchronously replace request identity, reject an old
+worker result, and clear completion identity before the debounce interval begins; a
+return to cached bins therefore still passes through cache/render. Line Profile shows
+progress/errors and selected endpoints there. When no line exists, the context is hidden
+and the existing plot-area hint remains the sole instructional surface.
 
 Main-window shutdown persists the user's floating/visible state first, then quiesces
 owned geometry/transient-parent timers and synchronously hides and re-docks managed
@@ -177,6 +179,12 @@ normalization does not overwrite the saved topology used on the next launch.
      separately; pending/error requests expose no stale chart/context pair.
    - Tests: pending and error invalidation, heterogeneous completed bounds, repeated
      request identity, and persisted-settings ordering before workflow regressions.
+8. **Histogram Bin request-identity review fix**
+   - Files/components: Comparison Analysis Bin debounce lifecycle and request tests.
+   - Observable result: rapid Bin changes cannot leave Histogram blank or admit a result
+     computed for a superseded Bin selection; cached selections render normally.
+   - Tests: completed `Auto → 1024 → Auto` inside one debounce, held old-worker result
+     rejection, changed-Bin cache miss, and return-to-cached-Bin rendering.
 
 ## Validation plan
 
@@ -275,6 +283,17 @@ normalization does not overwrite the saved topology used on the next launch.
   367.40 seconds. Changed-file Ruff/format, `mypy src` for 123 files, `pip check`, the
   documentation contract, and diff whitespace checks passed. The direct fix set also
   passed 19 tests under the Windows-native Qt backend in 8.37 seconds.
+- 2026-08-30: exact-head re-review of `ca85707` confirmed the completed-result/context and
+  `QSettings` fixes, then found one Bin debounce identity gap: a rapid
+  `Auto → 1024 → Auto` could clear the presentation and trigger a stale completed-signature
+  early return, while an old worker could still complete before the debounce. Bin changes
+  now synchronously cancel/replace request authority and clear completion authority.
+- 2026-08-30: the Bin lifecycle fix set passed 22 tests offscreen in 8.03 seconds and
+  22 tests Windows-native in 9.48 seconds. The broader ordered set passed 74 tests in
+  33.14 seconds. Full offscreen pytest completed with 1074 passed, one Windows
+  symlink-privilege skip, and only the same two proven pre-existing failures in 364.96
+  seconds. Changed-file Ruff/format, `mypy src` for 123 files, `pip check`, and diff
+  whitespace checks passed.
 
 ## Completion summary
 
@@ -286,10 +305,10 @@ normalization does not overwrite the saved topology used on the next launch.
   exact-head list remains subject to re-review.
 - Validation results: initial focused 114 PASS; fix-loop focused 86 PASS and related
   presentation 40 PASS; context-row focused 54 PASS / 1 protected known failure and native
-  13 PASS; Histogram ownership fix 19 PASS offscreen and 19 PASS Windows-native, with a
-  broader ordered set of 71 PASS; latest full pytest 1071 PASS / 1 SKIP / 2 proven
-  pre-existing failures; post-fix static/docs gates passed and exact-head re-review is
-  pending.
+  13 PASS; Histogram ownership/Bin lifecycle fix 22 PASS offscreen and 22 PASS
+  Windows-native, with a broader ordered set of 74 PASS; latest full pytest 1074 PASS /
+  1 SKIP / 2 proven pre-existing failures; post-fix static gates passed and final
+  exact-head docs check/re-review are pending.
 - Remaining limitations: owner Windows DPI/multi-monitor/dock-drag qualification remains
   required; the bounded native probes do not replace that interactive matrix.
 - Follow-up issues: none identified inside Pass 2; exact-head re-review is pending.

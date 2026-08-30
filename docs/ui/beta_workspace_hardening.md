@@ -296,6 +296,13 @@ accessibility text. With no line, the header context is hidden; the plot-area hi
 the sole empty instruction. Existing plot mode, channel, Reference, hover, and analysis
 ownership is unchanged.
 
+Histogram Bin selection participates in the same request authority before its debounce
+timer starts. A change cancels the prior worker, installs the new request signature,
+clears completion identity, and invalidates chart/context together. Thus a superseded
+worker result cannot render against the selected Bin control, and rapid return to a
+previously completed selection still follows the cache/render path instead of terminating
+at a stale completed-signature check.
+
 The structured status bar keeps complete filename and pixel-summary strings as its
 logical label text while painting an elided representation inside the allocated width.
 The complete value remains in tooltip/accessibility metadata. Long values therefore do
@@ -375,6 +382,9 @@ context tooltip/accessibility retention, full-image/ROI and heterogeneous comple
 Histogram bounds, Line endpoints, empty-context hiding, RAW scroll/footer reachability,
 and compact Settings page/footer access. Analysis request-identity coverage also verifies
 that pending/error transitions cannot leave a stale Histogram/context pair visible.
+The request-identity suite additionally covers a rapid `Auto → 1024 → Auto` round trip,
+held old-worker result rejection, changed-Bin calculation, and return-to-cached-Bin
+rendering.
 
 `tests/ui/test_beta_pass2_iqa_stress.py` covers deterministic small, normal, and stress
 result models; bounded initial series/hover/ticks; variant markers; checklist opt-in; and
@@ -454,6 +464,15 @@ tests to verify `QSettings` isolation. The post-fix full offscreen suite reporte
 passed, one Windows symlink-privilege skip, and only the same two proven pre-existing
 failures in 367.40 seconds. The direct fix set also passed 19 tests with the Windows-native
 Qt backend in 8.37 seconds.
+
+A further exact-head review found that Bin changes invalidated presentation before the
+debounced request identity changed. Rapid return to Auto could therefore hit the stale
+completed-signature fast path and leave Histogram blank, and a prior worker could still
+render before the timer. Bin selection now synchronously replaces request authority and
+cancels the prior worker. Direct lifecycle coverage passed 22 tests both offscreen and
+Windows-native; the broader ordered set passed 74 tests. The full offscreen suite reported
+1074 passed, one Windows symlink-privilege skip, and only the two established failures in
+364.96 seconds.
 
 ## Windows manual Beta checklist
 
