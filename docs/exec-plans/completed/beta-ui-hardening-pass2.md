@@ -1,6 +1,6 @@
 # Execution plan: Beta UI hardening pass 2
 
-Status: Active — owner-finding fixes validated; exact-head re-review pending
+Status: Complete — exact-head independent PASS at `47b9eb58a1116869602c3680b54cc205d68ad603`; draft PR #68 awaits owner disposition
 Owner: ChatGPT orchestrator with independent implementation review
 Branch/PR: `codex/beta-ui-hardening-pass2` / draft PR #68
 Last updated: 2026-08-30
@@ -294,6 +294,11 @@ normalization does not overwrite the saved topology used on the next launch.
   symlink-privilege skip, and only the same two proven pre-existing failures in 364.96
   seconds. Changed-file Ruff/format, `mypy src` for 123 files, `pip check`, and diff
   whitespace checks passed.
+- 2026-08-30: independent `sol/high` re-review of exact pushed head `47b9eb58a1116869602c3680b54cc205d68ad603`
+  returned PASS. It independently exercised rapid Bin cache return, a 1024-bin ROI,
+  result/context ownership, display-only options, the broader affected suites, static
+  gates, durable-doc scope, and attribution. No in-scope issue or unanswered owner request
+  remains; PR #68 stays Draft and unmerged for owner disposition.
 
 ## Completion summary
 
@@ -301,16 +306,17 @@ normalization does not overwrite the saved topology used on the next launch.
   status/dialogs, current IQA accessibility metadata, bounded IQA stress presentation,
   consistent bounds/endpoint header context, and clean native floating-workspace shutdown
   are implemented.
-- Changed files: implementation/tests/docs are recorded in the branch diff; the final
-  exact-head list remains subject to re-review.
+- Changed files: the exact implementation/test/document set is recorded in the
+  `0ccb8b8..47b9eb5` branch diff and passed whole-head independent review.
 - Validation results: initial focused 114 PASS; fix-loop focused 86 PASS and related
   presentation 40 PASS; context-row focused 54 PASS / 1 protected known failure and native
   13 PASS; Histogram ownership/Bin lifecycle fix 22 PASS offscreen and 22 PASS
   Windows-native, with a broader ordered set of 74 PASS; latest full pytest 1074 PASS /
-  1 SKIP / 2 proven pre-existing failures; post-fix static gates passed and final
-  exact-head docs check/re-review are pending.
+  1 SKIP / 2 proven pre-existing failures; post-fix static/docs gates and exact
+  implementation-head review passed. The archive-only diff changes no product behavior.
 - Remaining limitations: owner Windows DPI/multi-monitor/dock-drag qualification remains
   required; the bounded native probes do not replace that interactive matrix.
-- Follow-up issues: none identified inside Pass 2; exact-head re-review is pending.
+- Follow-up issues: none identified inside Pass 2 after exact-head re-review.
 - Durable docs updated: this execution plan and `docs/ui/beta_workspace_hardening.md`;
-  review closeout pending.
+  implementation/review closeout is complete. Owner interactive Windows qualification and
+  merge disposition remain outside agent completion.

@@ -69,6 +69,9 @@ knowledge belongs in focused documents under `docs/`.
   provider-neutral update-discovery separation contract.
 - [`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md):
   retained R0–R7 plan, findings, validation, review, and closeout evidence.
+- [`exec-plans/completed/beta-ui-hardening-pass2.md`](exec-plans/completed/beta-ui-hardening-pass2.md):
+  retained Beta UI Hardening Pass 2 audit, implementation, owner-finding fix loops,
+  validation, and exact-head review evidence for draft PR #68.
 - [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md):
   authoritative unobserved external GPU/SMB validation and final P5 closeout gate.
 - [`exec-plans/completed/p5-remote-iqa-platform-through-p5f.md`](exec-plans/completed/p5-remote-iqa-platform-through-p5f.md):
