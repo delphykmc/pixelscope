@@ -1,6 +1,6 @@
 # Execution plan: Beta UI DPI command-row follow-up
 
-Status: Active — accepted subset implemented and validated; exact-head review pending
+Status: Active — functional review passed; documentation correction and final re-review pending
 Owner: ChatGPT orchestrator with independent review
 Branch/PR: `codex/beta-ui-hardening-pass2` / draft PR #68
 Source experiment: stacked draft PR #69 at `db52ad053dfca6ff35a4d741dd30b0022c292e86`
@@ -68,6 +68,11 @@ acceptance, accessibility, and one presentation-hardening authority.
   symlink-privilege skip, and the same two established Folder Tag/Bayer failures in
   372.79 seconds. Changed-file Ruff/format, `mypy src` for 123 files, `pip check`, the
   documentation contract, and whitespace checks passed.
+- 2026-08-30: independent review of pushed PR #68 head `86dd0eb` accepted the
+  functional integration and requested two documentation/provenance corrections:
+  reconcile three remaining full-label descriptions and update the PR body plan and
+  selective-integration record. The PR body is corrected; the durable terminology
+  corrections are pending a documentation-only commit and exact-head re-review.
 
 ## Validation targets
 

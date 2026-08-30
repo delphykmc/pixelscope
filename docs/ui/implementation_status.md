@@ -28,6 +28,7 @@ Completed P5-D contract:
 
 - Main toolbar owns image-view/analysis actions.
 - The presentation-control row owns Layout / Page / Display Gain / ● Picked N /
+  compact visible Clear / Keep, with complete accessible command names/tooltips
   Clear Selection / Keep Selection.
 - Files is the catalog/selection surface.
 - Files context menus reuse Open actions and delegate page-local Primary, Multi View,
@@ -81,8 +82,11 @@ analysis work, and are not persisted.
 The presentation row exposes:
 
 ```text
-Layout | Page | Display Gain | ● Picked N | Clear Selection | Keep Selection
+Layout | Page | Display Gain | ● Picked N | Clear | Keep
 ```
+
+The compact visible Clear/Keep commands retain complete accessible names and tooltips
+Clear Selection/Keep Selection.
 
 Keep Selection is the only temporary-curation operation that commits Pick state to
 logical Selected. P5-D therefore refuses Inspect while a temporary Pick baseline is
