@@ -22,6 +22,7 @@ from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
+from pixelscope.ui.dpi_command_row import install_dpi_safe_command_row
 from pixelscope.ui.folder_display_tags import install_folder_display_tags
 from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_historical_results_lifecycle import (
@@ -130,6 +131,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
+    install_dpi_safe_command_row(window)
     return gain_control
 
 
