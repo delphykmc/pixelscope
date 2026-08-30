@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
@@ -13,6 +14,8 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _window(qtbot: object) -> tuple[MainWindow, object]:

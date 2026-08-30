@@ -123,9 +123,12 @@ is used only under constraint. The same widgets are repositioned, so resize does
 dispatch analysis or replace selection, Reference, channel, or signal state.
 
 The responsive layout also owns one elastic, right-aligned analysis-context slot.
-Histogram mirrors the existing Analysis bounds representation for full-image or ROI input;
-Line Profile shows progress/errors and selected endpoints there. When no line exists, the
-context is hidden and the existing plot-area hint remains the sole instructional surface.
+Histogram derives that context from the completed results that own its visible series,
+using one bounds string when all results agree and explicit per-image bounds otherwise.
+A changed or failed request clears both the old chart and context until matching results
+complete. Line Profile shows progress/errors and selected endpoints there. When no line
+exists, the context is hidden and the existing plot-area hint remains the sole
+instructional surface.
 
 Main-window shutdown persists the user's floating/visible state first, then quiesces
 owned geometry/transient-parent timers and synchronously hides and re-docks managed
@@ -167,6 +170,13 @@ normalization does not overwrite the saved topology used on the next launch.
      bounds or Line endpoints are right-aligned; empty guidance exists only in the plot.
    - Tests: wide/right alignment, compact reflow, full/ROI bounds, selected endpoints,
      empty-context visibility, and state/accessibility retention.
+7. **Histogram result/context ownership review fix**
+   - Files/components: Comparison Analysis request lifecycle and workflow test isolation.
+   - Observable result: visible Histogram bounds always describe the completed results
+     that own the visible series; heterogeneous full-image bounds are represented
+     separately; pending/error requests expose no stale chart/context pair.
+   - Tests: pending and error invalidation, heterogeneous completed bounds, repeated
+     request identity, and persisted-settings ordering before workflow regressions.
 
 ## Validation plan
 
@@ -192,6 +202,7 @@ normalization does not overwrite the saved topology used on the next launch.
 | offscreen evidence is mistaken for Windows PASS | PR matrix/manual checklist | label all Windows/DPI/multi-monitor checks as owner-required |
 | detached floating dock outlives Main | bounded native exit probes and lifecycle tests | persist first; quiesce timers; normalize native docks before Main destruction |
 | compact Page children overlap adjacent commands | child containment/non-overlap assertions | elide within bounded group while retaining complete metadata |
+| new Histogram context describes old series | request-transition and heterogeneous-bounds regressions | clear chart/context together and rebuild context only from completed result bounds |
 
 ## Progress log
 
@@ -251,6 +262,19 @@ normalization does not overwrite the saved topology used on the next launch.
   the protected Bayer `Gr@1` failure in 22.31 seconds. Windows-native context-row tests
   passed 13 tests in 6.82 seconds. Full offscreen pytest remained 1069 passed, one skip,
   and the same two proven pre-existing failures in 367.83 seconds.
+- 2026-08-30: exact-head independent review found that a pending request could label old
+  Histogram series with new input bounds and that heterogeneous full-image results used
+  only the first image's bounds. The fix now invalidates the chart and context together,
+  recreates context from completed `RoiAnalysisResult.bounds`, and adds per-image text
+  when bounds differ. It also isolates workflow tests from persisted `QSettings`.
+- 2026-08-30: the direct review-fix set passed 19 tests in 6.82 seconds. The broader
+  ordered Analysis/Plots/workflow set passed 71 tests in 31.98 seconds, including
+  workspace-persistence tests before workflow-polish tests.
+- 2026-08-30: the post-review-fix full offscreen suite completed with 1071 passed, one
+  Windows symlink-privilege skip, and only the same two proven pre-existing failures in
+  367.40 seconds. Changed-file Ruff/format, `mypy src` for 123 files, `pip check`, the
+  documentation contract, and diff whitespace checks passed. The direct fix set also
+  passed 19 tests under the Windows-native Qt backend in 8.37 seconds.
 
 ## Completion summary
 
@@ -262,8 +286,10 @@ normalization does not overwrite the saved topology used on the next launch.
   exact-head list remains subject to re-review.
 - Validation results: initial focused 114 PASS; fix-loop focused 86 PASS and related
   presentation 40 PASS; context-row focused 54 PASS / 1 protected known failure and native
-  13 PASS; latest full pytest 1069 PASS / 1 SKIP / 2 proven pre-existing failures;
-  static/docs and native checks as recorded above; exact-head re-review pending.
+  13 PASS; Histogram ownership fix 19 PASS offscreen and 19 PASS Windows-native, with a
+  broader ordered set of 71 PASS; latest full pytest 1071 PASS / 1 SKIP / 2 proven
+  pre-existing failures; post-fix static/docs gates passed and exact-head re-review is
+  pending.
 - Remaining limitations: owner Windows DPI/multi-monitor/dock-drag qualification remains
   required; the bounded native probes do not replace that interactive matrix.
 - Follow-up issues: none identified inside Pass 2; exact-head re-review is pending.

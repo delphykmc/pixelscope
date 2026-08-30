@@ -73,7 +73,10 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     analysis.channel_buttons["G"].setChecked(False)
     histogram_changes: list[int] = []
     analysis.histogram_mode.currentIndexChanged.connect(histogram_changes.append)
-    qtbot.wait(20)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(analysis.last_results) == 2,
+        timeout=3000,
+    )
 
     histogram_controls = (
         analysis.histogram_mode,
@@ -117,6 +120,12 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert tabs.minimumSizeHint().width() < histogram_combo_widths
 
     analysis.set_documents(documents, RoiBounds(1, 1, 3, 2), "Active ROI")
+    assert analysis.histogram_context.isHidden()
+    assert all(plot.isHidden() for plot in analysis.plots)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: analysis.histogram_context.text() == "x=1, y=1, width=3, height=2",
+        timeout=3000,
+    )
     assert analysis.histogram_context.text() == "x=1, y=1, width=3, height=2"
     assert analysis.histogram_context.geometry().y() > analysis.histogram_range.geometry().y()
     analysis.clear()
@@ -195,6 +204,31 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert line.status.text() == full_status
     assert line.status.toolTip() == full_status
     assert line.status.accessibleName() == full_status
+
+
+def test_histogram_context_reports_each_completed_full_image_bound(
+    qtbot: object,
+) -> None:
+    analysis = ComparisonAnalysisPanel()
+    qtbot.addWidget(analysis)  # type: ignore[attr-defined]
+    documents = [
+        ImageDocument.from_array(np.zeros((4, 8, 3), dtype=np.uint8), "small.png"),
+        ImageDocument.from_array(np.zeros((9, 13, 3), dtype=np.uint8), "large.png"),
+    ]
+
+    analysis.set_documents(documents, None)
+    assert analysis.histogram_context.isHidden()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(analysis.last_results) == 2,
+        timeout=3000,
+    )
+
+    expected_context = (
+        "Per-image bounds · 1: x=0, y=0, width=8, height=4 · " "2: x=0, y=0, width=13, height=9"
+    )
+    assert analysis.histogram_context.text() == expected_context
+    assert analysis.histogram_context.toolTip() == analysis.histogram_context.text()
+    assert analysis.histogram_context.accessibleName() == analysis.histogram_context.text()
 
 
 def test_structured_status_long_values_do_not_expand_minimum_hint(qtbot: object) -> None:

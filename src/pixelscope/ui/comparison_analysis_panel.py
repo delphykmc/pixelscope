@@ -431,6 +431,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._request_signature = signature
         self._completed_signature = ()
         self._histogram_specs = histogram_specs
+        self._invalidate_histogram_presentation()
         self._set_activity("Preparing analysis...", busy=True)
         self._refresh_timer.start()
 
@@ -477,6 +478,7 @@ class ComparisonAnalysisPanel(QWidget):
                 self._worker.cancel()
             self._request_signature = signature
             self._completed_signature = ()
+            self._invalidate_histogram_presentation()
 
         sources = [
             (
@@ -614,6 +616,7 @@ class ComparisonAnalysisPanel(QWidget):
     def _histogram_bins_changed(self, _index: int) -> None:
         if not self._documents:
             return
+        self._invalidate_histogram_presentation()
         self._set_activity("Preparing histogram...", busy=True)
         self._refresh_timer.start()
 
@@ -643,8 +646,33 @@ class ComparisonAnalysisPanel(QWidget):
             bounds = RoiBounds(0, 0, source.shape[1], source.shape[0])
         text = f"x={bounds.x}, y={bounds.y}, width={bounds.width}, height={bounds.height}"
         self.roi_label.setText(text)
+
+    @staticmethod
+    def _format_bounds(bounds: RoiBounds) -> str:
+        return f"x={bounds.x}, y={bounds.y}, " f"width={bounds.width}, height={bounds.height}"
+
+    def _update_histogram_context(self, results: tuple[RoiAnalysisResult, ...]) -> None:
+        if not results:
+            self.histogram_context.clear()
+            self.histogram_context.hide()
+            return
+        bounds = tuple(result.bounds for result in results)
+        if all(item == bounds[0] for item in bounds[1:]):
+            text = self._format_bounds(bounds[0])
+        else:
+            details = " · ".join(
+                f"{index}: {self._format_bounds(item)}"
+                for index, item in enumerate(bounds, start=1)
+            )
+            text = f"Per-image bounds · {details}"
         self.histogram_context.setText(text)
         self.histogram_context.show()
+
+    def _invalidate_histogram_presentation(self) -> None:
+        self.last_results = ()
+        self._clear_histogram_plots()
+        self.histogram_context.clear()
+        self.histogram_context.hide()
 
     def _set_activity(self, text: str, *, busy: bool) -> None:
         self.status.setText(text)
@@ -656,6 +684,7 @@ class ComparisonAnalysisPanel(QWidget):
         results: tuple[RoiAnalysisResult, ...],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
     ) -> None:
+        self._update_histogram_context(results)
         labels = comparison_labels(self._documents)
         self.image_summary.setRowCount(len(results))
         for image_index, (document, result) in enumerate(

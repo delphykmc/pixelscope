@@ -285,10 +285,13 @@ Line Profile now use one content-driven responsive layout: controls retain the o
 single row whenever their live size hints fit, and reflow to the compact two-row grouping
 only under constraint. Visible Reference controls participate in the fit calculation, and
 the same widgets move between rows without changing their values, signals, or ownership.
-One elastic context value is right-aligned in that same wide row: Histogram mirrors the
-existing Analysis bounds string (`x`, `y`, `width`, `height`) for full-image or ROI input,
-while Line Profile shows progress/errors and the selected endpoints. Context can occupy a
-later compact row when constrained and paint-elides while keeping complete tooltip and
+One elastic context value is right-aligned in that same wide row. Histogram shows the
+bounds carried by the completed results that own its visible series, not merely the newest
+input request. A shared bounds string is used when all results agree; full-image results
+with different dimensions list each image's bounds explicitly. A changed or failed
+request clears both the old chart and its context until matching results complete. Line
+Profile shows progress/errors and the selected endpoints. Context can occupy a later
+compact row when constrained and paint-elides while keeping complete tooltip and
 accessibility text. With no line, the header context is hidden; the plot-area hint remains
 the sole empty instruction. Existing plot mode, channel, Reference, hover, and analysis
 ownership is unchanged.
@@ -368,9 +371,10 @@ Page/Display Gain/Pick/Clear/Keep access.
 
 `tests/ui/test_beta_pass2_component_resize.py` covers inactive Plots page hints,
 single-row wide presentation, compact fallback, resize state preservation, complete
-context tooltip/accessibility retention, full-image/ROI Histogram bounds, Line endpoints,
-empty-context hiding, RAW scroll/footer reachability, and compact Settings page/footer
-access.
+context tooltip/accessibility retention, full-image/ROI and heterogeneous completed
+Histogram bounds, Line endpoints, empty-context hiding, RAW scroll/footer reachability,
+and compact Settings page/footer access. Analysis request-identity coverage also verifies
+that pending/error transitions cannot leave a stale Histogram/context pair visible.
 
 `tests/ui/test_beta_pass2_iqa_stress.py` covers deterministic small, normal, and stress
 result models; bounded initial series/hover/ticks; variant markers; checklist opt-in; and
@@ -439,6 +443,17 @@ After the additional Plots context-row follow-up, integrated affected validation
 54 passed with only the protected Bayer `Gr@1` failure, Windows-native header/context
 validation passed 13 tests, and the full offscreen suite remained 1069 passed, one skip,
 and the same two pre-existing failures in 367.83 seconds.
+
+The subsequent exact-head review found one result-ownership gap: new input bounds could
+temporarily describe old visible Histogram series, and different-size full-image results
+were summarized using only the first image. Histogram invalidation now clears chart and
+context as one presentation, and successful rendering rebuilds the context solely from
+the owning results. Direct fix coverage passed 19 tests; the broader ordered
+Analysis/Plots/workflow set passed 71 tests, including persistence tests before workflow
+tests to verify `QSettings` isolation. The post-fix full offscreen suite reported 1071
+passed, one Windows symlink-privilege skip, and only the same two proven pre-existing
+failures in 367.40 seconds. The direct fix set also passed 19 tests with the Windows-native
+Qt backend in 8.37 seconds.
 
 ## Windows manual Beta checklist
 

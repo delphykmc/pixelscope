@@ -8,7 +8,7 @@ from pixelscope.ui.comparison_analysis_panel import (
     ComparisonAnalysisPanel,
     automatic_histogram_spec,
 )
-from pixelscope.workers.task_worker import TaskWorker
+from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
 def _rgb_document(name: str, value: int) -> ImageDocument:
@@ -113,4 +113,43 @@ def test_changed_statistics_request_cancels_running_worker(qtbot: object) -> Non
     assert worker.is_cancelled
     assert panel._refresh_timer.isActive()
     assert panel.status.text() == "Preparing analysis..."
+    panel.shutdown()
+
+
+def test_changed_request_and_error_do_not_describe_stale_histogram(qtbot: object) -> None:
+    panel = ComparisonAnalysisPanel()
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    documents = [_rgb_document("a.png", 10), _rgb_document("b.png", 20)]
+    panel.set_documents(documents, None, "Full image")
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(panel.last_results) == 2,
+        timeout=3000,
+    )
+    assert not panel.histogram_context.isHidden()
+    assert any(not plot.isHidden() for plot in panel.plots)
+
+    panel.set_documents(documents, RoiBounds(1, 1, 5, 4), "Active ROI")
+
+    assert panel.last_results == ()
+    assert panel.histogram_context.isHidden()
+    assert all(plot.isHidden() for plot in panel.plots)
+
+    panel._refresh_timer.stop()
+    panel._on_error(
+        "failed-request",
+        None,
+        0,
+        TaskError(
+            task_id="failed-request",
+            document_id=None,
+            generation=0,
+            message="analysis failed",
+            exception_type="RuntimeError",
+            traceback_text="traceback",
+        ),
+    )
+
+    assert panel.status.text() == "Error: analysis failed"
+    assert panel.histogram_context.isHidden()
+    assert all(plot.isHidden() for plot in panel.plots)
     panel.shutdown()
