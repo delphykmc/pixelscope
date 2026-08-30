@@ -90,26 +90,39 @@ class _WorkspaceDockTopLevelController(QObject):
         self._dock = dock
         self._docked_title_bar = docked_title_bar
         self._normalizing = False
+        self._quiescing = False
+        self._normalize_timer = QTimer(self)
+        self._normalize_timer.setSingleShot(True)
+        self._normalize_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._normalize_floating
+        )
+        self._detach_timer = QTimer(self)
+        self._detach_timer.setSingleShot(True)
+        self._detach_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._detach_transient_parent
+        )
         dock.topLevelChanged.connect(self._top_level_changed)  # type: ignore[attr-defined]
         dock.visibilityChanged.connect(self._visibility_changed)  # type: ignore[attr-defined]
         if dock.isFloating():
             self._top_level_changed(True)
 
     def _top_level_changed(self, floating: bool) -> None:
+        if self._quiescing:
+            return
         if floating:
             # Run after QDockWidget and the geometry/title controllers have
             # completed their own topLevelChanged handlers.
-            QTimer.singleShot(0, self._normalize_floating)
+            self._normalize_timer.start(0)
             return
         self._restore_docked_title_bar()
 
     def _visibility_changed(self, visible: bool) -> None:
-        if visible and self._dock.isFloating():
+        if not self._quiescing and visible and self._dock.isFloating():
             # IQA installs its title lazily on first show.
-            QTimer.singleShot(0, self._normalize_floating)
+            self._normalize_timer.start(0)
 
     def _normalize_floating(self) -> None:
-        if self._normalizing or not self._dock.isFloating():
+        if self._quiescing or self._normalizing or not self._dock.isFloating():
             return
         self._normalizing = True
         try:
@@ -128,18 +141,25 @@ class _WorkspaceDockTopLevelController(QObject):
             # mutations race QDockWidget's native move/dock loop on Windows and
             # can leave the window following the cursor after a docking drop.
             if not self._dock.isHidden():
-                QTimer.singleShot(0, self._detach_transient_parent)
+                self._detach_timer.start(0)
         finally:
             self._normalizing = False
 
     def _detach_transient_parent(self) -> None:
-        if not self._dock.isFloating() or self._dock.isHidden():
+        if self._quiescing or not self._dock.isFloating() or self._dock.isHidden():
             return
         handle = self._dock.windowHandle()
         if handle is not None and handle.transientParent() is not None:
             # QWindow::setTransientParent accepts a null pointer to clear the
             # relation, although the PySide stub currently types it as non-null.
             handle.setTransientParent(cast(QWindow, None))
+
+    def quiesce_pending_callbacks(self) -> None:
+        """Stop queued native-window adjustments before application teardown."""
+
+        self._quiescing = True
+        self._normalize_timer.stop()
+        self._detach_timer.stop()
 
     def _restore_docked_title_bar(self) -> None:
         if self._dock.isFloating():
@@ -448,6 +468,12 @@ class BetaWorkspaceHardeningController(QObject):
         action.setIconText("IQA")
         action.setToolTip("Show or hide the IQA workspace")
         toolbar.insertAction(plots_action, action)
+
+    def quiesce_pending_callbacks(self) -> None:
+        """Quiesce every managed dock's queued native-window adjustment."""
+
+        for controller in self._dock_controllers:
+            controller.quiesce_pending_callbacks()
 
 
 def install_beta_workspace_hardening(window: QMainWindow) -> BetaWorkspaceHardeningController:

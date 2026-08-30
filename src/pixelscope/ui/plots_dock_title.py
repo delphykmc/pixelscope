@@ -123,6 +123,12 @@ class PlotsDockTitleBar(QWidget):
             else QByteArray()
         )
         self._restoring_floating_geometry = False
+        self._quiescing = False
+        self._geometry_restore_timer = QTimer(self)
+        self._geometry_restore_timer.setSingleShot(True)
+        self._geometry_restore_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._finish_geometry_restore
+        )
 
         self.setObjectName("workspaceDockTitle")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -186,6 +192,7 @@ class PlotsDockTitleBar(QWidget):
             and self._dock.isFloating()
             and not self._dock.isMaximized()
             and not self._restoring_floating_geometry
+            and not self._quiescing
         ):
             geometry = self._dock.saveGeometry()
             if not geometry.isEmpty():
@@ -248,19 +255,33 @@ class PlotsDockTitleBar(QWidget):
 
     def _floating_changed(self, floating: bool) -> None:
         self.sync(floating)
-        if not floating or self._floating_geometry.isEmpty():
+        if self._quiescing or not floating or self._floating_geometry.isEmpty():
             return
         self._restoring_floating_geometry = True
         self._dock.restoreGeometry(self._floating_geometry)
-        QTimer.singleShot(0, self._finish_geometry_restore)
+        self._geometry_restore_timer.start(0)
 
     def _finish_geometry_restore(self) -> None:
         self._restoring_floating_geometry = False
+        if self._quiescing:
+            return
         if self._dock.isFloating() and not self._dock.isMaximized():
             geometry = self._dock.saveGeometry()
             if not geometry.isEmpty():
                 self._floating_geometry = geometry
                 self._settings.setValue(self._geometry_setting, geometry)
+
+    def quiesce_pending_callbacks(self) -> None:
+        """Stop title/geometry work before the owning native window is destroyed."""
+
+        self._quiescing = True
+        self._geometry_restore_timer.stop()
+        self._restoring_floating_geometry = False
+
+    def shutdown_dock_area(self) -> Qt.DockWidgetArea:
+        """Return the remembered dock area used only for native shutdown teardown."""
+
+        return self._restore_area
 
     def clear_persisted_geometry(self) -> None:
         """Clear registered workspace dock geometry and normalize managed floating docks."""

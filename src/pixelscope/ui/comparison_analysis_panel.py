@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
     QGroupBox,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
@@ -49,6 +48,7 @@ from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
+from pixelscope.ui.responsive_control_layout import ResponsiveControlLayout
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -224,8 +224,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.region_layout.addWidget(self.bounds_label, 1, 0)
         self.region_layout.addWidget(self.roi_label, 1, 1)
         self.region_layout.setColumnStretch(1, 1)
-        channel_controls = QHBoxLayout()
-        channel_controls.addWidget(QLabel("Channels"))
+        histogram_channel_label = QLabel("Channels")
         for name, color in (("R", "#ff3b30"), ("G", "#24b34b"), ("B", "#2684ff")):
             button = QToolButton()
             button.setText(name)
@@ -236,8 +235,6 @@ class ComparisonAnalysisPanel(QWidget):
                 self._channels_changed
             )
             self.channel_buttons[name] = button
-            channel_controls.addWidget(button)
-        channel_controls.addStretch(1)
 
         self.image_summary = QTableWidget(0, 4)
         self.image_summary.setHorizontalHeaderLabels(("Id", "Image", "Bit depth", "Pixels"))
@@ -324,28 +321,27 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_range.addItems(("Native range", "Normalized 0–1"))
         self.histogram_bins = QComboBox()
         self.histogram_bins.addItems(("Auto", "256", "1024", "4096"))
-        histogram_primary_controls = QHBoxLayout()
-        histogram_primary_controls.setSpacing(TOKENS.spacing_sm)
-        histogram_secondary_controls = QHBoxLayout()
-        histogram_secondary_controls.setSpacing(TOKENS.spacing_sm)
-        for controls, label_text, combo in (
-            (histogram_primary_controls, "View", self.histogram_mode),
-            (histogram_primary_controls, "Y", self.histogram_units),
-            (histogram_secondary_controls, "X", self.histogram_range),
-            (histogram_secondary_controls, "Bins", self.histogram_bins),
+        histogram_controls_widget = QWidget()
+        histogram_controls = ResponsiveControlLayout(
+            histogram_controls_widget, spacing=TOKENS.spacing_sm
+        )
+        for compact_row, label_text, combo in (
+            (0, "View", self.histogram_mode),
+            (0, "Y", self.histogram_units),
+            (1, "X", self.histogram_range),
+            (1, "Bins", self.histogram_bins),
         ):
-            controls.addWidget(QLabel(label_text))
-            controls.addWidget(combo, 1)
+            histogram_controls.add_control(QLabel(label_text), compact_row=compact_row)
+            histogram_controls.add_control(combo, compact_row=compact_row)
             combo.setMaximumWidth(170)
             combo.setMinimumWidth(0)
             combo.setSizePolicy(
                 QSizePolicy.Policy.Ignored,
                 QSizePolicy.Policy.Fixed,
             )
-        histogram_primary_controls.addStretch(1)
-        histogram_secondary_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_secondary_controls.addLayout(channel_controls)
-        histogram_secondary_controls.addStretch(1)
+        histogram_controls.add_control(histogram_channel_label, compact_row=1)
+        for button in self.channel_buttons.values():
+            histogram_controls.add_control(button, compact_row=1)
         for combo in (self.histogram_mode, self.histogram_units, self.histogram_range):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._histogram_options_changed
@@ -357,8 +353,7 @@ class ComparisonAnalysisPanel(QWidget):
         histogram_panel_layout = QVBoxLayout(self.histogram_panel)
         histogram_panel_layout.setContentsMargins(4, 4, 4, 4)
         histogram_panel_layout.setSpacing(TOKENS.spacing_xs)
-        histogram_panel_layout.addLayout(histogram_primary_controls)
-        histogram_panel_layout.addLayout(histogram_secondary_controls)
+        histogram_panel_layout.addWidget(histogram_controls_widget)
         histogram_scroll = QScrollArea()
         histogram_scroll.setWidgetResizable(True)
         histogram_scroll.setFrameShape(QScrollArea.Shape.NoFrame)

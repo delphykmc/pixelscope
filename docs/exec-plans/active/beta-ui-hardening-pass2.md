@@ -1,9 +1,9 @@
 # Execution plan: Beta UI hardening pass 2
 
-Status: Active
-Owner: ChatGPT orchestrator with independent implementation review  
-Branch/PR: `codex/beta-ui-hardening-pass2` / draft PR pending  
-Last updated: 2026-08-29
+Status: Active — owner-finding fixes validated; exact-head re-review pending
+Owner: ChatGPT orchestrator with independent implementation review
+Branch/PR: `codex/beta-ui-hardening-pass2` / draft PR #68
+Last updated: 2026-08-30
 
 ## Goal
 
@@ -26,6 +26,8 @@ exact-head review. Remote IQA production-server integration is excluded.
   changing server-authored measurements or result schemas;
 - add observable resize/readability regressions and update the durable Beta UI contract;
 - record automated evidence separately from owner-only Windows/DPI/multi-monitor checks.
+- resolve owner-observed wide-layout degradation and floating Plots/IQA shutdown hangs
+  without replacing Qt's dock/persistence authority.
 
 ### Out of scope
 
@@ -113,6 +115,16 @@ Dialogs retain their existing models and validation; only size policy, scrolling
 layout composition change. Status values retain full logical text while rendering an
 elided form inside allocated space.
 
+Plots controls use one content-driven responsive layout: their original single-row
+presentation is retained whenever the live controls fit, and the compact two-row grouping
+is used only under constraint. The same widgets are repositioned, so resize does not
+dispatch analysis or replace selection, Reference, channel, or signal state.
+
+Main-window shutdown persists the user's floating/visible state first, then quiesces
+owned geometry/transient-parent timers and synchronously hides and re-docks managed
+floating workspaces while the main native window remains valid. This teardown-only
+normalization does not overwrite the saved topology used on the next launch.
+
 ## Implementation slices
 
 1. **Global workspace and compact command surfaces**
@@ -134,6 +146,13 @@ elided form inside allocated space.
    - Observable result: exact delivered behavior, evidence, limitations, and owner manual
      checklist are current and reviewable.
    - Tests: docs check, diff deletion/stat review, standard repository gates.
+5. **Owner-validation fix loop**
+   - Files/components: Plots responsive controls, compact Image Page metadata, IQA dynamic
+     labels, and MainWindow/floating-dock shutdown.
+   - Observable result: wide Plots returns to one row; compact controls do not overlap;
+     dynamic metadata stays current; native Plots/IQA floating states exit cleanly.
+   - Tests: wide/narrow/state-preservation, containment/non-overlap, real IQA transitions,
+     teardown order/persistence, and bounded Windows-native process probes.
 
 ## Validation plan
 
@@ -157,6 +176,8 @@ elided form inside allocated space.
 | IQA filtering changes numerical meaning | model/result regression suites | filter presentation only; reuse existing explorer statistics and checklist |
 | lazy tree breaks selection/Inspect | focused hierarchy and P5-D tests | preserve item data and materialize selected/expanded attribute children |
 | offscreen evidence is mistaken for Windows PASS | PR matrix/manual checklist | label all Windows/DPI/multi-monitor checks as owner-required |
+| detached floating dock outlives Main | bounded native exit probes and lifecycle tests | persist first; quiesce timers; normalize native docks before Main destruction |
+| compact Page children overlap adjacent commands | child containment/non-overlap assertions | elide within bounded group while retaining complete metadata |
 
 ## Progress log
 
@@ -185,16 +206,35 @@ elided form inside allocated space.
   contract passed. Changed-file Ruff check/format passed. Repository-wide Ruff remains
   non-clean only for two unrelated import-order findings and 28 unrelated format-drift
   files; no unrelated cleanup was performed.
+- 2026-08-30: owner Windows validation found that Plots stayed in its constrained
+  two-row form at ample width and that closing Main with floating Plots or IQA could hang
+  after `WM_DESTROY` / invalid `GetDC` diagnostics. Both findings were added to PR #68;
+  floating shutdown was classified as a merge blocker.
+- 2026-08-30: independent `sol/high` review of exact head `176bd63` requested changes for
+  the shutdown blocker, wide Plots layout, compact Image command overlap, stale dynamic
+  IQA metadata, and two execution-plan trailing spaces. Contract/scope/provenance review
+  otherwise passed.
+- 2026-08-30: the exact pre-fix Windows-native probe exited normally when docked but left
+  both floating Plots and floating IQA alive after 10 seconds. The fix persists state,
+  quiesces owned deferred callbacks, and normalizes native docks before Main destruction.
+- 2026-08-30: integrated fix-loop regressions passed 86 tests in 42.36 seconds. Changed-
+  file Ruff/format passed and `mypy src` passed for 123 source files. Windows-native
+  workspace/component regressions passed 9 tests in 5.51 seconds.
+- 2026-08-30: bounded Windows-native shutdown probes passed docked Plots plus Plots/IQA
+  visible, hidden, maximized, and restored states: all nine processes exited 0 in
+  0.64–0.67 seconds, with no watchdog, `WM_DESTROY`, or `GetDC` diagnostic.
 
 ## Completion summary
 
-- Delivered behavior: production-composed workspace, Plots/status/dialogs, and IQA stress
-  presentation hardening implemented; independent review pending.
-- Changed files: implementation/tests/docs are recorded in the branch diff; final list
-  pending closeout.
+- Delivered behavior: production-composed workspace, responsive Plots, compact
+  status/dialogs, current IQA accessibility metadata, bounded IQA stress presentation,
+  and clean native floating-workspace shutdown are implemented.
+- Changed files: implementation/tests/docs are recorded in the branch diff; the final
+  exact-head list remains subject to re-review.
 - Validation results: focused 114 PASS; full pytest 1058 PASS / 1 SKIP / 2 proven
   pre-existing failures; static/docs checks as recorded above; independent review pending.
-- Remaining limitations: owner Windows/DPI/multi-monitor qualification required.
-- Follow-up issues: pending.
+- Remaining limitations: owner Windows DPI/multi-monitor/dock-drag qualification remains
+  required; the bounded native probes do not replace that interactive matrix.
+- Follow-up issues: none identified inside Pass 2; exact-head re-review is pending.
 - Durable docs updated: this execution plan and `docs/ui/beta_workspace_hardening.md`;
   review closeout pending.

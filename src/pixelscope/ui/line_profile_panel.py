@@ -7,7 +7,6 @@ from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QScrollArea,
     QSizePolicy,
@@ -26,6 +25,7 @@ from pixelscope.core.line_profile import (
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, image_marker_symbol, line_profile_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
+from pixelscope.ui.responsive_control_layout import ResponsiveControlLayout
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
@@ -82,39 +82,33 @@ class LineProfilePanel(QWidget):
         self.reference_label.hide()
         self.reference_selector.hide()
         self.channel_buttons: dict[str, QToolButton] = {}
-        primary_controls = QHBoxLayout()
-        primary_controls.setSpacing(TOKENS.spacing_sm)
+        controls_widget = QWidget()
+        controls = ResponsiveControlLayout(controls_widget, spacing=TOKENS.spacing_sm)
         for label, combo in (("View", self.view_mode), ("Y", self.y_mode)):
-            primary_controls.addWidget(QLabel(label))
-            primary_controls.addWidget(combo, 1)
+            controls.add_control(QLabel(label), compact_row=0)
+            controls.add_control(combo, compact_row=0)
             combo.setMaximumWidth(170)
             combo.setMinimumWidth(0)
             combo.setSizePolicy(
                 QSizePolicy.Policy.Ignored,
                 QSizePolicy.Policy.Fixed,
             )
-        primary_controls.addStretch(1)
-
-        secondary_controls = QHBoxLayout()
-        secondary_controls.setSpacing(TOKENS.spacing_sm)
-        secondary_controls.addWidget(QLabel("X"))
-        secondary_controls.addWidget(self.x_mode, 1)
+        controls.add_control(QLabel("X"), compact_row=1)
+        controls.add_control(self.x_mode, compact_row=1)
         self.x_mode.setMaximumWidth(170)
         self.x_mode.setMinimumWidth(0)
         self.x_mode.setSizePolicy(
             QSizePolicy.Policy.Ignored,
             QSizePolicy.Policy.Fixed,
         )
-        secondary_controls.addSpacing(TOKENS.spacing_lg)
-        secondary_controls.addWidget(self.reference_label)
-        secondary_controls.addWidget(self.reference_selector, 1)
+        controls.add_control(self.reference_label, compact_row=1)
+        controls.add_control(self.reference_selector, compact_row=1)
         self.reference_selector.setMinimumWidth(0)
         self.reference_selector.setSizePolicy(
             QSizePolicy.Policy.Ignored,
             QSizePolicy.Policy.Fixed,
         )
-        secondary_controls.addSpacing(TOKENS.spacing_lg)
-        secondary_controls.addWidget(QLabel("Channels"))
+        controls.add_control(QLabel("Channels"), compact_row=1)
         for name, color in (
             ("R", "#ff3b30"),
             ("G", "#24b34b"),
@@ -131,7 +125,7 @@ class LineProfilePanel(QWidget):
                 self._channels_changed
             )
             self.channel_buttons[name] = button
-            secondary_controls.addWidget(button)
+            controls.add_control(button, compact_row=1)
         for combo in (self.view_mode, self.y_mode, self.x_mode):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._plot_options_changed
@@ -139,7 +133,6 @@ class LineProfilePanel(QWidget):
         self.reference_selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._reference_changed
         )
-        secondary_controls.addStretch(1)
 
         self.plot_grid = QWidget()
         self.plot_grid.setSizePolicy(
@@ -174,8 +167,7 @@ class LineProfilePanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 4)
         layout.setSpacing(TOKENS.spacing_xs)
-        layout.addLayout(primary_controls)
-        layout.addLayout(secondary_controls)
+        layout.addWidget(controls_widget)
         layout.addWidget(self.status)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

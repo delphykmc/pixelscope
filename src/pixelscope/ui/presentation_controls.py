@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPainter, QPalette
 from PySide6.QtWidgets import (
     QAbstractButton,
     QComboBox,
@@ -20,7 +20,7 @@ from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.toolbar_icons import toolbar_icon
 
 _COMPACT_LAYOUT_GROUP_WIDTH = 100
-_COMPACT_PAGE_GROUP_WIDTH = 280
+_COMPACT_PAGE_GROUP_WIDTH = 230
 _COMPACT_GAIN_GROUP_WIDTH = 90
 _COMPACT_PICK_COUNT_WIDTH = 50
 _COMPACT_CURATION_ACTION_WIDTH = 56
@@ -102,6 +102,94 @@ def _set_bold_label(label: QLabel) -> None:
     label.setFont(font)
 
 
+class _ElidingMetadataLabel(QLabel):
+    """Keep complete label text as metadata while painting within its allocation."""
+
+    def __init__(
+        self,
+        text: str,
+        description: str,
+        maximum_compact_width: int,
+        parent: QWidget,
+    ) -> None:
+        super().__init__(text, parent)
+        self._description = description
+        self._maximum_compact_width = maximum_compact_width
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(maximum_compact_width)
+        self._sync_metadata(text)
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt API override
+        super().setText(text)
+        self._sync_metadata(text)
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 - Qt API override
+        hint = super().minimumSizeHint()
+        return QSize(0, hint.height())
+
+    def setFixedWidth(self, width: int) -> None:  # noqa: N802 - Qt API override
+        """Translate legacy reservations into an eliding upper bound."""
+
+        self.setMinimumWidth(0)
+        self.setMaximumWidth(min(width, self._maximum_compact_width))
+
+    def paintEvent(self, _event: object) -> None:  # noqa: N802 - Qt API override
+        painter = QPainter(self)
+        elided = self.fontMetrics().elidedText(
+            self.text(),
+            Qt.TextElideMode.ElideRight,
+            max(0, self.contentsRect().width()),
+        )
+        self.style().drawItemText(
+            painter,
+            self.contentsRect(),
+            int(self.alignment()),
+            self.palette(),
+            self.isEnabled(),
+            elided,
+            QPalette.ColorRole.WindowText,
+        )
+
+    def _sync_metadata(self, text: str) -> None:
+        self.setToolTip(text)
+        self.setAccessibleName(f"{self._description}: {text}" if text else self._description)
+
+
+def _replace_page_label(
+    window: Any,
+    attribute_name: str,
+    description: str,
+    stretch: int,
+    maximum_width: int,
+) -> QLabel:
+    old_label = getattr(window, attribute_name)
+    if isinstance(old_label, _ElidingMetadataLabel):
+        return old_label
+    parent = old_label.parentWidget()
+    parent_layout = parent.layout() if parent is not None else None
+    if not isinstance(parent, QWidget) or not isinstance(parent_layout, QHBoxLayout):
+        raise RuntimeError("Comparison Page label must belong to the page command group")
+    index = parent_layout.indexOf(old_label)
+    if index < 0:
+        raise RuntimeError("Comparison Page label is missing from its command layout")
+
+    label = _ElidingMetadataLabel(old_label.text(), description, maximum_width, parent)
+    label.setObjectName(old_label.objectName())
+    label.setAlignment(old_label.alignment())
+    label.setEnabled(old_label.isEnabled())
+    label.setVisible(not old_label.isHidden())
+    label.setMinimumWidth(0)
+    label.setMaximumWidth(maximum_width)
+    label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    parent_layout.removeWidget(old_label)
+    parent_layout.insertWidget(index, label, stretch)
+    old_label.hide()
+    old_label.setParent(None)
+    old_label.deleteLater()
+    setattr(window, attribute_name, label)
+    return label
+
+
 def _set_compact_command_width(widget: QWidget, minimum_width: int) -> None:
     """Let a command group yield to the viewer while retaining a clickable floor."""
 
@@ -121,6 +209,9 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         layout_selector.parentWidget() if isinstance(layout_selector, QComboBox) else None
     )
     page_group = getattr(window, "comparison_page_group", None)
+    page_layout = page_group.layout() if isinstance(page_group, QWidget) else None
+    if isinstance(page_layout, QHBoxLayout):
+        page_layout.setSpacing(TOKENS.spacing_xs)
     gain_group = window.findChild(QWidget, "DisplayGainControl")
     review = getattr(window, "review_selection_controller", None)
     count_label = getattr(review, "count_label", None)
@@ -336,6 +427,14 @@ def polish_presentation_controls(window: Any) -> None:
         "next_page",
         "Next Comparison Page",
         window.next_comparison_page,
+    )
+    _replace_page_label(window, "comparison_page_label", "Comparison Page", 1, 54)
+    _replace_page_label(
+        window,
+        "comparison_page_range_label",
+        "Comparison Page range",
+        2,
+        90,
     )
 
     _polish_analysis_export_controls(window)

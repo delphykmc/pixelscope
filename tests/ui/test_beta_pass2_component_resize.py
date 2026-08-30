@@ -20,14 +20,16 @@ def _repository() -> SettingsRepository:
     return SettingsRepository(QSettingsAdapter(QSettings()))
 
 
-def test_inactive_plot_page_does_not_force_one_row_control_width(qtbot: object) -> None:
+def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
+    qtbot: object,
+) -> None:
     analysis = ComparisonAnalysisPanel()
     line = LineProfilePanel()
     tabs = QTabWidget()
     tabs.addTab(analysis.histogram_panel, "Histogram")
     tabs.addTab(line, "Line Profile")
     qtbot.addWidget(tabs)  # type: ignore[attr-defined]
-    tabs.resize(640, 360)
+    tabs.resize(1400, 420)
     tabs.show()
 
     line_combo_widths = sum(
@@ -46,6 +48,52 @@ def test_inactive_plot_page_does_not_force_one_row_control_width(qtbot: object) 
     assert line.minimumSizeHint().width() < line_combo_widths
     assert analysis.histogram_panel.minimumSizeHint().width() < histogram_combo_widths
 
+    histogram_values = ("Overlay", "Log count", "Normalized 0–1", "1024")
+    for combo, value in zip(
+        (
+            analysis.histogram_mode,
+            analysis.histogram_units,
+            analysis.histogram_range,
+            analysis.histogram_bins,
+        ),
+        histogram_values,
+        strict=True,
+    ):
+        combo.setCurrentText(value)
+    analysis.channel_buttons["G"].setChecked(False)
+    histogram_changes: list[int] = []
+    analysis.histogram_mode.currentIndexChanged.connect(histogram_changes.append)
+    qtbot.wait(20)  # type: ignore[attr-defined]
+
+    histogram_controls = (
+        analysis.histogram_mode,
+        analysis.histogram_units,
+        analysis.histogram_range,
+        analysis.histogram_bins,
+        *analysis.channel_buttons.values(),
+    )
+    histogram_y_positions = [control.geometry().y() for control in histogram_controls]
+    assert max(histogram_y_positions) - min(histogram_y_positions) <= 4
+
+    tabs.resize(560, 420)
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    assert analysis.histogram_mode.geometry().y() < analysis.histogram_range.geometry().y()
+    assert (
+        tuple(
+            combo.currentText()
+            for combo in (
+                analysis.histogram_mode,
+                analysis.histogram_units,
+                analysis.histogram_range,
+                analysis.histogram_bins,
+            )
+        )
+        == histogram_values
+    )
+    assert not analysis.channel_buttons["G"].isChecked()
+    assert histogram_changes == []
+    assert tabs.minimumSizeHint().width() < histogram_combo_widths
+
     tabs.setCurrentWidget(line)
     documents = [
         ImageDocument.from_array(
@@ -56,8 +104,22 @@ def test_inactive_plot_page_does_not_force_one_row_control_width(qtbot: object) 
     ]
     line.set_documents(documents, None)
     line.y_mode.setCurrentText("Difference from reference")
+    line.view_mode.setCurrentText("Separate by channel")
+    line.x_mode.setCurrentText("Normalized distance")
+    line.reference_selector.setCurrentIndex(1)
+    line.channel_buttons["B"].setChecked(False)
+    line_changes: list[int] = []
+    line.view_mode.currentIndexChanged.connect(line_changes.append)
+    tabs.resize(1400, 420)
     qtbot.wait(20)  # type: ignore[attr-defined]
 
+    line_controls = (
+        line.view_mode,
+        line.y_mode,
+        line.x_mode,
+        line.reference_selector,
+        *line.channel_buttons.values(),
+    )
     assert line.view_mode.isVisible() and line.view_mode.width() > 0
     assert line.y_mode.isVisible() and line.y_mode.width() > 0
     assert line.x_mode.isVisible() and line.x_mode.width() > 0
@@ -65,8 +127,28 @@ def test_inactive_plot_page_does_not_force_one_row_control_width(qtbot: object) 
     assert all(
         button.isVisible() and button.width() > 0 for button in line.channel_buttons.values()
     )
+    line_y_positions = [control.geometry().y() for control in line_controls]
+    assert max(line_y_positions) - min(line_y_positions) <= 4
+
+    tabs.resize(560, 420)
+    qtbot.wait(20)  # type: ignore[attr-defined]
     assert line.view_mode.geometry().y() < line.x_mode.geometry().y()
     assert line.status.geometry().y() > line.x_mode.geometry().y()
+    assert line.reference_selector.isVisible() and line.reference_selector.width() > 0
+    assert line.view_mode.currentText() == "Separate by channel"
+    assert line.y_mode.currentText() == "Difference from reference"
+    assert line.x_mode.currentText() == "Normalized distance"
+    assert line.reference_selector.currentIndex() == 1
+    assert not line.channel_buttons["B"].isChecked()
+    assert line_changes == []
+    assert tabs.minimumSizeHint().width() < line_combo_widths
+
+    tabs.resize(1400, 420)
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    line_y_positions = [control.geometry().y() for control in line_controls]
+    assert max(line_y_positions) - min(line_y_positions) <= 4
+    assert line.reference_selector.currentIndex() == 1
+    assert line_changes == []
 
     full_status = "Line profile coordinates " + "1234567890" * 20
     line._set_status(full_status)

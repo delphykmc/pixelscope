@@ -80,6 +80,20 @@ class _WorkspaceLoadPayload:
     model: IqaExplorerModel | None = None
 
 
+class _AccessibleLabel(QLabel):
+    """Synchronize dynamic visible text with its complete assistive metadata."""
+
+    def __init__(self, text: str, parent: QWidget) -> None:
+        super().__init__(text, parent)
+        self.setToolTip(text)
+        self.setAccessibleName(text)
+
+    def setText(self, text: str) -> None:  # noqa: N802 - Qt API override
+        super().setText(text)
+        self.setToolTip(text)
+        self.setAccessibleName(text)
+
+
 class IqaWorkspaceWidget(QWidget):
     """Summary-first N-way IQA explorer with lazy relative-grid preparation."""
 
@@ -112,11 +126,11 @@ class IqaWorkspaceWidget(QWidget):
         )
         layout.setSpacing(TOKENS.spacing_sm)
 
-        self.status_label = QLabel("Open a complete PixelScope IQA result.", self)
+        self.status_label = _AccessibleLabel("Open a complete PixelScope IQA result.", self)
         self.status_label.setObjectName("iqaStatus")
-        self.result_label = QLabel("No result", self)
+        self.result_label = _AccessibleLabel("No result", self)
         self.result_label.setObjectName("iqaResultOverview")
-        self.dataset_label = QLabel("", self)
+        self.dataset_label = _AccessibleLabel("", self)
         self.dataset_label.setObjectName("iqaDatasetOverview")
         layout.addWidget(self.status_label)
         layout.addWidget(self.result_label)
@@ -195,7 +209,7 @@ class IqaWorkspaceWidget(QWidget):
         detail_layout = QVBoxLayout(self.overview_detail_panel)
         detail_layout.setContentsMargins(0, TOKENS.spacing_sm, 0, 0)
         detail_layout.setSpacing(TOKENS.spacing_xs)
-        self.overview_detail_heading = QLabel(
+        self.overview_detail_heading = _AccessibleLabel(
             "Absolute Value Details",
             self.overview_detail_panel,
         )
@@ -238,9 +252,9 @@ class IqaWorkspaceWidget(QWidget):
         trend_layout = QVBoxLayout(trend_panel)
         trend_layout.setContentsMargins(0, 0, 0, TOKENS.spacing_sm)
         trend_layout.setSpacing(TOKENS.spacing_sm)
-        self.trend_label = QLabel("All attributes across Scenes", trend_panel)
+        self.trend_label = _AccessibleLabel("All attributes across Scenes", trend_panel)
         self.trend_label.setObjectName("iqaTrendLabel")
-        self.series_hint = QLabel(
+        self.series_hint = _AccessibleLabel(
             "Attribute = color · variant = marker",
             trend_panel,
         )
@@ -298,7 +312,7 @@ class IqaWorkspaceWidget(QWidget):
         preview_layout = QVBoxLayout(preview_panel)
         preview_layout.setContentsMargins(0, TOKENS.spacing_sm, 0, 0)
         preview_layout.setSpacing(TOKENS.spacing_sm)
-        self.preview_caption = QLabel(
+        self.preview_caption = _AccessibleLabel(
             "Click a Scene in the trend plot to inspect its published source " "identities.",
             preview_panel,
         )
@@ -986,24 +1000,24 @@ class IqaWorkspaceWidget(QWidget):
                 QSizePolicy.Policy.Expanding,
             )
             card_layout = QVBoxLayout(card)
-            title = QLabel(f"{label} · {variant_id}", card)
+            title = _AccessibleLabel(f"{label} · {variant_id}", card)
             font = title.font()
             font.setBold(True)
             title.setFont(font)
             card_layout.addWidget(title)
-            card_layout.addWidget(QLabel(source.source_id, card))
-            card_layout.addWidget(QLabel(f"{source.width} × {source.height}", card))
-            path_label = QLabel(
+            card_layout.addWidget(_AccessibleLabel(source.source_id, card))
+            card_layout.addWidget(_AccessibleLabel(f"{source.width} × {source.height}", card))
+            path_label = _AccessibleLabel(
                 f"Published relative path: {source.relative_path}",
                 card,
             )
             path_label.setWordWrap(True)
             path_label.setStyleSheet(f"color: {TOKENS.text_secondary};")
             card_layout.addWidget(path_label)
-            hash_label = QLabel(f"SHA-256: {source.sha256[:16]}…", card)
+            hash_label = _AccessibleLabel(f"SHA-256: {source.sha256[:16]}…", card)
             hash_label.setStyleSheet(f"color: {TOKENS.text_secondary};")
             card_layout.addWidget(hash_label)
-            note = QLabel(
+            note = _AccessibleLabel(
                 "PixelScope does not open native pixels from this path in P5-B. "
                 "P5-D owns logical-root resolution and hash verification.",
                 card,

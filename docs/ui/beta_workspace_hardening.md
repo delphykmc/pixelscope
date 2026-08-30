@@ -236,6 +236,13 @@ The visible floating window's transient-parent relation is cleared after float s
 workspace is not forced permanently above Main, without altering `QDockWidget` topology.
 Exact Windows taskbar/z-order behavior remains a manual qualification item.
 
+That detached native relationship also requires an explicit shutdown boundary. Owner
+validation reproduced a process hang when Main closed while either Plots or IQA was
+floating. PixelScope now saves the user's dock/visibility state first, stops the owned
+zero-delay geometry and transient-parent timers, then hides and re-docks managed floating
+workspaces while Main's native backing store is still valid. The re-dock is teardown-only:
+the saved floating and visible/hidden state is restored normally on the next launch.
+
 ### IQA toolbar authority
 
 The main toolbar reuses the existing checkable **Show IQA Workspace** action. It adds no
@@ -256,8 +263,9 @@ Pass 2 applies shrinkable policy to the **final composed tree**:
 
 - Files remains the Qt-collapsible secondary pane and Image remains non-collapsible;
 - long populated Files/Multi View labels do not establish an application-wide floor;
-- Page status/range, Display Gain, Pick count, Clear, and Keep remain present, with short
-  visual labels only where the full name is retained as tooltip/accessibility text;
+- Page status/range, Display Gain, Pick count, Clear, and Keep remain present. Page values
+  paint-elide inside their compact group instead of extending into Gain/Pick, while their
+  complete logical text remains synchronized in tooltip/accessibility metadata;
 - the outer `RemoteIqaWorkspace`, workflow tabs, Setup/Jobs/Results pages, and composed
   Inspect/alias/result labels yield independently of the already-shrinkable inner Results
   widget;
@@ -273,9 +281,12 @@ pixel-perfect widget sizes. Actual Windows FHD/DPI behavior remains a manual gat
 
 Inactive `QTabWidget` pages contribute size hints, so a wide Line Profile controls row
 previously forced the complete Plots dock even while Histogram was active. Histogram and
-Line Profile now use compact multi-row controls; Line Profile status is a separate
-wrapping row with complete tooltip/accessibility text. Existing plot mode, channel,
-Reference, hover, and analysis ownership is unchanged.
+Line Profile now use one content-driven responsive layout: controls retain the original
+single row whenever their live size hints fit, and reflow to the compact two-row grouping
+only under constraint. Visible Reference controls participate in the fit calculation, and
+the same widgets move between rows without changing their values, signals, or ownership.
+Line Profile status remains a separate wrapping row with complete tooltip/accessibility
+text. Existing plot mode, channel, Reference, hover, and analysis ownership is unchanged.
 
 The structured status bar keeps complete filename and pixel-summary strings as its
 logical label text while painting an elided representation inside the allocated width.
@@ -316,6 +327,8 @@ and native Inspect authority are unchanged.
   floating;
 - Dock/Float state synchronization, transient-parent removal, maximize/restore, and
   title-controller persistence on re-dock;
+- ordered shutdown persistence, deferred-callback quiescence, and native-dock
+  normalization before worker/Main teardown;
 - late hardening of already hidden/floating workspaces;
 - Reset Workspace clearing both persisted and retained in-memory floating geometry.
 
@@ -332,7 +345,9 @@ yielding filename labels, compact RGB8 eligibility statuses, and Submit Pair ena
 matching RGB8 is accepted; non-RGB, size mismatch, mixed RGB8/RGB16, and matching
 RGB16/RGB16 are rejected.
 
-`tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path.
+`tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path
+and visible/hidden/maximized/restored floating-state persistence across shutdown
+normalization for both Plots and IQA.
 
 `tests/ui/test_beta_workspace_layout_allocation.py` covers bottom-corner ownership,
 shrinkable IQA detail/splitter policy, and the Qt-native horizontal contract: Files may
@@ -343,15 +358,19 @@ contract rather than the superseded maximize/restore contract.
 
 `tests/ui/test_beta_pass2_workspace_resize.py` covers the final production composition,
 FHD/compact logical resize acceptance, empty/populated long-name states, IQA hidden and
-docked states, and continued Page/Display Gain/Pick/Clear/Keep access.
+docked states, child containment/non-overlap, two-page navigation, and continued
+Page/Display Gain/Pick/Clear/Keep access.
 
-`tests/ui/test_beta_pass2_component_resize.py` covers inactive Plots page hints, complete
+`tests/ui/test_beta_pass2_component_resize.py` covers inactive Plots page hints,
+single-row wide presentation, compact fallback, resize state preservation, complete
 status tooltip/accessibility retention, RAW scroll/footer reachability, and compact
 Settings page/footer access.
 
 `tests/ui/test_beta_pass2_iqa_stress.py` covers deterministic small, normal, and stress
 result models; bounded initial series/hover/ticks; variant markers; checklist opt-in; and
-lazy hierarchy Scene rows without elapsed-time thresholds.
+lazy hierarchy Scene rows without elapsed-time thresholds. It also covers current
+tooltip/accessibility metadata through loading, result, Reference/error, filter/trend,
+Scene preview, and open-error transitions.
 
 Actual title-bar drag/drop docking is a Windows manual gate because offscreen Qt tests do
 not exercise the native move loop or docking target preview.
@@ -380,6 +399,26 @@ so it is recorded as pre-existing/offscreen validation debt rather than hidden a
 2 regression. Full Folder Tag identity remains present in the `ImageDocument`, Files,
 Difference selectors, analysis, plot titles, and tile tooltip. No test or production
 behavior was changed to manufacture a full-suite PASS.
+
+### Owner-validation findings resolved in the Pass 2 fix loop
+
+Owner Windows validation after the implementation head found two in-scope issues:
+
+1. Plots displayed its constrained two-row controls even at normal wide widths.
+2. Closing Main while Plots or IQA was floating could emit native `WM_DESTROY` / invalid
+   `GetDC` diagnostics and leave the process running.
+
+Independent review also found that the compact Image Page group's children could overlap
+Gain/Pick at 1280 x 720 and that dynamic IQA label metadata could remain stale. The fix
+loop added responsive Plots layout, bounded/eliding Page metadata, owning IQA label
+synchronization, and the explicit floating-workspace shutdown boundary described above.
+
+On the integrated fix, Windows-native workspace/component tests passed 9 tests. A bounded
+native shutdown matrix covered docked Plots and Plots/IQA floating visible, hidden,
+maximized, and restored states; all nine processes exited 0 in 0.64–0.67 seconds without
+the watchdog or the reproduced native diagnostics. This is direct native lifecycle
+evidence, but it does not replace the remaining interactive DPI/multi-monitor/dock-drag
+owner checklist.
 
 ## Windows manual Beta checklist
 
@@ -430,5 +469,12 @@ behavior was changed to manufacture a full-suite PASS.
 17. Open a stress IQA Result, verify the initial Scene Trend is limited and readable,
     enable additional attributes explicitly, expand multiple attribute summaries, and
     confirm Scene selection/Inspect still identifies the correct Scene.
+18. Give Histogram and Line Profile ample width and confirm each control surface uses one
+    row. Narrow the dock until the compact fallback appears, then widen it and confirm
+    control values, Reference choice, channel toggles, and plot content are preserved.
+19. Exit PixelScope independently with Plots and IQA floating in visible, hidden,
+    maximized, and restored states. Confirm the process returns control without native
+    `WM_DESTROY`/`GetDC` diagnostics, then relaunch and confirm the saved topology and
+    visibility are restored.
 
 Also confirm the PR #59 behaviors above have not regressed during the same pass.

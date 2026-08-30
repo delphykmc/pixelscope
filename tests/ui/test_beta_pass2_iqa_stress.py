@@ -5,6 +5,7 @@ from pathlib import Path
 import pyqtgraph as pg
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel
 
 from pixelscope.remote.iqa_domain import (
     AttributeSpec,
@@ -163,6 +164,12 @@ def _curve_count(widget: IqaWorkspaceWidget) -> int:
     return sum(isinstance(item, pg.PlotDataItem) for item in widget.scene_trend_plot.plotItem.items)
 
 
+def _assert_label_metadata(label: QLabel) -> None:
+    text = label.text()
+    assert label.toolTip() == text
+    assert label.accessibleName() == text
+
+
 @pytest.mark.parametrize(
     ("attribute_count", "variant_count", "scene_count"),
     ((2, 2, 3), (10, 2, 12)),
@@ -200,6 +207,65 @@ def test_small_and_normal_results_keep_all_initial_series_and_selected_detail(
         second = widget.hierarchy.topLevelItem(1)
         assert second is not None
         assert second.childCount() == 0
+
+
+def test_dynamic_iqa_labels_synchronize_metadata_across_real_transitions(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    widget = IqaWorkspaceWidget()
+    qtbot.addWidget(widget)  # type: ignore[attr-defined]
+    model = _synthetic_model(
+        tmp_path,
+        attribute_count=2,
+        variant_count=2,
+        scene_count=3,
+    )
+    dynamic_labels = (
+        widget.status_label,
+        widget.result_label,
+        widget.dataset_label,
+        widget.overview_detail_heading,
+        widget.trend_label,
+        widget.series_hint,
+        widget.preview_caption,
+    )
+    for label in dynamic_labels:
+        _assert_label_metadata(label)
+
+    opening_root = tmp_path / "a_result_with_a_long_descriptive_name"
+    widget.show_loading(opening_root)
+    assert widget.status_label.text() == f"Opening {opening_root.name}..."
+    _assert_label_metadata(widget.status_label)
+
+    assert widget.set_model(model).status is LoadStatus.SUCCESS
+    for label in dynamic_labels:
+        _assert_label_metadata(label)
+
+    widget.reference_combo.setCurrentIndex(1)
+    assert widget.status_label.text() == "Loading Scene grids for Reference Variant 00..."
+    _assert_label_metadata(widget.status_label)
+    widget.show_relative_error(LoadStatus.CORRUPT, "reference grid unavailable")
+    assert widget.status_label.text() == "CORRUPT: reference grid unavailable"
+    _assert_label_metadata(widget.status_label)
+
+    widget.attribute_filter.item(0).setCheckState(Qt.CheckState.Unchecked)
+    assert "1 / 2 attributes" in widget.trend_label.text()
+    assert "check Attributes to show more" in widget.series_hint.text()
+    _assert_label_metadata(widget.trend_label)
+    _assert_label_metadata(widget.series_hint)
+
+    widget._select_scene_index(2)
+    assert widget.preview_caption.text().startswith("scene_0002 · published source identities")
+    _assert_label_metadata(widget.preview_caption)
+    preview_labels = widget.preview_container.findChildren(QLabel)
+    assert len(preview_labels) == 12
+    for label in preview_labels:
+        _assert_label_metadata(label)
+
+    widget.show_open_error(LoadStatus.UNSUPPORTED, "future schema")
+    assert widget.status_label.text() == "UNSUPPORTED: future schema"
+    _assert_label_metadata(widget.status_label)
 
 
 def test_stress_result_bounds_initial_curves_hover_ticks_and_lazy_scene_rows(

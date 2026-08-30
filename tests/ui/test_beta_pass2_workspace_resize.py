@@ -4,8 +4,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QSizePolicy
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -44,6 +44,44 @@ def _assert_resize_accepted(window: MainWindow, qtbot: object, width: int, heigh
     assert window.height() <= height
 
 
+def _assert_command_row_geometry(window: MainWindow) -> None:
+    host = window.presentation_controls
+    review = window.review_selection_controller
+    ordered = (
+        window.layout_selector.parentWidget(),
+        window.presentation_control_separator,
+        window.comparison_page_group,
+        window.findChild(QWidget, "DisplayGainControl"),
+        review.count_label,
+        review.clear_button,
+        review.keep_button,
+    )
+    visible_rects = []
+    for widget in ordered:
+        assert widget is not None
+        if widget.isVisible():
+            top_left = widget.mapTo(host, QPoint(0, 0))
+            rect = widget.rect().translated(top_left)
+            assert host.rect().contains(rect)
+            visible_rects.append(rect)
+    assert all(
+        visible_rects[index].right() < visible_rects[index + 1].left()
+        for index in range(len(visible_rects) - 1)
+    )
+
+    page_group = window.comparison_page_group
+    if page_group.isVisible():
+        for child in (
+            page_group.findChild(QLabel, "comparisonPageCaption"),
+            window.previous_comparison_page_button,
+            window.comparison_page_label,
+            window.next_comparison_page_button,
+            window.comparison_page_range_label,
+        ):
+            assert child is not None
+            assert page_group.rect().contains(child.geometry())
+
+
 @pytest.mark.parametrize("populated", [False, True])
 def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_visible(
     qtbot: object,
@@ -57,13 +95,17 @@ def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_v
     window.iqa_dock.hide()
     qtbot.waitUntil(window.iqa_dock.isHidden)  # type: ignore[attr-defined]
     _assert_resize_accepted(window, qtbot, 1920, 1080)
+    _assert_command_row_geometry(window)
     _assert_resize_accepted(window, qtbot, 1280, 720)
+    _assert_command_row_geometry(window)
     assert window.minimumSizeHint().width() <= 1280
 
     window.iqa_dock.show()
     qtbot.waitUntil(window.iqa_dock.isVisible)  # type: ignore[attr-defined]
     _assert_resize_accepted(window, qtbot, 1920, 1080)
+    _assert_command_row_geometry(window)
     _assert_resize_accepted(window, qtbot, 1280, 720)
+    _assert_command_row_geometry(window)
     assert window.minimumSizeHint().width() <= 1280
 
     shell = window.remote_iqa_workspace
@@ -79,23 +121,51 @@ def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_v
     window.close()
 
 
-def test_fhd_workspace_keeps_page_gain_and_curation_actions_observable(
+@pytest.mark.parametrize("size", [(1280, 720), (1920, 1080)])
+def test_workspace_keeps_page_gain_and_curation_actions_observable_without_overlap(
     qtbot: object,
     tmp_path: Path,
+    size: tuple[int, int],
 ) -> None:
     window = _production_window(qtbot)
-    documents = _register_rgb8_pair(window, tmp_path)
+    pair = _register_rgb8_pair(window, tmp_path)
+    additional = tuple(
+        ImageDocument.from_array(
+            np.full((12, 16, 3), index * 16, dtype=np.uint8),
+            f"additional_{index}.png",
+            source_path=tmp_path / f"additional_{index}.png",
+        )
+        for index in range(2, 8)
+    )
+    for document in additional:
+        window.add_document(document, select=False)
+    documents = (*pair, *additional)
+    window._select_document_ids([document.document_id for document in documents])
     window.iqa_dock.show()
-    _assert_resize_accepted(window, qtbot, 1920, 1080)
+    _assert_resize_accepted(window, qtbot, *size)
+    _assert_command_row_geometry(window)
 
-    assert window.comparison_page_label.text() == "1 / 1"
-    assert window.comparison_page_range_label.text() == "1–2 of 2"
-    assert window.comparison_page_label.toolTip() == "1 / 1"
-    assert window.comparison_page_range_label.toolTip() == "1–2 of 2"
-    assert "1 / 1" in window.comparison_page_label.accessibleName()
-    assert "1–2 of 2" in window.comparison_page_range_label.accessibleName()
+    assert window.comparison_page_label.text() == "1 / 2"
+    assert window.comparison_page_range_label.text() == "1–6 of 8"
+    assert window.comparison_page_label.toolTip() == "1 / 2"
+    assert window.comparison_page_range_label.toolTip() == "1–6 of 8"
+    assert "1 / 2" in window.comparison_page_label.accessibleName()
+    assert "1–6 of 8" in window.comparison_page_range_label.accessibleName()
     assert not window.previous_comparison_page_button.isHidden()
     assert not window.next_comparison_page_button.isHidden()
+    qtbot.mouseClick(  # type: ignore[attr-defined]
+        window.next_comparison_page_button,
+        Qt.MouseButton.LeftButton,
+    )
+    assert window.comparison_page_label.text() == "2 / 2"
+    assert window.comparison_page_range_label.text() == "7–8 of 8"
+    assert window.comparison_page_label.toolTip() == "2 / 2"
+    assert window.comparison_page_range_label.toolTip() == "7–8 of 8"
+    _assert_command_row_geometry(window)
+    qtbot.mouseClick(  # type: ignore[attr-defined]
+        window.previous_comparison_page_button,
+        Qt.MouseButton.LeftButton,
+    )
 
     gain_label = window.findChild(QLabel, "DisplayGainLabel")
     gain = window.findChild(type(window.layout_selector), "DisplayGainCombo")
