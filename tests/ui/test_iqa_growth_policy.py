@@ -17,10 +17,8 @@ def test_production_iqa_keeps_zero_minimum_with_preferred_horizontal_policy(
     window.show()
 
     assert window.iqa_workspace.minimumWidth() == 0
-    assert (
-        window.iqa_workspace.sizePolicy().horizontalPolicy()
-        == QSizePolicy.Policy.Preferred
-    )
+    horizontal_policy = window.iqa_workspace.sizePolicy().horizontalPolicy()
+    assert horizontal_policy == QSizePolicy.Policy.Preferred
     # Keep the dock itself free to compress; only the child advertises a preferred
     # recovery size to QMainWindow.
     assert window.iqa_dock.minimumWidth() == 0
@@ -35,18 +33,14 @@ def test_preferred_growth_policy_only_overrides_outer_iqa_horizontal_preference(
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     install_beta_workspace_hardening(window)
 
-    assert (
-        window.iqa_workspace.sizePolicy().horizontalPolicy()
-        == QSizePolicy.Policy.Ignored
-    )
+    hardened_policy = window.iqa_workspace.sizePolicy().horizontalPolicy()
+    assert hardened_policy == QSizePolicy.Policy.Ignored
 
     install_iqa_preferred_growth_policy(window)
 
     assert window.iqa_workspace.minimumWidth() == 0
-    assert (
-        window.iqa_workspace.sizePolicy().horizontalPolicy()
-        == QSizePolicy.Policy.Preferred
-    )
+    preferred_policy = window.iqa_workspace.sizePolicy().horizontalPolicy()
+    assert preferred_policy == QSizePolicy.Policy.Preferred
     assert window.iqa_dock.minimumWidth() == 0
 
     window.close()
