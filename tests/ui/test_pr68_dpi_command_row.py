@@ -38,6 +38,21 @@ def _register_pair(window: MainWindow, tmp_path: Path) -> tuple[ImageDocument, I
     return documents  # type: ignore[return-value]
 
 
+def _assert_combo_content_floor(combo: QComboBox) -> None:
+    assert combo.sizeAdjustPolicy() == QComboBox.SizeAdjustPolicy.AdjustToContents
+    assert combo.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.MinimumExpanding
+    assert combo.minimumWidth() > combo.sizeHint().width()
+    assert combo.width() >= combo.minimumWidth()
+
+
+def _assert_group_content_floor(group: QWidget) -> None:
+    layout = group.layout()
+    assert layout is not None
+    assert group.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.MinimumExpanding
+    assert group.minimumWidth() >= layout.minimumSize().width()
+    assert group.width() >= group.minimumWidth()
+
+
 def _assert_action_content_floors(window: MainWindow) -> None:
     review = window.review_selection_controller
     assert review.clear_button.text() == "Clear"
@@ -50,20 +65,22 @@ def _assert_action_content_floors(window: MainWindow) -> None:
         assert button.minimumWidth() >= button.sizeHint().width()
         assert button.width() >= button.minimumWidth()
 
-    gain = window.findChild(QComboBox, "DisplayGainCombo")
+    layout_combo = window.layout_selector
+    layout_group = layout_combo.parentWidget()
+    gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
     gain_group = window.findChild(QWidget, "DisplayGainControl")
-    assert gain is not None
+    assert isinstance(layout_group, QWidget)
+    assert gain_combo is not None
     assert gain_group is not None
-    assert gain.sizeAdjustPolicy() == QComboBox.SizeAdjustPolicy.AdjustToContents
-    assert gain.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Fixed
-    assert gain.minimumWidth() >= gain.sizeHint().width()
-    assert gain.width() >= gain.minimumWidth()
 
-    gain_layout = gain_group.layout()
-    assert gain_layout is not None
-    assert gain_group.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Minimum
-    assert gain_group.minimumWidth() >= gain_layout.minimumSize().width()
-    assert gain_group.width() >= gain_group.minimumWidth()
+    _assert_combo_content_floor(layout_combo)
+    _assert_combo_content_floor(gain_combo)
+    _assert_group_content_floor(layout_group)
+    _assert_group_content_floor(gain_group)
+
+    assert layout_combo.findText("Single View") >= 0
+    assert layout_combo.findText("Multi View") >= 0
+    assert gain_combo.findText("16×") >= 0
 
 
 def test_command_row_keeps_compact_actions_and_native_combo_chrome_visible(
