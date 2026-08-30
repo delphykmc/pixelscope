@@ -175,8 +175,7 @@ class RawOpenDialog(QDialog):
         minimum_stride_layout.setContentsMargins(0, 2, 0, 2)
         minimum_stride_layout.setSpacing(6)
         minimum_stride_layout.addWidget(self.minimum_stride_icon)
-        minimum_stride_layout.addWidget(self.minimum_stride_value)
-        minimum_stride_layout.addStretch(1)
+        minimum_stride_layout.addWidget(self.minimum_stride_value, 1)
 
         layout_form = AlignedFormGrid()
         layout_form.add_field_row("Width", self.width_box)

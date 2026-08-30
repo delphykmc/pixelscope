@@ -94,6 +94,11 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert histogram_header is not None
     histogram_header_layout = histogram_header.layout()
     assert histogram_header_layout is not None
+    assert histogram_header_layout.contentsMargins().top() == 0
+    assert histogram_header_layout.contentsMargins().bottom() == 0
+    assert histogram_header.height() == histogram_header_layout.heightForWidth(
+        histogram_header.width()
+    )
     assert analysis.histogram_context.geometry().right() == (
         histogram_header.width() - histogram_header_layout.contentsMargins().right() - 1
     )
@@ -172,6 +177,9 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert line_header is not None
     line_header_layout = line_header.layout()
     assert line_header_layout is not None
+    assert line_header_layout.contentsMargins().top() == 0
+    assert line_header_layout.contentsMargins().bottom() == 0
+    assert line_header.height() == line_header_layout.heightForWidth(line_header.width())
     assert line.status.geometry().right() == (
         line_header.width() - line_header_layout.contentsMargins().right() - 1
     )
@@ -273,6 +281,34 @@ def test_raw_dialog_can_shrink_and_scroll_without_hiding_footer(qtbot: object) -
     assert dialog.footer.isVisible()
     assert dialog.ok_button.isVisible()
     assert dialog.cancel_button.isVisible()
+
+
+def test_raw_dialog_minimum_stride_label_remains_visible_and_compact(qtbot: object) -> None:
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
+
+    assert dialog.minimum_stride_value.text()
+    assert dialog.minimum_stride_value.isVisible()
+    assert dialog.minimum_stride_value.width() > 0
+    assert dialog.minimum_stride_icon.width() > 0
+    minimum_stride_layout = dialog.minimum_stride_row.layout()
+    assert minimum_stride_layout is not None
+    margins = minimum_stride_layout.contentsMargins()
+    assert dialog.minimum_stride_value.geometry().right() == (
+        dialog.minimum_stride_row.contentsRect().right() - margins.right()
+    )
+    content_height = max(
+        dialog.minimum_stride_icon.height(),
+        dialog.minimum_stride_value.height(),
+    )
+    assert dialog.minimum_stride_row.height() == content_height + margins.top() + margins.bottom()
+
+    dialog.width_box.setValue(dialog.width_box.value() + 1)
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    assert dialog.minimum_stride_value.text() == "Minimum stride: 1,282 bytes"
+    assert dialog.minimum_stride_value.width() > 0
 
 
 def test_settings_dialog_yields_below_previous_hard_floor(qtbot: object) -> None:

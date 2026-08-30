@@ -51,6 +51,7 @@ class ResponsiveControlLayout(QLayout):
 
     def __init__(self, parent: QWidget | None = None, *, spacing: int = 0) -> None:
         super().__init__(parent)
+        self.setContentsMargins(0, 0, 0, 0)
         self.setSpacing(spacing)
         self._items: list[tuple[QLayoutItem, int]] = []
         self._next_compact_row = 0

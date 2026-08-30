@@ -67,6 +67,9 @@ knowledge belongs in focused documents under `docs/`.
 - [`exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md):
   current P7-D Stage 1 publication metadata, provenance, tag/manual-publication, and
   provider-neutral update-discovery separation contract.
+- [`exec-plans/active/beta-ui-owner-spacing-followup.md`](exec-plans/active/beta-ui-owner-spacing-followup.md):
+  bounded diagnosis, correction, validation, and review record for the final PR #68
+  owner-observed RAW and Plots spacing regressions.
 - [`exec-plans/completed/beta-ui-hardening-dpi-followup.md`](exec-plans/completed/beta-ui-hardening-dpi-followup.md):
   retained integration, validation, and exact-head review record for the PR #69 DPI
   command-row experiment incorporated selectively into draft PR #68.
