@@ -5,11 +5,18 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QComboBox,
+    QLabel,
+    QSizePolicy,
+    QWidget,
+)
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.ui.presentation_controls import polish_presentation_controls
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
@@ -67,7 +74,7 @@ def _assert_command_row_geometry(window: MainWindow) -> None:
     assert all(
         visible_rects[index].right() < visible_rects[index + 1].left()
         for index in range(len(visible_rects) - 1)
-    )
+    ), visible_rects
 
     page_group = window.comparison_page_group
     if page_group.isVisible():
@@ -80,6 +87,40 @@ def _assert_command_row_geometry(window: MainWindow) -> None:
         ):
             assert child is not None
             assert page_group.rect().contains(child.geometry())
+
+
+def _assert_actionable_content_floors(window: MainWindow) -> None:
+    review = window.review_selection_controller
+    layout_combo = window.layout_selector
+    gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
+    gain_group = window.findChild(QWidget, "DisplayGainControl")
+    layout_group = layout_combo.parentWidget()
+    assert gain_combo is not None
+    assert gain_group is not None
+    assert layout_group is not None
+    assert (
+        window.comparison_page_group.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    )
+    assert review.count_label.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+
+    for button in (review.clear_button, review.keep_button):
+        assert isinstance(button, QAbstractButton)
+        assert button.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Minimum
+        assert button.minimumWidth() >= button.sizeHint().width()
+        assert button.width() >= button.minimumWidth()
+
+    for combo in (layout_combo, gain_combo):
+        assert combo.sizeAdjustPolicy() == QComboBox.SizeAdjustPolicy.AdjustToContents
+        assert combo.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.MinimumExpanding
+        assert combo.minimumWidth() >= combo.sizeHint().width()
+        assert combo.width() >= combo.minimumWidth()
+
+    for group in (layout_group, gain_group):
+        group_layout = group.layout()
+        assert group_layout is not None
+        assert group.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.MinimumExpanding
+        assert group.minimumWidth() >= group_layout.minimumSize().width()
+        assert group.width() >= group.minimumWidth()
 
 
 @pytest.mark.parametrize("populated", [False, True])
@@ -96,9 +137,10 @@ def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_v
     qtbot.waitUntil(window.iqa_dock.isHidden)  # type: ignore[attr-defined]
     _assert_resize_accepted(window, qtbot, 1920, 1080)
     _assert_command_row_geometry(window)
-    _assert_resize_accepted(window, qtbot, 1280, 720)
+    _assert_resize_accepted(window, qtbot, 960, 540)
     _assert_command_row_geometry(window)
-    assert window.minimumSizeHint().width() <= 1280
+    _assert_actionable_content_floors(window)
+    assert window.minimumSizeHint().width() <= 960
 
     window.iqa_dock.show()
     qtbot.waitUntil(window.iqa_dock.isVisible)  # type: ignore[attr-defined]
@@ -106,6 +148,7 @@ def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_v
     _assert_command_row_geometry(window)
     _assert_resize_accepted(window, qtbot, 1280, 720)
     _assert_command_row_geometry(window)
+    _assert_actionable_content_floors(window)
     assert window.minimumSizeHint().width() <= 1280
 
     shell = window.remote_iqa_workspace
@@ -117,6 +160,110 @@ def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_v
         page = shell.tabs.widget(index)
         assert page.minimumWidth() == 0
         assert page.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+
+    window.close()
+
+
+def test_command_row_refreshes_content_floors_after_composition_font_change(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window = _production_window(qtbot)
+    _register_rgb8_pair(window, tmp_path)
+    window.iqa_dock.hide()
+    _assert_resize_accepted(window, qtbot, 1280, 720)
+
+    review = window.review_selection_controller
+    gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
+    gain_group = window.findChild(QWidget, "DisplayGainControl")
+    layout_group = window.layout_selector.parentWidget()
+    assert gain_combo is not None
+    assert gain_group is not None
+    assert layout_group is not None
+    metric_owner = window._command_row_metric_refresh
+    polish_presentation_controls(window)
+    assert window._command_row_metric_refresh is metric_owner
+    before = tuple(
+        widget.minimumWidth()
+        for widget in (
+            review.clear_button,
+            review.keep_button,
+            window.layout_selector,
+            gain_combo,
+            layout_group,
+            gain_group,
+        )
+    )
+
+    font = window.font()
+    point_size = font.pointSizeF()
+    font.setPointSizeF(max(11.0, point_size * 1.2 if point_size > 0 else 11.0))
+    for widget in (
+        review.clear_button,
+        review.keep_button,
+        window.layout_selector,
+        gain_combo,
+    ):
+        widget.setFont(font)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            widget.minimumWidth() > previous
+            for widget, previous in zip(
+                (
+                    review.clear_button,
+                    review.keep_button,
+                    window.layout_selector,
+                    gain_combo,
+                    layout_group,
+                    gain_group,
+                ),
+                before,
+                strict=True,
+            )
+        )
+    )
+    _assert_resize_accepted(window, qtbot, 1280, 720)
+    _assert_actionable_content_floors(window)
+    _assert_command_row_geometry(window)
+    assert window.minimumSizeHint().width() <= 1280
+
+    window.close()
+
+
+def test_command_row_refreshes_combo_floors_after_composition_style_change(
+    qtbot: object,
+) -> None:
+    window = _production_window(qtbot)
+    window.iqa_dock.hide()
+    _assert_resize_accepted(window, qtbot, 1280, 720)
+    gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
+    layout_group = window.layout_selector.parentWidget()
+    gain_group = gain_combo.parentWidget() if gain_combo is not None else None
+    assert gain_combo is not None
+    assert layout_group is not None
+    assert gain_group is not None
+    combos = (window.layout_selector, gain_combo)
+    groups = (layout_group, gain_group)
+    before_combos = tuple(combo.minimumWidth() for combo in combos)
+    before_groups = tuple(group.minimumWidth() for group in groups)
+
+    for combo in combos:
+        combo.setStyleSheet("QComboBox { padding-left: 20px; padding-right: 20px; }")
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: all(
+            combo.minimumWidth() > previous
+            for combo, previous in zip(combos, before_combos, strict=True)
+        )
+        and all(
+            group.minimumWidth() > previous
+            for group, previous in zip(groups, before_groups, strict=True)
+        )
+    )
+    _assert_resize_accepted(window, qtbot, 1280, 720)
+    _assert_actionable_content_floors(window)
+    _assert_command_row_geometry(window)
+    assert window.minimumSizeHint().width() <= 1280
 
     window.close()
 

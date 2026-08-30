@@ -266,6 +266,10 @@ Pass 2 applies shrinkable policy to the **final composed tree**:
 - Page status/range, Display Gain, Pick count, Clear, and Keep remain present. Page values
   paint-elide inside their compact group instead of extending into Gain/Pick, while their
   complete logical text remains synchronized in tooltip/accessibility metadata;
+- Layout and Gain selectors respect current font/style content and native drop-down chrome
+  instead of fixed compact pixel floors. Compact `Clear`/`Keep` labels likewise retain
+  content-derived floors plus complete `Clear Selection`/`Keep Selection` accessibility
+  and tooltip semantics; relevant font/style changes refresh those floors;
 - the outer `RemoteIqaWorkspace`, workflow tabs, Setup/Jobs/Results pages, and composed
   Inspect/alias/result labels yield independently of the already-shrinkable inner Results
   widget;
@@ -276,6 +280,13 @@ The automated reference is observable behavior: after production composition, em
 populated long-name states accept 1920 x 1080 and the stricter 1280 x 720 logical resize
 with IQA hidden or docked. These test viewports are qualification references, not new
 pixel-perfect widget sizes. Actual Windows FHD/DPI behavior remains a manual gate.
+
+Owner follow-up validation reported multi-monitor movement and dock interactions working
+as intended, but 200% DPI exposed Layout/Gain and Clear/Keep content clipping inside
+aggressively shrinkable fixed floors. The DPI follow-up keeps the one existing
+presentation-control authority, replaces those actionable fixed floors with current
+font/style-derived floors, and does not retain the separately tested IQA `Preferred`
+experiment because it produced no meaningful width-recovery improvement.
 
 ### Pass 2 compact Plots, status, and dialogs
 
@@ -374,7 +385,11 @@ contract rather than the superseded maximize/restore contract.
 `tests/ui/test_beta_pass2_workspace_resize.py` covers the final production composition,
 FHD/compact logical resize acceptance, empty/populated long-name states, IQA hidden and
 docked states, child containment/non-overlap, two-page navigation, and continued
-Page/Display Gain/Pick/Clear/Keep access.
+Page/Display Gain/Pick/Clear/Keep access. The DPI follow-up adds 960 x 540 hidden-IQA and
+1280 x 720 docked-IQA allocation, current content/style floors, compact command
+accessibility, idempotent floor ownership, and post-composition font/style refresh
+coverage. These are Qt metric/layout contracts, not a substitute for real Windows DPI
+visual qualification.
 
 `tests/ui/test_beta_pass2_component_resize.py` covers inactive Plots page hints,
 single-row wide presentation, compact fallback, resize state preservation, complete

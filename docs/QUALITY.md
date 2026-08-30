@@ -215,8 +215,9 @@ There is no acceptance requirement for an explicit Review Select mode because th
 product intentionally has no such mode.
 
 Production UI coverage must also establish the direct presentation-row contract
-`Layout | Page | Display Gain | ● Picked N | Clear Selection | Keep Selection`,
-where `● Picked N` is temporary Pick count; eligible native Multi View tiles expose
+`Layout | Page | Display Gain | ● Picked N | Clear | Keep`, with complete accessible
+command names/tooltips `Clear Selection` and `Keep Selection`, where `● Picked N` is
+temporary Pick count; eligible native Multi View tiles expose
 `Pick` with stable text; Single View and Split/Difference derived presentations do
 not acquire independent Pick identity; pan, Ctrl+drag ROI, and Shift+drag Line
 Profile gestures do not toggle Pick; and Keep Selection leaves the Files tree on

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QEvent, QMetaObject, QObject, QSize, Qt, Slot
 from PySide6.QtGui import QFont, QPainter, QPalette
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -19,11 +19,8 @@ from PySide6.QtWidgets import (
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.toolbar_icons import toolbar_icon
 
-_COMPACT_LAYOUT_GROUP_WIDTH = 100
-_COMPACT_PAGE_GROUP_WIDTH = 230
-_COMPACT_GAIN_GROUP_WIDTH = 90
 _COMPACT_PICK_COUNT_WIDTH = 50
-_COMPACT_CURATION_ACTION_WIDTH = 56
+_QT_WIDGET_SIZE_MAX = 16_777_215
 
 
 def _presentation_controls_style() -> str:
@@ -199,10 +196,173 @@ def _set_compact_command_width(widget: QWidget, minimum_width: int) -> None:
     widget.setSizePolicy(policy)
 
 
+def _natural_width(widget: QWidget) -> int:
+    """Return the current font/style content width, including native widget chrome."""
+
+    widget.ensurePolished()
+    return max(widget.minimumSizeHint().width(), widget.sizeHint().width(), 1)
+
+
+class _CommandRowMetricRefresh(QObject):
+    """Own content-aware command floors for the lifetime of one composed window."""
+
+    _METRIC_EVENTS = (QEvent.Type.FontChange, QEvent.Type.StyleChange)
+
+    def __init__(
+        self,
+        window: Any,
+        command_layout: QHBoxLayout,
+        page_group: QWidget,
+        layout_combo: QComboBox,
+        gain_combo: QComboBox,
+        clear_button: QAbstractButton,
+        keep_button: QAbstractButton,
+    ) -> None:
+        super().__init__(window)
+        self._window = window
+        self._command_layout = command_layout
+        self._page_group = page_group
+        self._layout_combo = layout_combo
+        self._gain_combo = gain_combo
+        self._clear_button = clear_button
+        self._keep_button = keep_button
+        self._groups = (layout_combo.parentWidget(), gain_combo.parentWidget())
+        self._refreshing = False
+        self._refresh_pending = False
+        for widget in self._watched_widgets():
+            widget.installEventFilter(self)
+        self.refresh()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if event.type() in self._METRIC_EVENTS and not self._refresh_pending:
+            # Event filters run before QWidget processes the metric-changing
+            # event. Queue one receiver-owned refresh so size hints have been
+            # invalidated first; Qt drops the call if this owner is destroyed.
+            self._refresh_pending = True
+            QMetaObject.invokeMethod(  # type: ignore[call-overload]
+                self,
+                "_refresh_after_metric_change",
+                Qt.ConnectionType.QueuedConnection,
+            )
+        return super().eventFilter(watched, event)
+
+    @Slot()
+    def _refresh_after_metric_change(self) -> None:
+        self._refresh_pending = False
+        self.refresh()
+
+    def refresh(self) -> None:
+        """Recompute actionable floors from the current Qt font and style metrics."""
+
+        if self._refreshing:
+            return
+        self._refreshing = True
+        try:
+            page_layout = self._page_group.layout()
+            self._page_group.setMinimumWidth(0)
+            page_policy = self._page_group.sizePolicy()
+            page_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+            self._page_group.setSizePolicy(page_policy)
+            if isinstance(page_layout, QHBoxLayout):
+                page_layout.invalidate()
+                # The two zero-minimum eliding labels still need one boundary
+                # pixel each to remain inside the native host rectangle.
+                self._page_group.setMinimumWidth(page_layout.minimumSize().width() + 2)
+            self._page_group.updateGeometry()
+
+            for button in (self._clear_button, self._keep_button):
+                button.setMinimumWidth(0)
+                policy = button.sizePolicy()
+                policy.setHorizontalPolicy(QSizePolicy.Policy.Minimum)
+                button.setSizePolicy(policy)
+                button.setMinimumWidth(_natural_width(button))
+                button.updateGeometry()
+
+            for combo in (self._layout_combo, self._gain_combo):
+                # Release legacy fixed reservations before asking Qt for the
+                # widest item plus the current style's frame/drop-down chrome.
+                combo.setMinimumWidth(0)
+                combo.setMaximumWidth(_QT_WIDGET_SIZE_MAX)
+                combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+                policy = combo.sizePolicy()
+                policy.setHorizontalPolicy(QSizePolicy.Policy.MinimumExpanding)
+                combo.setSizePolicy(policy)
+                combo.setMinimumWidth(_natural_width(combo))
+                combo.updateGeometry()
+
+            for group in self._groups:
+                if not isinstance(group, QWidget):
+                    continue
+                group_layout = group.layout()
+                group.setMinimumWidth(0)
+                policy = group.sizePolicy()
+                policy.setHorizontalPolicy(QSizePolicy.Policy.MinimumExpanding)
+                group.setSizePolicy(policy)
+                if isinstance(group_layout, QHBoxLayout):
+                    group_layout.invalidate()
+                    group.setMinimumWidth(max(group_layout.minimumSize().width(), 1))
+                group.updateGeometry()
+            self._command_layout.invalidate()
+            self._command_layout.activate()
+        finally:
+            self._refreshing = False
+
+    def _watched_widgets(self) -> tuple[QWidget, ...]:
+        widgets: list[QWidget] = []
+        if isinstance(self._window, QWidget):
+            widgets.append(self._window)
+        widgets.extend(
+            [
+                self._page_group,
+                self._layout_combo,
+                self._gain_combo,
+                self._clear_button,
+                self._keep_button,
+            ]
+        )
+        widgets.extend(group for group in self._groups if isinstance(group, QWidget))
+        return tuple(widgets)
+
+
+def _install_command_row_metric_refresh(
+    window: Any,
+    command_layout: QHBoxLayout,
+    page_group: object,
+    layout_combo: object,
+    gain_combo: object,
+    clear_button: object,
+    keep_button: object,
+) -> None:
+    """Install or refresh the one content-floor owner for the composed command row."""
+
+    existing = getattr(window, "_command_row_metric_refresh", None)
+    if isinstance(existing, _CommandRowMetricRefresh):
+        existing.refresh()
+        return
+    if not (
+        isinstance(page_group, QWidget)
+        and isinstance(layout_combo, QComboBox)
+        and isinstance(gain_combo, QComboBox)
+        and isinstance(clear_button, QAbstractButton)
+        and isinstance(keep_button, QAbstractButton)
+    ):
+        return
+    owner = _CommandRowMetricRefresh(
+        window,
+        command_layout,
+        page_group,
+        layout_combo,
+        gain_combo,
+        clear_button,
+        keep_button,
+    )
+    window._command_row_metric_refresh = owner
+
+
 def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     """Bound the composed Image command row without changing command ownership."""
 
-    layout.setSpacing(TOKENS.spacing_md)
+    layout.setSpacing(TOKENS.spacing_sm)
 
     layout_selector = getattr(window, "layout_selector", None)
     layout_group = (
@@ -212,6 +372,9 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     page_layout = page_group.layout() if isinstance(page_group, QWidget) else None
     if isinstance(page_layout, QHBoxLayout):
         page_layout.setSpacing(TOKENS.spacing_xs)
+        if isinstance(page_group, QWidget):
+            page_group.setMinimumWidth(0)
+        page_layout.invalidate()
     gain_group = window.findChild(QWidget, "DisplayGainControl")
     review = getattr(window, "review_selection_controller", None)
     count_label = getattr(review, "count_label", None)
@@ -219,12 +382,8 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     keep_button = getattr(review, "keep_button", None)
 
     compact_groups = (
-        (layout_group, _COMPACT_LAYOUT_GROUP_WIDTH, 1),
-        (page_group, _COMPACT_PAGE_GROUP_WIDTH, 4),
-        (gain_group, _COMPACT_GAIN_GROUP_WIDTH, 1),
+        (page_group, 0, 4),
         (count_label, _COMPACT_PICK_COUNT_WIDTH, 1),
-        (clear_button, _COMPACT_CURATION_ACTION_WIDTH, 1),
-        (keep_button, _COMPACT_CURATION_ACTION_WIDTH, 1),
     )
     for widget, minimum_width, stretch in compact_groups:
         if not isinstance(widget, QWidget):
@@ -242,15 +401,40 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         gain_label.setToolTip(full_name)
 
     if isinstance(clear_button, QAbstractButton):
+        clear_button.setText("Clear")
         clear_button.setAccessibleName("Clear Selection")
         clear_button.setToolTip(
             "Clear Selection: clear temporary Picks without changing Files Selected"
         )
     if isinstance(keep_button, QAbstractButton):
+        keep_button.setText("Keep")
         keep_button.setAccessibleName("Keep Selection")
         keep_button.setToolTip(
             "Keep Selection: replace Files Selected with temporary Picks in original order"
         )
+
+    gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
+    _install_command_row_metric_refresh(
+        window,
+        layout,
+        page_group,
+        layout_selector,
+        gain_combo,
+        clear_button,
+        keep_button,
+    )
+
+    for widget, stretch in (
+        (layout_group, 1),
+        (gain_group, 1),
+        (clear_button, 1),
+        (keep_button, 1),
+    ):
+        if not isinstance(widget, QWidget):
+            continue
+        index = layout.indexOf(widget)
+        if index >= 0:
+            layout.setStretch(index, stretch)
 
     # Keep some ordinary trailing breathing room, while allowing command groups to
     # receive surplus width again on a wide/FHD desktop.
@@ -390,9 +574,9 @@ def polish_presentation_controls(window: Any) -> None:
     host.setStyleSheet(_presentation_controls_style())
     host.setMinimumHeight(TOKENS.control_height + 2 * TOKENS.spacing_xs)
     layout.setContentsMargins(
-        TOKENS.spacing_md,
+        TOKENS.spacing_sm,
         TOKENS.spacing_xs,
-        TOKENS.spacing_md,
+        TOKENS.spacing_sm,
         TOKENS.spacing_xs,
     )
     layout.setSpacing(TOKENS.spacing_md)
