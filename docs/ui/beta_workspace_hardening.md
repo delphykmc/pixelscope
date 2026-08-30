@@ -420,6 +420,11 @@ the watchdog or the reproduced native diagnostics. This is direct native lifecyc
 evidence, but it does not replace the remaining interactive DPI/multi-monitor/dock-drag
 owner checklist.
 
+The final fix-loop full offscreen suite reported 1069 passed, one Windows
+symlink-privilege skip, and the same two proven pre-existing failures in 360.00 seconds.
+The workflow Page-reservation regression now asserts the bounded/eliding metadata contract
+instead of the superseded fixed-width reservation.
+
 ## Windows manual Beta checklist
 
 1. **Single monitor:** enter Two Image, open IQA, then resize through narrow/wide widths

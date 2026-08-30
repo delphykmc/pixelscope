@@ -223,6 +223,11 @@ normalization does not overwrite the saved topology used on the next launch.
 - 2026-08-30: bounded Windows-native shutdown probes passed docked Plots plus Plots/IQA
   visible, hidden, maximized, and restored states: all nine processes exited 0 in
   0.64–0.67 seconds, with no watchdog, `WM_DESTROY`, or `GetDC` diagnostic.
+- 2026-08-30: the workflow Page-reservation regression was updated from its superseded
+  fixed-width assertion to the compact bounded/eliding contract. The related presentation
+  group passed 40 tests in 21.25 seconds. Final full offscreen pytest then completed with
+  1069 passed, one Windows symlink-privilege skip, and the same two proven pre-existing
+  failures in 360.00 seconds; no new failure remained.
 
 ## Completion summary
 
@@ -231,8 +236,9 @@ normalization does not overwrite the saved topology used on the next launch.
   and clean native floating-workspace shutdown are implemented.
 - Changed files: implementation/tests/docs are recorded in the branch diff; the final
   exact-head list remains subject to re-review.
-- Validation results: focused 114 PASS; full pytest 1058 PASS / 1 SKIP / 2 proven
-  pre-existing failures; static/docs checks as recorded above; independent review pending.
+- Validation results: initial focused 114 PASS; fix-loop focused 86 PASS and related
+  presentation 40 PASS; final full pytest 1069 PASS / 1 SKIP / 2 proven pre-existing
+  failures; static/docs and native checks as recorded above; exact-head re-review pending.
 - Remaining limitations: owner Windows DPI/multi-monitor/dock-drag qualification remains
   required; the bounded native probes do not replace that interactive matrix.
 - Follow-up issues: none identified inside Pass 2; exact-head re-review is pending.
