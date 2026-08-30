@@ -1,6 +1,6 @@
 # Execution plan: Beta UI DPI command-row follow-up
 
-Status: Active — functional review passed; documentation correction and final re-review pending
+Status: Complete — integrated into draft PR #68 and independently reviewed at exact head
 Owner: ChatGPT orchestrator with independent review
 Branch/PR: `codex/beta-ui-hardening-pass2` / draft PR #68
 Source experiment: stacked draft PR #69 at `db52ad053dfca6ff35a4d741dd30b0022c292e86`
@@ -72,7 +72,14 @@ acceptance, accessibility, and one presentation-hardening authority.
   functional integration and requested two documentation/provenance corrections:
   reconcile three remaining full-label descriptions and update the PR body plan and
   selective-integration record. The PR body is corrected; the durable terminology
-  corrections are pending a documentation-only commit and exact-head re-review.
+  corrections were committed separately at `79002a8`.
+- 2026-08-30: final independent review passed exact pushed PR #68 head `79002a8`.
+  The reviewer confirmed the compact visible-label terminology, full accessible
+  semantics, narrow cumulative document diff, PR plan links and provenance, absence
+  of PR #69 cherry-picks, and byte-for-byte unchanged functional integration from
+  reviewed parent `86dd0eb`. Reviewer-observed checks passed: documentation contract,
+  one documentation unit test, 15 focused offscreen UI tests, and incremental/full
+  `git diff --check`. No hosted PR checks are configured.
 
 ## Validation targets
 
@@ -84,7 +91,8 @@ acceptance, accessibility, and one presentation-hardening authority.
 
 ## Completion conditions
 
-- PR #68 exact head passes independent review with no unanswered PR #69 follow-up item.
+- PR #68 exact head `79002a8` passed independent review with no unanswered PR #69
+  follow-up item.
 - PR #69 remains an unmerged experimental Draft and its negative IQA experiment is not
   present in PR #68.
 - Remaining manual constraints and the actual commit/GitHub attribution method are
