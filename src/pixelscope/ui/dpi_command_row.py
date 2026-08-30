@@ -4,7 +4,10 @@ from typing import Any
 
 from PySide6.QtWidgets import QAbstractButton, QComboBox, QHBoxLayout, QSizePolicy, QWidget
 
+from pixelscope.ui.design_tokens import TOKENS
+
 _QT_WIDGET_SIZE_MAX = 16_777_215
+_COMBO_BREATHING_ROOM = TOKENS.spacing_md
 
 
 def _natural_width(widget: QWidget) -> int:
@@ -33,31 +36,29 @@ def _set_compact_button(
     button.updateGeometry()
 
 
-def _set_compact_gain_combo(combo: QComboBox) -> None:
-    """Size the short Gain selector from its real items and native combo chrome."""
+def _set_content_aware_combo(combo: QComboBox) -> None:
+    """Keep native combo chrome visible and let surplus row width improve readability."""
 
-    # install_display_gain_control() historically reserved 70 logical px with
-    # setFixedWidth(). Release that fixed width before asking the current Qt style
-    # for a content-derived hint. AdjustToContents accounts for the widest item as
-    # well as the platform combo-box frame/drop-down subcontrol.
+    # Release any legacy fixed-width reservation before asking the current Qt
+    # font/style for the widest item plus the native frame/drop-down subcontrol.
     combo.setMinimumWidth(0)
     combo.setMaximumWidth(_QT_WIDGET_SIZE_MAX)
     combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-    natural_width = _natural_width(combo)
+    natural_width = _natural_width(combo) + _COMBO_BREATHING_ROOM
     combo.setMinimumWidth(natural_width)
     policy = combo.sizePolicy()
-    policy.setHorizontalPolicy(QSizePolicy.Policy.Fixed)
+    policy.setHorizontalPolicy(QSizePolicy.Policy.MinimumExpanding)
     combo.setSizePolicy(policy)
     combo.updateGeometry()
 
 
-def _set_gain_group_floor(group: QWidget) -> None:
-    """Prevent the Gain host from becoming narrower than its label/combo layout."""
+def _set_group_floor(group: QWidget) -> None:
+    """Prevent a compact command group from undercutting its actionable children."""
 
     layout = group.layout()
     group.setMinimumWidth(0)
     policy = group.sizePolicy()
-    policy.setHorizontalPolicy(QSizePolicy.Policy.Minimum)
+    policy.setHorizontalPolicy(QSizePolicy.Policy.MinimumExpanding)
     group.setSizePolicy(policy)
     if isinstance(layout, QHBoxLayout):
         layout.invalidate()
@@ -69,6 +70,8 @@ def _set_gain_group_floor(group: QWidget) -> None:
 def install_dpi_safe_command_row(window: Any) -> None:
     """Apply content-aware floors to compact Image commands after PR #68 hardening."""
 
+    layout_combo = getattr(window, "layout_selector", None)
+    layout_group = layout_combo.parentWidget() if isinstance(layout_combo, QComboBox) else None
     gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
     gain_group = window.findChild(QWidget, "DisplayGainControl")
     review = getattr(window, "review_selection_controller", None)
@@ -87,7 +90,11 @@ def install_dpi_safe_command_row(window: Any) -> None:
             compact_text="Keep",
             accessible_name="Keep Selection",
         )
-    if isinstance(gain_combo, QComboBox):
-        _set_compact_gain_combo(gain_combo)
-    if isinstance(gain_group, QWidget):
-        _set_gain_group_floor(gain_group)
+
+    for combo in (layout_combo, gain_combo):
+        if isinstance(combo, QComboBox):
+            _set_content_aware_combo(combo)
+
+    for group in (layout_group, gain_group):
+        if isinstance(group, QWidget):
+            _set_group_floor(group)
