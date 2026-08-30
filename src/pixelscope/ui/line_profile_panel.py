@@ -25,21 +25,8 @@ from pixelscope.core.line_profile import (
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, image_marker_symbol, line_profile_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
-from pixelscope.ui.responsive_control_layout import ResponsiveControlLayout
+from pixelscope.ui.responsive_control_layout import ElidingContextLabel, ResponsiveControlLayout
 from pixelscope.workers.task_worker import TaskError, TaskWorker
-
-
-class _WrappingStatusLabel(QLabel):
-    """Keep complete Line Profile status available when the row wraps."""
-
-    def __init__(self, text: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setText(text)
-
-    def setText(self, text: str) -> None:
-        super().setText(text)
-        self.setToolTip(text)
-        self.setAccessibleName(text)
 
 
 class LineProfilePanel(QWidget):
@@ -63,13 +50,8 @@ class LineProfilePanel(QWidget):
         self._reference_priority_ids: tuple[str, ...] = ()
         self._reference_locked = False
 
-        self.status = _WrappingStatusLabel("Alt+drag on an image to set a line profile")
-        self.status.setWordWrap(True)
-        self.status.setMinimumWidth(0)
-        self.status.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Preferred,
-        )
+        self.status = ElidingContextLabel()
+        self.status.hide()
         self.view_mode = QComboBox()
         self.view_mode.addItems(("Overlay", "Separate by image", "Separate by channel"))
         self.y_mode = QComboBox()
@@ -126,6 +108,7 @@ class LineProfilePanel(QWidget):
             )
             self.channel_buttons[name] = button
             controls.add_control(button, compact_row=1)
+        controls.add_context(self.status, compact_row=2)
         for combo in (self.view_mode, self.y_mode, self.x_mode):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._plot_options_changed
@@ -168,7 +151,6 @@ class LineProfilePanel(QWidget):
         layout.setContentsMargins(4, 2, 4, 4)
         layout.setSpacing(TOKENS.spacing_xs)
         layout.addWidget(controls_widget)
-        layout.addWidget(self.status)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -608,12 +590,11 @@ class LineProfilePanel(QWidget):
         self._plot_channel_filters = [None] * 6
         self._profile_series = [[] for _index in range(6)]
         self._set_axes_visible(False)
-        self._set_status("Alt+drag on an image to set a line profile")
+        self._set_status("")
 
     def _set_status(self, text: str) -> None:
         self.status.setText(text)
-        self.status.setToolTip(text)
-        self.status.setAccessibleName(text)
+        self.status.setVisible(bool(text))
 
     def _create_hover_items(self, plot_index: int) -> None:
         line = pg.InfiniteLine(

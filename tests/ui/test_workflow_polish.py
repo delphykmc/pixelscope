@@ -167,10 +167,15 @@ def test_difference_and_plot_empty_states_are_consistent(qtbot: object) -> None:
     line_panel.set_documents([first], None)
     assert "Draw a line" in line_panel.workflow_empty_hint.text()
     assert "Shift + drag" in line_panel.workflow_empty_hint.text()
-    assert "Shift+drag" in line_panel.status.text()
-    assert "Alt+drag" not in line_panel.status.text()
+    assert line_panel.status.text() == ""
+    assert line_panel.status.isHidden()
     line_panel.set_documents([first], LineSelection(0, 0, 1, 1))
     assert line_panel.workflow_empty_hint.isHidden()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: line_panel.status.text() == "(0, 0) to (1, 1)",
+        timeout=3000,
+    )
+    assert not line_panel.status.isHidden()
 
 
 def test_difference_hint_hides_in_flight_and_stays_hidden_for_uncached_result(

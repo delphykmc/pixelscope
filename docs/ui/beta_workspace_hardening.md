@@ -285,8 +285,13 @@ Line Profile now use one content-driven responsive layout: controls retain the o
 single row whenever their live size hints fit, and reflow to the compact two-row grouping
 only under constraint. Visible Reference controls participate in the fit calculation, and
 the same widgets move between rows without changing their values, signals, or ownership.
-Line Profile status remains a separate wrapping row with complete tooltip/accessibility
-text. Existing plot mode, channel, Reference, hover, and analysis ownership is unchanged.
+One elastic context value is right-aligned in that same wide row: Histogram mirrors the
+existing Analysis bounds string (`x`, `y`, `width`, `height`) for full-image or ROI input,
+while Line Profile shows progress/errors and the selected endpoints. Context can occupy a
+later compact row when constrained and paint-elides while keeping complete tooltip and
+accessibility text. With no line, the header context is hidden; the plot-area hint remains
+the sole empty instruction. Existing plot mode, channel, Reference, hover, and analysis
+ownership is unchanged.
 
 The structured status bar keeps complete filename and pixel-summary strings as its
 logical label text while painting an elided representation inside the allocated width.
@@ -363,8 +368,9 @@ Page/Display Gain/Pick/Clear/Keep access.
 
 `tests/ui/test_beta_pass2_component_resize.py` covers inactive Plots page hints,
 single-row wide presentation, compact fallback, resize state preservation, complete
-status tooltip/accessibility retention, RAW scroll/footer reachability, and compact
-Settings page/footer access.
+context tooltip/accessibility retention, full-image/ROI Histogram bounds, Line endpoints,
+empty-context hiding, RAW scroll/footer reachability, and compact Settings page/footer
+access.
 
 `tests/ui/test_beta_pass2_iqa_stress.py` covers deterministic small, normal, and stress
 result models; bounded initial series/hover/ticks; variant markers; checklist opt-in; and
@@ -402,16 +408,20 @@ behavior was changed to manufacture a full-suite PASS.
 
 ### Owner-validation findings resolved in the Pass 2 fix loop
 
-Owner Windows validation after the implementation head found two in-scope issues:
+Owner Windows validation after the implementation head found three in-scope issues across
+two follow-up rounds:
 
 1. Plots displayed its constrained two-row controls even at normal wide widths.
 2. Closing Main while Plots or IQA was floating could emit native `WM_DESTROY` / invalid
    `GetDC` diagnostics and leave the process running.
+3. Line Profile duplicated empty guidance in a second header row, while Histogram lacked
+   same-row context identifying the full-image or ROI bounds used for analysis.
 
 Independent review also found that the compact Image Page group's children could overlap
 Gain/Pick at 1280 x 720 and that dynamic IQA label metadata could remain stale. The fix
 loop added responsive Plots layout, bounded/eliding Page metadata, owning IQA label
-synchronization, and the explicit floating-workspace shutdown boundary described above.
+synchronization, the explicit floating-workspace shutdown boundary described above, and a
+shared controls-left/context-right Plots header contract.
 
 On the integrated fix, Windows-native workspace/component tests passed 9 tests. A bounded
 native shutdown matrix covered docked Plots and Plots/IQA floating visible, hidden,
@@ -424,6 +434,11 @@ The final fix-loop full offscreen suite reported 1069 passed, one Windows
 symlink-privilege skip, and the same two proven pre-existing failures in 360.00 seconds.
 The workflow Page-reservation regression now asserts the bounded/eliding metadata contract
 instead of the superseded fixed-width reservation.
+
+After the additional Plots context-row follow-up, integrated affected validation reported
+54 passed with only the protected Bayer `Gr@1` failure, Windows-native header/context
+validation passed 13 tests, and the full offscreen suite remained 1069 passed, one skip,
+and the same two pre-existing failures in 367.83 seconds.
 
 ## Windows manual Beta checklist
 
@@ -475,8 +490,11 @@ instead of the superseded fixed-width reservation.
     enable additional attributes explicitly, expand multiple attribute summaries, and
     confirm Scene selection/Inspect still identifies the correct Scene.
 18. Give Histogram and Line Profile ample width and confirm each control surface uses one
-    row. Narrow the dock until the compact fallback appears, then widen it and confirm
-    control values, Reference choice, channel toggles, and plot content are preserved.
+    row, with controls left and Histogram bounds / Line endpoints right-aligned. Confirm
+    full-image and ROI bounds, then clear the line and verify its header context disappears
+    while the plot hint remains. Narrow the dock until the compact fallback appears, then
+    widen it and confirm control values, Reference choice, channel toggles, and plot content
+    are preserved.
 19. Exit PixelScope independently with Plots and IQA floating in visible, hidden,
     maximized, and restored states. Confirm the process returns control without native
     `WM_DESTROY`/`GetDC` diagnostics, then relaunch and confirm the saved topology and

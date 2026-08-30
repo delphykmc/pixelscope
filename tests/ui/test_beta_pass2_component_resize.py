@@ -7,6 +7,8 @@ from PySide6.QtWidgets import QDialogButtonBox, QScrollArea, QTabWidget
 
 from pixelscope.app.settings import QSettingsAdapter, SettingsRepository
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.line_profile import LineSelection
+from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
 from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
@@ -31,6 +33,14 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     qtbot.addWidget(tabs)  # type: ignore[attr-defined]
     tabs.resize(1400, 420)
     tabs.show()
+    documents = [
+        ImageDocument.from_array(
+            np.zeros((4, 8, 3), dtype=np.uint8),
+            f"reference-{index}.png",
+        )
+        for index in range(2)
+    ]
+    analysis.set_documents(documents, None)
 
     line_combo_widths = sum(
         combo.minimumSizeHint().width()
@@ -74,6 +84,18 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     )
     histogram_y_positions = [control.geometry().y() for control in histogram_controls]
     assert max(histogram_y_positions) - min(histogram_y_positions) <= 4
+    assert analysis.histogram_context.text() == "x=0, y=0, width=8, height=4"
+    assert analysis.histogram_context.geometry().y() == analysis.histogram_mode.geometry().y()
+    assert analysis.histogram_context.geometry().left() > analysis.histogram_bins.geometry().right()
+    histogram_header = analysis.histogram_context.parentWidget()
+    assert histogram_header is not None
+    histogram_header_layout = histogram_header.layout()
+    assert histogram_header_layout is not None
+    assert analysis.histogram_context.geometry().right() == (
+        histogram_header.width() - histogram_header_layout.contentsMargins().right() - 1
+    )
+    assert analysis.histogram_context.toolTip() == analysis.histogram_context.text()
+    assert analysis.histogram_context.accessibleName() == analysis.histogram_context.text()
 
     tabs.resize(560, 420)
     qtbot.wait(20)  # type: ignore[attr-defined]
@@ -94,15 +116,15 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert histogram_changes == []
     assert tabs.minimumSizeHint().width() < histogram_combo_widths
 
+    analysis.set_documents(documents, RoiBounds(1, 1, 3, 2), "Active ROI")
+    assert analysis.histogram_context.text() == "x=1, y=1, width=3, height=2"
+    assert analysis.histogram_context.geometry().y() > analysis.histogram_range.geometry().y()
+    analysis.clear()
+    assert analysis.histogram_context.isHidden()
+
     tabs.setCurrentWidget(line)
-    documents = [
-        ImageDocument.from_array(
-            np.zeros((4, 8, 3), dtype=np.uint8),
-            f"reference-{index}.png",
-        )
-        for index in range(2)
-    ]
-    line.set_documents(documents, None)
+    selection = LineSelection(0, 0, 7, 3)
+    line.set_documents(documents, selection)
     line.y_mode.setCurrentText("Difference from reference")
     line.view_mode.setCurrentText("Separate by channel")
     line.x_mode.setCurrentText("Normalized distance")
@@ -118,17 +140,32 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
         line.y_mode,
         line.x_mode,
         line.reference_selector,
-        *line.channel_buttons.values(),
+        line.channel_buttons["R"],
+        line.channel_buttons["G"],
+        line.channel_buttons["B"],
     )
     assert line.view_mode.isVisible() and line.view_mode.width() > 0
     assert line.y_mode.isVisible() and line.y_mode.width() > 0
     assert line.x_mode.isVisible() and line.x_mode.width() > 0
     assert line.reference_selector.isVisible() and line.reference_selector.width() > 0
-    assert all(
-        button.isVisible() and button.width() > 0 for button in line.channel_buttons.values()
-    )
+    assert all(button.isVisible() and button.width() > 0 for button in line_controls[4:])
+    assert line.channel_buttons["Gr"].isHidden()
+    assert line.channel_buttons["Gb"].isHidden()
     line_y_positions = [control.geometry().y() for control in line_controls]
     assert max(line_y_positions) - min(line_y_positions) <= 4
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: line.status.text() == "(0, 0) to (7, 3)",
+        timeout=3000,
+    )
+    assert line.status.geometry().y() == line.view_mode.geometry().y()
+    assert line.status.geometry().left() > line.reference_selector.geometry().right()
+    line_header = line.status.parentWidget()
+    assert line_header is not None
+    line_header_layout = line_header.layout()
+    assert line_header_layout is not None
+    assert line.status.geometry().right() == (
+        line_header.width() - line_header_layout.contentsMargins().right() - 1
+    )
 
     tabs.resize(560, 420)
     qtbot.wait(20)  # type: ignore[attr-defined]
@@ -149,6 +186,9 @@ def test_plot_controls_use_wide_row_and_narrow_fallback_without_state_loss(
     assert max(line_y_positions) - min(line_y_positions) <= 4
     assert line.reference_selector.currentIndex() == 1
     assert line_changes == []
+
+    line.clear_selection()
+    assert line.status.isHidden()
 
     full_status = "Line profile coordinates " + "1234567890" * 20
     line._set_status(full_status)

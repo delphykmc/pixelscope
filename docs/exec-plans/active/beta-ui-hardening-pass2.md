@@ -28,6 +28,8 @@ exact-head review. Remote IQA production-server integration is excluded.
 - record automated evidence separately from owner-only Windows/DPI/multi-monitor checks.
 - resolve owner-observed wide-layout degradation and floating Plots/IQA shutdown hangs
   without replacing Qt's dock/persistence authority.
+- align Histogram and Line Profile headers around one controls-left/context-right
+  information hierarchy without duplicating plot empty-state guidance.
 
 ### Out of scope
 
@@ -120,6 +122,11 @@ presentation is retained whenever the live controls fit, and the compact two-row
 is used only under constraint. The same widgets are repositioned, so resize does not
 dispatch analysis or replace selection, Reference, channel, or signal state.
 
+The responsive layout also owns one elastic, right-aligned analysis-context slot.
+Histogram mirrors the existing Analysis bounds representation for full-image or ROI input;
+Line Profile shows progress/errors and selected endpoints there. When no line exists, the
+context is hidden and the existing plot-area hint remains the sole instructional surface.
+
 Main-window shutdown persists the user's floating/visible state first, then quiesces
 owned geometry/transient-parent timers and synchronously hides and re-docks managed
 floating workspaces while the main native window remains valid. This teardown-only
@@ -153,6 +160,13 @@ normalization does not overwrite the saved topology used on the next launch.
      dynamic metadata stays current; native Plots/IQA floating states exit cleanly.
    - Tests: wide/narrow/state-preservation, containment/non-overlap, real IQA transitions,
      teardown order/persistence, and bounded Windows-native process probes.
+6. **Plots information-row consistency follow-up**
+   - Files/components: responsive control layout, Histogram bounds, Line Profile context,
+     and workflow empty-state composition.
+   - Observable result: normal-width controls remain left in one row while Histogram
+     bounds or Line endpoints are right-aligned; empty guidance exists only in the plot.
+   - Tests: wide/right alignment, compact reflow, full/ROI bounds, selected endpoints,
+     empty-context visibility, and state/accessibility retention.
 
 ## Validation plan
 
@@ -228,17 +242,28 @@ normalization does not overwrite the saved topology used on the next launch.
   group passed 40 tests in 21.25 seconds. Final full offscreen pytest then completed with
   1069 passed, one Windows symlink-privilege skip, and the same two proven pre-existing
   failures in 360.00 seconds; no new failure remained.
+- 2026-08-30: an additional owner request identified inconsistent Plots information rows:
+  Line Profile duplicated empty guidance below its controls while Histogram did not show
+  the analysis bounds. The follow-up added one right-aligned responsive context slot,
+  mirrored full-image/ROI bounds, moved endpoints into the header, and removed the
+  duplicate empty header instruction.
+- 2026-08-30: integrated Plots/Analysis/workspace validation reported 54 passed and only
+  the protected Bayer `Gr@1` failure in 22.31 seconds. Windows-native context-row tests
+  passed 13 tests in 6.82 seconds. Full offscreen pytest remained 1069 passed, one skip,
+  and the same two proven pre-existing failures in 367.83 seconds.
 
 ## Completion summary
 
 - Delivered behavior: production-composed workspace, responsive Plots, compact
   status/dialogs, current IQA accessibility metadata, bounded IQA stress presentation,
-  and clean native floating-workspace shutdown are implemented.
+  consistent bounds/endpoint header context, and clean native floating-workspace shutdown
+  are implemented.
 - Changed files: implementation/tests/docs are recorded in the branch diff; the final
   exact-head list remains subject to re-review.
 - Validation results: initial focused 114 PASS; fix-loop focused 86 PASS and related
-  presentation 40 PASS; final full pytest 1069 PASS / 1 SKIP / 2 proven pre-existing
-  failures; static/docs and native checks as recorded above; exact-head re-review pending.
+  presentation 40 PASS; context-row focused 54 PASS / 1 protected known failure and native
+  13 PASS; latest full pytest 1069 PASS / 1 SKIP / 2 proven pre-existing failures;
+  static/docs and native checks as recorded above; exact-head re-review pending.
 - Remaining limitations: owner Windows DPI/multi-monitor/dock-drag qualification remains
   required; the bounded native probes do not replace that interactive matrix.
 - Follow-up issues: none identified inside Pass 2; exact-head re-review is pending.

@@ -1,7 +1,49 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QRect, QSize
-from PySide6.QtWidgets import QLayout, QLayoutItem, QSizePolicy, QWidget
+from PySide6.QtCore import QRect, QSize, Qt
+from PySide6.QtGui import QPainter, QPaintEvent, QPalette
+from PySide6.QtWidgets import QLabel, QLayout, QLayoutItem, QSizePolicy, QWidget
+
+
+class ElidingContextLabel(QLabel):
+    """Paint bounded context while retaining its complete logical text."""
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setText(text)
+
+    def setText(self, text: str) -> None:
+        super().setText(text)
+        self.setToolTip(text)
+        self.setAccessibleName(text)
+        self.setAccessibleDescription(text)
+
+    def minimumSizeHint(self) -> QSize:
+        hint = super().minimumSizeHint()
+        return QSize(0, hint.height())
+
+    def _paint_text(self) -> str:
+        return self.fontMetrics().elidedText(
+            self.text(),
+            Qt.TextElideMode.ElideLeft,
+            max(0, self.contentsRect().width()),
+        )
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        del event
+        painter = QPainter(self)
+        self.style().drawItemText(
+            painter,
+            self.contentsRect(),
+            self.alignment(),
+            self.palette(),
+            self.isEnabled(),
+            self._paint_text(),
+            QPalette.ColorRole.WindowText,
+        )
 
 
 class ResponsiveControlLayout(QLayout):
@@ -12,10 +54,20 @@ class ResponsiveControlLayout(QLayout):
         self.setSpacing(spacing)
         self._items: list[tuple[QLayoutItem, int]] = []
         self._next_compact_row = 0
+        self._context_item: QLayoutItem | None = None
 
     def add_control(self, widget: QWidget, *, compact_row: int) -> None:
         self._next_compact_row = compact_row
         self.addWidget(widget)
+
+    def add_context(self, widget: QWidget, *, compact_row: int) -> None:
+        """Add the one context value, right-aligned in wide and compact rows."""
+
+        if self._context_item is not None:
+            raise ValueError("ResponsiveControlLayout accepts only one context item")
+        self._next_compact_row = compact_row
+        self.addWidget(widget)
+        self._context_item = self._items[-1][0]
 
     def addItem(self, item: QLayoutItem) -> None:
         self._items.append((item, self._next_compact_row))
@@ -30,7 +82,10 @@ class ResponsiveControlLayout(QLayout):
 
     def takeAt(self, index: int) -> QLayoutItem | None:  # type: ignore[override]
         if 0 <= index < len(self._items):
-            return self._items.pop(index)[0]
+            item = self._items.pop(index)[0]
+            if item is self._context_item:
+                self._context_item = None
+            return item
         return None
 
     def hasHeightForWidth(self) -> bool:
@@ -77,7 +132,7 @@ class ResponsiveControlLayout(QLayout):
         if not visible:
             return []
         wide_row = [item for item, _row in visible]
-        if width >= self._row_width(wide_row, minimum=False):
+        if width >= self._wide_row_width(wide_row):
             return [wide_row]
         row_numbers = sorted({row for _item, row in visible})
         return [[item for item, item_row in visible if item_row == row] for row in row_numbers]
@@ -100,6 +155,17 @@ class ResponsiveControlLayout(QLayout):
     def _row_width(self, row: list[QLayoutItem], *, minimum: bool) -> int:
         widths = [
             item.minimumSize().width() if minimum else self._preferred_width(item) for item in row
+        ]
+        return sum(widths) + max(0, len(row) - 1) * self.spacing()
+
+    def _wide_row_width(self, row: list[QLayoutItem]) -> int:
+        """Keep context elastic so its full text does not trigger compact reflow."""
+
+        widths = [
+            item.minimumSize().width()
+            if item is self._context_item
+            else self._preferred_width(item)
+            for item in row
         ]
         return sum(widths) + max(0, len(row) - 1) * self.spacing()
 
@@ -126,6 +192,10 @@ class ResponsiveControlLayout(QLayout):
         spacing = self.spacing()
         desired = [self._preferred_width(item) for item in row]
         total = sum(desired) + max(0, len(row) - 1) * spacing
+        context_index = next(
+            (index for index, item in enumerate(row) if item is self._context_item),
+            None,
+        )
         flexible = [
             index
             for index, item in enumerate(row)
@@ -134,6 +204,16 @@ class ResponsiveControlLayout(QLayout):
             in (QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
         ]
         overflow = max(0, total - rect.width())
+        if overflow > 0 and context_index is not None:
+            context_minimum = row[context_index].minimumSize().width()
+            applied = min(
+                overflow,
+                max(0, desired[context_index] - context_minimum),
+            )
+            desired[context_index] -= applied
+            overflow -= applied
+            if context_index in flexible:
+                flexible.remove(context_index)
         while overflow > 0 and flexible:
             reduction = max(1, (overflow + len(flexible) - 1) // len(flexible))
             next_flexible: list[int] = []
@@ -149,7 +229,12 @@ class ResponsiveControlLayout(QLayout):
             ):
                 break
             flexible = next_flexible
+        context_x = None
+        if context_index is not None:
+            context_x = rect.right() - desired[context_index] + 1
         x = rect.x()
-        for item, width in zip(row, desired, strict=True):
+        for index, (item, width) in enumerate(zip(row, desired, strict=True)):
+            if index == context_index and context_x is not None:
+                x = max(x, context_x)
             item.setGeometry(QRect(x, rect.y(), width, rect.height()))
             x += width + spacing

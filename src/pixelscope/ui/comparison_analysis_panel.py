@@ -48,7 +48,7 @@ from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
-from pixelscope.ui.responsive_control_layout import ResponsiveControlLayout
+from pixelscope.ui.responsive_control_layout import ElidingContextLabel, ResponsiveControlLayout
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -321,6 +321,8 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_range.addItems(("Native range", "Normalized 0–1"))
         self.histogram_bins = QComboBox()
         self.histogram_bins.addItems(("Auto", "256", "1024", "4096"))
+        self.histogram_context = ElidingContextLabel()
+        self.histogram_context.hide()
         histogram_controls_widget = QWidget()
         histogram_controls = ResponsiveControlLayout(
             histogram_controls_widget, spacing=TOKENS.spacing_sm
@@ -342,6 +344,7 @@ class ComparisonAnalysisPanel(QWidget):
         histogram_controls.add_control(histogram_channel_label, compact_row=1)
         for button in self.channel_buttons.values():
             histogram_controls.add_control(button, compact_row=1)
+        histogram_controls.add_context(self.histogram_context, compact_row=2)
         for combo in (self.histogram_mode, self.histogram_units, self.histogram_range):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._histogram_options_changed
@@ -447,6 +450,8 @@ class ComparisonAnalysisPanel(QWidget):
         self.statistics_delegate.set_separator_rows(set())
         self._clear_histogram_plots()
         self.roi_label.clear()
+        self.histogram_context.clear()
+        self.histogram_context.hide()
         self._set_activity("No images selected", busy=False)
 
     def refresh(self) -> None:
@@ -636,9 +641,10 @@ class ComparisonAnalysisPanel(QWidget):
                 return
             source = self._documents[0].source
             bounds = RoiBounds(0, 0, source.shape[1], source.shape[0])
-        self.roi_label.setText(
-            f"x={bounds.x}, y={bounds.y}, width={bounds.width}, height={bounds.height}"
-        )
+        text = f"x={bounds.x}, y={bounds.y}, width={bounds.width}, height={bounds.height}"
+        self.roi_label.setText(text)
+        self.histogram_context.setText(text)
+        self.histogram_context.show()
 
     def _set_activity(self, text: str, *, busy: bool) -> None:
         self.status.setText(text)
