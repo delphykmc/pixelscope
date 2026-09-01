@@ -61,7 +61,9 @@ def test_production_composition_preserves_recent_tags_and_folder_only_selection(
     qtbot.waitUntil(lambda: controller.is_idle, timeout=5000)  # type: ignore[attr-defined]
 
     assert [document.document_id for document in window.selected_documents] == selected_before
-    assert [document.document_id for document in window.current_comparison_documents()] == page_before
+    assert [document.document_id for document in window.current_comparison_documents()] == (
+        page_before
+    )
     assert window.central_stack.currentWidget() is presented_before
     assert window._layout_mode == layout_before
     assert window._active_document_id == active_before
