@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pixelscope.core.display_transform import DisplayTransform, to_display_uint8
-from pixelscope.core.yuv import NativeYuvFrame, bt601_full_rgb_preview
+
+if TYPE_CHECKING:
+    from pixelscope.core.yuv import NativeYuvFrame
 
 
 @dataclass
@@ -87,6 +89,8 @@ class ImageDocument:
         raw_profile: Any | None = None,
     ) -> ImageDocument:
         """Create a YUV document whose frame planes, not RGB preview, are authority."""
+
+        from pixelscope.core.yuv import bt601_full_rgb_preview
 
         preview = bt601_full_rgb_preview(frame)
         return cls(
