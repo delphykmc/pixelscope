@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtWidgets import QDialog, QMessageBox
 
@@ -53,7 +53,7 @@ class RawInputCompatibilityController:
             )
 
         key = self.window._path_key(image_input.path)
-        existing = self.window._document_id_by_path.get(key)
+        existing = cast(str | None, self.window._document_id_by_path.get(key))
         raw_profile: RawProfile | None = None
         if resolve_raw_profile:
             raw_profile = self.window._confirm_raw_profile(image_input, existing)
