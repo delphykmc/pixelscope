@@ -167,10 +167,12 @@ class DocumentListWidget(QTreeWidget):
         resident: bool = False,
     ) -> QTreeWidgetItem:
         trusted = self._registration_metadata
+        folder: Path | None
+        new_key: tuple[object, ...] | None
         if source_path is not None and trusted is not None and trusted[0] == source_path:
             folder = trusted[1]
             group_key = trusted[2]
-            new_key: tuple[object, ...] | None = trusted[3]
+            new_key = trusted[3]
         else:
             folder = source_path.parent.resolve() if source_path is not None else None
             group_key = str(folder).casefold() if folder is not None else "<generated>"
