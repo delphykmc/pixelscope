@@ -1,0 +1,645 @@
+{
+  "fixture_version": 1,
+  "generated_by": "scripts/generate_yuv_manual_fixtures.py",
+  "width": 16,
+  "height": 12,
+  "entries": [
+    {
+      "file": "01_yuv444_16x12.yuv",
+      "role": "native_yuv",
+      "layout": "YUV444",
+      "width": 16,
+      "height": 12,
+      "bit_depth": 8,
+      "plane_order": "Y+UV",
+      "chroma_order": "UV",
+      "color_matrix": "BT.601",
+      "color_range": "Full",
+      "file_size": 576,
+      "sha256": "c5319266a9334baac3e6ffc6679eb9adf487644d59bc6540764fd9d7f6c444eb",
+      "plane_shapes": {
+        "Y": [
+          12,
+          16
+        ],
+        "U": [
+          12,
+          16
+        ],
+        "V": [
+          12,
+          16
+        ]
+      },
+      "sample_counts": {
+        "Y": 192,
+        "U": 192,
+        "V": 192
+      },
+      "selected_pixels": {
+        "0,0": [
+          32,
+          32,
+          224
+        ],
+        "1,0": [
+          40,
+          49,
+          211
+        ],
+        "2,0": [
+          48,
+          66,
+          198
+        ],
+        "0,1": [
+          36,
+          43,
+          217
+        ],
+        "0,2": [
+          40,
+          54,
+          210
+        ],
+        "3,3": [
+          68,
+          116,
+          164
+        ]
+      },
+      "horizontal_line_x_0_to_15": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "U_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "V_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ]
+      },
+      "vertical_line_y_0_to_11": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "U_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "V_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      },
+      "preview_reference": "references/01_yuv444_16x12_bt601_full.png",
+      "preview_sha256": "ecb706c96517937b9769275ab8a81de7c18fbc8c0f8a6ec18b47940e8b6c76cf",
+      "variant": false
+    },
+    {
+      "file": "02_yuv422_16x12.yuv",
+      "role": "native_yuv",
+      "layout": "YUV422",
+      "width": 16,
+      "height": 12,
+      "bit_depth": 8,
+      "plane_order": "Y+UV",
+      "chroma_order": "UV",
+      "color_matrix": "BT.601",
+      "color_range": "Full",
+      "file_size": 384,
+      "sha256": "df69b4ad264b423c4057f957c11533101101851ff6406ff71f956984ca97c7a0",
+      "plane_shapes": {
+        "Y": [
+          12,
+          16
+        ],
+        "U": [
+          12,
+          8
+        ],
+        "V": [
+          12,
+          8
+        ]
+      },
+      "sample_counts": {
+        "Y": 192,
+        "U": 96,
+        "V": 96
+      },
+      "selected_pixels": {
+        "0,0": [
+          32,
+          32,
+          224
+        ],
+        "1,0": [
+          40,
+          32,
+          224
+        ],
+        "2,0": [
+          48,
+          49,
+          211
+        ],
+        "0,1": [
+          36,
+          43,
+          217
+        ],
+        "0,2": [
+          40,
+          54,
+          210
+        ],
+        "3,3": [
+          68,
+          82,
+          190
+        ]
+      },
+      "horizontal_line_x_0_to_15": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "U_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ],
+        "V_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ]
+      },
+      "vertical_line_y_0_to_11": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "U_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "V_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ]
+      },
+      "preview_reference": "references/02_yuv422_16x12_bt601_full.png",
+      "preview_sha256": "4cc91ccfb95ba0f8af7d0ad73f5778b27b6f6fad096769905a9f7d5c75a7670d",
+      "variant": false
+    },
+    {
+      "file": "03_yuv420_16x12.yuv",
+      "role": "native_yuv",
+      "layout": "YUV420",
+      "width": 16,
+      "height": 12,
+      "bit_depth": 8,
+      "plane_order": "Y+UV",
+      "chroma_order": "UV",
+      "color_matrix": "BT.601",
+      "color_range": "Full",
+      "file_size": 288,
+      "sha256": "5d2a8b644ce8502fbf8bed4d186170cc59856ba735d6496bac368bba57ea63ea",
+      "plane_shapes": {
+        "Y": [
+          12,
+          16
+        ],
+        "U": [
+          6,
+          8
+        ],
+        "V": [
+          6,
+          8
+        ]
+      },
+      "sample_counts": {
+        "Y": 192,
+        "U": 48,
+        "V": 48
+      },
+      "selected_pixels": {
+        "0,0": [
+          32,
+          32,
+          224
+        ],
+        "1,0": [
+          40,
+          32,
+          224
+        ],
+        "2,0": [
+          48,
+          49,
+          211
+        ],
+        "0,1": [
+          36,
+          32,
+          224
+        ],
+        "0,2": [
+          40,
+          43,
+          217
+        ],
+        "3,3": [
+          68,
+          60,
+          204
+        ]
+      },
+      "horizontal_line_x_0_to_15": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "U_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ],
+        "V_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ]
+      },
+      "vertical_line_y_0_to_11": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "U_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10
+        ],
+        "V_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10
+        ]
+      },
+      "preview_reference": "references/03_yuv420_16x12_bt601_full.png",
+      "preview_sha256": "986db3648a983816765191e84483076ba2aa9c9a888bbb2c77d91a9254c2c445",
+      "variant": false
+    },
+    {
+      "file": "04_yuv420_variant_16x12.yuv",
+      "role": "native_yuv",
+      "layout": "YUV420",
+      "width": 16,
+      "height": 12,
+      "bit_depth": 8,
+      "plane_order": "Y+UV",
+      "chroma_order": "UV",
+      "color_matrix": "BT.601",
+      "color_range": "Full",
+      "file_size": 288,
+      "sha256": "0aedfd8717a519b4ea45a3c827e0445614aa519da92df4393e0b1414bae9383d",
+      "plane_shapes": {
+        "Y": [
+          12,
+          16
+        ],
+        "U": [
+          6,
+          8
+        ],
+        "V": [
+          6,
+          8
+        ]
+      },
+      "sample_counts": {
+        "Y": 192,
+        "U": 48,
+        "V": 48
+      },
+      "selected_pixels": {
+        "0,0": [
+          42,
+          40,
+          216
+        ],
+        "1,0": [
+          50,
+          40,
+          216
+        ],
+        "2,0": [
+          58,
+          57,
+          203
+        ],
+        "0,1": [
+          46,
+          40,
+          216
+        ],
+        "0,2": [
+          50,
+          51,
+          209
+        ],
+        "3,3": [
+          78,
+          68,
+          196
+        ]
+      },
+      "horizontal_line_x_0_to_15": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "U_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ],
+        "V_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12,
+          14
+        ]
+      },
+      "vertical_line_y_0_to_11": {
+        "Y_positions": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "U_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10
+        ],
+        "V_positions": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10
+        ]
+      },
+      "preview_reference": "references/04_yuv420_variant_16x12_bt601_full.png",
+      "preview_sha256": "56fa4e9131ea15752256bd09f04524c0b6b0ca800abed8d1fb2301acf5b3b62c",
+      "variant": true
+    },
+    {
+      "file": "05_legacy_bayer12_imgprops_16x12.yuv",
+      "role": "generic_raw_imgprops_fallback",
+      "file_size": 384,
+      "sha256": "877eabbbcc15c4434afbbcedab47b18d8fbdc98ba5ecf55fd273dd8739386db5",
+      "sidecar": "05_legacy_bayer12_imgprops_16x12.imgprops",
+      "sidecar_sha256": "3ed1b6ec25cb6e096634e8b89490b0c30237c61734fd6b043a385f1b08357d1c",
+      "expected_profile": {
+        "width": 16,
+        "height": 12,
+        "storage_format": "unpacked",
+        "container_dtype": "uint16",
+        "endianness": "little",
+        "bit_depth": 12,
+        "bit_alignment": "lsb",
+        "channel_layout": "BAYER",
+        "bayer_pattern": "RGGB",
+        "black_level": 256,
+        "stride_bytes": 32
+      }
+    },
+    {
+      "file": "negative/yuv420_short_16x12.yuv",
+      "role": "negative_size",
+      "intended_layout": "YUV420",
+      "expected_size": 288,
+      "actual_size": 287,
+      "sha256": "7484591b34463b0ce90500e768a86e7a5506ea663800de6478f9890446a9e21e"
+    },
+    {
+      "file": "negative/yuv420_long_16x12.yuv",
+      "role": "negative_size",
+      "intended_layout": "YUV420",
+      "expected_size": 288,
+      "actual_size": 289,
+      "sha256": "dc213f113f2398b8621f174d27b3d9547d3b6e028b871d39a0974e4b158aa7d6"
+    }
+  ]
+}

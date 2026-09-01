@@ -1,0 +1,9 @@
+{
+  "width": 16,
+  "height": 12,
+  "imageType": "BAYER12",
+  "pattern": "RGGB",
+  "sensorBitWidth": 12,
+  "pedestal": 256,
+  "note": "unknown fields are intentionally ignored"
+}
