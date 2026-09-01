@@ -27,6 +27,15 @@ from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.yuv_profile import YuvProfile
 
 YUV_SESSION_LAYOUTS = frozenset({"YUV444", "YUV422", "YUV420"})
+SessionInputProfile = RawProfile | YuvProfile
+
+
+def parse_session_input_profile(payload: dict[str, Any]) -> SessionInputProfile:
+    """Dispatch Session v1's existing profile payload without changing its schema."""
+
+    if payload.get("channel_layout") in YUV_SESSION_LAYOUTS:
+        return YuvProfile.parse_obj(payload)
+    return RawProfile.parse_obj(payload)
 
 
 class ComparisonSetRepository:
@@ -169,12 +178,7 @@ class ComparisonSetRepository:
                     raise ComparisonSetError("raw_profile must be an object or null")
                 is_yuv = raw_payload.get("channel_layout") in YUV_SESSION_LAYOUTS
                 try:
-                    profile = (
-                        YuvProfile.parse_obj(raw_payload)
-                        if is_yuv
-                        else RawProfile.parse_obj(raw_payload)
-                    )
-                    raw_profile = profile.dict()
+                    raw_profile = parse_session_input_profile(raw_payload).dict()
                 except Exception as exc:  # noqa: BLE001 - normalized validation boundary
                     family = "YUV" if is_yuv else "RAW"
                     raise ComparisonSetError(f"invalid {family} profile: {exc}") from exc
