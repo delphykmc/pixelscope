@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any, cast
 
 from PySide6.QtWidgets import QDialog, QMessageBox
@@ -44,8 +43,9 @@ class RawInputCompatibilityController:
     ) -> str | None:
         """Route ``.data`` and ``.yuv`` through the same generic RAW profile flow."""
 
-        if image_input.path.suffix.casefold() == ".raw" or not is_raw_like_path(
-            image_input.path
+        if (
+            image_input.path.suffix.casefold() == ".raw"
+            or not is_raw_like_path(image_input.path)
         ):
             return self._register_input_original(
                 image_input,
