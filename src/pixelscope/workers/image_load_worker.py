@@ -8,16 +8,18 @@ from pixelscope.core.raw_display import raw_full_scale, render_raw_preview
 from pixelscope.io.image_reader import read_image
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.raw_reader import read_raw
+from pixelscope.io.yuv_profile import YuvProfile
+from pixelscope.io.yuv_reader import read_yuv
 from pixelscope.workers.task_worker import TaskWorker
 
 
 class ImageLoadWorker(TaskWorker):
-    """Background image/RAW decoder with normal TaskWorker lifecycle signals."""
+    """Background image/RAW/YUV decoder with normal TaskWorker lifecycle signals."""
 
     def __init__(
         self,
         path: str | Path,
-        raw_profile: RawProfile | None = None,
+        raw_profile: RawProfile | YuvProfile | None = None,
         *,
         require_exact_raw_size: bool = False,
     ) -> None:
@@ -26,6 +28,14 @@ class ImageLoadWorker(TaskWorker):
         def load() -> ImageDocument:
             if raw_profile is None:
                 return read_image(source_path)
+            if isinstance(raw_profile, YuvProfile):
+                frame = read_yuv(source_path, raw_profile)
+                return ImageDocument.from_yuv(
+                    frame,
+                    display_name=source_path.name,
+                    source_path=source_path,
+                    raw_profile=raw_profile,
+                )
             source = read_raw(
                 source_path,
                 raw_profile,
