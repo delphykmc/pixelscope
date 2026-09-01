@@ -151,6 +151,7 @@ def test_zero_image_folder_is_not_added_to_recent_folders(
 ) -> None:
     window = _production_window(qtbot)
     controller = window.recent_entries_controller
+    registration = window.large_folder_registration_controller
     empty = tmp_path / "empty"
     empty.mkdir()
     (empty / "notes.txt").write_text("not an image", encoding="utf-8")
@@ -161,6 +162,7 @@ def test_zero_image_folder_is_not_added_to_recent_folders(
     )
 
     window.action_map["Open Folder..."].trigger()
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
 
     assert window.statusBar().currentMessage() == "No supported images found in 1 folder(s)"
     assert controller.repository.load(RecentEntryKind.FOLDER) == ()
