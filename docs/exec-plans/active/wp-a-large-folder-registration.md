@@ -51,8 +51,15 @@ Focused deterministic coverage now includes:
 - Files-tree natural-key call count to guard against sibling rescanning.
 
 Full repository validation follows `docs/QUALITY.md`. Wall-clock timing is characterization only and is
-not an acceptance gate. The repository has no GitHub Actions workflow for this branch, so pinned
+not an acceptance gate. The repository has no GitHub Actions workflow available for this PR, so pinned
 CPython 3.10 validation must be reported from an authoritative local environment before merge.
+
+## Review status
+
+Independent review of `79546291e26564fb59498072fe1d5ea0a05d6654` requested three blockers to be
+resolved before merge. The lifecycle/serialization and production-composition coverage gaps are now
+addressed on the branch. The remaining merge gate is observed execution of the repository-required
+validation commands plus the owner-local Windows large-folder manual check.
 
 ## Manual validation required
 
