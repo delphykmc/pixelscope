@@ -43,10 +43,7 @@ class RawInputCompatibilityController:
     ) -> str | None:
         """Route ``.data`` and ``.yuv`` through the same generic RAW profile flow."""
 
-        if (
-            image_input.path.suffix.casefold() == ".raw"
-            or not is_raw_like_path(image_input.path)
-        ):
+        if image_input.path.suffix.casefold() == ".raw" or not is_raw_like_path(image_input.path):
             return self._register_input_original(
                 image_input,
                 resolve_raw_profile=resolve_raw_profile,

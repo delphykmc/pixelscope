@@ -83,10 +83,7 @@ def test_open_images_uses_exact_supported_filter(
     window.open_images()
 
     assert captured_filters == [SUPPORTED_IMAGE_FILTER]
-    assert (
-        captured_filters[0]
-        == "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw *.data *.yuv)"
-    )
+    assert captured_filters[0] == "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw *.data *.yuv)"
     assert "*.*" not in captured_filters[0]
     window.close()
 
