@@ -61,6 +61,10 @@ close/cancel after a GUI registration chunk, queued-request serialization and fi
 production-composed Recent history and Folder Display Tags, common Open Folder/drop behavior, and
 lazy-load/preload non-regression. No pass/fail criterion uses elapsed registration time.
 
+The executable acceptance gate remains the standard validation in `docs/QUALITY.md`. This repository
+currently has no GitHub Actions workflow available for this PR, so focused/full pytest, Ruff, mypy,
+pip, docs, and diff checks must be observed in the pinned CPython 3.10 environment before merge.
+
 ## Manual validation
 
 On Windows, use representative local and network folders containing hundreds to thousands of supported
