@@ -118,7 +118,7 @@ def test_raw_like_extensions_share_discovery_without_affecting_ordinary_images(
     discovered = discover_image_inputs(paths)
 
     assert [item.path.name for item in discovered] == ["a.raw", "b.data", "c.yuv", "d.png"]
-    assert RAW_LIKE_IMAGE_SUFFIXES == frozenset({".raw", ".data", ".yuv"})
+    assert frozenset({".raw", ".data", ".yuv"}) == RAW_LIKE_IMAGE_SUFFIXES
     assert "*.raw" in SUPPORTED_IMAGE_FILTER
     assert "*.data" in SUPPORTED_IMAGE_FILTER
     assert "*.yuv" in SUPPORTED_IMAGE_FILTER
