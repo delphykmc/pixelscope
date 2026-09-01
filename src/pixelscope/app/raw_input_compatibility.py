@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +23,11 @@ class RawInputCompatibilityController:
 
     def __init__(self, window: Any) -> None:
         self.window = window
-        self._register_input_original = window._register_input
-        self._confirm_raw_profile_original = window._confirm_raw_profile
-        self._ensure_loaded_original = window._ensure_loaded
+        self._register_input_original: Callable[..., str | None] = window._register_input
+        self._confirm_raw_profile_original: Callable[
+            [ImageInput, str | None], RawProfile | None
+        ] = window._confirm_raw_profile
+        self._ensure_loaded_original: Callable[[ImageDocument], None] = window._ensure_loaded
 
     def install(self) -> None:
         self.window._register_input = self.register_input
@@ -126,8 +129,10 @@ class RawInputCompatibilityController:
         """Require a RAW profile before decoding non-``.raw`` raw-like sources."""
 
         source_path = document.source_path
-        if source_path is None or source_path.suffix.casefold() == ".raw" or not is_raw_like_path(
-            source_path
+        if (
+            source_path is None
+            or source_path.suffix.casefold() == ".raw"
+            or not is_raw_like_path(source_path)
         ):
             self._ensure_loaded_original(document)
             return
@@ -216,6 +221,9 @@ class RawInputCompatibilityController:
 
 
 def install_raw_input_compatibility(window: Any) -> RawInputCompatibilityController:
+    existing = getattr(window, "raw_input_compatibility_controller", None)
+    if isinstance(existing, RawInputCompatibilityController):
+        return existing
     controller = RawInputCompatibilityController(window)
     controller.install()
     return controller

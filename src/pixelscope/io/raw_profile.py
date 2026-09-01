@@ -210,7 +210,11 @@ class RawProfile(BaseModel):
         bit_depth = _imgprops_positive_int(payload, "sensorBitWidth")
 
         image_type = payload.get("imageType")
-        match = _IMGPROPS_BAYER_RE.fullmatch(image_type.strip()) if isinstance(image_type, str) else None
+        match = (
+            _IMGPROPS_BAYER_RE.fullmatch(image_type.strip())
+            if isinstance(image_type, str)
+            else None
+        )
         if match is None:
             raise ValueError(".imgprops imageType must use BAYER<n> form")
         image_type_depth = int(match.group("bit_depth"))
