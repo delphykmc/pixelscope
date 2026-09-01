@@ -40,6 +40,18 @@ def test_raw_dialog_tracks_minimum_stride_until_manual_override(qtbot: object) -
     assert dialog.minimum_stride_bytes() == 180
     assert dialog.stride.value() == 192
 
+    dialog.storage_format.setCurrentIndex(dialog.storage_format.findData("unpacked"))
+    assert dialog.minimum_stride_bytes() == 240
+    assert dialog.stride.value() == 192
+
+    dialog.container.setCurrentIndex(dialog.container.findData("uint8"))
+    assert dialog.minimum_stride_bytes() == 120
+    assert dialog.stride.value() == 192
+
+    dialog.container.setCurrentIndex(dialog.container.findData("uint16"))
+    assert dialog.stride.value() == 192
+    assert not dialog.stride_is_auto
+
 
 def test_explicit_profile_stride_remains_manual(qtbot: object) -> None:
     dialog = RawOpenDialog()
