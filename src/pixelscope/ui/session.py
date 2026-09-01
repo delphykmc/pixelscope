@@ -8,8 +8,8 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
 
 from pixelscope.core.comparison_set import Session
+from pixelscope.io.comparison_set_repository import parse_session_input_profile
 from pixelscope.io.path_discovery import image_input_for_path
-from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
 from pixelscope.ui.session_restore_overlay import SessionRestoreOverlay
@@ -126,7 +126,7 @@ class SessionController(SessionControllerBase):
                 if source.raw_profile is not None:
                     self._apply_saved_raw_profile(
                         document_id,
-                        RawProfile.parse_obj(source.raw_profile),
+                        parse_session_input_profile(source.raw_profile),
                     )
             self._progress_update(
                 2,
