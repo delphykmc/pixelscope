@@ -4,55 +4,21 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from pixelscope.core.comparison_set import ComparisonSetError, SessionSource
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.preload import PreloadMemberRequest
-from pixelscope.io.comparison_set_repository import ComparisonSetRepository
+from pixelscope.io.comparison_set_repository import YUV_SESSION_LAYOUTS
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.yuv_profile import YuvProfile
 
-YUV_LAYOUTS = frozenset({"YUV444", "YUV422", "YUV420"})
 InputProfile = RawProfile | YuvProfile
 
 
 def parse_input_profile(payload: dict[str, Any]) -> InputProfile:
     """Parse Session v1's existing profile payload without changing its schema."""
 
-    if payload.get("channel_layout") in YUV_LAYOUTS:
+    if payload.get("channel_layout") in YUV_SESSION_LAYOUTS:
         return YuvProfile.parse_obj(payload)
     return RawProfile.parse_obj(payload)
-
-
-class NativeInputProfileSessionRepository(ComparisonSetRepository):
-    """Session v1 repository that accepts either legacy RAW or native YUV profiles."""
-
-    def _parse_sources(self, value: object, field: str) -> tuple[SessionSource, ...]:
-        if not isinstance(value, list) or not value:
-            raise ComparisonSetError(f"{field} must be a non-empty array")
-        result: list[SessionSource] = []
-        for entry in value:
-            if not isinstance(entry, dict):
-                raise ComparisonSetError(f"each {field} entry must be an object")
-            source_path = self._artifact_absolute_path(
-                entry.get("path"),
-                "source path",
-            )
-            raw_payload = entry.get("raw_profile")
-            profile_payload: dict[str, Any] | None = None
-            if raw_payload is not None:
-                if not isinstance(raw_payload, dict):
-                    raise ComparisonSetError("raw_profile must be an object or null")
-                try:
-                    profile_payload = parse_input_profile(raw_payload).dict()
-                except Exception as exc:  # noqa: BLE001 - normalized validation boundary
-                    family = (
-                        "YUV"
-                        if raw_payload.get("channel_layout") in YUV_LAYOUTS
-                        else "RAW"
-                    )
-                    raise ComparisonSetError(f"invalid {family} profile: {exc}") from exc
-            result.append(SessionSource(source_path, profile_payload))
-        return tuple(result)
 
 
 class _InputProfileFacadeMeta(type):
@@ -61,7 +27,7 @@ class _InputProfileFacadeMeta(type):
 
 
 class _InputProfileFacade(metaclass=_InputProfileFacadeMeta):
-    """Scoped adapter for legacy Session code that names the profile type RawProfile."""
+    """Scoped adapter for legacy Session UI code that still names RawProfile."""
 
     @classmethod
     def parse_obj(cls, payload: object) -> InputProfile:
@@ -71,50 +37,28 @@ class _InputProfileFacade(metaclass=_InputProfileFacadeMeta):
 
 
 class NativeYuvRuntimeContracts:
-    """Extend existing preload and Session lifecycles to resolved native YUV."""
+    """Extend existing preload-result and Session UI lifecycles to native YUV."""
 
     def __init__(self, window: Any) -> None:
         self.window = window
-        self._start_preload_original: Callable[..., None] = window._start_preload
-        self._promoted_preload_is_current_original: Callable[..., bool] = (
-            window._promoted_preload_is_current
-        )
-        self._preload_succeeded_original: Callable[..., None] = window._preload_succeeded
         self._session = getattr(window, "session_controller", None)
         self._session_save_original: Callable[..., object] | None = None
         self._session_open_original: Callable[..., object] | None = None
 
     def install(self) -> None:
-        self.window._start_preload = self.start_preload
+        # NativeYuvSemanticsController already forwards resolved profiles into the
+        # established worker path. Only the legacy RawProfile-only result guards need
+        # widening so YUV gets identical stale-drop and foreground-promotion behavior.
         self.window._promoted_preload_is_current = self.promoted_preload_is_current
         self.window._preload_succeeded = self.preload_succeeded
 
         if self._session is not None:
-            self._session.repository = NativeInputProfileSessionRepository()
             self._session_save_original = self._session.save_to_path
             self._session_open_original = self._session.open_from_path
             self._session.save_to_path = self.save_session
             self._session.open_from_path = self.open_session
 
         self.window.__dict__["native_yuv_runtime_contracts"] = self
-
-    def start_preload(
-        self,
-        plan_generation: int,
-        document: ImageDocument,
-        profile: object | None,
-    ) -> None:
-        """Use the established bounded preload worker path for resolved native YUV."""
-
-        if not isinstance(profile, YuvProfile):
-            self._start_preload_original(plan_generation, document, profile)
-            return
-        yuv_controller = getattr(self.window, "native_yuv_semantics_controller", None)
-        start_original = getattr(yuv_controller, "_start_preload_original", None)
-        if not callable(start_original):
-            self._start_preload_original(plan_generation, document, profile)
-            return
-        start_original(plan_generation, document, profile)
 
     @staticmethod
     def _resolved_profile(profile: object) -> InputProfile | None:
@@ -238,7 +182,7 @@ class NativeYuvRuntimeContracts:
             comparison_set_module.RawProfile = original_type  # type: ignore[assignment]
 
     def open_session(self, path: str | Path) -> object:
-        """Restore RawProfile or YuvProfile through the existing transactional Session path."""
+        """Restore RawProfile or YuvProfile through the transactional Session path."""
 
         if self._session_open_original is None:
             raise RuntimeError("Session controller is not installed")
