@@ -16,6 +16,7 @@ from pixelscope.app.settings import (
     QSettingsAdapter,
     SettingsRepository,
 )
+from pixelscope.app.yuv_input_semantics import install_native_yuv_semantics
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
 from pixelscope.ui.analysis_export import install_analysis_export
@@ -129,10 +130,11 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     polish_presentation_controls(window)
     install_workflow_polish(window, review_controller)
     install_multiview_reorder_stability(window)
-    # WP-B broadens the canonical registration hook before display-tag composition
-    # wraps it, so .data/.yuv retain the exact same tag/row-refresh lifecycle as
-    # .raw and ordinary images.
+    # WP-B broadens the canonical registration hook before display-tag composition.
     install_raw_input_compatibility(window)
+    # WP-C1 wraps that compatibility layer: an explicit YUV profile takes the native
+    # Y/U/V path, while legacy RAW profiles on `.yuv` continue to use WP-B unchanged.
+    install_native_yuv_semantics(window)
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
