@@ -9,14 +9,21 @@ from pixelscope.core.image_document import ImageDocument
 
 
 def split_document_channels(document: ImageDocument) -> list[ImageDocument]:
-    """Build transient visual documents for RGB or Bayer subchannels."""
+    """Build transient visual documents for RGB, Bayer, or native YUV subchannels."""
+
+    if document.yuv_frame is not None:
+        documents: list[ImageDocument] = []
+        for name, channel in zip(("Y", "U", "V"), document.yuv_frame.planes, strict=True):
+            preview = np.repeat(channel[..., None], 3, axis=2)
+            documents.append(_channel_document(document, name, channel, preview))
+        return documents
 
     source = document.source
     if source is None:
         return []
     if document.channel_layout in ("RGB", "RGBA") and source.ndim == 3:
         names = ("R", "G", "B")
-        documents: list[ImageDocument] = []
+        documents = []
         for channel_index, name in enumerate(names):
             channel = source[..., channel_index]
             display = to_display_uint8(channel, document.display_transform)
@@ -47,17 +54,21 @@ def _channel_document(
     channel: NDArray[np.generic],
     preview: NDArray[np.uint8],
 ) -> ImageDocument:
-    document = ImageDocument.from_array(
-        channel,
+    # Split views are presentation objects. Keep the native-resolution plane view as
+    # their scalar source and allocate only the RGB grayscale/color preview required
+    # by the viewer; no full-resolution YUV chroma authority is synthesized.
+    document = ImageDocument(
+        source_path=source_document.source_path,
         display_name=f"{source_document.display_name} · {channel_name}",
+        source=channel,
         channel_layout=f"CHANNEL_{channel_name}",
         bit_depth=source_document.bit_depth,
         raw_profile=source_document.raw_profile,
         display_transform=source_document.display_transform,
-        prepared_preview=preview,
+        preview=np.ascontiguousarray(preview),
+        loading_state="ready",
+        generation=source_document.generation,
     )
-    # Split views are transient, but their identity must be stable and traceable
-    # to the source document so MainWindow can preserve an explicit Primary
-    # channel across rerenders without guessing from display names or UUIDs.
+    # Split identities must remain stable and traceable to the source document.
     document.document_id = f"{source_document.document_id}:split:{channel_name}"
     return document
