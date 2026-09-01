@@ -134,6 +134,9 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_raw_input_compatibility(window)
     # WP-C1 wraps that compatibility layer: an explicit YUV profile takes the native
     # Y/U/V path, while legacy RAW profiles on `.yuv` continue to use WP-B unchanged.
+    # MainWindow's existing inspector writes directly to the status bar; expose the
+    # same sink to the composition controller without changing the durable window API.
+    window._set_pixel_status = window.statusBar().showMessage  # type: ignore[attr-defined]
     install_native_yuv_semantics(window)
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
