@@ -17,6 +17,7 @@ from pixelscope.app.settings import (
     SettingsRepository,
 )
 from pixelscope.app.yuv_input_semantics import install_native_yuv_semantics
+from pixelscope.app.yuv_runtime_contracts import install_native_yuv_runtime_contracts
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
 from pixelscope.ui.analysis_export import install_analysis_export
@@ -135,6 +136,9 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     # WP-C1 wraps that compatibility layer: an explicit YUV profile takes the native
     # Y/U/V path, while legacy RAW profiles on `.yuv` continue to use WP-B unchanged.
     install_native_yuv_semantics(window)
+    # Resolved native YUV shares the existing bounded preload/promotion lifecycle and
+    # persists its interpretation through the existing Session v1 profile payload.
+    install_native_yuv_runtime_contracts(window)
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
