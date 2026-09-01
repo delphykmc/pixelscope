@@ -31,7 +31,7 @@ combined cost approaches quadratic behavior for large folders and blocks event p
 
 ## Automated validation
 
-Focused tests cover:
+Focused deterministic coverage now includes:
 
 - single-sort discovery and registration-intent ordering;
 - large natural ordering and duplicate folder re-registration;
@@ -39,12 +39,20 @@ Focused tests cover:
 - no folder-registration foreground load/preload ownership;
 - discovery worker versus GUI registration thread boundary;
 - Open Folder and mixed drag/drop common controller path;
-- cancellation plus stale-success rejection;
+- cancellation plus stale discovery-success rejection;
 - application close while discovery is running;
+- close after the first GUI registration chunk, with later scheduled chunks rejected;
+- cancellation after the first GUI registration chunk, with the already-scheduled callback rejected;
+- a second request queued behind an active request, proving non-interleaving and final selection ownership;
+- production composition with Recent Folder/Image history recorded exactly once;
+- production Folder Display Tag application to asynchronously registered documents and folder rows;
+- folder-only asynchronous registration preserving Selected, Current Comparison Page, presentation,
+  layout, and Active state under the production controller composition;
 - Files-tree natural-key call count to guard against sibling rescanning.
 
 Full repository validation follows `docs/QUALITY.md`. Wall-clock timing is characterization only and is
-not an acceptance gate.
+not an acceptance gate. The repository has no GitHub Actions workflow for this branch, so pinned
+CPython 3.10 validation must be reported from an authoritative local environment before merge.
 
 ## Manual validation required
 
