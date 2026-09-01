@@ -4,13 +4,17 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PySide6.QtWidgets import QDialog
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.raw_input_compatibility import install_raw_input_compatibility
+from pixelscope.app.registration_controller import install_large_folder_registration
 from pixelscope.io.path_discovery import discover_image_inputs
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
+
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def test_raw_dialog_tracks_minimum_stride_until_manual_override(qtbot: object) -> None:
@@ -172,4 +176,32 @@ def test_raw_like_extensions_share_runtime_profile_and_decode_path(
         timeout=5000,
     )
     assert all(window.documents[item].source.shape == (4, 4) for item in document_ids)
+    window.close()
+
+
+def test_wp_a_folder_registration_keeps_raw_like_inputs_lazy(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    data_path = tmp_path / "frame1.data"
+    yuv_path = tmp_path / "frame2.yuv"
+    data_path.write_bytes(b"binary")
+    yuv_path.write_bytes(b"binary")
+
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    install_raw_input_compatibility(window)
+    registration = install_large_folder_registration(window)
+
+    registration.enqueue((tmp_path,))
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+
+    assert {document.source_path for document in window.documents.values()} == {
+        data_path.resolve(),
+        yuv_path.resolve(),
+    }
+    assert all(document.source is None for document in window.documents.values())
+    assert all(document.loading_state == "pending" for document in window.documents.values())
+    assert not window._raw_profiles
+    assert not window.selected_documents
     window.close()
