@@ -109,6 +109,31 @@ def test_yuv_difference_is_explicitly_unsupported_until_wp_c2(qtbot: object) -> 
     window.close()
 
 
+def test_yuv_difference_wrapper_preserves_difference_panel_call_contract(qtbot: object) -> None:
+    window = make_window(qtbot)
+    controller = window.native_yuv_semantics_controller
+    calls: list[tuple[bool, bool]] = []
+
+    def calculate_original(
+        checked: bool = False,
+        *,
+        publish_result: bool = True,
+    ) -> None:
+        calls.append((checked, publish_result))
+
+    controller._difference_calculate_original = calculate_original
+    controller._difference_yuv_blocked = False
+
+    # QPushButton.clicked supplies the positional bool. Cached-metric restoration uses
+    # the keyword-only publish_result=False path. The wrapper must preserve both.
+    controller.calculate_difference(True)
+    controller.calculate_difference(False, publish_result=False)
+
+    assert calls == [(True, True), (False, False)]
+
+    window.close()
+
+
 def test_mixed_yuv_and_rgb_plots_fail_safe_instead_of_mislabeling(qtbot: object) -> None:
     window = make_window(qtbot)
     yuv = make_yuv_document()
