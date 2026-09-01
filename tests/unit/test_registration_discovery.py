@@ -31,6 +31,32 @@ def test_discover_image_inputs_sorts_each_result_once(
     assert inputs[-1].path.name == "image40.png"
 
 
+def test_registration_discovery_computes_trusted_metadata_and_sort_keys_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for index in range(1, 41):
+        (tmp_path / f"image{index}.png").write_bytes(b"x")
+
+    original = path_discovery.natural_sort_key
+    calls = 0
+
+    def counting_key(path: Path) -> tuple[object, ...]:
+        nonlocal calls
+        calls += 1
+        return original(path)
+
+    monkeypatch.setattr(path_discovery, "natural_sort_key", counting_key)
+    result = discover_registration_inputs((tmp_path,))
+
+    assert len(result.items) == 40
+    assert calls == len(result.items)
+    for record in result.items:
+        assert record.canonical_path_key == str(record.image_input.path).casefold()
+        assert record.canonical_folder_path == tmp_path.resolve()
+        assert record.canonical_folder_key == str(tmp_path.resolve()).casefold()
+        assert record.sort_key == original(record.image_input.path)
+
+
 def test_registration_discovery_preserves_folder_then_direct_intent(tmp_path: Path) -> None:
     folder_a = tmp_path / "a"
     folder_b = tmp_path / "b"

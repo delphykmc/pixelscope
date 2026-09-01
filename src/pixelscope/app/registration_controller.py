@@ -4,12 +4,12 @@ import logging
 from bisect import bisect_right
 from collections import deque
 from collections.abc import Callable, Sequence
-from contextlib import suppress
+from contextlib import ExitStack, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, QThreadPool, QTimer, Signal, Slot
+from PySide6.QtCore import QElapsedTimer, QEvent, QObject, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWidgets import QFileDialog, QProgressBar
 
 from pixelscope.core.cancellation import cancellation_checkpoint
@@ -23,7 +23,8 @@ from pixelscope.io.path_discovery import (
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 LOGGER = logging.getLogger(__name__)
-REGISTRATION_CHUNK_SIZE = 64
+REGISTRATION_CHUNK_SIZE = 16
+REGISTRATION_SLICE_BUDGET_MS = 8
 REGISTRATION_SHUTDOWN_GRACE_MS = 3000
 
 
@@ -51,7 +52,9 @@ class RegistrationController(QObject):
     """Single-flight folder/direct registration orchestration for production UI paths.
 
     Filesystem discovery is the only worker-thread phase. Catalog and Qt tree mutation
-    remain on this QObject's GUI thread and are split into bounded event-loop chunks.
+    remain on this QObject's GUI thread and are split into bounded event-loop slices.
+    Worker-computed canonical identities and sort keys are reused by the production
+    async path so GUI registration does not repeat filesystem canonicalization.
     """
 
     progress_changed = Signal(str, int, object)
@@ -62,12 +65,16 @@ class RegistrationController(QObject):
         *,
         discovery_function: DiscoveryFunction = discover_registration_inputs,
         chunk_size: int = REGISTRATION_CHUNK_SIZE,
+        slice_budget_ms: int = REGISTRATION_SLICE_BUDGET_MS,
     ) -> None:
         super().__init__(window)
         if chunk_size < 1:
             raise ValueError("registration chunk size must be positive")
+        if slice_budget_ms < 1:
+            raise ValueError("registration slice budget must be positive")
         self.window = window
         self.chunk_size = chunk_size
+        self.slice_budget_ms = slice_budget_ms
         self._discovery_function = discovery_function
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(1)
@@ -80,21 +87,30 @@ class RegistrationController(QObject):
         self._registration_index = 0
         self._folder_registered_ids: set[str] = set()
         self._direct_document_ids: list[str] = []
+        self._direct_document_id_set: set[str] = set()
         self._direct_paths: list[Path] = []
         self._closing = False
         self._stale_result_count = 0
         self._folder_sort_keys: dict[str, list[tuple[object, ...]]] = {}
-        self._progress = QProgressBar(window)
-        self._progress.setObjectName("registrationProgress")
-        self._progress.setTextVisible(True)
-        self._progress.setMinimumWidth(180)
-        self._progress.setMaximumWidth(320)
-        self._progress.hide()
-        window.statusBar().addWidget(self._progress)
-        self._progress_state = RegistrationProgress("idle", 0, None)
+        self._folder_document_ids: dict[str, set[str]] = {}
+        self._current_record: RegistrationInput | None = None
+        self._original_path_key = window._path_key
         self._original_add_document_to_folder = window._add_document_to_folder
         self._original_remove_document_from_folder = window._remove_document_from_folder
-        self._initialize_folder_sort_keys()
+        self._initialize_folder_caches()
+
+        progress_parent = window.document_list.parentWidget() or window
+        self._progress = QProgressBar(progress_parent)
+        self._progress.setObjectName("registrationProgress")
+        self._progress.setTextVisible(True)
+        self._progress.setMinimumWidth(0)
+        self._progress.hide()
+        progress_layout = progress_parent.layout() if progress_parent is not window else None
+        if progress_layout is not None:
+            progress_layout.addWidget(self._progress)
+        else:
+            window.statusBar().addWidget(self._progress)
+        self._progress_state = RegistrationProgress("idle", 0, None)
 
     @property
     def progress(self) -> RegistrationProgress:
@@ -112,9 +128,14 @@ class RegistrationController(QObject):
     def pool(self) -> QThreadPool:
         return self._pool
 
+    @property
+    def current_record(self) -> RegistrationInput | None:
+        return self._current_record
+
     def install(self) -> None:
         """Redirect production Open Folder/drop ownership without changing MainWindow ABI."""
 
+        self.window._path_key = self._path_key
         self.window._add_document_to_folder = self._add_document_to_folder
         self.window._remove_document_from_folder = self._remove_document_from_folder
         self.window._handle_dropped_paths = self.handle_dropped_paths
@@ -195,13 +216,24 @@ class RegistrationController(QObject):
             LOGGER.warning("Folder registration discovery did not finish within shutdown grace")
         return completed
 
-    def _initialize_folder_sort_keys(self) -> None:
+    def _initialize_folder_caches(self) -> None:
         for folder_key, document_ids in self.window._folder_documents.items():
             self._folder_sort_keys[folder_key] = [
                 natural_sort_key(self.window.documents[document_id].source_path or Path(""))
                 for document_id in document_ids
                 if document_id in self.window.documents
             ]
+            self._folder_document_ids[folder_key] = set(document_ids)
+
+    def _path_key(self, path: Path) -> str:
+        record = self._current_record
+        if (
+            record is not None
+            and record.image_input.path == path
+            and record.canonical_path_key is not None
+        ):
+            return record.canonical_path_key
+        return self._original_path_key(path)
 
     def _start_next_request(self) -> None:
         if self._closing or self._active_generation is not None or not self._queue:
@@ -214,6 +246,7 @@ class RegistrationController(QObject):
         self._registration_index = 0
         self._folder_registered_ids.clear()
         self._direct_document_ids.clear()
+        self._direct_document_id_set.clear()
         self._direct_paths.clear()
         self._set_progress("scanning", 0, None)
         worker = TaskWorker(self._discover, paths, generation=generation)
@@ -298,28 +331,62 @@ class RegistrationController(QObject):
         if self._closing or generation != self._active_generation or discovery is None:
             return
         total = len(discovery.items)
-        stop = min(self._registration_index + self.chunk_size, total)
-        with self.window.document_list.bulk_update():
-            for record in discovery.items[self._registration_index : stop]:
-                self._register_record(record)
-        self._registration_index = stop
-        self.window._update_empty_workspace_state()
-        self._set_progress("registering", stop, total)
-        if stop < total:
+        start = self._registration_index
+        hard_stop = min(start + self.chunk_size, total)
+        completed = start
+        timer = QElapsedTimer()
+        timer.start()
+
+        with ExitStack() as stack:
+            stack.enter_context(self.window.document_list.bulk_update())
+            tag_controller = getattr(self.window, "folder_display_tag_controller", None)
+            tag_bulk = getattr(tag_controller, "bulk_registration", None)
+            if callable(tag_bulk):
+                stack.enter_context(tag_bulk())
+            while completed < hard_stop:
+                self._register_record(discovery.items[completed])
+                completed += 1
+                if completed < hard_stop and timer.elapsed() >= self.slice_budget_ms:
+                    break
+
+        self._registration_index = completed
+        if start == 0 or completed == total:
+            self.window._update_empty_workspace_state()
+        self._set_progress("registering", completed, total)
+        if completed < total:
             QTimer.singleShot(0, lambda token=generation: self._register_chunk(token))
             return
         QTimer.singleShot(0, lambda token=generation: self._finish_registration(token))
 
     def _register_record(self, record: RegistrationInput) -> None:
-        document_id = self.window._register_input(
-            record.image_input,
-            resolve_raw_profile=record.resolve_raw_profile,
-        )
+        self._current_record = record
+        if (
+            record.canonical_folder_path is not None
+            and record.canonical_folder_key is not None
+            and record.sort_key is not None
+        ):
+            tree_context = self.window.document_list.registration_metadata(
+                source_path=record.image_input.path,
+                folder_path=record.canonical_folder_path,
+                folder_key=record.canonical_folder_key,
+                sort_key=record.sort_key,
+            )
+        else:
+            tree_context = nullcontext()
+        try:
+            with tree_context:
+                document_id = self.window._register_input(
+                    record.image_input,
+                    resolve_raw_profile=record.resolve_raw_profile,
+                )
+        finally:
+            self._current_record = None
         if document_id is None:
             return
         if record.from_folder:
             self._folder_registered_ids.add(document_id)
-        if record.select_on_complete and document_id not in self._direct_document_ids:
+        if record.select_on_complete and document_id not in self._direct_document_id_set:
+            self._direct_document_id_set.add(document_id)
             self._direct_document_ids.append(document_id)
             document = self.window.documents.get(document_id)
             if document is not None and document.source_path is not None:
@@ -385,7 +452,9 @@ class RegistrationController(QObject):
         self._registration_index = 0
         self._folder_registered_ids.clear()
         self._direct_document_ids.clear()
+        self._direct_document_id_set.clear()
         self._direct_paths.clear()
+        self._current_record = None
 
     def _set_progress(self, phase: str, completed: int, total: int | None) -> None:
         self._progress_state = RegistrationProgress(phase, completed, total)
@@ -405,48 +474,83 @@ class RegistrationController(QObject):
             self._progress.hide()
         self.progress_changed.emit(phase, completed, total)
 
-    def _add_document_to_folder(self, document_id: str, path: Path) -> None:
-        """Maintain natural folder order without re-sorting the complete list per item."""
+    def _record_metadata_for_path(
+        self,
+        path: Path,
+    ) -> tuple[str, Path, tuple[object, ...]] | None:
+        record = self._current_record
+        if (
+            record is None
+            or record.image_input.path != path
+            or record.canonical_folder_key is None
+            or record.canonical_folder_path is None
+            or record.sort_key is None
+        ):
+            return None
+        return record.canonical_folder_key, record.canonical_folder_path, record.sort_key
 
-        folder_key = self.window._folder_key(path)
+    def _add_document_to_folder(self, document_id: str, path: Path) -> None:
+        """Maintain natural folder order with O(1) membership and cached sort keys."""
+
+        metadata = self._record_metadata_for_path(path)
+        if metadata is None:
+            folder_key = self.window._folder_key(path)
+            folder_path = path.resolve().parent
+            new_key = natural_sort_key(self.window.documents[document_id].source_path or Path(""))
+        else:
+            folder_key, folder_path, new_key = metadata
+
         folder_documents = self.window._folder_documents.setdefault(folder_key, [])
-        folder_keys = self._folder_sort_keys.setdefault(
-            folder_key,
-            [
+        folder_keys = self._folder_sort_keys.get(folder_key)
+        if folder_keys is None:
+            folder_keys = [
                 natural_sort_key(self.window.documents[candidate_id].source_path or Path(""))
                 for candidate_id in folder_documents
                 if candidate_id in self.window.documents
-            ],
-        )
+            ]
+            self._folder_sort_keys[folder_key] = folder_keys
+
+        folder_ids = self._folder_document_ids.get(folder_key)
+        if folder_ids is None:
+            folder_ids = set(folder_documents)
+            self._folder_document_ids[folder_key] = folder_ids
+
         current_index = self.window._folder_indices.get(folder_key)
         inserted_at: int | None = None
-        if document_id not in folder_documents:
-            new_key = natural_sort_key(self.window.documents[document_id].source_path or Path(""))
+        if document_id not in folder_ids:
             inserted_at = bisect_right(folder_keys, new_key)
             folder_keys.insert(inserted_at, new_key)
             folder_documents.insert(inserted_at, document_id)
-        self.window._folder_paths[folder_key] = path.resolve().parent
+            folder_ids.add(document_id)
+        self.window._folder_paths[folder_key] = folder_path
         if current_index is None:
             self.window._folder_indices.setdefault(folder_key, 0)
         elif inserted_at is not None and inserted_at <= current_index:
             self.window._folder_indices[folder_key] = current_index + 1
 
     def _remove_document_from_folder(self, document_id: str, path: Path) -> None:
-        """Keep the binary-insertion key cache consistent with canonical removal semantics."""
+        """Keep binary-insertion caches consistent with canonical removal semantics."""
 
         folder_key = self.window._folder_key(path)
         folder_documents = self.window._folder_documents.get(folder_key)
         if folder_documents is None:
             return
+        folder_ids = self._folder_document_ids.get(folder_key)
         current_index = self.window._folder_indices.get(folder_key, 0)
-        if document_id in folder_documents:
-            removed_index = folder_documents.index(document_id)
-            folder_documents.pop(removed_index)
-            folder_keys = self._folder_sort_keys.get(folder_key)
-            if folder_keys is not None and removed_index < len(folder_keys):
-                folder_keys.pop(removed_index)
-            if removed_index < current_index:
-                current_index -= 1
+        if folder_ids is None or document_id in folder_ids:
+            try:
+                removed_index = folder_documents.index(document_id)
+            except ValueError:
+                removed_index = -1
+            if removed_index >= 0:
+                folder_documents.pop(removed_index)
+                if folder_ids is not None:
+                    folder_ids.discard(document_id)
+                folder_keys = self._folder_sort_keys.get(folder_key)
+                if folder_keys is not None and removed_index < len(folder_keys):
+                    folder_keys.pop(removed_index)
+                if removed_index < current_index:
+                    current_index -= 1
         if folder_documents:
             self.window._folder_indices[folder_key] = min(current_index, len(folder_documents) - 1)
         else:
@@ -454,6 +558,7 @@ class RegistrationController(QObject):
             self.window._folder_paths.pop(folder_key, None)
             self.window._folder_indices.pop(folder_key, None)
             self._folder_sort_keys.pop(folder_key, None)
+            self._folder_document_ids.pop(folder_key, None)
 
 
 class _RegistrationCloseFilter(QObject):
@@ -472,6 +577,7 @@ def install_large_folder_registration(
     *,
     discovery_function: DiscoveryFunction = discover_registration_inputs,
     chunk_size: int = REGISTRATION_CHUNK_SIZE,
+    slice_budget_ms: int = REGISTRATION_SLICE_BUDGET_MS,
 ) -> RegistrationController:
     """Install WP-A production registration ownership once for a MainWindow instance."""
 
@@ -482,6 +588,7 @@ def install_large_folder_registration(
         window,
         discovery_function=discovery_function,
         chunk_size=chunk_size,
+        slice_budget_ms=slice_budget_ms,
     )
     controller.install()
     close_filter = _RegistrationCloseFilter(controller, window)

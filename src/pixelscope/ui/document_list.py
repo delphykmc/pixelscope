@@ -87,6 +87,12 @@ class DocumentListWidget(QTreeWidget):
         self._document_items: dict[str, QTreeWidgetItem] = {}
         self._bulk_update_depth = 0
         self._bulk_update_dirty = False
+        self._registration_metadata: tuple[
+            Path,
+            Path,
+            str,
+            tuple[object, ...],
+        ] | None = None
         self.setColumnCount(2)
         self.setHeaderLabels(["File", "Type"])
         self.setHeaderHidden(False)
@@ -132,6 +138,24 @@ class DocumentListWidget(QTreeWidget):
                     self.viewport().update()
                 self._bulk_update_dirty = False
 
+    @contextmanager
+    def registration_metadata(
+        self,
+        *,
+        source_path: Path,
+        folder_path: Path,
+        folder_key: str,
+        sort_key: tuple[object, ...],
+    ) -> Iterator[None]:
+        """Reuse worker-computed path metadata for one async registration mutation."""
+
+        previous = self._registration_metadata
+        self._registration_metadata = (source_path, folder_path, folder_key, sort_key)
+        try:
+            yield
+        finally:
+            self._registration_metadata = previous
+
     def add_document_item(
         self,
         document_id: str,
@@ -142,8 +166,16 @@ class DocumentListWidget(QTreeWidget):
         loading_state: str = "pending",
         resident: bool = False,
     ) -> QTreeWidgetItem:
-        folder = source_path.parent.resolve() if source_path is not None else None
-        group_key = str(folder).casefold() if folder is not None else "<generated>"
+        trusted = self._registration_metadata
+        if source_path is not None and trusted is not None and trusted[0] == source_path:
+            folder = trusted[1]
+            group_key = trusted[2]
+            new_key: tuple[object, ...] | None = trusted[3]
+        else:
+            folder = source_path.parent.resolve() if source_path is not None else None
+            group_key = str(folder).casefold() if folder is not None else "<generated>"
+            new_key = natural_sort_key(source_path) if source_path is not None else None
+
         group = self._groups.get(group_key)
         if group is None:
             group_name = folder.name if folder is not None else "Generated"
@@ -169,9 +201,8 @@ class DocumentListWidget(QTreeWidget):
         item.setData(0, self.ACTIVE_ROLE, False)
         item.setData(0, self.DETAIL_ROLE, tooltip)
         insert_at = group.childCount()
-        if source_path is not None:
+        if new_key is not None:
             group_keys = self._group_sort_keys.setdefault(group_key, [])
-            new_key = natural_sort_key(source_path)
             insert_at = bisect_right(group_keys, new_key)
             group_keys.insert(insert_at, new_key)
         group.insertChild(insert_at, item)

@@ -96,8 +96,14 @@ def test_large_folder_registration_is_chunked_ordered_deduplicated_and_lazy(
         if phase == "registering"
     ]
     assert registering[0] == (0, 130)
-    assert (16, 130) in registering
     assert registering[-1] == (130, 130)
+    completed_values = [completed for completed, _total in registering]
+    assert completed_values == sorted(completed_values)
+    assert all(
+        0 < current - previous <= 16
+        for previous, current in zip(completed_values, completed_values[1:], strict=False)
+        if current != previous
+    )
     assert events[-1] == ("idle", 0, None)
 
     controller.enqueue((folder,))

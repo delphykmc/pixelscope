@@ -21,12 +21,16 @@ class ImageInput:
 
 @dataclass(frozen=True)
 class RegistrationInput:
-    """One registration operation with its existing file/folder intent preserved."""
+    """One registration operation with worker-computed canonical metadata."""
 
     image_input: ImageInput
     from_folder: bool
     resolve_raw_profile: bool
     select_on_complete: bool
+    canonical_path_key: str | None = None
+    canonical_folder_path: Path | None = None
+    canonical_folder_key: str | None = None
+    sort_key: tuple[object, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,27 @@ def _checkpoint(callback: Callable[[], None] | None) -> None:
         callback()
 
 
+def _registration_input(
+    image_input: ImageInput,
+    *,
+    sort_key: tuple[object, ...],
+    from_folder: bool,
+    resolve_raw_profile: bool,
+    select_on_complete: bool,
+) -> RegistrationInput:
+    folder = image_input.path.parent
+    return RegistrationInput(
+        image_input=image_input,
+        from_folder=from_folder,
+        resolve_raw_profile=resolve_raw_profile,
+        select_on_complete=select_on_complete,
+        canonical_path_key=str(image_input.path).casefold(),
+        canonical_folder_path=folder,
+        canonical_folder_key=str(folder).casefold(),
+        sort_key=sort_key,
+    )
+
+
 def discover_image_inputs(paths: Iterable[Path], recursive: bool = False) -> tuple[ImageInput, ...]:
     """Expand files/folders into unique, naturally sorted supported inputs."""
 
@@ -96,13 +121,13 @@ def discover_registration_inputs(
     *,
     checkpoint: Callable[[], None] | None = None,
 ) -> RegistrationDiscovery:
-    """Discover folder and direct-file registration work without touching Qt state.
+    """Discover registration work and canonical metadata without touching Qt state.
 
     Folders preserve the existing registration-only intent and are ordered by their
     resolved path. Explicit files preserve the existing selection-oriented intent and
-    are processed after folders. A file supplied both through a folder and explicitly
-    therefore remains two registration operations; catalog duplicate suppression is
-    intentionally left to the canonical registration owner.
+    are processed after folders. Canonical path/folder identities and natural-sort
+    keys are computed here so the production GUI registration path does not repeat
+    filesystem canonicalization or sort-key work per item.
     """
 
     unique_folders: dict[str, Path] = {}
@@ -122,28 +147,29 @@ def discover_registration_inputs(
         _checkpoint(checkpoint)
         folder = unique_folders[folder_key]
         candidates = folder.rglob("*") if recursive else folder.iterdir()
-        folder_inputs: list[ImageInput] = []
+        folder_inputs: list[tuple[tuple[object, ...], ImageInput]] = []
         for entry in candidates:
             _checkpoint(checkpoint)
             image_input = image_input_for_path(entry)
             if image_input is not None:
-                folder_inputs.append(image_input)
-        folder_inputs.sort(key=lambda item: natural_sort_key(item.path))
+                folder_inputs.append((natural_sort_key(image_input.path), image_input))
+        folder_inputs.sort(key=lambda item: item[0])
         if not folder_inputs:
             empty_folder_count += 1
             continue
         registered_folders.append(folder)
         items.extend(
-            RegistrationInput(
-                image_input=image_input,
+            _registration_input(
+                image_input,
+                sort_key=sort_key,
                 from_folder=True,
                 resolve_raw_profile=False,
                 select_on_complete=False,
             )
-            for image_input in folder_inputs
+            for sort_key, image_input in folder_inputs
         )
 
-    direct_inputs: list[ImageInput] = []
+    direct_inputs: list[tuple[tuple[object, ...], ImageInput]] = []
     direct_seen: set[str] = set()
     for candidate in direct_candidates:
         _checkpoint(checkpoint)
@@ -154,16 +180,17 @@ def discover_registration_inputs(
         if identity in direct_seen:
             continue
         direct_seen.add(identity)
-        direct_inputs.append(image_input)
-    direct_inputs.sort(key=lambda item: natural_sort_key(item.path))
+        direct_inputs.append((natural_sort_key(image_input.path), image_input))
+    direct_inputs.sort(key=lambda item: item[0])
     items.extend(
-        RegistrationInput(
-            image_input=image_input,
+        _registration_input(
+            image_input,
+            sort_key=sort_key,
             from_folder=False,
             resolve_raw_profile=True,
             select_on_complete=True,
         )
-        for image_input in direct_inputs
+        for sort_key, image_input in direct_inputs
     )
 
     return RegistrationDiscovery(
