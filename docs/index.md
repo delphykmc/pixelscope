@@ -67,8 +67,17 @@ knowledge belongs in focused documents under `docs/`.
 - [`exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md):
   current P7-D Stage 1 publication metadata, provenance, tag/manual-publication, and
   provider-neutral update-discovery separation contract.
+- [`exec-plans/active/beta-ui-owner-spacing-followup.md`](exec-plans/active/beta-ui-owner-spacing-followup.md):
+  bounded diagnosis, correction, validation, and review record for the final PR #68
+  owner-observed RAW and Plots spacing regressions.
+- [`exec-plans/completed/beta-ui-hardening-dpi-followup.md`](exec-plans/completed/beta-ui-hardening-dpi-followup.md):
+  retained integration, validation, and exact-head review record for the PR #69 DPI
+  command-row experiment incorporated selectively into draft PR #68.
 - [`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md):
   retained R0–R7 plan, findings, validation, review, and closeout evidence.
+- [`exec-plans/completed/beta-ui-hardening-pass2.md`](exec-plans/completed/beta-ui-hardening-pass2.md):
+  retained Beta UI Hardening Pass 2 audit, implementation, owner-finding fix loops,
+  validation, and exact-head review evidence for draft PR #68.
 - [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md):
   authoritative unobserved external GPU/SMB validation and final P5 closeout gate.
 - [`exec-plans/completed/p5-remote-iqa-platform-through-p5f.md`](exec-plans/completed/p5-remote-iqa-platform-through-p5f.md):

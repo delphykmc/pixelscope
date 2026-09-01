@@ -236,11 +236,109 @@ The visible floating window's transient-parent relation is cleared after float s
 workspace is not forced permanently above Main, without altering `QDockWidget` topology.
 Exact Windows taskbar/z-order behavior remains a manual qualification item.
 
+That detached native relationship also requires an explicit shutdown boundary. Owner
+validation reproduced a process hang when Main closed while either Plots or IQA was
+floating. PixelScope now saves the user's dock/visibility state first, stops the owned
+zero-delay geometry and transient-parent timers, then hides and re-docks managed floating
+workspaces while Main's native backing store is still valid. The re-dock is teardown-only:
+the saved floating and visible/hidden state is restored normally on the next launch.
+
 ### IQA toolbar authority
 
 The main toolbar reuses the existing checkable **Show IQA Workspace** action. It adds no
 second visibility boolean/action. Toolbar clicks, menu clicks, dock hide/close, and
 visibility changes converge on the same QAction checked state.
+
+### Pass 2 production-composed minimum-size contract
+
+Pass 1 removed explicit local floors, but the final production composition still added
+P4/P5 controls after the base widgets were constructed. Their intrinsic
+`minimumSizeHint()` values accumulated through one-row layouts even though the outer
+widgets reported `minimumWidth() == 0`. In the fontless offscreen audit environment this
+left the full Files + Image + IQA window at a 2127 px minimum and caused a 1280 px resize
+request to be rejected. The absolute number is not Windows qualification; the final-tree
+allocation failure was the contract gap.
+
+Pass 2 applies shrinkable policy to the **final composed tree**:
+
+- Files remains the Qt-collapsible secondary pane and Image remains non-collapsible;
+- long populated Files/Multi View labels do not establish an application-wide floor;
+- Page status/range, Display Gain, Pick count, Clear, and Keep remain present. Page values
+  paint-elide inside their compact group instead of extending into Gain/Pick, while their
+  complete logical text remains synchronized in tooltip/accessibility metadata;
+- Layout and Gain selectors respect current font/style content and native drop-down chrome
+  instead of fixed compact pixel floors. Compact `Clear`/`Keep` labels likewise retain
+  content-derived floors plus complete `Clear Selection`/`Keep Selection` accessibility
+  and tooltip semantics; relevant font/style changes refresh those floors;
+- the outer `RemoteIqaWorkspace`, workflow tabs, Setup/Jobs/Results pages, and composed
+  Inspect/alias/result labels yield independently of the already-shrinkable inner Results
+  widget;
+- the PR #67 stacked Current Pair A/B presentation and RGB8 contract are preserved;
+- no resize-event controller or second dock/splitter/geometry authority is introduced.
+
+The automated reference is observable behavior: after production composition, empty and
+populated long-name states accept 1920 x 1080 and the stricter 1280 x 720 logical resize
+with IQA hidden or docked. These test viewports are qualification references, not new
+pixel-perfect widget sizes. Actual Windows FHD/DPI behavior remains a manual gate.
+
+Owner follow-up validation reported multi-monitor movement and dock interactions working
+as intended, but 200% DPI exposed Layout/Gain and Clear/Keep content clipping inside
+aggressively shrinkable fixed floors. The DPI follow-up keeps the one existing
+presentation-control authority, replaces those actionable fixed floors with current
+font/style-derived floors, and does not retain the separately tested IQA `Preferred`
+experiment because it produced no meaningful width-recovery improvement.
+
+### Pass 2 compact Plots, status, and dialogs
+
+Inactive `QTabWidget` pages contribute size hints, so a wide Line Profile controls row
+previously forced the complete Plots dock even while Histogram was active. Histogram and
+Line Profile now use one content-driven responsive layout: controls retain the original
+single row whenever their live size hints fit, and reflow to the compact two-row grouping
+only under constraint. Visible Reference controls participate in the fit calculation, and
+the same widgets move between rows without changing their values, signals, or ownership.
+One elastic context value is right-aligned in that same wide row. Histogram shows the
+bounds carried by the completed results that own its visible series, not merely the newest
+input request. A shared bounds string is used when all results agree; full-image results
+with different dimensions list each image's bounds explicitly. A changed or failed
+request clears both the old chart and its context until matching results complete. Line
+Profile shows progress/errors and the selected endpoints. Context can occupy a later
+compact row when constrained and paint-elides while keeping complete tooltip and
+accessibility text. With no line, the header context is hidden; the plot-area hint remains
+the sole empty instruction. Existing plot mode, channel, Reference, hover, and analysis
+ownership is unchanged.
+
+Histogram Bin selection participates in the same request authority before its debounce
+timer starts. A change cancels the prior worker, installs the new request signature,
+clears completion identity, and invalidates chart/context together. Thus a superseded
+worker result cannot render against the selected Bin control, and rapid return to a
+previously completed selection still follows the cache/render path instead of terminating
+at a stale completed-signature check.
+
+The structured status bar keeps complete filename and pixel-summary strings as its
+logical label text while painting an elided representation inside the allocated width.
+The complete value remains in tooltip/accessibility metadata. Long values therefore do
+not replace coordinate/zoom/task ownership or establish a new main-window floor.
+
+The RAW profile dialog no longer contradicts its content with a fixed 280 px width. Its
+resizable body scrolls while the validation actions remain in a fixed reachable footer.
+The Settings dialog removes the legacy 820 x 540 hard minimum and continues using its
+existing scrollable pages/footer. RAW parsing/validation and Settings schema/save/reset
+contracts are unchanged.
+
+### Pass 2 IQA populated/stress readability
+
+Small and normal Results keep all initial Scene Trend series. For a large result, the
+existing attribute checklist remains the presentation authority while the initial view
+enables at most 32 attribute-by-variant series. Users may explicitly enable more; the cap
+does not reject or alter result data. Hover text covers the currently visible series,
+Scene ticks are thinned to at most 12 including the first and last Scene, and an in-plot
+variant legend reuses existing pyqtgraph markers.
+
+The Overview hierarchy retains every attribute summary but materializes per-Scene child
+rows only for the selected or expanded attribute. Child identity remains
+`(attribute_id, scene_id)` for existing selection and P5-D Inspect integration. Server-
+authored measurement values, Reference/comparison math, Scene selection, result schema,
+and native Inspect authority are unchanged.
 
 ## Focused automated coverage
 
@@ -255,6 +353,8 @@ visibility changes converge on the same QAction checked state.
   floating;
 - Dock/Float state synchronization, transient-parent removal, maximize/restore, and
   title-controller persistence on re-dock;
+- ordered shutdown persistence, deferred-callback quiescence, and native-dock
+  normalization before worker/Main teardown;
 - late hardening of already hidden/floating workspaces;
 - Reset Workspace clearing both persisted and retained in-memory floating geometry.
 
@@ -271,7 +371,9 @@ yielding filename labels, compact RGB8 eligibility statuses, and Submit Pair ena
 matching RGB8 is accepted; non-RGB, size mismatch, mixed RGB8/RGB16, and matching
 RGB16/RGB16 are rejected.
 
-`tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path.
+`tests/ui/test_beta_workspace_persistence.py` covers the production-order restart path
+and visible/hidden/maximized/restored floating-state persistence across shutdown
+normalization for both Plots and IQA.
 
 `tests/ui/test_beta_workspace_layout_allocation.py` covers bottom-corner ownership,
 shrinkable IQA detail/splitter policy, and the Qt-native horizontal contract: Files may
@@ -280,13 +382,38 @@ collapse while the Image workspace may not.
 `tests/ui/test_p1e_plots_workspace.py` treats floating-title double-click as a re-dock
 contract rather than the superseded maximize/restore contract.
 
+`tests/ui/test_beta_pass2_workspace_resize.py` covers the final production composition,
+FHD/compact logical resize acceptance, empty/populated long-name states, IQA hidden and
+docked states, child containment/non-overlap, two-page navigation, and continued
+Page/Display Gain/Pick/Clear/Keep access. The DPI follow-up adds 960 x 540 hidden-IQA and
+1280 x 720 docked-IQA allocation, current content/style floors, compact command
+accessibility, idempotent floor ownership, and post-composition font/style refresh
+coverage. These are Qt metric/layout contracts, not a substitute for real Windows DPI
+visual qualification.
+
+`tests/ui/test_beta_pass2_component_resize.py` covers inactive Plots page hints,
+single-row wide presentation, compact fallback, resize state preservation, complete
+context tooltip/accessibility retention, full-image/ROI and heterogeneous completed
+Histogram bounds, Line endpoints, empty-context hiding, RAW scroll/footer reachability,
+and compact Settings page/footer access. Analysis request-identity coverage also verifies
+that pending/error transitions cannot leave a stale Histogram/context pair visible.
+The request-identity suite additionally covers a rapid `Auto → 1024 → Auto` round trip,
+held old-worker result rejection, changed-Bin calculation, and return-to-cached-Bin
+rendering.
+
+`tests/ui/test_beta_pass2_iqa_stress.py` covers deterministic small, normal, and stress
+result models; bounded initial series/hover/ticks; variant markers; checklist opt-in; and
+lazy hierarchy Scene rows without elapsed-time thresholds. It also covers current
+tooltip/accessibility metadata through loading, result, Reference/error, filter/trend,
+Scene preview, and open-error transitions.
+
 Actual title-bar drag/drop docking is a Windows manual gate because offscreen Qt tests do
 not exercise the native move loop or docking target preview.
 
 ## Current owner-local unrelated/unknown failures
 
-During this Beta pass, three pytest failures are explicitly tracked as unrelated/unknown
-rather than being modified under PR #67 unless later evidence ties them to this branch:
+PR #67 recorded three pytest failures as unrelated/unknown rather than modifying them
+unless later evidence tied them to that branch:
 
 1. Bayer Line Profile hover: expected `Gr@1`, observed empty hover text.
 2. Workflow-polish page-label width: observed 67 px versus the font-metric expression.
@@ -296,6 +423,71 @@ rather than being modified under PR #67 unless later evidence ties them to this 
 The third case was checked against this branch: the failing test constructs
 `MainWindow()` directly and the numeric shortcut/ImageViewer path was unchanged by the
 Beta hardening work. A speculative numeric-key fallback was reverted.
+
+Pass 2 full validation on its implementation head observed 1058 passed, one Windows
+directory-symlink privilege skip, and two failures. The Bayer `Gr@1` node is the first
+protected exception above and was not changed. The other failure checks that a full
+Folder Display Tag remains literally present inside the tile header's already-elided
+paint label in the fontless offscreen environment. That exact node reproduces on the
+Pass 2 base `main@0ccb8b867d4989fc87ca73a66ffe5b78a5239fa5` under the same environment,
+so it is recorded as pre-existing/offscreen validation debt rather than hidden as a Pass
+2 regression. Full Folder Tag identity remains present in the `ImageDocument`, Files,
+Difference selectors, analysis, plot titles, and tile tooltip. No test or production
+behavior was changed to manufacture a full-suite PASS.
+
+### Owner-validation findings resolved in the Pass 2 fix loop
+
+Owner Windows validation after the implementation head found three in-scope issues across
+two follow-up rounds:
+
+1. Plots displayed its constrained two-row controls even at normal wide widths.
+2. Closing Main while Plots or IQA was floating could emit native `WM_DESTROY` / invalid
+   `GetDC` diagnostics and leave the process running.
+3. Line Profile duplicated empty guidance in a second header row, while Histogram lacked
+   same-row context identifying the full-image or ROI bounds used for analysis.
+
+Independent review also found that the compact Image Page group's children could overlap
+Gain/Pick at 1280 x 720 and that dynamic IQA label metadata could remain stale. The fix
+loop added responsive Plots layout, bounded/eliding Page metadata, owning IQA label
+synchronization, the explicit floating-workspace shutdown boundary described above, and a
+shared controls-left/context-right Plots header contract.
+
+On the integrated fix, Windows-native workspace/component tests passed 9 tests. A bounded
+native shutdown matrix covered docked Plots and Plots/IQA floating visible, hidden,
+maximized, and restored states; all nine processes exited 0 in 0.64–0.67 seconds without
+the watchdog or the reproduced native diagnostics. This is direct native lifecycle
+evidence, but it does not replace the remaining interactive DPI/multi-monitor/dock-drag
+owner checklist.
+
+The final fix-loop full offscreen suite reported 1069 passed, one Windows
+symlink-privilege skip, and the same two proven pre-existing failures in 360.00 seconds.
+The workflow Page-reservation regression now asserts the bounded/eliding metadata contract
+instead of the superseded fixed-width reservation.
+
+After the additional Plots context-row follow-up, integrated affected validation reported
+54 passed with only the protected Bayer `Gr@1` failure, Windows-native header/context
+validation passed 13 tests, and the full offscreen suite remained 1069 passed, one skip,
+and the same two pre-existing failures in 367.83 seconds.
+
+The subsequent exact-head review found one result-ownership gap: new input bounds could
+temporarily describe old visible Histogram series, and different-size full-image results
+were summarized using only the first image. Histogram invalidation now clears chart and
+context as one presentation, and successful rendering rebuilds the context solely from
+the owning results. Direct fix coverage passed 19 tests; the broader ordered
+Analysis/Plots/workflow set passed 71 tests, including persistence tests before workflow
+tests to verify `QSettings` isolation. The post-fix full offscreen suite reported 1071
+passed, one Windows symlink-privilege skip, and only the same two proven pre-existing
+failures in 367.40 seconds. The direct fix set also passed 19 tests with the Windows-native
+Qt backend in 8.37 seconds.
+
+A further exact-head review found that Bin changes invalidated presentation before the
+debounced request identity changed. Rapid return to Auto could therefore hit the stale
+completed-signature fast path and leave Histogram blank, and a prior worker could still
+render before the timer. Bin selection now synchronously replaces request authority and
+cancels the prior worker. Direct lifecycle coverage passed 22 tests both offscreen and
+Windows-native; the broader ordered set passed 74 tests. The full offscreen suite reported
+1074 passed, one Windows symlink-privilege skip, and only the two established failures in
+364.96 seconds.
 
 ## Windows manual Beta checklist
 
@@ -337,5 +529,24 @@ Beta hardening work. A speculative numeric-key fallback was reverted.
     Main.
 14. Toggle IQA from the toolbar and menu, then close/hide the dock; verify checked and
     visible states remain synchronized in both directions.
+15. On an FHD monitor at 100%, minimize the production window with populated long names
+    in Files + Two Image + docked IQA. Confirm the complete application remains within the
+    work area and the IQA divider can be enlarged/reduced without making Image inaccessible.
+16. Repeat the constrained workspace check at 125%, 150%, and 200%. Record the Windows
+    logical work area and any clipped/inaccessible control; offscreen logical-size tests
+    are not a substitute.
+17. Open a stress IQA Result, verify the initial Scene Trend is limited and readable,
+    enable additional attributes explicitly, expand multiple attribute summaries, and
+    confirm Scene selection/Inspect still identifies the correct Scene.
+18. Give Histogram and Line Profile ample width and confirm each control surface uses one
+    row, with controls left and Histogram bounds / Line endpoints right-aligned. Confirm
+    full-image and ROI bounds, then clear the line and verify its header context disappears
+    while the plot hint remains. Narrow the dock until the compact fallback appears, then
+    widen it and confirm control values, Reference choice, channel toggles, and plot content
+    are preserved.
+19. Exit PixelScope independently with Plots and IQA floating in visible, hidden,
+    maximized, and restored states. Confirm the process returns control without native
+    `WM_DESTROY`/`GetDC` diagnostics, then relaunch and confirm the saved topology and
+    visibility are restored.
 
 Also confirm the PR #59 behaviors above have not regressed during the same pass.

@@ -481,10 +481,9 @@ def _install_line_profile_polish(window: Any) -> None:
             return
         if panel._documents:
             hint.show("Draw a line to view its profile\n\nShift + drag on an image")
-            panel.status.setText("Shift+drag on an image to set a line profile")
         else:
             hint.show("Select an image to use Line Profile\n\nThen Shift + drag to draw a line")
-            panel.status.setText("Select an image, then Shift+drag to set a line profile")
+        panel._set_status("")
 
     original_clear = panel._clear_plot
     original_set_documents = panel.set_documents

@@ -461,8 +461,10 @@ P4-A merged as PR #29 at
   text remains `Pick`; checked membership uses the depressed control plus a
   bright-yellow tile-wide border, with Active still independently visible.
 - The presentation row exposes
-  `Layout | Page | Display Gain | ● Picked N | Clear Selection | Keep Selection`.
-  `● Picked N` is the temporary Pick Set count, not Files logical Selected count.
+  `Layout | Page | Display Gain | ● Picked N | Clear | Keep`. The compact visible
+  commands retain complete accessible names/tooltips `Clear Selection` and
+  `Keep Selection`. `● Picked N` is the temporary Pick Set count, not Files logical
+  Selected count.
 - Pick/Unpick/**Clear Selection** are ID-set/UI operations only. They do not call
   decode or `_ensure_loaded()`, touch source LRU/protection, create preload or
   promotion, generate Display Gain previews, issue analysis requests, calculate

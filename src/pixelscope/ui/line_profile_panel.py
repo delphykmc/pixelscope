@@ -7,7 +7,6 @@ from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QScrollArea,
     QSizePolicy,
@@ -26,6 +25,7 @@ from pixelscope.core.line_profile import (
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, image_marker_symbol, line_profile_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
+from pixelscope.ui.responsive_control_layout import ElidingContextLabel, ResponsiveControlLayout
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 
@@ -50,7 +50,8 @@ class LineProfilePanel(QWidget):
         self._reference_priority_ids: tuple[str, ...] = ()
         self._reference_locked = False
 
-        self.status = QLabel("Alt+drag on an image to set a line profile")
+        self.status = ElidingContextLabel()
+        self.status.hide()
         self.view_mode = QComboBox()
         self.view_mode.addItems(("Overlay", "Separate by image", "Separate by channel"))
         self.y_mode = QComboBox()
@@ -63,21 +64,33 @@ class LineProfilePanel(QWidget):
         self.reference_label.hide()
         self.reference_selector.hide()
         self.channel_buttons: dict[str, QToolButton] = {}
-        controls = QHBoxLayout()
-        controls.setSpacing(TOKENS.spacing_sm)
-        for label, combo in (
-            ("View", self.view_mode),
-            ("Y", self.y_mode),
-            ("X", self.x_mode),
-        ):
-            controls.addWidget(QLabel(label))
-            controls.addWidget(combo)
-            controls.addSpacing(TOKENS.spacing_lg)
+        controls_widget = QWidget()
+        controls = ResponsiveControlLayout(controls_widget, spacing=TOKENS.spacing_sm)
+        for label, combo in (("View", self.view_mode), ("Y", self.y_mode)):
+            controls.add_control(QLabel(label), compact_row=0)
+            controls.add_control(combo, compact_row=0)
             combo.setMaximumWidth(170)
-        controls.addWidget(self.reference_label)
-        controls.addWidget(self.reference_selector)
-        controls.addSpacing(TOKENS.spacing_lg)
-        controls.addWidget(QLabel("Channels"))
+            combo.setMinimumWidth(0)
+            combo.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Fixed,
+            )
+        controls.add_control(QLabel("X"), compact_row=1)
+        controls.add_control(self.x_mode, compact_row=1)
+        self.x_mode.setMaximumWidth(170)
+        self.x_mode.setMinimumWidth(0)
+        self.x_mode.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
+        controls.add_control(self.reference_label, compact_row=1)
+        controls.add_control(self.reference_selector, compact_row=1)
+        self.reference_selector.setMinimumWidth(0)
+        self.reference_selector.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
+        controls.add_control(QLabel("Channels"), compact_row=1)
         for name, color in (
             ("R", "#ff3b30"),
             ("G", "#24b34b"),
@@ -94,7 +107,8 @@ class LineProfilePanel(QWidget):
                 self._channels_changed
             )
             self.channel_buttons[name] = button
-            controls.addWidget(button)
+            controls.add_control(button, compact_row=1)
+        controls.add_context(self.status, compact_row=2)
         for combo in (self.view_mode, self.y_mode, self.x_mode):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._plot_options_changed
@@ -102,8 +116,6 @@ class LineProfilePanel(QWidget):
         self.reference_selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._reference_changed
         )
-        controls.addStretch(1)
-        controls.addWidget(self.status)
 
         self.plot_grid = QWidget()
         self.plot_grid.setSizePolicy(
@@ -137,7 +149,8 @@ class LineProfilePanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 2, 4, 4)
-        layout.addLayout(controls)
+        layout.setSpacing(TOKENS.spacing_xs)
+        layout.addWidget(controls_widget)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -276,7 +289,7 @@ class LineProfilePanel(QWidget):
                     results.append(selected_line_profile(source, selection))
             return tuple(results)
 
-        self.status.setText("Calculating line profile...")
+        self._set_status("Calculating line profile...")
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
             lambda _task_id, _document_id, _generation, result: self._on_result(
@@ -312,7 +325,7 @@ class LineProfilePanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
-        self.status.setText(f"Error: {error.message}")
+        self._set_status(f"Error: {error.message}")
 
     def _on_finished(self, task_id: str) -> None:
         if self._worker is not None and self._worker.task_id == task_id:
@@ -513,7 +526,7 @@ class LineProfilePanel(QWidget):
             self._create_hover_items(plot_index)
         selection = self._selection
         if selection is not None:
-            self.status.setText(
+            self._set_status(
                 f"({selection.x1}, {selection.y1}) to ({selection.x2}, {selection.y2})"
             )
 
@@ -577,7 +590,11 @@ class LineProfilePanel(QWidget):
         self._plot_channel_filters = [None] * 6
         self._profile_series = [[] for _index in range(6)]
         self._set_axes_visible(False)
-        self.status.setText("Alt+drag on an image to set a line profile")
+        self._set_status("")
+
+    def _set_status(self, text: str) -> None:
+        self.status.setText(text)
+        self.status.setVisible(bool(text))
 
     def _create_hover_items(self, plot_index: int) -> None:
         line = pg.InfiniteLine(

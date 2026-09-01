@@ -160,7 +160,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
         self.setModal(True)
         self.resize(960, 620)
-        self.setMinimumSize(820, 540)
+        self.setMinimumSize(0, 0)
         self.setObjectName("settingsDialog")
         self._repository = repository
         self._runtime_performance_settings = runtime_performance_settings

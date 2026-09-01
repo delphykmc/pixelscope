@@ -234,10 +234,12 @@ Split/Difference documents. `kept_selected_ids()` filters baseline order by pick
 membership so application order never depends on pick order.
 
 `ui.review_selection.ReviewSelectionController` owns direct temporary-curation
-orchestration. Production composition adds `● Picked N / Clear Selection / Keep
-Selection` after Display Gain in the presentation row; there is no Review Select
-entry control and no user-facing Cancel action. `● Picked N` is the temporary Pick
-Set count rather than Files logical Selected count.
+orchestration. Production composition adds the compact visible labels
+`● Picked N / Clear / Keep` after Display Gain in the presentation row; the latter
+two retain the complete accessible command names and tooltips `Clear Selection` /
+`Keep Selection`. There is no Review Select entry control and no user-facing Cancel
+action. `● Picked N` is the temporary Pick Set count rather than Files logical
+Selected count.
 
 `TileHeader` owns the explicit stable **Pick** affordance on eligible native-source
 Multi View tiles and emits ID-free UI intent. The first checked Pick captures the

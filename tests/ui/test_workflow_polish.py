@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
@@ -13,6 +14,8 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _window(qtbot: object) -> tuple[MainWindow, object]:
@@ -33,31 +36,24 @@ def test_shortcuts_page_reservations_and_initial_placeholders(qtbot: object) -> 
     assert not window.previous_comparison_page_button.isEnabled()
     assert not window.next_comparison_page_button.isEnabled()
 
-    page_metrics = window.comparison_page_label.fontMetrics()
-    range_metrics = window.comparison_page_range_label.fontMetrics()
     page_width = window.comparison_page_label.width()
     range_width = window.comparison_page_range_label.width()
-    assert page_width == (page_metrics.horizontalAdvance("999 / 999") + 2 * TOKENS.spacing_sm)
-    assert range_width == (
-        range_metrics.horizontalAdvance("9999–9999 of 9999") + 2 * TOKENS.spacing_sm
-    )
-    assert page_width < (page_metrics.horizontalAdvance("8888 / 8888") + 2 * TOKENS.spacing_sm)
-    assert range_width < (
-        range_metrics.horizontalAdvance("99999–99999 of 99999") + 2 * TOKENS.spacing_sm
-    )
+    assert window.comparison_page_label.minimumWidth() == 0
+    assert window.comparison_page_range_label.minimumWidth() == 0
+    assert page_width <= window.comparison_page_label.maximumWidth() <= 54
+    assert range_width <= window.comparison_page_range_label.maximumWidth() <= 90
 
     window._comparison_page_range = lambda: (9996, 10000, 10000)  # type: ignore[method-assign]
     window._comparison_page_controls_state = None
     window._update_comparison_page_controls()
     assert window.comparison_page_label.text() == "1667 / 1667"
     assert window.comparison_page_range_label.text() == "9997–10000 of 10000"
-    assert window.comparison_page_label.width() >= (
-        page_metrics.horizontalAdvance(window.comparison_page_label.text()) + 2 * TOKENS.spacing_sm
-    )
-    assert window.comparison_page_range_label.width() >= (
-        range_metrics.horizontalAdvance(window.comparison_page_range_label.text())
-        + 2 * TOKENS.spacing_sm
-    )
+    assert window.comparison_page_label.width() <= 54
+    assert window.comparison_page_range_label.width() <= 90
+    assert window.comparison_page_label.toolTip() == "1667 / 1667"
+    assert window.comparison_page_range_label.toolTip() == "9997–10000 of 10000"
+    assert "1667 / 1667" in window.comparison_page_label.accessibleName()
+    assert "9997–10000 of 10000" in window.comparison_page_range_label.accessibleName()
 
 
 def test_shortcuts_dispatch_in_active_production_window(qtbot: object) -> None:
@@ -174,10 +170,15 @@ def test_difference_and_plot_empty_states_are_consistent(qtbot: object) -> None:
     line_panel.set_documents([first], None)
     assert "Draw a line" in line_panel.workflow_empty_hint.text()
     assert "Shift + drag" in line_panel.workflow_empty_hint.text()
-    assert "Shift+drag" in line_panel.status.text()
-    assert "Alt+drag" not in line_panel.status.text()
+    assert line_panel.status.text() == ""
+    assert line_panel.status.isHidden()
     line_panel.set_documents([first], LineSelection(0, 0, 1, 1))
     assert line_panel.workflow_empty_hint.isHidden()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: line_panel.status.text() == "(0, 0) to (1, 1)",
+        timeout=3000,
+    )
+    assert not line_panel.status.isHidden()
 
 
 def test_difference_hint_hides_in_flight_and_stays_hidden_for_uncached_result(

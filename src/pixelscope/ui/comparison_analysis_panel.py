@@ -27,11 +27,11 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
     QGroupBox,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
     QScrollArea,
+    QSizePolicy,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
@@ -48,6 +48,7 @@ from pixelscope.core.statistics import ImageStatistics
 from pixelscope.ui.design_tokens import TOKENS, channel_button_style
 from pixelscope.ui.plot_colors import channel_color, comparison_pen
 from pixelscope.ui.plot_text import coordinate_header, middle_elide, plot_number
+from pixelscope.ui.responsive_control_layout import ElidingContextLabel, ResponsiveControlLayout
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -223,8 +224,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.region_layout.addWidget(self.bounds_label, 1, 0)
         self.region_layout.addWidget(self.roi_label, 1, 1)
         self.region_layout.setColumnStretch(1, 1)
-        channel_controls = QHBoxLayout()
-        channel_controls.addWidget(QLabel("Channels"))
+        histogram_channel_label = QLabel("Channels")
         for name, color in (("R", "#ff3b30"), ("G", "#24b34b"), ("B", "#2684ff")):
             button = QToolButton()
             button.setText(name)
@@ -235,8 +235,6 @@ class ComparisonAnalysisPanel(QWidget):
                 self._channels_changed
             )
             self.channel_buttons[name] = button
-            channel_controls.addWidget(button)
-        channel_controls.addStretch(1)
 
         self.image_summary = QTableWidget(0, 4)
         self.image_summary.setHorizontalHeaderLabels(("Id", "Image", "Bit depth", "Pixels"))
@@ -323,29 +321,30 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_range.addItems(("Native range", "Normalized 0–1"))
         self.histogram_bins = QComboBox()
         self.histogram_bins.addItems(("Auto", "256", "1024", "4096"))
-        histogram_controls = QHBoxLayout()
-        histogram_controls.setSpacing(TOKENS.spacing_sm)
-        histogram_controls.addWidget(QLabel("View"))
-        histogram_controls.addWidget(self.histogram_mode)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addWidget(QLabel("Y"))
-        histogram_controls.addWidget(self.histogram_units)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addWidget(QLabel("X"))
-        histogram_controls.addWidget(self.histogram_range)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addWidget(QLabel("Bins"))
-        histogram_controls.addWidget(self.histogram_bins)
-        histogram_controls.addSpacing(TOKENS.spacing_lg)
-        histogram_controls.addLayout(channel_controls)
-        histogram_controls.addStretch(1)
-        for combo in (
-            self.histogram_mode,
-            self.histogram_units,
-            self.histogram_range,
-            self.histogram_bins,
+        self.histogram_context = ElidingContextLabel()
+        self.histogram_context.hide()
+        histogram_controls_widget = QWidget()
+        histogram_controls = ResponsiveControlLayout(
+            histogram_controls_widget, spacing=TOKENS.spacing_sm
+        )
+        for compact_row, label_text, combo in (
+            (0, "View", self.histogram_mode),
+            (0, "Y", self.histogram_units),
+            (1, "X", self.histogram_range),
+            (1, "Bins", self.histogram_bins),
         ):
+            histogram_controls.add_control(QLabel(label_text), compact_row=compact_row)
+            histogram_controls.add_control(combo, compact_row=compact_row)
             combo.setMaximumWidth(170)
+            combo.setMinimumWidth(0)
+            combo.setSizePolicy(
+                QSizePolicy.Policy.Ignored,
+                QSizePolicy.Policy.Fixed,
+            )
+        histogram_controls.add_control(histogram_channel_label, compact_row=1)
+        for button in self.channel_buttons.values():
+            histogram_controls.add_control(button, compact_row=1)
+        histogram_controls.add_context(self.histogram_context, compact_row=2)
         for combo in (self.histogram_mode, self.histogram_units, self.histogram_range):
             combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
                 self._histogram_options_changed
@@ -356,7 +355,8 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_panel = QWidget()
         histogram_panel_layout = QVBoxLayout(self.histogram_panel)
         histogram_panel_layout.setContentsMargins(4, 4, 4, 4)
-        histogram_panel_layout.addLayout(histogram_controls)
+        histogram_panel_layout.setSpacing(TOKENS.spacing_xs)
+        histogram_panel_layout.addWidget(histogram_controls_widget)
         histogram_scroll = QScrollArea()
         histogram_scroll.setWidgetResizable(True)
         histogram_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -431,6 +431,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._request_signature = signature
         self._completed_signature = ()
         self._histogram_specs = histogram_specs
+        self._invalidate_histogram_presentation()
         self._set_activity("Preparing analysis...", busy=True)
         self._refresh_timer.start()
 
@@ -450,6 +451,8 @@ class ComparisonAnalysisPanel(QWidget):
         self.statistics_delegate.set_separator_rows(set())
         self._clear_histogram_plots()
         self.roi_label.clear()
+        self.histogram_context.clear()
+        self.histogram_context.hide()
         self._set_activity("No images selected", busy=False)
 
     def refresh(self) -> None:
@@ -475,6 +478,7 @@ class ComparisonAnalysisPanel(QWidget):
                 self._worker.cancel()
             self._request_signature = signature
             self._completed_signature = ()
+            self._invalidate_histogram_presentation()
 
         sources = [
             (
@@ -612,6 +616,21 @@ class ComparisonAnalysisPanel(QWidget):
     def _histogram_bins_changed(self, _index: int) -> None:
         if not self._documents:
             return
+        histogram_specs = [
+            automatic_histogram_spec(document, self._selected_histogram_bins())
+            for document in self._documents
+        ]
+        signature = self._analysis_request_signature(
+            self._documents,
+            self._bounds,
+            histogram_specs,
+        )
+        if self._worker is not None:
+            self._worker.cancel()
+        self._request_signature = signature
+        self._completed_signature = ()
+        self._histogram_specs = histogram_specs
+        self._invalidate_histogram_presentation()
         self._set_activity("Preparing histogram...", busy=True)
         self._refresh_timer.start()
 
@@ -639,9 +658,35 @@ class ComparisonAnalysisPanel(QWidget):
                 return
             source = self._documents[0].source
             bounds = RoiBounds(0, 0, source.shape[1], source.shape[0])
-        self.roi_label.setText(
-            f"x={bounds.x}, y={bounds.y}, width={bounds.width}, height={bounds.height}"
-        )
+        text = f"x={bounds.x}, y={bounds.y}, width={bounds.width}, height={bounds.height}"
+        self.roi_label.setText(text)
+
+    @staticmethod
+    def _format_bounds(bounds: RoiBounds) -> str:
+        return f"x={bounds.x}, y={bounds.y}, " f"width={bounds.width}, height={bounds.height}"
+
+    def _update_histogram_context(self, results: tuple[RoiAnalysisResult, ...]) -> None:
+        if not results:
+            self.histogram_context.clear()
+            self.histogram_context.hide()
+            return
+        bounds = tuple(result.bounds for result in results)
+        if all(item == bounds[0] for item in bounds[1:]):
+            text = self._format_bounds(bounds[0])
+        else:
+            details = " · ".join(
+                f"{index}: {self._format_bounds(item)}"
+                for index, item in enumerate(bounds, start=1)
+            )
+            text = f"Per-image bounds · {details}"
+        self.histogram_context.setText(text)
+        self.histogram_context.show()
+
+    def _invalidate_histogram_presentation(self) -> None:
+        self.last_results = ()
+        self._clear_histogram_plots()
+        self.histogram_context.clear()
+        self.histogram_context.hide()
 
     def _set_activity(self, text: str, *, busy: bool) -> None:
         self.status.setText(text)
@@ -653,6 +698,7 @@ class ComparisonAnalysisPanel(QWidget):
         results: tuple[RoiAnalysisResult, ...],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
     ) -> None:
+        self._update_histogram_context(results)
         labels = comparison_labels(self._documents)
         self.image_summary.setRowCount(len(results))
         for image_index, (document, result) in enumerate(

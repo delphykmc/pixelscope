@@ -3618,6 +3618,31 @@ class MainWindow(QMainWindow):
         self.settings.setValue("ui/layout", self._layout_mode)
         self.settings.setValue("analysis/bottom_tab", self.bottom_tabs.currentIndex())
 
+    def _prepare_floating_workspaces_for_shutdown(self) -> None:
+        """Reattach managed floating docks while the main native window is valid."""
+
+        hardening = self.__dict__.get("beta_workspace_hardening_controller")
+        quiesce_hardening = getattr(hardening, "quiesce_pending_callbacks", None)
+        if callable(quiesce_hardening):
+            quiesce_hardening()
+
+        for dock in (self.bottom_dock, self.iqa_dock):
+            title = PlotsDockTitleBar.controller_for_dock(dock)
+            if title is not None:
+                title.quiesce_pending_callbacks()
+            if not dock.isFloating():
+                continue
+            if dock.isMaximized():
+                dock.showNormal()
+            dock.hide()
+            area = (
+                title.shutdown_dock_area()
+                if title is not None
+                else Qt.DockWidgetArea.RightDockWidgetArea
+            )
+            self.addDockWidget(area, dock)
+            dock.setFloating(False)
+
     def reset_workspace_layout(self) -> None:
         self.plots_dock_title.clear_persisted_geometry()
         for key in (
@@ -3643,6 +3668,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         self._closing = True
         self._save_ui_state()
+        self._prepare_floating_workspaces_for_shutdown()
         self.comparison_analysis_panel.shutdown()
         self.line_profile_panel.shutdown()
         self.difference_panel.shutdown()

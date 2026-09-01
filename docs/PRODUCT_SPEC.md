@@ -159,7 +159,9 @@ not be decoded, resident, protected, preloaded, or presented. Pick Set membershi
 not an analysis input and does not extend the Current Comparison Page working set.
 
 The presentation row exposes the temporary curation state directly as
-`Layout | Page | Display Gain | ● Picked N | Clear Selection | Keep Selection`.
+`Layout | Page | Display Gain | ● Picked N | Clear | Keep`. The compact visible
+`Clear`/`Keep` labels retain the complete accessible command names and tooltips
+`Clear Selection`/`Keep Selection`.
 `● Picked N` is the temporary Pick Set count, not the Files logical Selected count.
 **Clear Selection** clears only temporary pick membership. **Keep Selection** is
 disabled when the Pick Set is empty. Only Keep Selection changes logical Selected:

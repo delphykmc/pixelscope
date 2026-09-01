@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QPoint, QSettings, Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QWidget
 
 from pixelscope.app.application import _compose_main_window_presentation
@@ -12,6 +12,8 @@ from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.design_tokens import TOKENS, tile_style
 from pixelscope.ui.review_selection import ReviewSelectionController
+
+pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
 def _ready_documents(tmp_path: Path, count: int) -> list[ImageDocument]:
@@ -53,7 +55,6 @@ def _selected_tree_ids(window: MainWindow) -> list[str]:
 def test_production_composition_has_no_review_mode_and_unwraps_curation_controls(
     qtbot: object,
 ) -> None:
-    QSettings().clear()
     window, controller = _production_window(qtbot)
 
     assert window.review_selection_controller is controller
@@ -61,8 +62,12 @@ def test_production_composition_has_no_review_mode_and_unwraps_curation_controls
     assert not hasattr(controller, "mode_button")
     assert not hasattr(controller, "cancel_button")
     assert controller.count_label.text() == "● Picked 0"
-    assert controller.clear_button.text() == "Clear Selection"
-    assert controller.keep_button.text() == "Keep Selection"
+    assert controller.clear_button.text() == "Clear"
+    assert controller.keep_button.text() == "Keep"
+    assert controller.clear_button.accessibleName() == "Clear Selection"
+    assert controller.keep_button.accessibleName() == "Keep Selection"
+    assert "Clear Selection" in controller.clear_button.toolTip()
+    assert "Keep Selection" in controller.keep_button.toolTip()
 
     layout = window.presentation_controls_layout
     assert isinstance(layout, QHBoxLayout)
@@ -74,7 +79,7 @@ def test_production_composition_has_no_review_mode_and_unwraps_curation_controls
     assert layout.indexOf(gain_host) < layout.indexOf(controller.count_label)
     assert layout.indexOf(controller.count_label) < layout.indexOf(controller.clear_button)
     assert layout.indexOf(controller.clear_button) < layout.indexOf(controller.keep_button)
-    assert layout.spacing() >= TOKENS.spacing_md
+    assert layout.spacing() == TOKENS.spacing_sm
     window.close()
 
 
@@ -82,7 +87,6 @@ def test_files_remove_request_clears_curation_before_stale_state_survives(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
-    QSettings().clear()
     documents = _ready_documents(tmp_path, 3)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
@@ -109,7 +113,6 @@ def test_direct_remove_requested_fallback_clears_curation_after_external_emit(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
-    QSettings().clear()
     documents = _ready_documents(tmp_path, 3)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
@@ -127,7 +130,6 @@ def test_selected_tile_yellow_border_and_pressed_pick_persist_across_pages(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
-    QSettings().clear()
     documents = _ready_documents(tmp_path, 7)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
@@ -171,7 +173,6 @@ def test_viewer_drag_gestures_do_not_toggle_direct_pick(
     tmp_path: Path,
     modifier: Qt.KeyboardModifier,
 ) -> None:
-    QSettings().clear()
     documents = _ready_documents(tmp_path, 2)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)
@@ -210,7 +211,6 @@ def test_keep_selection_updates_files_selection_and_first_result_is_active(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
-    QSettings().clear()
     documents = _ready_documents(tmp_path, 5)
     window, controller = _production_window(qtbot)
     _register_and_select(window, documents)

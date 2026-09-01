@@ -66,14 +66,8 @@ def test_beta_layout_policy_removes_accumulated_workspace_floors(qtbot: object) 
     assert not window.main_splitter.isCollapsible(1)
     assert window.iqa_workspace.attribute_filter.minimumWidth() == 0
     assert window.iqa_workspace.attribute_filter.maximumWidth() == window.maximumWidth()
-    assert (
-        window.iqa_workspace.sizePolicy().horizontalPolicy()
-        == QSizePolicy.Policy.Ignored
-    )
-    assert (
-        window.iqa_workspace.sizePolicy().verticalPolicy()
-        == QSizePolicy.Policy.Ignored
-    )
+    assert window.iqa_workspace.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    assert window.iqa_workspace.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Ignored
     assert window.iqa_workspace.status_label.wordWrap()
     assert window.iqa_workspace.result_label.wordWrap()
     assert window.iqa_workspace.dataset_label.wordWrap()
@@ -82,22 +76,10 @@ def test_beta_layout_policy_removes_accumulated_workspace_floors(qtbot: object) 
     assert window.iqa_workspace.scene_trend_plot.minimumHeight() == 0
     assert window.iqa_workspace.hierarchy.minimumHeight() == 0
 
-    assert (
-        window.corner(Qt.Corner.BottomLeftCorner)
-        == Qt.DockWidgetArea.BottomDockWidgetArea
-    )
-    assert (
-        window.corner(Qt.Corner.BottomRightCorner)
-        == Qt.DockWidgetArea.BottomDockWidgetArea
-    )
-    assert (
-        window.main_splitter.sizePolicy().verticalPolicy()
-        == QSizePolicy.Policy.Ignored
-    )
-    assert (
-        window.bottom_tabs.sizePolicy().verticalPolicy()
-        == QSizePolicy.Policy.Expanding
-    )
+    assert window.corner(Qt.Corner.BottomLeftCorner) == Qt.DockWidgetArea.BottomDockWidgetArea
+    assert window.corner(Qt.Corner.BottomRightCorner) == Qt.DockWidgetArea.BottomDockWidgetArea
+    assert window.main_splitter.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Ignored
+    assert window.bottom_tabs.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Expanding
     assert window.bottom_tabs.minimumHeight() == 0
 
     window.close()
@@ -305,3 +287,40 @@ def test_reset_workspace_clears_retained_floating_geometry(
         assert QByteArray(persisted) != stale_geometry
 
     window.close()
+
+
+def test_close_orders_persistence_and_native_dock_teardown_before_workers(
+    qtbot: object,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    install_beta_workspace_hardening(window)
+    window.show()
+    dock = _prepare_styled_floating(window, "plots", qtbot)
+    calls: list[str] = []
+
+    save_ui_state = window._save_ui_state
+    prepare_workspaces = window._prepare_floating_workspaces_for_shutdown
+    shutdown_analysis = window.comparison_analysis_panel.shutdown
+
+    def save_with_trace() -> None:
+        calls.append("save")
+        save_ui_state()
+
+    def prepare_with_trace() -> None:
+        calls.append("prepare")
+        prepare_workspaces()
+
+    def shutdown_with_trace() -> None:
+        calls.append("workers")
+        shutdown_analysis()
+
+    window._save_ui_state = save_with_trace
+    window._prepare_floating_workspaces_for_shutdown = prepare_with_trace
+    window.comparison_analysis_panel.shutdown = shutdown_with_trace
+
+    window.close()
+
+    assert calls[:3] == ["save", "prepare", "workers"]
+    assert dock.isHidden()
+    assert not dock.isFloating()
