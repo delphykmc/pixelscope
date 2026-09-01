@@ -15,9 +15,14 @@ from pixelscope.core.comparison_set import (
     SessionDifference,
     SessionSource,
 )
-from pixelscope.io.comparison_set_repository import ComparisonSetRepository
+from pixelscope.io.comparison_set_repository import (
+    ComparisonSetRepository,
+    SessionInputProfile,
+    parse_session_input_profile,
+)
 from pixelscope.io.path_discovery import ImageInput, image_input_for_path
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.design_tokens import menu_style
 from pixelscope.ui.display_gain import display_gain_state
 
@@ -170,9 +175,11 @@ class SessionController:
         for document in registered:
             assert document.source_path is not None
             profile = self.window._raw_profiles.get(document.document_id)
-            if profile is None and isinstance(document.raw_profile, RawProfile):
+            if profile is None and isinstance(document.raw_profile, (RawProfile, YuvProfile)):
                 profile = document.raw_profile
-            raw_payload = profile.dict() if isinstance(profile, RawProfile) else None
+            raw_payload = (
+                profile.dict() if isinstance(profile, (RawProfile, YuvProfile)) else None
+            )
             registered_sources.append(SessionSource(str(document.source_path), raw_payload))
 
         selected = [
@@ -338,7 +345,7 @@ class SessionController:
                 continue
             path_to_id[source.path.casefold()] = document_id
             if source.raw_profile is not None:
-                profile = RawProfile.parse_obj(source.raw_profile)
+                profile = parse_session_input_profile(source.raw_profile)
                 self._apply_saved_raw_profile(document_id, profile)
         self.window._update_empty_workspace_state()
         if not path_to_id:
@@ -459,7 +466,11 @@ class SessionController:
     ) -> str | None:
         return None if path is None else path_to_id.get(path.casefold())
 
-    def _apply_saved_raw_profile(self, document_id: str, profile: RawProfile) -> None:
+    def _apply_saved_raw_profile(
+        self,
+        document_id: str,
+        profile: SessionInputProfile,
+    ) -> None:
         document = self.window.documents[document_id]
         previous = self.window._raw_profiles.get(document_id)
         if previous is not None and previous == profile:
