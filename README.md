@@ -1,7 +1,7 @@
 # PixelScope
 
 PixelScope is a CPU-only Windows desktop application for visual and numeric
-comparison of PNG, BMP, JPEG, and profile-described RAW images. It preserves
+comparison of PNG, BMP, JPEG, and profile-described raw-like binary images. It preserves
 native source data while providing synchronized viewers, pixel inspection,
 full-image/ROI statistics, histograms, line profiles, and overflow-safe
 Difference analysis.
@@ -62,15 +62,40 @@ views, ROI metrics, gain, and threshold masks without recalculating subtraction.
 Metrics include MAE, MSE, RMSE, PSNR, P95, P99, maximum difference, and non-zero
 ratio.
 
-## RAW support
+## RAW-like binary support
 
-Direct RAW file input resolves a profile before loading unless a valid same-name
-JSON sidecar is accepted through the stored preference. RAW discovered through
-folder registration remains pending. A selected-but-off-page unresolved RAW does
-not prompt or decode merely because it is selected; foreground Current Comparison
-Page entry resolves its profile when source is required. Cancel leaves that RAW
-pending with no worker and suppresses immediate passive re-prompt within the same
-foreground attempt. Unresolved RAW is excluded from speculative preload.
+PixelScope treats `.raw`, `.data`, and `.yuv` as the same **generic raw-like binary
+input family**. The `.yuv` extension alone does not select a YUV420/YUV422 layout and
+does not enable native YUV analysis or YUV-specific Difference semantics; those remain
+outside the current WP-B compatibility scope.
+
+Direct raw-like file input resolves a profile before loading. Same-stem sidecars use
+this precedence:
+
+1. PixelScope `.json`
+2. `.imgprops`
+3. editable/default RAW profile dialog
+
+A valid explicit PixelScope JSON profile therefore remains authoritative over
+`.imgprops`. `.imgprops` maps Bayer metadata (`width`, `height`, `sensorBitWidth`,
+`imageType=BAYER<n>`, `pattern`, and `pedestal`) and deliberately does **not** infer
+packing from file size or producer-specific attributes. Missing byte-layout metadata
+uses unpacked `uint16`, little-endian, LSB alignment where applicable, offset 0,
+full-scale white level, and `minimum_row_bytes()` stride.
+
+New/default RAW dialog profiles keep stride synchronized to the current minimum row
+size while stride remains automatic. Width, storage-format, and container changes
+recompute that minimum. Once the user edits stride explicitly, that value is a manual
+override and later field changes do not silently replace it. Explicit JSON stride is
+also preserved as manual input.
+
+Raw-like inputs discovered through folder registration remain pending. A
+selected-but-off-page unresolved raw-like input does not prompt or decode merely
+because it is selected; foreground Current Comparison Page entry resolves its profile
+when source is required. Cancel leaves that input pending with no worker and suppresses
+immediate passive re-prompt within the same foreground attempt. Unresolved raw-like
+inputs are excluded from speculative preload; resolved ones reuse the normal RAW reader,
+profile identity, exact-size policy, residency, and preload lifecycle.
 
 The profile separates storage format, sample container, effective bit depth, byte
 order, bit alignment, dimensions, stride, offset, and channel layout.
@@ -83,7 +108,8 @@ Supported storage formats are:
 - Grayscale and Bayer mosaic channel layouts.
 
 Bayer analysis uses native R/Gr/Gb/B mosaic planes. Demosaic preview,
-black/white-level processing, and profile suggestion are not implemented.
+black/white-level processing, native YUV decoding, and profile suggestion are not
+implemented.
 
 Example profile:
 [`examples/raw_profiles/example_unpacked_raw16.json`](examples/raw_profiles/example_unpacked_raw16.json).
@@ -129,5 +155,5 @@ quality, roadmap, packaging, UI, and execution-plan documents.
 Portable ZIP/Inno Setup distribution and owner-local candidate/publication staging are
 implemented. Current Beta qualification does not include production Remote IQA
 server/GPU/SSO integration, production signing or privileged corporate publication,
-notification/self-update integration, saved ROI management, alpha overlay, or RAW
-demosaic.
+notification/self-update integration, saved ROI management, alpha overlay, RAW
+demosaic, or native YUV decoding/analysis.
