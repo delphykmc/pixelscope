@@ -9,6 +9,7 @@ from pixelscope.io.path_discovery import (
     RAW_LIKE_IMAGE_SUFFIXES,
     SUPPORTED_IMAGE_FILTER,
     discover_image_inputs,
+    discover_registration_inputs,
     image_input_for_path,
     raw_profile_sidecar_for_path,
 )
@@ -122,6 +123,29 @@ def test_raw_like_extensions_share_discovery_without_affecting_ordinary_images(
     assert "*.data" in SUPPORTED_IMAGE_FILTER
     assert "*.yuv" in SUPPORTED_IMAGE_FILTER
     assert "*.png" in SUPPORTED_IMAGE_FILTER
+
+
+def test_registration_discovery_preserves_folder_lazy_and_direct_profile_resolution(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    folder_data = folder / "image2.data"
+    folder_yuv = folder / "image10.yuv"
+    direct_raw = tmp_path / "direct.raw"
+    for path in (folder_data, folder_yuv, direct_raw):
+        path.write_bytes(b"binary")
+
+    discovery = discover_registration_inputs((folder, direct_raw))
+
+    assert [record.image_input.path.name for record in discovery.items] == [
+        "image2.data",
+        "image10.yuv",
+        "direct.raw",
+    ]
+    assert [record.from_folder for record in discovery.items] == [True, True, False]
+    assert [record.resolve_raw_profile for record in discovery.items] == [False, False, True]
+    assert [record.select_on_complete for record in discovery.items] == [False, False, True]
 
 
 def test_minimum_stride_uses_storage_specific_row_layout() -> None:
