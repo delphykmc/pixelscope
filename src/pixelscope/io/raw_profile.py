@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
 
@@ -15,6 +18,15 @@ from pixelscope.io.raw_format import (
     minimum_row_bytes,
     storage_format_spec,
 )
+
+_IMGPROPS_BAYER_RE = re.compile(r"^BAYER(?P<bit_depth>\d+)$", re.IGNORECASE)
+
+
+def _imgprops_positive_int(payload: Mapping[str, Any], key: str) -> int:
+    value = payload.get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f".imgprops {key} must be a positive integer")
+    return value
 
 
 class RawProfile(BaseModel):
@@ -166,6 +178,75 @@ class RawProfile(BaseModel):
     @classmethod
     def load_json(cls, path: str | Path) -> RawProfile:
         return cls.parse_raw(Path(path).read_text(encoding="utf-8"))
+
+    @classmethod
+    def load_imgprops(cls, path: str | Path) -> RawProfile:
+        """Load common JSON-like ``.imgprops`` Bayer metadata without guessing packing.
+
+        ``.imgprops`` does not describe the byte packing used by PixelScope. The WP-B
+        compatibility contract therefore treats it as unpacked little-endian uint16
+        and derives only the minimum legal stride. Unknown producer-specific fields
+        are intentionally ignored.
+        """
+
+        source = Path(path)
+        try:
+            payload = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Cannot parse .imgprops: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError(".imgprops root must be a JSON object")
+        return cls.from_imgprops(payload, name=source.stem)
+
+    @classmethod
+    def from_imgprops(
+        cls,
+        payload: Mapping[str, Any],
+        *,
+        name: str = "imgprops",
+    ) -> RawProfile:
+        width = _imgprops_positive_int(payload, "width")
+        height = _imgprops_positive_int(payload, "height")
+        bit_depth = _imgprops_positive_int(payload, "sensorBitWidth")
+
+        image_type = payload.get("imageType")
+        match = _IMGPROPS_BAYER_RE.fullmatch(image_type.strip()) if isinstance(image_type, str) else None
+        if match is None:
+            raise ValueError(".imgprops imageType must use BAYER<n> form")
+        image_type_depth = int(match.group("bit_depth"))
+        if image_type_depth != bit_depth:
+            raise ValueError(
+                ".imgprops imageType bit depth does not match sensorBitWidth "
+                f"({image_type_depth} != {bit_depth})"
+            )
+
+        pattern = payload.get("pattern")
+        if not isinstance(pattern, str) or not pattern.strip():
+            raise ValueError(".imgprops pattern is required for Bayer input")
+        bayer_pattern = pattern.strip().upper()
+
+        pedestal = payload.get("pedestal", 0)
+        if isinstance(pedestal, list):
+            pedestal = tuple(pedestal)
+
+        container_dtype: ContainerDType = "uint16"
+        stride_bytes = minimum_row_bytes(width, "unpacked", container_dtype)
+        return cls(
+            name=name,
+            width=width,
+            height=height,
+            stride_bytes=stride_bytes,
+            offset_bytes=0,
+            storage_format="unpacked",
+            container_dtype=container_dtype,
+            endianness="little",
+            bit_depth=bit_depth,
+            bit_alignment="lsb",
+            channel_layout="BAYER",
+            bayer_pattern=bayer_pattern,
+            black_level=pedestal,
+            white_level=(1 << bit_depth) - 1,
+        )
 
     def save_json(self, path: str | Path) -> None:
         Path(path).write_text(self.json(indent=2), encoding="utf-8")
