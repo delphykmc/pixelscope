@@ -101,6 +101,11 @@ def test_yuv_difference_is_explicitly_unsupported_until_wp_c2(qtbot: object) -> 
     assert window.difference_panel.b_selector.count() == 0
     assert "WP-C2" in window.difference_panel.status.text()
 
+    # A later Calculate request must not overwrite the explicit C2 boundary with a
+    # generic "select two images" message or enter legacy RGB/Gray/Bayer math.
+    window.difference_panel.calculate_difference()
+    assert "WP-C2" in window.difference_panel.status.text()
+
     window.close()
 
 
@@ -117,7 +122,12 @@ def test_mixed_yuv_and_rgb_plots_fail_safe_instead_of_mislabeling(qtbot: object)
 
     assert not window.comparison_analysis_panel.last_results
     assert "Mixed YUV/non-YUV" in window.comparison_analysis_panel.status.text()
+    assert all(
+        button.isHidden()
+        for button in window.comparison_analysis_panel.channel_buttons.values()
+    )
     assert not window.line_profile_panel.last_results
     assert "Mixed YUV/non-YUV" in window.line_profile_panel.status.text()
+    assert all(button.isHidden() for button in window.line_profile_panel.channel_buttons.values())
 
     window.close()
