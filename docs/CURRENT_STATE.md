@@ -1,10 +1,10 @@
 # PixelScope current state
 
-Snapshot date: 2026-08-28
-Current merged `main`: `1fa6d278fcb16ed5170c3a21fc8cb31119f6e7e2`
+Snapshot date: 2026-09-01
+Current merged `main`: `a04f70447c5b68be9b5ea694909e4c2b1ecf46c2`
 
-`main` includes the cumulative P5/R history below plus the release-foundation work
-merged after R closeout:
+`main` includes the cumulative P5/R history below plus the release-foundation and
+local-workflow hardening merged after R closeout:
 
 - P5-A / PR #37 — historical executable schema-v1 compatibility;
 - P5-A2 Stage 1 / PR #39 — durable schema-v2 contract;
@@ -43,7 +43,9 @@ merged after R closeout:
 - P7-A / PR #61 — PyInstaller 5.7 `onedir` executable foundation;
 - P7-B / PR #62 — portable ZIP + Inno Setup distribution;
 - P7-C / PR #63 — Owner-local Release Candidate Build & Validation, merged at
-  `f3b1437b478e119c425dbf00d627b37f0371889e`.
+  `f3b1437b478e119c425dbf00d627b37f0371889e`;
+- WP-A / PR #71 — responsive large-folder registration, merged at
+  `a04f70447c5b68be9b5ea694909e4c2b1ecf46c2`.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is only partially observed: temporary
@@ -126,18 +128,35 @@ registration/selection workflow.
 
 ## Current local input policy
 
-Supported local PixelScope image families remain:
+Supported local PixelScope image families are:
 
 ```text
-.png  .bmp  .jpg  .jpeg  .raw
+.png  .bmp  .jpg  .jpeg  .raw  .data  .yuv
 ```
 
+- `.raw`, `.data`, and `.yuv` are one generic **raw-like binary** family and use the
+  existing RAW profile/reader lifecycle. A `.yuv` suffix does not imply YUV420/YUV422,
+  native YUV decoding, native YUV analysis, or YUV-specific Difference behavior.
+- Same-stem profile precedence is explicit PixelScope `.json` > `.imgprops` >
+  editable/default RAW profile dialog. `.imgprops` never overrides an explicit JSON
+  profile.
+- `.imgprops` maps `width`, `height`, `sensorBitWidth`, `imageType=BAYER<n>`, `pattern`,
+  and `pedestal`; unknown producer attributes are ignored and packing is not inferred
+  from file size.
+- Missing `.imgprops` byte-layout metadata defaults to unpacked `uint16`, little-endian,
+  LSB alignment where applicable, offset 0, full-scale white, and
+  `minimum_row_bytes()` stride.
+- New/default RAW dialog stride tracks the current minimum when width, storage format,
+  or container changes until the user edits stride. A user-edited stride and explicit
+  JSON stride are manual authority and are not silently replaced by later field changes.
 - **Open Images...** and direct-file drag/drop are selection-oriented.
 - **Open Folder...** and folder drag/drop are registration-oriented.
 - Folder registration does not replace Selected or presentation state.
 - Registered-but-unselected is valid.
-- unresolved folder RAW remains lazy until foreground intent requires profile
-  resolution.
+- unresolved folder raw-like inputs remain lazy until foreground intent requires
+  profile resolution and are excluded from speculative preload; resolved raw-like
+  inputs reuse the normal RAW reader, profile identity, exact-size policy, residency,
+  and preload lifecycle.
 
 Remote IQA submission remains intentionally narrower:
 
@@ -145,7 +164,7 @@ Remote IQA submission remains intentionally narrower:
 .png  .bmp  .jpg  .jpeg
 ```
 
-There is no silent RAW conversion for Remote IQA.
+There is no silent RAW/raw-like conversion for Remote IQA.
 
 ## P2/P3/P4 authorities inherited by P5
 
