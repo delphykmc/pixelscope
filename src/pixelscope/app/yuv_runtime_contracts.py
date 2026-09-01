@@ -1,63 +1,27 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.preload import PreloadMemberRequest
-from pixelscope.io.comparison_set_repository import YUV_SESSION_LAYOUTS
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.yuv_profile import YuvProfile
 
 InputProfile = RawProfile | YuvProfile
 
 
-def parse_input_profile(payload: dict[str, Any]) -> InputProfile:
-    """Parse Session v1's existing profile payload without changing its schema."""
-
-    if payload.get("channel_layout") in YUV_SESSION_LAYOUTS:
-        return YuvProfile.parse_obj(payload)
-    return RawProfile.parse_obj(payload)
-
-
-class _InputProfileFacadeMeta(type):
-    def __instancecheck__(cls, instance: object) -> bool:
-        return isinstance(instance, (RawProfile, YuvProfile))
-
-
-class _InputProfileFacade(metaclass=_InputProfileFacadeMeta):
-    """Scoped adapter for legacy Session UI code that still names RawProfile."""
-
-    @classmethod
-    def parse_obj(cls, payload: object) -> InputProfile:
-        if not isinstance(payload, dict):
-            raise ValueError("saved input profile must be an object")
-        return parse_input_profile(payload)
-
-
 class NativeYuvRuntimeContracts:
-    """Extend existing preload-result and Session UI lifecycles to native YUV."""
+    """Widen legacy preload-result guards to resolved native YUV profiles."""
 
     def __init__(self, window: Any) -> None:
         self.window = window
-        self._session = getattr(window, "session_controller", None)
-        self._session_save_original: Callable[..., object] | None = None
-        self._session_open_original: Callable[..., object] | None = None
 
     def install(self) -> None:
-        # NativeYuvSemanticsController already forwards resolved profiles into the
-        # established worker path. Only the legacy RawProfile-only result guards need
-        # widening so YUV gets identical stale-drop and foreground-promotion behavior.
+        # NativeYuvSemanticsController forwards resolved profiles into the established
+        # worker path. Only the legacy RawProfile-only result guards need widening so
+        # YUV gets identical stale-drop and foreground-promotion behavior.
         self.window._promoted_preload_is_current = self.promoted_preload_is_current
         self.window._preload_succeeded = self.preload_succeeded
-
-        if self._session is not None:
-            self._session_save_original = self._session.save_to_path
-            self._session_open_original = self._session.open_from_path
-            self._session.save_to_path = self.save_session
-            self._session.open_from_path = self.open_session
-
         self.window.__dict__["native_yuv_runtime_contracts"] = self
 
     @staticmethod
@@ -166,34 +130,6 @@ class NativeYuvRuntimeContracts:
             request.document_id,
             retained=retained,
         )
-
-    def save_session(self, path: str | Path) -> object:
-        """Persist YuvProfile in Session v1's existing raw_profile payload slot."""
-
-        if self._session_save_original is None:
-            raise RuntimeError("Session controller is not installed")
-        import pixelscope.ui.comparison_set as comparison_set_module
-
-        original_type = comparison_set_module.RawProfile
-        comparison_set_module.RawProfile = _InputProfileFacade  # type: ignore[assignment]
-        try:
-            return self._session_save_original(path)
-        finally:
-            comparison_set_module.RawProfile = original_type  # type: ignore[assignment]
-
-    def open_session(self, path: str | Path) -> object:
-        """Restore RawProfile or YuvProfile through the transactional Session path."""
-
-        if self._session_open_original is None:
-            raise RuntimeError("Session controller is not installed")
-        import pixelscope.ui.session as session_module
-
-        original_type = session_module.RawProfile
-        session_module.RawProfile = _InputProfileFacade  # type: ignore[assignment]
-        try:
-            return self._session_open_original(path)
-        finally:
-            session_module.RawProfile = original_type  # type: ignore[assignment]
 
 
 def install_native_yuv_runtime_contracts(window: Any) -> NativeYuvRuntimeContracts:
