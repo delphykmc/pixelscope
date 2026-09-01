@@ -5,9 +5,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pixelscope.app.yuv_runtime_contracts import NativeInputProfileSessionRepository
 from pixelscope.core.comparison_set import Session, SessionSource
 from pixelscope.core.yuv import NativeYuvFrame
+from pixelscope.io.comparison_set_repository import ComparisonSetRepository
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.io.yuv_profile import YuvProfile
 
@@ -52,7 +52,7 @@ def test_session_v1_repository_round_trips_raw_and_yuv_profiles(
         registered_sources=(SessionSource(str(source), profile.dict()),),
     )
     target = tmp_path / "session.pixelscope"
-    repository = NativeInputProfileSessionRepository()
+    repository = ComparisonSetRepository()
 
     repository.save(target, session)
     restored = repository.load(target)
