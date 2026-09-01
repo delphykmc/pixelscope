@@ -594,11 +594,18 @@ class NativeYuvSemanticsController:
         if self._difference_yuv_blocked:
             self._set_yuv_difference_status()
 
-    def calculate_difference(self) -> None:
+    def calculate_difference(
+        self,
+        _checked: bool = False,
+        *,
+        publish_result: bool = True,
+    ) -> None:
+        """Preserve the DifferencePanel slot/API signature while enforcing WP-C2."""
+
         if self._difference_yuv_blocked:
             self._set_yuv_difference_status()
             return
-        self._difference_calculate_original()
+        self._difference_calculate_original(_checked, publish_result=publish_result)
 
     def _set_yuv_difference_status(self) -> None:
         self.window.difference_panel.status.setText(
