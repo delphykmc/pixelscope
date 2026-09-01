@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QObject, QThreadPool, QTimer, Signal, Slot
-from PySide6.QtWidgets import QFileDialog, QProgressBar
+from PySide6.QtWidgets import QFileDialog, QHeaderView, QProgressBar
 
 from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.core.recent_entries import RecentEntryKind
@@ -94,6 +94,7 @@ class RegistrationController(QObject):
         self._folder_sort_keys: dict[str, list[tuple[object, ...]]] = {}
         self._folder_document_ids: dict[str, set[str]] = {}
         self._current_record: RegistrationInput | None = None
+        self._type_column_resize_mode: QHeaderView.ResizeMode | None = None
         self._original_path_key = window._path_key
         self._original_add_document_to_folder = window._add_document_to_folder
         self._original_remove_document_from_folder = window._remove_document_from_folder
@@ -235,6 +236,24 @@ class RegistrationController(QObject):
             return record.canonical_path_key
         return self._original_path_key(path)
 
+    def _suspend_type_column_auto_resize(self) -> None:
+        if self._type_column_resize_mode is not None:
+            return
+        header = self.window.document_list.header()
+        mode = header.sectionResizeMode(1)
+        self._type_column_resize_mode = mode
+        if mode == QHeaderView.ResizeMode.ResizeToContents:
+            width = header.sectionSize(1)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+            header.resizeSection(1, max(width, 48))
+
+    def _restore_type_column_auto_resize(self) -> None:
+        mode = self._type_column_resize_mode
+        if mode is None:
+            return
+        self._type_column_resize_mode = None
+        self.window.document_list.header().setSectionResizeMode(1, mode)
+
     def _start_next_request(self) -> None:
         if self._closing or self._active_generation is not None or not self._queue:
             return
@@ -285,6 +304,7 @@ class RegistrationController(QObject):
         self._discovery_task_id = None
         self._active_discovery = result
         total = len(result.items)
+        self._suspend_type_column_auto_resize()
         self._set_progress("registering", 0, total)
         if total == 0:
             QTimer.singleShot(0, lambda token=generation: self._finish_registration(token))
@@ -446,6 +466,7 @@ class RegistrationController(QObject):
             self._start_next_request()
 
     def _clear_active_state(self) -> None:
+        self._restore_type_column_auto_resize()
         self._active_generation = None
         self._active_discovery = None
         self._discovery_task_id = None

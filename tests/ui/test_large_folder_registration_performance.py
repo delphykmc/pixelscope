@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from PySide6.QtWidgets import QHeaderView
 
 from pixelscope.app import registration_controller as registration_module
 from pixelscope.app.main_window import MainWindow
@@ -77,7 +78,7 @@ def test_async_controller_does_not_linearly_scan_folder_membership_for_fresh_ite
     window.close()
 
 
-def test_async_discovered_registration_does_not_resolve_paths_on_gui_thread(
+def test_composed_async_registration_does_not_resolve_paths_on_gui_thread(
     qtbot: object,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -87,6 +88,7 @@ def test_async_discovered_registration_does_not_resolve_paths_on_gui_thread(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
+    install_folder_display_tags(window)
     controller = install_large_folder_registration(window)
     original_resolve = Path.resolve
     calls = 0
@@ -136,13 +138,21 @@ def test_folder_display_tag_row_refresh_is_coalesced_per_registration_slice(
     window.close()
 
 
-def test_registration_progress_is_owned_by_files_panel_and_hides_when_idle(
+def test_registration_progress_is_owned_by_files_panel_and_restores_header_mode(
     qtbot: object, tmp_path: Path
 ) -> None:
     folder = _make_folder(tmp_path, 3)
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     controller = install_large_folder_registration(window, chunk_size=1)
+    header = window.document_list.header()
+    initial_mode = header.sectionResizeMode(1)
+    observed_modes: list[tuple[str, QHeaderView.ResizeMode]] = []
+    controller.progress_changed.connect(
+        lambda phase, _completed, _total: observed_modes.append(
+            (phase, header.sectionResizeMode(1))
+        )
+    )
 
     assert controller._progress.parentWidget() is window.document_list.parentWidget()
     assert controller._progress.isHidden()
@@ -152,6 +162,11 @@ def test_registration_progress_is_owned_by_files_panel_and_hides_when_idle(
     assert not controller._progress.isHidden()
     _wait_idle(qtbot, controller)
 
+    assert any(
+        phase == "registering" and mode == QHeaderView.ResizeMode.Interactive
+        for phase, mode in observed_modes
+    )
+    assert header.sectionResizeMode(1) == initial_mode
     assert controller.progress.phase == "idle"
     assert controller._progress.isHidden()
     window.close()
