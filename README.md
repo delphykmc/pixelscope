@@ -62,26 +62,54 @@ views, ROI metrics, gain, and threshold masks without recalculating subtraction.
 Metrics include MAE, MSE, RMSE, PSNR, P95, P99, maximum difference, and non-zero
 ratio.
 
-## RAW-like binary support
+## RAW-like binary and native YUV support
 
-PixelScope treats `.raw`, `.data`, and `.yuv` as the same **generic raw-like binary
-input family**. The `.yuv` extension alone does not select a YUV420/YUV422 layout and
-does not enable native YUV analysis or YUV-specific Difference semantics; those remain
-outside the current WP-B compatibility scope.
+PixelScope treats `.raw`, `.data`, and `.yuv` as one **raw-like binary input family**.
+The `.yuv` extension alone does not imply YUV420, YUV422, or any other byte layout.
+A `.yuv` source can either use the existing generic RAW profile workflow or an explicit
+WP-C1 native YUV interpretation.
 
-Direct raw-like file input resolves a profile before loading. Same-stem sidecars use
-this precedence:
+Same-stem sidecars use this precedence:
 
 1. PixelScope `.json`
 2. `.imgprops`
-3. editable/default RAW profile dialog
+3. editable interpretation dialog
 
-A valid explicit PixelScope JSON profile therefore remains authoritative over
-`.imgprops`. `.imgprops` maps Bayer metadata (`width`, `height`, `sensorBitWidth`,
-`imageType=BAYER<n>`, `pattern`, and `pedestal`) and deliberately does **not** infer
-packing from file size or producer-specific attributes. Missing byte-layout metadata
-uses unpacked `uint16`, little-endian, LSB alignment where applicable, offset 0,
-full-scale white level, and `minimum_row_bytes()` stride.
+A JSON whose `channel_layout` is `YUV444`, `YUV422`, or `YUV420` selects the native
+YUV path. A non-YUV RAW JSON remains authoritative for the generic RAW path, and
+`.imgprops` remains a generic RAW/Bayer contract. The native YUV dialog also retains a
+**Generic RAW profile…** fallback, so extension is never used as semantic authority.
+
+WP-C1 native YUV supports:
+
+- 8-bit YUV444, YUV422, and YUV420;
+- Y plane first followed by interleaved UV chroma;
+- UV ordering only;
+- tightly packed storage with exact file-size validation;
+- unrestricted positive YUV444 dimensions;
+- even width for YUV422;
+- even width and even height for YUV420;
+- fixed BT.601 Full-range RGB conversion for viewer preview only.
+
+The native Y/U/V planes are numerical authority. YUV422 and YUV420 retain U/V at
+their native chroma resolution; PixelScope does not create replicated full-resolution
+U/V planes as analysis sources. Pixel Inspector reports native Y/U/V at the luma cursor
+coordinate. Split Channels produces native-resolution Y, U, and V views. Statistics and
+Histogram use each plane's native sample cardinality. ROI remains expressed in luma
+coordinates and maps deterministically to the referenced chroma footprint. Line Profile
+keeps chroma samples at their native luma-coordinate positions instead of duplicating
+them at every luma sample.
+
+Native YUV Difference is intentionally deferred to **WP-C2**. YUV inputs are therefore
+excluded from the existing Difference family rather than silently reusing RGB/Gray/
+Bayer Difference semantics. Mixed YUV/non-YUV Statistics, Histogram, and Line Profile
+selections fail safe instead of presenting misleading channel labels.
+
+For the generic RAW path, `.imgprops` maps Bayer metadata (`width`, `height`,
+`sensorBitWidth`, `imageType=BAYER<n>`, `pattern`, and `pedestal`) and deliberately
+does **not** infer packing from file size or producer-specific attributes. Missing
+byte-layout metadata uses unpacked `uint16`, little-endian, LSB alignment where
+applicable, offset 0, full-scale white level, and `minimum_row_bytes()` stride.
 
 New/default RAW dialog profiles keep stride synchronized to the current minimum row
 size while stride remains automatic. Width, storage-format, and container changes
@@ -94,13 +122,14 @@ selected-but-off-page unresolved raw-like input does not prompt or decode merely
 because it is selected; foreground Current Comparison Page entry resolves its profile
 when source is required. Cancel leaves that input pending with no worker and suppresses
 immediate passive re-prompt within the same foreground attempt. Unresolved raw-like
-inputs are excluded from speculative preload; resolved ones reuse the normal RAW reader,
-profile identity, exact-size policy, residency, and preload lifecycle.
+inputs are excluded from speculative preload. Once a native YUV or generic RAW profile
+is resolved, the source reuses the bounded preload/promotion, profile-identity,
+residency, stale-result, and Session v1 persistence lifecycle.
 
-The profile separates storage format, sample container, effective bit depth, byte
-order, bit alignment, dimensions, stride, offset, and channel layout.
+The generic RAW profile separates storage format, sample container, effective bit depth,
+byte order, bit alignment, dimensions, stride, offset, and channel layout.
 
-Supported storage formats are:
+Supported generic RAW storage formats are:
 
 - Unpacked `uint8` and `uint16`, including little/big endian and LSB/MSB
   alignment where applicable.
@@ -108,20 +137,23 @@ Supported storage formats are:
 - Grayscale and Bayer mosaic channel layouts.
 
 Bayer analysis uses native R/Gr/Gb/B mosaic planes. Demosaic preview,
-black/white-level processing, native YUV decoding, and profile suggestion are not
-implemented.
+black/white-level processing, arbitrary YUV plane dumps, Y-only/UV-only semantic YUV
+profiles, VU-order formats, planar I420/YV12, 10/12-bit YUV, configurable matrix/range
+UI, and profile suggestion are not implemented by WP-C1.
 
-Example profile:
+Example RAW profile:
 [`examples/raw_profiles/example_unpacked_raw16.json`](examples/raw_profiles/example_unpacked_raw16.json).
 
 ## Runtime memory policy
 
-Decoded-source residency keeps P2 exact native `source.nbytes` accounting and
-protected soft-budget LRU semantics. For large logical selections, selection alone
+Decoded-source residency keeps P2 protected soft-budget LRU semantics. RGB/Gray/Bayer
+sources retain their established native-array accounting. Native YUV residency counts
+the actual Y + U + V native sample storage; replicated chroma is not counted because it
+is never retained as numerical authority. For large logical selections, selection alone
 does not protect every visited source: the Current Comparison Page plus correctness
-dependencies are protected, while off-page selected sources may be evicted and
-normally reloaded when revisited. Preload remains exactly the next Folder Position;
-PixelScope does not add a Comparison Page preload system.
+dependencies are protected, while off-page selected sources may be evicted and normally
+reloaded when revisited. Preload remains exactly the next Folder Position; PixelScope
+does not add a Comparison Page preload system.
 
 ## Development
 
@@ -156,4 +188,4 @@ Portable ZIP/Inno Setup distribution and owner-local candidate/publication stagi
 implemented. Current Beta qualification does not include production Remote IQA
 server/GPU/SSO integration, production signing or privileged corporate publication,
 notification/self-update integration, saved ROI management, alpha overlay, RAW
-demosaic, or native YUV decoding/analysis.
+demosaic, or native YUV Difference.
