@@ -49,7 +49,10 @@ class NativeYuvSemanticsController:
         self._line_refresh_original = line.refresh
         self._line_buttons_original = dict(line.channel_buttons)
 
-        self._difference_set_documents_original = window.difference_panel.set_documents
+        difference = window.difference_panel
+        self._difference_set_documents_original = difference.set_documents
+        self._difference_calculate_original = difference.calculate_difference
+        self._difference_yuv_blocked = False
 
     def install(self) -> None:
         window = self.window
@@ -75,7 +78,9 @@ class NativeYuvSemanticsController:
         line.set_documents = self.set_line_documents
         line.refresh = self.refresh_line_profile
 
-        window.difference_panel.set_documents = self.set_difference_documents
+        difference = window.difference_panel
+        difference.set_documents = self.set_difference_documents
+        difference.calculate_difference = self.calculate_difference
         window.__dict__["native_yuv_semantics_controller"] = self
         self.update_action_states()
 
@@ -146,14 +151,8 @@ class NativeYuvSemanticsController:
         document: ImageDocument,
         profile: object | None,
     ) -> None:
-        """Keep YUV speculative preload out of the legacy RAW profile-identity path."""
+        """Reuse the established bounded preload worker path for resolved profiles."""
 
-        if isinstance(profile, YuvProfile):
-            self.window.preload_controller.complete_available_member(
-                plan_generation,
-                document.document_id,
-            )
-            return
         self._start_preload_original(plan_generation, document, profile)
 
     def record_resident_source(self, document: ImageDocument) -> None:
@@ -223,17 +222,26 @@ class NativeYuvSemanticsController:
         yuv_values: list[tuple[int, int, int]] = []
         for index, value in enumerate(values):
             document = documents[index] if index < len(documents) else None
-            if document is not None and document.yuv_frame is not None and isinstance(value, tuple):
-                native = tuple(int(component) for component in value[:3])
-                if len(native) == 3:
-                    yuv_values.append(native)
-                    formatted = ", ".join(
-                        f"{name}{component:4d}"
-                        for name, component in zip(("Y", "U", "V"), native, strict=True)
-                    )
-                    entries.append(f"{index + 1} ({formatted})")
-                    continue
-            fallback = self._pixel_status_original(x, y, [value], [document] if document else [])
+            if (
+                document is not None
+                and document.yuv_frame is not None
+                and isinstance(value, tuple)
+                and len(value) >= 3
+            ):
+                native = (int(value[0]), int(value[1]), int(value[2]))
+                yuv_values.append(native)
+                formatted = ", ".join(
+                    f"{name}{component:4d}"
+                    for name, component in zip(("Y", "U", "V"), native, strict=True)
+                )
+                entries.append(f"{index + 1} ({formatted})")
+                continue
+            fallback = self._pixel_status_original(
+                x,
+                y,
+                [value],
+                [document] if document else [],
+            )
             _coordinate, _separator, formatted = fallback.partition("  |  ")
             entries.append(formatted or f"{index + 1} —")
 
@@ -270,7 +278,7 @@ class NativeYuvSemanticsController:
         panel = self.window.comparison_analysis_panel
         if self._mixed_yuv_family(documents):
             panel.clear()
-            self._configure_analysis_channels(False)
+            self._hide_analysis_channels()
             panel._set_activity(
                 "Mixed YUV/non-YUV Statistics and Histogram are disabled to preserve semantics.",
                 busy=False,
@@ -288,7 +296,9 @@ class NativeYuvSemanticsController:
 
         bounds = panel._bounds
         requested_bins = panel._selected_histogram_bins()
-        histogram_specs = [automatic_histogram_spec(document, requested_bins) for document in documents]
+        histogram_specs = [
+            automatic_histogram_spec(document, requested_bins) for document in documents
+        ]
         signature = panel._analysis_request_signature(documents, bounds, histogram_specs)
         panel._histogram_specs = histogram_specs
         if signature == panel._request_signature:
@@ -422,9 +432,16 @@ class NativeYuvSemanticsController:
         for name, button in panel.channel_buttons.items():
             button.setText(name)
             button.setStyleSheet(channel_button_style(channel_color(name)))
+            button.show()
         header = panel.image_summary.horizontalHeaderItem(3)
         if header is not None:
             header.setText("Pixels")
+
+    def _hide_analysis_channels(self) -> None:
+        panel = self.window.comparison_analysis_panel
+        panel.channel_buttons = dict(self._analysis_buttons_original)
+        for button in self._analysis_buttons_original.values():
+            button.hide()
 
     def set_line_documents(
         self,
@@ -436,8 +453,10 @@ class NativeYuvSemanticsController:
         panel = self.window.line_profile_panel
         if self._mixed_yuv_family(documents):
             panel.clear()
-            self._configure_line_channels(False)
-            panel._set_status("Mixed YUV/non-YUV Line Profile is disabled to preserve semantics.")
+            self._hide_line_channels()
+            panel._set_status(
+                "Mixed YUV/non-YUV Line Profile is disabled to preserve semantics."
+            )
             return
         self._configure_line_channels(self._has_yuv(documents))
         self._line_set_documents_original(
@@ -547,8 +566,15 @@ class NativeYuvSemanticsController:
         for name, button in panel.channel_buttons.items():
             button.setText(name)
             button.setStyleSheet(channel_button_style(channel_color(name)))
+            button.show()
         if separate_by_channel is not None:
             separate_by_channel.setEnabled(True)
+
+    def _hide_line_channels(self) -> None:
+        panel = self.window.line_profile_panel
+        panel.channel_buttons = dict(self._line_buttons_original)
+        for button in self._line_buttons_original.values():
+            button.hide()
 
     def set_difference_documents(
         self,
@@ -563,11 +589,21 @@ class NativeYuvSemanticsController:
             {document.document_id for document in supported}
         ):
             safe_pair = None
+        self._difference_yuv_blocked = yuv_present and len(supported) < 2
         self._difference_set_documents_original(supported, safe_pair, active_roi)
-        if yuv_present and len(supported) < 2:
-            self.window.difference_panel.status.setText(
-                "Native YUV Difference is intentionally unsupported until WP-C2."
-            )
+        if self._difference_yuv_blocked:
+            self._set_yuv_difference_status()
+
+    def calculate_difference(self) -> None:
+        if self._difference_yuv_blocked:
+            self._set_yuv_difference_status()
+            return
+        self._difference_calculate_original()
+
+    def _set_yuv_difference_status(self) -> None:
+        self.window.difference_panel.status.setText(
+            "Native YUV Difference is intentionally unsupported until WP-C2."
+        )
 
 
 def install_native_yuv_semantics(window: Any) -> NativeYuvSemanticsController:
