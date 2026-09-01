@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from contextlib import ExitStack, nullcontext, suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QObject, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWidgets import QFileDialog, QHeaderView, QProgressBar
@@ -146,7 +146,7 @@ class RegistrationController(QObject):
         if action is not None:
             with suppress(RuntimeError, TypeError):
                 action.triggered.disconnect()
-            action.triggered.connect(self.open_folders)  # type: ignore[attr-defined]
+            action.triggered.connect(self.open_folders)
 
         with suppress(RuntimeError, TypeError):
             self.window.empty_workspace.open_folders_requested.disconnect()
@@ -234,7 +234,7 @@ class RegistrationController(QObject):
             and record.canonical_path_key is not None
         ):
             return record.canonical_path_key
-        return self._original_path_key(path)
+        return cast(str, self._original_path_key(path))
 
     def _suspend_type_column_auto_resize(self) -> None:
         if self._type_column_resize_mode is not None:
