@@ -11,7 +11,7 @@ from pixelscope.core.roi import RoiAnalysisResult, RoiBounds
 from pixelscope.core.statistics import HistogramResult, statistics_from_histogram
 
 YuvLayout = Literal["YUV444", "YUV422", "YUV420"]
-YUV_CHANNEL_NAMES = ("Y", "U", "V")
+YUV_CHANNEL_NAMES: tuple[str, str, str] = ("Y", "U", "V")
 
 
 @dataclass(frozen=True)
@@ -67,11 +67,11 @@ class NativeYuvFrame:
 
     @property
     def native_nbytes(self) -> int:
-        return int(sum(plane.size for plane in self.planes))
+        return int(self.y.size + self.u.size + self.v.size)
 
     @property
     def sample_cardinality(self) -> tuple[int, int, int]:
-        return tuple(int(plane.size) for plane in self.planes)
+        return int(self.y.size), int(self.u.size), int(self.v.size)
 
     def pixel_at(self, x: int, y: int) -> tuple[int, int, int]:
         if x < 0 or y < 0 or x >= self.width or y >= self.height:
@@ -201,7 +201,6 @@ def selected_yuv_line_profile(
     )
     if selected.is_horizontal:
         direction = 1 if selected.x2 > selected.x1 else -1
-        y_coordinates = np.array([selected.y1], dtype=np.intp)
         x_coordinates = np.arange(selected.x1, selected.x2 + direction, direction)
         y_values = frame.y[selected.y1, x_coordinates]
         y_positions = np.arange(x_coordinates.size, dtype=np.float64)
@@ -211,7 +210,6 @@ def selected_yuv_line_profile(
         u_values = frame.u[chroma_row, anchors // scale_x]
         v_values = frame.v[chroma_row, anchors // scale_x]
         chroma_positions = np.abs(anchors - selected.x1).astype(np.float64)
-        del y_coordinates
     else:
         assert selected.y2 is not None
         direction = 1 if selected.y2 > selected.y1 else -1
@@ -234,5 +232,5 @@ def selected_yuv_line_profile(
             v_values.astype(np.float64),
         ),
         YUV_CHANNEL_NAMES,
-        (y_positions, chroma_positions, chroma_positions.copy()),
+        (y_positions, chroma_positions, chroma_positions),
     )
