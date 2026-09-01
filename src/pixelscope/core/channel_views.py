@@ -15,7 +15,7 @@ def split_document_channels(document: ImageDocument) -> list[ImageDocument]:
         documents: list[ImageDocument] = []
         for name, channel in zip(("Y", "U", "V"), document.yuv_frame.planes, strict=True):
             preview = np.repeat(channel[..., None], 3, axis=2)
-            documents.append(_channel_document(document, name, channel, preview))
+            documents.append(_yuv_channel_document(document, name, channel, preview))
         return documents
 
     source = document.source
@@ -54,9 +54,32 @@ def _channel_document(
     channel: NDArray[np.generic],
     preview: NDArray[np.uint8],
 ) -> ImageDocument:
-    # Split views are presentation objects. Keep the native-resolution plane view as
-    # their scalar source and allocate only the RGB grayscale/color preview required
-    # by the viewer; no full-resolution YUV chroma authority is synthesized.
+    """Preserve the established RGB/Bayer split construction contract."""
+
+    document = ImageDocument.from_array(
+        channel,
+        display_name=f"{source_document.display_name} · {channel_name}",
+        channel_layout=f"CHANNEL_{channel_name}",
+        bit_depth=source_document.bit_depth,
+        raw_profile=source_document.raw_profile,
+        display_transform=source_document.display_transform,
+        prepared_preview=preview,
+    )
+    # Split views are transient, but their identity must be stable and traceable
+    # to the source document so MainWindow can preserve an explicit Primary
+    # channel across rerenders without guessing from display names or UUIDs.
+    document.document_id = f"{source_document.document_id}:split:{channel_name}"
+    return document
+
+
+def _yuv_channel_document(
+    source_document: ImageDocument,
+    channel_name: str,
+    channel: NDArray[np.generic],
+    preview: NDArray[np.uint8],
+) -> ImageDocument:
+    """Keep one native-resolution YUV plane view without forcing a contiguous copy."""
+
     document = ImageDocument(
         source_path=source_document.source_path,
         display_name=f"{source_document.display_name} · {channel_name}",
@@ -69,6 +92,5 @@ def _channel_document(
         loading_state="ready",
         generation=source_document.generation,
     )
-    # Split identities must remain stable and traceable to the source document.
     document.document_id = f"{source_document.document_id}:split:{channel_name}"
     return document
