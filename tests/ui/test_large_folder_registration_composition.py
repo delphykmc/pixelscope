@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import cv2
@@ -16,7 +17,7 @@ from pixelscope.core.recent_entries import RecentEntryKind
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
-def _history_count(entries: list[Path], target: Path) -> int:
+def _history_count(entries: Sequence[Path], target: Path) -> int:
     identity = str(target.resolve()).casefold()
     return sum(str(entry.resolve()).casefold() == identity for entry in entries)
 
