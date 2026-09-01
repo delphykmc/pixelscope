@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pixelscope.core.line_profile import LineProfileResult, LineSelection, clamp_line
 from pixelscope.core.roi import RoiAnalysisResult, RoiBounds
 from pixelscope.core.statistics import HistogramResult, statistics_from_histogram
+
+if TYPE_CHECKING:
+    from pixelscope.core.line_profile import LineProfileResult, LineSelection
 
 YuvLayout = Literal["YUV444", "YUV422", "YUV420"]
 YUV_CHANNEL_NAMES: tuple[str, str, str] = ("Y", "U", "V")
@@ -195,6 +197,12 @@ def selected_yuv_line_profile(
     selection: LineSelection,
 ) -> LineProfileResult:
     """Sample native Y/U/V along a luma-coordinate line without chroma replication."""
+
+    # Keep the generic line-profile module out of YUV's import-time dependency graph.
+    # `line_profile` imports Bayer helpers, which eventually import ImageDocument and
+    # therefore this module. Importing these runtime helpers only when the YUV line
+    # operation is requested breaks that startup cycle without changing sampling logic.
+    from pixelscope.core.line_profile import LineProfileResult, clamp_line
 
     selected = clamp_line(
         frame.shape,
