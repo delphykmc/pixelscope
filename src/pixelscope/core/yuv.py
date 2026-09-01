@@ -31,6 +31,10 @@ class NativeYuvFrame:
         height, width = self.y.shape
         if height <= 0 or width <= 0:
             raise ValueError("YUV dimensions must be positive")
+        if self.layout in ("YUV422", "YUV420") and width % 2:
+            raise ValueError(f"{self.layout} width must be even")
+        if self.layout == "YUV420" and height % 2:
+            raise ValueError("YUV420 height must be even")
         scale_x, scale_y = self.chroma_scale
         expected = (height // scale_y, width // scale_x)
         if self.u.shape != expected or self.v.shape != expected:
