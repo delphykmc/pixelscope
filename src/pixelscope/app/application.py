@@ -8,6 +8,7 @@ from PySide6.QtCore import QSettings, QThreadPool
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.app.registration_controller import install_large_folder_registration
 from pixelscope.app.resources import load_application_icon
 from pixelscope.app.settings import (
     ApplicationSettings,
@@ -130,6 +131,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
+    install_large_folder_registration(window)
     return gain_control
 
 

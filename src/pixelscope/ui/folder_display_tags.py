@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
@@ -21,6 +23,8 @@ class FolderDisplayTagController:
         self._original_update_document_item = window._update_document_item
         self._original_register_input = window._register_input
         self._original_add_document = window.add_document
+        self._bulk_registration_depth = 0
+        self._pending_folder_rows: dict[str, Path] = {}
         self._install_document_hooks()
         self._install_context_menu_hook()
         self._refresh_existing_documents()
@@ -49,8 +53,8 @@ class FolderDisplayTagController:
             json.dumps(self._tags, ensure_ascii=False, sort_keys=True),
         )
 
-    def tag_for_folder(self, folder: Path) -> str:
-        return self._tags.get(self._folder_key(folder), "")
+    def tag_for_folder(self, folder: Path, *, folder_key: str | None = None) -> str:
+        return self._tags.get(folder_key or self._folder_key(folder), "")
 
     def set_tag(self, folder: Path, tag: str) -> None:
         normalized = " ".join(str(tag).split())[: self.MAX_TAG_LENGTH]
@@ -66,16 +70,47 @@ class FolderDisplayTagController:
             3000,
         )
 
-    def _apply_document_tag(self, document: Any) -> None:
+    def _registration_folder_key(self, source_path: Path) -> str | None:
+        controller = getattr(self.window, "large_folder_registration_controller", None)
+        record = getattr(controller, "current_record", None)
+        if record is None or record.image_input.path != source_path:
+            return None
+        return cast(str | None, record.canonical_folder_key)
+
+    def _apply_document_tag(self, document: Any, *, folder_key: str | None = None) -> None:
         source_path = getattr(document, "source_path", None)
         if not isinstance(source_path, Path):
             return
-        tag = self.tag_for_folder(source_path.parent)
+        key = folder_key or self._registration_folder_key(source_path)
+        tag = self.tag_for_folder(source_path.parent, folder_key=key)
         document.display_name = f"[{tag}] {source_path.name}" if tag else source_path.name
 
+    @contextmanager
+    def bulk_registration(self) -> Iterator[None]:
+        """Coalesce folder-row tag presentation across one GUI registration slice."""
+
+        outermost = self._bulk_registration_depth == 0
+        self._bulk_registration_depth += 1
+        try:
+            yield
+        finally:
+            self._bulk_registration_depth -= 1
+            if outermost:
+                pending = tuple(self._pending_folder_rows.items())
+                self._pending_folder_rows.clear()
+                for folder_key, folder in pending:
+                    self._refresh_folder_row(folder, folder_key=folder_key)
+
+    def _queue_folder_row_refresh(self, folder: Path, folder_key: str | None) -> None:
+        key = folder_key or self._folder_key(folder)
+        if self._bulk_registration_depth:
+            self._pending_folder_rows[key] = folder
+            return
+        self._refresh_folder_row(folder, folder_key=key)
+
     def _install_document_hooks(self) -> None:
-        def update_document_item(document: Any) -> None:
-            self._apply_document_tag(document)
+        def update_document_item(document: Any, *, folder_key: str | None = None) -> None:
+            self._apply_document_tag(document, folder_key=folder_key)
             self._original_update_document_item(document)
 
         def register_input(*args: Any, **kwargs: Any) -> str | None:
@@ -83,10 +118,16 @@ class FolderDisplayTagController:
             if document_id is not None:
                 document = self.window.documents.get(document_id)
                 if document is not None:
-                    update_document_item(document)
                     source_path = getattr(document, "source_path", None)
                     folder = source_path.parent if isinstance(source_path, Path) else None
-                    self._refresh_folder_row(folder)
+                    folder_key = (
+                        self._registration_folder_key(source_path)
+                        if isinstance(source_path, Path)
+                        else None
+                    )
+                    update_document_item(document, folder_key=folder_key)
+                    if folder is not None:
+                        self._queue_folder_row_refresh(folder, folder_key)
             return document_id
 
         def add_document(document: Any, *args: Any, **kwargs: Any) -> None:
@@ -153,9 +194,9 @@ class FolderDisplayTagController:
         for document in self.window.documents.values():
             source_path = getattr(document, "source_path", None)
             if isinstance(source_path, Path) and self._folder_key(source_path.parent) == key:
-                self._apply_document_tag(document)
+                self._apply_document_tag(document, folder_key=key)
                 self._original_update_document_item(document)
-        self._refresh_folder_row(folder)
+        self._refresh_folder_row(folder, folder_key=key)
         self.window._render_selection(preserve_view=True)
 
         analysis = self.window.comparison_analysis_panel
@@ -165,16 +206,21 @@ class FolderDisplayTagController:
         if line.last_results:
             line._render(line.last_results)
 
-    def _refresh_folder_row(self, folder: Path | None) -> None:
+    def _refresh_folder_row(
+        self,
+        folder: Path | None,
+        *,
+        folder_key: str | None = None,
+    ) -> None:
         if folder is None:
             return
-        key = self._folder_key(folder)
+        key = folder_key or self._folder_key(folder)
         for index in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(index)
             raw_path = str(item.data(0, self.tree.PATH_ROLE) or "")
-            if not raw_path or self._folder_key(Path(raw_path)) != key:
+            if not raw_path or raw_path.casefold() != key:
                 continue
-            tag = self.tag_for_folder(folder)
+            tag = self._tags.get(key, "")
             item.setText(0, f"{folder.name} [{tag}]" if tag else folder.name)
             tooltip = str(folder)
             if tag:

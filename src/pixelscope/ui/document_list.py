@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from bisect import bisect_right
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from PySide6.QtCore import (
@@ -80,7 +83,16 @@ class DocumentListWidget(QTreeWidget):
     def __init__(self) -> None:
         super().__init__()
         self._groups: dict[str, QTreeWidgetItem] = {}
+        self._group_sort_keys: dict[str, list[tuple[object, ...]]] = {}
         self._document_items: dict[str, QTreeWidgetItem] = {}
+        self._bulk_update_depth = 0
+        self._bulk_update_dirty = False
+        self._registration_metadata: tuple[
+            Path,
+            Path,
+            str,
+            tuple[object, ...],
+        ] | None = None
         self.setColumnCount(2)
         self.setHeaderLabels(["File", "Type"])
         self.setHeaderHidden(False)
@@ -108,6 +120,42 @@ class DocumentListWidget(QTreeWidget):
     def document_count(self) -> int:
         return len(self._document_items)
 
+    @contextmanager
+    def bulk_update(self) -> Iterator[None]:
+        """Suppress intermediate paints while a bounded registration chunk mutates rows."""
+
+        outermost = self._bulk_update_depth == 0
+        if outermost:
+            self.setUpdatesEnabled(False)
+        self._bulk_update_depth += 1
+        try:
+            yield
+        finally:
+            self._bulk_update_depth -= 1
+            if outermost:
+                self.setUpdatesEnabled(True)
+                if self._bulk_update_dirty:
+                    self.viewport().update()
+                self._bulk_update_dirty = False
+
+    @contextmanager
+    def registration_metadata(
+        self,
+        *,
+        source_path: Path,
+        folder_path: Path,
+        folder_key: str,
+        sort_key: tuple[object, ...],
+    ) -> Iterator[None]:
+        """Reuse worker-computed path metadata for one async registration mutation."""
+
+        previous = self._registration_metadata
+        self._registration_metadata = (source_path, folder_path, folder_key, sort_key)
+        try:
+            yield
+        finally:
+            self._registration_metadata = previous
+
     def add_document_item(
         self,
         document_id: str,
@@ -118,8 +166,18 @@ class DocumentListWidget(QTreeWidget):
         loading_state: str = "pending",
         resident: bool = False,
     ) -> QTreeWidgetItem:
-        folder = source_path.parent.resolve() if source_path is not None else None
-        group_key = str(folder).casefold() if folder is not None else "<generated>"
+        trusted = self._registration_metadata
+        folder: Path | None
+        new_key: tuple[object, ...] | None
+        if source_path is not None and trusted is not None and trusted[0] == source_path:
+            folder = trusted[1]
+            group_key = trusted[2]
+            new_key = trusted[3]
+        else:
+            folder = source_path.parent.resolve() if source_path is not None else None
+            group_key = str(folder).casefold() if folder is not None else "<generated>"
+            new_key = natural_sort_key(source_path) if source_path is not None else None
+
         group = self._groups.get(group_key)
         if group is None:
             group_name = folder.name if folder is not None else "Generated"
@@ -134,6 +192,7 @@ class DocumentListWidget(QTreeWidget):
             self.addTopLevelItem(group)
             group.setExpanded(True)
             self._groups[group_key] = group
+            self._group_sort_keys[group_key] = []
 
         file_type = source_path.suffix.upper().lstrip(".") if source_path is not None else "GEN"
         item = QTreeWidgetItem([text, file_type])
@@ -144,13 +203,10 @@ class DocumentListWidget(QTreeWidget):
         item.setData(0, self.ACTIVE_ROLE, False)
         item.setData(0, self.DETAIL_ROLE, tooltip)
         insert_at = group.childCount()
-        if source_path is not None:
-            new_key = natural_sort_key(source_path)
-            for index in range(group.childCount()):
-                existing_path = Path(str(group.child(index).data(0, self.PATH_ROLE)))
-                if new_key < natural_sort_key(existing_path):
-                    insert_at = index
-                    break
+        if new_key is not None:
+            group_keys = self._group_sort_keys.setdefault(group_key, [])
+            insert_at = bisect_right(group_keys, new_key)
+            group_keys.insert(insert_at, new_key)
         group.insertChild(insert_at, item)
         self._document_items[document_id] = item
         self.set_document_state(
@@ -192,16 +248,18 @@ class DocumentListWidget(QTreeWidget):
         group = item.parent()
         if group is None:
             return
+        group_path = str(group.data(0, self.PATH_ROLE) or "")
+        group_key = group_path.casefold() if group_path else "<generated>"
+        child_index = group.indexOfChild(item)
         group.removeChild(item)
+        group_keys = self._group_sort_keys.get(group_key)
+        if group_keys is not None and 0 <= child_index < len(group_keys):
+            group_keys.pop(child_index)
         if group.childCount() == 0:
-            group_key = next(
-                (key for key, candidate in self._groups.items() if candidate is group),
-                None,
-            )
             index = self.indexOfTopLevelItem(group)
             self.takeTopLevelItem(index)
-            if group_key is not None:
-                self._groups.pop(group_key, None)
+            self._groups.pop(group_key, None)
+            self._group_sort_keys.pop(group_key, None)
 
     def set_document_state(
         self,
@@ -237,7 +295,10 @@ class DocumentListWidget(QTreeWidget):
         elif visible:
             lines.append("Visible in workspace")
         item.setToolTip(0, "\n".join(lines))
-        self.viewport().update(self.visualItemRect(item))
+        if self._bulk_update_depth:
+            self._bulk_update_dirty = True
+        else:
+            self.viewport().update(self.visualItemRect(item))
 
     @staticmethod
     def _document_icon(file_type: str, residency_state: str) -> QIcon:
