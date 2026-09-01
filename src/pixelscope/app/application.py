@@ -129,10 +129,13 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     polish_presentation_controls(window)
     install_workflow_polish(window, review_controller)
     install_multiview_reorder_stability(window)
+    # WP-B broadens the canonical registration hook before display-tag composition
+    # wraps it, so .data/.yuv retain the exact same tag/row-refresh lifecycle as
+    # .raw and ordinary images.
+    install_raw_input_compatibility(window)
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
-    install_raw_input_compatibility(window)
     install_large_folder_registration(window)
     return gain_control
 
