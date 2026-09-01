@@ -56,9 +56,10 @@ introduce eager image decoding.
 ## Automated acceptance
 
 Focused coverage is deterministic and checks ordering, duplicate suppression, single-sort discovery,
-chunk progress lifecycle, worker/GUI thread separation, stale-result rejection, cancellation, close
-safety, common Open Folder/drop behavior, and lazy-load/preload non-regression. No pass/fail criterion
-uses elapsed registration time.
+chunk progress lifecycle, worker/GUI thread separation, stale-result rejection, discovery cancellation,
+close/cancel after a GUI registration chunk, queued-request serialization and final selection ownership,
+production-composed Recent history and Folder Display Tags, common Open Folder/drop behavior, and
+lazy-load/preload non-regression. No pass/fail criterion uses elapsed registration time.
 
 ## Manual validation
 
