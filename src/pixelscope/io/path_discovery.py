@@ -7,8 +7,9 @@ from pathlib import Path
 
 ORDINARY_IMAGE_SUFFIXES = frozenset({".png", ".bmp", ".jpg", ".jpeg"})
 RAW_IMAGE_SUFFIX = ".raw"
-SUPPORTED_IMAGE_SUFFIXES = ORDINARY_IMAGE_SUFFIXES | {RAW_IMAGE_SUFFIX}
-SUPPORTED_IMAGE_FILTER = "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw)"
+RAW_LIKE_IMAGE_SUFFIXES = frozenset({RAW_IMAGE_SUFFIX, ".data", ".yuv"})
+SUPPORTED_IMAGE_SUFFIXES = ORDINARY_IMAGE_SUFFIXES | RAW_LIKE_IMAGE_SUFFIXES
+SUPPORTED_IMAGE_FILTER = "Supported Images (*.png *.bmp *.jpg *.jpeg *.raw *.data *.yuv)"
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,22 @@ def natural_sort_key(path: Path) -> tuple[object, ...]:
     return tuple(int(part) if part.isdigit() else part for part in parts)
 
 
+def is_raw_like_path(path: Path) -> bool:
+    return path.suffix.casefold() in RAW_LIKE_IMAGE_SUFFIXES
+
+
+def raw_profile_sidecar_for_path(path: Path) -> Path | None:
+    """Resolve the WP-B RAW sidecar ladder without weakening JSON authority."""
+
+    json_sidecar = path.with_suffix(".json")
+    if json_sidecar.is_file():
+        return json_sidecar
+    imgprops_sidecar = path.with_suffix(".imgprops")
+    if imgprops_sidecar.is_file():
+        return imgprops_sidecar
+    return None
+
+
 def image_input_for_path(path: Path) -> ImageInput | None:
     candidate = path.resolve()
     if not candidate.is_file():
@@ -57,9 +74,8 @@ def image_input_for_path(path: Path) -> ImageInput | None:
     suffix = candidate.suffix.casefold()
     if suffix in ORDINARY_IMAGE_SUFFIXES:
         return ImageInput(candidate)
-    if suffix == RAW_IMAGE_SUFFIX:
-        sidecar = candidate.with_suffix(".json")
-        return ImageInput(candidate, sidecar if sidecar.is_file() else None)
+    if suffix in RAW_LIKE_IMAGE_SUFFIXES:
+        return ImageInput(candidate, raw_profile_sidecar_for_path(candidate))
     return None
 
 

@@ -8,6 +8,7 @@ from PySide6.QtCore import QSettings, QThreadPool
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.app.raw_input_compatibility import install_raw_input_compatibility
 from pixelscope.app.registration_controller import install_large_folder_registration
 from pixelscope.app.resources import load_application_icon
 from pixelscope.app.settings import (
@@ -128,6 +129,10 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     polish_presentation_controls(window)
     install_workflow_polish(window, review_controller)
     install_multiview_reorder_stability(window)
+    # WP-B broadens the canonical registration hook before display-tag composition
+    # wraps it, so .data/.yuv retain the exact same tag/row-refresh lifecycle as
+    # .raw and ordinary images.
+    install_raw_input_compatibility(window)
     install_folder_display_tags(window)
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
