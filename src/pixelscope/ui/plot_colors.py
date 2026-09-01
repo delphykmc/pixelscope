@@ -9,6 +9,9 @@ _CHANNEL_COLORS = {
     "Gr": "#35d05b",
     "Gb": "#168f38",
     "B": "#2684ff",
+    "Y": "#d5d5d5",
+    "U": "#00a7c4",
+    "V": "#c75bdb",
     "A": "#b56cff",
     "Gray": "#d5d5d5",
 }
@@ -32,7 +35,7 @@ def channel_color(channel_name: str) -> str:
 
 
 def comparison_pen(channel_name: str, image_index: int, width: float = 0.9) -> QPen:
-    """Differentiate up to six images by line style while keeping RGB colors fixed."""
+    """Differentiate up to six images by line style while keeping channel colors fixed."""
 
     pen = QPen(channel_color(channel_name))
     pen.setWidthF(width)
