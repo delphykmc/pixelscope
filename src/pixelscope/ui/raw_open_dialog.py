@@ -103,6 +103,8 @@ class RawOpenDialog(QDialog):
         self._unpacked_endianness: Endianness = "little"
         self._unpacked_alignment: BitAlignment = "lsb"
         self._unpacked_bit_depth = 12
+        self._stride_is_auto = True
+        self._updating_stride = False
 
         self.width_box = self._spin(1, 1_000_000, 640)
         self.height_box = self._spin(1, 1_000_000, 480)
@@ -368,9 +370,9 @@ class RawOpenDialog(QDialog):
         self.layout_kind.currentTextChanged.connect(  # type: ignore[attr-defined]
             self._pixel_layout_changed
         )
-        self.width_box.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
+        self.width_box.valueChanged.connect(self._width_changed)  # type: ignore[attr-defined]
         self.height_box.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
-        self.stride.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
+        self.stride.valueChanged.connect(self._stride_changed)  # type: ignore[attr-defined]
         self.offset.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
         self.bit_depth.valueChanged.connect(self._bit_depth_changed)  # type: ignore[attr-defined]
         for control in (
@@ -450,6 +452,10 @@ class RawOpenDialog(QDialog):
     @property
     def file_size_state(self) -> str:
         return self._file_size_state
+
+    @property
+    def stride_is_auto(self) -> bool:
+        return self._stride_is_auto
 
     @property
     def storage_format_key(self) -> StorageFormat:
@@ -545,11 +551,12 @@ class RawOpenDialog(QDialog):
             white_level=self.white.value(),
         )
 
-    def set_profile(self, profile: RawProfile) -> None:
+    def set_profile(self, profile: RawProfile, *, stride_is_auto: bool = False) -> None:
         self._profile_name = profile.name
         self.width_box.setValue(profile.width)
         self.height_box.setValue(profile.height)
-        self.stride.setValue(profile.stride_bytes)
+        self._set_stride_value(profile.stride_bytes)
+        self._stride_is_auto = stride_is_auto
         self.offset.setValue(profile.offset_bytes)
 
         self._set_combo_data(self.storage_format, profile.storage_format)
@@ -566,6 +573,8 @@ class RawOpenDialog(QDialog):
             self._unpacked_bit_depth = profile.bit_depth
         self.bit_depth.setValue(profile.bit_depth)
         self._storage_format_changed()
+        if self._stride_is_auto:
+            self._sync_auto_stride()
 
         self.layout_kind.setCurrentText(profile.channel_layout)
         if profile.bayer_pattern is not None:
@@ -587,6 +596,31 @@ class RawOpenDialog(QDialog):
         self._update_legacy_black_text()
         self._update_diagnostics()
 
+    def _set_stride_value(self, value: int) -> None:
+        self._updating_stride = True
+        try:
+            self.stride.setValue(value)
+        finally:
+            self._updating_stride = False
+
+    def _sync_auto_stride(self) -> None:
+        if not self._stride_is_auto:
+            return
+        try:
+            minimum_stride = self.minimum_stride_bytes()
+        except ValueError:
+            return
+        self._set_stride_value(minimum_stride)
+
+    def _width_changed(self, _value: int) -> None:
+        self._sync_auto_stride()
+        self._update_diagnostics()
+
+    def _stride_changed(self, _value: int) -> None:
+        if not self._updating_stride:
+            self._stride_is_auto = False
+        self._update_diagnostics()
+
     def _storage_format_changed(self, _index: int | None = None) -> None:
         storage_format = self.storage_format_key
         spec = storage_format_spec(storage_format)
@@ -603,6 +637,7 @@ class RawOpenDialog(QDialog):
             self.bit_depth.setValue(self._unpacked_bit_depth)
             self._update_unpacked_control_states()
         self._bit_depth_changed(self.bit_depth.value())
+        self._sync_auto_stride()
         self._update_diagnostics()
         QTimer.singleShot(0, self._resize_dialog_to_content)
 
@@ -618,6 +653,7 @@ class RawOpenDialog(QDialog):
         if self.bit_depth.value() > maximum_depth:
             self.bit_depth.setValue(maximum_depth)
         self._update_unpacked_control_states()
+        self._sync_auto_stride()
         self._update_diagnostics()
 
     def _byte_order_changed(self, _index: int | None = None) -> None:
