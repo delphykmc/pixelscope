@@ -15,13 +15,12 @@ class NativeYuvDifferencePresentationLifecycle:
 
     def install(self) -> None:
         self.window.__dict__["_difference_result_key"] = None
-        curation = getattr(self.window, "difference_curation_lifecycle", None)
-        if curation is not None:
-            # P4's pair-only active binding predates channel-specific YUV maps. Keep
-            # the existing curation lifecycle, but make its active-result predicate
-            # use the authoritative Difference cache key for every family.
-            curation._active_result_bound = self.active_result_matches_current
-        self.window._difference_result_matches_current_pair = self.active_result_matches_current
+        if getattr(self.window, "difference_curation_lifecycle", None) is None:
+            # Defensive fallback for reduced test compositions. Production curation
+            # reads the same field directly and owns the active-result predicate.
+            self.window._difference_result_matches_current_pair = (
+                self.active_result_matches_current
+            )
 
         # MainWindow's existing slots were connected during construction, so these
         # observers run after presentation storage and attach the exact identity that
@@ -46,10 +45,29 @@ class NativeYuvDifferencePresentationLifecycle:
         pair = self.panel.selected_documents()
         return pair is not None and all(document.yuv_frame is not None for document in pair)
 
+    def _reset_presented_result(self) -> None:
+        curation = getattr(self.window, "difference_curation_lifecycle", None)
+        if curation is not None:
+            curation._reset_active_difference()
+            return
+
+        self.window.diff_action.blockSignals(True)
+        self.window.diff_action.setChecked(False)
+        self.window.diff_action.blockSignals(False)
+        self.window._difference_document = None
+        self.window._difference_source_ids = None
+        self.window.__dict__["_difference_result_key"] = None
+        self.window._update_action_states()
+
     def pair_changed(self, _value: object = None) -> None:
         # Visibility intent belongs to one exact pair/channel identity and must never
         # migrate to a different A/B selection.
         self._pending_visible_key = None
+        if (
+            getattr(self.window, "_difference_document", None) is not None
+            and not self.active_result_matches_current()
+        ):
+            self._reset_presented_result()
 
     def channel_changed(self, _value: object = None) -> None:
         if not self._native_yuv_pair_selected():
@@ -67,20 +85,7 @@ class NativeYuvDifferencePresentationLifecycle:
 
         if self.window.diff_action.isChecked():
             self._pending_visible_key = current_key
-        self.window.__dict__["_difference_result_key"] = None
-
-        curation = getattr(self.window, "difference_curation_lifecycle", None)
-        if curation is not None:
-            curation._reset_active_difference()
-        else:
-            # Defensive fallback for non-production tests/composition. Production
-            # always installs DifferenceCurationLifecycle before native YUV semantics.
-            self.window.diff_action.blockSignals(True)
-            self.window.diff_action.setChecked(False)
-            self.window.diff_action.blockSignals(False)
-            self.window._difference_document = None
-            self.window._difference_source_ids = None
-            self.window._update_action_states()
+        self._reset_presented_result()
 
     def result_presented(
         self,
