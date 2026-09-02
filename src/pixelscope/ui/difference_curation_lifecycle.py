@@ -42,23 +42,10 @@ class DifferenceCurationLifecycle:
 
     def _active_result_bound(self) -> bool:
         source_ids = getattr(self.window, "_difference_source_ids", None)
-        pair_bound = (
+        return (
             getattr(self.window, "_difference_document", None) is not None
             and isinstance(source_ids, tuple)
             and len(source_ids) == 2
-        )
-        if not pair_bound:
-            return False
-
-        # Pre-WP-C2 compositions have no exact result-key field and retain the
-        # historical pair-only contract. WP-C2 creates the field and requires the
-        # presented document to match the panel's complete cache identity, including
-        # YUV layout/subsampling/channel and document generations.
-        if "_difference_result_key" not in self.window.__dict__:
-            return True
-        return (
-            self.window.__dict__.get("_difference_result_key")
-            == self.window.difference_panel._cache_key()
         )
 
     def _cached_result_available(self) -> bool:
@@ -160,10 +147,6 @@ class DifferenceCurationLifecycle:
             # Toolbar activation is an explicit user command, but it never computes a
             # new Difference map. It may only bind and display the current cached map.
             self.window._store_difference_document(*cached, switch_to_result=False)
-            if "_difference_result_key" in self.window.__dict__:
-                self.window.__dict__["_difference_result_key"] = (
-                    self.window.difference_panel._cache_key()
-                )
             difference = getattr(self.window, "_difference_document", None)
 
         if not self._active_result_bound() or not isinstance(difference, ImageDocument):
@@ -240,8 +223,6 @@ class DifferenceCurationLifecycle:
             self.window._six_image_diff_restore_state = None
             self.window._difference_document = None
             self.window._difference_source_ids = None
-            if "_difference_result_key" in self.window.__dict__:
-                self.window.__dict__["_difference_result_key"] = None
         finally:
             self._resetting_difference = False
         self._enforce_action_state()
