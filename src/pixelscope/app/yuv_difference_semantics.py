@@ -42,9 +42,10 @@ class NativeYuvDifferencePresentationLifecycle:
                 getattr(self.window, "_difference_document", None) is not None
                 and presented_key == self.current_result_key()
             )
-        if self._native_yuv_pair_selected() and getattr(
-            self.window, "_difference_document", None
-        ) is not None:
+        if (
+            self._native_yuv_pair_selected()
+            and getattr(self.window, "_difference_document", None) is not None
+        ):
             return False
         return bool(self._original_result_matches_current())
 

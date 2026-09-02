@@ -6,6 +6,8 @@ from numpy.typing import NDArray
 from pixelscope.core.diff_engine import (
     DifferenceCompatibility,
     DifferenceFamily,
+)
+from pixelscope.core.diff_engine import (
     difference_compatibility as legacy_difference_compatibility,
 )
 from pixelscope.core.image_document import ImageDocument

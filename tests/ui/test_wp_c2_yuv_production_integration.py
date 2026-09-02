@@ -56,8 +56,7 @@ def _select_pair(
 def _wait_for_presented_difference(window: MainWindow, qtbot: object) -> ImageDocument:
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window._difference_document is not None
-        and window.__dict__.get("_difference_result_key")
-        == window.difference_panel._cache_key(),
+        and window.__dict__.get("_difference_result_key") == window.difference_panel._cache_key(),
         timeout=3000,
     )
     result = window._difference_document

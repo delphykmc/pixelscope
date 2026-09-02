@@ -367,7 +367,9 @@ class DifferencePanel(QWidget):
         compatibility = self._compatibility()
         family = (
             str(compatibility.family)
-            if compatibility is not None and compatibility.compatible and compatibility.family is not None
+            if compatibility is not None
+            and compatibility.compatible
+            and compatibility.family is not None
             else None
         )
         pair = self.selected_documents()
