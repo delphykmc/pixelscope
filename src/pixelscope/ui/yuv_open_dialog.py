@@ -54,8 +54,8 @@ class YuvOpenDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self._accept_validated)
-        buttons.rejected.connect(self.reject)
+        buttons.accepted.connect(self._accept_validated)  # type: ignore[attr-defined]
+        buttons.rejected.connect(self.reject)  # type: ignore[attr-defined]
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
@@ -81,7 +81,7 @@ class YuvOpenDialog(QDialog):
         self._update_file_size()
 
     def uses_generic_raw(self) -> bool:
-        return self.layout_kind.currentData() == self.GENERIC_RAW
+        return str(self.layout_kind.currentData()) == self.GENERIC_RAW
 
     def profile(self) -> YuvProfile:
         if self.uses_generic_raw():
