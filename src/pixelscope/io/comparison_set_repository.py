@@ -24,6 +24,18 @@ from pixelscope.core.comparison_set import (
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.io.yuv_profile import YuvProfile
+
+YUV_SESSION_LAYOUTS = frozenset({"YUV444", "YUV422", "YUV420"})
+SessionInputProfile = RawProfile | YuvProfile
+
+
+def parse_session_input_profile(payload: dict[str, Any]) -> SessionInputProfile:
+    """Dispatch Session v1's existing profile payload without changing its schema."""
+
+    if payload.get("channel_layout") in YUV_SESSION_LAYOUTS:
+        return YuvProfile.parse_obj(payload)
+    return RawProfile.parse_obj(payload)
 
 
 class ComparisonSetRepository:
@@ -164,10 +176,12 @@ class ComparisonSetRepository:
             if raw_payload is not None:
                 if not isinstance(raw_payload, dict):
                     raise ComparisonSetError("raw_profile must be an object or null")
+                is_yuv = raw_payload.get("channel_layout") in YUV_SESSION_LAYOUTS
                 try:
-                    raw_profile = RawProfile.parse_obj(raw_payload).dict()
+                    raw_profile = parse_session_input_profile(raw_payload).dict()
                 except Exception as exc:  # noqa: BLE001 - normalized validation boundary
-                    raise ComparisonSetError(f"invalid RAW profile: {exc}") from exc
+                    family = "YUV" if is_yuv else "RAW"
+                    raise ComparisonSetError(f"invalid {family} profile: {exc}") from exc
             result.append(SessionSource(source_path, raw_profile))
         return tuple(result)
 

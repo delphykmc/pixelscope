@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pixelscope.core.display_transform import DisplayTransform, to_display_uint8
+
+if TYPE_CHECKING:
+    from pixelscope.core.yuv import NativeYuvFrame
 
 
 @dataclass
@@ -21,6 +24,7 @@ class ImageDocument:
     channel_layout: str
     bit_depth: int
     raw_profile: Any | None = None
+    yuv_frame: NativeYuvFrame | None = None
     display_transform: DisplayTransform = field(default_factory=DisplayTransform)
     document_id: str = field(default_factory=lambda: str(uuid4()))
     preview: NDArray[np.uint8] | None = None
@@ -77,6 +81,33 @@ class ImageDocument:
         )
 
     @classmethod
+    def from_yuv(
+        cls,
+        frame: NativeYuvFrame,
+        display_name: str,
+        source_path: Path | None = None,
+        raw_profile: Any | None = None,
+    ) -> ImageDocument:
+        """Create a YUV document whose frame planes, not RGB preview, are authority."""
+
+        from pixelscope.core.yuv import bt601_full_rgb_preview
+
+        preview = bt601_full_rgb_preview(frame)
+        return cls(
+            source_path=source_path,
+            display_name=display_name,
+            # `source` remains a zero-copy luma alias for the established loaded/
+            # geometry lifecycle. All YUV-aware numerical paths use `yuv_frame`.
+            source=frame.y,
+            channel_layout=frame.layout,
+            bit_depth=8,
+            raw_profile=raw_profile,
+            yuv_frame=frame,
+            display_transform=DisplayTransform(display_low=0.0, display_high=255.0),
+            preview=preview,
+        )
+
+    @classmethod
     def error_document(
         cls, display_name: str, message: str, path: Path | None = None
     ) -> ImageDocument:
@@ -111,7 +142,18 @@ class ImageDocument:
     def shape(self) -> tuple[int, ...]:
         return () if self.source is None else self.source.shape
 
+    @property
+    def native_nbytes(self) -> int:
+        if self.yuv_frame is not None:
+            return self.yuv_frame.native_nbytes
+        return 0 if self.source is None else int(self.source.nbytes)
+
     def pixel_at(self, x: int, y: int) -> int | float | tuple[int | float, ...] | None:
+        if self.yuv_frame is not None:
+            try:
+                return self.yuv_frame.pixel_at(x, y)
+            except IndexError:
+                return None
         if self.source is None or x < 0 or y < 0:
             return None
         height, width = self.source.shape[:2]
@@ -135,6 +177,7 @@ class ImageDocument:
             display_transform=self.display_transform,
         )
         self.source = replacement.source
+        self.yuv_frame = None
         self.preview = replacement.preview
         self.encoded_source_sha256 = None
         self.generation += 1

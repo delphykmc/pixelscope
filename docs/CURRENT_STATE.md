@@ -1,7 +1,7 @@
 # PixelScope current state
 
-Snapshot date: 2026-09-01
-Current merged `main`: `a04f70447c5b68be9b5ea694909e4c2b1ecf46c2`
+Snapshot date: 2026-09-02
+Current merged `main`: `f21416fed49f138a60ca15810a2b23818ced0809`
 
 `main` includes the cumulative P5/R history below plus the release-foundation and
 local-workflow hardening merged after R closeout:
@@ -45,7 +45,13 @@ local-workflow hardening merged after R closeout:
 - P7-C / PR #63 — Owner-local Release Candidate Build & Validation, merged at
   `f3b1437b478e119c425dbf00d627b37f0371889e`;
 - WP-A / PR #71 — responsive large-folder registration, merged at
-  `a04f70447c5b68be9b5ea694909e4c2b1ecf46c2`.
+  `a04f70447c5b68be9b5ea694909e4c2b1ecf46c2`;
+- WP-B / PR #72 — RAW profile and raw-like binary compatibility, merged at
+  `f21416fed49f138a60ca15810a2b23818ced0809`.
+
+WP-C1 / PR #73 — **Native YUV Image Semantics** — is the active implementation
+candidate on top of this merged baseline and is not yet part of `main`. Its review gate
+requires latest-head automated validation and independent review before merge.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is only partially observed: temporary
@@ -134,12 +140,24 @@ Supported local PixelScope image families are:
 .png  .bmp  .jpg  .jpeg  .raw  .data  .yuv
 ```
 
-- `.raw`, `.data`, and `.yuv` are one generic **raw-like binary** family and use the
-  existing RAW profile/reader lifecycle. A `.yuv` suffix does not imply YUV420/YUV422,
-  native YUV decoding, native YUV analysis, or YUV-specific Difference behavior.
-- Same-stem profile precedence is explicit PixelScope `.json` > `.imgprops` >
-  editable/default RAW profile dialog. `.imgprops` never overrides an explicit JSON
-  profile.
+- `.raw`, `.data`, and `.yuv` remain one **raw-like binary** family. A `.yuv` suffix
+  alone does not imply YUV420/YUV422 or any other byte layout.
+- WP-C1 adds an explicit native-YUV interpretation for `.yuv`: a JSON with
+  `channel_layout=YUV444|YUV422|YUV420`, or the explicit YUV dialog, selects 8-bit
+  tightly-packed Y-first + interleaved-UV storage. UV order is fixed; YUV422 requires
+  even width and YUV420 requires even width/height.
+- Native YUV viewer presentation is fixed BT.601 Full-range RGB, but that RGB preview is
+  never numerical authority. Native Y/U/V planes remain authoritative and subsampled
+  U/V stay at their native chroma resolution.
+- Pixel inspection reports native Y/U/V. Split Channels produces native-resolution
+  Y/U/V views. Statistics and Histogram use native per-plane sample cardinality. ROI
+  maps from luma coordinates to the referenced chroma footprint, and Line Profile keeps
+  chroma values at native luma-coordinate sample positions.
+- Native YUV Difference remains deferred to WP-C2. YUV is excluded from legacy
+  RGB/Gray/Bayer Difference rather than silently reinterpreted.
+- A non-YUV RAW JSON on `.yuv`, `.imgprops`, or **Generic RAW profile…** keeps the WP-B
+  generic RAW/Bayer path. Same-stem precedence remains explicit PixelScope `.json` >
+  `.imgprops` > editable interpretation dialog.
 - `.imgprops` maps `width`, `height`, `sensorBitWidth`, `imageType=BAYER<n>`, `pattern`,
   and `pedestal`; unknown producer attributes are ignored and packing is not inferred
   from file size.
@@ -154,9 +172,13 @@ Supported local PixelScope image families are:
 - Folder registration does not replace Selected or presentation state.
 - Registered-but-unselected is valid.
 - unresolved folder raw-like inputs remain lazy until foreground intent requires
-  profile resolution and are excluded from speculative preload; resolved raw-like
-  inputs reuse the normal RAW reader, profile identity, exact-size policy, residency,
-  and preload lifecycle.
+  profile resolution and are excluded from speculative preload. Once either a generic
+  RAW profile or native YUV profile is resolved, the source reuses the bounded
+  Folder-Position preload/promotion, profile-identity, stale-result, residency, and
+  Session v1 persistence lifecycle.
+- Session v1 retains its existing profile payload field. Its payload is dispatched
+  deterministically by `channel_layout` to `RawProfile` or `YuvProfile`; no Session
+  schema-version bump is introduced by WP-C1.
 
 Remote IQA submission remains intentionally narrower:
 
@@ -170,15 +192,17 @@ There is no silent RAW/raw-like conversion for Remote IQA.
 
 P5 does not redesign:
 
-- exact native `source.nbytes` decoded-source residency accounting;
+- exact native decoded-source residency accounting: established ndarray storage for
+  RGB/Gray/Bayer and actual Y + U + V native storage for WP-C1 YUV;
 - independent source and Difference memory budgets;
 - current-page/correctness source protection;
 - off-page Selected/Picked sources remaining evictable;
 - Folder Position `+1` max-one speculative preload;
 - RUNNING preload foreground promotion;
 - application-owned bounded analysis/Display Gain workers;
-- native `ImageDocument.source` authority for local Statistics, Histogram, Line
-  Profile, Difference, and Split Channels;
+- numerical source authority for local analysis: `ImageDocument.source` for established
+  RGB/Gray/Bayer paths and `NativeYuvFrame` planes for WP-C1 YUV; viewer previews remain
+  presentation-only;
 - Display Gain as presentation-only state;
 - explicit Difference commands: Calculate may reuse or compute the current pair, while
   toolbar Diff may reactivate only an already-cached pair owned by the Current
@@ -437,7 +461,6 @@ and refreshes Inspect availability before any later callback can publish.
 
 P5-D completed its exact-head automated/manual/review gates and merged as PR #43 at
 `main@b086443d188eb9daae4bbf4f0faab3ff1d114f93`.
-
 Its focused regression files remain:
 
 ```text
