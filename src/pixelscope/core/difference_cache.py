@@ -25,7 +25,7 @@ def _document_generations(
 
 @dataclass(frozen=True)
 class CachedDifferenceMap:
-    """One channel-complete absolute map with explicit Difference-domain metadata."""
+    """One cached absolute map with explicit Difference-domain metadata."""
 
     absolute: NDArray[np.generic]
     domain: DifferenceDomain
