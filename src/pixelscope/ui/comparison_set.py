@@ -175,11 +175,9 @@ class SessionController:
         for document in registered:
             assert document.source_path is not None
             profile = self.window._raw_profiles.get(document.document_id)
-            if profile is None and isinstance(document.raw_profile, (RawProfile, YuvProfile)):
+            if profile is None and isinstance(document.raw_profile, RawProfile | YuvProfile):
                 profile = document.raw_profile
-            raw_payload = (
-                profile.dict() if isinstance(profile, (RawProfile, YuvProfile)) else None
-            )
+            raw_payload = profile.dict() if isinstance(profile, RawProfile | YuvProfile) else None
             registered_sources.append(SessionSource(str(document.source_path), raw_payload))
 
         selected = [
