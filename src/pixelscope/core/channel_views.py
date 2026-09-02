@@ -13,9 +13,9 @@ def split_document_channels(document: ImageDocument) -> list[ImageDocument]:
 
     if document.yuv_frame is not None:
         documents: list[ImageDocument] = []
-        for name, channel in zip(("Y", "U", "V"), document.yuv_frame.planes, strict=True):
-            preview = np.repeat(channel[..., None], 3, axis=2)
-            documents.append(_yuv_channel_document(document, name, channel, preview))
+        for name, yuv_channel in zip(("Y", "U", "V"), document.yuv_frame.planes, strict=True):
+            preview = np.repeat(yuv_channel[..., None], 3, axis=2)
+            documents.append(_yuv_channel_document(document, name, yuv_channel, preview))
         return documents
 
     source = document.source
@@ -25,17 +25,17 @@ def split_document_channels(document: ImageDocument) -> list[ImageDocument]:
         names = ("R", "G", "B")
         documents = []
         for channel_index, name in enumerate(names):
-            channel = source[..., channel_index]
-            display = to_display_uint8(channel, document.display_transform)
+            source_channel = source[..., channel_index]
+            display = to_display_uint8(source_channel, document.display_transform)
             preview = np.zeros((*display.shape, 3), dtype=np.uint8)
             preview[..., channel_index] = display
-            documents.append(_channel_document(document, name, channel, preview))
+            documents.append(_channel_document(document, name, source_channel, preview))
         return documents
     pattern = getattr(document.raw_profile, "bayer_pattern", None)
     if document.channel_layout == "BAYER" and source.ndim == 2 and isinstance(pattern, str):
         documents = []
-        for name, channel in split_bayer_channels(source, pattern):
-            display = to_display_uint8(channel, document.display_transform)
+        for name, bayer_channel in split_bayer_channels(source, pattern):
+            display = to_display_uint8(bayer_channel, document.display_transform)
             preview = np.zeros((*display.shape, 3), dtype=np.uint8)
             if name == "R":
                 preview[..., 0] = display
@@ -43,7 +43,7 @@ def split_document_channels(document: ImageDocument) -> list[ImageDocument]:
                 preview[..., 2] = display
             else:
                 preview[..., 1] = display
-            documents.append(_channel_document(document, name, channel, preview))
+            documents.append(_channel_document(document, name, bayer_channel, preview))
         return documents
     return []
 
