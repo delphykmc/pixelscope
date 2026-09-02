@@ -6,107 +6,109 @@ from pixelscope.core.difference_cache import DifferenceCacheKey
 
 
 class NativeYuvDifferencePresentationLifecycle:
-    """Bind presented Difference state to the panel's full cache/result identity."""
+    """Bind native-YUV presentation to the exact Difference cache identity."""
 
     def __init__(self, window: Any) -> None:
         self.window = window
         self.panel = window.difference_panel
         self._pending_visible_key: DifferenceCacheKey | None = None
+        self._original_store_difference_document = window._store_difference_document
+        self._original_result_matches_current = window._difference_result_matches_current_pair
+        self._original_set_documents = self.panel.set_documents
 
     def install(self) -> None:
         self.window.__dict__["_difference_result_key"] = None
-        if getattr(self.window, "difference_curation_lifecycle", None) is None:
-            # Defensive fallback for reduced test compositions. Production curation
-            # reads the same field directly and owns the active-result predicate.
-            self.window._difference_result_matches_current_pair = (
-                self.active_result_matches_current
-            )
-
-        # MainWindow's existing slots were connected during construction, so these
-        # observers run after presentation storage and attach the exact identity that
-        # produced the newly presented Difference document.
-        self.panel.result_ready.connect(self.result_presented)
-        self.panel.preview_updated.connect(self.result_presented)
-        self.panel.channel.currentIndexChanged.connect(self.channel_changed)
-        self.panel.a_selector.currentIndexChanged.connect(self.pair_changed)
-        self.panel.b_selector.currentIndexChanged.connect(self.pair_changed)
+        self.window._store_difference_document = self.store_difference_document
+        self.window._difference_result_matches_current_pair = self.result_matches_current
+        self.panel.set_documents = self.set_documents
+        self.panel.channel.currentIndexChanged.connect(self.request_identity_changed)
+        self.panel.a_selector.currentIndexChanged.connect(self.request_identity_changed)
+        self.panel.b_selector.currentIndexChanged.connect(self.request_identity_changed)
         self.window.__dict__["native_yuv_difference_presentation_lifecycle"] = self
 
     def current_result_key(self) -> DifferenceCacheKey | None:
         return self.panel._cache_key()
 
-    def active_result_matches_current(self) -> bool:
-        return (
-            getattr(self.window, "_difference_document", None) is not None
-            and self.window.__dict__.get("_difference_result_key") == self.current_result_key()
-        )
-
     def _native_yuv_pair_selected(self) -> bool:
         pair = self.panel.selected_documents()
         return pair is not None and all(document.yuv_frame is not None for document in pair)
 
-    def _reset_presented_result(self) -> None:
+    def result_matches_current(self) -> bool:
+        """Use exact identity for WP-C2 while preserving every legacy predicate."""
+
+        presented_key = self.window.__dict__.get("_difference_result_key")
+        if presented_key is not None:
+            return (
+                getattr(self.window, "_difference_document", None) is not None
+                and presented_key == self.current_result_key()
+            )
+        if self._native_yuv_pair_selected() and getattr(
+            self.window, "_difference_document", None
+        ) is not None:
+            return False
+        return bool(self._original_result_matches_current())
+
+    def set_documents(self, *args: object, **kwargs: object) -> None:
+        """Preserve panel rebinding while retiring stale active YUV generations/layouts."""
+
+        self._original_set_documents(*args, **kwargs)
+        self.request_identity_changed()
+
+    def request_identity_changed(self, _value: object = None) -> None:
+        """Retire an active YUV result as soon as its exact request identity diverges."""
+
+        presented_key = self.window.__dict__.get("_difference_result_key")
+        if presented_key is None:
+            return
+        current_key = self.current_result_key()
+        if current_key == presented_key:
+            return
+
+        if (
+            self.window.diff_action.isChecked()
+            and current_key is not None
+            and self._native_yuv_pair_selected()
+        ):
+            self._pending_visible_key = current_key
+        else:
+            self._pending_visible_key = None
+
+        self.window.__dict__["_difference_result_key"] = None
         curation = getattr(self.window, "difference_curation_lifecycle", None)
         if curation is not None:
             curation._reset_active_difference()
             return
 
+        # Defensive fallback for reduced compositions. Production installs the
+        # established DifferenceCurationLifecycle before WP-C2.
         self.window.diff_action.blockSignals(True)
         self.window.diff_action.setChecked(False)
         self.window.diff_action.blockSignals(False)
         self.window._difference_document = None
         self.window._difference_source_ids = None
-        self.window.__dict__["_difference_result_key"] = None
         self.window._update_action_states()
 
-    def pair_changed(self, _value: object = None) -> None:
-        # Visibility intent belongs to one exact pair/channel identity and must never
-        # migrate to a different A/B selection.
-        self._pending_visible_key = None
+    def store_difference_document(self, *args: object, **kwargs: object) -> None:
+        """Attach exact YUV cache identity whenever MainWindow stores a derived result."""
+
+        self._original_store_difference_document(*args, **kwargs)
+        current_key = self.current_result_key()
         if (
             getattr(self.window, "_difference_document", None) is not None
-            and not self.active_result_matches_current()
+            and current_key is not None
+            and self._native_yuv_pair_selected()
         ):
-            self._reset_presented_result()
-
-    def channel_changed(self, _value: object = None) -> None:
-        if not self._native_yuv_pair_selected():
-            return
-        current_key = self.current_result_key()
-        presented_key = self.window.__dict__.get("_difference_result_key")
-        if current_key is None or presented_key == current_key:
-            return
-
-        difference = getattr(self.window, "_difference_document", None)
-        if difference is None:
-            if self._pending_visible_key is not None:
-                self._pending_visible_key = current_key
-            return
-
-        if self.window.diff_action.isChecked():
-            self._pending_visible_key = current_key
-        self._reset_presented_result()
-
-    def result_presented(
-        self,
-        _title: object,
-        _numerical: object,
-        _preview: object,
-    ) -> None:
-        if getattr(self.window, "_difference_document", None) is None:
-            return
-        current_key = self.current_result_key()
-        if current_key is None:
-            return
-        self.window.__dict__["_difference_result_key"] = current_key
-        self.window._update_action_states()
+            self.window.__dict__["_difference_result_key"] = current_key
+        else:
+            self.window.__dict__["_difference_result_key"] = None
 
         if self._pending_visible_key != current_key:
             return
         self._pending_visible_key = None
-        # The previous plane was visible when its identity became stale. Restore that
-        # explicit visibility intent only after the new exact-key result is published.
-        self.window.diff_action.setChecked(True)
+        # Restore explicit visibility only after the exact requested Y/U/V result has
+        # actually been stored. An uncached switch never leaves the previous plane up.
+        if not self.window.diff_action.isChecked():
+            self.window.diff_action.setChecked(True)
 
 
 def install_native_yuv_difference(window: Any) -> NativeYuvDifferencePresentationLifecycle:
