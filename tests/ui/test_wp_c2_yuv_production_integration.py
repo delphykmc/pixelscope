@@ -32,6 +32,27 @@ def _window(qtbot: object) -> MainWindow:
     return window
 
 
+def _wait_for_presented_difference(window: MainWindow, qtbot: object) -> ImageDocument:
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_document is not None
+        and window.__dict__.get("_difference_result_key")
+        == window.difference_panel._cache_key(),
+        timeout=3000,
+    )
+    result = window._difference_document
+    assert result is not None
+    return result
+
+
+def _mark_difference_visible(window: MainWindow) -> None:
+    # Exercise the reviewer's toolbar-visible transition without requiring a complete
+    # Files/Selected fixture. The production lifecycle observes this explicit state and
+    # owns the subsequent checked-state teardown/restoration.
+    window.diff_action.blockSignals(True)
+    window.diff_action.setChecked(True)
+    window.diff_action.blockSignals(False)
+
+
 def test_wp_c2_retires_only_wp_c1_difference_block(qtbot: object) -> None:
     window = _window(qtbot)
     controller = window.native_yuv_semantics_controller
@@ -82,5 +103,75 @@ def test_production_yuv_channel_calculation_keeps_native_u_resolution(qtbot: obj
     np.testing.assert_array_equal(cached.absolute, np.full((2, 2), 7, dtype=np.uint8))
     assert panel.last_result is not None
     assert panel.last_result.mae == 7.0
+
+    window.close()
+
+
+def test_uncached_yuv_channel_switch_clears_stale_presented_plane(qtbot: object) -> None:
+    window = _window(qtbot)
+    first = _document("a.yuv")
+    second = _document("b.yuv", y_delta=3, u_delta=7)
+    panel = window.difference_panel
+    panel.set_documents([first, second], (first.document_id, second.document_id))
+
+    panel.calculate_difference()
+    presented_y = _wait_for_presented_difference(window, qtbot)
+    assert presented_y.source is not None
+    assert presented_y.source.shape == (4, 4)
+    np.testing.assert_array_equal(presented_y.source, np.full((4, 4), 3, dtype=np.uint8))
+    y_key = panel._cache_key()
+    assert y_key is not None
+    assert window.__dict__["_difference_result_key"] == y_key
+
+    _mark_difference_visible(window)
+    panel.channel.setCurrentText("U")
+
+    assert panel.cached_result_for_current() is None
+    assert window._difference_document is None
+    assert window.__dict__["_difference_result_key"] is None
+    assert not window.diff_action.isChecked()
+
+    window.close()
+
+
+def test_cached_yuv_channel_switch_rebinds_visible_result_to_exact_plane(qtbot: object) -> None:
+    window = _window(qtbot)
+    first = _document("a.yuv")
+    second = _document("b.yuv", y_delta=3, u_delta=7)
+    panel = window.difference_panel
+    panel.set_documents([first, second], (first.document_id, second.document_id))
+
+    panel.calculate_difference()
+    _wait_for_presented_difference(window, qtbot)
+    y_key = panel._cache_key()
+    assert y_key is not None
+
+    panel.channel.setCurrentText("U")
+    panel.calculate_difference()
+    presented_u = _wait_for_presented_difference(window, qtbot)
+    u_key = panel._cache_key()
+    assert u_key is not None and u_key != y_key
+    assert presented_u.source is not None
+    np.testing.assert_array_equal(presented_u.source, np.full((2, 2), 7, dtype=np.uint8))
+
+    _mark_difference_visible(window)
+    panel.channel.setCurrentText("Y")
+    assert window._difference_document is None
+    presented_y = _wait_for_presented_difference(window, qtbot)
+    assert window.diff_action.isChecked()
+    assert window.__dict__["_difference_result_key"] == y_key
+    assert presented_y.source is not None
+    np.testing.assert_array_equal(presented_y.source, np.full((4, 4), 3, dtype=np.uint8))
+
+    panel.channel.setCurrentText("U")
+    assert window._difference_document is None
+    presented_u_again = _wait_for_presented_difference(window, qtbot)
+    assert window.diff_action.isChecked()
+    assert window.__dict__["_difference_result_key"] == u_key
+    assert presented_u_again.source is not None
+    np.testing.assert_array_equal(
+        presented_u_again.source,
+        np.full((2, 2), 7, dtype=np.uint8),
+    )
 
     window.close()
