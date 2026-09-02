@@ -15,7 +15,7 @@ DEFAULT_METRIC_CHUNK_ELEMENTS = 1_048_576
 NORMALIZED_QUANTILE_LEVELS = 65_536
 NORMALIZED_QUANTILE_MAX_ERROR_FS = 1.0 / (NORMALIZED_QUANTILE_LEVELS - 1)
 
-DifferenceFamily = Literal["GRAY", "RGB", "BAYER"]
+DifferenceFamily = Literal["GRAY", "RGB", "BAYER", "YUV"]
 DifferenceDomain = Literal["native", "normalized"]
 DifferenceReasonCode = Literal[
     "ok",
