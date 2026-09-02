@@ -100,10 +100,19 @@ coordinates and maps deterministically to the referenced chroma footprint. Line 
 keeps chroma samples at their native luma-coordinate positions instead of duplicating
 them at every luma sample.
 
-Native YUV Difference is intentionally deferred to **WP-C2**. YUV inputs are therefore
-excluded from the existing Difference family rather than silently reusing RGB/Gray/
-Bayer Difference semantics. Mixed YUV/non-YUV Statistics, Histogram, and Line Profile
-selections fail safe instead of presenting misleading channel labels.
+WP-C2 extends Difference to native YUV without changing that authority model. A native
+YUV pair exposes exactly **Y / U / V**, defaulting to Y. YUV444 compares only with
+YUV444, YUV422 only with YUV422, and YUV420 only with YUV420; mixed subsampling and
+YUV/non-YUV pairs are rejected. The selected native plane is subtracted directly in the
+8-bit code domain. In particular, YUV422/420 U/V Difference maps keep their native
+chroma resolution and are never upsampled to luma resolution. Active ROI remains in
+luma/image coordinates and reuses the WP-C1 native chroma-footprint mapping before
+metrics are calculated. Difference cache identity includes document generation, YUV
+layout/subsampling, and selected Y/U/V channel so unused chroma channels are not
+precomputed.
+
+Mixed YUV/non-YUV Statistics, Histogram, and Line Profile selections continue to fail
+safe instead of presenting misleading channel labels.
 
 For the generic RAW path, `.imgprops` maps Bayer metadata (`width`, `height`,
 `sensorBitWidth`, `imageType=BAYER<n>`, `pattern`, and `pedestal`) and deliberately
@@ -139,7 +148,8 @@ Supported generic RAW storage formats are:
 Bayer analysis uses native R/Gr/Gb/B mosaic planes. Demosaic preview,
 black/white-level processing, arbitrary YUV plane dumps, Y-only/UV-only semantic YUV
 profiles, VU-order formats, planar I420/YV12, 10/12-bit YUV, configurable matrix/range
-UI, and profile suggestion are not implemented by WP-C1.
+UI, cross-subsampling YUV Difference, chroma-resampled Difference, Combined/weighted
+YUV Difference, and YUV↔RGB Difference are not implemented by WP-C2.
 
 Example RAW profile:
 [`examples/raw_profiles/example_unpacked_raw16.json`](examples/raw_profiles/example_unpacked_raw16.json).
@@ -188,4 +198,4 @@ Portable ZIP/Inno Setup distribution and owner-local candidate/publication stagi
 implemented. Current Beta qualification does not include production Remote IQA
 server/GPU/SSO integration, production signing or privileged corporate publication,
 notification/self-update integration, saved ROI management, alpha overlay, RAW
-demosaic, or native YUV Difference.
+demosaic, or post-WP-C2 YUV extensions such as cross-subsampling/converted Difference.
