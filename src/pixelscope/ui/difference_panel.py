@@ -29,7 +29,6 @@ from pixelscope.core.diff_engine import (
     DifferenceMetrics,
     absolute_difference_metrics,
     compact_absolute_difference,
-    difference_compatibility,
     normalized_absolute_difference,
 )
 from pixelscope.core.difference_cache import (
@@ -44,6 +43,12 @@ from pixelscope.core.display_transform import (
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.roi import RoiBounds
+from pixelscope.core.yuv_difference import (
+    YUV_DIFFERENCE_CHANNELS,
+    difference_compatibility,
+    is_yuv_document,
+    native_yuv_plane,
+)
 from pixelscope.ui.design_tokens import TOKENS, primary_button_style
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
@@ -361,16 +366,23 @@ class DifferencePanel(QWidget):
     def _update_channels(self) -> None:
         compatibility = self._compatibility()
         family = (
-            compatibility.family if compatibility is not None and compatibility.compatible else None
+            str(compatibility.family)
+            if compatibility is not None and compatibility.compatible and compatibility.family is not None
+            else None
         )
         pair = self.selected_documents()
         if family is None and pair is not None:
             layout = pair[0].channel_layout
-            family = "BAYER" if layout == "BAYER" else "GRAY" if layout == "GRAY" else "RGB"
+            if is_yuv_document(pair[0]):
+                family = "YUV"
+            else:
+                family = "BAYER" if layout == "BAYER" else "GRAY" if layout == "GRAY" else "RGB"
         current = self.channel.currentText()
         self.channel.blockSignals(True)
         self.channel.clear()
-        if family == "BAYER":
+        if family == "YUV":
+            self.channel.addItems(YUV_DIFFERENCE_CHANNELS)
+        elif family == "BAYER":
             self.channel.addItems(("Mosaic", "R", "Gr", "Gb", "B"))
         elif family == "GRAY":
             self.channel.addItem("Gray")
@@ -432,9 +444,12 @@ class DifferencePanel(QWidget):
             self.domain_status.setText("Domain —")
             return
         channel = self.channel.currentText()
-        if compatibility.family == "GRAY":
+        family = str(compatibility.family)
+        if family == "YUV":
+            samples = f"YUV {channel} native"
+        elif family == "GRAY":
             samples = "Gray"
-        elif compatibility.family == "BAYER":
+        elif family == "BAYER":
             samples = "Bayer mosaic" if channel == "Mosaic" else f"Bayer {channel}"
         else:
             samples = "RGB combined" if channel == "All" else f"RGB {channel}"
@@ -492,8 +507,11 @@ class DifferencePanel(QWidget):
         a: ImageDocument,
         b: ImageDocument,
         family: str,
+        channel: str,
     ) -> tuple[NDArray[np.generic], NDArray[np.generic]]:
         assert a.source is not None and b.source is not None
+        if family == "YUV":
+            return native_yuv_plane(a, channel), native_yuv_plane(b, channel)
         if family in {"GRAY", "BAYER"}:
             return a.source, b.source
         return a.source[..., :3], b.source[..., :3]
@@ -504,7 +522,17 @@ class DifferencePanel(QWidget):
             return None
         first = (pair[0].document_id, pair[0].generation)
         second = (pair[1].document_id, pair[1].generation)
-        return (first, second) if first <= second else (second, first)
+        ordered = (first, second) if first <= second else (second, first)
+        if is_yuv_document(pair[0]) and is_yuv_document(pair[1]):
+            frame_a = pair[0].yuv_frame
+            frame_b = pair[1].yuv_frame
+            layout = (
+                frame_a.layout
+                if frame_a is not None and frame_b is not None and frame_a.layout == frame_b.layout
+                else f"{pair[0].channel_layout}|{pair[1].channel_layout}"
+            )
+            return (*ordered, (layout, self.channel.currentText()))
+        return ordered
 
     def _metric_key(self) -> tuple[object, ...] | None:
         key = self._cache_key()
@@ -617,7 +645,6 @@ class DifferencePanel(QWidget):
         title = self._title()
         self._cancel_preview_worker()
         request_serial = self._preview_request_serial
-
         worker = TaskWorker(
             self._render_preview,
             selected,
@@ -700,6 +727,8 @@ class DifferencePanel(QWidget):
         difference_map: CachedDifferenceMap, channel: str
     ) -> NDArray[np.generic]:
         absolute = difference_map.absolute
+        if difference_map.channel_layout in {"YUV444", "YUV422", "YUV420"}:
+            return absolute
         if difference_map.channel_layout == "GRAY":
             return absolute
         if difference_map.channel_layout == "BAYER":
@@ -718,7 +747,22 @@ class DifferencePanel(QWidget):
             return None
         channel = self.channel.currentText()
         compatibility = self._compatibility()
-        if compatibility is None or compatibility.family != "BAYER" or channel == "Mosaic":
+        family = (
+            str(compatibility.family)
+            if compatibility is not None and compatibility.family is not None
+            else None
+        )
+        if family == "YUV":
+            frame = document.yuv_frame
+            assert frame is not None
+            plane_bounds = frame.roi_plane_bounds(bounds, channel)  # type: ignore[arg-type]
+            return (
+                plane_bounds.x,
+                plane_bounds.y,
+                plane_bounds.width,
+                plane_bounds.height,
+            )
+        if family != "BAYER" or channel == "Mosaic":
             return (bounds.x, bounds.y, bounds.width, bounds.height)
         profile = document.raw_profile
         source = document.source
@@ -745,15 +789,15 @@ class DifferencePanel(QWidget):
         a, b = sorted(pair, key=lambda document: (document.document_id, document.generation))
         compatibility = difference_compatibility(a, b)
         assert compatibility.compatible
-        family = compatibility.family
+        family = str(compatibility.family)
         domain = compatibility.domain
         data_range = compatibility.data_range
-        assert family is not None
+        assert compatibility.family is not None
         assert domain is not None
         assert data_range is not None
-        source_a, source_b = self._full_sources(a, b, family)
-        cached = self._map_cache.get(key)
         channel = self.channel.currentText()
+        source_a, source_b = self._full_sources(a, b, family, channel)
+        cached = self._map_cache.get(key)
         metric_bounds = self._metric_bounds(
             a, self._active_roi if self.region.currentText() == "Active ROI" else None
         )
@@ -762,6 +806,7 @@ class DifferencePanel(QWidget):
             pattern = str(a.raw_profile.bayer_pattern)
         else:
             pattern = None
+        map_layout = a.channel_layout if family == "YUV" else family
 
         def calculate() -> tuple[CachedDifferenceMap, DifferenceMetrics, bool]:
             difference_map = cached
@@ -780,7 +825,7 @@ class DifferencePanel(QWidget):
                     absolute=absolute,
                     domain=domain,
                     data_range=data_range,
-                    channel_layout=family,
+                    channel_layout=map_layout,
                     bayer_pattern=pattern,
                 )
             selected = self._selected_absolute(difference_map, channel)
@@ -849,7 +894,7 @@ class DifferencePanel(QWidget):
         self._metric_cache = {
             metric_key: value
             for metric_key, value in self._metric_cache.items()
-            if len(metric_key) < 2 or (metric_key[0], metric_key[1]) not in evicted
+            if not any(tuple(metric_key[: len(cache_key)]) == cache_key for cache_key in evicted)
         }
         if self._preview_key is not None and self._preview_key and self._preview_key[0] in evicted:
             self._cancel_preview_worker()
