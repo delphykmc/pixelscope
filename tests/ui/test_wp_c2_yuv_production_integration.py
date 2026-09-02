@@ -3,10 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
-from pixelscope.app.raw_input_compatibility import install_raw_input_compatibility
-from pixelscope.app.yuv_difference_semantics import install_native_yuv_difference
-from pixelscope.app.yuv_input_semantics import install_native_yuv_semantics
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.yuv import NativeYuvFrame
 
@@ -30,9 +28,7 @@ def _document(name: str, *, y_delta: int = 0, u_delta: int = 0) -> ImageDocument
 def _window(qtbot: object) -> MainWindow:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    install_raw_input_compatibility(window)
-    install_native_yuv_semantics(window)
-    install_native_yuv_difference(window)
+    _compose_main_window_presentation(window)
     return window
 
 
