@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import cast
 
-from numpy.typing import NDArray
 import numpy as np
+from numpy.typing import NDArray
 
 from pixelscope.core.diff_engine import (
     DifferenceCompatibility,
@@ -20,26 +20,6 @@ def is_yuv_document(document: ImageDocument) -> bool:
     """Return whether a document declares one of the native WP-C1 YUV layouts."""
 
     return document.channel_layout in YUV_LAYOUTS
-
-
-def _incompatible(
-    a: ImageDocument,
-    b: ImageDocument,
-    reason_code: str,
-    detail: str,
-    *,
-    family: DifferenceFamily | None = None,
-) -> DifferenceCompatibility:
-    return DifferenceCompatibility(
-        compatible=False,
-        family=family,
-        domain=None,
-        reason_code=cast(object, reason_code),  # reason is constrained by callers below
-        detail=detail,
-        effective_bit_depth_a=a.bit_depth,
-        effective_bit_depth_b=b.bit_depth,
-        data_range=None,
-    )
 
 
 def difference_compatibility(a: ImageDocument, b: ImageDocument) -> DifferenceCompatibility:
