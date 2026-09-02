@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import cast
-
 import numpy as np
 from numpy.typing import NDArray
 
@@ -72,7 +70,7 @@ def difference_compatibility(a: ImageDocument, b: ImageDocument) -> DifferenceCo
             data_range=None,
         )
 
-    family = cast(DifferenceFamily, "YUV")
+    family: DifferenceFamily = "YUV"
     frame_a = a.yuv_frame
     frame_b = b.yuv_frame
     if frame_a is None or frame_b is None:
