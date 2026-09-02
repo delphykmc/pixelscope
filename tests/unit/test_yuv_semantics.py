@@ -127,7 +127,6 @@ def test_cursor_coordinates_map_to_native_chroma(
     coordinate: tuple[int, int],
     expected: tuple[int, int, int],
 ) -> None:
-    profile = make_profile(layout)
     scale_x = 1 if layout == "YUV444" else 2
     scale_y = 2 if layout == "YUV420" else 1
     y = np.arange(16, dtype=np.uint8).reshape(4, 4)
