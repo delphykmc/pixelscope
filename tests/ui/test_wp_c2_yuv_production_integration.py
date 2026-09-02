@@ -7,6 +7,7 @@ from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.yuv import NativeYuvFrame
+from pixelscope.ui.difference_panel import DifferencePanel
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
@@ -32,6 +33,26 @@ def _window(qtbot: object) -> MainWindow:
     return window
 
 
+def _select_pair(
+    window: MainWindow,
+    first: ImageDocument,
+    second: ImageDocument,
+) -> DifferencePanel:
+    """Bind a YUV pair through the real Registered -> Selected -> Current Page path."""
+
+    window.add_document(first, select=False)
+    window.add_document(second, select=False)
+    window._select_document_ids([first.document_id, second.document_id])
+    panel = window.difference_panel
+    pair = panel.selected_documents()
+    assert pair is not None
+    assert {pair[0].document_id, pair[1].document_id} == {
+        first.document_id,
+        second.document_id,
+    }
+    return panel
+
+
 def _wait_for_presented_difference(window: MainWindow, qtbot: object) -> ImageDocument:
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window._difference_document is not None
@@ -45,9 +66,8 @@ def _wait_for_presented_difference(window: MainWindow, qtbot: object) -> ImageDo
 
 
 def _mark_difference_visible(window: MainWindow) -> None:
-    # Exercise the reviewer's toolbar-visible transition without requiring a complete
-    # Files/Selected fixture. The production lifecycle observes this explicit state and
-    # owns the subsequent checked-state teardown/restoration.
+    # Exercise the reviewer's toolbar-visible transition while the pair is owned by
+    # the real Current Comparison Page. The lifecycle owns subsequent teardown/restore.
     window.diff_action.blockSignals(True)
     window.diff_action.setChecked(True)
     window.diff_action.blockSignals(False)
@@ -66,20 +86,18 @@ def test_wp_c2_retires_only_wp_c1_difference_block(qtbot: object) -> None:
 
     first = _document("a.yuv")
     second = _document("b.yuv", y_delta=3, u_delta=7)
-    window.difference_panel.set_documents(
-        [first, second],
-        (first.document_id, second.document_id),
-    )
+    panel = _select_pair(window, first, second)
 
-    assert window.difference_panel.a_selector.count() == 2
-    assert window.difference_panel.b_selector.count() == 2
-    assert [
-        window.difference_panel.channel.itemText(index)
-        for index in range(window.difference_panel.channel.count())
-    ] == ["Y", "U", "V"]
-    assert window.difference_panel.channel.currentText() == "Y"
-    assert window.difference_panel.calculate.isEnabled()
-    assert "WP-C2" not in window.difference_panel.status.text()
+    assert panel.a_selector.count() == 2
+    assert panel.b_selector.count() == 2
+    assert [panel.channel.itemText(index) for index in range(panel.channel.count())] == [
+        "Y",
+        "U",
+        "V",
+    ]
+    assert panel.channel.currentText() == "Y"
+    assert panel.calculate.isEnabled()
+    assert "WP-C2" not in panel.status.text()
 
     window.close()
 
@@ -88,8 +106,7 @@ def test_production_yuv_channel_calculation_keeps_native_u_resolution(qtbot: obj
     window = _window(qtbot)
     first = _document("a.yuv")
     second = _document("b.yuv", u_delta=7)
-    panel = window.difference_panel
-    panel.set_documents([first, second], (first.document_id, second.document_id))
+    panel = _select_pair(window, first, second)
     panel.channel.setCurrentText("U")
 
     panel.calculate_difference()
@@ -113,8 +130,7 @@ def test_uncached_yuv_channel_switch_clears_stale_presented_plane(qtbot: object)
     window = _window(qtbot)
     first = _document("a.yuv")
     second = _document("b.yuv", y_delta=3, u_delta=7)
-    panel = window.difference_panel
-    panel.set_documents([first, second], (first.document_id, second.document_id))
+    panel = _select_pair(window, first, second)
 
     panel.calculate_difference()
     presented_y = _wait_for_presented_difference(window, qtbot)
@@ -140,8 +156,7 @@ def test_cached_yuv_channel_switch_rebinds_visible_result_to_exact_plane(qtbot: 
     window = _window(qtbot)
     first = _document("a.yuv")
     second = _document("b.yuv", y_delta=3, u_delta=7)
-    panel = window.difference_panel
-    panel.set_documents([first, second], (first.document_id, second.document_id))
+    panel = _select_pair(window, first, second)
 
     panel.calculate_difference()
     _wait_for_presented_difference(window, qtbot)
