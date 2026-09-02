@@ -26,7 +26,7 @@ class NativeYuvRuntimeContracts:
 
     @staticmethod
     def _resolved_profile(profile: object) -> InputProfile | None:
-        return profile if isinstance(profile, (RawProfile, YuvProfile)) else None
+        return profile if isinstance(profile, RawProfile | YuvProfile) else None
 
     def promoted_preload_is_current(
         self,
