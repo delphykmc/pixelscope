@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from pixelscope.core.difference_cache import DifferenceCacheKey
 
@@ -27,7 +27,7 @@ class NativeYuvDifferencePresentationLifecycle:
         self.window.__dict__["native_yuv_difference_presentation_lifecycle"] = self
 
     def current_result_key(self) -> DifferenceCacheKey | None:
-        return self.panel._cache_key()
+        return cast(DifferenceCacheKey | None, self.panel._cache_key())
 
     def _native_yuv_pair_selected(self) -> bool:
         pair = self.panel.selected_documents()
