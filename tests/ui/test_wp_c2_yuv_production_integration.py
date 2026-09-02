@@ -56,9 +56,11 @@ def _mark_difference_visible(window: MainWindow) -> None:
 def test_wp_c2_retires_only_wp_c1_difference_block(qtbot: object) -> None:
     window = _window(qtbot)
     controller = window.native_yuv_semantics_controller
+    lifecycle = window.native_yuv_difference_presentation_lifecycle
 
     assert window.native_yuv_difference_installed is True
-    assert window.difference_panel.set_documents == controller._difference_set_documents_original
+    assert lifecycle._original_set_documents == controller._difference_set_documents_original
+    assert window.difference_panel.set_documents == lifecycle.set_documents
     assert window.difference_panel.calculate_difference == controller._difference_calculate_original
     assert window.difference_panel.set_documents != controller.set_difference_documents
 
