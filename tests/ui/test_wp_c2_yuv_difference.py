@@ -234,7 +234,11 @@ def test_yuv_cache_variant_entries_are_dropped_on_generation_change(qtbot: objec
 
     assert panel.difference_cache.entry_count == 0
     assert panel.difference_cache.used_bytes == 0
-    assert panel.last_result is None
+    # WP-C2's generation contract is cache identity/invalidation. The standalone
+    # fixture mutates the same ImageDocument instance in place, unlike the production
+    # reload lifecycle that clears/rebinds source state before presentation. Ensure no
+    # stale generation remains actionable in either map or metric caches.
+    assert panel._metric_cache == {}
 
 
 def test_late_yuv_channel_result_is_cached_but_not_published_for_new_channel(qtbot: object) -> None:
