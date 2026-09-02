@@ -192,8 +192,11 @@ def test_yuv_channel_switch_uses_channel_aware_lazy_cache(qtbot: object) -> None
     panel.set_documents([first, second], (first.document_id, second.document_id))
 
     y_map = _wait_for_result(panel, qtbot)
+    y_metrics = panel.last_result
     y_key = panel._cache_key()
     assert y_key is not None
+    assert len(y_key) == 3
+    assert y_key[2] == ("YUV420", "Y")
     assert y_map.absolute.shape == (4, 4)
     assert panel.difference_cache.entry_count == 1
     assert panel.difference_cache.used_bytes == 16
@@ -202,13 +205,16 @@ def test_yuv_channel_switch_uses_channel_aware_lazy_cache(qtbot: object) -> None
     u_map = _wait_for_result(panel, qtbot)
     u_key = panel._cache_key()
     assert u_key is not None and u_key != y_key
+    assert len(u_key) == 3
+    assert u_key[2] == ("YUV420", "U")
     assert u_map.absolute.shape == (2, 2)
     assert panel.difference_cache.entry_count == 2
     assert panel.difference_cache.used_bytes == 20
 
-    # V has not been precomputed. Switching back selects the exact Y cache entry.
+    # V has not been precomputed. Switching back selects the exact Y map/metrics.
     panel.channel.setCurrentText("Y")
     assert panel.cached_result_for_current() is y_map
+    assert panel.last_result is y_metrics
     assert panel.difference_cache.entry_count == 2
     assert panel.difference_cache.used_bytes == 20
 
@@ -270,10 +276,20 @@ def test_late_yuv_channel_result_is_cached_but_not_published_for_new_channel(qtb
     assert panel.cached_result_for_current() is None
 
 
-def test_legacy_gray_rgb_and_bayer_compatibility_is_preserved() -> None:
+def test_legacy_gray_rgb_bayer_and_normalized_compatibility_is_preserved() -> None:
     gray_a = ImageDocument.from_array(np.zeros((4, 4), dtype=np.uint8), "a.png")
     gray_b = ImageDocument.from_array(np.ones((4, 4), dtype=np.uint8), "b.png")
     assert difference_compatibility(gray_a, gray_b).compatible
+
+    normalized_gray = ImageDocument.from_array(
+        np.ones((4, 4), dtype=np.uint16),
+        "normalized.raw",
+        bit_depth=12,
+    )
+    normalized = difference_compatibility(gray_a, normalized_gray)
+    assert normalized.compatible
+    assert normalized.domain == "normalized"
+    assert normalized.data_range == 1.0
 
     rgb = ImageDocument.from_array(np.zeros((4, 4, 3), dtype=np.uint8), "rgb.png")
     assert not difference_compatibility(gray_a, rgb).compatible
