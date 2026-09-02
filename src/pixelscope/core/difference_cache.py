@@ -10,7 +10,17 @@ from numpy.typing import NDArray
 from pixelscope.core.diff_engine import DifferenceDomain
 
 DocumentGeneration = tuple[str, int]
-DifferenceCacheKey = tuple[DocumentGeneration, DocumentGeneration]
+DifferenceCacheVariant = tuple[str, str]
+DifferenceCacheKey = (
+    tuple[DocumentGeneration, DocumentGeneration]
+    | tuple[DocumentGeneration, DocumentGeneration, DifferenceCacheVariant]
+)
+
+
+def _document_generations(
+    key: DifferenceCacheKey,
+) -> tuple[DocumentGeneration, DocumentGeneration]:
+    return key[0], key[1]
 
 
 @dataclass(frozen=True)
@@ -81,7 +91,7 @@ class DifferenceMapCache:
         value: CachedDifferenceMap,
     ) -> DifferenceCachePutResult:
         evicted: list[DifferenceCacheKey] = []
-        evicted.extend(self.discard_stale_generations(dict(key)))
+        evicted.extend(self.discard_stale_generations(dict(_document_generations(key))))
         if key in self._entries:
             self._remove(key)
 
@@ -114,7 +124,7 @@ class DifferenceMapCache:
             if any(
                 document_id in current_generations
                 and current_generations[document_id] != generation
-                for document_id, generation in key
+                for document_id, generation in _document_generations(key)
             )
         )
         for key in stale:
