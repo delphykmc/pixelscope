@@ -378,7 +378,7 @@ class NativeYuvSemanticsController:
     def _on_yuv_analysis_result(
         self,
         signature: tuple[object, ...],
-        cache_keys: list[tuple[object, ...]],
+        cache_keys: Sequence[tuple[object, ...]],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
         result: object,
     ) -> None:
