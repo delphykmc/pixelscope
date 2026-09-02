@@ -69,7 +69,12 @@ def write_png(path: Path, image: NDArray[np.uint8]) -> None:
     data = np.ascontiguousarray(image)
     scan = b"".join(b"\0" + data[r].tobytes() for r in range(h))
     ihdr = struct.pack(">IIBBBBB", w, h, 8, color_type, 0, 0, 0)
-    path.write_bytes(b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", ihdr) + png_chunk(b"IDAT", zlib.compress(scan, 9)) + png_chunk(b"IEND", b""))
+    path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", ihdr)
+        + png_chunk(b"IDAT", zlib.compress(scan, 9))
+        + png_chunk(b"IEND", b"")
+    )
 
 
 def pixel(layout: str, planes, x: int, y: int):
@@ -100,11 +105,25 @@ def native_entry(out: Path, stem: str, layout: str, *, variant: bool = False):
         "color_range": "Full",
         "file_size": source.stat().st_size,
         "sha256": sha256(source),
-        "plane_shapes": {"Y": [HEIGHT, WIDTH], "U": [HEIGHT // sy, WIDTH // sx], "V": [HEIGHT // sy, WIDTH // sx]},
+        "plane_shapes": {
+            "Y": [HEIGHT, WIDTH],
+            "U": [HEIGHT // sy, WIDTH // sx],
+            "V": [HEIGHT // sy, WIDTH // sx],
+        },
         "sample_counts": {"Y": int(y.size), "U": int(u.size), "V": int(v.size)},
-        "selected_pixels": {f"{x},{yy}": pixel(layout, planes, x, yy) for x, yy in coords},
-        "horizontal_line_x_0_to_15": {"Y_positions": list(range(WIDTH)), "U_positions": list(range(0, WIDTH, sx)), "V_positions": list(range(0, WIDTH, sx))},
-        "vertical_line_y_0_to_11": {"Y_positions": list(range(HEIGHT)), "U_positions": list(range(0, HEIGHT, sy)), "V_positions": list(range(0, HEIGHT, sy))},
+        "selected_pixels": {
+            f"{x},{yy}": pixel(layout, planes, x, yy) for x, yy in coords
+        },
+        "horizontal_line_x_0_to_15": {
+            "Y_positions": list(range(WIDTH)),
+            "U_positions": list(range(0, WIDTH, sx)),
+            "V_positions": list(range(0, WIDTH, sx)),
+        },
+        "vertical_line_y_0_to_11": {
+            "Y_positions": list(range(HEIGHT)),
+            "U_positions": list(range(0, HEIGHT, sy)),
+            "V_positions": list(range(0, HEIGHT, sy)),
+        },
         "preview_reference": str(ref.relative_to(out)).replace("\\", "/"),
         "preview_sha256": sha256(ref),
         "variant": variant,
@@ -137,29 +156,45 @@ def generate(output_dir: Path) -> list[Path]:
     legacy = output_dir / "05_legacy_bayer12_imgprops_16x12.yuv"
     legacy_bayer12().astype("<u2").tofile(legacy)
     sidecar = output_dir / "05_legacy_bayer12_imgprops_16x12.imgprops"
-    sidecar.write_text(json.dumps({
-        "width": WIDTH,
-        "height": HEIGHT,
-        "imageType": "BAYER12",
-        "pattern": "RGGB",
-        "sensorBitWidth": 12,
-        "pedestal": 256,
-        "note": "unknown fields are intentionally ignored"
-    }, indent=2) + "\n", encoding="utf-8")
-    entries.append({
-        "file": legacy.name,
-        "role": "generic_raw_imgprops_fallback",
-        "file_size": legacy.stat().st_size,
-        "sha256": sha256(legacy),
-        "sidecar": sidecar.name,
-        "sidecar_sha256": sha256(sidecar),
-        "expected_profile": {
-            "width": WIDTH, "height": HEIGHT, "storage_format": "unpacked",
-            "container_dtype": "uint16", "endianness": "little", "bit_depth": 12,
-            "bit_alignment": "lsb", "channel_layout": "BAYER", "bayer_pattern": "RGGB",
-            "black_level": 256, "stride_bytes": WIDTH * 2,
-        },
-    })
+    sidecar.write_text(
+        json.dumps(
+            {
+                "width": WIDTH,
+                "height": HEIGHT,
+                "imageType": "BAYER12",
+                "pattern": "RGGB",
+                "sensorBitWidth": 12,
+                "pedestal": 256,
+                "note": "unknown fields are intentionally ignored",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    entries.append(
+        {
+            "file": legacy.name,
+            "role": "generic_raw_imgprops_fallback",
+            "file_size": legacy.stat().st_size,
+            "sha256": sha256(legacy),
+            "sidecar": sidecar.name,
+            "sidecar_sha256": sha256(sidecar),
+            "expected_profile": {
+                "width": WIDTH,
+                "height": HEIGHT,
+                "storage_format": "unpacked",
+                "container_dtype": "uint16",
+                "endianness": "little",
+                "bit_depth": 12,
+                "bit_alignment": "lsb",
+                "channel_layout": "BAYER",
+                "bayer_pattern": "RGGB",
+                "black_level": 256,
+                "stride_bytes": WIDTH * 2,
+            },
+        }
+    )
 
     y, u, v = native_planes("YUV420")
     temp = output_dir / "negative" / "_good.tmp"
@@ -171,17 +206,38 @@ def generate(output_dir: Path) -> list[Path]:
     short.write_bytes(good[:-1])
     long.write_bytes(good + b"\0")
     entries += [
-        {"file": "negative/yuv420_short_16x12.yuv", "role": "negative_size", "intended_layout": "YUV420", "expected_size": len(good), "actual_size": short.stat().st_size, "sha256": sha256(short)},
-        {"file": "negative/yuv420_long_16x12.yuv", "role": "negative_size", "intended_layout": "YUV420", "expected_size": len(good), "actual_size": long.stat().st_size, "sha256": sha256(long)},
+        {
+            "file": "negative/yuv420_short_16x12.yuv",
+            "role": "negative_size",
+            "intended_layout": "YUV420",
+            "expected_size": len(good),
+            "actual_size": short.stat().st_size,
+            "sha256": sha256(short),
+        },
+        {
+            "file": "negative/yuv420_long_16x12.yuv",
+            "role": "negative_size",
+            "intended_layout": "YUV420",
+            "expected_size": len(good),
+            "actual_size": long.stat().st_size,
+            "sha256": sha256(long),
+        },
     ]
 
-    (output_dir / "manifest.json").write_text(json.dumps({
-        "fixture_version": FIXTURE_VERSION,
-        "generated_by": "scripts/generate_yuv_manual_fixtures.py",
-        "width": WIDTH,
-        "height": HEIGHT,
-        "entries": entries,
-    }, indent=2) + "\n", encoding="utf-8")
+    (output_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "fixture_version": FIXTURE_VERSION,
+                "generated_by": "scripts/generate_yuv_manual_fixtures.py",
+                "width": WIDTH,
+                "height": HEIGHT,
+                "entries": entries,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return sorted(p for p in output_dir.rglob("*") if p.is_file())
 
 
