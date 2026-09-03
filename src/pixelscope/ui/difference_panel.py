@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from math import isinf
 
 import numpy as np
@@ -43,6 +44,7 @@ from pixelscope.core.display_transform import (
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.roi import RoiBounds
+from pixelscope.core.spatial_sampling import SpatialSampling
 from pixelscope.core.yuv_difference import (
     YUV_DIFFERENCE_CHANNELS,
     difference_compatibility,
@@ -52,6 +54,86 @@ from pixelscope.core.yuv_difference import (
 from pixelscope.ui.design_tokens import TOKENS, primary_button_style
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
+
+
+@dataclass(frozen=True)
+class DifferenceSamplingSnapshot:
+    """Immutable reference-space mapping for one exact Difference presentation."""
+
+    family: str
+    channel: str
+    spatial_sampling: SpatialSampling
+    sample_channel: str | None
+
+    @classmethod
+    def from_selection(
+        cls,
+        pair: tuple[ImageDocument, ImageDocument],
+        family: str,
+        channel: str,
+        selected_shape: tuple[int, int],
+    ) -> DifferenceSamplingSnapshot:
+        first = pair[0]
+        if family == "YUV":
+            frame = first.yuv_frame
+            assert frame is not None
+            reference_shape = (int(frame.y.shape[0]), int(frame.y.shape[1]))
+            if channel == "Y" or frame.layout == "YUV444":
+                return cls(
+                    family=family,
+                    channel=channel,
+                    spatial_sampling=SpatialSampling.identity(selected_shape),
+                    sample_channel=channel if channel in YUV_DIFFERENCE_CHANNELS else None,
+                )
+            if frame.layout == "YUV422":
+                return cls(
+                    family=family,
+                    channel=channel,
+                    spatial_sampling=SpatialSampling.cell_footprint(
+                        reference_shape,
+                        selected_shape,
+                        row_step=1,
+                        column_step=2,
+                    ),
+                    sample_channel=channel,
+                )
+            if frame.layout == "YUV420":
+                return cls(
+                    family=family,
+                    channel=channel,
+                    spatial_sampling=SpatialSampling.cell_footprint(
+                        reference_shape,
+                        selected_shape,
+                        row_step=2,
+                        column_step=2,
+                    ),
+                    sample_channel=channel,
+                )
+        if family == "BAYER" and channel != "Mosaic":
+            profile = first.raw_profile
+            assert profile is not None
+            row_phase, column_phase = bayer_channel_positions(str(profile.bayer_pattern))[channel]
+            source = first.source
+            assert source is not None
+            return cls(
+                family=family,
+                channel=channel,
+                spatial_sampling=SpatialSampling.point_lattice(
+                    (int(source.shape[0]), int(source.shape[1])),
+                    selected_shape,
+                    row_step=2,
+                    column_step=2,
+                    row_phase=int(row_phase),
+                    column_phase=int(column_phase),
+                ),
+                sample_channel=channel,
+            )
+        return cls(
+            family=family,
+            channel=channel,
+            spatial_sampling=SpatialSampling.identity(selected_shape),
+            sample_channel=channel if family == "BAYER" and channel != "Mosaic" else None,
+        )
 
 
 class DifferencePanel(QWidget):
@@ -77,6 +159,8 @@ class DifferencePanel(QWidget):
         self._metric_cache: dict[tuple[object, ...], DifferenceMetrics] = {}
         self._preview_key: tuple[object, ...] | None = None
         self._preview_value: NDArray[np.uint8] | None = None
+        self._presentation_snapshot_identity: tuple[object, ...] | None = None
+        self._presentation_snapshot: DifferenceSamplingSnapshot | None = None
         self._native_threshold = 10
         self._normalized_threshold_percent = 1.0
         self._threshold_domain: DifferenceDomain = "native"
@@ -588,7 +672,53 @@ class DifferencePanel(QWidget):
             return None
         self._configure_threshold_for_cached_map(difference_map)
         selected = self._selected_absolute(difference_map, self.channel.currentText())
-        return self._title(), selected, self._cached_preview(difference_map, selected)
+        preview = self._cached_preview(difference_map, selected)
+        self._publish_sampling_snapshot(
+            self._preview_cache_key(difference_map),
+            selected,
+            preview,
+            self._build_sampling_snapshot(selected),
+        )
+        return self._title(), selected, preview
+
+    def mapping_snapshot_for_payload(
+        self,
+        numerical: object,
+        preview: object,
+    ) -> DifferenceSamplingSnapshot | None:
+        identity = self._presentation_snapshot_identity
+        if (
+            identity is None
+            or len(identity) != 3
+            or identity[-2] != id(numerical)
+            or identity[-1] != id(preview)
+        ):
+            return None
+
+        # A freshly calculated map is intentionally publishable even when it is
+        # larger than the Difference cache budget.  Validate the presentation
+        # key against the live controls instead of requiring cache residency;
+        # the key still carries the exact pair/generation/channel and all
+        # display controls needed to reject stale payloads.
+        presentation_key = identity[0]
+        if not isinstance(presentation_key, tuple) or len(presentation_key) != 6:
+            return None
+        cache_key, domain, channel, mode, gain, threshold = presentation_key
+        if cache_key != self._cache_key():
+            return None
+        compatibility = self._compatibility()
+        if compatibility is None or not compatibility.compatible:
+            return None
+        if compatibility.domain != domain:
+            return None
+        if (
+            channel != self.channel.currentText()
+            or mode != self.mode.currentText()
+            or gain != self.gain.value()
+            or threshold != self._threshold_value(compatibility.domain)
+        ):
+            return None
+        return self._presentation_snapshot
 
     def _preview_cache_key(self, difference_map: CachedDifferenceMap) -> tuple[object, ...]:
         return (
@@ -635,8 +765,10 @@ class DifferencePanel(QWidget):
         publish_result: bool,
     ) -> None:
         key = self._preview_cache_key(difference_map)
+        snapshot = self._build_sampling_snapshot(selected)
         if key == self._preview_key and self._preview_value is not None:
             self.status.setText("Ready")
+            self._publish_sampling_snapshot(key, selected, self._preview_value, snapshot)
             signal = self.result_ready if publish_result else self.preview_updated
             signal.emit(self._title(), selected, self._preview_value)
             return
@@ -663,6 +795,7 @@ class DifferencePanel(QWidget):
                 expected_map=difference_map,
                 title=title,
                 selected=selected,
+                snapshot=snapshot,
                 publish_result=publish_result,
             )
         )
@@ -682,6 +815,7 @@ class DifferencePanel(QWidget):
         expected_map: CachedDifferenceMap,
         title: str,
         selected: NDArray[np.generic],
+        snapshot: DifferenceSamplingSnapshot,
         publish_result: bool,
     ) -> None:
         worker = self._preview_worker
@@ -696,6 +830,7 @@ class DifferencePanel(QWidget):
             return
         self._preview_key = expected_key
         self._preview_value = result
+        self._publish_sampling_snapshot(expected_key, selected, result, snapshot)
         self.status.setText("Ready")
         signal = self.result_ready if publish_result else self.preview_updated
         signal.emit(title, selected, result)
@@ -723,6 +858,40 @@ class DifferencePanel(QWidget):
         if self._preview_worker is not None:
             self._preview_worker.cancel()
             self._preview_worker = None
+
+    def _build_sampling_snapshot(
+        self,
+        selected: NDArray[np.generic],
+    ) -> DifferenceSamplingSnapshot:
+        pair = self.selected_documents()
+        compatibility = self._compatibility()
+        family = (
+            str(compatibility.family)
+            if compatibility is not None and compatibility.family is not None
+            else "RGB"
+        )
+        channel = self.channel.currentText()
+        assert pair is not None
+        return DifferenceSamplingSnapshot.from_selection(
+            pair,
+            family,
+            channel,
+            (int(selected.shape[0]), int(selected.shape[1])),
+        )
+
+    def _publish_sampling_snapshot(
+        self,
+        preview_key: tuple[object, ...],
+        selected: NDArray[np.generic],
+        preview: NDArray[np.uint8],
+        snapshot: DifferenceSamplingSnapshot,
+    ) -> None:
+        self._presentation_snapshot_identity = (
+            preview_key,
+            id(selected),
+            id(preview),
+        )
+        self._presentation_snapshot = snapshot
 
     @staticmethod
     def _selected_absolute(

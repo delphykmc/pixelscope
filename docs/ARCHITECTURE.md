@@ -19,6 +19,15 @@ Native `ImageDocument.source` remains authoritative for analysis. Viewer preview
 is derived presentation and must not redefine source, Difference, Statistics,
 Histogram, Line Profile, Split Channel, or residency domains.
 
+`core.spatial_sampling.SpatialSampling` separates native sample geometry from the
+reference geometry used for viewer interaction. The immutable, Qt-free metadata is
+transient `ImageDocument` semantics: `shape`, source/preview arrays, Difference maps,
+metrics, cache bytes, and exports stay native-sized, while `reference_shape` governs
+Fit/100%, cursor, zoom/pan, ROI, and Line overlays. `ImageDocument.pixel_at()` remains
+native-local; `sample_lookup_at_reference()` is the explicit mapped inspection path.
+Direct images use identity mapping, YUV chroma uses cell-footprint mapping, and Bayer
+channels use phase-aware point-lattice mapping.
+
 ## P3-D input and comparison ownership model
 
 P3-D separates five runtime layers:
@@ -193,8 +202,8 @@ existing fixed two/three/four/five/six geometry contract is retained.
 ### Split Channels presentation working set
 
 Split Channels does not add Registered or Selected documents. When exactly one
-supported RGB/RGBA or Bayer source is Selected, PixelScope derives a transient
-presentation working set (`R/G/B` or `R/Gr/Gb/B`). Multi View presents those
+supported RGB/RGBA, Bayer, or native YUV source is Selected, PixelScope derives a
+transient presentation working set (`R/G/B`, `R/Gr/Gb/B`, or `Y/U/V`). Multi View presents those
 subchannels with an explicit Primary; Single View presents one subchannel and uses
 local number/header/Left/Right navigation across the same transient set. Primary
 and active subchannel state survive Single/Multi presentation changes. Files still
@@ -202,6 +211,10 @@ contains and selects only the original source, while Statistics, Histogram, Line
 Profile, Difference authority, source loading, and residency remain bound to the
 native Current Comparison Page source. Pending/loading sources keep channel
 placeholders so an unsplit stale frame is never presented while Split is active.
+Native YUV and Bayer split arrays are not expanded for display. Their spatial mapping
+places the existing native preview over the source reference extent. YUV U/V samples
+represent 2×1 or 2×2 footprints; Bayer samples remain CFA lattice points with the
+authoritative row/column phase even when a dense macrocell is painted for usability.
 
 ## P4-A temporary curation boundary
 
@@ -631,6 +644,14 @@ and emits the successful result through the existing MainWindow presentation pat
 For a six-source page, an explicit-Calculate cache hit and a fresh asynchronous
 result share the same Diff-only Single View presentation and workspace-restore
 contract.
+
+Difference presentation publishes spatial sampling metadata alongside the exact
+settled numerical/preview identity without changing the established result signals.
+`MainWindow` stores the native array, preview, mapping, and sample-channel metadata as
+one derived-document update. YUV U/V and Bayer channel Difference therefore occupy the
+full reference viewer extent while cache shape, metric cardinality, and PNG export
+remain native-sized. Spatial metadata is not a Difference cache key, residency owner,
+or persisted Session field.
 
 Difference is a derived presentation rather than a Registered/Selected/Pick identity.
 `DifferenceCurationLifecycle` defines the P4-A integration boundary: Keep always
