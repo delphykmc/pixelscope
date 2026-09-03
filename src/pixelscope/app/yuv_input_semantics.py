@@ -195,11 +195,20 @@ class NativeYuvSemanticsController:
         action.setToolTip(tooltip)
         action.setStatusTip(tooltip)
 
-    def inspect_pixel(self, x: int, y: int, _value: object) -> None:
+    def inspect_pixel(self, x: int, y: int, value: object) -> None:
+        """Publish the viewer's reference-space sample lookup.
+
+        ``ImageViewer`` resolves mapped documents (YUV chroma and Bayer split
+        views) before emitting its backwards-compatible three-argument signal.
+        Re-reading ``ImageDocument.pixel_at`` here would interpret the shared
+        reference coordinate as a native-local coordinate and can therefore
+        turn a valid mapped sample into an out-of-bounds ``None``.  The emitted
+        value is already the reference-space lookup result and remains the
+        correct value for full-resolution documents too.
+        """
         document = self.window.viewer.document
         if document is None:
             return
-        value = document.pixel_at(x, y)
         self.window._set_pixel_status(self.pixel_status_text(x, y, [value], [document]))
         self.window._set_active_document(document)
 

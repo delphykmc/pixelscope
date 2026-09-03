@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: ChatGPT-assisted implementation and independent reviewers
-Branch/PR: stacked from `feature/wp-c2-native-yuv-difference` / pending
+Branch/PR: `codex/issue-75-spatial-sampling` / stacked PR #76 targeting PR #74
 Last updated: 2026-09-03
 
 ## Goal
@@ -137,6 +137,15 @@ the schema and persisted fields do not change.
   map their lower-right sample footprint to reference `(15, 11)` before/after zoom.
   Manually verified Bayer B point-lattice behavior at 95% zoom: reference
   `(960, 535)` has no B sample and adjacent `(961, 535)` reports `B 495`.
+- 2026-09-03: Independent latest-head review of `a487163` requested changes for two
+  production gaps: the composed Single View cursor handler re-read native-local
+  coordinates, and non-cacheable Difference maps lost their already-published spatial
+  snapshot. The reviewer independently confirmed the known TileHeader assertion is
+  unrelated to this diff. Findings were recorded on stacked PR #76.
+- 2026-09-03: Remediated both findings without changing the three-argument cursor or
+  Difference signal contracts. Production-composed YUV/Bayer cursor regressions and
+  cache-independent exact-payload mapping regressions now pass; independent re-review
+  of the new HEAD remains pending.
 
 ## Completion summary
 
@@ -148,6 +157,7 @@ the schema and persisted fields do not change.
   unrelated existing responsive-header assertion failure as recorded above.
 - Remaining limitations: mapping is transient/presentation-only; no chroma resampling
   or new Session geometry is introduced.
-- Follow-up issues: none identified for the Issue #75 scope before independent review.
+- Follow-up issues: no deferred Issue #75 behavior; initial independent-review
+  findings are remediated and await latest-head confirmation.
 - Durable docs updated: `ARCHITECTURE.md`, `PRODUCT_SPEC.md`, `SESSION_CONTRACT.md`,
   `DECISIONS.md`, `QUALITY.md`, and `CURRENT_STATE.md`.

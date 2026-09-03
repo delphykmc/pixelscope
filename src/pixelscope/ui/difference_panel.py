@@ -687,13 +687,35 @@ class DifferencePanel(QWidget):
         preview: object,
     ) -> DifferenceSamplingSnapshot | None:
         identity = self._presentation_snapshot_identity
-        current_map = self.cached_result_for_current()
         if (
             identity is None
-            or current_map is None
-            or identity[0] != self._preview_cache_key(current_map)
+            or len(identity) != 3
             or identity[-2] != id(numerical)
             or identity[-1] != id(preview)
+        ):
+            return None
+
+        # A freshly calculated map is intentionally publishable even when it is
+        # larger than the Difference cache budget.  Validate the presentation
+        # key against the live controls instead of requiring cache residency;
+        # the key still carries the exact pair/generation/channel and all
+        # display controls needed to reject stale payloads.
+        presentation_key = identity[0]
+        if not isinstance(presentation_key, tuple) or len(presentation_key) != 6:
+            return None
+        cache_key, domain, channel, mode, gain, threshold = presentation_key
+        if cache_key != self._cache_key():
+            return None
+        compatibility = self._compatibility()
+        if compatibility is None or not compatibility.compatible:
+            return None
+        if compatibility.domain != domain:
+            return None
+        if (
+            channel != self.channel.currentText()
+            or mode != self.mode.currentText()
+            or gain != self.gain.value()
+            or threshold != self._threshold_value(compatibility.domain)
         ):
             return None
         return self._presentation_snapshot
