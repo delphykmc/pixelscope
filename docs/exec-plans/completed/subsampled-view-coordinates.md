@@ -1,9 +1,9 @@
 # Execution plan: Reference/sample coordinates for subsampled views
 
-Status: Active
+Status: Complete
 Owner: ChatGPT-assisted implementation and independent reviewers
-Branch/PR: `codex/issue-75-spatial-sampling` / stacked PR #76 targeting PR #74
-Last updated: 2026-09-03
+Branch/PR: `codex/issue-75-spatial-sampling` / merged stacked PR #76 targeting PR #74
+Last updated: 2026-09-04
 
 ## Goal
 
@@ -145,19 +145,32 @@ the schema and persisted fields do not change.
 - 2026-09-03: Remediated both findings without changing the three-argument cursor or
   Difference signal contracts. Production-composed YUV/Bayer cursor regressions and
   cache-independent exact-payload mapping regressions now pass; independent re-review
-  of the new HEAD remains pending.
+  of the new HEAD was requested.
+- 2026-09-04: Independent latest-head re-review passed with no actionable findings.
+  The reviewer independently observed 63 focused tests passing and confirmed both
+  prior High findings were resolved, including non-cacheable YUV/Bayer Difference
+  geometry and stale payload/control rejection.
+- 2026-09-04: The owner-environment latest-head suite completed with 1200 passed,
+  1 skipped, and the same unrelated responsive TileHeader assertion failure. Ruff,
+  mypy across 134 source files, pip check, documentation checks, and base-to-head
+  `git diff --check` passed. GitHub reported the stacked PR clean and mergeable.
+- 2026-09-04: Merged stacked PR #76 into the PR #74 branch with merge commit
+  `2d933ed5d4c3199c1f3a722834ec02b7441063b7`. PR #74 review-state transition and
+  Issue #75 closure are the remaining GitHub workflow actions after this record lands.
 
 ## Completion summary
 
-- Delivered behavior: implemented; independent latest-head review and merge are pending.
+- Delivered behavior: implemented, independently reviewed at latest code HEAD, and
+  merged from stacked PR #76 into the PR #74 branch.
 - Changed files: core spatial/document/channel-view contracts; viewer and Difference
   integration; Session recipe vocabulary; focused unit/UI tests; cumulative contract
   documents.
-- Validation results: focused/static/docs/manual checks passed; full suite has one
-  unrelated existing responsive-header assertion failure as recorded above.
+- Validation results: focused/static/docs/manual checks passed; the latest full suite
+  has 1200 passed, 1 skipped, and one unrelated existing responsive-header assertion
+  failure as recorded above.
 - Remaining limitations: mapping is transient/presentation-only; no chroma resampling
   or new Session geometry is introduced.
 - Follow-up issues: no deferred Issue #75 behavior; initial independent-review
-  findings are remediated and await latest-head confirmation.
+  findings are remediated and independently confirmed.
 - Durable docs updated: `ARCHITECTURE.md`, `PRODUCT_SPEC.md`, `SESSION_CONTRACT.md`,
   `DECISIONS.md`, `QUALITY.md`, and `CURRENT_STATE.md`.
