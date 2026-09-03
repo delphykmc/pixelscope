@@ -148,6 +148,12 @@ Preserve deterministic fixtures and smoke paths for:
 - Persisted Difference Threshold/Gain startup injection and live Settings-save
   propagation without restart-required state.
 - Split-channel loading placeholders and stale-result rejection.
+- Reference/sample spatial mapping: identity regressions; YUV422/420 cell-footprint
+  corners and odd ROI coverage; all Bayer CFA phases and invalid lattice sites;
+  native split/Difference shapes and memory ownership; full-reference ImageItem extent,
+  Fit/100%, cursor, synchronized range, ROI, and Line behavior; mapped-to-identity
+  transform reset; exact Difference preview/mapping identity; and Session-v1 Y/U/V
+  Difference recipe round-trip/restore without persisted geometry.
 - Plots visibility, selected tab, floating/docked/maximized state, and workspace
   restoration.
 - Resident-image byte-budget eviction and reload, including more than seven

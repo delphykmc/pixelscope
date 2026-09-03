@@ -339,11 +339,12 @@ all selected RAW files, or pick a profile from byte size alone.
 - Files-tree `+` / `-` retains Qt-native folder expand/collapse. Display Gain
   `+` / `-` is scoped to the image-presentation subtree.
 - Auto, Single, and Multi View retain synchronized cursor, zoom, offset, ROI, and
-  line coordinates.
+  line coordinates in the full source/reference coordinate space, including when a
+  presented split or Difference plane has fewer native samples.
 - Fixed two/three/four/five/six-image presentation layouts remain for
   `Selected <= 6`; large selections use fixed six-slot page geometry.
-- **Split Channels** (`S`) derives a transient R/G/B or R/Gr/Gb/B presentation working
-  set from one Selected source. Multi View exposes explicit subchannel Primary;
+- **Split Channels** (`S`) derives a transient R/G/B, R/Gr/Gb/B, or native Y/U/V
+  presentation working set from one Selected source. Multi View exposes explicit subchannel Primary;
   Single View navigates the same local subchannels. Files selection and native
   Current Comparison Page analysis remain source-owned.
 - Structured status reports active file, format/resolution, coordinate, pixel
@@ -704,6 +705,14 @@ v1 may persist only an eligible current-page regenerable Difference recipe, neve
 map/cache/generated result. P4-E Difference export consumes the current established
 presentation preview only; it does not call Calculate or promote an inactive cached
 map into active Difference state.
+
+Subsampled Difference and Split presentations use an explicit reference/sample mapping.
+YUV422/420 U/V samples retain native 2×1/2×2 cell-footprint cardinality; Bayer channel
+samples retain their CFA point-lattice phase. The viewer uses reference coordinates for
+Fit/100%, cursor, synchronized pan/zoom, ROI, and Line overlays and maps only numerical
+lookup to the native plane. No full-reference numerical array is created. Difference
+cache/metrics and PNG export remain native-sized. Session v1 may store Y/U/V as an
+eligible Difference recipe channel, but never stores spatial mapping metadata.
 
 ## Display Gain contract
 

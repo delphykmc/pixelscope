@@ -217,6 +217,10 @@ class ImageViewer(QWidget):
         self.view_box.setMouseMode(pg.ViewBox.PanMode)
         self.view_box.invertY(True)
         self.image_item = pg.ImageItem(axisOrder="row-major")
+        # Spatially expanded native planes must retain discrete sample/cell
+        # presentation. Pyqtgraph's downsampling path can blend neighboring
+        # samples, so keep it explicitly disabled for this correctness view.
+        self.image_item.setOpts(autoDownsample=False)
         self.view_box.addItem(self.image_item)
         self._loading_item = LoadingSpinnerItem()
         self._loading_item.setZValue(100)
@@ -338,6 +342,7 @@ class ImageViewer(QWidget):
             self._displayed_preview = None
             self._displayed_gain = None
             self.image_item.clear()
+            self.image_item.setRect()
             self._loading_item.hide()
             self._loading_timer.stop()
             self.header.clear()
@@ -354,6 +359,7 @@ class ImageViewer(QWidget):
             if clear_previous or previous is None or previous.preview is None:
                 self._document = None
                 self.image_item.clear()
+                self.image_item.setRect()
                 self._displayed_preview = None
                 self._displayed_gain = None
             self._position_loading_item()
@@ -382,9 +388,15 @@ class ImageViewer(QWidget):
         self._loading_item.hide()
         self._loading_timer.stop()
         if preview_changed:
-            self.image_item.setImage(document.preview, autoLevels=False, levels=(0, 255))
+            self._upload_preview(document.preview, document)
             self._displayed_preview = document.preview
             self._displayed_gain = 1.0 if gain_capable else None
+        else:
+            # A document can retain the same native preview while its
+            # presentation mapping changes (for example derived -> identity).
+            # Geometry is semantic metadata, so refresh it even without an
+            # ndarray upload.
+            self.image_item.setRect(self._presentation_rect(document))
         self.header.set_document(
             document,
             self._slot,
@@ -398,6 +410,43 @@ class ImageViewer(QWidget):
 
     def _display_gain_changed(self, _gain: float) -> None:
         self._ensure_display_preview()
+
+    @staticmethod
+    def _reference_shape(document: ImageDocument) -> tuple[int, int]:
+        """Return the reference (rows, columns) interaction extent.
+
+        The fallback keeps this widget usable with pre-spatial documents while
+        the transient reference-space metadata is absent during loading.
+        """
+
+        shape = getattr(document, "reference_shape", None)
+        if shape is not None:
+            return int(shape[0]), int(shape[1])
+        preview = document.preview
+        if preview is not None:
+            return int(preview.shape[0]), int(preview.shape[1])
+        source = document.source
+        if source is not None:
+            return int(source.shape[0]), int(source.shape[1])
+        return 0, 0
+
+    @staticmethod
+    def _presentation_rect(document: ImageDocument) -> QRectF:
+        sampling = getattr(document, "spatial_sampling", None)
+        if sampling is not None:
+            presentation_rect = sampling.presentation_rect
+            rect = presentation_rect() if callable(presentation_rect) else presentation_rect
+            return QRectF(float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3]))
+        preview = document.preview
+        if preview is None:
+            return QRectF()
+        return QRectF(0.0, 0.0, float(preview.shape[1]), float(preview.shape[0]))
+
+    def _upload_preview(self, preview: Any, document: ImageDocument) -> None:
+        """Upload a native preview and bind its display geometry atomically."""
+
+        self.image_item.setImage(preview, autoLevels=False, levels=(0, 255))
+        self.image_item.setRect(self._presentation_rect(document))
 
     def _ensure_display_preview(self) -> None:
         document = self._document
@@ -413,7 +462,7 @@ class ImageViewer(QWidget):
         if gain == 1.0:
             self._cancel_display_preview()
             if self._displayed_preview is not document.preview:
-                self.image_item.setImage(document.preview, autoLevels=False, levels=(0, 255))
+                self._upload_preview(document.preview, document)
                 self._displayed_preview = document.preview
             self._displayed_gain = 1.0
             return
@@ -508,7 +557,7 @@ class ImageViewer(QWidget):
             return
         if not isinstance(expected_preview, np.ndarray) or result.shape != expected_preview.shape:
             return
-        self.image_item.setImage(result, autoLevels=False, levels=(0, 255))
+        self._upload_preview(result, expected_document)
         self._displayed_preview = result
         self._displayed_gain = expected_gain
 
@@ -535,7 +584,7 @@ class ImageViewer(QWidget):
             or self._displayed_preview is document.preview
         ):
             return
-        self.image_item.setImage(document.preview, autoLevels=False, levels=(0, 255))
+        self._upload_preview(document.preview, document)
         self._displayed_preview = document.preview
         self._displayed_gain = 1.0
 
@@ -566,13 +615,13 @@ class ImageViewer(QWidget):
     def fit_image(self) -> None:
         if self._document is None or self._document.preview is None:
             return
-        height, width = self._document.preview.shape[:2]
+        height, width = self._reference_shape(self._document)
         self.view_box.setRange(QRectF(0, 0, width, height), padding=0.02)
 
     def zoom_100_percent(self) -> None:
         if self._document is None or self._document.preview is None:
             return
-        height, width = self._document.preview.shape[:2]
+        height, width = self._reference_shape(self._document)
         viewport = self._graphics.viewport().size()
         visible_width = min(float(width), float(max(viewport.width(), 1)))
         visible_height = min(float(height), float(max(viewport.height(), 1)))
@@ -618,12 +667,12 @@ class ImageViewer(QWidget):
 
     def set_roi_bounds(self, bounds: RoiBounds | None) -> None:
         document = self._document
-        if bounds is None or document is None or document.source is None:
+        if bounds is None or document is None:
             self._roi_enabled = False
             self._roi.hide()
             return
         clipped = clamp_roi(
-            document.source.shape,
+            self._reference_shape(document),
             bounds.x,
             bounds.y,
             bounds.width,
@@ -643,7 +692,7 @@ class ImageViewer(QWidget):
 
     def current_roi_bounds(self) -> RoiBounds | None:
         document = self._document
-        if not self._roi_enabled or document is None or document.source is None:
+        if not self._roi_enabled or document is None:
             return None
         position = self._roi.pos()
         size = self._roi.size()
@@ -653,7 +702,7 @@ class ImageViewer(QWidget):
         bottom = ceil(float(position.y() + size.y()))
         try:
             return clamp_roi(
-                document.source.shape,
+                self._reference_shape(document),
                 left,
                 top,
                 right - left,
@@ -668,12 +717,12 @@ class ImageViewer(QWidget):
 
     def set_line_selection(self, selection: LineSelection | None) -> None:
         document = self._document
-        if selection is None or document is None or document.source is None:
+        if selection is None or document is None:
             self._line_selection = None
             self._line_item.hide()
             return
         selected = clamp_line(
-            document.source.shape,
+            self._reference_shape(document),
             selection.x1,
             selection.y1,
             selection.x2,
@@ -700,12 +749,7 @@ class ImageViewer(QWidget):
 
     def _on_roi_dragged(self, points: object, finished: bool) -> None:
         document = self._document
-        if (
-            document is None
-            or document.source is None
-            or not isinstance(points, tuple)
-            or len(points) != 2
-        ):
+        if document is None or not isinstance(points, tuple) or len(points) != 2:
             return
         start, end = points
         if not isinstance(start, QPointF) or not isinstance(end, QPointF):
@@ -716,7 +760,7 @@ class ImageViewer(QWidget):
         bottom = ceil(max(start.y(), end.y()))
         try:
             bounds = clamp_roi(
-                document.source.shape,
+                self._reference_shape(document),
                 left,
                 top,
                 right - left,
@@ -730,19 +774,14 @@ class ImageViewer(QWidget):
 
     def _on_line_dragged(self, points: object, finished: bool) -> None:
         document = self._document
-        if (
-            document is None
-            or document.source is None
-            or not isinstance(points, tuple)
-            or len(points) != 2
-        ):
+        if document is None or not isinstance(points, tuple) or len(points) != 2:
             return
         start, end = points
         if not isinstance(start, QPointF) or not isinstance(end, QPointF):
             return
         try:
             selection = clamp_line(
-                document.source.shape,
+                self._reference_shape(document),
                 floor(start.x()),
                 floor(start.y()),
                 floor(end.x()),
@@ -756,14 +795,19 @@ class ImageViewer(QWidget):
 
     def _on_scene_mouse_moved(self, position: QPointF | Any) -> None:
         document = self._document
-        if document is None or document.source is None or not self._cursor_enabled:
+        if document is None or not self._cursor_enabled:
             return
         point = self.view_box.mapSceneToView(position)
-        x, y = int(point.x()), int(point.y())
-        value = document.pixel_at(x, y)
-        if value is None:
+        x, y = floor(point.x()), floor(point.y())
+        rows, columns = self._reference_shape(document)
+        if x < 0 or y < 0 or x >= columns or y >= rows:
             self.hide_cursor()
             return
+        lookup_at_reference = getattr(document, "sample_lookup_at_reference", None)
+        lookup = (
+            lookup_at_reference(x, y) if callable(lookup_at_reference) else document.pixel_at(x, y)
+        )
+        value = None if lookup is None else getattr(lookup, "value", lookup)
         self.show_cursor(x, y)
         self.cursor_moved.emit(x, y, value)
 
