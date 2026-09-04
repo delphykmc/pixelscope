@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from pixelscope.core.line_profile import LineProfileResult, LineSelection
 
 YuvLayout = Literal["YUV444", "YUV422", "YUV420"]
+YuvChannel = Literal["Y", "U", "V"]
 YUV_CHANNEL_NAMES: tuple[str, str, str] = ("Y", "U", "V")
 
 
@@ -89,23 +90,40 @@ class NativeYuvFrame:
             int(self.v[y // scale_y, x // scale_x]),
         )
 
+    def roi_plane_bounds(self, bounds: RoiBounds, channel: YuvChannel) -> RoiBounds:
+        """Map one luma-coordinate ROI to the referenced native plane footprint."""
+
+        if bounds.right > self.width or bounds.bottom > self.height:
+            raise ValueError("ROI extends beyond the YUV frame")
+        if channel == "Y":
+            return bounds
+        if channel not in ("U", "V"):
+            raise ValueError(f"unsupported YUV channel: {channel}")
+        scale_x, scale_y = self.chroma_scale
+        chroma_x0 = bounds.x // scale_x
+        chroma_y0 = bounds.y // scale_y
+        chroma_x1 = (bounds.right + scale_x - 1) // scale_x
+        chroma_y1 = (bounds.bottom + scale_y - 1) // scale_y
+        return RoiBounds(
+            chroma_x0,
+            chroma_y0,
+            chroma_x1 - chroma_x0,
+            chroma_y1 - chroma_y0,
+        )
+
     def roi_planes(
         self,
         bounds: RoiBounds,
     ) -> tuple[NDArray[np.uint8], NDArray[np.uint8], NDArray[np.uint8]]:
         """Map a luma-coordinate ROI to the native samples referenced by that ROI."""
 
-        if bounds.right > self.width or bounds.bottom > self.height:
-            raise ValueError("ROI extends beyond the YUV frame")
-        scale_x, scale_y = self.chroma_scale
-        chroma_x0 = bounds.x // scale_x
-        chroma_y0 = bounds.y // scale_y
-        chroma_x1 = (bounds.right + scale_x - 1) // scale_x
-        chroma_y1 = (bounds.bottom + scale_y - 1) // scale_y
+        y_bounds = self.roi_plane_bounds(bounds, "Y")
+        u_bounds = self.roi_plane_bounds(bounds, "U")
+        v_bounds = self.roi_plane_bounds(bounds, "V")
         return (
-            self.y[bounds.y : bounds.bottom, bounds.x : bounds.right],
-            self.u[chroma_y0:chroma_y1, chroma_x0:chroma_x1],
-            self.v[chroma_y0:chroma_y1, chroma_x0:chroma_x1],
+            self.y[y_bounds.y : y_bounds.bottom, y_bounds.x : y_bounds.right],
+            self.u[u_bounds.y : u_bounds.bottom, u_bounds.x : u_bounds.right],
+            self.v[v_bounds.y : v_bounds.bottom, v_bounds.x : v_bounds.right],
         )
 
 

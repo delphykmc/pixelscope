@@ -13,7 +13,9 @@ LEGACY_COMPARISON_SET_KIND = "pixelscope-comparison-set"
 SESSION_SCHEMA_VERSION = 1
 SESSION_LAYOUTS = frozenset({"Auto", "Single View", "Multi View"})
 SESSION_DISPLAY_GAINS = frozenset({1.0, 2.0, 4.0, 8.0, 16.0})
-SESSION_DIFFERENCE_CHANNELS = frozenset({"All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb"})
+SESSION_DIFFERENCE_CHANNELS = frozenset(
+    {"All", "R", "G", "B", "Gray", "Mosaic", "Gr", "Gb", "Y", "U", "V"}
+)
 SESSION_DIFFERENCE_MODES = frozenset({"Absolute", "Mask"})
 SESSION_DIFFERENCE_REGIONS = frozenset({"Full image", "Active ROI"})
 SESSION_DIFFERENCE_MAX_THRESHOLD = 65535.0

@@ -69,6 +69,7 @@ from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.core.preload import PreloadController, PreloadMemberRequest
 from pixelscope.core.residency import ResidencyManager
 from pixelscope.core.roi import RoiBounds, clamp_roi
+from pixelscope.core.spatial_sampling import SpatialSampling
 from pixelscope.io.path_discovery import (
     SUPPORTED_IMAGE_FILTER,
     ImageInput,
@@ -84,7 +85,7 @@ from pixelscope.ui.design_tokens import (
     panel_heading_style,
     toolbar_style,
 )
-from pixelscope.ui.difference_panel import DifferencePanel
+from pixelscope.ui.difference_panel import DifferencePanel, DifferenceSamplingSnapshot
 from pixelscope.ui.document_list import DocumentListWidget
 from pixelscope.ui.empty_state import EmptyWorkspace
 from pixelscope.ui.image_viewer import ImageViewer
@@ -1992,7 +1993,14 @@ class MainWindow(QMainWindow):
         if cached_display is not None:
             if cached_six_difference:
                 self._capture_six_image_diff_restore_state()
-            self._store_difference_document(*cached_display, switch_to_result=False)
+            self._store_difference_document(
+                *cached_display,
+                self.difference_panel.mapping_snapshot_for_payload(
+                    cached_display[1],
+                    cached_display[2],
+                ),
+                switch_to_result=False,
+            )
         elif (
             len(analysis_candidates) >= 2
             and len(analysis_ready) >= 2
@@ -2592,7 +2600,11 @@ class MainWindow(QMainWindow):
                 self.diff_action.setChecked(False)
                 self.diff_action.blockSignals(False)
                 return
-            self._store_difference_document(*cached, switch_to_result=False)
+            self._store_difference_document(
+                *cached,
+                self.difference_panel.mapping_snapshot_for_payload(cached[1], cached[2]),
+                switch_to_result=False,
+            )
             if len(self.current_comparison_documents()) >= COMPARISON_PAGE_SIZE:
                 self._capture_six_image_diff_restore_state()
                 self._navigate_single_view("difference")
@@ -3205,6 +3217,7 @@ class MainWindow(QMainWindow):
             or not isinstance(preview, np.ndarray)
         ):
             return
+        mapping = self.difference_panel.mapping_snapshot_for_payload(numerical, preview)
         force_single = len(self.current_comparison_documents()) >= COMPARISON_PAGE_SIZE
         if force_single:
             self._capture_six_image_diff_restore_state()
@@ -3213,6 +3226,7 @@ class MainWindow(QMainWindow):
             title,
             numerical,
             preview,
+            mapping,
             switch_to_result=stay_single,
         )
         self.diff_action.blockSignals(True)
@@ -3255,7 +3269,14 @@ class MainWindow(QMainWindow):
             and self.viewer.document is self._difference_document
         )
         visible = self.diff_action.isChecked()
-        self._store_difference_document(title, numerical, preview, switch_to_result=False)
+        mapping = self.difference_panel.mapping_snapshot_for_payload(numerical, preview)
+        self._store_difference_document(
+            title,
+            numerical,
+            preview,
+            mapping,
+            switch_to_result=False,
+        )
         if showing_single_difference and self._difference_document is not None:
             self.viewer.set_document(self._difference_document, fit=False)
             self.viewer.set_tile_context(1, "Diff")
@@ -3270,6 +3291,7 @@ class MainWindow(QMainWindow):
         title: str,
         numerical: NDArray[np.generic],
         preview: NDArray[np.uint8],
+        mapping: DifferenceSamplingSnapshot | None = None,
         *,
         switch_to_result: bool,
     ) -> None:
@@ -3300,6 +3322,7 @@ class MainWindow(QMainWindow):
                 channel_layout="DIFFERENCE",
                 prepared_preview=preview,
             )
+        self._apply_difference_mapping(difference, mapping)
         self._difference_document = difference
         self._difference_source_ids = source_ids
         if not switch_to_result:
@@ -3346,7 +3369,7 @@ class MainWindow(QMainWindow):
         if isinstance(document, ImageDocument):
             del value
             values = [
-                viewer.document.pixel_at(x, y)
+                self._reference_value_at(viewer.document, x, y)
                 for viewer in self.multi_compare_view.visible_viewers
                 if viewer.document is not None
             ]
@@ -3357,6 +3380,37 @@ class MainWindow(QMainWindow):
             ]
             self._set_pixel_status(self._pixel_status_text(x, y, values, documents))
             self._set_active_document(document)
+
+    @staticmethod
+    def _apply_difference_mapping(
+        document: ImageDocument,
+        mapping: DifferenceSamplingSnapshot | None,
+    ) -> None:
+        if mapping is None:
+            if document.source is not None:
+                document.spatial_sampling = SpatialSampling.identity(
+                    (int(document.source.shape[0]), int(document.source.shape[1]))
+                )
+            document.sample_channel = None
+            return
+
+        source_shape = (
+            None
+            if document.source is None
+            else (int(document.source.shape[0]), int(document.source.shape[1]))
+        )
+        if mapping.spatial_sampling.sample_shape != source_shape:
+            raise ValueError("Difference spatial sampling must match its native result shape")
+        document.spatial_sampling = mapping.spatial_sampling
+        document.sample_channel = mapping.sample_channel
+
+    @staticmethod
+    def _reference_value_at(document: ImageDocument, x: int, y: int) -> object:
+        lookup_at_reference = getattr(document, "sample_lookup_at_reference", None)
+        lookup = (
+            lookup_at_reference(x, y) if callable(lookup_at_reference) else document.pixel_at(x, y)
+        )
+        return None if lookup is None else getattr(lookup, "value", lookup)
 
     @staticmethod
     def _pixel_status_text(

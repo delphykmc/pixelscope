@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from math import isinf
 
 import numpy as np
@@ -29,7 +30,6 @@ from pixelscope.core.diff_engine import (
     DifferenceMetrics,
     absolute_difference_metrics,
     compact_absolute_difference,
-    difference_compatibility,
     normalized_absolute_difference,
 )
 from pixelscope.core.difference_cache import (
@@ -44,9 +44,96 @@ from pixelscope.core.display_transform import (
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.performance_settings import DEFAULT_DIFFERENCE_CACHE_BYTES
 from pixelscope.core.roi import RoiBounds
+from pixelscope.core.spatial_sampling import SpatialSampling
+from pixelscope.core.yuv_difference import (
+    YUV_DIFFERENCE_CHANNELS,
+    difference_compatibility,
+    is_yuv_document,
+    native_yuv_plane,
+)
 from pixelscope.ui.design_tokens import TOKENS, primary_button_style
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
+
+
+@dataclass(frozen=True)
+class DifferenceSamplingSnapshot:
+    """Immutable reference-space mapping for one exact Difference presentation."""
+
+    family: str
+    channel: str
+    spatial_sampling: SpatialSampling
+    sample_channel: str | None
+
+    @classmethod
+    def from_selection(
+        cls,
+        pair: tuple[ImageDocument, ImageDocument],
+        family: str,
+        channel: str,
+        selected_shape: tuple[int, int],
+    ) -> DifferenceSamplingSnapshot:
+        first = pair[0]
+        if family == "YUV":
+            frame = first.yuv_frame
+            assert frame is not None
+            reference_shape = (int(frame.y.shape[0]), int(frame.y.shape[1]))
+            if channel == "Y" or frame.layout == "YUV444":
+                return cls(
+                    family=family,
+                    channel=channel,
+                    spatial_sampling=SpatialSampling.identity(selected_shape),
+                    sample_channel=channel if channel in YUV_DIFFERENCE_CHANNELS else None,
+                )
+            if frame.layout == "YUV422":
+                return cls(
+                    family=family,
+                    channel=channel,
+                    spatial_sampling=SpatialSampling.cell_footprint(
+                        reference_shape,
+                        selected_shape,
+                        row_step=1,
+                        column_step=2,
+                    ),
+                    sample_channel=channel,
+                )
+            if frame.layout == "YUV420":
+                return cls(
+                    family=family,
+                    channel=channel,
+                    spatial_sampling=SpatialSampling.cell_footprint(
+                        reference_shape,
+                        selected_shape,
+                        row_step=2,
+                        column_step=2,
+                    ),
+                    sample_channel=channel,
+                )
+        if family == "BAYER" and channel != "Mosaic":
+            profile = first.raw_profile
+            assert profile is not None
+            row_phase, column_phase = bayer_channel_positions(str(profile.bayer_pattern))[channel]
+            source = first.source
+            assert source is not None
+            return cls(
+                family=family,
+                channel=channel,
+                spatial_sampling=SpatialSampling.point_lattice(
+                    (int(source.shape[0]), int(source.shape[1])),
+                    selected_shape,
+                    row_step=2,
+                    column_step=2,
+                    row_phase=int(row_phase),
+                    column_phase=int(column_phase),
+                ),
+                sample_channel=channel,
+            )
+        return cls(
+            family=family,
+            channel=channel,
+            spatial_sampling=SpatialSampling.identity(selected_shape),
+            sample_channel=channel if family == "BAYER" and channel != "Mosaic" else None,
+        )
 
 
 class DifferencePanel(QWidget):
@@ -72,6 +159,8 @@ class DifferencePanel(QWidget):
         self._metric_cache: dict[tuple[object, ...], DifferenceMetrics] = {}
         self._preview_key: tuple[object, ...] | None = None
         self._preview_value: NDArray[np.uint8] | None = None
+        self._presentation_snapshot_identity: tuple[object, ...] | None = None
+        self._presentation_snapshot: DifferenceSamplingSnapshot | None = None
         self._native_threshold = 10
         self._normalized_threshold_percent = 1.0
         self._threshold_domain: DifferenceDomain = "native"
@@ -361,16 +450,25 @@ class DifferencePanel(QWidget):
     def _update_channels(self) -> None:
         compatibility = self._compatibility()
         family = (
-            compatibility.family if compatibility is not None and compatibility.compatible else None
+            str(compatibility.family)
+            if compatibility is not None
+            and compatibility.compatible
+            and compatibility.family is not None
+            else None
         )
         pair = self.selected_documents()
         if family is None and pair is not None:
             layout = pair[0].channel_layout
-            family = "BAYER" if layout == "BAYER" else "GRAY" if layout == "GRAY" else "RGB"
+            if is_yuv_document(pair[0]):
+                family = "YUV"
+            else:
+                family = "BAYER" if layout == "BAYER" else "GRAY" if layout == "GRAY" else "RGB"
         current = self.channel.currentText()
         self.channel.blockSignals(True)
         self.channel.clear()
-        if family == "BAYER":
+        if family == "YUV":
+            self.channel.addItems(YUV_DIFFERENCE_CHANNELS)
+        elif family == "BAYER":
             self.channel.addItems(("Mosaic", "R", "Gr", "Gb", "B"))
         elif family == "GRAY":
             self.channel.addItem("Gray")
@@ -432,9 +530,12 @@ class DifferencePanel(QWidget):
             self.domain_status.setText("Domain —")
             return
         channel = self.channel.currentText()
-        if compatibility.family == "GRAY":
+        family = str(compatibility.family)
+        if family == "YUV":
+            samples = f"YUV {channel} native"
+        elif family == "GRAY":
             samples = "Gray"
-        elif compatibility.family == "BAYER":
+        elif family == "BAYER":
             samples = "Bayer mosaic" if channel == "Mosaic" else f"Bayer {channel}"
         else:
             samples = "RGB combined" if channel == "All" else f"RGB {channel}"
@@ -492,8 +593,11 @@ class DifferencePanel(QWidget):
         a: ImageDocument,
         b: ImageDocument,
         family: str,
+        channel: str,
     ) -> tuple[NDArray[np.generic], NDArray[np.generic]]:
         assert a.source is not None and b.source is not None
+        if family == "YUV":
+            return native_yuv_plane(a, channel), native_yuv_plane(b, channel)
         if family in {"GRAY", "BAYER"}:
             return a.source, b.source
         return a.source[..., :3], b.source[..., :3]
@@ -504,7 +608,17 @@ class DifferencePanel(QWidget):
             return None
         first = (pair[0].document_id, pair[0].generation)
         second = (pair[1].document_id, pair[1].generation)
-        return (first, second) if first <= second else (second, first)
+        ordered = (first, second) if first <= second else (second, first)
+        if is_yuv_document(pair[0]) and is_yuv_document(pair[1]):
+            frame_a = pair[0].yuv_frame
+            frame_b = pair[1].yuv_frame
+            layout = (
+                frame_a.layout
+                if frame_a is not None and frame_b is not None and frame_a.layout == frame_b.layout
+                else f"{pair[0].channel_layout}|{pair[1].channel_layout}"
+            )
+            return (*ordered, (layout, self.channel.currentText()))
+        return ordered
 
     def _metric_key(self) -> tuple[object, ...] | None:
         key = self._cache_key()
@@ -558,7 +672,53 @@ class DifferencePanel(QWidget):
             return None
         self._configure_threshold_for_cached_map(difference_map)
         selected = self._selected_absolute(difference_map, self.channel.currentText())
-        return self._title(), selected, self._cached_preview(difference_map, selected)
+        preview = self._cached_preview(difference_map, selected)
+        self._publish_sampling_snapshot(
+            self._preview_cache_key(difference_map),
+            selected,
+            preview,
+            self._build_sampling_snapshot(selected),
+        )
+        return self._title(), selected, preview
+
+    def mapping_snapshot_for_payload(
+        self,
+        numerical: object,
+        preview: object,
+    ) -> DifferenceSamplingSnapshot | None:
+        identity = self._presentation_snapshot_identity
+        if (
+            identity is None
+            or len(identity) != 3
+            or identity[-2] != id(numerical)
+            or identity[-1] != id(preview)
+        ):
+            return None
+
+        # A freshly calculated map is intentionally publishable even when it is
+        # larger than the Difference cache budget.  Validate the presentation
+        # key against the live controls instead of requiring cache residency;
+        # the key still carries the exact pair/generation/channel and all
+        # display controls needed to reject stale payloads.
+        presentation_key = identity[0]
+        if not isinstance(presentation_key, tuple) or len(presentation_key) != 6:
+            return None
+        cache_key, domain, channel, mode, gain, threshold = presentation_key
+        if cache_key != self._cache_key():
+            return None
+        compatibility = self._compatibility()
+        if compatibility is None or not compatibility.compatible:
+            return None
+        if compatibility.domain != domain:
+            return None
+        if (
+            channel != self.channel.currentText()
+            or mode != self.mode.currentText()
+            or gain != self.gain.value()
+            or threshold != self._threshold_value(compatibility.domain)
+        ):
+            return None
+        return self._presentation_snapshot
 
     def _preview_cache_key(self, difference_map: CachedDifferenceMap) -> tuple[object, ...]:
         return (
@@ -605,8 +765,10 @@ class DifferencePanel(QWidget):
         publish_result: bool,
     ) -> None:
         key = self._preview_cache_key(difference_map)
+        snapshot = self._build_sampling_snapshot(selected)
         if key == self._preview_key and self._preview_value is not None:
             self.status.setText("Ready")
+            self._publish_sampling_snapshot(key, selected, self._preview_value, snapshot)
             signal = self.result_ready if publish_result else self.preview_updated
             signal.emit(self._title(), selected, self._preview_value)
             return
@@ -617,7 +779,6 @@ class DifferencePanel(QWidget):
         title = self._title()
         self._cancel_preview_worker()
         request_serial = self._preview_request_serial
-
         worker = TaskWorker(
             self._render_preview,
             selected,
@@ -634,6 +795,7 @@ class DifferencePanel(QWidget):
                 expected_map=difference_map,
                 title=title,
                 selected=selected,
+                snapshot=snapshot,
                 publish_result=publish_result,
             )
         )
@@ -653,6 +815,7 @@ class DifferencePanel(QWidget):
         expected_map: CachedDifferenceMap,
         title: str,
         selected: NDArray[np.generic],
+        snapshot: DifferenceSamplingSnapshot,
         publish_result: bool,
     ) -> None:
         worker = self._preview_worker
@@ -667,6 +830,7 @@ class DifferencePanel(QWidget):
             return
         self._preview_key = expected_key
         self._preview_value = result
+        self._publish_sampling_snapshot(expected_key, selected, result, snapshot)
         self.status.setText("Ready")
         signal = self.result_ready if publish_result else self.preview_updated
         signal.emit(title, selected, result)
@@ -695,11 +859,47 @@ class DifferencePanel(QWidget):
             self._preview_worker.cancel()
             self._preview_worker = None
 
+    def _build_sampling_snapshot(
+        self,
+        selected: NDArray[np.generic],
+    ) -> DifferenceSamplingSnapshot:
+        pair = self.selected_documents()
+        compatibility = self._compatibility()
+        family = (
+            str(compatibility.family)
+            if compatibility is not None and compatibility.family is not None
+            else "RGB"
+        )
+        channel = self.channel.currentText()
+        assert pair is not None
+        return DifferenceSamplingSnapshot.from_selection(
+            pair,
+            family,
+            channel,
+            (int(selected.shape[0]), int(selected.shape[1])),
+        )
+
+    def _publish_sampling_snapshot(
+        self,
+        preview_key: tuple[object, ...],
+        selected: NDArray[np.generic],
+        preview: NDArray[np.uint8],
+        snapshot: DifferenceSamplingSnapshot,
+    ) -> None:
+        self._presentation_snapshot_identity = (
+            preview_key,
+            id(selected),
+            id(preview),
+        )
+        self._presentation_snapshot = snapshot
+
     @staticmethod
     def _selected_absolute(
         difference_map: CachedDifferenceMap, channel: str
     ) -> NDArray[np.generic]:
         absolute = difference_map.absolute
+        if difference_map.channel_layout in {"YUV444", "YUV422", "YUV420"}:
+            return absolute
         if difference_map.channel_layout == "GRAY":
             return absolute
         if difference_map.channel_layout == "BAYER":
@@ -718,7 +918,22 @@ class DifferencePanel(QWidget):
             return None
         channel = self.channel.currentText()
         compatibility = self._compatibility()
-        if compatibility is None or compatibility.family != "BAYER" or channel == "Mosaic":
+        family = (
+            str(compatibility.family)
+            if compatibility is not None and compatibility.family is not None
+            else None
+        )
+        if family == "YUV":
+            frame = document.yuv_frame
+            assert frame is not None
+            plane_bounds = frame.roi_plane_bounds(bounds, channel)  # type: ignore[arg-type]
+            return (
+                plane_bounds.x,
+                plane_bounds.y,
+                plane_bounds.width,
+                plane_bounds.height,
+            )
+        if family != "BAYER" or channel == "Mosaic":
             return (bounds.x, bounds.y, bounds.width, bounds.height)
         profile = document.raw_profile
         source = document.source
@@ -745,15 +960,15 @@ class DifferencePanel(QWidget):
         a, b = sorted(pair, key=lambda document: (document.document_id, document.generation))
         compatibility = difference_compatibility(a, b)
         assert compatibility.compatible
-        family = compatibility.family
+        family = str(compatibility.family)
         domain = compatibility.domain
         data_range = compatibility.data_range
-        assert family is not None
+        assert compatibility.family is not None
         assert domain is not None
         assert data_range is not None
-        source_a, source_b = self._full_sources(a, b, family)
-        cached = self._map_cache.get(key)
         channel = self.channel.currentText()
+        source_a, source_b = self._full_sources(a, b, family, channel)
+        cached = self._map_cache.get(key)
         metric_bounds = self._metric_bounds(
             a, self._active_roi if self.region.currentText() == "Active ROI" else None
         )
@@ -762,6 +977,7 @@ class DifferencePanel(QWidget):
             pattern = str(a.raw_profile.bayer_pattern)
         else:
             pattern = None
+        map_layout = a.channel_layout if family == "YUV" else family
 
         def calculate() -> tuple[CachedDifferenceMap, DifferenceMetrics, bool]:
             difference_map = cached
@@ -780,7 +996,7 @@ class DifferencePanel(QWidget):
                     absolute=absolute,
                     domain=domain,
                     data_range=data_range,
-                    channel_layout=family,
+                    channel_layout=map_layout,
                     bayer_pattern=pattern,
                 )
             selected = self._selected_absolute(difference_map, channel)
@@ -849,7 +1065,7 @@ class DifferencePanel(QWidget):
         self._metric_cache = {
             metric_key: value
             for metric_key, value in self._metric_cache.items()
-            if len(metric_key) < 2 or (metric_key[0], metric_key[1]) not in evicted
+            if not any(tuple(metric_key[: len(cache_key)]) == cache_key for cache_key in evicted)
         }
         if self._preview_key is not None and self._preview_key and self._preview_key[0] in evicted:
             self._cancel_preview_worker()

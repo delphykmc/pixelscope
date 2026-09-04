@@ -85,6 +85,10 @@ The Difference recipe contains intent only:
 - Difference gain;
 - Full image/Active ROI region.
 
+The channel vocabulary includes native YUV `Y`, `U`, and `V` in addition to the
+existing Gray/RGB/Bayer channels. This is additive Session-v1 intent and does not
+change the schema version.
+
 Difference A/B must be distinct Selected Session members **and both must belong to the
 Current Comparison Page being saved**. Difference calculation itself is page scoped,
 so writer eligibility deliberately matches reader eligibility.
@@ -112,6 +116,7 @@ Session v1 does **not** serialize:
 - foreground workers, tokens, generations, or task objects;
 - Difference maps/cache entries/metrics/results;
 - generated Difference documents;
+- transient reference/sample spatial mapping and viewer transforms;
 - Statistics/Histogram/Line calculated results;
 - transient Split `ImageDocument`s;
 - P4-A temporary baseline/Pick Set;

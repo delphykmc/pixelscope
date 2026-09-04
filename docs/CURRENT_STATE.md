@@ -1,7 +1,7 @@
 # PixelScope current state
 
-Snapshot date: 2026-09-02
-Current merged `main`: `f21416fed49f138a60ca15810a2b23818ced0809`
+Snapshot date: 2026-09-03
+Current merged `main`: `0b321ea23cb1493664d0187ea9777b94d9b7e81b`
 
 `main` includes the cumulative P5/R history below plus the release-foundation and
 local-workflow hardening merged after R closeout:
@@ -47,11 +47,22 @@ local-workflow hardening merged after R closeout:
 - WP-A / PR #71 — responsive large-folder registration, merged at
   `a04f70447c5b68be9b5ea694909e4c2b1ecf46c2`;
 - WP-B / PR #72 — RAW profile and raw-like binary compatibility, merged at
-  `f21416fed49f138a60ca15810a2b23818ced0809`.
+  `f21416fed49f138a60ca15810a2b23818ced0809`;
+- WP-C1 / PR #73 — Native YUV Image Semantics, merged at
+  `0b321ea23cb1493664d0187ea9777b94d9b7e81b`.
 
-WP-C1 / PR #73 — **Native YUV Image Semantics** — is the active implementation
-candidate on top of this merged baseline and is not yet part of `main`. Its review gate
-requires latest-head automated validation and independent review before merge.
+WP-C2 / PR #74 — **Native YUV Difference** — is the active implementation candidate on
+top of this merged baseline and is not yet part of `main`. It adds same-subsampling
+YUV444/YUV422/YUV420 Difference over the selected native Y/U/V plane, channel-aware
+cache/result identity, and WP-C1 ROI-to-native-chroma mapping reuse. Its latest-head
+owner-local automated validation and independent re-review remain merge gates.
+
+Issue #75's stacked candidate adds explicit transient reference/sample spatial mapping
+for native YUV and Bayer split/Difference views. Native arrays, Difference cache/metric
+cardinality, and export dimensions remain unchanged; viewer cursor, Fit/100%, zoom/pan,
+ROI, and Line geometry use the full source/reference extent. The candidate also makes
+Session-v1 Y/U/V Difference recipe vocabulary consistent with WP-C2 without persisting
+spatial metadata or changing the Session schema version.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is only partially observed: temporary
@@ -150,11 +161,16 @@ Supported local PixelScope image families are:
   never numerical authority. Native Y/U/V planes remain authoritative and subsampled
   U/V stay at their native chroma resolution.
 - Pixel inspection reports native Y/U/V. Split Channels produces native-resolution
-  Y/U/V views. Statistics and Histogram use native per-plane sample cardinality. ROI
+  Y/U/V views presented over the full luma/reference extent. Statistics and Histogram
+  use native per-plane sample cardinality. ROI
   maps from luma coordinates to the referenced chroma footprint, and Line Profile keeps
   chroma values at native luma-coordinate sample positions.
-- Native YUV Difference remains deferred to WP-C2. YUV is excluded from legacy
-  RGB/Gray/Bayer Difference rather than silently reinterpreted.
+- WP-C2's current candidate extends Difference to YUV444↔YUV444, YUV422↔YUV422, and
+  YUV420↔YUV420. It exposes exactly Y/U/V with Y as default and subtracts only the
+  selected native plane in the 8-bit code domain. Native U/V Difference maps therefore
+  retain native chroma resolution. Mixed subsampling and YUV↔non-YUV Difference are
+  rejected; Combined/weighted YUV, chroma resampling, converted-range/matrix, and
+  cross-bit-depth YUV Difference remain out of scope.
 - A non-YUV RAW JSON on `.yuv`, `.imgprops`, or **Generic RAW profile…** keeps the WP-B
   generic RAW/Bayer path. Same-stem precedence remains explicit PixelScope `.json` >
   `.imgprops` > editable interpretation dialog.
@@ -204,9 +220,11 @@ P5 does not redesign:
   RGB/Gray/Bayer paths and `NativeYuvFrame` planes for WP-C1 YUV; viewer previews remain
   presentation-only;
 - Display Gain as presentation-only state;
-- explicit Difference commands: Calculate may reuse or compute the current pair, while
-  toolbar Diff may reactivate only an already-cached pair owned by the Current
-  Comparison Page; passive pair selection never displays a Difference;
+- explicit Difference commands: Calculate may reuse or compute the current exact
+  Difference identity, while toolbar Diff may reactivate only an already-cached result
+  owned by the Current Comparison Page; for native YUV that identity includes document
+  generation, subsampling/layout, and selected Y/U/V channel. Passive pair/channel
+  selection never leaves another identity presented as current;
 - P4-A temporary Pick/Keep curation;
 - Session v1 and typed Recent Images/Folders/Sessions.
 

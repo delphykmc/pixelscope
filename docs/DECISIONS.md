@@ -961,6 +961,25 @@ repository implementation program; this does not advance P5-G or P6.
 - P7-E remains the final packaged qualification after P5-G/P6. P7-D Stage 1 completion
   must not be described as overall P7 completion or production release readiness.
 
+## Subsampled presentation coordinates — Issue #75
+
+- Native sample authority and viewer interaction coordinates are separate contracts.
+  `SpatialSampling` is immutable Qt-free transient `ImageDocument` metadata; it does
+  not change `shape`, source/preview arrays, Difference maps, metrics, cache bytes,
+  residency, generation, Session identity, or export dimensions.
+- `ImageDocument.pixel_at()` remains native-local. Reference-space inspection uses a
+  separately named structured lookup so callers cannot silently mix coordinate spaces.
+- Viewer Fit/100%, cursor, synchronized pan/zoom, ROI, and Line state use full source
+  reference coordinates. Native previews are placed with an `ImageItem` transform and
+  are not numerically upsampled.
+- YUV chroma uses cell-footprint semantics and floor-origin/ceil-end ROI mapping. Bayer
+  channels use the established row/column CFA phase and strict point-lattice lookup;
+  dense phase-aware macrocell painting is presentation-only and does not add samples.
+- Difference spatial metadata is bound to the exact settled preview payload and stored
+  atomically on the derived document. Cache/metric/export authority remains native.
+- Spatial metadata is rebuilt deterministically and never persisted. Session v1 accepts
+  Y/U/V Difference recipe channels additively without a schema-version change.
+
 ## Current resource policy
 
 - Difference Map Cache remains byte-budgeted and persistence-free with default

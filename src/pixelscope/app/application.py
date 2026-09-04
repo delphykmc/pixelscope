@@ -16,6 +16,7 @@ from pixelscope.app.settings import (
     QSettingsAdapter,
     SettingsRepository,
 )
+from pixelscope.app.yuv_difference_semantics import install_native_yuv_difference
 from pixelscope.app.yuv_input_semantics import install_native_yuv_semantics
 from pixelscope.app.yuv_runtime_contracts import install_native_yuv_runtime_contracts
 from pixelscope.core.performance_settings import PerformanceSettings
@@ -136,6 +137,9 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     # WP-C1 wraps that compatibility layer: an explicit YUV profile takes the native
     # Y/U/V path, while legacy RAW profiles on `.yuv` continue to use WP-B unchanged.
     install_native_yuv_semantics(window)
+    # WP-C2 retires only WP-C1's temporary Difference block. Native YUV keeps the
+    # existing controller for input, plots, preload/residency, and Session semantics.
+    install_native_yuv_difference(window)
     # Resolved native YUV shares the existing bounded preload/promotion lifecycle and
     # persists its interpretation through the existing Session v1 profile payload.
     install_native_yuv_runtime_contracts(window)
