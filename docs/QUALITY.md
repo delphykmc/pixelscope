@@ -710,6 +710,14 @@ tolerance changed.
 
 ## Completion evidence
 
+Issue #77 WP-A validation covers strict half-open ROI containment, X/Y/W/H Apply and
+Enter, drag/editor synchronization, Clear/Esc, Full image scope retention, ordinary
+selection and comparison-page transitions, Folder Position, Session restore/skip,
+RGB/Gray/Bayer/YUV, mapped Difference reference extents, and split-view reference-space
+input. Regression validation must include viewer/Statistics/Histogram/Difference
+consumers, native sample cardinality, input/navigation, session, and compact workspace
+layout in addition to the repository-wide quality gate below.
+
 R7 final integration validation on `main@7c3dbe386aaff900f0accc7ce460759df80f14e0`
 observed the documentation contract pass, `933 passed` with one Windows
 directory-symlink privilege skip in 295.96 seconds, Ruff check/format pass, mypy pass
