@@ -370,6 +370,7 @@ class SessionController:
             self.window._page_start = 0
         self.window._focus_document_id = None
         self.window._primary_page_slot = 0
+        self.window.clear_roi()
         self.window._select_document_ids(selected_ids, preserve_view=True)
 
         if session.layout_mode != self.window._layout_mode:
@@ -412,7 +413,10 @@ class SessionController:
             ]
             if ready:
                 if self._pending_roi is not None:
-                    self.window._shared_roi_changed(self._pending_roi)
+                    self.window._apply_shared_roi(
+                        self._pending_roi,
+                        allow_channel_split=True,
+                    )
                     self._pending_roi = None
                 if self._pending_line is not None:
                     self.window._shared_line_changed(self._pending_line)

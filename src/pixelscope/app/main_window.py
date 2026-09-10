@@ -68,7 +68,7 @@ from pixelscope.core.line_profile import LineSelection, clamp_line
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.core.preload import PreloadController, PreloadMemberRequest
 from pixelscope.core.residency import ResidencyManager
-from pixelscope.core.roi import RoiBounds, clamp_roi
+from pixelscope.core.roi import RoiBounds, roi_fits_shape
 from pixelscope.core.spatial_sampling import SpatialSampling
 from pixelscope.io.path_discovery import (
     SUPPORTED_IMAGE_FILTER,
@@ -261,6 +261,8 @@ class MainWindow(QMainWindow):
         self.viewer.zoom_changed.connect(self._set_zoom_status)
         self.viewer.navigation_requested.connect(self._navigate_single_view)
         self.comparison_analysis_panel.scope_changed.connect(self._analysis_scope_changed)
+        self.comparison_analysis_panel.roi_apply_requested.connect(self._numeric_roi_requested)
+        self.comparison_analysis_panel.roi_clear_requested.connect(self.clear_roi)
         self.difference_panel.result_ready.connect(self._difference_panel_ready)
         self.difference_panel.preview_updated.connect(self._difference_preview_updated)
         self.empty_workspace.open_images_requested.connect(self.open_images)
@@ -1915,8 +1917,9 @@ class MainWindow(QMainWindow):
         if self._difference_source_ids is not None:
             required.update(self._difference_source_ids)
         self._cancel_obsolete_loads(required)
-        self._shared_roi = None
-        self.comparison_analysis_panel.set_roi_available(False)
+        if not selected_ids:
+            self._shared_roi = None
+            self.comparison_analysis_panel.set_active_roi(None)
         self._shared_line = None
         self._reset_pixel_status()
         self._render_selection()
@@ -1950,6 +1953,7 @@ class MainWindow(QMainWindow):
         self._update_layout_options(len(documents))
         self._channel_split_active = False
         if not documents:
+            self._shared_roi = None
             self._visible_document_ids.clear()
             self._cancel_obsolete_loads(set())
             self.viewer.set_document(None)
@@ -1977,6 +1981,8 @@ class MainWindow(QMainWindow):
         ]
         for document in analysis_ready:
             self.residency_manager.touch(document.document_id)
+
+        self._normalize_shared_roi(analysis_ready)
 
         self.difference_panel.set_documents(
             analysis_ready,
@@ -2159,7 +2165,6 @@ class MainWindow(QMainWindow):
             self.residency_manager.touch(document.document_id)
         self._evict_resident_documents()
 
-        self._normalize_shared_roi(analysis_ready)
         self._normalize_shared_line(analysis_ready)
         region_name = self.comparison_analysis_panel.region_scope.currentText()
         analysis_bounds = self._shared_roi if region_name == "Active ROI" else None
@@ -3080,61 +3085,78 @@ class MainWindow(QMainWindow):
         self._cancel_obsolete_loads(required)
 
         if not preserve_overlays:
-            self._shared_roi = None
-            self.comparison_analysis_panel.set_roi_available(False)
+            if not self._selection_order:
+                self._shared_roi = None
+                self.comparison_analysis_panel.set_active_roi(None)
             self._shared_line = None
         self._reset_pixel_status()
         self._render_selection(preserve_view=preserve_view)
 
-    def _shared_roi_changed(self, bounds: object) -> None:
-        if self._channel_split_active:
-            return
+    def _shared_roi_changed(self, bounds: object) -> bool:
+        return self._apply_shared_roi(bounds, allow_channel_split=False)
+
+    def _numeric_roi_requested(self, bounds: object) -> bool:
+        """Apply explicit reference-space editor input, including during Split view."""
+
+        return self._apply_shared_roi(bounds, allow_channel_split=True)
+
+    def _apply_shared_roi(
+        self,
+        bounds: object,
+        *,
+        allow_channel_split: bool,
+    ) -> bool:
+        if self._channel_split_active and not allow_channel_split:
+            self.multi_compare_view.clear_roi()
+            self.comparison_analysis_panel.set_active_roi(self._shared_roi)
+            return False
         if not isinstance(bounds, RoiBounds):
-            return
-        self.comparison_analysis_panel.set_roi_available(True)
+            return False
         ready = [
             document
             for document in self.current_comparison_documents()
             if document.source is not None
         ]
         if not ready:
-            return
-        common_height = min(document.shape[0] for document in ready)
-        common_width = min(document.shape[1] for document in ready)
-        try:
-            self._shared_roi = clamp_roi(
-                (common_height, common_width),
-                bounds.x,
-                bounds.y,
-                bounds.width,
-                bounds.height,
+            self.comparison_analysis_panel.set_active_roi(self._shared_roi)
+            return False
+        if not all(roi_fits_shape(document.reference_shape, bounds) for document in ready):
+            if not self._channel_split_active:
+                self.viewer.set_roi_bounds(self._shared_roi)
+                self.multi_compare_view.set_shared_roi(self._shared_roi)
+            self.comparison_analysis_panel.set_active_roi(self._shared_roi)
+            self.statusBar().showMessage(
+                "ROI was not applied because it does not fit every comparison frame",
+                5000,
             )
-        except ValueError:
-            return
-        self.viewer.set_roi_bounds(self._shared_roi)
-        self.multi_compare_view.set_shared_roi(self._shared_roi)
+            return False
+        self._shared_roi = bounds
+        if not self._channel_split_active:
+            self.viewer.set_roi_bounds(self._shared_roi)
+            self.multi_compare_view.set_shared_roi(self._shared_roi)
+        self.comparison_analysis_panel.set_active_roi(self._shared_roi)
         self.comparison_analysis_panel.set_documents(ready, self._shared_roi)
         self.difference_panel.set_active_roi(self._shared_roi)
         roi = self._shared_roi
         self.statusBar().showMessage(f"ROI x={roi.x}, y={roi.y}, {roi.width} x {roi.height}", 3000)
+        return True
 
     def _normalize_shared_roi(self, documents: list[ImageDocument]) -> None:
         bounds = self._shared_roi
-        if bounds is None or not documents:
+        if bounds is None:
+            self.comparison_analysis_panel.set_active_roi(None)
             return
-        common_height = min(document.shape[0] for document in documents)
-        common_width = min(document.shape[1] for document in documents)
-        try:
-            self._shared_roi = clamp_roi(
-                (common_height, common_width),
-                bounds.x,
-                bounds.y,
-                bounds.width,
-                bounds.height,
-            )
-        except ValueError:
+        if documents and not all(
+            roi_fits_shape(document.reference_shape, bounds) for document in documents
+        ):
             self._shared_roi = None
-            self.comparison_analysis_panel.set_roi_available(False)
+            self.comparison_analysis_panel.set_active_roi(None)
+            self.statusBar().showMessage(
+                "ROI cleared because it does not fit every comparison frame",
+                5000,
+            )
+            return
+        self.comparison_analysis_panel.set_active_roi(bounds)
 
     def _shared_line_changed(self, selection: object) -> None:
         if self._channel_split_active:
@@ -3188,7 +3210,7 @@ class MainWindow(QMainWindow):
 
     def clear_roi(self) -> None:
         self._shared_roi = None
-        self.comparison_analysis_panel.set_roi_available(False)
+        self.comparison_analysis_panel.set_active_roi(None)
         self.viewer.set_roi_bounds(None)
         self.multi_compare_view.clear_roi()
         ready = [

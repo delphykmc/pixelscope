@@ -3,13 +3,26 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pixelscope.core.roi import RoiBounds, analyze_roi, clamp_roi, extract_roi
+from pixelscope.core.roi import RoiBounds, analyze_roi, clamp_roi, extract_roi, roi_fits_shape
 
 
 def test_clamp_roi_uses_half_open_image_bounds() -> None:
     assert clamp_roi((10, 20), -2, 3, 8, 20) == RoiBounds(0, 3, 6, 7)
     with pytest.raises(ValueError, match="does not intersect"):
         clamp_roi((10, 20), 20, 0, 3, 3)
+
+
+def test_roi_fit_predicate_preserves_exact_bounds_without_clipping() -> None:
+    bounds = RoiBounds(4, 3, 4, 3)
+
+    assert roi_fits_shape((6, 8), bounds)
+    assert roi_fits_shape((6, 8, 3), bounds)
+    assert not roi_fits_shape((6, 7), bounds)
+    assert not roi_fits_shape((5, 8), bounds)
+    assert bounds == RoiBounds(4, 3, 4, 3)
+
+    with pytest.raises(ValueError, match="HxW"):
+        roi_fits_shape((8,), bounds)
 
 
 def test_extract_roi_returns_expected_view() -> None:

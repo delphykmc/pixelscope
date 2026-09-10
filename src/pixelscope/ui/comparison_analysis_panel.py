@@ -27,11 +27,14 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
@@ -160,11 +163,14 @@ class ComparisonAnalysisPanel(QWidget):
         "P99",
     )
     scope_changed = Signal()
+    roi_apply_requested = Signal(object)
+    roi_clear_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
         self._documents: list[ImageDocument] = []
         self._bounds: RoiBounds | None = None
+        self._active_roi_bounds: RoiBounds | None = None
         self._worker: TaskWorker | None = None
         self._request_signature: tuple[object, ...] = ()
         self._completed_signature: tuple[object, ...] = ()
@@ -189,8 +195,50 @@ class ComparisonAnalysisPanel(QWidget):
         activity_layout.addWidget(self.status)
         activity_layout.addWidget(self.busy)
 
-        self.roi_label = QLabel("")
+        self.roi_label = ElidingContextLabel("")
         self.roi_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.roi_x_input = QSpinBox()
+        self.roi_y_input = QSpinBox()
+        self.roi_width_input = QSpinBox()
+        self.roi_height_input = QSpinBox()
+        for name, control in (
+            ("X", self.roi_x_input),
+            ("Y", self.roi_y_input),
+            ("W", self.roi_width_input),
+            ("H", self.roi_height_input),
+        ):
+            control.setRange(0 if name in ("X", "Y") else 1, 2_147_483_647)
+            control.setFixedWidth(72)
+            control.setAccelerated(True)
+            control.setKeyboardTracking(False)
+            control.setAccessibleName(f"ROI {name}")
+            line_edit = control.lineEdit()
+            if line_edit is not None:
+                line_edit.returnPressed.connect(self._request_roi_apply)  # type: ignore[attr-defined]
+        self.roi_apply_button = QPushButton("Apply")
+        self.roi_apply_button.setToolTip("Apply X/Y/W/H as the shared ROI")
+        self.roi_apply_button.setFixedWidth(64)
+        self.roi_apply_button.clicked.connect(self._request_roi_apply)  # type: ignore[attr-defined]
+        self.roi_clear_button = QPushButton("Clear")
+        self.roi_clear_button.setToolTip("Clear the shared ROI (Esc)")
+        self.roi_clear_button.setFixedWidth(64)
+        self.roi_clear_button.clicked.connect(self.roi_clear_requested.emit)  # type: ignore[attr-defined]
+        self.roi_editor = QWidget()
+        self.roi_editor.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        roi_editor_layout = QHBoxLayout(self.roi_editor)
+        roi_editor_layout.setContentsMargins(0, 0, 0, 0)
+        roi_editor_layout.setSpacing(TOKENS.spacing_xs)
+        for name, control in (
+            ("X", self.roi_x_input),
+            ("Y", self.roi_y_input),
+            ("W", self.roi_width_input),
+            ("H", self.roi_height_input),
+        ):
+            roi_editor_layout.addWidget(QLabel(name))
+            roi_editor_layout.addWidget(control)
+        roi_editor_layout.addWidget(self.roi_apply_button)
+        roi_editor_layout.addWidget(self.roi_clear_button)
+        roi_editor_layout.addStretch(1)
         self.region_scope = QComboBox()
         self.region_scope.addItems(("Full image", "Active ROI"))
         self.set_roi_available(False)
@@ -221,9 +269,12 @@ class ComparisonAnalysisPanel(QWidget):
             1,
             alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
         )
+        self.region_layout.addWidget(self.roi_label, 0, 2)
         self.region_layout.addWidget(self.bounds_label, 1, 0)
-        self.region_layout.addWidget(self.roi_label, 1, 1)
+        self.region_layout.addWidget(self.roi_editor, 1, 1, 1, 2)
         self.region_layout.setColumnStretch(1, 1)
+        self.region_layout.setColumnStretch(2, 1)
+        self._sync_roi_editor()
         histogram_channel_label = QLabel("Channels")
         for name, color in (("R", "#ff3b30"), ("G", "#24b34b"), ("B", "#2684ff")):
             button = QToolButton()
@@ -416,7 +467,9 @@ class ComparisonAnalysisPanel(QWidget):
         )
         self.region_scope.blockSignals(False)
         if bounds is not None:
-            self.set_roi_available(True)
+            self.set_active_roi(bounds)
+        else:
+            self._sync_roi_editor()
         self._update_region_label()
 
         same_request = signature == self._request_signature
@@ -442,6 +495,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._worker = None
         self._documents = []
         self._bounds = None
+        self._active_roi_bounds = None
         self._request_signature = ()
         self._completed_signature = ()
         self._histogram_specs = []
@@ -451,6 +505,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.statistics_delegate.set_separator_rows(set())
         self._clear_histogram_plots()
         self.roi_label.clear()
+        self._sync_roi_editor()
         self.histogram_context.clear()
         self.histogram_context.hide()
         self._set_activity("No images selected", busy=False)
@@ -650,14 +705,58 @@ class ComparisonAnalysisPanel(QWidget):
             self.region_scope.setCurrentText("Full image")
             self.region_scope.blockSignals(False)
 
+    def set_active_roi(self, bounds: RoiBounds | None) -> None:
+        """Mirror the application-owned shared ROI into the numeric editor."""
+
+        self._active_roi_bounds = bounds
+        self.set_roi_available(bounds is not None)
+        self._sync_roi_editor()
+
+    def _sync_roi_editor(self) -> None:
+        bounds = self._active_roi_bounds
+        if bounds is None and self._documents:
+            height, width = self._documents[0].reference_shape
+            if height > 0 and width > 0:
+                bounds = RoiBounds(0, 0, width, height)
+        values = (
+            (bounds.x, bounds.y, bounds.width, bounds.height)
+            if bounds is not None
+            else (0, 0, 1, 1)
+        )
+        controls = (
+            self.roi_x_input,
+            self.roi_y_input,
+            self.roi_width_input,
+            self.roi_height_input,
+        )
+        for control, value in zip(controls, values, strict=True):
+            control.blockSignals(True)
+            control.setValue(value)
+            control.blockSignals(False)
+            control.setEnabled(bool(self._documents))
+        self.roi_apply_button.setEnabled(bool(self._documents))
+        self.roi_clear_button.setEnabled(self._active_roi_bounds is not None)
+
+    def _request_roi_apply(self) -> None:
+        if not self._documents:
+            return
+        self.roi_apply_requested.emit(
+            RoiBounds(
+                self.roi_x_input.value(),
+                self.roi_y_input.value(),
+                self.roi_width_input.value(),
+                self.roi_height_input.value(),
+            )
+        )
+
     def _update_region_label(self) -> None:
         bounds = self._bounds
         if bounds is None:
             if not self._documents or self._documents[0].source is None:
                 self.roi_label.clear()
                 return
-            source = self._documents[0].source
-            bounds = RoiBounds(0, 0, source.shape[1], source.shape[0])
+            height, width = self._documents[0].reference_shape
+            bounds = RoiBounds(0, 0, width, height)
         text = f"x={bounds.x}, y={bounds.y}, width={bounds.width}, height={bounds.height}"
         self.roi_label.setText(text)
 

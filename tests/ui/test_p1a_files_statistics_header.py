@@ -178,10 +178,9 @@ def test_main_window_tracks_active_roi_availability(qtbot: object) -> None:
     assert panel.region_scope.currentText() == "Active ROI"
 
     window._select_document_ids([replacement.document_id])
-    assert panel.region_scope.currentText() == "Full image"
-    assert not (
-        panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
-    )
+    assert window._shared_roi == RoiBounds(1, 2, 3, 4)
+    assert panel.region_scope.currentText() == "Active ROI"
+    assert panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
 
     window._shared_roi_changed(RoiBounds(1, 2, 3, 4))
     assert panel.region_scope.currentText() == "Active ROI"
