@@ -1,47 +1,49 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent, QDropEvent
-from PySide6.QtWidgets import QStackedWidget, QWidget
+from PySide6.QtWidgets import QBoxLayout, QVBoxLayout, QWidget
 
 
-class PresentationDropStack(QStackedWidget):
-    """Single native D&D owner for the Image View presentation surface."""
+_DropEvent = QDragEnterEvent | QDragMoveEvent | QDropEvent
+
+
+class PresentationDropHost(QWidget):
+    """Single native D&D owner wrapping every Image View presentation state."""
 
     paths_dropped = Signal(object)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, content: QWidget, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setObjectName("presentationDropStack")
+        self.setObjectName("presentationDropHost")
         self.setAcceptDrops(True)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(content)
+        self.content = content
+        self.refresh_descendant_ownership()
 
-    def addWidget(self, widget: QWidget) -> int:  # noqa: N802
-        index = super().addWidget(widget)
-        self._disable_descendant_drop_targets(widget)
-        return index
+    def refresh_descendant_ownership(self) -> None:
+        """Ensure nested Qt/pyqtgraph widgets cannot become competing native drop targets."""
 
-    @staticmethod
-    def _disable_descendant_drop_targets(widget: QWidget) -> None:
-        """Keep native target negotiation on this stack, not nested presentation widgets."""
-
-        widget.setAcceptDrops(False)
-        for child in widget.findChildren(QWidget):
+        self.content.setAcceptDrops(False)
+        for child in self.content.findChildren(QWidget):
             child.setAcceptDrops(False)
 
     @staticmethod
-    def _local_paths(event: QDragEnterEvent | QDragMoveEvent | QDropEvent) -> list[Path]:
+    def local_paths(event: _DropEvent) -> list[Path]:
         mime = event.mimeData()
         if not mime.hasUrls():
             return []
         return [Path(url.toLocalFile()) for url in mime.urls() if url.isLocalFile()]
 
     @staticmethod
-    def _accept_local_paths(
-        event: QDragEnterEvent | QDragMoveEvent | QDropEvent,
-        paths: list[Path],
-    ) -> bool:
+    def accept_local_paths(event: _DropEvent, paths: list[Path]) -> bool:
         if not paths:
             event.ignore()
             return False
@@ -53,16 +55,67 @@ class PresentationDropStack(QStackedWidget):
         return True
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
-        self._accept_local_paths(event, self._local_paths(event))
+        self.accept_local_paths(event, self.local_paths(event))
 
     def dragMoveEvent(self, event: QDragMoveEvent) -> None:  # noqa: N802
-        self._accept_local_paths(event, self._local_paths(event))
+        self.accept_local_paths(event, self.local_paths(event))
 
     def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:  # noqa: N802
         event.accept()
 
     def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
-        paths = self._local_paths(event)
-        if not self._accept_local_paths(event, paths):
+        paths = self.local_paths(event)
+        if not self.accept_local_paths(event, paths):
             return
         self.paths_dropped.emit(paths)
+
+
+class _MainWindowDragMoveFilter(QObject):
+    """Complete the legacy top-level fallback lifecycle without owning Image View D&D."""
+
+    def __init__(self, window: QWidget) -> None:
+        super().__init__(window)
+        self.window = window
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if watched is not self.window or event.type() != QEvent.Type.DragMove:
+            return False
+        drag_event = cast(QDragMoveEvent, event)
+        paths = PresentationDropHost.local_paths(drag_event)
+        if not paths:
+            return False
+        PresentationDropHost.accept_local_paths(drag_event, paths)
+        return True
+
+
+def install_presentation_drop_host(
+    window: Any,
+    handler: Callable[[list[Path]], None],
+) -> PresentationDropHost:
+    """Wrap the existing central stack in one stable native Image View drop target."""
+
+    existing = getattr(window, "presentation_drop_host", None)
+    if isinstance(existing, PresentationDropHost):
+        return existing
+
+    stack = window.central_stack
+    parent = stack.parentWidget()
+    outer_layout = parent.layout() if parent is not None else None
+    if parent is None or not isinstance(outer_layout, QBoxLayout):
+        raise RuntimeError("Quick Compare presentation stack has no replaceable box layout")
+
+    index = outer_layout.indexOf(stack)
+    if index < 0:
+        raise RuntimeError("Quick Compare presentation stack is not owned by its presentation layout")
+    stretch = outer_layout.stretch(index)
+    outer_layout.removeWidget(stack)
+
+    host = PresentationDropHost(stack, parent)
+    outer_layout.insertWidget(index, host, stretch)
+    host.paths_dropped.connect(handler)
+
+    fallback_filter = _MainWindowDragMoveFilter(window)
+    window.installEventFilter(fallback_filter)
+    window.__dict__["_presentation_drop_fallback_filter"] = fallback_filter
+    window.__dict__["presentation_drop_host"] = host
+    return host
