@@ -46,6 +46,7 @@ from pixelscope.ui.iqa_submission import install_remote_iqa
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
 from pixelscope.ui.multiview_reorder_stability import install_multiview_reorder_stability
 from pixelscope.ui.presentation_controls import polish_presentation_controls
+from pixelscope.ui.quick_compare import install_quick_compare_workflow
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.session import install_session
@@ -147,6 +148,9 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
     install_large_folder_registration(window)
+    # Issue #77 WP-C is the outermost Image View interaction layer. It delegates
+    # registration, Difference, selection, and presentation state to the owners above.
+    install_quick_compare_workflow(window)
     return gain_control
 
 
