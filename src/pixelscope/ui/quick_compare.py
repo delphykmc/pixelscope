@@ -54,10 +54,10 @@ class QuickCompareController(QObject):
 
         self._difference_retry_timer = QTimer(self)
         self._difference_retry_timer.setInterval(50)
-        self._difference_retry_timer.timeout.connect(self._try_pending_difference)
-        window.difference_panel.result_ready.connect(  # type: ignore[attr-defined]
-            self._quick_difference_completed
+        self._difference_retry_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._try_pending_difference
         )
+        window.difference_panel.result_ready.connect(self._quick_difference_completed)
 
         self._build_three_view_controls()
         self._install_three_view_geometry()
@@ -427,21 +427,21 @@ class QuickCompareController(QObject):
         return sources[0], sources[1]
 
     def _viewer_for_document(self, document_id: str) -> ImageViewer | None:
+        single_viewer = self.window.viewer
         if (
-            self.window.viewer.document is not None
-            and self.window.viewer.document.document_id == document_id
+            isinstance(single_viewer, ImageViewer)
+            and single_viewer.document is not None
+            and single_viewer.document.document_id == document_id
         ):
-            return self.window.viewer
-        viewer = next(
-            (
-                candidate
-                for candidate in self.view.viewers
-                if candidate.document is not None
+            return single_viewer
+        for candidate in self.view.viewers:
+            if (
+                isinstance(candidate, ImageViewer)
+                and candidate.document is not None
                 and candidate.document.document_id == document_id
-            ),
-            None,
-        )
-        return cast(ImageViewer | None, viewer)
+            ):
+                return candidate
+        return None
 
     def _begin_blink(self) -> bool:
         if self._blink_snapshot is not None:
