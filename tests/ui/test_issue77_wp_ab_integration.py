@@ -61,8 +61,7 @@ def test_same_position_bootstrap_preserves_roi_when_target_contains_it(
     assert _selected_ids(window) == [first[1].document_id, second[1].document_id]
     assert window._shared_roi == roi
     assert all(
-        viewer.current_roi_bounds() == roi
-        for viewer in window.multi_compare_view.occupied_viewers
+        viewer.current_roi_bounds() == roi for viewer in window.multi_compare_view.occupied_viewers
     )
     window.close()
 
