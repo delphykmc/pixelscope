@@ -164,9 +164,13 @@ class QuickCompareController(QObject):
         ):
             drop_event = cast(QDropEvent, event)
             paths = self._local_paths(drop_event)
-            if paths and all(not path.is_dir() for path in paths):
+            if paths:
                 if event_type == QEvent.Type.DragEnter:
                     cast(QDragEnterEvent, event).acceptProposedAction()
+                    return True
+                if any(path.is_dir() for path in paths):
+                    self.window._handle_dropped_paths(paths)
+                    drop_event.acceptProposedAction()
                     return True
                 if self.handle_image_drop(paths):
                     drop_event.acceptProposedAction()
@@ -175,7 +179,9 @@ class QuickCompareController(QObject):
         if event_type == QEvent.Type.KeyPress:
             key_event = cast(QKeyEvent, event)
             if (
-                key_event.key() == Qt.Key.Key_B
+                self._app.activeWindow() is self.window
+                and key_event.key() == Qt.Key.Key_B
+                and key_event.modifiers() == Qt.KeyboardModifier.NoModifier
                 and not key_event.isAutoRepeat()
                 and not self._text_input_has_focus()
                 and self._begin_blink()
@@ -261,7 +267,12 @@ class QuickCompareController(QObject):
             return None
         protected = self._protected_difference_pair
         if protected is not None:
-            if set(protected).issubset(set(merged_ids)):
+            still_selected = set(protected).issubset(set(merged_ids))
+            in_flight = (
+                self._pending_difference_pair == protected
+                or self.window.difference_panel._worker is not None
+            )
+            if still_selected and in_flight:
                 return None
             self._protected_difference_pair = None
         if len(dropped_ids) == 2 and dropped_ids[0] != dropped_ids[1]:
