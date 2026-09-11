@@ -14,7 +14,6 @@ class EmptyWorkspace(QWidget):
         super().__init__(parent)
         self.setObjectName("emptyState")
         self.setStyleSheet(empty_state_style())
-        self.setAcceptDrops(True)
 
         self.title = QLabel("Drop images or folders here")
         self.title.setObjectName("emptyTitle")
@@ -50,20 +49,6 @@ class EmptyWorkspace(QWidget):
         ):
             hint.setObjectName("emptyHint")
             hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Native Windows D&D targets the deepest QWidget under the cursor.  The
-        # Quick Compare application filter owns the drop semantics, but each visible
-        # empty-state child still needs to opt into Qt drag delivery so the filter can
-        # accept DragEnter/DragMove before Explorer decides the target is forbidden.
-        for drop_surface in (
-            self.title,
-            self.open_images_button,
-            self.open_folders_button,
-            self.formats_hint,
-            self.shortcuts_hint,
-            self.gestures_hint,
-        ):
-            drop_surface.setAcceptDrops(True)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
