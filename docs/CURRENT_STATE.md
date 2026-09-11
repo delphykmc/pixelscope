@@ -184,6 +184,12 @@ Supported local PixelScope image families are:
 - **Open Folder...** and folder drag/drop are registration-oriented.
 - Folder registration does not replace Selected or presentation state.
 - Registered-but-unselected is valid.
+- Issue #77 WP-B adds same-position comparison bootstrap without changing registration:
+  a selected image-row submenu chooses another eligible registered folder, while
+  Alt+PageUp/Alt+PageDown chooses the nearest eligible previous/next folder. Both append
+  the exact natural ordinal through Selected, skip duplicates/short folders, stop at six
+  sources, and do not calculate Difference. Plain PageUp/PageDown remains the existing
+  atomic Folder Position movement.
 - unresolved folder raw-like inputs remain lazy until foreground intent requires
   profile resolution and are excluded from speculative preload. Once either a generic
   RAW profile or native YUV profile is resolved, the source reuses the bounded

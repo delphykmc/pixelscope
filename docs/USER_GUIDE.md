@@ -600,6 +600,22 @@ changes the Current Comparison Page from 7–12 to 13–15. image13 is then loca
 
 Up/Down remains Files-tree row navigation.
 
+## Start a same-position folder comparison
+
+Select an image in Files, right-click that image, and open **Compare same position
+with...**. The submenu lists other registered folders that contain the same natural
+position. Choosing a folder appends that image to the current comparison.
+
+For keyboard bootstrap, press **Alt+PageDown** to add the same position from the next
+eligible registered folder, or **Alt+PageUp** for the previous one. The search does not
+wrap. Folders already represented in the comparison and folders that do not contain the
+position are skipped. Up to six distinct folders can participate; at capacity or when no
+eligible target exists, selection is unchanged and the status bar explains why.
+
+Bootstrap uses ordinal position, not filename matching, and it does not calculate
+Difference. After the initial group is built, use plain PageDown/PageUp to move the whole
+group together through Folder Position navigation.
+
 ## Folder Position navigation
 
 PageDown/PageUp remains exclusively Folder Position navigation; it is not reused
