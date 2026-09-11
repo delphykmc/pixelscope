@@ -156,9 +156,8 @@ class QuickCompareController(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         event_type = event.type()
-        if (
-            event_type in (QEvent.Type.DragEnter, QEvent.Type.Drop)
-            and self._is_image_surface(watched)
+        if event_type in (QEvent.Type.DragEnter, QEvent.Type.Drop) and self._is_image_surface(
+            watched
         ):
             drop_event = cast(QDropEvent, event)
             paths = self._local_paths(drop_event)
