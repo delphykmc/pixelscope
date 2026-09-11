@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -85,7 +86,7 @@ def test_two_file_batch_pairs_the_dropped_sources_without_retargeting_existing_d
     window, controller = _window(qtbot)
     documents = [
         _document(f"{name}.png", value, tmp_path)
-        for name, value in zip("abc", (1, 2, 3))
+        for name, value in zip("abc", (1, 2, 3), strict=True)
     ]
     _add(window, documents)
 
@@ -269,9 +270,12 @@ def test_blink_is_safe_noop_for_three_sources_and_while_numeric_input_has_focus(
     _add(window, documents)
     window._select_document_ids([documents[0].document_id, documents[1].document_id])
     window.show()
+    window.activateWindow()
+    QApplication.setActiveWindow(window)
     window.comparison_analysis_panel.roi_x_input.setFocus()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        window.comparison_analysis_panel.roi_x_input.hasFocus,
+        lambda: QApplication.activeWindow() is window
+        and window.comparison_analysis_panel.roi_x_input.hasFocus(),
         timeout=3000,
     )
     event = QKeyEvent(
