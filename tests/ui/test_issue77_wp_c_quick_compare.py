@@ -91,9 +91,7 @@ def test_two_file_batch_pairs_the_dropped_sources_without_retargeting_existing_d
     _add(window, documents)
 
     controller._apply_registered_drop([documents[0].document_id])
-    controller._apply_registered_drop(
-        [documents[1].document_id, documents[2].document_id]
-    )
+    controller._apply_registered_drop([documents[1].document_id, documents[2].document_id])
     _wait_for_difference(
         qtbot,
         window,
@@ -180,10 +178,7 @@ def test_three_view_defaults_equal_and_user_can_switch_focus_without_state_chang
 
     controller.set_three_view_variant("Focus")
 
-    assert (
-        window.multi_compare_view._fixed_geometry(3)
-        == controller._original_fixed_geometry(3)
-    )
+    assert window.multi_compare_view._fixed_geometry(3) == controller._original_fixed_geometry(3)
     assert authority == (
         tuple(_ids(window)),
         window._focus_document_id,
@@ -211,10 +206,7 @@ def test_three_view_difference_defaults_focus_and_other_geometries_are_unchanged
         timeout=3000,
     )
     assert controller._effective_three_view_variant() == "Focus"
-    assert (
-        window.multi_compare_view._fixed_geometry(3)
-        == controller._original_fixed_geometry(3)
-    )
+    assert window.multi_compare_view._fixed_geometry(3) == controller._original_fixed_geometry(3)
     for count in (4, 5, 6):
         assert (
             window.multi_compare_view._fixed_geometry(count)
@@ -292,10 +284,7 @@ def test_blink_is_safe_noop_for_three_sources_and_while_numeric_input_has_focus(
         Qt.KeyboardModifier.NoModifier,
         "b",
     )
-    assert not controller.eventFilter(
-        window.comparison_analysis_panel.roi_x_input,
-        event,
-    )
+    assert not controller.eventFilter(window.comparison_analysis_panel.roi_x_input, event)
     assert controller._blink_snapshot is None
 
     window._select_document_ids([document.document_id for document in documents])
