@@ -496,9 +496,12 @@ class QuickCompareController(QObject):
         gain_capable = is_display_gain_capable(document)
         gain = self._display_gain_state.gain
         candidate = self._viewer_for_document(document.document_id)
-        if candidate is not None and candidate.image_item.image is not None:
-            if not gain_capable or gain == 1.0 or candidate._displayed_gain == gain:
-                return candidate.image_item.image, rect
+        if (
+            candidate is not None
+            and candidate.image_item.image is not None
+            and (not gain_capable or gain == 1.0 or candidate._displayed_gain == gain)
+        ):
+            return candidate.image_item.image, rect
         if not gain_capable or gain == 1.0:
             return preview, rect
 
