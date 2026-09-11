@@ -22,14 +22,13 @@ from PySide6.QtWidgets import (
 
 from pixelscope.io.path_discovery import discover_image_inputs
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.display_gain import display_gain_state
 from pixelscope.ui.image_viewer import ImageViewer
 
 
 @dataclass(frozen=True)
 class _BlinkSnapshot:
     viewer: ImageViewer
-    image: object
-    rect: QRectF
 
 
 class QuickCompareController(QObject):
@@ -51,6 +50,8 @@ class QuickCompareController(QObject):
         self._original_prepare = self.view._prepare_viewers_for_documents
         self._original_fixed_geometry = self.view._fixed_geometry
         self._original_render_selection = window._render_selection
+        self._display_gain_state = display_gain_state()
+        self._display_gain_state.gain_changed.connect(self._display_gain_changed_during_blink)
 
         self._difference_retry_timer = QTimer(self)
         self._difference_retry_timer.setInterval(50)
@@ -92,7 +93,19 @@ class QuickCompareController(QObject):
         layout.addWidget(equal)
         layout.addWidget(focus)
         group.hide()
-        self.window.presentation_controls_layout.addWidget(group)
+
+        command_layout = self.window.presentation_controls_layout
+        stretch_index = command_layout.count()
+        for index in range(command_layout.count()):
+            item = command_layout.itemAt(index)
+            if item is not None and item.spacerItem() is not None:
+                stretch_index = index
+                break
+        command_layout.insertWidget(stretch_index, group)
+        metric_owner = getattr(self.window, "_command_row_metric_refresh", None)
+        refresh = getattr(metric_owner, "refresh", None)
+        if callable(refresh):
+            refresh()
 
         self.three_view_group = group
         self.three_view_label = label
@@ -172,6 +185,9 @@ class QuickCompareController(QObject):
                 if self.handle_image_drop(paths):
                     drop_event.acceptProposedAction()
                     return True
+
+        if event_type in (QEvent.Type.ApplicationDeactivate, QEvent.Type.WindowDeactivate):
+            self._end_blink()
 
         if event_type == QEvent.Type.KeyPress:
             key_event = cast(QKeyEvent, event)
@@ -463,26 +479,32 @@ class QuickCompareController(QObject):
             alternate_rect = QRectF(reference_viewer._presentation_rect(alternate))
         if alternate_image is None or alternate_rect is None:
             return False
-        current_image = reference_viewer.image_item.image
-        if current_image is None:
+        if reference_viewer.image_item.image is None:
             return False
 
-        self._blink_snapshot = _BlinkSnapshot(
-            reference_viewer,
-            current_image,
-            QRectF(reference_viewer.image_item.boundingRect()),
-        )
+        reference_viewer._cancel_display_preview()
+        self._blink_snapshot = _BlinkSnapshot(reference_viewer)
         reference_viewer.image_item.setImage(cast(Any, alternate_image), autoLevels=False)
         reference_viewer.image_item.setRect(alternate_rect)
         return True
+
+    def _display_gain_changed_during_blink(self, _gain: float) -> None:
+        snapshot = self._blink_snapshot
+        if snapshot is not None:
+            snapshot.viewer._cancel_display_preview()
 
     def _end_blink(self) -> None:
         snapshot = self._blink_snapshot
         if snapshot is None:
             return
-        snapshot.viewer.image_item.setImage(cast(Any, snapshot.image), autoLevels=False)
-        snapshot.viewer.image_item.setRect(snapshot.rect)
         self._blink_snapshot = None
+        viewer = snapshot.viewer
+        viewer._cancel_display_preview()
+        document = viewer.document
+        if document is None or viewer._displayed_preview is None:
+            return
+        viewer._upload_preview(viewer._displayed_preview, document)
+        viewer._ensure_display_preview()
 
 
 def install_quick_compare_workflow(window: Any) -> QuickCompareController:
