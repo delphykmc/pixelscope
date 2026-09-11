@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from PySide6.QtCore import QEvent, QObject, QRectF, QTimer, Qt
+from PySide6.QtCore import QEvent, QObject, QRectF, Qt, QTimer
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
@@ -54,9 +54,7 @@ class QuickCompareController(QObject):
 
         self._difference_retry_timer = QTimer(self)
         self._difference_retry_timer.setInterval(50)
-        self._difference_retry_timer.timeout.connect(  # type: ignore[attr-defined]
-            self._try_pending_difference
-        )
+        self._difference_retry_timer.timeout.connect(self._try_pending_difference)
         window.difference_panel.result_ready.connect(  # type: ignore[attr-defined]
             self._quick_difference_completed
         )
@@ -190,12 +188,18 @@ class QuickCompareController(QObject):
                 return True
         elif event_type == QEvent.Type.KeyRelease:
             key_event = cast(QKeyEvent, event)
-            if key_event.key() == Qt.Key.Key_B and not key_event.isAutoRepeat():
-                if self._blink_snapshot is not None:
-                    self._end_blink()
-                    event.accept()
-                    return True
-        return super().eventFilter(watched, event)
+            if (
+                key_event.key() == Qt.Key.Key_B
+                and not key_event.isAutoRepeat()
+                and self._blink_snapshot is not None
+            ):
+                self._end_blink()
+                event.accept()
+                return True
+        # QApplication can route internal Qt objects (for example QWidgetItem) through
+        # an application-level filter. Calling QObject.eventFilter() with those Python
+        # wrappers raises in PySide6; the default QObject implementation is a no-op.
+        return False
 
     def _is_image_surface(self, watched: QObject) -> bool:
         if not isinstance(watched, QWidget):
@@ -409,7 +413,7 @@ class QuickCompareController(QObject):
         focus = self._app.focusWidget()
         return isinstance(
             focus,
-            (QLineEdit, QAbstractSpinBox, QComboBox, QTextEdit, QPlainTextEdit),
+            QLineEdit | QAbstractSpinBox | QComboBox | QTextEdit | QPlainTextEdit,
         )
 
     def _blink_sources(self) -> tuple[Any, Any] | None:
@@ -428,14 +432,16 @@ class QuickCompareController(QObject):
             and self.window.viewer.document.document_id == document_id
         ):
             return self.window.viewer
-        return next(
+        viewer = next(
             (
-                viewer
-                for viewer in self.view.viewers
-                if viewer.document is not None and viewer.document.document_id == document_id
+                candidate
+                for candidate in self.view.viewers
+                if candidate.document is not None
+                and candidate.document.document_id == document_id
             ),
             None,
         )
+        return cast(ImageViewer | None, viewer)
 
     def _begin_blink(self) -> bool:
         if self._blink_snapshot is not None:
