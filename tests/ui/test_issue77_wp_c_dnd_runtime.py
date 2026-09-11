@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
+from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -63,6 +64,8 @@ def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
         return True
 
     monkeypatch.setattr(controller, "handle_image_drop", handle)
+    window.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
 
     enter = QDragEnterEvent(
         QPoint(1, 1),
@@ -71,7 +74,7 @@ def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
-    assert controller.eventFilter(target, enter)
+    QApplication.sendEvent(target, enter)
     assert enter.isAccepted()
 
     move = QDragMoveEvent(
@@ -81,7 +84,7 @@ def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
-    assert controller.eventFilter(target, move)
+    QApplication.sendEvent(target, move)
     assert move.isAccepted()
 
     drop = QDropEvent(
@@ -91,7 +94,7 @@ def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
-    assert controller.eventFilter(target, drop)
+    QApplication.sendEvent(target, drop)
     assert drop.isAccepted()
     assert received == [[path]]
     window.close()
@@ -173,7 +176,7 @@ def test_single_view_blink_gain_render_is_async_and_cached(
 
     assert controller._begin_blink()
     qtbot.waitUntil(worker_started.is_set, timeout=3000)  # type: ignore[attr-defined]
-    assert worker_threads == [worker_threads[0]]
+    assert len(worker_threads) == 1
     assert worker_threads[0] != main_thread
     assert np.array_equal(window.viewer.image_item.image, reference_image)
 
