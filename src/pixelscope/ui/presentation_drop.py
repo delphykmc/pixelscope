@@ -111,8 +111,6 @@ class _BlinkOnlyApplicationFilter(QObject):
 def install_presentation_drop_host(
     window: Any,
     handler: Callable[[list[Path]], None],
-    *,
-    quick_compare_filter: QObject | None = None,
 ) -> PresentationDropHost:
     """Wrap the existing central stack in one stable native Image View drop target."""
 
@@ -141,7 +139,8 @@ def install_presentation_drop_host(
     window.__dict__["_presentation_drop_fallback_filter"] = fallback_filter
 
     app = QApplication.instance()
-    if quick_compare_filter is not None and isinstance(app, QApplication):
+    quick_compare_filter = getattr(window, "quick_compare_controller", None)
+    if isinstance(quick_compare_filter, QObject) and isinstance(app, QApplication):
         app.removeEventFilter(quick_compare_filter)
         blink_filter = _BlinkOnlyApplicationFilter(quick_compare_filter, app)
         app.installEventFilter(blink_filter)
