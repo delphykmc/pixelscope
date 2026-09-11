@@ -1,6 +1,6 @@
 # Execution plan: Issue #77 WP-C Quick Compare workflow
 
-Status: Implementation complete / independent review pending
+Status: Implementation updated / exact-HEAD validation and independent re-review pending
 Owner: ChatGPT WP-C implementer
 Branch/PR: `codex/issue-77-wp-c` / PR #80
 Base: `main@36f672b6f63943c292ff2ef788f3a1b4ff899031`
@@ -55,7 +55,9 @@ Issue #77 remains the product source-of-truth for acceptance criteria.
 
 `QuickCompareController` is installed last in `_compose_main_window_presentation()` so it observes the finalized registration, RAW/YUV, Difference, display-gain, workspace, and large-folder composition.
 
-A QApplication event filter accepts local drops only when the target is within the central presentation stack. Pure file drops use the existing discovery/registration path, de-duplicate document IDs, and append new IDs through `_select_document_ids(..., preserve_view=True)`. Directory-containing drops are delegated to the pre-existing `_handle_dropped_paths()` path instead of creating a second folder workflow.
+A QApplication event filter accepts local drops only when the target is within the central presentation stack. The complete Qt D&D lifecycle is owned explicitly: local-path `DragEnter` and `DragMove` are both accepted, and `Drop` performs the registration/Quick Compare action. This mirrors the established Files-tree drag contract and is required for native Windows Explorer D&D to keep the proposed copy action valid while the pointer moves across the Image View.
+
+Pure file drops use the existing discovery/registration path, de-duplicate document IDs, and append new IDs through `_select_document_ids(..., preserve_view=True)`. Directory-containing drops are delegated to the pre-existing `_handle_dropped_paths()` path instead of creating a second folder workflow. Files-panel events remain outside the Quick Compare surface and retain their existing owner.
 
 The controller never turns ordinary selection into a Difference command. It derives an explicit Difference pair only from the current drop gesture. Async source readiness is polled with a bounded timer before delegating the exact pair to the existing `DifferencePanel`; incompatible pairs keep their sources selected and expose the existing Difference status instead of hidden conversion.
 
@@ -78,7 +80,11 @@ Blink does not call `set_document()`, selection mutation, Primary mutation, Diff
 
 Eligibility is exactly two selected source documents, no channel-split presentation, and loaded previews. In Multi View, selected order provides the deterministic reference/alternate ordering. In Single View, the currently visible selected source in `window.viewer` is authoritative as the reference and the other selected source becomes the alternate; this prevents Blink from targeting a hidden multiview tile when the second selected source is currently visible.
 
-Blink preserves the viewer's Display Gain semantics. If an alternate viewer already owns a presentation rendered at the current gain it can be reused. Otherwise the alternate is rendered through the same RAW or ordinary display-transform functions used by `ImageViewer`. While Blink is held, a Display Gain change refreshes the alternate presentation at the new gain and cancels any reference-viewer gain worker that could overwrite the held alternate. Release restores the reference viewer's owned display preview and resumes `_ensure_display_preview()` for the current gain. The logical `viewer.document` never changes.
+Blink preserves the viewer's Display Gain semantics without running full-frame gain rendering on the GUI thread. If an alternate viewer already owns a presentation rendered at the current gain, or the controller's one-entry `(document/source/preview/generation/gain)` cache contains the required presentation, it is reused immediately. Otherwise Blink creates a `TaskWorker` for the same RAW/ordinary display-transform function used by `ImageViewer` and submits it to the existing bounded Display Gain thread pool (`maxThreadCount == 2`). The B-key handler therefore schedules heavy rendering instead of executing it inline.
+
+Blink render requests carry request-serial and document/source/preview/generation/gain identity checks. Release, selection rerender, gain change, or window shutdown cancels/invalidate stale work. A successful current request fills the one-entry cache and updates the held alternate presentation only if the same Blink snapshot is still active. Repeated B presses for an unchanged document/generation/gain reuse the cached presentation and do not recompute the full frame.
+
+While Blink is held, a Display Gain change invalidates the old Blink render/cache, cancels any reference-viewer gain worker that could overwrite the held alternate, and schedules/reuses the alternate presentation for the new gain. Release restores the reference viewer's owned display preview and resumes `_ensure_display_preview()` for the current gain. The logical `viewer.document` never changes.
 
 ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Selected order, and document identity therefore remain unchanged. Focus/application loss forcibly ends Blink so a missed B-key release cannot leave the alternate presentation stuck.
 
@@ -107,6 +113,13 @@ ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Se
 - an existing Difference binding survives selection growth/pagination;
 - the transient 3 View control remains inside the compact command row before its trailing stretch.
 
+`tests/ui/test_issue77_wp_c_dnd_runtime.py` covers the critical runtime gaps discovered after manual testing:
+
+- the Image View accepts the complete Qt `DragEnter -> DragMove -> Drop` lifecycle through the installed QApplication event filter;
+- the Quick Compare filter does not take Files-panel drag ownership;
+- Single View Display Gain Blink performs full-frame alternate rendering on a worker thread rather than the GUI thread;
+- a completed Blink gain presentation is cached and reused for repeated B presses at the same document/generation/gain.
+
 Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folder bootstrap composition.
 
 ## Validation plan for independent review
@@ -114,10 +127,10 @@ Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folde
 The independent reviewer should run at minimum:
 
 ```text
-pytest tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py -q
+pytest tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py -q
 pytest tests/ui/test_issue77_wp_a_roi_usability.py tests/ui/test_issue77_wp_b_folder_bootstrap.py -q
-ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py
-ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py
+ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py
+ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py
 mypy src
 python scripts/check_docs.py
 pip check
@@ -127,7 +140,7 @@ pytest -q
 
 Repository-wide Ruff baseline debt documented during WP-B is not part of WP-C unless a changed WP-C file introduces a new finding.
 
-Manual review should additionally verify actual Windows drag/drop from Explorer, 3 View Equal/Focus controls at production widths, hold/release B in both Single View and Multi View with stable zoom/pan, Display Gain parity during Blink, and no Blink activation while editing ROI or other text/numeric controls.
+Manual review must additionally verify actual Windows Explorer drag/drop across the Image View, including visible allowed/copy cursor during pointer movement and successful file drop; 3 View Equal/Focus controls at production widths; hold/release B in both Single View and Multi View with stable zoom/pan; Display Gain parity during Blink; and no Blink activation while editing ROI or other text/numeric controls.
 
 ## Progress log
 
@@ -139,9 +152,11 @@ Manual review should additionally verify actual Windows drag/drop from Explorer,
 - 2026-09-11: Added focused WP-C UI contract tests and opened draft PR #80 for independent review preparation.
 - 2026-09-12: Independent review identified and then verified the async Display Gain restoration fix, focus-loss recovery, pagination coverage, and command-row integration.
 - 2026-09-12: Follow-up review identified Single View visible-reference ownership and hidden-alternate Display Gain parity as remaining blockers; implementation and focused regressions were updated accordingly.
+- 2026-09-12: Further independent review found that the Single View gain fallback rendered full frames synchronously on the GUI thread. Blink rendering was moved to the existing bounded Display Gain worker pool with request identity, cancellation, and one-entry reuse cache.
+- 2026-09-12: Owner manual Windows testing found a more fundamental Quick Compare failure: Explorer D&D showed a prohibited cursor and Image View drops did not work. Root cause was missing `DragMove` acceptance in the new application-level D&D path; existing automated tests only exercised helper logic and target classification, so they did not cover the native Qt D&D lifecycle. `DragMove` acceptance and event-delivery regression coverage were added.
 
 ## Completion summary
 
-Implementation is complete on PR #80 and intentionally not merged. The code introduces one feature-local controller plus one composition hook and focused UI regression modules. No numerical analysis semantics, generic layout registry, session schema, Files authority, packaging, or dependency change is included.
+PR #80 remains intentionally Draft and unmerged. The latest implementation addresses both the native Image View D&D lifecycle failure and the Blink GUI-thread rendering blocker, but these changes are not considered merge-ready until exact-HEAD local validation, Windows Explorer manual D&D confirmation, and a fresh independent re-review all pass.
 
-Automated/runtime validation remains an exact-HEAD merge gate for the requested separate independent-review session; this record does not claim unexecuted checks as passing.
+No numerical analysis semantics, generic layout registry, session schema, Files authority, packaging, or dependency change is included.
