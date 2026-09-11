@@ -4,7 +4,7 @@ Status: Implementation complete / independent review pending
 Owner: ChatGPT WP-C implementer
 Branch/PR: `codex/issue-77-wp-c` / PR #80
 Base: `main@36f672b6f63943c292ff2ef788f3a1b4ff899031`
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 ## Goal
 
@@ -33,7 +33,9 @@ Issue #77 remains the product source-of-truth for acceptance criteria.
   - ordinary three-source and split three-plane presentations -> Equal;
   - any three-tile presentation containing Difference -> Focus.
 - Transient user override between Equal and Focus with no QSettings/session schema.
-- Hold-B presentation-only blink for exactly two selected source documents.
+- Hold-B presentation-only blink for exactly two selected source documents in both Single View and Multi View.
+- In Single View, the currently visible selected source is the Blink reference and the other selected source is the alternate, independent of selection order.
+- Blink alternate presentation follows the current Display Gain mapping; release returns presentation ownership to the visible reference viewer and its current gain authority.
 - B-key exclusion while text/numeric controls own focus; modifier-bearing B is not Blink.
 - Preservation of folder-drop behavior over the Image View by delegating directory-containing drops back to the existing main-window drop owner.
 
@@ -68,13 +70,17 @@ The controller wraps the already-composed `MultiCompareView._prepare_viewers_for
 
 The presentation membership, including whether a Difference tile exists, selects the default. Manual override is transient for the current presentation context. Changing the presentation resets to its natural default. `capture_view_state()` / `restore_view_state()` preserve pan/zoom while a user switches variant.
 
-Counts 1/2/4/5/6 delegate unchanged to the original geometry function.
+Counts 1/2/4/5/6 delegate unchanged to the original geometry function. The `3 View` control is inserted before the existing trailing command-row stretch and the command-row metric owner is refreshed so the control participates in the composed presentation row rather than sitting outside its sizing contract.
 
 ### Blink Compare
 
-Blink does not call `set_document()`, selection mutation, Primary mutation, Difference mutation, or any analysis API. It snapshots the reference viewer's already-rendered `ImageItem` image/rect and temporarily presents the alternate source's already-rendered image/rect. Release restores the snapshot.
+Blink does not call `set_document()`, selection mutation, Primary mutation, Difference mutation, or any analysis API. It changes only the rendered presentation owned by the visible reference `ImageViewer`, then returns presentation ownership to that same viewer on release or application/window deactivation.
 
-Eligibility is exactly two selected source documents, no channel-split presentation, and loaded previews. Selection order gives deterministic reference/alternate ordering. ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, and document identity are therefore unchanged.
+Eligibility is exactly two selected source documents, no channel-split presentation, and loaded previews. In Multi View, selected order provides the deterministic reference/alternate ordering. In Single View, the currently visible selected source in `window.viewer` is authoritative as the reference and the other selected source becomes the alternate; this prevents Blink from targeting a hidden multiview tile when the second selected source is currently visible.
+
+Blink preserves the viewer's Display Gain semantics. If an alternate viewer already owns a presentation rendered at the current gain it can be reused. Otherwise the alternate is rendered through the same RAW or ordinary display-transform functions used by `ImageViewer`. While Blink is held, a Display Gain change refreshes the alternate presentation at the new gain and cancels any reference-viewer gain worker that could overwrite the held alternate. Release restores the reference viewer's owned display preview and resumes `_ensure_display_preview()` for the current gain. The logical `viewer.document` never changes.
+
+ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Selected order, and document identity therefore remain unchanged. Focus/application loss forcibly ends Blink so a missed B-key release cannot leave the alternate presentation stuck.
 
 ## Tests added
 
@@ -91,6 +97,16 @@ Eligibility is exactly two selected source documents, no channel-split presentat
 - presentation-only blink and restoration;
 - numeric-input B-key guard and 3-source Blink no-op.
 
+`tests/ui/test_issue77_wp_c_review_regressions.py` covers independent-review boundaries:
+
+- Display Gain changes while Blink is held and release rejoins viewer presentation authority;
+- application deactivation restores Blink without waiting for B-key release;
+- Single View uses the currently visible selected source as Blink reference even when it is second in Selected order;
+- Single View alternate presentation uses the current Display Gain rather than a hidden tile's released native preview;
+- Quick Compare two-file intent crossing the six-item page boundary does not pin or retarget Difference;
+- an existing Difference binding survives selection growth/pagination;
+- the transient 3 View control remains inside the compact command row before its trailing stretch.
+
 Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folder bootstrap composition.
 
 ## Validation plan for independent review
@@ -98,10 +114,10 @@ Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folde
 The independent reviewer should run at minimum:
 
 ```text
-pytest tests/ui/test_issue77_wp_c_quick_compare.py -q
+pytest tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py -q
 pytest tests/ui/test_issue77_wp_a_roi_usability.py tests/ui/test_issue77_wp_b_folder_bootstrap.py -q
-ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py
-ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py
+ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py
+ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py
 mypy src
 python scripts/check_docs.py
 pip check
@@ -111,7 +127,7 @@ pytest -q
 
 Repository-wide Ruff baseline debt documented during WP-B is not part of WP-C unless a changed WP-C file introduces a new finding.
 
-Manual review should additionally verify actual Windows drag/drop from Explorer, 3 View Equal/Focus controls at production widths, hold/release B with stable zoom/pan, and no Blink activation while editing ROI or other text/numeric controls.
+Manual review should additionally verify actual Windows drag/drop from Explorer, 3 View Equal/Focus controls at production widths, hold/release B in both Single View and Multi View with stable zoom/pan, Display Gain parity during Blink, and no Blink activation while editing ROI or other text/numeric controls.
 
 ## Progress log
 
@@ -121,9 +137,11 @@ Manual review should additionally verify actual Windows drag/drop from Explorer,
 - 2026-09-11: Implemented additive Image View Quick Compare, explicit two-source Difference intent, transient 3-view Equal/Focus variants, and presentation-only Blink.
 - 2026-09-11: Hardened modified-key/text-focus Blink ownership, in-flight Difference retarget protection, and directory-drop delegation.
 - 2026-09-11: Added focused WP-C UI contract tests and opened draft PR #80 for independent review preparation.
+- 2026-09-12: Independent review identified and then verified the async Display Gain restoration fix, focus-loss recovery, pagination coverage, and command-row integration.
+- 2026-09-12: Follow-up review identified Single View visible-reference ownership and hidden-alternate Display Gain parity as remaining blockers; implementation and focused regressions were updated accordingly.
 
 ## Completion summary
 
-Implementation is complete on PR #80 and intentionally not merged. The code introduces one feature-local controller plus one composition hook and one focused UI test module. No numerical processing, generic layout registry, session schema, Files authority, packaging, or dependency change is included.
+Implementation is complete on PR #80 and intentionally not merged. The code introduces one feature-local controller plus one composition hook and focused UI regression modules. No numerical analysis semantics, generic layout registry, session schema, Files authority, packaging, or dependency change is included.
 
-Automated/runtime validation is deliberately left for the requested separate independent-review session; this record does not claim unexecuted checks as passing.
+Automated/runtime validation remains an exact-HEAD merge gate for the requested separate independent-review session; this record does not claim unexecuted checks as passing.
