@@ -58,10 +58,7 @@ def test_same_position_bootstrap_preserves_roi_when_target_contains_it(
 
     window.add_next_folder_at_same_position()
 
-    assert _selected_ids(window) == [
-        first[1].document_id,
-        second[1].document_id,
-    ]
+    assert _selected_ids(window) == [first[1].document_id, second[1].document_id]
     assert window._shared_roi == roi
     assert all(
         viewer.current_roi_bounds() == roi
@@ -84,10 +81,7 @@ def test_same_position_bootstrap_clears_roi_when_target_cannot_contain_it(
 
     window.add_next_folder_at_same_position()
 
-    assert _selected_ids(window) == [
-        first[1].document_id,
-        second[1].document_id,
-    ]
+    assert _selected_ids(window) == [first[1].document_id, second[1].document_id]
     assert window._shared_roi is None
     assert window.comparison_analysis_panel.region_scope.currentText() == "Full image"
     assert all(
