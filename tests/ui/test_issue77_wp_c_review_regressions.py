@@ -89,9 +89,12 @@ def test_blink_release_rejoins_display_gain_presentation_authority(
     state = display_gain_state()
     state.set_gain(2.0)
     expected_alternate = _ordinary_gain_preview(second, 2.0)
-    qtbot.wait(50)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: controller._blink_cache_preview is not None
+        and np.array_equal(reference_viewer.image_item.image, expected_alternate),
+        timeout=5000,
+    )
     assert controller._blink_snapshot is not None
-    assert np.array_equal(reference_viewer.image_item.image, expected_alternate)
 
     controller._end_blink()
     qtbot.waitUntil(  # type: ignore[attr-defined]
@@ -207,7 +210,11 @@ def test_single_view_blink_renders_alternate_at_current_display_gain(
     assert snapshot is not None
     assert snapshot.reference is second
     assert snapshot.alternate is first
-    assert np.array_equal(window.viewer.image_item.image, expected_alternate)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: controller._blink_cache_preview is not None
+        and np.array_equal(window.viewer.image_item.image, expected_alternate),
+        timeout=5000,
+    )
 
     controller._end_blink()
     qtbot.waitUntil(  # type: ignore[attr-defined]
