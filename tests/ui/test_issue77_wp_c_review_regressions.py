@@ -126,9 +126,7 @@ def test_two_file_quick_compare_across_page_boundary_does_not_pin_pair(
     _add(window, documents)
     window._select_document_ids([document.document_id for document in documents[:5]])
 
-    controller._apply_registered_drop(
-        [documents[5].document_id, documents[6].document_id]
-    )
+    controller._apply_registered_drop([documents[5].document_id, documents[6].document_id])
 
     assert _ids(window) == [document.document_id for document in documents]
     assert window._difference_source_ids is None
@@ -145,9 +143,7 @@ def test_existing_difference_binding_survives_pagination_growth(
     documents = [_document(f"{index}.png", index + 1, tmp_path) for index in range(7)]
     _add(window, documents)
 
-    controller._apply_registered_drop(
-        [documents[0].document_id, documents[1].document_id]
-    )
+    controller._apply_registered_drop([documents[0].document_id, documents[1].document_id])
     pair = (documents[0].document_id, documents[1].document_id)
     _wait_for_difference(qtbot, window, pair)
 
@@ -162,9 +158,7 @@ def test_existing_difference_binding_survives_pagination_growth(
     window.close()
 
 
-def test_three_view_control_is_inserted_before_trailing_command_row_stretch(
-    qtbot: object,
-) -> None:
+def test_three_view_control_is_inserted_before_trailing_command_row_stretch(qtbot: object) -> None:
     window, controller = _window(qtbot)
     layout = window.presentation_controls_layout
     group_index = layout.indexOf(controller.three_view_group)
