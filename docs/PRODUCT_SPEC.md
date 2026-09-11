@@ -93,7 +93,11 @@ order and loading/resident/error indicators.
 
 The Files context menu reuses **Open Images...** and **Open Folder...** on blank,
 image, and folder rows. Image rows additionally expose page-applicable **Set as
-Primary**, **Show Selected in Multi View**, and batch **Remove Selected from Files**.
+Primary**, **Show Selected in Multi View**, **Compare same position with...**, and
+batch **Remove Selected from Files**. Same-position comparison is available only from
+a currently Selected image. It lists registered folders that are not already represented
+in Selected and contain the anchor's exact natural ordinal, then appends the chosen image
+without creating Difference. Duplicate folder names are parent-qualified in the submenu.
 Folder rows expose one batch **Remove Folder from Files** operation; removal never
 deletes source files.
 
@@ -138,6 +142,12 @@ For `Selected > 6`:
 PageUp/PageDown remains exclusively Folder Position. Folder Position accepts only
 one-to-six Selected documents from distinct folders. `Selected > 6` makes Folder
 Position unavailable rather than applying it to only the current page.
+
+Alt+PageUp/Alt+PageDown is a separate Folder comparison bootstrap. From the active,
+focused, or current Selected image, it appends the same natural ordinal from the nearest
+eligible previous/next registered folder without wrapping. Already-selected folders and
+folders shorter than that ordinal are skipped. Bootstrap stops at six Selected sources,
+uses compact no-op feedback when no target exists, and never calculates Difference.
 
 ### Review Selection & Curation
 

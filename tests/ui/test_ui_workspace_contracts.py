@@ -66,6 +66,8 @@ def test_application_and_selection_driven_main_window(qtbot: object) -> None:
     shortcut_keys = {shortcut.key() for shortcut in window._selection_shortcuts}
     assert QKeySequence(Qt.Key.Key_PageUp) in shortcut_keys
     assert QKeySequence(Qt.Key.Key_PageDown) in shortcut_keys
+    assert QKeySequence("Alt+PgUp") in shortcut_keys
+    assert QKeySequence("Alt+PgDown") in shortcut_keys
     assert window.action_map["100% Zoom"].shortcut() == QKeySequence("Ctrl+0")
     view_action = next(action for action in window.menuBar().actions() if action.text() == "&View")
     view_menu = view_action.menu()

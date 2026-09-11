@@ -259,6 +259,7 @@ def test_files_context_menu_reuses_open_actions_and_batches_folder_removal(
         "Open Folder...",
         "Set as Primary",
         "Show Selected in Multi View",
+        "Compare same position with...",
         "Remove Selected from Files",
     ]
 

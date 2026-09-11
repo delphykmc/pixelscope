@@ -77,6 +77,10 @@ Preserve deterministic fixtures and smoke paths for:
   endpoint no-op, natural ordering, and predicted PageDown/actual target equality.
 - Keyboard separation: Files Up/Down rows, Left/Right selected-image activity,
   and PageUp/PageDown Folder Position membership.
+- Folder comparison bootstrap: selected-image context targets, exact natural ordinal,
+  additive order, selected/short-folder skipping, six-source capacity, duplicate-name
+  disambiguation, non-wrapping Alt+PageUp/Alt+PageDown, subsequent plain Folder Position,
+  focus/primary preservation, passive Difference, and direct file/folder D&D regression.
 - Shared cursor, zoom, ROI, Histogram, and Line Profile behavior.
 - P4-A direct curation: first-Pick baseline capture and stable Pick affordance;
   Active/Primary/Pick separation; depressed Pick plus bright-yellow tile border;

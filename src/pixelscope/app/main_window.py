@@ -60,7 +60,10 @@ from pixelscope.core.diagnostics import (
     format_runtime_diagnostics,
 )
 from pixelscope.core.folder_navigation import (
+    FolderComparisonBootstrapPlan,
     FolderNavigationPlan,
+    plan_folder_comparison_direction,
+    plan_folder_comparison_targets,
     plan_folder_navigation,
 )
 from pixelscope.core.image_document import ImageDocument
@@ -760,6 +763,14 @@ class MainWindow(QMainWindow):
             (Qt.Key.Key_PageDown, self.next_folder_position),
         ):
             shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            shortcut.activated.connect(callback)  # type: ignore[attr-defined]
+            self._selection_shortcuts.append(shortcut)
+        for sequence, callback in (
+            ("Alt+PgUp", self.add_previous_folder_at_same_position),
+            ("Alt+PgDown", self.add_next_folder_at_same_position),
+        ):
+            shortcut = QShortcut(QKeySequence(sequence), self)
             shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
             shortcut.activated.connect(callback)  # type: ignore[attr-defined]
             self._selection_shortcuts.append(shortcut)
@@ -2939,6 +2950,109 @@ class MainWindow(QMainWindow):
 
     def previous_folder_position(self) -> None:
         self._apply_folder_navigation(-1)
+
+    def add_next_folder_at_same_position(self) -> None:
+        self._apply_folder_comparison_bootstrap(1)
+
+    def add_previous_folder_at_same_position(self) -> None:
+        self._apply_folder_comparison_bootstrap(-1)
+
+    def folder_comparison_targets(
+        self,
+        anchor_document_id: str,
+    ) -> tuple[FolderComparisonBootstrapPlan, ...]:
+        selection = self._folder_navigation_selection()
+        if selection is None:
+            return ()
+        return plan_folder_comparison_targets(
+            selection,
+            self._folder_documents,
+            tuple(self._folder_documents),
+            anchor_document_id,
+        )
+
+    def add_same_position_from_folder(
+        self,
+        anchor_document_id: str,
+        target_folder_key: str,
+    ) -> None:
+        plan = next(
+            (
+                candidate
+                for candidate in self.folder_comparison_targets(anchor_document_id)
+                if candidate.target_folder_key == target_folder_key
+            ),
+            None,
+        )
+        if plan is None:
+            self.statusBar().showMessage(
+                "Same-position target is unavailable; selection was not changed",
+                5000,
+            )
+            return
+        self._apply_folder_comparison_plan(plan)
+
+    def _folder_comparison_anchor_id(self) -> str | None:
+        documents = self.selected_documents
+        selected_ids = {document.document_id for document in documents}
+        candidates = (
+            self._active_document_id,
+            self._focus_document_id,
+            self.current_document.document_id if self.current_document is not None else None,
+        )
+        return next(
+            (
+                document_id
+                for document_id in candidates
+                if document_id is not None and document_id in selected_ids
+            ),
+            None,
+        )
+
+    def _apply_folder_comparison_bootstrap(self, step: int) -> None:
+        selection = self._folder_navigation_selection()
+        anchor_document_id = self._folder_comparison_anchor_id()
+        if (
+            selection is None
+            or len(selection) >= COMPARISON_PAGE_SIZE
+            or anchor_document_id is None
+        ):
+            self.statusBar().showMessage(
+                "Same-position compare requires 1–5 selected images from different folders",
+                5000,
+            )
+            return
+        plan = plan_folder_comparison_direction(
+            selection,
+            self._folder_documents,
+            tuple(self._folder_documents),
+            anchor_document_id,
+            step,
+        )
+        if plan is None:
+            direction = "previous" if step < 0 else "next"
+            self.statusBar().showMessage(
+                f"No {direction} eligible folder at the same position; selection was not changed",
+                5000,
+            )
+            return
+        self._apply_folder_comparison_plan(plan)
+
+    def _apply_folder_comparison_plan(self, plan: FolderComparisonBootstrapPlan) -> None:
+        selected_ids = [document.document_id for document in self.selected_documents]
+        if plan.document_id in selected_ids:
+            return
+        self._select_document_ids(
+            [*selected_ids, plan.document_id],
+            preserve_view=True,
+        )
+        folder = self._folder_paths.get(plan.target_folder_key)
+        folder_name = folder.name if folder is not None else "folder"
+        self.statusBar().showMessage(
+            f"Added {folder_name} at position {plan.ordinal_index + 1} · "
+            f"{len(selected_ids) + 1} images selected",
+            4000,
+        )
 
     def _plan_folder_navigation(self, step: int) -> FolderNavigationPlan | None:
         selection = self._folder_navigation_selection()

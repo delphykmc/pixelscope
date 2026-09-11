@@ -489,6 +489,20 @@ Position view/overlay and preload/promotion contract. If a curation baseline has
 been captured, that Selected replacement first invalidates the temporary baseline
 and Pick Set. Endpoint or invalid-member plans remain no-ops.
 
+Issue #77 WP-B adds a separate Qt-free `FolderComparisonBootstrapPlan`. Given a
+currently Selected anchor, the explicit registered-folder order, and the existing
+natural per-folder document sequences, it identifies unselected folders that contain
+the anchor's exact ordinal. Directional planning chooses the nearest eligible folder
+strictly before or after the anchor without wrapping; a short folder is skipped rather
+than paired at another position.
+
+`MainWindow` appends one planned target only through `_select_document_ids()` and caps
+bootstrap at six distinct-folder Selected sources so the result remains valid Folder
+Position input. The Files context submenu supplies an explicit selected-image anchor;
+Alt+PageUp/Alt+PageDown uses active, focus, then current Selected priority. Folder rows,
+Difference, registration, and preload acquire no new authority. Plain PageUp/PageDown
+and `FolderNavigationPlan` retain exclusive atomic Folder Position movement ownership.
+
 ## Display Gain architecture
 
 P3-B separates generic display gain from RAW metadata policy; P3-C generalizes the

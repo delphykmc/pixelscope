@@ -460,6 +460,15 @@ must not invent or validate missing remote/authentication contracts.
 The authoritative gate is
 [`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
+# Issue #77 — Comparison workflow and ROI usability — Active
+
+Issue #77 remains the primary planning authority for three independently reviewed work
+packages. WP-A ROI usability is isolated in its own candidate PR. WP-B implements the
+folder comparison bootstrap on an independent latest-main branch: selected-image context
+targets and Alt+PageUp/Alt+PageDown append the exact same ordinal from an eligible
+registered folder, after which existing Folder Position navigation remains authoritative.
+WP-C Quick Compare remains separate and is not implied by WP-B selection changes.
+
 # P6 — Identity, Access & Remote Operations — Planned / externally gated
 
 P6 production integration begins only after P5-G and the corporate authentication

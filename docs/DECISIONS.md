@@ -363,6 +363,14 @@ Resident when required
   status rather than partially moving the current page.
 - For `Selected <= 6`, existing P1/P2 atomic movement, endpoint, preload, and
   promotion semantics remain authoritative.
+- Issue #77 WP-B bootstrap is additive Selected intent, not Folder Position movement:
+  an explicit selected-image anchor contributes its exact natural ordinal, and one
+  eligible registered-folder image is appended through the canonical selection path.
+- Alt+PageUp/Alt+PageDown scans registered folder order without wrapping, skips folders
+  already represented in Selected and folders lacking the ordinal, and stops before a
+  seventh source. Plain PageUp/PageDown semantics are unchanged.
+- Folder rows remain registration-only. Bootstrap creates no persistent folder group,
+  filename pairing, fallback ordinal, Difference command, or parallel selection state.
 
 ### RAW profile-resolution order and lazy folder boundary
 
