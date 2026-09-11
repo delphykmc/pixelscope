@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
+from numpy.typing import NDArray
 from PySide6.QtCore import QEvent, QObject, QRectF, Qt, QTimer
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QKeyEvent
 from PySide6.QtWidgets import (
@@ -27,7 +29,10 @@ from pixelscope.io.path_discovery import discover_image_inputs
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
-from pixelscope.ui.image_viewer import ImageViewer
+from pixelscope.ui.image_viewer import ImageViewer, _display_preview_thread_pool
+from pixelscope.workers.task_worker import TaskWorker
+
+_BlinkRenderIdentity = tuple[int, int, int, int, float]
 
 
 @dataclass(frozen=True)
@@ -51,6 +56,11 @@ class QuickCompareController(QObject):
         self._pending_difference_pair: tuple[str, str] | None = None
         self._difference_retry_count = 0
         self._blink_snapshot: _BlinkSnapshot | None = None
+        self._blink_render_worker: TaskWorker | None = None
+        self._blink_render_request_serial = 0
+        self._blink_render_request_identity: _BlinkRenderIdentity | None = None
+        self._blink_cache_identity: _BlinkRenderIdentity | None = None
+        self._blink_cache_preview: NDArray[np.uint8] | None = None
         self._protected_difference_pair: tuple[str, str] | None = None
 
         self._original_prepare = self.view._prepare_viewers_for_documents
@@ -147,6 +157,7 @@ class QuickCompareController(QObject):
     def _install_render_hook(self) -> None:
         def render_selection(preserve_view: bool = False) -> None:
             self._end_blink()
+            self._clear_blink_cache()
             self._original_render_selection(preserve_view)
             self._update_three_view_controls()
 
@@ -194,6 +205,9 @@ class QuickCompareController(QObject):
 
         if event_type in (QEvent.Type.ApplicationDeactivate, QEvent.Type.WindowDeactivate):
             self._end_blink()
+        elif watched is self.window and event_type == QEvent.Type.Close:
+            self._end_blink()
+            self._cancel_blink_render(clear_cache=True)
 
         if event_type == QEvent.Type.KeyPress:
             key_event = cast(QKeyEvent, event)
@@ -488,6 +502,17 @@ class QuickCompareController(QObject):
             return None
         return reference_viewer, reference, alternate
 
+    def _blink_render_identity(
+        self,
+        document: ImageDocument,
+        gain: float,
+    ) -> _BlinkRenderIdentity | None:
+        source = document.source
+        preview = document.preview
+        if source is None or preview is None:
+            return None
+        return (id(document), id(source), id(preview), document.generation, float(gain))
+
     def _blink_presentation(self, document: ImageDocument) -> tuple[object, QRectF] | None:
         preview = document.preview
         if preview is None:
@@ -505,13 +530,45 @@ class QuickCompareController(QObject):
         if not gain_capable or gain == 1.0:
             return preview, rect
 
+        identity = self._blink_render_identity(document, gain)
+        if (
+            identity is not None
+            and identity == self._blink_cache_identity
+            and self._blink_cache_preview is not None
+        ):
+            return self._blink_cache_preview, rect
+        return None
+
+    def _request_blink_render(self, document: ImageDocument) -> bool:
+        gain = self._display_gain_state.gain
+        if not is_display_gain_capable(document) or gain == 1.0:
+            return False
+        identity = self._blink_render_identity(document, gain)
+        if identity is None:
+            return False
+        if identity == self._blink_cache_identity and self._blink_cache_preview is not None:
+            return True
+        if (
+            identity == self._blink_render_request_identity
+            and self._blink_render_worker is not None
+        ):
+            return True
+
+        clear_cache = self._blink_cache_identity != identity
+        self._cancel_blink_render(clear_cache=clear_cache)
         source = document.source
-        if source is None:
-            return None
+        preview = document.preview
+        if source is None or preview is None:
+            return False
+
+        request_serial = self._blink_render_request_serial
         profile = document.raw_profile
         if isinstance(profile, RawProfile):
-            rendered = render_raw_preview(
+            worker = TaskWorker(
+                render_raw_preview,
                 source,
+                document_id=document.document_id,
+                generation=document.generation,
                 channel_layout=document.channel_layout,
                 bit_depth=profile.bit_depth,
                 black_level=profile.black_level,
@@ -519,14 +576,93 @@ class QuickCompareController(QObject):
                 gain=gain,
             )
         else:
-            rendered = render_ordinary_display_preview(
+            worker = TaskWorker(
+                render_ordinary_display_preview,
                 source,
+                document_id=document.document_id,
+                generation=document.generation,
                 channel_layout=document.channel_layout,
                 transform=document.display_transform,
                 canonical_preview=preview,
                 gain=gain,
             )
-        return rendered, rect
+        worker.signals.succeeded.connect(
+            lambda task_id, document_id, generation, result: self._blink_render_succeeded(
+                task_id,
+                document_id,
+                generation,
+                result,
+                request_serial=request_serial,
+                expected_identity=identity,
+                expected_document=document,
+                expected_source=source,
+                expected_preview=preview,
+                expected_gain=gain,
+            )
+        )
+        worker.signals.finished.connect(self._blink_render_finished)
+        self._blink_render_worker = worker
+        self._blink_render_request_identity = identity
+        _display_preview_thread_pool().start(worker)
+        return True
+
+    def _blink_render_succeeded(
+        self,
+        task_id: str,
+        document_id: object,
+        generation: int,
+        result: object,
+        *,
+        request_serial: int,
+        expected_identity: _BlinkRenderIdentity,
+        expected_document: ImageDocument,
+        expected_source: object,
+        expected_preview: object,
+        expected_gain: float,
+    ) -> None:
+        worker = self._blink_render_worker
+        if (
+            worker is None
+            or worker.task_id != task_id
+            or request_serial != self._blink_render_request_serial
+            or self._blink_render_request_identity != expected_identity
+            or document_id != expected_document.document_id
+            or generation != expected_document.generation
+            or expected_document.source is not expected_source
+            or expected_document.preview is not expected_preview
+            or self._display_gain_state.gain != expected_gain
+        ):
+            return
+        if not isinstance(result, np.ndarray) or result.dtype != np.uint8:
+            return
+        if not isinstance(expected_preview, np.ndarray) or result.shape != expected_preview.shape:
+            return
+
+        self._blink_cache_identity = expected_identity
+        self._blink_cache_preview = result
+        snapshot = self._blink_snapshot
+        if snapshot is not None and snapshot.alternate is expected_document:
+            self._show_blink_alternate(snapshot)
+
+    def _blink_render_finished(self, task_id: str) -> None:
+        worker = self._blink_render_worker
+        if worker is not None and worker.task_id == task_id:
+            self._blink_render_worker = None
+            self._blink_render_request_identity = None
+
+    def _cancel_blink_render(self, *, clear_cache: bool) -> None:
+        self._blink_render_request_serial += 1
+        worker = self._blink_render_worker
+        if worker is not None:
+            worker.cancel()
+        self._blink_render_worker = None
+        self._blink_render_request_identity = None
+        if clear_cache:
+            self._clear_blink_cache()
+
+    def _clear_blink_cache(self) -> None:
+        self._blink_cache_identity = None
+        self._blink_cache_preview = None
 
     def _show_blink_alternate(self, snapshot: _BlinkSnapshot) -> bool:
         presentation = self._blink_presentation(snapshot.alternate)
@@ -548,22 +684,26 @@ class QuickCompareController(QObject):
             return False
 
         snapshot = _BlinkSnapshot(reference_viewer, reference, alternate)
-        presentation = self._blink_presentation(alternate)
-        if presentation is None:
-            return False
         reference_viewer._cancel_display_preview()
         self._blink_snapshot = snapshot
-        image, rect = presentation
-        reference_viewer.image_item.setImage(cast(Any, image), autoLevels=False)
-        reference_viewer.image_item.setRect(rect)
-        return True
+        if self._show_blink_alternate(snapshot):
+            return True
+        if self._request_blink_render(alternate):
+            return True
+
+        self._blink_snapshot = None
+        reference_viewer._ensure_display_preview()
+        return False
 
     def _display_gain_changed_during_blink(self, _gain: float) -> None:
         snapshot = self._blink_snapshot
+        self._cancel_blink_render(clear_cache=True)
         if snapshot is None:
             return
         snapshot.viewer._cancel_display_preview()
-        if not self._show_blink_alternate(snapshot):
+        if self._show_blink_alternate(snapshot):
+            return
+        if not self._request_blink_render(snapshot.alternate):
             self._end_blink()
 
     def _end_blink(self) -> None:
@@ -571,6 +711,7 @@ class QuickCompareController(QObject):
         if snapshot is None:
             return
         self._blink_snapshot = None
+        self._cancel_blink_render(clear_cache=False)
         viewer = snapshot.viewer
         viewer._cancel_display_preview()
         document = viewer.document
