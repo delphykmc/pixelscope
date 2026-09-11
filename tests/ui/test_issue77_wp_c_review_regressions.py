@@ -147,9 +147,7 @@ def test_existing_difference_binding_survives_pagination_growth(
     pair = (documents[0].document_id, documents[1].document_id)
     _wait_for_difference(qtbot, window, pair)
 
-    controller._apply_registered_drop(
-        [document.document_id for document in documents[2:]]
-    )
+    controller._apply_registered_drop([document.document_id for document in documents[2:]])
 
     assert _ids(window) == [document.document_id for document in documents]
     assert window._difference_source_ids == pair
