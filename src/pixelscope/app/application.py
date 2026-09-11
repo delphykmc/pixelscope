@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 from PySide6.QtCore import QSettings, QThreadPool
 from PySide6.QtWidgets import QApplication, QComboBox
@@ -27,6 +28,7 @@ from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
 from pixelscope.ui.display_gain import install_display_gain_control
 from pixelscope.ui.display_gain_shortcuts import install_display_gain_shortcuts
+from pixelscope.ui.dnd_trace import install_dnd_trace
 from pixelscope.ui.folder_display_tags import install_folder_display_tags
 from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_historical_results_lifecycle import (
@@ -46,6 +48,7 @@ from pixelscope.ui.iqa_submission import install_remote_iqa
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
 from pixelscope.ui.multiview_reorder_stability import install_multiview_reorder_stability
 from pixelscope.ui.presentation_controls import polish_presentation_controls
+from pixelscope.ui.presentation_drop import install_presentation_drop_host
 from pixelscope.ui.quick_compare import install_quick_compare_workflow
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
@@ -88,6 +91,7 @@ def _configure_application(app: QApplication) -> None:
     if not icon.isNull():
         app.setWindowIcon(icon)
     apply_engineering_palette(app)
+    install_dnd_trace(app)
 
 
 def create_application(arguments: Sequence[str] | None = None) -> QApplication:
@@ -148,9 +152,18 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     install_display_gain_shortcuts(window.central_stack, gain_control)
     install_beta_workspace_hardening(window)
     install_large_folder_registration(window)
-    # Issue #77 WP-C is the outermost Image View interaction layer. It delegates
-    # registration, Difference, selection, and presentation state to the owners above.
-    install_quick_compare_workflow(window)
+
+    # Issue #77 WP-C keeps semantic handling in the controller, but native Image View
+    # D&D is owned by one stable host wrapping Empty/Single/Multi presentation states.
+    quick_compare = install_quick_compare_workflow(window)
+
+    def route_presentation_drop(paths: list[Path]) -> None:
+        if any(path.is_dir() for path in paths):
+            window._handle_dropped_paths(paths)
+            return
+        quick_compare.handle_image_drop(paths)
+
+    install_presentation_drop_host(window, route_presentation_drop)
     return gain_control
 
 
