@@ -151,6 +151,8 @@ def test_three_view_defaults_equal_and_user_can_switch_focus_without_state_chang
     documents = [_document(f"{index}.png", index, tmp_path) for index in range(3)]
     _add(window, documents)
     window._select_document_ids([document.document_id for document in documents])
+    window.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
     roi = RoiBounds(1, 1, 4, 3)
     line = LineSelection(0, 0, 5, 4)
     assert window._shared_roi_changed(roi)
@@ -205,8 +207,9 @@ def test_three_view_difference_defaults_focus_and_other_geometries_are_unchanged
     assert controller._effective_three_view_variant() == "Focus"
     assert window.multi_compare_view._fixed_geometry(3) == controller._original_fixed_geometry(3)
     for count in (4, 5, 6):
-        assert window.multi_compare_view._fixed_geometry(count) == controller._original_fixed_geometry(
-            count
+        assert (
+            window.multi_compare_view._fixed_geometry(count)
+            == controller._original_fixed_geometry(count)
         )
     window.close()
 
