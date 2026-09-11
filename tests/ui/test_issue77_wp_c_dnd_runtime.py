@@ -7,13 +7,14 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.display_transform import render_ordinary_display_preview
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.display_gain import display_gain_state
+from pixelscope.ui.presentation_drop import PresentationDropHost
 from pixelscope.ui.quick_compare import QuickCompareController
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
@@ -47,26 +48,7 @@ def _mime_for(path: Path) -> QMimeData:
     return mime
 
 
-def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
-    qtbot: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window, controller = _window(qtbot)
-    path = tmp_path / "sample.png"
-    path.write_bytes(b"placeholder")
-    mime = _mime_for(path)
-    target = window.viewer._graphics.viewport()
-    received: list[list[Path]] = []
-
-    def handle(paths: list[Path]) -> bool:
-        received.append(paths)
-        return True
-
-    monkeypatch.setattr(controller, "handle_image_drop", handle)
-    window.show()
-    qtbot.wait(20)  # type: ignore[attr-defined]
-
+def _send_drag_lifecycle(target: QWidget, mime: QMimeData) -> tuple[bool, bool, bool]:
     enter = QDragEnterEvent(
         QPoint(1, 1),
         Qt.DropAction.CopyAction,
@@ -75,7 +57,6 @@ def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
         Qt.KeyboardModifier.NoModifier,
     )
     QApplication.sendEvent(target, enter)
-    assert enter.isAccepted()
 
     move = QDragMoveEvent(
         QPoint(2, 2),
@@ -85,7 +66,6 @@ def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
         Qt.KeyboardModifier.NoModifier,
     )
     QApplication.sendEvent(target, move)
-    assert move.isAccepted()
 
     drop = QDropEvent(
         QPointF(3.0, 3.0),
@@ -95,29 +75,66 @@ def test_image_view_accepts_full_drag_enter_move_drop_lifecycle(
         Qt.KeyboardModifier.NoModifier,
     )
     QApplication.sendEvent(target, drop)
-    assert drop.isAccepted()
-    assert received == [[path]]
-    window.close()
+    return enter.isAccepted(), move.isAccepted(), drop.isAccepted()
 
 
-def test_quick_compare_filter_does_not_take_files_panel_drag_ownership(
+def test_presentation_host_is_single_drop_owner_for_empty_single_and_multi_states(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
-    window, controller = _window(qtbot)
+    window, _controller = _window(qtbot)
+    host = window.presentation_drop_host
+    assert isinstance(host, PresentationDropHost)
+    assert host.content is window.central_stack
+    assert host.acceptDrops()
+    assert not window.central_stack.acceptDrops()
+
     path = tmp_path / "sample.png"
     path.write_bytes(b"placeholder")
     mime = _mime_for(path)
-    target = window.document_list.viewport()
+    received: list[list[Path]] = []
+    host.paths_dropped.connect(received.append)
 
-    move = QDragMoveEvent(
-        QPoint(2, 2),
+    for presentation in (
+        window.empty_workspace,
+        window.viewer,
+        window.multi_compare_view,
+    ):
+        window.central_stack.setCurrentWidget(presentation)
+        assert _send_drag_lifecycle(host, mime) == (True, True, True)
+
+    assert received == [[path], [path], [path]]
+    window.close()
+
+
+def test_nested_presentation_widgets_are_not_competing_native_drop_targets(qtbot: object) -> None:
+    window, _controller = _window(qtbot)
+    host = window.presentation_drop_host
+    assert isinstance(host, PresentationDropHost)
+
+    assert not window.central_stack.acceptDrops()
+    assert all(not child.acceptDrops() for child in window.central_stack.findChildren(QWidget))
+    assert not host.isAncestorOf(window.document_list)
+    assert window.document_list.acceptDrops()
+    window.close()
+
+
+def test_presentation_host_ignores_non_local_mime(qtbot: object) -> None:
+    window, _controller = _window(qtbot)
+    host = window.presentation_drop_host
+    assert isinstance(host, PresentationDropHost)
+    mime = QMimeData()
+    mime.setText("not a local file")
+
+    enter = QDragEnterEvent(
+        QPoint(1, 1),
         Qt.DropAction.CopyAction,
         mime,
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
-    assert not controller.eventFilter(target, move)
+    QApplication.sendEvent(host, enter)
+    assert not enter.isAccepted()
     window.close()
 
 
