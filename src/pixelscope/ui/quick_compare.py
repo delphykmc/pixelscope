@@ -20,15 +20,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.core.display_transform import render_ordinary_display_preview
+from pixelscope.core.image_document import ImageDocument
+from pixelscope.core.raw_display import render_raw_preview
 from pixelscope.io.path_discovery import discover_image_inputs
+from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import TOKENS
-from pixelscope.ui.display_gain import display_gain_state
+from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
 from pixelscope.ui.image_viewer import ImageViewer
 
 
 @dataclass(frozen=True)
 class _BlinkSnapshot:
     viewer: ImageViewer
+    reference: ImageDocument
+    alternate: ImageDocument
 
 
 class QuickCompareController(QObject):
@@ -431,7 +437,7 @@ class QuickCompareController(QObject):
             QLineEdit | QAbstractSpinBox | QComboBox | QTextEdit | QPlainTextEdit,
         )
 
-    def _blink_sources(self) -> tuple[Any, Any] | None:
+    def _blink_sources(self) -> tuple[ImageDocument, ImageDocument] | None:
         if self.window._channel_split_active:
             return None
         sources = self.window.selected_documents
@@ -458,40 +464,104 @@ class QuickCompareController(QObject):
                 return candidate
         return None
 
+    def _blink_context(self) -> tuple[ImageViewer, ImageDocument, ImageDocument] | None:
+        sources = self._blink_sources()
+        if sources is None:
+            return None
+
+        if self.window.central_stack.currentWidget() is self.window.viewer:
+            visible = self.window.viewer.document
+            if visible is None:
+                return None
+            reference = next(
+                (document for document in sources if document.document_id == visible.document_id),
+                None,
+            )
+            if reference is None:
+                return None
+            alternate = sources[1] if sources[0] is reference else sources[0]
+            return self.window.viewer, reference, alternate
+
+        reference, alternate = sources
+        reference_viewer = self._viewer_for_document(reference.document_id)
+        if reference_viewer is None:
+            return None
+        return reference_viewer, reference, alternate
+
+    def _blink_presentation(self, document: ImageDocument) -> tuple[object, QRectF] | None:
+        preview = document.preview
+        if preview is None:
+            return None
+        rect = QRectF(ImageViewer._presentation_rect(document))
+        gain_capable = is_display_gain_capable(document)
+        gain = self._display_gain_state.gain
+        candidate = self._viewer_for_document(document.document_id)
+        if candidate is not None and candidate.image_item.image is not None:
+            if not gain_capable or gain == 1.0 or candidate._displayed_gain == gain:
+                return candidate.image_item.image, rect
+        if not gain_capable or gain == 1.0:
+            return preview, rect
+
+        source = document.source
+        if source is None:
+            return None
+        profile = document.raw_profile
+        if isinstance(profile, RawProfile):
+            rendered = render_raw_preview(
+                source,
+                channel_layout=document.channel_layout,
+                bit_depth=profile.bit_depth,
+                black_level=profile.black_level,
+                bayer_pattern=profile.bayer_pattern,
+                gain=gain,
+            )
+        else:
+            rendered = render_ordinary_display_preview(
+                source,
+                channel_layout=document.channel_layout,
+                transform=document.display_transform,
+                canonical_preview=preview,
+                gain=gain,
+            )
+        return rendered, rect
+
+    def _show_blink_alternate(self, snapshot: _BlinkSnapshot) -> bool:
+        presentation = self._blink_presentation(snapshot.alternate)
+        if presentation is None:
+            return False
+        image, rect = presentation
+        snapshot.viewer.image_item.setImage(cast(Any, image), autoLevels=False)
+        snapshot.viewer.image_item.setRect(rect)
+        return True
+
     def _begin_blink(self) -> bool:
         if self._blink_snapshot is not None:
             return True
-        sources = self._blink_sources()
-        if sources is None:
+        context = self._blink_context()
+        if context is None:
             return False
-        reference, alternate = sources
-        reference_viewer = self._viewer_for_document(reference.document_id)
-        alternate_viewer = self._viewer_for_document(alternate.document_id)
-        if reference_viewer is None:
-            return False
-        alternate_image: object | None = None
-        alternate_rect: QRectF | None = None
-        if alternate_viewer is not None and alternate_viewer.image_item.image is not None:
-            alternate_image = alternate_viewer.image_item.image
-            alternate_rect = QRectF(alternate_viewer.image_item.boundingRect())
-        elif alternate.preview is not None:
-            alternate_image = alternate.preview
-            alternate_rect = QRectF(reference_viewer._presentation_rect(alternate))
-        if alternate_image is None or alternate_rect is None:
-            return False
+        reference_viewer, reference, alternate = context
         if reference_viewer.image_item.image is None:
             return False
 
+        snapshot = _BlinkSnapshot(reference_viewer, reference, alternate)
+        presentation = self._blink_presentation(alternate)
+        if presentation is None:
+            return False
         reference_viewer._cancel_display_preview()
-        self._blink_snapshot = _BlinkSnapshot(reference_viewer)
-        reference_viewer.image_item.setImage(cast(Any, alternate_image), autoLevels=False)
-        reference_viewer.image_item.setRect(alternate_rect)
+        self._blink_snapshot = snapshot
+        image, rect = presentation
+        reference_viewer.image_item.setImage(cast(Any, image), autoLevels=False)
+        reference_viewer.image_item.setRect(rect)
         return True
 
     def _display_gain_changed_during_blink(self, _gain: float) -> None:
         snapshot = self._blink_snapshot
-        if snapshot is not None:
-            snapshot.viewer._cancel_display_preview()
+        if snapshot is None:
+            return
+        snapshot.viewer._cancel_display_preview()
+        if not self._show_blink_alternate(snapshot):
+            self._end_blink()
 
     def _end_blink(self) -> None:
         snapshot = self._blink_snapshot
