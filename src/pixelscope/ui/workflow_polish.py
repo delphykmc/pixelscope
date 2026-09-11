@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from contextlib import suppress
 from types import MethodType
 from typing import Any, cast
@@ -45,6 +46,37 @@ class FilesContextMenuController(QObject):
             if not primary.isEnabled():
                 primary.setToolTip("Primary is available only on the current Comparison Page")
             compare = menu.addAction("Show Selected in Multi View")
+            same_position = QMenu("Compare same position with...", menu)
+            menu.addMenu(same_position)
+            targets = self.window.folder_comparison_targets(document_key)
+            if targets:
+                labels = {
+                    target.target_folder_key: self._folder_display_label(target.target_folder_key)
+                    for target in targets
+                }
+                label_counts = Counter(labels.values())
+                for target in targets:
+                    folder = self.window._folder_paths.get(target.target_folder_key)
+                    label = labels[target.target_folder_key]
+                    if label_counts[label] > 1 and folder is not None:
+                        label = f"{label} — {folder.parent}"
+                    target_action = same_position.addAction(label)
+                    if folder is not None:
+                        target_action.setToolTip(
+                            f"Add position {target.ordinal_index + 1} from {folder}"
+                        )
+                    target_action.triggered.connect(  # type: ignore[attr-defined]
+                        lambda _checked=False,
+                        anchor=document_key,
+                        folder_key=target.target_folder_key: (
+                            self.window.add_same_position_from_folder(anchor, folder_key)
+                        )
+                    )
+            else:
+                same_position.setEnabled(False)
+                same_position.setToolTip(
+                    "Select 1–5 images from different folders with an available matching position"
+                )
             menu.addSeparator()
             remove = menu.addAction("Remove Selected from Files")
 
@@ -71,6 +103,15 @@ class FilesContextMenuController(QObject):
                 lambda _checked=False, ids=folder_ids: self.tree._emit_remove_request(list(ids))
             )
         return menu
+
+    def _folder_display_label(self, folder_key: str) -> str:
+        for index in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(index)
+            raw_path = str(item.data(0, self.tree.PATH_ROLE) or "")
+            if raw_path.casefold() == folder_key:
+                return str(item.text(0))
+        folder = self.window._folder_paths.get(folder_key)
+        return str(folder.name) if folder is not None else folder_key
 
     def _remove_selected_images(self) -> None:
         self.tree._emit_remove_request(

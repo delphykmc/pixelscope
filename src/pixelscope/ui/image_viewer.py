@@ -813,9 +813,12 @@ class ImageViewer(QWidget):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         sequence: QKeySequence | None = None
-        if event.key() == Qt.Key.Key_PageUp:
+        if event.modifiers() == Qt.KeyboardModifier.NoModifier and event.key() == Qt.Key.Key_PageUp:
             sequence = QKeySequence(Qt.Key.Key_PageUp)
-        elif event.key() == Qt.Key.Key_PageDown:
+        elif (
+            event.modifiers() == Qt.KeyboardModifier.NoModifier
+            and event.key() == Qt.Key.Key_PageDown
+        ):
             sequence = QKeySequence(Qt.Key.Key_PageDown)
         if sequence is not None:
             shortcut = next(
