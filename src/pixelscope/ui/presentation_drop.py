@@ -6,10 +6,17 @@ from typing import Any, cast
 
 from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDragMoveEvent, QDropEvent
-from PySide6.QtWidgets import QBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QBoxLayout, QVBoxLayout, QWidget
 
 
 _DropEvent = QDragEnterEvent | QDragMoveEvent | QDropEvent
+_BLINK_EVENT_TYPES = {
+    QEvent.Type.ApplicationDeactivate,
+    QEvent.Type.WindowDeactivate,
+    QEvent.Type.Close,
+    QEvent.Type.KeyPress,
+    QEvent.Type.KeyRelease,
+}
 
 
 class PresentationDropHost(QWidget):
@@ -88,9 +95,24 @@ class _MainWindowDragMoveFilter(QObject):
         return True
 
 
+class _BlinkOnlyApplicationFilter(QObject):
+    """Forward only Blink lifecycle events after native D&D leaves the global filter."""
+
+    def __init__(self, controller: QObject, app: QApplication) -> None:
+        super().__init__(app)
+        self.controller = controller
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if event.type() not in _BLINK_EVENT_TYPES:
+            return False
+        return bool(self.controller.eventFilter(watched, event))
+
+
 def install_presentation_drop_host(
     window: Any,
     handler: Callable[[list[Path]], None],
+    *,
+    quick_compare_filter: QObject | None = None,
 ) -> PresentationDropHost:
     """Wrap the existing central stack in one stable native Image View drop target."""
 
@@ -117,5 +139,13 @@ def install_presentation_drop_host(
     fallback_filter = _MainWindowDragMoveFilter(window)
     window.installEventFilter(fallback_filter)
     window.__dict__["_presentation_drop_fallback_filter"] = fallback_filter
+
+    app = QApplication.instance()
+    if quick_compare_filter is not None and isinstance(app, QApplication):
+        app.removeEventFilter(quick_compare_filter)
+        blink_filter = _BlinkOnlyApplicationFilter(quick_compare_filter, app)
+        app.installEventFilter(blink_filter)
+        window.__dict__["_quick_compare_blink_filter"] = blink_filter
+
     window.__dict__["presentation_drop_host"] = host
     return host
