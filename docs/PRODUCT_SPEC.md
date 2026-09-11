@@ -39,6 +39,15 @@ Resident when required
 Viewer slots are always local `1..6` within the Current Comparison Page. Global
 Selected ordinal and viewer slot are distinct concepts.
 
+Statistics `1. Region` exposes compact X/Y/W/H entry for the same application-owned
+shared ROI created by Ctrl+drag. Numeric values are reference/full-resolution
+coordinates, including mapped YUV/Bayer/Difference presentations. Selection or page
+changes preserve the exact ROI only when every ready Current Comparison Page frame
+fully contains it; otherwise the active ROI is cleared without clipping or creating
+per-image effective regions. Full-image analysis may coexist with a retained active
+ROI, and Apply, Clear, Esc, overlays, Statistics/Histogram, Difference, and Session all
+use that single authority.
+
 Registration does not imply selection, page membership, presentation, decode, or
 residency. Selected membership alone does not imply residency.
 

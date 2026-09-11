@@ -121,7 +121,7 @@ def test_statistics_sections_align_region_bounds_and_image_metadata(
     assert panel.statistics_group.title() == "3. Channel statistics"
     assert panel.region_layout.indexOf(panel.region_scope) >= 0
     assert panel.region_layout.indexOf(panel.roi_label) >= 0
-    assert panel.scope_label.width() == panel.bounds_label.width()
+    assert panel.region_layout.indexOf(panel.roi_editor) >= 0
     root_layout = panel.layout()
     assert root_layout is not None
     assert root_layout.indexOf(panel.region_group) == 0
@@ -178,10 +178,9 @@ def test_main_window_tracks_active_roi_availability(qtbot: object) -> None:
     assert panel.region_scope.currentText() == "Active ROI"
 
     window._select_document_ids([replacement.document_id])
-    assert panel.region_scope.currentText() == "Full image"
-    assert not (
-        panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
-    )
+    assert window._shared_roi == RoiBounds(1, 2, 3, 4)
+    assert panel.region_scope.currentText() == "Active ROI"
+    assert panel.region_scope.model().flags(active_roi_model_index) & Qt.ItemFlag.ItemIsEnabled
 
     window._shared_roi_changed(RoiBounds(1, 2, 3, 4))
     assert panel.region_scope.currentText() == "Active ROI"

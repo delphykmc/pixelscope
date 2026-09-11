@@ -135,6 +135,73 @@ def test_registered_order_is_not_session_semantic_but_selected_order_is(
     window.close()
 
 
+def test_session_without_roi_clears_preexisting_roi_instead_of_inheriting_it(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    source = _ready_document(tmp_path / "source.png", 1)
+    window = _production_window(qtbot)
+    window.add_document(source)
+    window._shared_roi_changed(RoiBounds(1, 1, 2, 2))
+    session = Session(
+        registered_sources=(SessionSource(str(source.source_path)),),
+        selected_paths=(str(source.source_path),),
+        page_anchor_path=str(source.source_path),
+        roi=None,
+    )
+    target = tmp_path / "no-roi.pixelscope"
+    window.session_controller.repository.save(target, session)
+
+    loaded, missing = window.session_controller.open_from_path(target)
+
+    assert loaded == 1
+    assert missing == ()
+    qtbot.waitUntil(lambda: window.session_controller._pending_roi is None)  # type: ignore[attr-defined]
+    assert window._shared_roi is None
+    assert not window.comparison_analysis_panel.roi_clear_button.isEnabled()
+    window.close()
+
+
+def test_session_skips_saved_roi_that_does_not_fit_restored_page(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    source = _ready_document(tmp_path / "source.png", 1)
+    window = _production_window(qtbot)
+    window.add_document(source)
+    session = Session(
+        registered_sources=(SessionSource(str(source.source_path)),),
+        selected_paths=(str(source.source_path),),
+        page_anchor_path=str(source.source_path),
+        roi=RoiBounds(3, 3, 2, 2),
+    )
+    target = tmp_path / "outside-roi.pixelscope"
+    window.session_controller.repository.save(target, session)
+    progress_details: list[str] = []
+    original_progress_update = window.session_controller._progress_update
+
+    def record_progress(step: int, fraction: float, detail: str) -> None:
+        progress_details.append(detail)
+        original_progress_update(step, fraction, detail)
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        window.session_controller,
+        "_progress_update",
+        record_progress,
+    )
+
+    loaded, missing = window.session_controller.open_from_path(target)
+
+    assert loaded == 1
+    assert missing == ()
+    qtbot.waitUntil(lambda: window.session_controller._pending_roi is None)  # type: ignore[attr-defined]
+    assert window._shared_roi is None
+    assert window.comparison_analysis_panel.region_scope.currentText() == "Full image"
+    assert any("Saved ROI skipped" in detail for detail in progress_details)
+    window.close()
+
+
 def test_session_open_does_not_decode_registered_only_sources(
     qtbot: object,
     tmp_path: Path,

@@ -668,14 +668,21 @@ the same presentation path; legacy Comparison Set v1 does not persist Display Ga
 Moving over an image synchronizes the crosshair and status readout.
 
 - Ctrl+drag creates one shared ROI; Esc clears ROI.
+- In Statistics `1. Region`, enter X, Y, W, and H and choose **Apply** (or press Enter)
+  to set that same shared ROI exactly; **Clear** is equivalent to clearing the active
+  ROI through Esc.
 - Shift+drag creates a horizontal or vertical Line Profile selection.
 - Shift+Esc clears the shared line.
 - Alt+drag does not create a Line Profile.
 
-ROI normalization, Statistics, Histogram, and Line Profile all use the Current
-Comparison Page as the default analysis working set. Temporary Pick Set does not
-extend or replace that analysis working set. Session v1 persists/restores the current
-active ROI and Line selection; it does not add named/multiple ROI management.
+ROI coordinates always use the reference/full-resolution image extent, including
+subsampled YUV/Bayer/Difference presentations. Selection, Comparison Page, and Folder
+Position changes preserve the exact active ROI only when it fits every relevant frame;
+if any frame cannot contain it, PixelScope clears the ROI instead of clipping it.
+Statistics, Histogram, and Line Profile use the Current Comparison Page as the default
+analysis working set. Temporary Pick Set does not extend or replace that analysis
+working set. Session v1 persists/restores the current active ROI and Line selection;
+it does not add named/multiple ROI management.
 
 ## Statistics and Histogram
 

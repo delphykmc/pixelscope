@@ -51,6 +51,20 @@ class RoiAnalysisResult:
     channel_sample_counts: tuple[int, ...] = ()
 
 
+def roi_fits_shape(image_shape: tuple[int, ...], bounds: RoiBounds) -> bool:
+    """Return whether an exact ROI fits one HxW reference extent.
+
+    Unlike :func:`clamp_roi`, this predicate never changes the requested bounds.
+    It is the authority check used when one ROI must retain identical meaning
+    across multiple reference frames.
+    """
+
+    if len(image_shape) not in (2, 3):
+        raise ValueError("ROI expects an HxW or HxWxC image shape")
+    image_height, image_width = image_shape[:2]
+    return bounds.right <= image_width and bounds.bottom <= image_height
+
+
 def clamp_roi(
     image_shape: tuple[int, ...],
     x: int,

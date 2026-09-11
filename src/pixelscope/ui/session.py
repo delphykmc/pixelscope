@@ -181,6 +181,7 @@ class SessionController(SessionControllerBase):
         self.window._page_start = 0
         self.window._focus_document_id = None
         self.window._primary_page_slot = 0
+        self.window.clear_roi()
         self.window._select_document_ids(selected_ids, preserve_view=True)
 
         if session.layout_mode != self.window._layout_mode:
@@ -357,18 +358,26 @@ class SessionController(SessionControllerBase):
             return True
 
         completed = 0
+        restored_roi = True
         self._progress_update(6, 0.0, "Restoring saved analysis overlays")
         if self._pending_roi is not None:
-            self.window._shared_roi_changed(self._pending_roi)
+            restored_roi = self.window._apply_shared_roi(
+                self._pending_roi,
+                allow_channel_split=True,
+            )
             self._pending_roi = None
             completed += 1
-            self._progress_update(6, completed / intents, "ROI restored")
+            self._progress_update(
+                6,
+                completed / intents,
+                "ROI restored" if restored_roi else "Saved ROI skipped · outside restored page",
+            )
         if self._pending_line is not None:
             self.window._shared_line_changed(self._pending_line)
             self._pending_line = None
             completed += 1
             self._progress_update(6, completed / intents, "Line restored")
-        return True
+        return not has_roi or restored_roi
 
     def _try_restore_deferred_state(self, *_args: object) -> None:
         if getattr(self.window, "_closing", False):

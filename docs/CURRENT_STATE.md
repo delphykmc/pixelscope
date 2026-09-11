@@ -1,7 +1,7 @@
 # PixelScope current state
 
-Snapshot date: 2026-09-03
-Current merged `main`: `0b321ea23cb1493664d0187ea9777b94d9b7e81b`
+Snapshot date: 2026-09-10
+Current merged `main`: `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`
 
 `main` includes the cumulative P5/R history below plus the release-foundation and
 local-workflow hardening merged after R closeout:
@@ -49,20 +49,17 @@ local-workflow hardening merged after R closeout:
 - WP-B / PR #72 — RAW profile and raw-like binary compatibility, merged at
   `f21416fed49f138a60ca15810a2b23818ced0809`;
 - WP-C1 / PR #73 — Native YUV Image Semantics, merged at
-  `0b321ea23cb1493664d0187ea9777b94d9b7e81b`.
+  `0b321ea23cb1493664d0187ea9777b94d9b7e81b`;
+- Issue #75 / PR #76 — transient reference/sample spatial mapping, merged into the
+  WP-C2 integration branch at `2d933ed82ae34ac4ec7fa60b0d6e9133473ce8af`;
+- WP-C2 / PR #74 — Native YUV Difference plus the Issue #75 mapping integration,
+  merged at `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`.
 
-WP-C2 / PR #74 — **Native YUV Difference** — is the active implementation candidate on
-top of this merged baseline and is not yet part of `main`. It adds same-subsampling
-YUV444/YUV422/YUV420 Difference over the selected native Y/U/V plane, channel-aware
-cache/result identity, and WP-C1 ROI-to-native-chroma mapping reuse. Its latest-head
-owner-local automated validation and independent re-review remain merge gates.
-
-Issue #75's stacked candidate adds explicit transient reference/sample spatial mapping
-for native YUV and Bayer split/Difference views. Native arrays, Difference cache/metric
-cardinality, and export dimensions remain unchanged; viewer cursor, Fit/100%, zoom/pan,
-ROI, and Line geometry use the full source/reference extent. The candidate also makes
-Session-v1 Y/U/V Difference recipe vocabulary consistent with WP-C2 without persisting
-spatial metadata or changing the Session schema version.
+Issue #77 WP-A is the active ROI-usability candidate on that baseline. It adds exact
+X/Y/W/H entry to Statistics and preserves one shared reference-space ROI across a
+Current Comparison Page only while every relevant frame fully contains the unchanged
+rectangle. A context mismatch clears the ROI; it is never clipped or specialized per
+image. Issue #77 remains the planning authority, and WP-B/WP-C are separate PR scopes.
 
 P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
 P5-G **External GPU/SMB Validation & Closeout** is only partially observed: temporary

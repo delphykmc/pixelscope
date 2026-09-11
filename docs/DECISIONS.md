@@ -1034,3 +1034,18 @@ the corresponding durable contracts/characterization and is not inferred as curr
 P7-D validation.
 
 Only validation actually observed for a named head may be recorded as PASS.
+
+## Issue #77 WP-A ROI usability decisions
+
+- The existing application-owned shared ROI remains the only ROI authority; numeric
+  editing does not introduce a widget-owned or per-document region model.
+- ROI identity is the exact half-open X/Y/W/H rectangle in reference/full-resolution
+  coordinates. Current Comparison Page transitions preserve it only when every
+  relevant ready frame fully contains it; otherwise they clear it rather than clamp.
+- Numeric Apply is explicit reference-space intent and remains available during a
+  mapped Split presentation. Derived-view drag restrictions and existing split
+  numerical/sample cardinality remain unchanged.
+- Session v1 schema is unchanged. Restore clears prior transient ROI state and replays
+  saved bounds through the same strict fit validation before any Active-ROI Difference.
+- Named/multiple ROI management remains deferred and Issue #77 remains the primary
+  planning authority for WP-A/WP-B/WP-C.

@@ -70,6 +70,12 @@ Deferred from P4:
 - Alpha Overlay / Flicker / Wipe;
 - arbitrary-angle Line Profile with an explicit sampling contract.
 
+Issue #77 is an active comparison-workflow improvement sequence outside the completed
+P4 phase. WP-A adds exact shared-ROI entry and all-current-page fit preservation on an
+independent PR; WP-B folder comparison bootstrap and WP-C Quick Compare remain separate
+follow-up packages. This does not revive named/multiple ROI management or generic
+arrangement persistence.
+
 ## Forward sequence
 
 P5-G temporary external preflight is now observed, while full GPU/result qualification

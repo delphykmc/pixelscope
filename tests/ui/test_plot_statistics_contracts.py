@@ -502,7 +502,7 @@ def test_bayer_statistics_profiles_status_and_channel_split(qtbot: object) -> No
         and window.line_profile_panel.plot.getViewBox().sceneBoundingRect().width() > 0,
         timeout=3000,
     )
-    hover_position = window.line_profile_panel.plot.getViewBox().mapViewToScene(QPointF(0, 25))
+    hover_position = window.line_profile_panel.plot.getViewBox().mapViewToScene(QPointF(1, 25))
     window.line_profile_panel._on_plot_mouse_moved(hover_position)
     assert window.line_profile_panel._hover_text is not None
     assert "Gr@1" in window.line_profile_panel._hover_text.toPlainText()

@@ -28,6 +28,15 @@ native-local; `sample_lookup_at_reference()` is the explicit mapped inspection p
 Direct images use identity mapping, YUV chroma uses cell-footprint mapping, and Bayer
 channels use phase-aware point-lattice mapping.
 
+`MainWindow._shared_roi` is the sole active ROI authority. Viewer drag and Statistics
+numeric entry publish immutable `RoiBounds`; `core.roi.roi_fits_shape()` validates the
+unchanged half-open rectangle against each relevant `ImageDocument.reference_shape`.
+Reconciliation occurs before viewer and analysis binding. An invalid new proposal is
+rejected, while an existing ROI that becomes invalid after a Current Comparison Page
+context change is cleared everywhere. Neither path clips to a common native shape or
+creates presentation-local numerical authority. The Statistics editor mirrors active
+ROI state separately from its Full image/Active ROI analysis-request bounds.
+
 ## P3-D input and comparison ownership model
 
 P3-D separates five runtime layers:
