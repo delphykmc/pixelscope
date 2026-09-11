@@ -1,8 +1,8 @@
 # Execution plan: Issue #77 WP-A ROI usability
 
-Status: Complete  
-Owner: Codex WP-A implementer  
-Branch/PR: `codex/issue-77-wp-a` / not created  
+Status: Complete
+Owner: Codex WP-A implementer
+Branch/PR: `codex/issue-77-wp-a` / PR #78
 Last updated: 2026-09-11
 
 ## Goal
@@ -130,9 +130,16 @@ transient ROI state before restoring saved intent.
   the unrelated folder-display-tag header node, was reproduced with unmodified
   `origin/main` source. A transient Bayer hover failure exposed by an initial 3-row UI
   layout was repaired by retaining the Region group's established 2-row height.
-- 2026-09-11: Offscreen 980x720 render inspection confirmed a compact single-row
-  X/Y/W/H + Apply/Clear editor inside the established 88 px Region group. Generated
-  inspection artifacts were removed afterward.
+- 2026-09-11: Independent review found that the initial single-row editor overlapped at
+  the production Statistics sidebar width. The editor now owns the full Region row and
+  uses a responsive two-row compact layout; a production-composition geometry regression
+  covers the default 1400x850 window and an explicit 320 px sidebar allocation. Offscreen
+  production renders were inspected at actual panel widths of 386 px and 316 px with no
+  visible clipping or overlap; generated inspection artifacts were then removed.
+- 2026-09-11: Post-review focused geometry/regression checks passed 32 tests. The
+  unfiltered full suite passed 1212 tests with one Windows privilege skip and only the
+  already baseline-reproduced folder-display-tag failure; the attempted deselection used
+  the wrong historical file path, so the known node ran and failed transparently.
 
 ## Completion summary
 
@@ -142,7 +149,8 @@ transient ROI state before restoring saved intent.
 - Changed files: ROI core fit predicate; MainWindow authority/reconciliation; Statistics
   editor; canonical/legacy Session restore; focused unit/UI regressions; narrow product,
   architecture, decision, roadmap, quality, current-state, and user-guide contracts.
-- Validation results: 169 focused tests passed; full pytest produced 1211 passed, one
+- Validation results: 169 focused tests passed before review and 32 focused tests passed
+  after the responsive repair; the latest full pytest produced 1212 passed, one
   platform-privilege skip, and one baseline-reproduced unrelated failure. Changed-file
   Ruff, mypy, docs, pip, and diff checks are recorded in the PR evidence.
 - Remaining limitations: owner-visible native Windows interaction was not available;

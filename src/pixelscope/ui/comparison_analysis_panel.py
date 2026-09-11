@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
     QGroupBox,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
@@ -224,21 +223,28 @@ class ComparisonAnalysisPanel(QWidget):
         self.roi_clear_button.setFixedWidth(64)
         self.roi_clear_button.clicked.connect(self.roi_clear_requested.emit)  # type: ignore[attr-defined]
         self.roi_editor = QWidget()
-        self.roi_editor.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
-        roi_editor_layout = QHBoxLayout(self.roi_editor)
-        roi_editor_layout.setContentsMargins(0, 0, 0, 0)
-        roi_editor_layout.setSpacing(TOKENS.spacing_xs)
-        for name, control in (
-            ("X", self.roi_x_input),
-            ("Y", self.roi_y_input),
-            ("W", self.roi_width_input),
-            ("H", self.roi_height_input),
+        self.roi_editor.setMinimumWidth(0)
+        self.roi_editor.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        roi_editor_layout = ResponsiveControlLayout(
+            self.roi_editor,
+            spacing=TOKENS.spacing_xs,
+        )
+        self.roi_coordinate_labels: dict[str, QLabel] = {}
+        for index, (name, control) in enumerate(
+            (
+                ("X", self.roi_x_input),
+                ("Y", self.roi_y_input),
+                ("W", self.roi_width_input),
+                ("H", self.roi_height_input),
+            )
         ):
-            roi_editor_layout.addWidget(QLabel(name))
-            roi_editor_layout.addWidget(control)
-        roi_editor_layout.addWidget(self.roi_apply_button)
-        roi_editor_layout.addWidget(self.roi_clear_button)
-        roi_editor_layout.addStretch(1)
+            compact_row = 0 if index < 2 else 1
+            label = QLabel(name)
+            self.roi_coordinate_labels[name] = label
+            roi_editor_layout.add_control(label, compact_row=compact_row)
+            roi_editor_layout.add_control(control, compact_row=compact_row)
+        roi_editor_layout.add_control(self.roi_apply_button, compact_row=0)
+        roi_editor_layout.add_control(self.roi_clear_button, compact_row=1)
         self.region_scope = QComboBox()
         self.region_scope.addItems(("Full image", "Active ROI"))
         self.set_roi_available(False)
@@ -254,14 +260,7 @@ class ComparisonAnalysisPanel(QWidget):
         self.region_layout.setHorizontalSpacing(TOKENS.spacing_md)
         self.region_layout.setVerticalSpacing(TOKENS.spacing_sm)
         self.scope_label = QLabel("Scope")
-        self.bounds_label = QLabel("Bounds")
-        region_label_width = max(
-            self.scope_label.sizeHint().width(),
-            self.bounds_label.sizeHint().width(),
-        )
-        for label in (self.scope_label, self.bounds_label):
-            label.setFixedWidth(region_label_width)
-            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.scope_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.region_layout.addWidget(self.scope_label, 0, 0)
         self.region_layout.addWidget(
             self.region_scope,
@@ -270,8 +269,7 @@ class ComparisonAnalysisPanel(QWidget):
             alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
         )
         self.region_layout.addWidget(self.roi_label, 0, 2)
-        self.region_layout.addWidget(self.bounds_label, 1, 0)
-        self.region_layout.addWidget(self.roi_editor, 1, 1, 1, 2)
+        self.region_layout.addWidget(self.roi_editor, 1, 0, 1, 3)
         self.region_layout.setColumnStretch(1, 1)
         self.region_layout.setColumnStretch(2, 1)
         self._sync_roi_editor()

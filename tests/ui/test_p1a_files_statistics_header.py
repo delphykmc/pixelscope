@@ -121,7 +121,7 @@ def test_statistics_sections_align_region_bounds_and_image_metadata(
     assert panel.statistics_group.title() == "3. Channel statistics"
     assert panel.region_layout.indexOf(panel.region_scope) >= 0
     assert panel.region_layout.indexOf(panel.roi_label) >= 0
-    assert panel.scope_label.width() == panel.bounds_label.width()
+    assert panel.region_layout.indexOf(panel.roi_editor) >= 0
     root_layout = panel.layout()
     assert root_layout is not None
     assert root_layout.indexOf(panel.region_group) == 0

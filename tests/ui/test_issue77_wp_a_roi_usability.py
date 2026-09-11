@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from PySide6.QtCore import Qt
 
+from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiBounds
@@ -80,6 +81,45 @@ def _editor_bounds(panel: ComparisonAnalysisPanel) -> RoiBounds:
         panel.roi_width_input.value(),
         panel.roi_height_input.value(),
     )
+
+
+def _assert_roi_editor_controls_do_not_overlap(panel: ComparisonAnalysisPanel) -> None:
+    controls = (
+        *panel.roi_coordinate_labels.values(),
+        panel.roi_x_input,
+        panel.roi_y_input,
+        panel.roi_width_input,
+        panel.roi_height_input,
+        panel.roi_apply_button,
+        panel.roi_clear_button,
+    )
+    editor_rect = panel.roi_editor.rect()
+    for control in controls:
+        assert control.isVisible()
+        assert editor_rect.contains(control.geometry())
+    for index, first in enumerate(controls):
+        for second in controls[index + 1 :]:
+            assert not first.geometry().intersects(second.geometry())
+
+
+def test_production_statistics_sidebar_wraps_roi_editor_without_overlap(qtbot: object) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _compose_main_window_presentation(window)
+    window.add_document(_document("reference.png"))
+    window.resize(1400, 850)
+    window.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    panel = window.comparison_analysis_panel
+
+    assert panel.width() < panel.roi_editor.minimumSizeHint().width() + 200
+    _assert_roi_editor_controls_do_not_overlap(panel)
+
+    window.main_splitter.setSizes([320, 1080])
+    qtbot.wait(20)  # type: ignore[attr-defined]
+    assert panel.width() <= 320
+    _assert_roi_editor_controls_do_not_overlap(panel)
+    window.close()
 
 
 def test_numeric_editor_apply_enter_clear_and_drag_share_one_authority(qtbot: object) -> None:
