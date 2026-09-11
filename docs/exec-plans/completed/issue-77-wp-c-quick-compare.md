@@ -57,6 +57,8 @@ Issue #77 remains the product source-of-truth for acceptance criteria.
 
 A QApplication event filter accepts local drops only when the target is within the central presentation stack. The complete Qt D&D lifecycle is owned explicitly: local-path `DragEnter` and `DragMove` are both accepted, and `Drop` performs the registration/Quick Compare action. This mirrors the established Files-tree drag contract and is required for native Windows Explorer D&D to keep the proposed copy action valid while the pointer moves across the Image View.
 
+The initial empty presentation is also an explicit native drop surface. `EmptyWorkspace` plus the visible label/button/hint children opt into Qt drop delivery so Windows can route `DragEnter`/`DragMove` to the application filter even before an `ImageViewer` is visible. Without this, the shell can show a prohibited cursor before the controller has any opportunity to accept the gesture.
+
 Pure file drops use the existing discovery/registration path, de-duplicate document IDs, and append new IDs through `_select_document_ids(..., preserve_view=True)`. Directory-containing drops are delegated to the pre-existing `_handle_dropped_paths()` path instead of creating a second folder workflow. Files-panel events remain outside the Quick Compare surface and retain their existing owner.
 
 The controller never turns ordinary selection into a Difference command. It derives an explicit Difference pair only from the current drop gesture. Async source readiness is polled with a bounded timer before delegating the exact pair to the existing `DifferencePanel`; incompatible pairs keep their sources selected and expose the existing Difference status instead of hidden conversion.
@@ -120,6 +122,11 @@ ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Se
 - Single View Display Gain Blink performs full-frame alternate rendering on a worker thread rather than the GUI thread;
 - a completed Blink gain presentation is cached and reused for repeated B presses at the same document/generation/gain.
 
+`tests/ui/test_issue77_wp_c_empty_workspace_dnd.py` covers the second native-D&D gap found after `DragMove` acceptance alone proved insufficient on Windows:
+
+- the initial `EmptyWorkspace` and visible child widgets are configured as native drop surfaces;
+- the full `DragEnter -> DragMove -> Drop` lifecycle reaches the application filter while the empty workspace is current.
+
 Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folder bootstrap composition.
 
 ## Validation plan for independent review
@@ -127,10 +134,10 @@ Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folde
 The independent reviewer should run at minimum:
 
 ```text
-pytest tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py -q
+pytest tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py tests/ui/test_issue77_wp_c_empty_workspace_dnd.py -q
 pytest tests/ui/test_issue77_wp_a_roi_usability.py tests/ui/test_issue77_wp_b_folder_bootstrap.py -q
-ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py
-ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py
+ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/ui/empty_state.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py tests/ui/test_issue77_wp_c_empty_workspace_dnd.py
+ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/ui/empty_state.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_dnd_runtime.py tests/ui/test_issue77_wp_c_empty_workspace_dnd.py
 mypy src
 python scripts/check_docs.py
 pip check
@@ -140,7 +147,7 @@ pytest -q
 
 Repository-wide Ruff baseline debt documented during WP-B is not part of WP-C unless a changed WP-C file introduces a new finding.
 
-Manual review must additionally verify actual Windows Explorer drag/drop across the Image View, including visible allowed/copy cursor during pointer movement and successful file drop; 3 View Equal/Focus controls at production widths; hold/release B in both Single View and Multi View with stable zoom/pan; Display Gain parity during Blink; and no Blink activation while editing ROI or other text/numeric controls.
+Manual review must additionally verify actual Windows Explorer drag/drop in both states: the initial EmptyWorkspace and a loaded Image View. In each state the cursor must remain allowed/copy-capable during pointer movement and the file drop must succeed. Also verify Files-panel D&D remains unchanged, 3 View Equal/Focus controls at production widths, hold/release B in both Single View and Multi View with stable zoom/pan, Display Gain parity during Blink, and no Blink activation while editing ROI or other text/numeric controls.
 
 ## Progress log
 
@@ -153,10 +160,13 @@ Manual review must additionally verify actual Windows Explorer drag/drop across 
 - 2026-09-12: Independent review identified and then verified the async Display Gain restoration fix, focus-loss recovery, pagination coverage, and command-row integration.
 - 2026-09-12: Follow-up review identified Single View visible-reference ownership and hidden-alternate Display Gain parity as remaining blockers; implementation and focused regressions were updated accordingly.
 - 2026-09-12: Further independent review found that the Single View gain fallback rendered full frames synchronously on the GUI thread. Blink rendering was moved to the existing bounded Display Gain worker pool with request identity, cancellation, and one-entry reuse cache.
-- 2026-09-12: Owner manual Windows testing found a more fundamental Quick Compare failure: Explorer D&D showed a prohibited cursor and Image View drops did not work. Root cause was missing `DragMove` acceptance in the new application-level D&D path; existing automated tests only exercised helper logic and target classification, so they did not cover the native Qt D&D lifecycle. `DragMove` acceptance and event-delivery regression coverage were added.
+- 2026-09-12: Owner manual Windows testing found a more fundamental Quick Compare failure: Explorer D&D showed a prohibited cursor and Image View drops did not work. Root cause #1 was missing `DragMove` acceptance in the new application-level D&D path; existing automated tests only exercised helper logic and target classification, so they did not cover the native Qt D&D lifecycle. `DragMove` acceptance and event-delivery regression coverage were added.
+- 2026-09-12: Owner retest at `4e34bcb` still showed the prohibited cursor. Root cause #2 was the initial `EmptyWorkspace`: the visible empty-state QWidget hierarchy had not opted into native drop delivery, so Windows could reject the gesture before the application-level filter saw it. EmptyWorkspace drop surfaces and dedicated lifecycle regressions were added.
 
 ## Completion summary
 
-PR #80 remains intentionally Draft and unmerged. The latest implementation addresses both the native Image View D&D lifecycle failure and the Blink GUI-thread rendering blocker, but these changes are not considered merge-ready until exact-HEAD local validation, Windows Explorer manual D&D confirmation, and a fresh independent re-review all pass.
+PR #80 remains intentionally Draft and unmerged. The latest implementation addresses the native Image View D&D lifecycle failures discovered in two layers plus the Blink GUI-thread rendering blocker, but these changes are not considered merge-ready until exact-HEAD local validation, Windows Explorer D&D confirmation in both empty and loaded presentation states, and a fresh independent re-review all pass.
 
 No numerical analysis semantics, generic layout registry, session schema, Files authority, packaging, or dependency change is included.
+
+Automated/runtime validation remains an exact-HEAD merge gate for the requested separate independent-review session; this record does not claim unexecuted checks as passing.
