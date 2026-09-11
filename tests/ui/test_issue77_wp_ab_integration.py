@@ -84,7 +84,6 @@ def test_same_position_bootstrap_clears_roi_when_target_cannot_contain_it(
     assert window._shared_roi is None
     assert window.comparison_analysis_panel.region_scope.currentText() == "Full image"
     assert all(
-        viewer.current_roi_bounds() is None
-        for viewer in window.multi_compare_view.occupied_viewers
+        viewer.current_roi_bounds() is None for viewer in window.multi_compare_view.occupied_viewers
     )
     window.close()
