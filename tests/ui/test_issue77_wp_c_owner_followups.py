@@ -67,7 +67,7 @@ def test_image_view_drag_move_keeps_proposed_action_accepted(
     window.close()
 
 
-def test_explicit_pair_suppresses_intermediate_two_source_presentation(
+def test_explicit_pair_freezes_repaint_but_keeps_two_source_state_updates(
     qtbot: object,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -83,12 +83,41 @@ def test_explicit_pair_suppresses_intermediate_two_source_presentation(
     monkeypatch.setattr(window.difference_panel, "calculate_difference", lambda: None)
     controller._apply_registered_drop([second.document_id])
 
+    pair = (first.document_id, second.document_id)
     assert _ids(window) == [first.document_id, second.document_id]
-    assert window.viewer.document is first
-    assert window.central_stack.currentWidget() is window.viewer
-
-    controller._release_deferred_difference((first.document_id, second.document_id))
+    assert controller._deferred_difference_pair == pair
+    assert not window.central_stack.updatesEnabled()
+    assert window.central_stack.currentWidget() is window.multi_compare_view
     assert window.multi_compare_view._document_count == 2
+
+    controller._release_deferred_difference(pair)
+    assert window.central_stack.updatesEnabled()
+    assert window.multi_compare_view._document_count == 2
+    window.close()
+
+
+def test_successful_difference_releases_repaint_hold_with_three_tile_result(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, controller = _window(qtbot)
+    first = _document("a.png", 10, tmp_path)
+    second = _document("b.png", 20, tmp_path)
+    _add(window, [first, second])
+
+    controller._apply_registered_drop([first.document_id])
+    controller._apply_registered_drop([second.document_id])
+    pair = (first.document_id, second.document_id)
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._difference_source_ids == pair
+        and window.central_stack.updatesEnabled()
+        and window.multi_compare_view._document_count == 3,
+        timeout=5000,
+    )
+
+    assert window.diff_action.isChecked()
+    assert controller._deferred_difference_pair is None
     window.close()
 
 
@@ -108,6 +137,7 @@ def test_incompatible_difference_releases_deferred_source_presentation(
     assert window._difference_source_ids is None
     assert window.multi_compare_view._document_count == 2
     assert controller._deferred_difference_pair is None
+    assert window.central_stack.updatesEnabled()
     window.close()
 
 
