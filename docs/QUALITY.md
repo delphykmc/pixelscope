@@ -21,6 +21,13 @@ Use narrower tests during development. Before completion, run the full
 applicable suite. If a command cannot run, record the exact command, failure,
 reason, and unverified risk.
 
+Qt UI tests must not leak deferred QObject destruction into later tests.
+`tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
+cleanup because `processEvents()` alone does not guarantee that deferred
+deletion is consumed inside local event loops. Keep asynchronous assertions
+state/event-driven; do not compensate for cross-test teardown backlog by
+inflating `waitUntil()` timeouts or adding fixed sleeps.
+
 For P2-F performance characterization, run the observational performance slice
 with output enabled before the full repository contract:
 
