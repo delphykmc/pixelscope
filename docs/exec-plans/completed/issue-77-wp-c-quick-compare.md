@@ -1,6 +1,6 @@
 # Execution plan: Issue #77 WP-C Quick Compare workflow
 
-Status: Implementation updated / exact-HEAD validation and independent re-review pending
+Status: Implementation complete / independent review pending
 Owner: ChatGPT WP-C implementer
 Branch/PR: `codex/issue-77-wp-c` / PR #80
 Base: `main@36f672b6f63943c292ff2ef788f3a1b4ff899031`
@@ -55,11 +55,13 @@ Issue #77 remains the product source-of-truth for acceptance criteria.
 
 `QuickCompareController` is installed last in `_compose_main_window_presentation()` so it observes the finalized registration, RAW/YUV, Difference, display-gain, workspace, and large-folder composition.
 
-The controller uses the existing Image View/application-level drop integration established by WP-C. Pure file drops use the existing discovery/registration path, de-duplicate document IDs, and append new IDs through `_select_document_ids(..., preserve_view=True)`. Directory-containing drops are delegated to the pre-existing `_handle_dropped_paths()` path instead of creating a second folder workflow. Files-panel events remain outside the Quick Compare surface and retain their existing owner.
+A QApplication event filter accepts local drops only when the target is within the central presentation stack. Pure file drops use the existing discovery/registration path, de-duplicate document IDs, and append new IDs through `_select_document_ids(..., preserve_view=True)`. Directory-containing drops are delegated to the pre-existing `_handle_dropped_paths()` path instead of creating a second folder workflow. DragEnter and DragMove are both accepted on these existing Image View surfaces so the native Windows cursor remains in an allowed-drop state throughout the gesture.
 
-The controller never turns ordinary selection into a Difference command. It derives an explicit Difference pair only from the current drop gesture. Async source readiness is polled with a bounded timer before delegating the exact pair to the existing `DifferencePanel`; incompatible pairs keep their sources selected and expose the existing Difference status instead of hidden conversion.
+The controller never turns ordinary selection into a Difference command. It derives an explicit Difference pair only from the current drop gesture. Sequential single-file drops also keep one transient previous-drop anchor so already-registered/already-selected sources can still express explicit A-then-B Quick Compare intent without duplicating source state. Async source readiness is polled with a bounded timer before delegating the exact pair to the existing `DifferencePanel`; incompatible pairs keep their sources selected and expose the existing Difference status instead of hidden conversion.
 
 A pending/in-flight Quick Compare pair is protected from retargeting until completion or invalidation.
+
+For an explicit two-source Quick Compare pair that changes selection, PixelScope now preserves the normal `_render_selection()` call so layout mode, capacity, action state, analysis ownership, and other internal presentation state advance exactly as they would without Quick Compare. To avoid exposing the transient two-source composition before Difference is ready, only repainting of `central_stack` is temporarily disabled. Difference calculation and preview publication proceed normally while the internal two-source presentation is already composed. When `result_ready` has allowed `MainWindow` to compose A/B/Difference, updates are re-enabled on the next event-loop turn so the user sees the final three-tile presentation at once. Incompatibility, timeout, selection invalidation, calculation failure, preview failure, or window close releases the repaint hold and exposes the already-valid source presentation. No render/state transition is skipped.
 
 ### Three-view geometry
 
@@ -115,6 +117,14 @@ ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Se
 - completion updates the held alternate only after the worker result is available;
 - the completed presentation is cached and reused by a repeated B press at the same document/source/preview/generation/gain identity.
 
+`tests/ui/test_issue77_wp_c_owner_followups.py` covers owner-observed workflow boundaries:
+
+- Image View DragMove keeps the proposed copy/drop action accepted;
+- an explicit two-source pair freezes only repaint while the internal two-source Multi View state still advances;
+- successful Difference publication releases the repaint hold with A/B/Difference already composed as three tiles;
+- incompatible Difference releases the repaint hold and leaves a valid two-source presentation;
+- already-registered/already-selected sources still form an explicit sequential Quick Compare pair from A-then-B drop gestures.
+
 Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folder bootstrap composition.
 
 ## Validation plan for independent review
@@ -122,10 +132,10 @@ Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folde
 The independent reviewer should run at minimum:
 
 ```text
-pytest tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_blink_runtime.py -q
+pytest tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_blink_runtime.py tests/ui/test_issue77_wp_c_owner_followups.py -q
 pytest tests/ui/test_issue77_wp_a_roi_usability.py tests/ui/test_issue77_wp_b_folder_bootstrap.py -q
-ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_blink_runtime.py
-ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_blink_runtime.py
+ruff check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_blink_runtime.py tests/ui/test_issue77_wp_c_owner_followups.py
+ruff format --check src/pixelscope/ui/quick_compare.py src/pixelscope/app/application.py tests/ui/test_issue77_wp_c_quick_compare.py tests/ui/test_issue77_wp_c_review_regressions.py tests/ui/test_issue77_wp_c_blink_runtime.py tests/ui/test_issue77_wp_c_owner_followups.py
 mypy src
 python scripts/check_docs.py
 pip check
@@ -135,7 +145,7 @@ pytest -q
 
 Repository-wide Ruff baseline debt documented during WP-B is not part of WP-C unless a changed WP-C file introduces a new finding.
 
-Manual review should additionally verify actual Windows drag/drop from Explorer while PixelScope and Explorer run at compatible, non-elevated integrity levels, 3 View Equal/Focus controls at production widths, hold/release B in both Single View and Multi View with stable zoom/pan, Display Gain parity during Blink, and no Blink activation while editing ROI or other text/numeric controls.
+Manual review should additionally verify actual Windows drag/drop from Explorer while PixelScope and Explorer run at compatible, non-elevated integrity levels, sequential A then B showing A until A/B/Difference is ready, two-file batch drop avoiding a visible intermediate 2-view, already-registered A then B still triggering explicit Quick Compare Difference, 3 View Equal/Focus controls at production widths, hold/release B in both Single View and Multi View with stable zoom/pan, Display Gain parity during Blink, and no Blink activation while editing ROI or other text/numeric controls.
 
 ## Progress log
 
@@ -149,10 +159,11 @@ Manual review should additionally verify actual Windows drag/drop from Explorer 
 - 2026-09-12: Follow-up review identified Single View visible-reference ownership and hidden-alternate Display Gain parity as blockers; implementation and regressions were updated.
 - 2026-09-12: Further independent review found that the Single View gain fallback performed full-frame rendering synchronously on the GUI thread. Blink rendering was moved to the existing bounded Display Gain worker pool with request identity, cancellation, and one-entry reuse cache.
 - 2026-09-12: A subsequent manual observation reported native Explorer D&D as prohibited and triggered several speculative D&D lifecycle/ownership changes. Re-testing older previously-known-good revisions showed the same symptom; the development process was running elevated while Explorer was not. The symptom was therefore traced to the Windows integrity/UIPI boundary rather than a WP-C code regression. The speculative D&D-specific changes and tests were reverted; this correction is retained in the record to avoid repeating the diagnosis.
+- 2026-09-12: Owner follow-up under a normal non-elevated run found a DragMove cursor-feedback gap, an undesirable visible 2-view transition before automatic Difference, and no-op behavior for already-registered Quick Compare drops. DragMove acceptance and transient sequential-drop intent were added. The first attempt to hide the intermediate 2-view skipped `_render_selection()` entirely and therefore also suppressed required internal layout/action state, reproducing as A remaining visible until a third drop exposed A/B/C/Diff. The implementation was corrected to keep the full render/state transition and defer only `central_stack` repaint until Difference publication or failure.
 
 ## Completion summary
 
-PR #80 remains intentionally Draft and unmerged. The retained implementation consists of the WP-C feature controller/composition plus the independent-review fixes for Blink correctness and bounded asynchronous rendering. The D&D architecture is not broadened in response to the elevated-process observation.
+PR #80 remains intentionally Draft and unmerged. The retained implementation consists of the WP-C feature controller/composition plus independent-review Blink fixes and the owner-observed Quick Compare polish. The D&D architecture is not broadened in response to the elevated-process observation.
 
 No numerical analysis semantics, generic layout registry, session schema, Files authority, packaging, or dependency change is included.
 
