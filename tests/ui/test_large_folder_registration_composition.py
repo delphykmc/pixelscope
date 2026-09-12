@@ -82,7 +82,10 @@ def test_production_composition_preserves_recent_tags_and_folder_only_selection(
     assert _history_count(folder_history, open_folder) == 1
     assert _history_count(folder_history, drop_folder) == 1
     assert _history_count(image_history, direct) == 1
-    assert [document.source_path for document in window.selected_documents] == [direct.resolve()]
+    selected_after_drop = window.selected_documents
+    assert len(selected_after_drop) == 2
+    assert selected_after_drop[0].document_id == seed.document_id
+    assert selected_after_drop[1].source_path == direct.resolve()
 
     tagged_documents = [
         document
