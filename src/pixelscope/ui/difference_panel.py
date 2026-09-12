@@ -1031,8 +1031,9 @@ class DifferencePanel(QWidget):
         self._worker = worker
         self._worker_key = request_key
         if publish_result:
-            self._presentation_map_pairs[worker.task_id] = tuple(
-                document.document_id for document in pair
+            self._presentation_map_pairs[worker.task_id] = (
+                pair[0].document_id,
+                pair[1].document_id,
             )
         self._pool.start(worker)
 

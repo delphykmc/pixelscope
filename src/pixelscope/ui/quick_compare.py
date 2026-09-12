@@ -305,8 +305,8 @@ class QuickCompareController(QObject):
         if additions:
             self.window._select_document_ids(
                 merged,
-                preserve_view=True,
-                reveal_document_id=additions[-1],
+                preserve_view=bool(previous_ids),
+                reveal_document_id=additions[-1] if previous_ids else None,
             )
 
         added = len(additions)

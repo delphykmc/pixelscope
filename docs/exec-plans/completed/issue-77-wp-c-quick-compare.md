@@ -20,13 +20,15 @@ Issue #77 remains the product source-of-truth for acceptance criteria.
 
 ## In scope
 
-- Image View local-file drag/drop only; Files-panel drag/drop keeps its existing registration/list ownership.
-- Additive registration/selection through existing `_register_inputs()` and `_select_document_ids()` authorities.
-- Interactive additive page reveal is intentionally narrow: an exact one-source Files
-  addition, Quick Compare additive input, and same-position folder bootstrap may
-  reveal the Comparison Page containing the newly added source. Selected order and
-  page size remain unchanged, while bulk/replacement/reconstruction workflows keep
-  their established page semantics.
+- Image View local-file D&D owns Quick Compare; Files-panel D&D stays under the
+  existing MainWindow registration/list owner. Both direct-file targets share the
+  same initial-versus-additive Selected/page semantics.
+- Additive registration/selection through existing `_register_inputs()` and
+  `_select_document_ids()` authorities.
+- Interactive page reveal distinguishes initial population from extension: a first
+  direct-file D&D batch starts on Page 1, while a non-empty Selected set appends new
+  dropped sources and reveals the final addition. Exact one-source Files selection
+  and same-position folder bootstrap keep their additive reveal behavior.
 - Explicit Quick Compare Difference intent for:
   - sequential single-file A then B drop;
   - exactly two source files dropped together.
@@ -60,7 +62,7 @@ Issue #77 remains the product source-of-truth for acceptance criteria.
 
 `QuickCompareController` is installed last in `_compose_main_window_presentation()` so it observes the finalized registration, RAW/YUV, Difference, display-gain, workspace, and large-folder composition.
 
-A QApplication event filter accepts local drops only when the target is within the central presentation stack. Pure file drops use the existing discovery/registration path, de-duplicate document IDs, and append new IDs through `_select_document_ids(..., preserve_view=True)`. Directory-containing drops are delegated to the pre-existing `_handle_dropped_paths()` path instead of creating a second folder workflow. DragEnter and DragMove are both accepted on these existing Image View surfaces so the native Windows cursor remains in an allowed-drop state throughout the gesture.
+A QApplication event filter accepts local drops only when the target is within the central presentation stack. Pure file drops use the existing discovery/registration path and de-duplicate document IDs. With empty Selected, the batch establishes the initial comparison through `_select_document_ids(..., preserve_view=False)` so Page 1 is authoritative. With an existing Selected set, new IDs are appended through `_select_document_ids(..., preserve_view=True, reveal_document_id=...)` and the final addition is revealed. Directory-containing drops are delegated to the pre-existing `_handle_dropped_paths()` path instead of creating a second folder workflow. DragEnter and DragMove are both accepted on these existing Image View surfaces so the native Windows cursor remains in an allowed-drop state throughout the gesture.
 
 The controller never turns ordinary selection into a Difference command. It derives an explicit Difference pair only from the current drop gesture. Sequential single-file drops also keep one transient previous-drop anchor so already-registered/already-selected sources can still express explicit A-then-B Quick Compare intent without duplicating source state. Async source readiness is polled with a bounded timer before delegating the exact pair to the existing `DifferencePanel`; incompatible pairs keep their sources selected and expose the existing Difference status instead of hidden conversion.
 
@@ -73,11 +75,13 @@ For an explicit two-source Quick Compare pair that changes selection, PixelScope
 The Current Comparison Page remains derived from Selected and `_page_start`; there
 is no second page model. Files-tree selection detects only an exact one-source pure
 addition and, when that source would be off-page, advances through the existing
-`_sync_comparison_page_to_index()` authority before rendering. Programmatic additive
-workflows opt in explicitly with `reveal_document_id`; Quick Compare passes its final
-new source and the same-position bootstrap passes the added source. Calls without
-that opt-in, selection replacement/removal, and bulk Files selection retain their
-existing page behavior.
+`_sync_comparison_page_to_index()` authority before rendering. Direct Files D&D and
+Quick Compare inspect the pre-drop Selected set: empty Selected establishes an
+initial batch on Page 1, while non-empty Selected appends only new IDs and passes the
+final addition as `reveal_document_id`. The same-position bootstrap passes its added
+source directly. Open Images, Session/Comparison Set restore, Keep Selection,
+selection replacement/removal, and bulk Files selection retain their existing page
+behavior.
 
 ### Three-view geometry
 
@@ -139,15 +143,12 @@ ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Se
 - an explicit two-source pair freezes only repaint while the internal two-source Multi View state still advances;
 - successful Difference publication releases the repaint hold with A/B/Difference already composed as three tiles and Difference action active;
 - incompatible Difference releases the repaint hold and leaves a valid two-source presentation;
-- already-registered/already-selected sources still form an explicit sequential Quick Compare pair from A-then-B drop gestures.
-
-`tests/ui/test_issue77_additive_page_reveal.py` covers the paging follow-up:
-
-- an exact one-source Files addition crossing the six-source boundary reveals the
-  page containing the new source;
-- Quick Compare additive input uses the same reveal contract;
-- bulk programmatic selection still starts on the first Comparison Page;
-- multi-item Files selection is not converted into last-item page following.
+- already-registered/already-selected sources still form an explicit sequential Quick Compare pair from A-then-B drop gestures;
+- exact one-source Files and Quick Compare additions reveal a later Comparison Page;
+- bulk selection/reconstruction does not become last-item page following;
+- initial 10-file Files/Image View D&D starts on Page 1;
+- Files D&D extending an existing comparison appends sources and reveals the final
+  addition rather than replacing the previous Selected set.
 
 Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folder bootstrap composition.
 
@@ -187,6 +188,10 @@ Manual review should additionally verify actual Windows drag/drop from Explorer 
 - 2026-09-12: Owner paging follow-up narrowed page-follow behavior to interactive
   additive selection only: Files single-add, Quick Compare, and same-position bootstrap.
   Bulk/replacement/restore/curation page semantics remain unchanged.
+- 2026-09-12: Owner UX follow-up unified direct-file D&D around comparison context:
+  empty Selected means initial population from Page 1; non-empty Selected means
+  additive extension and reveal of the final new source. Regression coverage was
+  consolidated into the tracked owner-followup test file.
 
 ## Completion summary
 

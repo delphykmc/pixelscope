@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 import pytest
 from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
@@ -246,4 +247,157 @@ def test_registered_selected_sources_still_form_sequential_quick_compare_pair(
     )
 
     assert _ids(window) == [document.document_id for document in documents]
+    window.close()
+
+
+def test_files_single_add_reveals_new_comparison_page(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, _controller = _window(qtbot)
+    documents = [_document(f"image-{index}.png", index, tmp_path) for index in range(7)]
+    _add(window, documents)
+    window._select_document_ids([document.document_id for document in documents[:6]])
+
+    added = documents[6]
+    item = window.document_list.document_item(added.document_id)
+    assert item is not None
+    item.setSelected(True)
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window._page_start == 6
+        and [document.document_id for document in window.current_comparison_documents()]
+        == [added.document_id],
+        timeout=3000,
+    )
+    assert _ids(window) == [document.document_id for document in documents]
+    window.close()
+
+
+def test_quick_compare_add_reveals_new_comparison_page(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, controller = _window(qtbot)
+    documents = [_document(f"image-{index}.png", index, tmp_path) for index in range(7)]
+    _add(window, documents)
+    window._select_document_ids([document.document_id for document in documents[:6]])
+
+    controller._apply_registered_drop([documents[6].document_id])
+
+    assert window._page_start == 6
+    assert [document.document_id for document in window.current_comparison_documents()] == [
+        documents[6].document_id
+    ]
+    assert window._difference_source_ids is None
+    assert _ids(window) == [document.document_id for document in documents]
+    window.close()
+
+
+def test_bulk_selection_reconstruction_keeps_first_comparison_page(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, _controller = _window(qtbot)
+    documents = [_document(f"image-{index}.png", index, tmp_path) for index in range(7)]
+    _add(window, documents)
+
+    window._select_document_ids([document.document_id for document in documents])
+
+    assert window._page_start == 0
+    assert [document.document_id for document in window.current_comparison_documents()] == [
+        document.document_id for document in documents[:6]
+    ]
+    window.close()
+
+
+def test_multi_item_files_add_does_not_turn_bulk_selection_into_page_follow(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, _controller = _window(qtbot)
+    documents = [_document(f"image-{index}.png", index, tmp_path) for index in range(7)]
+    _add(window, documents)
+    window._select_document_ids([documents[0].document_id])
+
+    window.document_list.selectAll()
+
+    assert window._page_start == 0
+    assert [document.document_id for document in window.current_comparison_documents()] == [
+        document.document_id for document in documents[:6]
+    ]
+    window.close()
+
+
+def test_initial_quick_compare_batch_starts_on_first_page(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, controller = _window(qtbot)
+    documents = [_document(f"image-{index}.png", index, tmp_path) for index in range(10)]
+    _add(window, documents)
+    window._current_index = 9
+    window._page_start = 6
+
+    controller._apply_registered_drop([document.document_id for document in documents])
+
+    assert window._current_index == 0
+    assert window._page_start == 0
+    assert [document.document_id for document in window.current_comparison_documents()] == [
+        document.document_id for document in documents[:6]
+    ]
+    assert _ids(window) == [document.document_id for document in documents]
+    window.close()
+
+
+def test_initial_files_drop_starts_on_first_page(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, _controller = _window(qtbot)
+    registration = window.large_folder_registration_controller
+    paths = [tmp_path / f"image-{index}.png" for index in range(10)]
+    for index, path in enumerate(paths):
+        assert cv2.imwrite(str(path), np.full((6, 8), index, dtype=np.uint8))
+    window._current_index = 9
+    window._page_start = 6
+
+    window._handle_dropped_paths(paths)
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+
+    selected = window.selected_documents
+    assert window._current_index == 0
+    assert window._page_start == 0
+    assert [document.source_path for document in selected] == [
+        path.resolve() for path in paths
+    ]
+    assert window.current_comparison_documents() == selected[:6]
+    window.close()
+
+
+def test_files_drop_extends_existing_selection_and_reveals_last_addition(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    window, _controller = _window(qtbot)
+    registration = window.large_folder_registration_controller
+    paths = [tmp_path / f"image-{index}.png" for index in range(10)]
+    for index, path in enumerate(paths):
+        assert cv2.imwrite(str(path), np.full((6, 8), index, dtype=np.uint8))
+
+    window._handle_dropped_paths(paths[:3])
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+    assert [document.source_path for document in window.selected_documents] == [
+        path.resolve() for path in paths[:3]
+    ]
+
+    window._handle_dropped_paths(paths[3:])
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+
+    selected = window.selected_documents
+    assert [document.source_path for document in selected] == [
+        path.resolve() for path in paths
+    ]
+    assert window._page_start == 6
+    assert window.current_comparison_documents() == selected[6:]
     window.close()

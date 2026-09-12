@@ -3669,6 +3669,8 @@ class MainWindow(QMainWindow):
     def _handle_dropped_paths(self, paths: object) -> None:
         if not isinstance(paths, list) or not all(isinstance(path, Path) for path in paths):
             return
+        previous_ids = [document.document_id for document in self.selected_documents]
+        previous_set = set(previous_ids)
         folders = [path for path in paths if path.is_dir()]
         files = [path for path in paths if path.is_file()]
         folder_result = self.register_folders(folders) if folders else None
@@ -3676,12 +3678,29 @@ class MainWindow(QMainWindow):
             discover_image_inputs(files),
             resolve_raw_profiles=True,
         )
+        additions: list[str] = []
         if document_ids:
-            self._select_document_ids(document_ids)
+            if previous_ids:
+                additions = [
+                    document_id for document_id in document_ids if document_id not in previous_set
+                ]
+                if additions:
+                    self._select_document_ids(
+                        [*previous_ids, *additions],
+                        preserve_view=True,
+                        reveal_document_id=additions[-1],
+                    )
+            else:
+                self._select_document_ids(document_ids)
 
         messages: list[str] = []
         if document_ids:
-            messages.append(f"Opened {len(document_ids)} image(s)")
+            if previous_ids:
+                messages.append(
+                    f"Added {len(additions)} image(s)" if additions else "No new images added"
+                )
+            else:
+                messages.append(f"Opened {len(document_ids)} image(s)")
         if folder_result is not None:
             messages.append(self._folder_registration_message(folder_result))
         if messages:

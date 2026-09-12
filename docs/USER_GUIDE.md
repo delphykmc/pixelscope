@@ -25,13 +25,18 @@ new image remains appended to Selected order. If that image falls on a later
 six-image Comparison Page, PixelScope automatically shows the page containing the
 newly added image instead of leaving it selected but off-screen.
 
-The same page-reveal behavior is used by additive **Quick Compare** input and the
-same-position folder bootstrap when needed. It changes only the current working
-page; it does not reorder Selected or create a new selection model.
+Direct-file D&D follows the same comparison context. If nothing is Selected yet,
+dropping a batch into **Files** or **Image View** establishes the initial Selected
+set and starts on Page 1. If images are already Selected, newly dropped direct files
+are appended without discarding the existing comparison, and PixelScope shows the
+page containing the last newly added image. Image View additionally keeps its Quick
+Compare/Difference behavior.
 
-Bulk/replacement selection keeps its existing behavior. **Open Images...**, Session
-or Comparison Set restore, **Keep Selection**, and multi-item Files selection keep
-their own established initial/saved-page semantics rather than following the last item.
+The same-position folder bootstrap may also reveal its newly added source. These
+page changes do not reorder Selected or create another selection model. **Open
+Images...**, Session/Comparison Set restore, **Keep Selection**, and other explicit
+replacement/reconstruction workflows keep their established initial/saved-page
+semantics.
 
 ### Open Images...
 
@@ -80,10 +85,15 @@ or folders here** with Open Images/Open Folder buttons.
 
 Drag/drop follows the same intent rules:
 
-- direct image files → register and make them the Selected set;
+- direct image files with no current Selected set → register/select the batch and
+  start on its first Comparison Page;
+- direct image files with an existing Selected set → append only new files and
+  reveal the page containing the last new file;
+- Image View file D&D follows that same initial/additive page rule and additionally
+  provides Quick Compare semantics, including explicit two-source Difference intent;
 - folders → register their supported contents only;
-- mixed image files + folders → direct files become Selected while folder contents
-  are registered only.
+- mixed image files + folders → folder contents remain registration-only while the
+  direct-file part follows the same initial/additive rule.
 
 Dropping one, two, six, or more folders behaves the same way. There is no special
 two-folder auto-comparison behavior. Unsupported files and standalone `.json`
