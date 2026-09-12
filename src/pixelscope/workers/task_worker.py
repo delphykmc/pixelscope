@@ -7,7 +7,7 @@ from threading import Event
 from typing import Any
 from uuid import uuid4
 
-from PySide6.QtCore import QObject, QRunnable, Signal, Slot
+from PySide6.QtCore import QCoreApplication, QObject, QRunnable, Signal, Slot
 
 from pixelscope.core.cancellation import CooperativeCancellation, cancellation_scope
 
@@ -29,6 +29,16 @@ class TaskSignals(QObject):
     failed = Signal(str, object, int, object)
     cancelled = Signal(str, object, int)
     finished = Signal(str)
+
+    def __init__(self) -> None:
+        app = QCoreApplication.instance()
+        if not isinstance(app, QCoreApplication):
+            raise RuntimeError("TaskWorker signals require QCoreApplication")
+        # QRunnable auto-deletion happens on its pool thread.  Without a Qt
+        # parent, the worker's last Python reference can therefore destroy this
+        # GUI-thread-affine QObject on the pool thread.  The application owns the
+        # cross-thread signal bridge until run() schedules affinity-safe deletion.
+        super().__init__(app)
 
 
 class TaskWorker(QRunnable):
@@ -62,34 +72,45 @@ class TaskWorker(QRunnable):
 
     @Slot()
     def run(self) -> None:
-        self.signals.started.emit(self.task_id, self.document_id, self.generation)
-        if self.is_cancelled:
-            self.signals.cancelled.emit(self.task_id, self.document_id, self.generation)
-            self.signals.finished.emit(self.task_id)
-            return
         try:
-            with cancellation_scope(self._cancel_event):
-                result = self._function(*self._args, **self._kwargs)
+            self.signals.started.emit(self.task_id, self.document_id, self.generation)
             if self.is_cancelled:
                 self.signals.cancelled.emit(self.task_id, self.document_id, self.generation)
-            else:
-                self.signals.succeeded.emit(
+                return
+            try:
+                with cancellation_scope(self._cancel_event):
+                    result = self._function(*self._args, **self._kwargs)
+                if self.is_cancelled:
+                    self.signals.cancelled.emit(
+                        self.task_id,
+                        self.document_id,
+                        self.generation,
+                    )
+                else:
+                    self.signals.succeeded.emit(
+                        self.task_id,
+                        self.document_id,
+                        self.generation,
+                        result,
+                    )
+            except CooperativeCancellation:
+                self.signals.cancelled.emit(
                     self.task_id,
                     self.document_id,
                     self.generation,
-                    result,
                 )
-        except CooperativeCancellation:
-            self.signals.cancelled.emit(self.task_id, self.document_id, self.generation)
-        except Exception as exc:  # noqa: BLE001 - worker boundary must report every failure
-            error = TaskError(
-                task_id=self.task_id,
-                document_id=self.document_id,
-                generation=self.generation,
-                message=str(exc),
-                exception_type=type(exc).__name__,
-                traceback_text=traceback.format_exc(),
-            )
-            self.signals.failed.emit(self.task_id, self.document_id, self.generation, error)
+            except Exception as exc:  # noqa: BLE001 - worker boundary reports every failure
+                error = TaskError(
+                    task_id=self.task_id,
+                    document_id=self.document_id,
+                    generation=self.generation,
+                    message=str(exc),
+                    exception_type=type(exc).__name__,
+                    traceback_text=traceback.format_exc(),
+                )
+                self.signals.failed.emit(self.task_id, self.document_id, self.generation, error)
         finally:
             self.signals.finished.emit(self.task_id)
+            # This is safe to call from the pool thread: Qt posts DeferredDelete
+            # to the signal object's QApplication affinity thread.
+            self.signals.deleteLater()
