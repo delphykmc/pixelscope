@@ -303,7 +303,11 @@ class QuickCompareController(QObject):
         if pair is not None and additions:
             self._defer_difference_presentation(pair)
         if additions:
-            self.window._select_document_ids(merged, preserve_view=True)
+            self.window._select_document_ids(
+                merged,
+                preserve_view=True,
+                reveal_document_id=additions[-1],
+            )
 
         added = len(additions)
         if pair is not None:

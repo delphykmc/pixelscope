@@ -1893,12 +1893,23 @@ class MainWindow(QMainWindow):
         }
 
     def _selection_changed(self) -> None:
+        previous_selection_order = tuple(self._selection_order)
         selected_ids = [
             str(item.data(0, Qt.ItemDataRole.UserRole))
             for item in self.document_list.document_items()
             if item.isSelected()
         ]
         selected_set = set(selected_ids)
+        added_ids = [
+            document_id
+            for document_id in selected_ids
+            if document_id not in previous_selection_order
+        ]
+        pure_single_addition = (
+            len(added_ids) == 1
+            and len(selected_ids) == len(previous_selection_order) + 1
+            and all(document_id in selected_set for document_id in previous_selection_order)
+        )
         if (
             self._difference_source_ids is not None
             and not set(self._difference_source_ids).issubset(selected_set)
@@ -1920,6 +1931,10 @@ class MainWindow(QMainWindow):
             self._remember_folder_index(document_id)
         self._current_index = 0
         self._page_start = 0
+        if pure_single_addition:
+            added_index = self._selection_order.index(added_ids[0])
+            self._current_index = added_index
+            self._sync_comparison_page_to_index(added_index)
         page_ids = [document.document_id for document in self.current_comparison_documents()]
         self._promote_running_preloads(page_ids)
         self._invalidate_preload_plan()
@@ -3045,6 +3060,7 @@ class MainWindow(QMainWindow):
         self._select_document_ids(
             [*selected_ids, plan.document_id],
             preserve_view=True,
+            reveal_document_id=plan.document_id,
         )
         folder = self._folder_paths.get(plan.target_folder_key)
         folder_name = folder.name if folder is not None else "folder"
@@ -3154,6 +3170,7 @@ class MainWindow(QMainWindow):
         document_ids: list[str],
         preserve_view: bool = False,
         preserve_overlays: bool = False,
+        reveal_document_id: str | None = None,
     ) -> None:
         selected = set(document_ids)
         self.document_list.blockSignals(True)
@@ -3183,8 +3200,20 @@ class MainWindow(QMainWindow):
             if self._layout_mode != "Single View":
                 self._focus_document_id = None
         elif self._selection_order:
-            self._current_index = min(self._current_index, len(self._selection_order) - 1)
-            self._sync_comparison_page_to_index(self._current_index)
+            current_index = min(self._current_index, len(self._selection_order) - 1)
+            if reveal_document_id in self._selection_order:
+                reveal_index = self._selection_order.index(reveal_document_id)
+                current_page_start = (
+                    current_index // COMPARISON_PAGE_SIZE
+                ) * COMPARISON_PAGE_SIZE
+                if not (
+                    current_page_start
+                    <= reveal_index
+                    < current_page_start + COMPARISON_PAGE_SIZE
+                ):
+                    current_index = reveal_index
+            self._current_index = current_index
+            self._sync_comparison_page_to_index(current_index)
         else:
             self._current_index = 0
             self._page_start = 0

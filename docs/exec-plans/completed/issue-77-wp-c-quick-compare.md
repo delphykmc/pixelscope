@@ -22,6 +22,11 @@ Issue #77 remains the product source-of-truth for acceptance criteria.
 
 - Image View local-file drag/drop only; Files-panel drag/drop keeps its existing registration/list ownership.
 - Additive registration/selection through existing `_register_inputs()` and `_select_document_ids()` authorities.
+- Interactive additive page reveal is intentionally narrow: an exact one-source Files
+  addition, Quick Compare additive input, and same-position folder bootstrap may
+  reveal the Comparison Page containing the newly added source. Selected order and
+  page size remain unchanged, while bulk/replacement/reconstruction workflows keep
+  their established page semantics.
 - Explicit Quick Compare Difference intent for:
   - sequential single-file A then B drop;
   - exactly two source files dropped together.
@@ -62,6 +67,17 @@ The controller never turns ordinary selection into a Difference command. It deri
 A pending/in-flight Quick Compare pair is protected from retargeting until completion or invalidation.
 
 For an explicit two-source Quick Compare pair that changes selection, PixelScope preserves the normal `_render_selection()` call so layout mode, capacity, action state, analysis ownership, and other internal presentation state advance exactly as they would without Quick Compare. To avoid exposing the transient two-source composition before Difference is ready, only repainting of `central_stack` is temporarily disabled. Difference calculation and preview publication proceed normally while the internal two-source presentation is already composed. When `result_ready` has allowed `MainWindow` to compose A/B/Difference, updates are re-enabled on the next event-loop turn so the user sees the final three-tile presentation at once. Incompatibility, timeout, selection invalidation, calculation failure, preview failure, or window close releases the repaint hold and exposes the already-valid source presentation. No render/state transition is skipped.
+
+### Interactive additive page reveal
+
+The Current Comparison Page remains derived from Selected and `_page_start`; there
+is no second page model. Files-tree selection detects only an exact one-source pure
+addition and, when that source would be off-page, advances through the existing
+`_sync_comparison_page_to_index()` authority before rendering. Programmatic additive
+workflows opt in explicitly with `reveal_document_id`; Quick Compare passes its final
+new source and the same-position bootstrap passes the added source. Calls without
+that opt-in, selection replacement/removal, and bulk Files selection retain their
+existing page behavior.
 
 ### Three-view geometry
 
@@ -125,6 +141,14 @@ ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Se
 - incompatible Difference releases the repaint hold and leaves a valid two-source presentation;
 - already-registered/already-selected sources still form an explicit sequential Quick Compare pair from A-then-B drop gestures.
 
+`tests/ui/test_issue77_additive_page_reveal.py` covers the paging follow-up:
+
+- an exact one-source Files addition crossing the six-source boundary reveals the
+  page containing the new source;
+- Quick Compare additive input uses the same reveal contract;
+- bulk programmatic selection still starts on the first Comparison Page;
+- multi-item Files selection is not converted into last-item page following.
+
 Existing WP-A/WP-B tests remain the regression baseline for shared ROI and folder bootstrap composition.
 
 ## Validation plan for independent review
@@ -160,6 +184,9 @@ Manual review should additionally verify actual Windows drag/drop from Explorer 
 - 2026-09-12: Further independent review found that the Single View gain fallback performed full-frame rendering synchronously on the GUI thread. Blink rendering was moved to the existing bounded Display Gain worker pool with request identity, cancellation, and one-entry reuse cache.
 - 2026-09-12: A subsequent manual observation reported native Explorer D&D as prohibited and triggered several speculative D&D lifecycle/ownership changes. Re-testing older previously-known-good revisions showed the same symptom; the development process was running elevated while Explorer was not. The symptom was therefore traced to the Windows integrity/UIPI boundary rather than a WP-C code regression. The speculative D&D-specific changes and tests were reverted; this correction is retained in the record to avoid repeating the diagnosis.
 - 2026-09-12: Owner follow-up under a normal non-elevated run found a DragMove cursor-feedback gap, an undesirable visible 2-view transition before automatic Difference, and no-op behavior for already-registered Quick Compare drops. DragMove acceptance and transient sequential-drop intent were added. The first attempt to hide the intermediate 2-view skipped `_render_selection()` entirely and therefore also suppressed required internal layout/action state, reproducing as A remaining visible until a third drop exposed A/B/C/Diff. The implementation was corrected to keep the full render/state transition and defer only `central_stack` repaint until Difference publication or failure.
+- 2026-09-12: Owner paging follow-up narrowed page-follow behavior to interactive
+  additive selection only: Files single-add, Quick Compare, and same-position bootstrap.
+  Bulk/replacement/restore/curation page semantics remain unchanged.
 
 ## Completion summary
 

@@ -18,6 +18,21 @@ and select more than six; PixelScope works on them in six-image Comparison Pages
 `Analysis Working Set = Current Comparison Page`.
 Viewer slot numbers are always local `1..6` inside that page.
 
+### Adding another image while comparing
+
+When you add exactly one more image to the existing Selected set from **Files**, the
+new image remains appended to Selected order. If that image falls on a later
+six-image Comparison Page, PixelScope automatically shows the page containing the
+newly added image instead of leaving it selected but off-screen.
+
+The same page-reveal behavior is used by additive **Quick Compare** input and the
+same-position folder bootstrap when needed. It changes only the current working
+page; it does not reorder Selected or create a new selection model.
+
+Bulk/replacement selection keeps its existing behavior. **Open Images...**, Session
+or Comparison Set restore, **Keep Selection**, and multi-item Files selection keep
+their own established initial/saved-page semantics rather than following the last item.
+
 ### Open Images...
 
 Use **File > Open Images...** (`Ctrl+O`) when you are choosing image files to look

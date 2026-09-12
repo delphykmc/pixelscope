@@ -184,6 +184,15 @@ For `Selected > 6`:
 
 - `_page_start` is aligned in six-image increments and page membership is derived
   from Selected ordering;
+- an exact one-source additive Files selection reveals the Comparison Page containing
+  that newly added source when it would otherwise remain off-page;
+- explicit additive workflows may request the same reveal through
+  `_select_document_ids(..., reveal_document_id=...)`. Quick Compare and the
+  same-position folder bootstrap use that opt-in path. The reveal changes only
+  `_current_index` / `_page_start`; it does not reorder Selected or change the
+  six-source page size;
+- bulk/replacement selection, Open Images, Session/Comparison Set reconstruction,
+  Keep Selection, and same-count folder navigation retain their existing page rules;
 - Previous/Next Comparison Page are separate coarse actions using
   `Ctrl+Left` / `Ctrl+Right` with non-wrapping endpoints; their application-wide
   `QShortcut` is enabled only while movement in that direction is available, so unavailable
