@@ -127,7 +127,7 @@ class LineProfilePanel(QWidget):
         self.plots: list[pg.PlotWidget] = []
         self.legends: list[pg.LegendItem] = []
         for plot_index in range(6):
-            plot = pg.PlotWidget()
+            plot = pg.PlotWidget(parent=self.plot_grid)
             plot.setLabel("left", "Pixel value")
             plot.setLabel("bottom", "Distance", units="px")
             plot.showGrid(x=True, y=True, alpha=0.25)

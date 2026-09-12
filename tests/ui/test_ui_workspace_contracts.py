@@ -146,6 +146,26 @@ def test_layout_tool_and_file_state_models(qtbot: object, tmp_path: Path) -> Non
     window.close()
 
 
+def test_preallocated_view_widgets_have_explicit_qt_owners(qtbot: object) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    assert all(
+        viewer.parentWidget() is window.multi_compare_view
+        for viewer in window.multi_compare_view.viewers
+    )
+    assert all(
+        plot.parentWidget() is window.comparison_analysis_panel.histogram_grid
+        for plot in window.comparison_analysis_panel.plots
+    )
+    assert all(
+        plot.parentWidget() is window.line_profile_panel.plot_grid
+        for plot in window.line_profile_panel.plots
+    )
+
+    window.close()
+
+
 def test_pending_document_keeps_previous_pixels_until_replacement_is_ready(
     qtbot: object, tmp_path: Path
 ) -> None:

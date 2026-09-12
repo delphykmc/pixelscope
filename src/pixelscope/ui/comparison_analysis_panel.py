@@ -345,7 +345,10 @@ class ComparisonAnalysisPanel(QWidget):
         self._histogram_hover_lines: list[pg.InfiniteLine | None] = [None] * 6
         self._histogram_hover_texts: list[pg.TextItem | None] = [None] * 6
         for plot_index in range(6):
-            plot = pg.PlotWidget(axisItems={"left": KiloAxisItem(orientation="left")})
+            plot = pg.PlotWidget(
+                parent=self.histogram_grid,
+                axisItems={"left": KiloAxisItem(orientation="left")},
+            )
             plot.setLabel("left", "Count")
             plot.setLabel("bottom", "Pixel value")
             plot.showGrid(x=True, y=True, alpha=0.25)

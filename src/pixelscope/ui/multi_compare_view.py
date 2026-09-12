@@ -46,7 +46,7 @@ class MultiCompareView(QWidget):
         self.sync_enabled = True
         self.layout_kind = "Auto"
         self.focus_document_id: str | None = None
-        self.viewers = [ImageViewer() for _ in range(6)]
+        self.viewers = [ImageViewer(self) for _ in range(6)]
         self._presentation_viewers = list(self.viewers)
         self._presentation_document_ids: tuple[str, ...] = ()
         self._presentation_has_difference = False
