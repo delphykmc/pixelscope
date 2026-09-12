@@ -63,7 +63,6 @@ class QuickCompareController(QObject):
         self._blink_cache_preview: NDArray[np.uint8] | None = None
         self._protected_difference_pair: tuple[str, str] | None = None
         self._sequential_drop_anchor_id: str | None = None
-        self._suppress_next_quick_render = False
         self._deferred_difference_pair: tuple[str, str] | None = None
 
         self._original_prepare = self.view._prepare_viewers_for_documents
@@ -159,18 +158,17 @@ class QuickCompareController(QObject):
 
     def _install_render_hook(self) -> None:
         def render_selection(preserve_view: bool = False) -> None:
-            if self._suppress_next_quick_render:
-                self._suppress_next_quick_render = False
-                return
             deferred = self._deferred_difference_pair
-            if deferred is not None and self.window._difference_source_ids != deferred:
-                self._deferred_difference_pair = None
+            if deferred is not None:
+                selected_ids = {
+                    document.document_id for document in self.window.selected_documents
+                }
+                if not set(deferred).issubset(selected_ids):
+                    self._release_deferred_difference(deferred)
             self._end_blink()
             self._clear_blink_cache()
             self._original_render_selection(preserve_view)
             self._update_three_view_controls()
-            if deferred is not None and self.window._difference_source_ids == deferred:
-                self._deferred_difference_pair = None
 
         self.window._render_selection = render_selection
 
@@ -221,6 +219,9 @@ class QuickCompareController(QObject):
         elif watched is self.window and event_type == QEvent.Type.Close:
             self._end_blink()
             self._cancel_blink_render(clear_cache=True)
+            deferred = self._deferred_difference_pair
+            if deferred is not None:
+                self._release_deferred_difference(deferred)
 
         if event_type == QEvent.Type.KeyPress:
             key_event = cast(QKeyEvent, event)
@@ -291,8 +292,7 @@ class QuickCompareController(QObject):
         merged = [*previous_ids, *additions]
         pair = self._quick_difference_pair(previous_ids, unique_dropped, merged)
         if pair is not None and additions:
-            self._deferred_difference_pair = pair
-            self._suppress_next_quick_render = True
+            self._defer_difference_presentation(pair)
         if additions:
             self.window._select_document_ids(merged, preserve_view=True)
 
@@ -363,6 +363,13 @@ class QuickCompareController(QObject):
             return previous_ids[0], dropped_id
         self._sequential_drop_anchor_id = dropped_id
         return None
+
+    def _defer_difference_presentation(self, pair: tuple[str, str]) -> None:
+        deferred = self._deferred_difference_pair
+        if deferred is not None and deferred != pair:
+            self._release_deferred_difference(deferred)
+        self._deferred_difference_pair = pair
+        self.window.central_stack.setUpdatesEnabled(False)
 
     def _schedule_difference(self, pair: tuple[str, str]) -> None:
         self._pending_difference_pair = pair
@@ -468,11 +475,8 @@ class QuickCompareController(QObject):
         if self._deferred_difference_pair != pair:
             return
         self._deferred_difference_pair = None
-        self._suppress_next_quick_render = False
-        self._end_blink()
-        self._clear_blink_cache()
-        self._original_render_selection(True)
-        self._update_three_view_controls()
+        self.window.central_stack.setUpdatesEnabled(True)
+        self.window.central_stack.update()
 
     def _quick_difference_completed(
         self,
@@ -486,6 +490,10 @@ class QuickCompareController(QObject):
         pair = self.window.difference_panel.selected_documents()
         if pair is not None and tuple(document.document_id for document in pair) == protected:
             self._protected_difference_pair = None
+            QTimer.singleShot(
+                0,
+                lambda expected_pair=protected: self._release_deferred_difference(expected_pair),
+            )
 
     def _effective_three_view_variant(self) -> str:
         if self._three_view_override in self._THREE_VIEW_VARIANTS:
