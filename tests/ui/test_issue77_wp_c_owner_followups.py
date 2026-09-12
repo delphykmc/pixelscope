@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
 from PySide6.QtGui import QDragLeaveEvent, QDragMoveEvent
 
+import pixelscope.ui.difference_panel as difference_panel_module
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.quick_compare import QuickCompareController
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
+
+
+class _InlinePool:
+    """Run submitted workers immediately to exercise pre-return terminal races."""
+
+    def start(self, worker: Any) -> None:
+        worker.run()
 
 
 def _window(qtbot: object) -> tuple[MainWindow, QuickCompareController]:
@@ -129,6 +138,68 @@ def test_successful_difference_releases_repaint_hold_with_three_tile_result(
 
     assert window.diff_action.isChecked()
     assert controller._deferred_difference_pair is None
+    window.close()
+
+
+def test_immediate_difference_map_failure_releases_deferred_repaint(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window, controller = _window(qtbot)
+    first = _document("a.png", 10, tmp_path)
+    second = _document("b.png", 20, tmp_path)
+    _add(window, [first, second])
+
+    def fail_map(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected map failure")
+
+    monkeypatch.setattr(window.difference_panel, "_pool", _InlinePool())
+    monkeypatch.setattr(difference_panel_module, "compact_absolute_difference", fail_map)
+    controller._apply_registered_drop([first.document_id])
+    controller._apply_registered_drop([second.document_id])
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.central_stack.updatesEnabled()
+        and controller._deferred_difference_pair is None
+        and window.difference_panel._worker is None,
+        timeout=5000,
+    )
+
+    assert _ids(window) == [first.document_id, second.document_id]
+    assert window._difference_source_ids is None
+    assert window.multi_compare_view._document_count == 2
+    window.close()
+
+
+def test_immediate_difference_preview_failure_releases_deferred_repaint(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window, controller = _window(qtbot)
+    first = _document("a.png", 10, tmp_path)
+    second = _document("b.png", 20, tmp_path)
+    _add(window, [first, second])
+
+    def fail_preview(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("injected preview failure")
+
+    monkeypatch.setattr(window.difference_panel, "_pool", _InlinePool())
+    monkeypatch.setattr(window.difference_panel, "_render_preview", fail_preview)
+    controller._apply_registered_drop([first.document_id])
+    controller._apply_registered_drop([second.document_id])
+
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.central_stack.updatesEnabled()
+        and controller._deferred_difference_pair is None
+        and window.difference_panel._preview_worker is None,
+        timeout=5000,
+    )
+
+    assert _ids(window) == [first.document_id, second.document_id]
+    assert window._difference_source_ids is None
+    assert window.multi_compare_view._document_count == 2
     window.close()
 
 

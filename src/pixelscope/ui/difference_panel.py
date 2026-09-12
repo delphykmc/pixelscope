@@ -141,6 +141,7 @@ class DifferencePanel(QWidget):
 
     result_ready = Signal(object, object, object)
     preview_updated = Signal(object, object, object)
+    presentation_settled = Signal(object)
 
     def __init__(
         self,
@@ -154,6 +155,8 @@ class DifferencePanel(QWidget):
         self._worker_key: tuple[object, ...] | None = None
         self._preview_worker: TaskWorker | None = None
         self._preview_request_serial = 0
+        self._presentation_map_pairs: dict[str, tuple[str, str]] = {}
+        self._presentation_preview_pairs: dict[str, tuple[str, str]] = {}
         self._pool = analysis_thread_pool()
         self._map_cache = DifferenceMapCache(difference_cache_budget_bytes)
         self._metric_cache: dict[tuple[object, ...], DifferenceMetrics] = {}
@@ -763,6 +766,7 @@ class DifferencePanel(QWidget):
         selected: NDArray[np.generic],
         *,
         publish_result: bool,
+        presentation_pair: tuple[str, str] | None = None,
     ) -> None:
         key = self._preview_cache_key(difference_map)
         snapshot = self._build_sampling_snapshot(selected)
@@ -771,6 +775,8 @@ class DifferencePanel(QWidget):
             self._publish_sampling_snapshot(key, selected, self._preview_value, snapshot)
             signal = self.result_ready if publish_result else self.preview_updated
             signal.emit(self._title(), selected, self._preview_value)
+            if presentation_pair is not None:
+                self.presentation_settled.emit(presentation_pair)
             return
 
         mode = self.mode.currentText()
@@ -802,6 +808,8 @@ class DifferencePanel(QWidget):
         worker.signals.failed.connect(self._preview_failed)
         worker.signals.finished.connect(self._preview_finished)
         self._preview_worker = worker
+        if presentation_pair is not None:
+            self._presentation_preview_pairs[worker.task_id] = presentation_pair
         self.status.setText("Rendering display…" if publish_result else "Updating display…")
         self._pool.start(worker)
 
@@ -852,6 +860,9 @@ class DifferencePanel(QWidget):
         worker = self._preview_worker
         if worker is not None and worker.task_id == task_id:
             self._preview_worker = None
+        pair = self._presentation_preview_pairs.pop(task_id, None)
+        if pair is not None:
+            self.presentation_settled.emit(pair)
 
     def _cancel_preview_worker(self) -> None:
         self._preview_request_serial += 1
@@ -1011,18 +1022,23 @@ class DifferencePanel(QWidget):
         self.status.setText("Updating metrics…" if cached is not None else "Calculating map…")
         worker = TaskWorker(calculate)
         worker.signals.succeeded.connect(
-            lambda _task_id, _document_id, _generation, result: self._on_result(
-                key, metric_key, result, publish_result
+            lambda task_id, _document_id, _generation, result: self._on_result(
+                task_id, key, metric_key, result, publish_result
             )
         )
         worker.signals.failed.connect(self._on_error)
         worker.signals.finished.connect(self._on_finished)
         self._worker = worker
         self._worker_key = request_key
+        if publish_result:
+            self._presentation_map_pairs[worker.task_id] = tuple(
+                document.document_id for document in pair
+            )
         self._pool.start(worker)
 
     def _on_result(
         self,
+        task_id: str,
         key: DifferenceCacheKey,
         metric_key: tuple[object, ...],
         payload: object,
@@ -1053,7 +1069,14 @@ class DifferencePanel(QWidget):
             self.status.setText("Ready; map exceeds cache budget")
         if publish_result:
             selected = self._selected_absolute(difference_map, self.channel.currentText())
-            self._request_preview_render(difference_map, selected, publish_result=True)
+            presentation_pair = self._presentation_map_pairs.get(task_id)
+            self._request_preview_render(
+                difference_map,
+                selected,
+                publish_result=True,
+                presentation_pair=presentation_pair,
+            )
+            self._presentation_map_pairs.pop(task_id, None)
 
     def _drop_dependent_cache_entries(
         self,
@@ -1124,6 +1147,9 @@ class DifferencePanel(QWidget):
         if self._worker is not None and self._worker.task_id == task_id:
             self._worker = None
             self._worker_key = None
+        pair = self._presentation_map_pairs.pop(task_id, None)
+        if pair is not None:
+            self.presentation_settled.emit(pair)
 
     def shutdown(self) -> None:
         self._display_timer.stop()

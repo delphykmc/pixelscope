@@ -82,7 +82,7 @@ class QuickCompareController(QObject):
         self._difference_retry_timer.timeout.connect(  # type: ignore[attr-defined]
             self._try_pending_difference
         )
-        window.difference_panel.result_ready.connect(self._quick_difference_completed)
+        window.difference_panel.presentation_settled.connect(self._quick_difference_settled)
 
         self._build_three_view_controls()
         self._install_three_view_geometry()
@@ -436,13 +436,6 @@ class QuickCompareController(QObject):
         ):
             self._clear_pending_difference(clear_protected=False)
             panel.calculate_difference()
-            worker = panel._worker
-            if worker is not None:
-                worker.signals.finished.connect(
-                    lambda _task_id, expected_pair=pair: self._difference_worker_finished(
-                        expected_pair
-                    )
-                )
             return
 
         message = panel.status.text().strip() or "Difference is unavailable for the dropped pair"
@@ -459,27 +452,6 @@ class QuickCompareController(QObject):
             if pair is not None:
                 self._release_deferred_difference(pair)
 
-    def _difference_worker_finished(self, pair: tuple[str, str]) -> None:
-        if self._deferred_difference_pair != pair:
-            return
-        preview_worker = self.window.difference_panel._preview_worker
-        if preview_worker is not None:
-            preview_worker.signals.finished.connect(
-                lambda _task_id, expected_pair=pair: self._difference_preview_finished(
-                    expected_pair
-                )
-            )
-            return
-        if self.window._difference_source_ids != pair:
-            self._release_deferred_difference(pair)
-
-    def _difference_preview_finished(self, pair: tuple[str, str]) -> None:
-        if (
-            self._deferred_difference_pair == pair
-            and self.window._difference_source_ids != pair
-        ):
-            self._release_deferred_difference(pair)
-
     def _release_deferred_difference(self, pair: tuple[str, str]) -> None:
         if self._deferred_difference_pair != pair:
             return
@@ -487,22 +459,21 @@ class QuickCompareController(QObject):
         self.window.central_stack.setUpdatesEnabled(True)
         self.window.central_stack.update()
 
-    def _quick_difference_completed(
-        self,
-        _title: object,
-        _numerical: object,
-        _preview: object,
-    ) -> None:
-        protected = self._protected_difference_pair
-        if protected is None:
+    def _quick_difference_settled(self, request_pair: object) -> None:
+        if not isinstance(request_pair, tuple) or len(request_pair) != 2:
             return
-        pair = self.window.difference_panel.selected_documents()
-        if pair is not None and tuple(document.document_id for document in pair) == protected:
+        first, second = request_pair
+        if not isinstance(first, str) or not isinstance(second, str):
+            return
+        pair = (first, second)
+        if self._protected_difference_pair == pair:
             self._protected_difference_pair = None
-            QTimer.singleShot(
-                0,
-                lambda expected_pair=protected: self._release_deferred_difference(expected_pair),
-            )
+        if self._deferred_difference_pair != pair:
+            return
+        QTimer.singleShot(
+            0,
+            lambda expected_pair=pair: self._release_deferred_difference(expected_pair),
+        )
 
     def _effective_three_view_variant(self) -> str:
         if self._three_view_override in self._THREE_VIEW_VARIANTS:
