@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
-from PySide6.QtGui import QDragMoveEvent
+from PySide6.QtGui import QDragLeaveEvent, QDragMoveEvent
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -61,6 +61,17 @@ def test_image_view_drag_move_keeps_proposed_action_accepted(
         Qt.MouseButton.LeftButton,
         Qt.KeyboardModifier.NoModifier,
     )
+
+    assert controller.eventFilter(window.viewer._graphics.viewport(), event)
+    assert event.isAccepted()
+    window.close()
+
+
+def test_image_view_drag_leave_is_consumed_by_quick_compare_filter(
+    qtbot: object,
+) -> None:
+    window, controller = _window(qtbot)
+    event = QDragLeaveEvent()
 
     assert controller.eventFilter(window.viewer._graphics.viewport(), event)
     assert event.isAccepted()
