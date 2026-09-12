@@ -7,7 +7,7 @@ from typing import Any, cast
 import numpy as np
 from numpy.typing import NDArray
 from PySide6.QtCore import QEvent, QObject, QRectF, Qt, QTimer
-from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeyEvent
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -186,16 +186,14 @@ class QuickCompareController(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         event_type = event.type()
-        if event_type in (
-            QEvent.Type.DragEnter,
-            QEvent.Type.DragMove,
-            QEvent.Type.Drop,
-        ) and self._is_image_surface(watched):
-            drop_event = cast(QDragEnterEvent | QDragMoveEvent | QDropEvent, event)
+        if event_type in (QEvent.Type.DragEnter, QEvent.Type.Drop) and self._is_image_surface(
+            watched
+        ):
+            drop_event = cast(QDropEvent, event)
             paths = self._local_paths(drop_event)
             if paths:
-                if event_type in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
-                    drop_event.acceptProposedAction()
+                if event_type == QEvent.Type.DragEnter:
+                    cast(QDragEnterEvent, event).acceptProposedAction()
                     return True
                 if any(path.is_dir() for path in paths):
                     self.window._handle_dropped_paths(paths)
@@ -245,9 +243,7 @@ class QuickCompareController(QObject):
         return watched is central or central.isAncestorOf(watched)
 
     @staticmethod
-    def _local_paths(
-        event: QDragEnterEvent | QDragMoveEvent | QDropEvent,
-    ) -> list[Path]:
+    def _local_paths(event: QDropEvent) -> list[Path]:
         mime = event.mimeData()
         if not mime.hasUrls():
             return []
@@ -574,7 +570,7 @@ class QuickCompareController(QObject):
                 document_id=document.document_id,
                 generation=document.generation,
                 channel_layout=document.channel_layout,
-                bit_depth=document.bit_depth,
+                bit_depth=profile.bit_depth,
                 black_level=profile.black_level,
                 bayer_pattern=profile.bayer_pattern,
                 gain=gain,
