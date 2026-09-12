@@ -7,7 +7,13 @@ from typing import Any, cast
 import numpy as np
 from numpy.typing import NDArray
 from PySide6.QtCore import QEvent, QObject, QRectF, Qt, QTimer
-from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeyEvent
+from PySide6.QtGui import (
+    QDragEnterEvent,
+    QDragLeaveEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QKeyEvent,
+)
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -195,6 +201,9 @@ class QuickCompareController(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         event_type = event.type()
+        if event_type == QEvent.Type.DragLeave and self._is_image_surface(watched):
+            cast(QDragLeaveEvent, event).accept()
+            return True
         if event_type in (
             QEvent.Type.DragEnter,
             QEvent.Type.DragMove,
