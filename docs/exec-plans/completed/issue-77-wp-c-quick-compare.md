@@ -61,7 +61,7 @@ The controller never turns ordinary selection into a Difference command. It deri
 
 A pending/in-flight Quick Compare pair is protected from retargeting until completion or invalidation.
 
-For an explicit two-source Quick Compare pair that changes selection, PixelScope now preserves the normal `_render_selection()` call so layout mode, capacity, action state, analysis ownership, and other internal presentation state advance exactly as they would without Quick Compare. To avoid exposing the transient two-source composition before Difference is ready, only repainting of `central_stack` is temporarily disabled. Difference calculation and preview publication proceed normally while the internal two-source presentation is already composed. When `result_ready` has allowed `MainWindow` to compose A/B/Difference, updates are re-enabled on the next event-loop turn so the user sees the final three-tile presentation at once. Incompatibility, timeout, selection invalidation, calculation failure, preview failure, or window close releases the repaint hold and exposes the already-valid source presentation. No render/state transition is skipped.
+For an explicit two-source Quick Compare pair that changes selection, PixelScope preserves the normal `_render_selection()` call so layout mode, capacity, action state, analysis ownership, and other internal presentation state advance exactly as they would without Quick Compare. To avoid exposing the transient two-source composition before Difference is ready, only repainting of `central_stack` is temporarily disabled. Difference calculation and preview publication proceed normally while the internal two-source presentation is already composed. When `result_ready` has allowed `MainWindow` to compose A/B/Difference, updates are re-enabled on the next event-loop turn so the user sees the final three-tile presentation at once. Incompatibility, timeout, selection invalidation, calculation failure, preview failure, or window close releases the repaint hold and exposes the already-valid source presentation. No render/state transition is skipped.
 
 ### Three-view geometry
 
@@ -121,7 +121,7 @@ ROI, Line Profile, active/focus state, Difference binding, pan/zoom, headers, Se
 
 - Image View DragMove keeps the proposed copy/drop action accepted;
 - an explicit two-source pair freezes only repaint while the internal two-source Multi View state still advances;
-- successful Difference publication releases the repaint hold with A/B/Difference already composed as three tiles;
+- successful Difference publication releases the repaint hold with A/B/Difference already composed as three tiles and Difference action active;
 - incompatible Difference releases the repaint hold and leaves a valid two-source presentation;
 - already-registered/already-selected sources still form an explicit sequential Quick Compare pair from A-then-B drop gestures.
 
