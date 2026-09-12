@@ -7,7 +7,7 @@ from typing import Any, cast
 import numpy as np
 from numpy.typing import NDArray
 from PySide6.QtCore import QEvent, QObject, QRectF, Qt, QTimer
-from PySide6.QtGui import QDragEnterEvent, QDropEvent, QKeyEvent
+from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -62,6 +62,9 @@ class QuickCompareController(QObject):
         self._blink_cache_identity: _BlinkRenderIdentity | None = None
         self._blink_cache_preview: NDArray[np.uint8] | None = None
         self._protected_difference_pair: tuple[str, str] | None = None
+        self._sequential_drop_anchor_id: str | None = None
+        self._suppress_next_quick_render = False
+        self._deferred_difference_pair: tuple[str, str] | None = None
 
         self._original_prepare = self.view._prepare_viewers_for_documents
         self._original_fixed_geometry = self.view._fixed_geometry
@@ -156,10 +159,18 @@ class QuickCompareController(QObject):
 
     def _install_render_hook(self) -> None:
         def render_selection(preserve_view: bool = False) -> None:
+            if self._suppress_next_quick_render:
+                self._suppress_next_quick_render = False
+                return
+            deferred = self._deferred_difference_pair
+            if deferred is not None and self.window._difference_source_ids != deferred:
+                self._deferred_difference_pair = None
             self._end_blink()
             self._clear_blink_cache()
             self._original_render_selection(preserve_view)
             self._update_three_view_controls()
+            if deferred is not None and self.window._difference_source_ids == deferred:
+                self._deferred_difference_pair = None
 
         self.window._render_selection = render_selection
 
@@ -186,14 +197,16 @@ class QuickCompareController(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         event_type = event.type()
-        if event_type in (QEvent.Type.DragEnter, QEvent.Type.Drop) and self._is_image_surface(
-            watched
-        ):
-            drop_event = cast(QDropEvent, event)
+        if event_type in (
+            QEvent.Type.DragEnter,
+            QEvent.Type.DragMove,
+            QEvent.Type.Drop,
+        ) and self._is_image_surface(watched):
+            drop_event = cast(QDragEnterEvent | QDragMoveEvent | QDropEvent, event)
             paths = self._local_paths(drop_event)
             if paths:
-                if event_type == QEvent.Type.DragEnter:
-                    cast(QDragEnterEvent, event).acceptProposedAction()
+                if event_type in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
+                    drop_event.acceptProposedAction()
                     return True
                 if any(path.is_dir() for path in paths):
                     self.window._handle_dropped_paths(paths)
@@ -243,7 +256,7 @@ class QuickCompareController(QObject):
         return watched is central or central.isAncestorOf(watched)
 
     @staticmethod
-    def _local_paths(event: QDropEvent) -> list[Path]:
+    def _local_paths(event: QDragEnterEvent | QDragMoveEvent | QDropEvent) -> list[Path]:
         mime = event.mimeData()
         if not mime.hasUrls():
             return []
@@ -276,22 +289,30 @@ class QuickCompareController(QObject):
             document_id for document_id in unique_dropped if document_id not in previous_set
         ]
         merged = [*previous_ids, *additions]
+        pair = self._quick_difference_pair(previous_ids, unique_dropped, merged)
+        if pair is not None and additions:
+            self._deferred_difference_pair = pair
+            self._suppress_next_quick_render = True
         if additions:
             self.window._select_document_ids(merged, preserve_view=True)
 
         added = len(additions)
-        if added:
+        if pair is not None:
+            self.window.statusBar().showMessage(
+                "Quick Compare: preparing Difference…",
+                4000,
+            )
+        elif added:
             self.window.statusBar().showMessage(
                 f"Quick Compare: added {added} image(s) · {len(merged)} selected",
                 4000,
             )
         else:
             self.window.statusBar().showMessage(
-                "Quick Compare: dropped image(s) already selected",
+                "Quick Compare: source ready · drop another image to compare",
                 3500,
             )
 
-        pair = self._quick_difference_pair(previous_ids, unique_dropped, merged)
         if pair is not None:
             self._schedule_difference(pair)
 
@@ -303,6 +324,7 @@ class QuickCompareController(QObject):
     ) -> tuple[str, str] | None:
         existing = self.window._difference_source_ids
         if existing is not None and set(existing).issubset(set(merged_ids)):
+            self._sequential_drop_anchor_id = None
             return None
         protected = self._protected_difference_pair
         if protected is not None:
@@ -312,17 +334,34 @@ class QuickCompareController(QObject):
                 or self.window.difference_panel._worker is not None
             )
             if still_selected and in_flight:
+                self._sequential_drop_anchor_id = None
                 return None
             self._protected_difference_pair = None
         if len(dropped_ids) == 2 and dropped_ids[0] != dropped_ids[1]:
+            self._sequential_drop_anchor_id = None
             return dropped_ids[0], dropped_ids[1]
+        if len(dropped_ids) != 1:
+            self._sequential_drop_anchor_id = None
+            return None
+
+        dropped_id = dropped_ids[0]
+        anchor_id = self._sequential_drop_anchor_id
         if (
-            len(dropped_ids) == 1
-            and len(previous_ids) == 1
-            and len(merged_ids) == 2
-            and dropped_ids[0] != previous_ids[0]
+            anchor_id is not None
+            and anchor_id != dropped_id
+            and anchor_id in merged_ids
+            and dropped_id in merged_ids
         ):
-            return previous_ids[0], dropped_ids[0]
+            self._sequential_drop_anchor_id = None
+            return anchor_id, dropped_id
+        if (
+            len(previous_ids) == 1
+            and len(merged_ids) == 2
+            and dropped_id != previous_ids[0]
+        ):
+            self._sequential_drop_anchor_id = None
+            return previous_ids[0], dropped_id
+        self._sequential_drop_anchor_id = dropped_id
         return None
 
     def _schedule_difference(self, pair: tuple[str, str]) -> None:
@@ -381,6 +420,13 @@ class QuickCompareController(QObject):
         ):
             self._clear_pending_difference(clear_protected=False)
             panel.calculate_difference()
+            worker = panel._worker
+            if worker is not None:
+                worker.signals.finished.connect(
+                    lambda _task_id, expected_pair=pair: self._difference_worker_finished(
+                        expected_pair
+                    )
+                )
             return
 
         message = panel.status.text().strip() or "Difference is unavailable for the dropped pair"
@@ -388,11 +434,45 @@ class QuickCompareController(QObject):
         self._clear_pending_difference(clear_protected=True)
 
     def _clear_pending_difference(self, *, clear_protected: bool) -> None:
+        pair = self._pending_difference_pair
         self._pending_difference_pair = None
         self._difference_retry_count = 0
         self._difference_retry_timer.stop()
         if clear_protected:
             self._protected_difference_pair = None
+            if pair is not None:
+                self._release_deferred_difference(pair)
+
+    def _difference_worker_finished(self, pair: tuple[str, str]) -> None:
+        if self._deferred_difference_pair != pair:
+            return
+        preview_worker = self.window.difference_panel._preview_worker
+        if preview_worker is not None:
+            preview_worker.signals.finished.connect(
+                lambda _task_id, expected_pair=pair: self._difference_preview_finished(
+                    expected_pair
+                )
+            )
+            return
+        if self.window._difference_source_ids != pair:
+            self._release_deferred_difference(pair)
+
+    def _difference_preview_finished(self, pair: tuple[str, str]) -> None:
+        if (
+            self._deferred_difference_pair == pair
+            and self.window._difference_source_ids != pair
+        ):
+            self._release_deferred_difference(pair)
+
+    def _release_deferred_difference(self, pair: tuple[str, str]) -> None:
+        if self._deferred_difference_pair != pair:
+            return
+        self._deferred_difference_pair = None
+        self._suppress_next_quick_render = False
+        self._end_blink()
+        self._clear_blink_cache()
+        self._original_render_selection(True)
+        self._update_three_view_controls()
 
     def _quick_difference_completed(
         self,
