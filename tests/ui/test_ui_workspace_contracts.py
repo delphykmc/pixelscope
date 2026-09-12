@@ -416,6 +416,23 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     ]
     assert len(profile_markers) == 6
     assert profile_markers[0].opts["brush"].color().name() == "#ff3b30"
+
+    # Hover placement depends on the realized PlotWidget/ViewBox geometry.
+    # A hidden child plot legitimately has a zero-height ViewBox, so exercise
+    # this presentation contract through the visible Line Profile workspace.
+    window.resize(1200, 800)
+    window.show()
+    if not window.plots_action.isChecked():
+        window.plots_action.trigger()
+    window._show_plot_tab(1)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: (
+            window.line_profile_panel.plot.isVisible()
+            and window.line_profile_panel.plot.getViewBox().height() > 0
+        ),
+        timeout=3000,
+    )
+
     y_max = window.line_profile_panel.plot.getViewBox().viewRange()[1][1]
     scene_position = window.line_profile_panel.plot.getViewBox().mapViewToScene(QPointF(2, y_max))
     window.line_profile_panel._on_plot_mouse_moved(scene_position)
