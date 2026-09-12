@@ -196,11 +196,16 @@ def test_registration_cancel_rejects_stale_discovery_result(
     qtbot: object, tmp_path: Path
 ) -> None:
     started = threading.Event()
+    worker_yield = threading.Event()
 
     def blocking_discovery(_paths: object, *, checkpoint: object) -> RegistrationDiscovery:
         started.set()
         while True:
             checkpoint()  # type: ignore[operator]
+            # Keep this synthetic worker RUNNING without hot-spinning on the
+            # Python GIL.  Production discovery performs filesystem work and
+            # does not call cancellation checkpoints in a tight CPU loop.
+            worker_yield.wait(0.01)
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -235,11 +240,16 @@ def test_application_close_cancels_registration_without_late_catalog_mutation(
     qtbot: object, tmp_path: Path
 ) -> None:
     started = threading.Event()
+    worker_yield = threading.Event()
 
     def blocking_discovery(_paths: object, *, checkpoint: object) -> RegistrationDiscovery:
         started.set()
         while True:
             checkpoint()  # type: ignore[operator]
+            # Keep this synthetic worker RUNNING without hot-spinning on the
+            # Python GIL.  Production discovery performs filesystem work and
+            # does not call cancellation checkpoints in a tight CPU loop.
+            worker_yield.wait(0.01)
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
