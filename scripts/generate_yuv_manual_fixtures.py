@@ -111,9 +111,7 @@ def native_entry(out: Path, stem: str, layout: str, *, variant: bool = False):
             "V": [HEIGHT // sy, WIDTH // sx],
         },
         "sample_counts": {"Y": int(y.size), "U": int(u.size), "V": int(v.size)},
-        "selected_pixels": {
-            f"{x},{yy}": pixel(layout, planes, x, yy) for x, yy in coords
-        },
+        "selected_pixels": {f"{x},{yy}": pixel(layout, planes, x, yy) for x, yy in coords},
         "horizontal_line_x_0_to_15": {
             "Y_positions": list(range(WIDTH)),
             "U_positions": list(range(0, WIDTH, sx)),

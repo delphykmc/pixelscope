@@ -142,29 +142,38 @@ def test_plot_dock_resize_preserves_image_scale_and_floating_controls(
     maximize_icon = title.maximize_button.icon().cacheKey()
     assert docked_float_icon != maximize_icon
     title.maximize_button.click()
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    assert window.bottom_dock.isFloating()
-    assert window.bottom_dock.isMaximized()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.bottom_dock.isFloating() and window.bottom_dock.isMaximized(),
+        timeout=2000,
+    )
     assert title.float_button.icon().cacheKey() != docked_float_icon
     assert title.maximize_button.icon().cacheKey() != maximize_icon
     title.maximize_button.click()
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    assert not window.bottom_dock.isFloating()
-    assert not window.bottom_dock.isMaximized()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not window.bottom_dock.isFloating() and not window.bottom_dock.isMaximized(),
+        timeout=2000,
+    )
 
     title.float_button.click()
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    assert window.bottom_dock.isFloating()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        window.bottom_dock.isFloating,
+        timeout=2000,
+    )
     title.maximize_button.click()
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    assert window.bottom_dock.isMaximized()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        window.bottom_dock.isMaximized,
+        timeout=2000,
+    )
     title.maximize_button.click()
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    assert window.bottom_dock.isFloating()
-    assert not window.bottom_dock.isMaximized()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.bottom_dock.isFloating() and not window.bottom_dock.isMaximized(),
+        timeout=2000,
+    )
     title.float_button.click()
-    qtbot.wait(20)  # type: ignore[attr-defined]
-    assert not window.bottom_dock.isFloating()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not window.bottom_dock.isFloating(),
+        timeout=2000,
+    )
     window.close()
 
 

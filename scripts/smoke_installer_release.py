@@ -35,9 +35,7 @@ _UNINSTALL_ROOT = r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
 def _run_checked(command: list[str], *, cwd: Path) -> None:
     result = subprocess.run(command, cwd=cwd, check=False)
     if result.returncode != 0:
-        raise RuntimeError(
-            f"Command failed with exit code {result.returncode}: {command[0]}"
-        )
+        raise RuntimeError(f"Command failed with exit code {result.returncode}: {command[0]}")
 
 
 def _silent_uninstall(uninstaller: Path, install_root: Path) -> None:
@@ -154,9 +152,7 @@ def smoke_installer_release(setup_path: Path, *, app_id: str = SMOKE_APP_ID) -> 
             if not manifest_path.is_file():
                 raise RuntimeError("Installed PixelScope is missing release-manifest.json")
             if not notice_path.is_file() or notice_path.stat().st_size == 0:
-                raise RuntimeError(
-                    "Installed PixelScope is missing THIRD_PARTY_NOTICES.txt"
-                )
+                raise RuntimeError("Installed PixelScope is missing THIRD_PARTY_NOTICES.txt")
             if not _uninstall_registration_exists(app_id):
                 raise RuntimeError("Installer smoke did not create its disposable registration")
 
@@ -172,9 +168,7 @@ def smoke_installer_release(setup_path: Path, *, app_id: str = SMOKE_APP_ID) -> 
             smoke_executable(executable)
 
             if not uninstaller.is_file():
-                raise RuntimeError(
-                    "Installed PixelScope is missing the Inno Setup uninstaller"
-                )
+                raise RuntimeError("Installed PixelScope is missing the Inno Setup uninstaller")
             owned_paths = _manifest_owned_paths(install_root, manifest) + (
                 manifest_path,
                 notice_path,

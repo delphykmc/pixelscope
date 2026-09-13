@@ -131,8 +131,10 @@ scripts/smoke_installer_release.py
 scripts/validate_release_bundle.py
 ```
 
-The known repository-wide `ruff format --check .` drift recorded during P7-B remains a
-separate deferred cleanup item and is not silently relabeled as PASS by P7-C.
+The repository-wide `ruff format --check .` drift recorded during P7-B is resolved by
+the Issue #81 / PR #82 final static-validation cleanup. Ruff excludes the uncommitted
+`temp/` diagnostic workspace; tracked production source, scripts, and tests remain in
+the repository-wide format gate.
 
 ## Strict production bundle
 

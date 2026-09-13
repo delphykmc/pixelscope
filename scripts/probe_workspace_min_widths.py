@@ -83,11 +83,7 @@ def _apply_initial_widths(
         if total > 0:
             target = min(files_width, total)
             window.main_splitter.setSizes([target, max(0, total - target)])
-    if (
-        iqa_width is not None
-        and window.iqa_dock.isVisible()
-        and not window.iqa_dock.isFloating()
-    ):
+    if iqa_width is not None and window.iqa_dock.isVisible() and not window.iqa_dock.isFloating():
         window.resizeDocks(
             [window.iqa_dock],
             [iqa_width],

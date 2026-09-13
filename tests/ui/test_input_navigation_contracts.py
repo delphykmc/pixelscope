@@ -35,7 +35,7 @@ def test_single_header_navigation_avoids_full_workspace_render(
     window.close()
 
 
-def test_direct_file_drop_replaces_selection_and_keeps_catalog_deduplicated(
+def test_direct_file_drop_extends_selection_and_keeps_catalog_deduplicated(
     qtbot: object, tmp_path: Path
 ) -> None:
     paths = [tmp_path / f"drop{index}.png" for index in range(3)]
@@ -53,12 +53,14 @@ def test_direct_file_drop_replaces_selection_and_keeps_catalog_deduplicated(
 
     window._handle_dropped_paths([paths[2]])
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: len(window.selected_documents) == 1
-        and window.selected_documents[0].source is not None,
+        lambda: len(window.selected_documents) == 3
+        and all(document.source is not None for document in window.selected_documents),
         timeout=3000,
     )
     assert len(window.documents) == 3
-    assert window.selected_documents[0].source_path == paths[2].resolve()
+    assert [document.source_path for document in window.selected_documents] == [
+        path.resolve() for path in paths
+    ]
 
     window.register_folders([tmp_path])
     assert len(window.documents) == 3
@@ -67,7 +69,9 @@ def test_direct_file_drop_replaces_selection_and_keeps_catalog_deduplicated(
     assert window.document_list.topLevelItem(0).childCount() == 3
     assert window.document_list.topLevelItem(0).child(0).text(0) == "drop0.png"
     assert window.document_list.topLevelItem(0).child(0).text(1) == "PNG"
-    assert window.selected_documents[0].source_path == paths[2].resolve()
+    assert [document.source_path for document in window.selected_documents] == [
+        path.resolve() for path in paths
+    ]
     window.close()
 
 
@@ -244,7 +248,7 @@ def test_rapid_three_folder_navigation_coalesces_loads_under_source_byte_budget(
     window.close()
 
 
-def test_direct_file_drop_replaces_active_folder_selection(qtbot: object, tmp_path: Path) -> None:
+def test_direct_file_drop_extends_active_folder_selection(qtbot: object, tmp_path: Path) -> None:
     folders = [tmp_path / name for name in ("a", "b", "c")]
     for folder_index, folder in enumerate(folders):
         folder.mkdir()
@@ -273,12 +277,19 @@ def test_direct_file_drop_replaces_active_folder_selection(qtbot: object, tmp_pa
         window.document_list.topLevelItem(index).childCount()
         for index in range(window.document_list.topLevelItemCount())
     ) == [1, 2, 2]
-    assert [document.display_name for document in window.selected_documents] == ["image2.png"]
-    assert window.selected_documents[0].source_path == (folders[2] / "image2.png").resolve()
+    assert [document.source_path for document in window.selected_documents] == [
+        (folders[0] / "image1.png").resolve(),
+        (folders[1] / "image1.png").resolve(),
+        (folders[2] / "image2.png").resolve(),
+    ]
 
     window._handle_dropped_paths([folders[0] / "image2.png"])
-    assert [document.display_name for document in window.selected_documents] == ["image2.png"]
-    assert window.selected_documents[0].source_path == (folders[0] / "image2.png").resolve()
+    assert [document.source_path for document in window.selected_documents] == [
+        (folders[0] / "image1.png").resolve(),
+        (folders[1] / "image1.png").resolve(),
+        (folders[2] / "image2.png").resolve(),
+        (folders[0] / "image2.png").resolve(),
+    ]
     folder_key = window._folder_key(folders[0] / "image2.png")
     assert window._folder_indices[folder_key] == 1
     window.close()

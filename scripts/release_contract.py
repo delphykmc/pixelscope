@@ -91,7 +91,7 @@ def render_windows_version_info(version: str | None = None) -> str:
     value = version or release_version()
     file_version = windows_version_tuple(value)
     tuple_text = ", ".join(str(part) for part in file_version)
-    return f'''# UTF-8
+    return f"""# UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
     filevers=({tuple_text}),
@@ -120,7 +120,7 @@ VSVersionInfo(
     VarFileInfo([VarStruct("Translation", [1033, 1200])])
   ]
 )
-'''
+"""
 
 
 def write_windows_version_info(version: str | None = None) -> Path:

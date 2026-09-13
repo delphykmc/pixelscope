@@ -146,6 +146,26 @@ def test_layout_tool_and_file_state_models(qtbot: object, tmp_path: Path) -> Non
     window.close()
 
 
+def test_preallocated_view_widgets_have_explicit_qt_owners(qtbot: object) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    assert all(
+        viewer.parentWidget() is window.multi_compare_view
+        for viewer in window.multi_compare_view.viewers
+    )
+    assert all(
+        plot.parentWidget() is window.comparison_analysis_panel.histogram_grid
+        for plot in window.comparison_analysis_panel.plots
+    )
+    assert all(
+        plot.parentWidget() is window.line_profile_panel.plot_grid
+        for plot in window.line_profile_panel.plots
+    )
+
+    window.close()
+
+
 def test_pending_document_keeps_previous_pixels_until_replacement_is_ready(
     qtbot: object, tmp_path: Path
 ) -> None:
@@ -396,6 +416,23 @@ def test_multi_selection_compare_toggle_stats_and_difference(qtbot: object) -> N
     ]
     assert len(profile_markers) == 6
     assert profile_markers[0].opts["brush"].color().name() == "#ff3b30"
+
+    # Hover placement depends on the realized PlotWidget/ViewBox geometry.
+    # A hidden child plot legitimately has a zero-height ViewBox, so exercise
+    # this presentation contract through the visible Line Profile workspace.
+    window.resize(1200, 800)
+    window.show()
+    if not window.plots_action.isChecked():
+        window.plots_action.trigger()
+    window._show_plot_tab(1)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: (
+            window.line_profile_panel.plot.isVisible()
+            and window.line_profile_panel.plot.getViewBox().height() > 0
+        ),
+        timeout=3000,
+    )
+
     y_max = window.line_profile_panel.plot.getViewBox().viewRange()[1][1]
     scene_position = window.line_profile_panel.plot.getViewBox().mapViewToScene(QPointF(2, y_max))
     window.line_profile_panel._on_plot_mouse_moved(scene_position)

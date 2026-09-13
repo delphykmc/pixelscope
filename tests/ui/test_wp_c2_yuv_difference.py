@@ -273,7 +273,13 @@ def test_late_yuv_channel_result_is_cached_but_not_published_for_new_channel(qtb
         minimum_absolute=1.0,
     )
 
-    panel._on_result(old_key, old_metric_key, (late_map, late_metrics, False), True)
+    panel._on_result(
+        "late-yuv-result",
+        old_key,
+        old_metric_key,
+        (late_map, late_metrics, False),
+        True,
+    )
 
     assert old_key in panel.difference_cache
     assert panel.last_result is None

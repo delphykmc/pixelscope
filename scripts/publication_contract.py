@@ -103,9 +103,7 @@ def _require_exact_files(root: Path, expected: frozenset[str], *, label: str) ->
     actual = {path.name for path in root.iterdir() if path.is_file()}
     directories = sorted(path.name for path in root.iterdir() if path.is_dir())
     if directories:
-        raise PublicationValidationError(
-            f"{label} contains unexpected directories: {directories}"
-        )
+        raise PublicationValidationError(f"{label} contains unexpected directories: {directories}")
     missing = sorted(expected - actual)
     extra = sorted(actual - expected)
     if missing:
@@ -139,9 +137,7 @@ def _validate_release_note_source(version: str) -> Path:
         )
     text = source.read_text(encoding="utf-8")
     if not text.startswith(f"# {release_title(version)}\n"):
-        raise PublicationValidationError(
-            f"release-note title must be '# {release_title(version)}'"
-        )
+        raise PublicationValidationError(f"release-note title must be '# {release_title(version)}'")
     if text.count(SOURCE_COMMIT_MARKER) != 1:
         raise PublicationValidationError(
             "release-note source must contain exactly one source-commit marker"

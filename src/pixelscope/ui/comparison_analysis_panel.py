@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+from contextlib import suppress
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -344,8 +346,13 @@ class ComparisonAnalysisPanel(QWidget):
         ] = [[] for _index in range(6)]
         self._histogram_hover_lines: list[pg.InfiniteLine | None] = [None] * 6
         self._histogram_hover_texts: list[pg.TextItem | None] = [None] * 6
+        self._histogram_mouse_callbacks: list[Any] = []
+        self._histogram_resources_disposed = False
         for plot_index in range(6):
-            plot = pg.PlotWidget(axisItems={"left": KiloAxisItem(orientation="left")})
+            plot = pg.PlotWidget(
+                parent=self.histogram_grid,
+                axisItems={"left": KiloAxisItem(orientation="left")},
+            )
             plot.setLabel("left", "Count")
             plot.setLabel("bottom", "Pixel value")
             plot.showGrid(x=True, y=True, alpha=0.25)
@@ -354,9 +361,9 @@ class ComparisonAnalysisPanel(QWidget):
             legend = plot.addLegend(offset=(-8, 8))
             self.plots.append(plot)
             self.legends.append(legend)
-            plot.scene().sigMouseMoved.connect(
-                lambda position, index=plot_index: self._on_histogram_mouse_moved(index, position)
-            )
+            callback = partial(self._on_histogram_mouse_moved, plot_index)
+            self._histogram_mouse_callbacks.append(callback)
+            plot.scene().sigMouseMoved.connect(callback)
             self._set_plot_axes_visible(plot, False)
             plot.hide()
         # Compatibility aliases for callers that inspect the first histogram pane.
@@ -509,6 +516,8 @@ class ComparisonAnalysisPanel(QWidget):
         self._set_activity("No images selected", busy=False)
 
     def refresh(self) -> None:
+        if self._histogram_resources_disposed:
+            return
         documents = self._documents
         if not documents:
             self.clear()
@@ -632,6 +641,8 @@ class ComparisonAnalysisPanel(QWidget):
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
         result: object,
     ) -> None:
+        if self._histogram_resources_disposed:
+            return
         if signature != self._request_signature or not isinstance(result, tuple):
             return
         if len(result) != len(self._documents) or not all(
@@ -652,6 +663,8 @@ class ComparisonAnalysisPanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
+        if self._histogram_resources_disposed:
+            return
         self._set_activity(f"Error: {error.message}", busy=False)
 
     def _on_finished(self, task_id: str) -> None:
@@ -1120,3 +1133,34 @@ class ComparisonAnalysisPanel(QWidget):
         self._refresh_timer.stop()
         if self._worker is not None:
             self._worker.cancel()
+        if self._histogram_resources_disposed:
+            return
+        self._histogram_resources_disposed = True
+
+        for plot, callback in zip(
+            tuple(self.plots),
+            tuple(self._histogram_mouse_callbacks),
+            strict=True,
+        ):
+            scene = plot.scene()
+            with suppress(RuntimeError, TypeError):
+                scene.sigMouseMoved.disconnect(callback)
+
+            view_box = plot.getViewBox()
+            menu = getattr(view_box, "menu", None)
+            if menu is not None:
+                view_box.menu = None
+                menu.close()
+                menu.deleteLater()
+
+            plot.close()
+            plot.deleteLater()
+
+        self._histogram_mouse_callbacks.clear()
+        self.plots.clear()
+        self.legends.clear()
+        self._histogram_hover_lines = [None] * 6
+        self._histogram_hover_texts = [None] * 6
+        self._histogram_series = [[] for _index in range(6)]
+        self.plot = cast(Any, None)
+        self.legend = cast(Any, None)

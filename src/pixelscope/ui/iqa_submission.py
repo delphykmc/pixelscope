@@ -1122,9 +1122,10 @@ def _current_pair_image_contract(documents: list[Any]) -> tuple[bool, str]:
         source = getattr(document, "source", None)
         if source is None or channel_layout != "RGB" or len(shape) != 3 or shape[2] != 3:
             return False, "IQA requires RGB images"
-        if int(getattr(document, "bit_depth", 0)) != 8 or str(
-            getattr(source, "dtype", "")
-        ) != "uint8":
+        if (
+            int(getattr(document, "bit_depth", 0)) != 8
+            or str(getattr(source, "dtype", "")) != "uint8"
+        ):
             return False, "IQA requires 8-bit RGB images"
         sizes.append((int(shape[0]), int(shape[1])))
 

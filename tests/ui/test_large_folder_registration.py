@@ -84,16 +84,12 @@ def test_large_folder_registration_is_chunked_ordered_deduplicated_and_lazy(
     assert folder_names == [f"image{index}.png" for index in range(1, 131)]
     assert not window.selected_documents
     assert all(document.source is None for document in window.documents.values())
-    assert all(
-        document.loading_state == "pending" for document in window.documents.values()
-    )
+    assert all(document.loading_state == "pending" for document in window.documents.values())
     assert not window._workers
     assert not window._preload_workers
 
     registering = [
-        (completed, total)
-        for phase, completed, total in events
-        if phase == "registering"
+        (completed, total) for phase, completed, total in events if phase == "registering"
     ]
     assert registering[0] == (0, 130)
     assert registering[-1] == (130, 130)
@@ -192,15 +188,18 @@ def test_open_folder_and_mixed_drop_share_async_registration_contract(
     window.close()
 
 
-def test_registration_cancel_rejects_stale_discovery_result(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_registration_cancel_rejects_stale_discovery_result(qtbot: object, tmp_path: Path) -> None:
     started = threading.Event()
+    worker_yield = threading.Event()
 
     def blocking_discovery(_paths: object, *, checkpoint: object) -> RegistrationDiscovery:
         started.set()
         while True:
             checkpoint()  # type: ignore[operator]
+            # Keep this synthetic worker RUNNING without hot-spinning on the
+            # Python GIL.  Production discovery performs filesystem work and
+            # does not call cancellation checkpoints in a tight CPU loop.
+            worker_yield.wait(0.01)
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -235,11 +234,16 @@ def test_application_close_cancels_registration_without_late_catalog_mutation(
     qtbot: object, tmp_path: Path
 ) -> None:
     started = threading.Event()
+    worker_yield = threading.Event()
 
     def blocking_discovery(_paths: object, *, checkpoint: object) -> RegistrationDiscovery:
         started.set()
         while True:
             checkpoint()  # type: ignore[operator]
+            # Keep this synthetic worker RUNNING without hot-spinning on the
+            # Python GIL.  Production discovery performs filesystem work and
+            # does not call cancellation checkpoints in a tight CPU loop.
+            worker_yield.wait(0.01)
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]

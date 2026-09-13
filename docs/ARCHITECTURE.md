@@ -107,7 +107,7 @@ P3-D input architecture.
 
 ### Selection-oriented image input
 
-`Open Images...` and direct image-file drag/drop use:
+`Open Images...` remains an explicit replacement workflow:
 
 ```text
 discover inputs
@@ -116,14 +116,23 @@ register every supported direct file
     ↓
 replace current Selected with the ordered direct-file set
     ↓
-derive Current Comparison Page
-    ↓
-present current page
+derive Current Comparison Page from image 1
 ```
 
-Multi-file selection is preserved. More than six directly supplied images remain
-registered and Selected. The first Current Comparison Page contains images 1–6;
-later pages are reached without changing Selected membership/order.
+Direct image-file D&D is context-sensitive without creating another selection
+authority. When Selected is empty, the dropped batch establishes the initial
+Selected set and starts on its first Comparison Page. When Selected already contains
+images, newly dropped direct files are appended in drop order, already-selected
+duplicates are ignored, and the Comparison Page containing the final newly added
+source is revealed. Existing Selected order is preserved.
+
+Image View Quick Compare follows the same initial-versus-additive page rule while
+retaining its separate explicit two-source Difference intent. A first batch starts
+on Page 1; later additive batches reveal their final newly added source.
+
+More than six supplied images remain registered and Selected. Initial population
+starts with images 1–6; later additive D&D may move the Current Comparison Page
+without changing Selected membership/order.
 
 ### Registration-oriented folder input
 
@@ -155,8 +164,9 @@ Display Gain, zoom/pan preservation state, resident ownership, and Difference
 cache remain untouched by the registration operation itself.
 
 Mixed file + folder drop keeps both intents: folders register first without
-selection mutation; explicit dropped files then register and become Selected.
-Folder contents are never implicitly added to that explicit selection.
+selection mutation; explicit dropped files then follow the direct-file selection
+semantics above. Folder contents are never implicitly added to that explicit
+selection.
 
 Folders with no supported images are skipped independently. Registration status
 reports registered image/folder counts without implying presentation.
@@ -184,6 +194,17 @@ For `Selected > 6`:
 
 - `_page_start` is aligned in six-image increments and page membership is derived
   from Selected ordering;
+- an exact one-source additive Files selection reveals the Comparison Page containing
+  that newly added source when it would otherwise remain off-page;
+- direct-file D&D distinguishes initial population from extension: empty Selected
+  starts on Page 1, while non-empty Selected appends only new dropped sources and
+  reveals the page containing the final addition;
+- explicit additive workflows may request the same reveal through
+  `_select_document_ids(..., reveal_document_id=...)`. Quick Compare uses no reveal
+  for its initial batch and reveals the final addition only when extending an
+  existing Selected set. The same-position folder bootstrap reveals its added source;
+- Open Images, Session/Comparison Set reconstruction, Keep Selection, bulk Files
+  selection, and same-count folder navigation retain their existing page rules;
 - Previous/Next Comparison Page are separate coarse actions using
   `Ctrl+Left` / `Ctrl+Right` with non-wrapping endpoints; their application-wide
   `QShortcut` is enabled only while movement in that direction is available, so unavailable

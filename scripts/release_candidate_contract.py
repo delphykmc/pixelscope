@@ -51,23 +51,17 @@ def _require_text(value: object, *, label: str, max_length: int = 512) -> str:
 def _require_basename(value: object, *, label: str) -> str:
     text = _require_text(value, label=label, max_length=255)
     if text in {".", ".."} or "/" in text or "\\" in text or ":" in text:
-        raise CandidateProvenanceError(
-            f"{label} must be an executable basename, not a path"
-        )
+        raise CandidateProvenanceError(f"{label} must be an executable basename, not a path")
     return text
 
 
 def _require_repo_relative(value: object, *, label: str) -> str:
     text = _require_text(value, label=label, max_length=1024)
     if "\\" in text or ":" in text:
-        raise CandidateProvenanceError(
-            f"{label} must be a repository-relative POSIX path"
-        )
+        raise CandidateProvenanceError(f"{label} must be a repository-relative POSIX path")
     path = PurePosixPath(text)
     if path.is_absolute() or ".." in path.parts or path.as_posix() != text:
-        raise CandidateProvenanceError(
-            f"{label} must be a repository-relative POSIX path"
-        )
+        raise CandidateProvenanceError(f"{label} must be a repository-relative POSIX path")
     return text
 
 
@@ -94,9 +88,7 @@ def _require_utc_timestamp(value: object) -> str:
             "candidate provenance built_at_utc must be an ISO-8601 timestamp"
         ) from exc
     if timestamp.tzinfo is None or timestamp.utcoffset() != timedelta(0):
-        raise CandidateProvenanceError(
-            "candidate provenance built_at_utc must identify UTC"
-        )
+        raise CandidateProvenanceError("candidate provenance built_at_utc must identify UTC")
     return text
 
 
@@ -105,8 +97,7 @@ def _require_release_python_version(value: object) -> str:
     match = _RELEASE_PYTHON_RE.fullmatch(text)
     if match is None or int(match.group("micro")) < 8:
         raise CandidateProvenanceError(
-            "candidate provenance release_python_version must be CPython "
-            ">=3.10.8,<3.11"
+            "candidate provenance release_python_version must be CPython " ">=3.10.8,<3.11"
         )
     return text
 
@@ -117,9 +108,7 @@ def _validate_artifacts(
     expected_artifacts: dict[str, dict[str, object]],
 ) -> dict[str, dict[str, object]]:
     if not isinstance(value, dict):
-        raise CandidateProvenanceError(
-            "candidate provenance artifacts must be an object"
-        )
+        raise CandidateProvenanceError("candidate provenance artifacts must be an object")
     if set(value) != set(expected_artifacts):
         raise CandidateProvenanceError(
             "candidate provenance artifacts must contain the exact production artifact set"
@@ -134,9 +123,7 @@ def _validate_artifacts(
             )
         size = raw_entry.get("size")
         if not isinstance(size, int) or isinstance(size, bool) or size < 0:
-            raise CandidateProvenanceError(
-                f"candidate provenance artifact size is invalid: {name}"
-            )
+            raise CandidateProvenanceError(f"candidate provenance artifact size is invalid: {name}")
         digest = _require_sha256(
             raw_entry.get("sha256"),
             label=f"candidate provenance artifact SHA-256 for {name}",
@@ -200,9 +187,7 @@ def validate_candidate_provenance(
             "candidate provenance inno_compiler_major must be an integer"
         )
     if inno_major not in _SUPPORTED_INNO_MAJORS:
-        raise CandidateProvenanceError(
-            "candidate provenance Inno compiler major is unsupported"
-        )
+        raise CandidateProvenanceError("candidate provenance Inno compiler major is unsupported")
     _require_sha256(
         provenance.get("inno_compiler_sha256"),
         label="candidate provenance inno_compiler_sha256",
@@ -212,9 +197,7 @@ def validate_candidate_provenance(
         label="candidate provenance release_note_source",
     )
     if release_note_source != expected_release_note_source:
-        raise CandidateProvenanceError(
-            "candidate release-note source identity mismatch"
-        )
+        raise CandidateProvenanceError("candidate release-note source identity mismatch")
     _validate_artifacts(
         provenance.get("artifacts"),
         expected_artifacts=expected_artifacts,

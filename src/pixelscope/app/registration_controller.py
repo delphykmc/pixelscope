@@ -426,14 +426,30 @@ class RegistrationController(QObject):
             registered_folders=discovery.registered_folders,
         )
         self._record_recent_entries(summary.registered_folders, direct_paths)
+        current_ids = [document.document_id for document in self.window.selected_documents]
+        current_set = set(current_ids)
+        additions = [document_id for document_id in direct_ids if document_id not in current_set]
         if direct_ids:
-            self.window._select_document_ids(direct_ids)
+            if current_ids:
+                if additions:
+                    self.window._select_document_ids(
+                        [*current_ids, *additions],
+                        preserve_view=True,
+                        reveal_document_id=additions[-1],
+                    )
+            else:
+                self.window._select_document_ids(direct_ids)
         else:
             self.window._update_empty_workspace_state()
 
         messages: list[str] = []
         if direct_ids:
-            messages.append(f"Opened {len(direct_ids)} image(s)")
+            if current_ids:
+                messages.append(
+                    f"Added {len(additions)} image(s)" if additions else "No new images added"
+                )
+            else:
+                messages.append(f"Opened {len(direct_ids)} image(s)")
         if summary.folder_count:
             messages.append(self.window._folder_registration_message(summary))
         if messages:

@@ -30,9 +30,9 @@ class NativeYuvSemanticsController:
         self.window = window
         self._confirm_profile_original: Callable[..., object | None] = window._confirm_raw_profile
         self._start_preload_original: Callable[..., None] = window._start_preload
-        self._record_resident_original: Callable[[ImageDocument], None] = (
-            window._record_resident_source
-        )
+        self._record_resident_original: Callable[
+            [ImageDocument], None
+        ] = window._record_resident_source
         self._evict_original: Callable[[], None] = window._evict_resident_documents
         self._mark_reload_original: Callable[..., None] = window._mark_raw_for_reload
         self._update_actions_original: Callable[[], None] = window._update_action_states
@@ -274,8 +274,10 @@ class NativeYuvSemanticsController:
     @staticmethod
     def _mixed_yuv_family(documents: Sequence[ImageDocument]) -> bool:
         ready = [document for document in documents if document.source is not None]
-        return bool(ready) and NativeYuvSemanticsController._has_yuv(ready) and any(
-            document.yuv_frame is None for document in ready
+        return (
+            bool(ready)
+            and NativeYuvSemanticsController._has_yuv(ready)
+            and any(document.yuv_frame is None for document in ready)
         )
 
     def set_analysis_documents(
@@ -463,9 +465,7 @@ class NativeYuvSemanticsController:
         if self._mixed_yuv_family(documents):
             panel.clear()
             self._hide_line_channels()
-            panel._set_status(
-                "Mixed YUV/non-YUV Line Profile is disabled to preserve semantics."
-            )
+            panel._set_status("Mixed YUV/non-YUV Line Profile is disabled to preserve semantics.")
             return
         self._configure_line_channels(self._has_yuv(documents))
         self._line_set_documents_original(
