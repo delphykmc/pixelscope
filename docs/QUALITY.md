@@ -31,6 +31,36 @@ deletion is consumed inside local event loops. Keep asynchronous assertions
 state/event-driven; do not compensate for cross-test teardown backlog by
 inflating `waitUntil()` timeouts or adding fixed sleeps.
 
+### Qt/worker lifecycle contract
+
+Issue #81 establishes the durable ownership boundary for asynchronous Qt work:
+
+- background worker callables must not retain `QObject`/`QWidget` owners merely to
+  access computation or helpers; snapshot plain data or a non-UI callable before
+  dispatch;
+- preallocated Qt widgets/resources require explicit ownership, and GUI-affine
+  `QObject` destruction must occur through Qt ownership or affinity-safe deferred
+  deletion rather than arbitrary Python-wrapper finalization on a pool thread;
+- cancellation is advisory and is not physical worker quiescence. Cancellation or
+  owner shutdown revokes result authority immediately, while a physically running
+  worker may still finish and queue signals;
+- late result/error delivery after final UI disposal must be rejected by the feature
+  owner and must not render into released widgets or mutate disposed-owner state;
+- application/shared worker-pool quiescence belongs to the actual pool-owner boundary;
+  one feature/window must not indiscriminately join or cancel unrelated live work;
+- third-party Qt wrapper graphs owned by PixelScope, including pyqtgraph callbacks,
+  parentless menus, and plots, require deterministic final disposal when their owner
+  is destroyed; ordinary hide/show, floating, or redocking is not a disposal event;
+- test-boundary DeferredDelete draining may make teardown deterministic, but must not
+  conceal a production ownership defect; and
+- `gc.disable()`, blanket `gc.collect()`, arbitrary sleeps, timeout inflation, fatal
+  exception suppression, or unconditional global-pool waits are diagnostics or
+  masking workarounds, not lifecycle fixes.
+
+Lifecycle hardening should be validated with focused ownership/late-result regression
+coverage and repeated Windows full-suite runs under normal automatic Python GC when
+native Qt/Shiboken destruction ordering is part of the failure mode.
+
 For P2-F performance characterization, run the observational performance slice
 with output enabled before the full repository contract:
 
