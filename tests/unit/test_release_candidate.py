@@ -92,9 +92,7 @@ def test_render_release_notes_replaces_exact_source_commit(tmp_path: Path) -> No
 
     candidate._render_release_notes(source, destination, commit="abc123")
 
-    assert destination.read_text(encoding="utf-8") == (
-        "Version note\nSource commit: `abc123`\n"
-    )
+    assert destination.read_text(encoding="utf-8") == ("Version note\nSource commit: `abc123`\n")
 
 
 def test_stage_candidate_copies_exact_artifacts_and_records_safe_provenance(
@@ -179,9 +177,7 @@ def test_stage_candidate_copies_exact_artifacts_and_records_safe_provenance(
     assert provenance["pyinstaller_version"] == "5.7"
     assert provenance["inno_compiler_executable"] == "ISCC.exe"
     assert provenance["inno_compiler_major"] == 6
-    assert provenance["inno_compiler_sha256"] == hashlib.sha256(
-        b"inno-compiler"
-    ).hexdigest()
+    assert provenance["inno_compiler_sha256"] == hashlib.sha256(b"inno-compiler").hexdigest()
     release_note_identity = "docs/releases/2026-08-26-v1.2.3.md"
     assert provenance["release_note_source"] == release_note_identity
 
@@ -195,12 +191,15 @@ def test_stage_candidate_copies_exact_artifacts_and_records_safe_provenance(
     for name, expected in expected_artifacts.items():
         assert provenance["artifacts"][name] == expected
 
-    assert validate_candidate_provenance(
-        provenance,
-        expected_version=version,
-        expected_release_note_source=release_note_identity,
-        expected_artifacts=expected_artifacts,
-    ) == provenance
+    assert (
+        validate_candidate_provenance(
+            provenance,
+            expected_version=version,
+            expected_release_note_source=release_note_identity,
+            expected_artifacts=expected_artifacts,
+        )
+        == provenance
+    )
 
     assert str(release_python) not in provenance_text
     assert str(compiler) not in provenance_text
@@ -225,9 +224,7 @@ def test_release_pipeline_reuses_existing_p7_scripts_and_one_compiler(
     assert candidate._run_release_pipeline(release_python, compiler) == expected
 
     scripts = [
-        command[1]
-        for command, _ in commands
-        if len(command) > 1 and command[1].endswith(".py")
+        command[1] for command, _ in commands if len(command) > 1 and command[1].endswith(".py")
     ]
     assert scripts == [
         "scripts/build_release.py",
@@ -243,9 +240,7 @@ def test_release_pipeline_reuses_existing_p7_scripts_and_one_compiler(
         command for command, _ in commands if "scripts/build_installer_release.py" in command
     )
     assert installer_command[-2:] == ["--iscc", str(compiler)]
-    assert all(
-        env is not None and env["ISCC_PATH"] == str(compiler) for _, env in commands
-    )
+    assert all(env is not None and env["ISCC_PATH"] == str(compiler) for _, env in commands)
 
 
 def test_require_clean_worktree_rejects_dirty_state(

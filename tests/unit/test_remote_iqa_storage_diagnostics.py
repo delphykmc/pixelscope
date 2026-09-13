@@ -1,11 +1,12 @@
 from pathlib import Path
 
-from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from scripts.diagnose_remote_iqa_storage import (
     _same_windows_path,
     _windows_lexically_contains,
     run_storage_diagnostics,
 )
+
+from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 
 
 def test_windows_lexical_containment_accepts_child_case_insensitively() -> None:

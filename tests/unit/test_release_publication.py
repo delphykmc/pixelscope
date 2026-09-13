@@ -147,12 +147,8 @@ def test_prepare_publication_stages_exact_candidate_and_provider_neutral_metadat
     assert metadata["release_tag"] == f"v{version}"
     assert metadata["release_title"] == f"PixelScope v{version}"
     assert metadata["source_commit"] == commit
-    assert set(metadata["artifacts"]) == set(
-        publication_module.production_artifact_names(version)
-    )
-    assert metadata["release_note"]["source"] == (
-        note_source.relative_to(tmp_path).as_posix()
-    )
+    assert set(metadata["artifacts"]) == set(publication_module.production_artifact_names(version))
+    assert metadata["release_note"]["source"] == (note_source.relative_to(tmp_path).as_posix())
 
     serialized = json.dumps(metadata, sort_keys=True)
     assert str(tmp_path) not in serialized

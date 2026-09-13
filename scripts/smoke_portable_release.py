@@ -29,8 +29,7 @@ def _validate_archive_members(archive: zipfile.ZipFile, expected_root: str) -> N
             raise RuntimeError(f"Portable ZIP contains an unsafe member: {member.filename!r}")
         if not path.parts or path.parts[0] != prefix.name:
             raise RuntimeError(
-                "Portable ZIP member is outside the canonical archive root: "
-                f"{member.filename!r}"
+                "Portable ZIP member is outside the canonical archive root: " f"{member.filename!r}"
             )
 
 

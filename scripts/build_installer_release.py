@@ -79,9 +79,7 @@ def inno_major_version(iscc: Path) -> int:
     text = f"{result.stdout}\n{result.stderr}"
     match = re.search(r"Inno Setup\s+(\d+)\s+Command-Line Compiler", text, re.IGNORECASE)
     if match is None:
-        raise RuntimeError(
-            f"Unable to identify Inno Setup Command-Line Compiler from {iscc}"
-        )
+        raise RuntimeError(f"Unable to identify Inno Setup Command-Line Compiler from {iscc}")
     return int(match.group(1))
 
 

@@ -128,9 +128,7 @@ def _patch_reachable_runtime(monkeypatch, *, environment_status: str = "PASS") -
         return diagnostics.DiagnosticCheck(
             "http_environment" if use_environment_proxy else "http_direct",
             environment_status if use_environment_proxy else "PASS",
-            "timeout"
-            if use_environment_proxy and environment_status == "FAIL"
-            else "HTTP 404",
+            "timeout" if use_environment_proxy and environment_status == "FAIL" else "HTTP 404",
         )
 
     def production_probe(_url: str, _timeout: float):

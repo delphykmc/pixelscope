@@ -4,7 +4,8 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QCoreApplication, QEvent, QSettings
+from PySide6.QtWidgets import QApplication
 
 from pixelscope.ui.display_gain import display_gain_state
 
@@ -34,6 +35,21 @@ def isolated_synced_qsettings(tmp_path: Path) -> None:
 def isolated_qsettings_subdirectory(tmp_path: Path) -> None:
     """Keep settings separate from other artifacts created below tmp_path."""
     _configure_isolated_qsettings(tmp_path / "settings", sync=False)
+
+
+@pytest.fixture(autouse=True)
+def drain_qt_deferred_deletes_after_test() -> Iterator[None]:
+    """Prevent deferred QObject destruction from leaking across UI tests."""
+
+    yield
+    app = QApplication.instance()
+    if not isinstance(app, QApplication):
+        return
+    # pytest-qt schedules registered widgets for deferred destruction.  Drain
+    # those events at the test boundary so a later qtbot.waitUntil() does not
+    # inherit teardown work from earlier production-composition windows.
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
 
 
 @pytest.fixture(autouse=True)

@@ -3203,13 +3203,9 @@ class MainWindow(QMainWindow):
             current_index = min(self._current_index, len(self._selection_order) - 1)
             if reveal_document_id in self._selection_order:
                 reveal_index = self._selection_order.index(reveal_document_id)
-                current_page_start = (
-                    current_index // COMPARISON_PAGE_SIZE
-                ) * COMPARISON_PAGE_SIZE
+                current_page_start = (current_index // COMPARISON_PAGE_SIZE) * COMPARISON_PAGE_SIZE
                 if not (
-                    current_page_start
-                    <= reveal_index
-                    < current_page_start + COMPARISON_PAGE_SIZE
+                    current_page_start <= reveal_index < current_page_start + COMPARISON_PAGE_SIZE
                 ):
                     current_index = reveal_index
             self._current_index = current_index

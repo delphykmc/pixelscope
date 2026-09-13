@@ -40,8 +40,8 @@ def write_yuv(
     scale_x = 1 if profile.channel_layout == "YUV444" else 2
     scale_y = 2 if profile.channel_layout == "YUV420" else 1
     chroma_shape = (profile.height // scale_y, profile.width // scale_x)
-    u = (np.arange(np.prod(chroma_shape), dtype=np.uint8).reshape(chroma_shape) + 40)
-    v = (np.arange(np.prod(chroma_shape), dtype=np.uint8).reshape(chroma_shape) + 180)
+    u = np.arange(np.prod(chroma_shape), dtype=np.uint8).reshape(chroma_shape) + 40
+    v = np.arange(np.prod(chroma_shape), dtype=np.uint8).reshape(chroma_shape) + 180
     uv = np.empty((chroma_shape[0], chroma_shape[1] * 2), dtype=np.uint8)
     uv[:, 0::2] = u
     uv[:, 1::2] = v
@@ -214,9 +214,7 @@ def test_horizontal_line_profile_keeps_native_chroma_positions(layout: str) -> N
     frame = NativeYuvFrame(
         y=np.arange(16, dtype=np.uint8).reshape(4, 4),
         u=np.arange((4 // scale_y) * 2, dtype=np.uint8).reshape(4 // scale_y, 2),
-        v=(np.arange((4 // scale_y) * 2, dtype=np.uint8) + 100).reshape(
-            4 // scale_y, 2
-        ),
+        v=(np.arange((4 // scale_y) * 2, dtype=np.uint8) + 100).reshape(4 // scale_y, 2),
         layout=layout,
     )
 

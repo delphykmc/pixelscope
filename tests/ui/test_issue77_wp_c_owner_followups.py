@@ -368,9 +368,7 @@ def test_initial_files_drop_starts_on_first_page(
     selected = window.selected_documents
     assert window._current_index == 0
     assert window._page_start == 0
-    assert [document.source_path for document in selected] == [
-        path.resolve() for path in paths
-    ]
+    assert [document.source_path for document in selected] == [path.resolve() for path in paths]
     assert window.current_comparison_documents() == selected[:6]
     window.close()
 
@@ -395,9 +393,7 @@ def test_files_drop_extends_existing_selection_and_reveals_last_addition(
     qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
 
     selected = window.selected_documents
-    assert [document.source_path for document in selected] == [
-        path.resolve() for path in paths
-    ]
+    assert [document.source_path for document in selected] == [path.resolve() for path in paths]
     assert window._page_start == 6
     assert window.current_comparison_documents() == selected[6:]
     window.close()

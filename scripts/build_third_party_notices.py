@@ -79,15 +79,12 @@ def _installed_distributions() -> tuple[metadata.Distribution, ...]:
     distributions = [
         dist
         for dist in metadata.distributions()
-        if _normalize_distribution_name(str(dist.metadata.get("Name") or ""))
-        != "pixelscope"
+        if _normalize_distribution_name(str(dist.metadata.get("Name") or "")) != "pixelscope"
     ]
     return tuple(
         sorted(
             distributions,
-            key=lambda dist: _normalize_distribution_name(
-                str(dist.metadata.get("Name") or "")
-            ),
+            key=lambda dist: _normalize_distribution_name(str(dist.metadata.get("Name") or "")),
         )
     )
 

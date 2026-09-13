@@ -36,14 +36,8 @@ def test_release_remote_iqa_setup_uses_compact_pair_workflow(
     assert workspace.current_pair_b.text() == "—"
     assert workspace.current_pair_a.minimumWidth() == 0
     assert workspace.current_pair_b.minimumWidth() == 0
-    assert (
-        workspace.current_pair_a.sizePolicy().horizontalPolicy()
-        == QSizePolicy.Policy.Ignored
-    )
-    assert (
-        workspace.current_pair_b.sizePolicy().horizontalPolicy()
-        == QSizePolicy.Policy.Ignored
-    )
+    assert workspace.current_pair_a.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    assert workspace.current_pair_b.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
     assert workspace.current_submit.text() == "Submit Pair"
     assert workspace.preview_button.text() == "Validate"
     assert workspace.folder_submit.text() == "Submit Pairs"

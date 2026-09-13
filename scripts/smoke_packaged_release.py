@@ -117,9 +117,7 @@ def smoke_executable(executable: Path, *, startup_timeout: float = 20.0) -> None
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Smoke-test the packaged PixelScope executable"
-    )
+    parser = argparse.ArgumentParser(description="Smoke-test the packaged PixelScope executable")
     parser.add_argument(
         "executable",
         nargs="?",

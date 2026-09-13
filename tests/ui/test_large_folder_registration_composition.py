@@ -90,8 +90,7 @@ def test_production_composition_preserves_recent_tags_and_folder_only_selection(
     tagged_documents = [
         document
         for document in window.documents.values()
-        if document.source_path is not None
-        and document.source_path.parent == drop_folder.resolve()
+        if document.source_path is not None and document.source_path.parent == drop_folder.resolve()
     ]
     assert [document.display_name for document in tagged_documents] == [
         "[Candidate] drop0.png",

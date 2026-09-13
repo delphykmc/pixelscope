@@ -184,9 +184,7 @@ class RegistrationController(QObject):
         request = tuple(Path(path) for path in paths)
         if not request:
             return
-        selection_ids = tuple(
-            document.document_id for document in self.window.selected_documents
-        )
+        selection_ids = tuple(document.document_id for document in self.window.selected_documents)
         self._queue.append((request, selection_ids))
         self._start_next_request()
 
@@ -433,9 +431,7 @@ class RegistrationController(QObject):
         self._record_recent_entries(summary.registered_folders, direct_paths)
         previous_ids = list(self._active_selection_ids)
         previous_set = set(previous_ids)
-        additions = [
-            document_id for document_id in direct_ids if document_id not in previous_set
-        ]
+        additions = [document_id for document_id in direct_ids if document_id not in previous_set]
         if direct_ids:
             if previous_ids:
                 if additions:
@@ -453,9 +449,7 @@ class RegistrationController(QObject):
         if direct_ids:
             if previous_ids:
                 messages.append(
-                    f"Added {len(additions)} image(s)"
-                    if additions
-                    else "No new images added"
+                    f"Added {len(additions)} image(s)" if additions else "No new images added"
                 )
             else:
                 messages.append(f"Opened {len(direct_ids)} image(s)")
