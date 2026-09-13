@@ -9,6 +9,7 @@ from PySide6.QtCore import QCoreApplication
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.registration_controller import install_large_folder_registration
+from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.path_discovery import ImageInput
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
@@ -76,6 +77,59 @@ def test_cancel_during_registration_chunk_makes_scheduled_chunk_stale(
     assert len(window.documents) == 2
     assert window.document_list.document_count == 2
     assert controller.progress.phase == "idle"
+    window.close()
+
+
+def test_queued_direct_requests_merge_into_latest_selected_state(
+    qtbot: object, tmp_path: Path
+) -> None:
+    direct_b = tmp_path / "b.png"
+    direct_c = tmp_path / "c.png"
+    assert cv2.imwrite(str(direct_b), np.full((8, 8), 21, dtype=np.uint8))
+    assert cv2.imwrite(str(direct_c), np.full((8, 8), 31, dtype=np.uint8))
+
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    seed = ImageDocument.from_array(np.zeros((8, 8), dtype=np.uint8), "a.png")
+    window.add_document(seed)
+    controller = install_large_folder_registration(window, chunk_size=1)
+
+    controller.enqueue((direct_b,))
+    controller.enqueue((direct_c,))
+    qtbot.waitUntil(lambda: controller.is_idle, timeout=5000)  # type: ignore[attr-defined]
+
+    assert [document.display_name for document in window.selected_documents] == [
+        "a.png",
+        "b.png",
+        "c.png",
+    ]
+    qtbot.waitUntil(lambda: not window._workers, timeout=3000)  # type: ignore[attr-defined]
+    window.close()
+
+
+def test_direct_registration_completion_rebases_on_user_selection_change(
+    qtbot: object, tmp_path: Path
+) -> None:
+    direct_b = tmp_path / "b.png"
+    assert cv2.imwrite(str(direct_b), np.full((8, 8), 21, dtype=np.uint8))
+
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    original = ImageDocument.from_array(np.zeros((8, 8), dtype=np.uint8), "a.png")
+    newer = ImageDocument.from_array(np.full((8, 8), 10, dtype=np.uint8), "d.png")
+    window.add_document(original)
+    window.add_document(newer, select=False)
+    window._select_document_ids([original.document_id])
+    controller = install_large_folder_registration(window, chunk_size=1)
+
+    controller.enqueue((direct_b,))
+    window._select_document_ids([newer.document_id])
+    qtbot.waitUntil(lambda: controller.is_idle, timeout=5000)  # type: ignore[attr-defined]
+
+    selected = window.selected_documents
+    assert [document.display_name for document in selected] == ["d.png", "b.png"]
+    assert original.document_id not in {document.document_id for document in selected}
+    qtbot.waitUntil(lambda: not window._workers, timeout=3000)  # type: ignore[attr-defined]
     window.close()
 
 

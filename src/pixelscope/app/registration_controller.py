@@ -78,8 +78,7 @@ class RegistrationController(QObject):
         self._discovery_function = discovery_function
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(1)
-        self._queue: deque[tuple[tuple[Path, ...], tuple[str, ...]]] = deque()
-        self._active_selection_ids: tuple[str, ...] = ()
+        self._queue: deque[tuple[Path, ...]] = deque()
         self._worker: TaskWorker | None = None
         self._discovery_task_id: str | None = None
         self._generation = 0
@@ -184,8 +183,7 @@ class RegistrationController(QObject):
         request = tuple(Path(path) for path in paths)
         if not request:
             return
-        selection_ids = tuple(document.document_id for document in self.window.selected_documents)
-        self._queue.append((request, selection_ids))
+        self._queue.append(request)
         self._start_next_request()
 
     def cancel_active(self) -> None:
@@ -259,12 +257,11 @@ class RegistrationController(QObject):
     def _start_next_request(self) -> None:
         if self._closing or self._active_generation is not None or not self._queue:
             return
-        paths, selection_ids = self._queue.popleft()
+        paths = self._queue.popleft()
         self._generation += 1
         generation = self._generation
         self._active_generation = generation
         self._active_discovery = None
-        self._active_selection_ids = selection_ids
         self._registration_index = 0
         self._folder_registered_ids.clear()
         self._direct_document_ids.clear()
@@ -429,14 +426,14 @@ class RegistrationController(QObject):
             registered_folders=discovery.registered_folders,
         )
         self._record_recent_entries(summary.registered_folders, direct_paths)
-        previous_ids = list(self._active_selection_ids)
-        previous_set = set(previous_ids)
-        additions = [document_id for document_id in direct_ids if document_id not in previous_set]
+        current_ids = [document.document_id for document in self.window.selected_documents]
+        current_set = set(current_ids)
+        additions = [document_id for document_id in direct_ids if document_id not in current_set]
         if direct_ids:
-            if previous_ids:
+            if current_ids:
                 if additions:
                     self.window._select_document_ids(
-                        [*previous_ids, *additions],
+                        [*current_ids, *additions],
                         preserve_view=True,
                         reveal_document_id=additions[-1],
                     )
@@ -447,7 +444,7 @@ class RegistrationController(QObject):
 
         messages: list[str] = []
         if direct_ids:
-            if previous_ids:
+            if current_ids:
                 messages.append(
                     f"Added {len(additions)} image(s)" if additions else "No new images added"
                 )
@@ -488,7 +485,6 @@ class RegistrationController(QObject):
         self._restore_type_column_auto_resize()
         self._active_generation = None
         self._active_discovery = None
-        self._active_selection_ids = ()
         self._discovery_task_id = None
         self._registration_index = 0
         self._folder_registered_ids.clear()
