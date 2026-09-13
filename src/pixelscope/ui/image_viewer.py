@@ -29,6 +29,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsItem,
+    QGraphicsRectItem,
     QGraphicsSceneResizeEvent,
     QVBoxLayout,
     QWidget,
@@ -229,13 +230,13 @@ class ImageViewer(QWidget):
         self._loading_timer = QTimer(self)
         self._loading_timer.setInterval(80)
         self._loading_timer.timeout.connect(self._loading_item.advance_frame)  # type: ignore[attr-defined]
-        self._roi = pg.RectROI(
-            (0, 0),
-            (1, 1),
-            movable=False,
-            pen=pg.mkPen("#ffd54f", width=2),
-            hoverPen=pg.mkPen("#ffffff", width=2),
-        )
+        # ROI interaction is owned by RoiViewBox; this item is presentation-only.
+        # Avoid pg.RectROI here because it creates an unused scale Handle and a
+        # parentless QMenu, leaving a cyclic PySide/pyqtgraph object graph for
+        # Python GC after each ImageViewer teardown.
+        self._roi = QGraphicsRectItem()
+        self._roi.setPen(pg.mkPen("#ffd54f", width=2))
+        self._roi.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self._roi.setZValue(20)
         self._roi.hide()
         self._roi_enabled = False
@@ -679,8 +680,14 @@ class ImageViewer(QWidget):
             bounds.height,
         )
         self._roi_enabled = True
-        self._roi.setPos((clipped.x, clipped.y))
-        self._roi.setSize((clipped.width, clipped.height))
+        self._roi.setRect(
+            QRectF(
+                float(clipped.x),
+                float(clipped.y),
+                float(clipped.width),
+                float(clipped.height),
+            )
+        )
         self._roi.show()
 
     def clear_roi(self) -> None:
@@ -694,12 +701,11 @@ class ImageViewer(QWidget):
         document = self._document
         if not self._roi_enabled or document is None:
             return None
-        position = self._roi.pos()
-        size = self._roi.size()
-        left = floor(float(position.x()))
-        top = floor(float(position.y()))
-        right = ceil(float(position.x() + size.x()))
-        bottom = ceil(float(position.y() + size.y()))
+        rect = self._roi.rect()
+        left = floor(float(rect.x()))
+        top = floor(float(rect.y()))
+        right = ceil(float(rect.x() + rect.width()))
+        bottom = ceil(float(rect.y() + rect.height()))
         try:
             return clamp_roi(
                 self._reference_shape(document),
