@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from pixelscope.remote import iqa_client, iqa_submission
 from scripts import p5g_iqa_preflight
+
+from pixelscope.remote import iqa_client, iqa_submission
 
 
 class _PreflightClient(iqa_client.IqaJobClient):

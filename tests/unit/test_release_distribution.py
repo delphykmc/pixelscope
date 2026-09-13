@@ -115,9 +115,7 @@ def test_portable_zip_is_deterministic_for_identical_payload(
 
 
 def test_inno_script_preserves_per_user_no_admin_contract() -> None:
-    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(
-        encoding="utf-8"
-    )
+    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(encoding="utf-8")
     expected_default_app_id = (
         '#define AppIdValue "' + "{" + installer_module.PRODUCTION_APP_ID + '"'
     )
@@ -137,9 +135,7 @@ def test_inno_script_preserves_per_user_no_admin_contract() -> None:
 
 
 def test_inno_script_offers_launch_and_existing_version_confirmation() -> None:
-    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(
-        encoding="utf-8"
-    )
+    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(encoding="utf-8")
 
     assert "[Run]" in script
     assert 'Description: "Launch PixelScope"' in script
@@ -157,9 +153,7 @@ def test_inno_script_offers_launch_and_existing_version_confirmation() -> None:
 
 
 def test_inno_script_isolates_smoke_identity_and_enforces_version_range() -> None:
-    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(
-        encoding="utf-8"
-    )
+    script = (REPO_ROOT / "packaging" / "installer" / "pixelscope.iss").read_text(encoding="utf-8")
 
     assert "#if Ver < 0x06010000" in script
     assert "#if Ver >= 0x08000000" in script

@@ -410,11 +410,7 @@ def _production_client_probe(
         status = client.get_status(DIAGNOSTIC_JOB_ID)
     except IqaClientError as error:
         if error.kind is IqaClientErrorKind.HTTP:
-            detail = (
-                f"HTTP {error.status_code}"
-                if error.status_code is not None
-                else "http_error"
-            )
+            detail = f"HTTP {error.status_code}" if error.status_code is not None else "http_error"
             return (
                 DiagnosticCheck(
                     "production_client",
@@ -508,13 +504,9 @@ def _runtime_checks(runtime: RuntimeEnvironment) -> list[DiagnosticCheck]:
             )
         )
     else:
-        checks.append(
-            DiagnosticCheck("python_under_virtual_env", "WARN", "VIRTUAL_ENV unset")
-        )
+        checks.append(DiagnosticCheck("python_under_virtual_env", "WARN", "VIRTUAL_ENV unset"))
     if runtime.pixelscope_candidate_count <= 1:
-        checks.append(
-            DiagnosticCheck("pixelscope_path_shadowing", "PASS", "single_candidate")
-        )
+        checks.append(DiagnosticCheck("pixelscope_path_shadowing", "PASS", "single_candidate"))
     elif runtime.current_repo_candidate_first:
         checks.append(
             DiagnosticCheck(

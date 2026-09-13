@@ -20,9 +20,7 @@ def _rgb(
 
 
 def test_current_pair_contract_accepts_matching_rgb8_images() -> None:
-    eligible, status = _current_pair_image_contract(
-        [_rgb("a.png"), _rgb("b.png")]
-    )
+    eligible, status = _current_pair_image_contract([_rgb("a.png"), _rgb("b.png")])
 
     assert eligible
     assert status == "OK · RGB8 · 6×4"
@@ -41,9 +39,7 @@ def test_current_pair_contract_rejects_non_rgb_images() -> None:
 
 
 def test_current_pair_contract_rejects_size_mismatch() -> None:
-    eligible, status = _current_pair_image_contract(
-        [_rgb("a.png"), _rgb("b.png", width=7)]
-    )
+    eligible, status = _current_pair_image_contract([_rgb("a.png"), _rgb("b.png", width=7)])
 
     assert not eligible
     assert status == "image size mismatch"

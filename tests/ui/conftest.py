@@ -37,7 +37,6 @@ def isolated_qsettings_subdirectory(tmp_path: Path) -> None:
     _configure_isolated_qsettings(tmp_path / "settings", sync=False)
 
 
-
 @pytest.fixture(autouse=True)
 def drain_qt_deferred_deletes_after_test() -> Iterator[None]:
     """Prevent deferred QObject destruction from leaking across UI tests."""

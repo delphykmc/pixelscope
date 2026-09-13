@@ -14,9 +14,7 @@ def _valid_provenance() -> tuple[dict[str, object], dict[str, dict[str, object]]
             "sha256": "1" * 64,
         }
     }
-    provenance_artifacts = {
-        name: dict(entry) for name, entry in expected_artifacts.items()
-    }
+    provenance_artifacts = {name: dict(entry) for name, entry in expected_artifacts.items()}
     provenance: dict[str, object] = {
         "schema_version": 1,
         "product": "PixelScope",

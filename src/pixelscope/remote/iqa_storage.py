@@ -295,9 +295,7 @@ def _resolved_relative(source_resolved: Path, root_resolved: Path) -> str:
                 )
             )
         except ValueError as exc:
-            raise StorageResolutionError(
-                "source is not contained by configured root"
-            ) from exc
+            raise StorageResolutionError("source is not contained by configured root") from exc
     value = PurePosixPath(*relative.parts).as_posix()
     validate_relative_path(value)
     return value

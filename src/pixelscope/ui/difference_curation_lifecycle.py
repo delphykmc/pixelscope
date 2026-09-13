@@ -57,9 +57,7 @@ class DifferenceCurationLifecycle:
         pair = panel.selected_documents()
         if pair is None:
             return False
-        page_ids = {
-            document.document_id for document in self.window.current_comparison_documents()
-        }
+        page_ids = {document.document_id for document in self.window.current_comparison_documents()}
         if len(page_ids) < 2:
             return False
         pair_ids = {pair[0].document_id, pair[1].document_id}

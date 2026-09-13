@@ -38,6 +38,7 @@ qt_api = "pyside6"
 target-version = "py310"
 line-length = 100
 src = ["src", "tests", "scripts"]
+extend-exclude = ["temp"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.format]

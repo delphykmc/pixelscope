@@ -166,9 +166,7 @@ class QuickCompareController(QObject):
         def render_selection(preserve_view: bool = False) -> None:
             deferred = self._deferred_difference_pair
             if deferred is not None:
-                selected_ids = {
-                    document.document_id for document in self.window.selected_documents
-                }
+                selected_ids = {document.document_id for document in self.window.selected_documents}
                 if not set(deferred).issubset(selected_ids):
                     self._release_deferred_difference(deferred)
             self._end_blink()
@@ -367,11 +365,7 @@ class QuickCompareController(QObject):
         ):
             self._sequential_drop_anchor_id = None
             return anchor_id, dropped_id
-        if (
-            len(previous_ids) == 1
-            and len(merged_ids) == 2
-            and dropped_id != previous_ids[0]
-        ):
+        if len(previous_ids) == 1 and len(merged_ids) == 2 and dropped_id != previous_ids[0]:
             self._sequential_drop_anchor_id = None
             return previous_ids[0], dropped_id
         self._sequential_drop_anchor_id = dropped_id

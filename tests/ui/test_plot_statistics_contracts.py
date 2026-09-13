@@ -150,8 +150,7 @@ def test_plot_dock_resize_preserves_image_scale_and_floating_controls(
     assert title.maximize_button.icon().cacheKey() != maximize_icon
     title.maximize_button.click()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: not window.bottom_dock.isFloating()
-        and not window.bottom_dock.isMaximized(),
+        lambda: not window.bottom_dock.isFloating() and not window.bottom_dock.isMaximized(),
         timeout=2000,
     )
 
@@ -167,8 +166,7 @@ def test_plot_dock_resize_preserves_image_scale_and_floating_controls(
     )
     title.maximize_button.click()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: window.bottom_dock.isFloating()
-        and not window.bottom_dock.isMaximized(),
+        lambda: window.bottom_dock.isFloating() and not window.bottom_dock.isMaximized(),
         timeout=2000,
     )
     title.float_button.click()

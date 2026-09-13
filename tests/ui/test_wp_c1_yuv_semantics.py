@@ -148,8 +148,7 @@ def test_mixed_yuv_and_rgb_plots_fail_safe_instead_of_mislabeling(qtbot: object)
     assert not window.comparison_analysis_panel.last_results
     assert "Mixed YUV/non-YUV" in window.comparison_analysis_panel.status.text()
     assert all(
-        button.isHidden()
-        for button in window.comparison_analysis_panel.channel_buttons.values()
+        button.isHidden() for button in window.comparison_analysis_panel.channel_buttons.values()
     )
     assert not window.line_profile_panel.last_results
     assert "Mixed YUV/non-YUV" in window.line_profile_panel.status.text()

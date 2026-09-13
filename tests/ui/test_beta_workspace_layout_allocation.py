@@ -16,14 +16,8 @@ def test_bottom_plots_can_take_height_while_iqa_is_docked(qtbot: object) -> None
 
     install_beta_workspace_hardening(window)
 
-    assert (
-        window.corner(Qt.Corner.BottomLeftCorner)
-        == Qt.DockWidgetArea.BottomDockWidgetArea
-    )
-    assert (
-        window.corner(Qt.Corner.BottomRightCorner)
-        == Qt.DockWidgetArea.BottomDockWidgetArea
-    )
+    assert window.corner(Qt.Corner.BottomLeftCorner) == Qt.DockWidgetArea.BottomDockWidgetArea
+    assert window.corner(Qt.Corner.BottomRightCorner) == Qt.DockWidgetArea.BottomDockWidgetArea
 
     workspace = window.iqa_workspace
     assert workspace.minimumHeight() == 0

@@ -17,6 +17,9 @@ Run from the repository root with the pinned CPython 3.10 environment:
 git diff --check
 ```
 
+Ruff excludes the repository-local `temp/` diagnostic workspace. Temporary forensic
+probes are not production source, tests, or scripts and must not be committed.
+
 Use narrower tests during development. Before completion, run the full
 applicable suite. If a command cannot run, record the exact command, failure,
 reason, and unverified risk.

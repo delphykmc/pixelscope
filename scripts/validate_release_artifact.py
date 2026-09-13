@@ -81,9 +81,7 @@ def validate_artifact(root: Path = APP_DIR) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate the PixelScope PyInstaller onedir tree"
-    )
+    parser = argparse.ArgumentParser(description="Validate the PixelScope PyInstaller onedir tree")
     parser.add_argument(
         "artifact",
         nargs="?",
