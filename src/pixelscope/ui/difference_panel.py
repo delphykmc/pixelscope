@@ -989,6 +989,7 @@ class DifferencePanel(QWidget):
         else:
             pattern = None
         map_layout = a.channel_layout if family == "YUV" else family
+        selected_absolute = DifferencePanel._selected_absolute
 
         def calculate() -> tuple[CachedDifferenceMap, DifferenceMetrics, bool]:
             difference_map = cached
@@ -1010,7 +1011,7 @@ class DifferencePanel(QWidget):
                     channel_layout=map_layout,
                     bayer_pattern=pattern,
                 )
-            selected = self._selected_absolute(difference_map, channel)
+            selected = selected_absolute(difference_map, channel)
             metrics = absolute_difference_metrics(
                 selected,
                 difference_map.data_range,
