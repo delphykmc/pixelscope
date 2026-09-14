@@ -13,12 +13,13 @@ The canonical User Guide is now topic-oriented under [`docs/user-guide/`](user-g
 - [RAW Guide](user-guide/formats/raw.md)
 - [YUV Guide](user-guide/formats/yuv.md)
 - [Troubleshooting](user-guide/troubleshooting/index.md)
+- [Screenshot strategy](user-guide/assets/screenshots/README.md)
 
 ## Source-of-truth policy
 
 User-visible behavior belongs in the topic page that owns that workflow or feature. Do not maintain a second prose copy here. Developer architecture, implementation phase names, regression history, and deployment plans remain in the developer documentation rather than in the end-user site.
 
-The pre-MkDocs monolithic guide is retained as a historical snapshot at [`docs/history/USER_GUIDE_PRE_MKDOCS.md`](history/USER_GUIDE_PRE_MKDOCS.md). It is not the current user-facing contract; current behavior must be verified against the topic guide, normative contracts, and implementation.
+The pre-MkDocs monolithic guide is retained as a historical snapshot at [`docs/USER_GUIDE_PRE_MKDOCS.md`](USER_GUIDE_PRE_MKDOCS.md). It is not the current user-facing contract; current behavior must be verified against the topic guide, normative contracts, and implementation.
 
 ## Build the searchable site
 
