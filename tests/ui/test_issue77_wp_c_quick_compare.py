@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
@@ -270,10 +270,15 @@ def test_blink_is_safe_noop_for_three_sources_and_while_numeric_input_has_focus(
     window.show()
     window.activateWindow()
     QApplication.setActiveWindow(window)
-    window.comparison_analysis_panel.roi_x_input.setFocus()
+
+    dialog = window.issue77_ui_design_followup._show_roi_editor()
+    assert dialog is not None
+    dialog.show()
+    dialog.activateWindow()
+    QApplication.setActiveWindow(dialog)
+    dialog.x_input.setFocus()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: QApplication.activeWindow() is window
-        and window.comparison_analysis_panel.roi_x_input.hasFocus(),
+        lambda: QApplication.activeWindow() is dialog and dialog.x_input.hasFocus(),
         timeout=3000,
     )
     event = QKeyEvent(
@@ -282,8 +287,11 @@ def test_blink_is_safe_noop_for_three_sources_and_while_numeric_input_has_focus(
         Qt.KeyboardModifier.NoModifier,
         "b",
     )
-    assert not controller.eventFilter(window.comparison_analysis_panel.roi_x_input, event)
+    assert not controller.eventFilter(dialog.x_input, event)
     assert controller._blink_snapshot is None
+    dialog.reject()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    QApplication.processEvents()
 
     window._select_document_ids([document.document_id for document in documents])
     assert not controller._begin_blink()
