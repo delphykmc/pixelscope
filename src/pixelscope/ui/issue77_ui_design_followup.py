@@ -165,19 +165,15 @@ class Issue77UiDesignFollowup(QObject):
 
     def _install_three_view_affordance(self) -> None:
         controller = self.quick_compare
-
-        # Keep the legacy WP-C container only as a compatibility surface for existing
-        # tests/callers. It is zero-width and its textual controls are not presented.
-        controller.three_view_group.setFixedWidth(0)
-        controller.three_view_group.setMaximumWidth(0)
+        controller.three_view_group.hide()
         controller.three_view_label.hide()
         controller.three_view_equal.hide()
         controller.three_view_focus.hide()
 
         layout_host = self.window.layout_selector.parentWidget()
-        if not isinstance(layout_host, QWidget) or not isinstance(layout_host.layout(), QHBoxLayout):
+        layout = layout_host.layout() if isinstance(layout_host, QWidget) else None
+        if not isinstance(layout, QHBoxLayout):
             raise RuntimeError("Layout selector host is unavailable")
-        layout = layout_host.layout()
 
         self.three_view_button = QToolButton(layout_host)
         self.three_view_button.setObjectName("threeViewArrangementButton")
@@ -189,8 +185,7 @@ class Issue77UiDesignFollowup(QObject):
         layout.addWidget(self.three_view_button)
 
         def update_three_view_controls() -> None:
-            enabled = self._three_view_enabled()
-            controller.three_view_group.setVisible(enabled)
+            controller.three_view_group.hide()
             self._sync_three_view_button()
 
         controller._update_three_view_controls = update_three_view_controls
