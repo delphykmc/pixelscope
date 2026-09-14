@@ -2,6 +2,8 @@
 
 Histogram is the distribution view in the Plots workspace.
 
+![Histogram workspace](../assets/screenshots/histogram-docked.png)
+
 ## Scope
 
 Histogram analyzes the Current Comparison Page. It uses the full image when no ROI is active and the shared ROI when one is set. The controls identify the analysis region so the plotted distribution can be interpreted without guessing its spatial scope.

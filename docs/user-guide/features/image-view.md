@@ -2,6 +2,8 @@
 
 Image View is the primary visual inspection surface.
 
+![Single Image View](../assets/screenshots/single-image.png)
+
 ## Single and Multi View
 
 **Single View** (`Ctrl+1`) focuses on one source in the current page context. **Multi View** (`Ctrl+2`) presents the Current Comparison Page, up to six sources. Number keys `1` through `6` activate the corresponding visible page-local slot.

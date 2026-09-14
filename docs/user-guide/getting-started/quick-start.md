@@ -24,9 +24,11 @@ Use **Single View** (`Ctrl+1`) to focus on one selected source or **Multi View**
 
 Zoom and pan in Image View to inspect detail. Pixel/cursor readout follows the native source coordinate system where the format supports it.
 
+![Six-image Multi View](../assets/screenshots/six-image-multiview.png)
+
 ## 5. Mark an ROI
 
-Enable the ROI interaction and drag the desired area, or enter exact **X, Y, Width, Height** values in Statistics. The ROI is shared by analysis views. If a new comparison context cannot represent the ROI consistently, PixelScope clears it rather than silently changing its bounds.
+Use **Ctrl+drag** to draw an ROI, or enter exact **X, Y, Width, Height** values in Statistics. The ROI is shared by analysis views. If a new comparison context cannot represent the ROI consistently, PixelScope clears it rather than silently changing its bounds.
 
 ## 6. Read Statistics
 

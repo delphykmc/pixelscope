@@ -2,6 +2,8 @@
 
 Difference compares two explicitly assigned, compatible sources and provides both a visual map and numerical metrics.
 
+![Difference analysis](../assets/screenshots/difference-analysis.png)
+
 ## Roles
 
 **Primary** is the reference role and **Active** is the focused comparison role. Both must identify a valid current-page pair before a new calculation can be established.

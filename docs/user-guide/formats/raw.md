@@ -2,6 +2,8 @@
 
 PixelScope can open headerless RAW-like data when enough metadata is available to interpret its bytes. The filename suffix alone is not sufficient to infer every storage property.
 
+![RAW profile dialog](../assets/screenshots/raw-profile-dialog.png)
+
 ## RAW-like files
 
 `.raw` and `.data` use the RAW profile workflow. A `.yuv` file can also use **Generic RAW profile...** when it is intentionally being interpreted as raw Gray/Bayer data rather than native YUV.

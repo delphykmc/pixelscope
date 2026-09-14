@@ -2,6 +2,8 @@
 
 Line Profile plots source values along a shared horizontal or vertical line.
 
+![Line Profile workspace](../assets/screenshots/line-profile-docked.png)
+
 ## Define the line
 
 Open the Line Profile tab and **Shift+drag** in Image View. PixelScope records the line in the shared source/reference coordinate system and reports its endpoints.
