@@ -44,6 +44,7 @@ from pixelscope.ui.iqa_scene_inspection_lifecycle import install_iqa_scene_inspe
 from pixelscope.ui.iqa_setup_presentation import polish_remote_iqa_setup
 from pixelscope.ui.iqa_submission import install_remote_iqa
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
+from pixelscope.ui.issue77_ui_design_followup import install_issue77_ui_design_followup
 from pixelscope.ui.multiview_reorder_stability import install_multiview_reorder_stability
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.quick_compare import install_quick_compare_workflow
@@ -151,6 +152,9 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     # Issue #77 WP-C is the outermost Image View interaction layer. It delegates
     # registration, Difference, selection, and presentation state to the owners above.
     install_quick_compare_workflow(window)
+    # The follow-up keeps WP-A/WP-C numerical and state authorities intact while
+    # replacing their dense command surfaces with compact, context-aware controls.
+    install_issue77_ui_design_followup(window)
     return gain_control
 
 

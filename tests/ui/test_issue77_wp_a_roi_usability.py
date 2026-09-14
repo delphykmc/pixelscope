@@ -83,26 +83,7 @@ def _editor_bounds(panel: ComparisonAnalysisPanel) -> RoiBounds:
     )
 
 
-def _assert_roi_editor_controls_do_not_overlap(panel: ComparisonAnalysisPanel) -> None:
-    controls = (
-        *panel.roi_coordinate_labels.values(),
-        panel.roi_x_input,
-        panel.roi_y_input,
-        panel.roi_width_input,
-        panel.roi_height_input,
-        panel.roi_apply_button,
-        panel.roi_clear_button,
-    )
-    editor_rect = panel.roi_editor.rect()
-    for control in controls:
-        assert control.isVisible()
-        assert editor_rect.contains(control.geometry())
-    for index, first in enumerate(controls):
-        for second in controls[index + 1 :]:
-            assert not first.geometry().intersects(second.geometry())
-
-
-def test_production_statistics_sidebar_wraps_roi_editor_without_overlap(qtbot: object) -> None:
+def test_production_statistics_sidebar_uses_compact_roi_edit_affordance(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     _compose_main_window_presentation(window)
@@ -111,14 +92,19 @@ def test_production_statistics_sidebar_wraps_roi_editor_without_overlap(qtbot: o
     window.show()
     qtbot.wait(20)  # type: ignore[attr-defined]
     panel = window.comparison_analysis_panel
+    followup = window.issue77_ui_design_followup
 
-    assert panel.width() < panel.roi_editor.minimumSizeHint().width() + 200
-    _assert_roi_editor_controls_do_not_overlap(panel)
+    assert not panel.roi_editor.isVisible()
+    assert followup.roi_bounds_label.text() == "Bounds"
+    assert followup.roi_bounds_label.isVisible()
+    assert followup.roi_edit_button.isVisible()
+    assert followup.roi_edit_button.isEnabled()
+    assert panel.roi_label.isVisible()
 
     window.main_splitter.setSizes([320, 1080])
     qtbot.wait(20)  # type: ignore[attr-defined]
     assert panel.width() <= 320
-    _assert_roi_editor_controls_do_not_overlap(panel)
+    assert followup.roi_edit_button.geometry().right() <= panel.width()
     window.close()
 
 

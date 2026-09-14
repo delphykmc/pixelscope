@@ -22,6 +22,8 @@ _ICON_KINDS = {
     "export",
     "pin",
     "flag",
+    "three_equal",
+    "three_focus",
 }
 _DISABLED_ICON_COLOR = "#737980"
 
@@ -118,6 +120,14 @@ def _draw_icon(kind: str, color_name: str, *, filled: bool = False) -> QPixmap:
         painter.drawRect(QRectF(5.5, 5.5, 8.5, 8.5))
         painter.drawLine(QPointF(6.5, 12.5), QPointF(12.5, 6.5))
         painter.drawLine(QPointF(8.7, 13.5), QPointF(13.5, 8.7))
+    elif kind == "three_equal":
+        painter.drawRect(QRectF(2.0, 3.0, 3.2, 10.0))
+        painter.drawRect(QRectF(6.4, 3.0, 3.2, 10.0))
+        painter.drawRect(QRectF(10.8, 3.0, 3.2, 10.0))
+    elif kind == "three_focus":
+        painter.drawRect(QRectF(2.0, 2.5, 7.0, 11.0))
+        painter.drawRect(QRectF(10.3, 2.5, 3.7, 4.8))
+        painter.drawRect(QRectF(10.3, 8.7, 3.7, 4.8))
     elif kind == "plots":
         painter.drawLine(QPointF(2.5, 2.5), QPointF(2.5, 13.5))
         painter.drawLine(QPointF(2.5, 13.5), QPointF(13.5, 13.5))
