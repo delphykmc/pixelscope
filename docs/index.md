@@ -8,12 +8,12 @@ knowledge belongs in focused documents under `docs/`.
 | Task type | Read first | Update when |
 |---|---|---|
 | Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
-| User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `ui/` note | Behavior, terminology, shortcut, or workflow changes |
+| User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `user-guide/` topic and `ui/` note | Behavior, terminology, shortcut, format semantics, or workflow changes |
 | Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
 | Remote IQA result/schema/submission work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, current/deferred execution plan as applicable | Measurement/comparison ownership, storage/request/job identity, result schema, summaries/grids, loading boundaries, or P5 sequencing change |
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
-| RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures | Storage schema, validation, decoder, or Bayer behavior changes |
+| RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures, `user-guide/formats/raw.md` | Storage schema, validation, decoder, Bayer behavior, or user-facing RAW interpretation changes |
 | Branding/application identity | `BRANDING.md`, `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Product mark, canonical assets, resource loading, or release-icon use changes |
 | Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `BUILD_AND_RELEASE.md`, `DECISIONS.md` | Runtime, dependency, installer, release metadata, publication, or resource-loading constraints change |
 | Owner-local Beta build/release | `BUILD_AND_RELEASE.md`, `PACKAGING_CONSTRAINTS.md` | Human build flow, candidate handoff, validation sequence, or publication procedure changes |
@@ -51,8 +51,15 @@ knowledge belongs in focused documents under `docs/`.
 - `BUILD_AND_RELEASE.md`: concise owner-local Windows Beta build, candidate handoff,
   provider-neutral publication staging, and revalidation runbook; normative rules remain
   in `PACKAGING_CONSTRAINTS.md`.
-- `USER_GUIDE.md`: end-user workflows, including Remote IQA configuration,
-  submission, Jobs, explicit Open Result, and result exploration.
+- `USER_GUIDE.md`: stable repository entry point for the end-user guide and its build
+  instructions; canonical task/feature/format/reference content lives under
+  `user-guide/` and is built by `mkdocs.yml`.
+- `USER_GUIDE_PRE_MKDOCS.md`: historical snapshot of the pre-MkDocs monolithic guide;
+  retained for history, not current user-facing authority.
+- `USER_GUIDE_FOLLOW_UP.md`: scoped Help/packaging/deployment/agent-interface follow-up
+  work that is intentionally outside the User Guide foundation.
+- `user-guide/`: canonical end-user Markdown source for the searchable/offline site;
+  avoid developer phase names and internal implementation terminology here.
 - `QUALITY.md`: change-to-check matrix and completion evidence.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
@@ -98,15 +105,17 @@ knowledge belongs in focused documents under `docs/`.
 4. Record stable invariants, concrete paths, commands, states, and failure
    conditions rather than chat history.
 5. Update documentation in the same PR as behavior or architecture changes.
-6. Rewrite or remove stale guidance instead of appending contradictory notes.
-7. Keep temporary compatibility paths explicitly marked with an owner and
+6. For user-visible behavior, review User Guide impact in the same PR and update the
+   owning `user-guide/` topic rather than duplicating prose in `USER_GUIDE.md`.
+7. Rewrite or remove stale guidance instead of appending contradictory notes.
+8. Keep temporary compatibility paths explicitly marked with an owner and
    removal condition.
-8. Use an execution plan when work crosses components, has unresolved design
+9. Use an execution plan when work crosses components, has unresolved design
    choices, or is likely to span multiple commits or sessions.
-9. Move substantial completed plans to `exec-plans/completed/`, keep unavailable but
+10. Move substantial completed plans to `exec-plans/completed/`, keep unavailable but
    still-authoritative work in `exec-plans/deferred/`, and keep the required current
    plan at `exec-plans/active/next-phase.md`.
-10. Retain explicit schema-v1/v2 filenames as compatibility authority. Use
+11. Retain explicit schema-v1/v2 filenames as compatibility authority. Use
     phase-neutral filenames for current durable contracts at the docs root; preserve
     phase identity inside those documents and in completed execution history.
 
@@ -118,5 +127,12 @@ Run from the repository root:
 .\.venv\Scripts\python.exe scripts\check_docs.py
 ```
 
-The check verifies required harness files and local Markdown links. Pytest also
-runs the same contract through `tests/unit/test_docs_contract.py`.
+The check verifies required harness/User Guide entry points, canonical User Guide
+navigation coverage, and local Markdown links. Pytest also runs the same contract
+through `tests/unit/test_docs_contract.py`.
+
+When the User Guide source or platform changes, also run:
+
+```powershell
+.\.venv\Scripts\python.exe -m mkdocs build --strict
+```
