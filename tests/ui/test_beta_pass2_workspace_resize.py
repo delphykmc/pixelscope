@@ -51,6 +51,59 @@ def _assert_resize_accepted(window: MainWindow, qtbot: object, width: int, heigh
     assert window.height() <= height
 
 
+def _assert_layout_group_geometry(window: MainWindow) -> None:
+    group = window.layout_selector.parentWidget()
+    assert group is not None
+    layout = group.layout()
+    assert layout is not None
+
+    visible_children: list[QWidget] = []
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        child = item.widget() if item is not None else None
+        if isinstance(child, QWidget) and child.isVisible():
+            assert group.rect().contains(child.geometry())
+            visible_children.append(child)
+
+    three_view = window.issue77_ui_design_followup.three_view_button
+    assert window.layout_selector in visible_children
+    assert three_view in visible_children
+    assert any(isinstance(child, QLabel) and child.text() == "Layout" for child in visible_children)
+
+    visible_children.sort(key=lambda child: child.geometry().left())
+    assert all(
+        visible_children[index].geometry().right()
+        < visible_children[index + 1].geometry().left()
+        for index in range(len(visible_children) - 1)
+    ), [child.geometry() for child in visible_children]
+
+
+def _assert_command_row_minimum_budget(window: MainWindow) -> None:
+    host = window.presentation_controls
+    layout = window.presentation_controls_layout
+    margins = layout.contentsMargins()
+    floors: list[int] = []
+
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        if item is None or item.isEmpty():
+            continue
+        widget = item.widget()
+        if isinstance(widget, QWidget):
+            floors.append(widget.minimumWidth())
+        else:
+            floors.append(item.minimumSize().width())
+
+    minimum_budget = (
+        margins.left()
+        + margins.right()
+        + sum(floors)
+        + layout.spacing() * max(0, len(floors) - 1)
+    )
+    assert minimum_budget <= host.width(), (minimum_budget, host.width(), floors)
+    assert layout.minimumSize().width() <= host.width()
+
+
 def _assert_command_row_geometry(window: MainWindow) -> None:
     host = window.presentation_controls
     review = window.review_selection_controller
@@ -87,6 +140,9 @@ def _assert_command_row_geometry(window: MainWindow) -> None:
         ):
             assert child is not None
             assert page_group.rect().contains(child.geometry())
+
+    _assert_layout_group_geometry(window)
+    _assert_command_row_minimum_budget(window)
 
 
 def _assert_actionable_content_floors(window: MainWindow) -> None:
@@ -345,6 +401,61 @@ def test_workspace_keeps_page_gain_and_curation_actions_observable_without_overl
     qtbot.mouseClick(review.clear_button, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
     assert not review.picked_ids
     assert review.count_label.toolTip() == "● Picked 0"
+
+    window.close()
+
+
+@pytest.mark.parametrize("size", [(1280, 720), (1920, 1080)])
+def test_command_row_worst_case_keeps_enabled_three_view_and_live_curation_nonoverlapping(
+    qtbot: object,
+    tmp_path: Path,
+    size: tuple[int, int],
+) -> None:
+    window = _production_window(qtbot)
+    pair = _register_rgb8_pair(window, tmp_path)
+    additional = tuple(
+        ImageDocument.from_array(
+            np.full((12, 16, 3), index * 16, dtype=np.uint8),
+            f"worst_case_{index}.png",
+            source_path=tmp_path / f"worst_case_{index}.png",
+        )
+        for index in range(2, 9)
+    )
+    for document in additional:
+        window.add_document(document, select=False)
+    documents = (*pair, *additional)
+    window._select_document_ids([document.document_id for document in documents])
+    window.iqa_dock.show()
+    _assert_resize_accepted(window, qtbot, *size)
+
+    assert window.comparison_page_label.text() == "1 / 2"
+    qtbot.mouseClick(  # type: ignore[attr-defined]
+        window.next_comparison_page_button,
+        Qt.MouseButton.LeftButton,
+    )
+    assert window.comparison_page_label.text() == "2 / 2"
+    assert window.comparison_page_range_label.text() == "7–9 of 9"
+    assert len(window.current_comparison_documents()) == 3
+
+    three_view = window.issue77_ui_design_followup.three_view_button
+    qtbot.waitUntil(three_view.isEnabled)  # type: ignore[attr-defined]
+    assert three_view.isVisibleTo(window.presentation_controls)
+
+    review = window.review_selection_controller
+    pick = window.multi_compare_view.occupied_viewers[0].header.pick
+    assert not pick.isHidden()
+    qtbot.mouseClick(pick, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    assert review.picked_count == 1
+    assert review.clear_button.isEnabled()
+    assert review.keep_button.isEnabled()
+    assert review.count_label.toolTip() == "● Picked 1"
+    assert window.previous_comparison_page_button.isEnabled()
+    assert not window.previous_comparison_page_button.isHidden()
+    assert not window.next_comparison_page_button.isHidden()
+
+    _assert_actionable_content_floors(window)
+    _assert_command_row_geometry(window)
+    assert window.minimumSizeHint().width() <= size[0]
 
     window.close()
 
