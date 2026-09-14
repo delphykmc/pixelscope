@@ -12,3 +12,5 @@ build/
 dist/
 release/
 test_data/generated/
+/site/
+/.cache/plugin/privacy/

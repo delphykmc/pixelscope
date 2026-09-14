@@ -31,6 +31,7 @@ Only mark checks that were actually run and observed.
 - [ ] `mypy src`:
 - [ ] `pip check`:
 - [ ] `scripts/check_docs.py` when docs changed:
+- [ ] `mkdocs build --strict` when User Guide source/platform changed:
 - [ ] `git diff --check`:
 - [ ] Manual Windows validation when required:
 
@@ -42,6 +43,7 @@ Only mark checks that were actually run and observed.
 ## Durable documentation
 
 - [ ] Product behavior updated if needed
+- [ ] User Guide impact reviewed for user-visible behavior; topic page updated if needed
 - [ ] Architecture/decision docs updated if needed
 - [ ] Current state / execution plan updated if needed
 - [ ] No stale future-tense description remains for implemented behavior

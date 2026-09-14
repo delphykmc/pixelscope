@@ -11,6 +11,8 @@ REQUIRED_PATHS = (
     "AGENTS.md",
     "README.md",
     ".github/pull_request_template.md",
+    "mkdocs.yml",
+    "requirements/docs.txt",
     "docs/index.md",
     "docs/CURRENT_STATE.md",
     "docs/PRODUCT_SPEC.md",
@@ -19,10 +21,63 @@ REQUIRED_PATHS = (
     "docs/ROADMAP.md",
     "docs/PACKAGING_CONSTRAINTS.md",
     "docs/USER_GUIDE.md",
+    "docs/USER_GUIDE_FOLLOW_UP.md",
     "docs/QUALITY.md",
     "docs/AGENT_HARNESS_NOTES.md",
     "docs/exec-plans/TEMPLATE.md",
     "docs/exec-plans/active/next-phase.md",
+    "docs/user-guide/index.md",
+    "docs/user-guide/getting-started/quick-start.md",
+    "docs/user-guide/workflows/curate-selection.md",
+    "docs/user-guide/workflows/export-analysis.md",
+    "docs/user-guide/workflows/use-remote-iqa.md",
+    "docs/user-guide/formats/raw.md",
+    "docs/user-guide/formats/yuv.md",
+    "docs/user-guide/reference/keyboard-shortcuts.md",
+    "docs/user-guide/reference/terminology.md",
+    "docs/user-guide/troubleshooting/index.md",
+    "docs/user-guide/assets/screenshots/README.md",
+    "docs/user-guide/llms.txt",
+    "scripts/check_user_guide_site.py",
+    "tests/unit/test_user_guide_site_contract.py",
+)
+
+CRITICAL_GUIDE_NAV = (
+    "index.md",
+    "getting-started/installation.md",
+    "getting-started/quick-start.md",
+    "getting-started/concepts.md",
+    "workflows/open-images.md",
+    "workflows/open-folders.md",
+    "workflows/compare-images.md",
+    "workflows/compare-many-images.md",
+    "workflows/curate-selection.md",
+    "workflows/compare-folder-positions.md",
+    "workflows/inspect-roi.md",
+    "workflows/inspect-histogram.md",
+    "workflows/inspect-line-profile.md",
+    "workflows/use-difference.md",
+    "workflows/export-analysis.md",
+    "workflows/save-and-restore-work.md",
+    "workflows/use-remote-iqa.md",
+    "features/files-workspace.md",
+    "features/image-view.md",
+    "features/statistics.md",
+    "features/histogram.md",
+    "features/line-profile.md",
+    "features/difference.md",
+    "features/plots-workspace.md",
+    "features/iqa-workspace.md",
+    "features/settings.md",
+    "features/runtime-diagnostics.md",
+    "formats/standard-images.md",
+    "formats/raw.md",
+    "formats/yuv.md",
+    "reference/keyboard-shortcuts.md",
+    "reference/supported-formats.md",
+    "reference/settings.md",
+    "reference/terminology.md",
+    "troubleshooting/index.md",
 )
 
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
@@ -58,6 +113,17 @@ def find_problems(root: Path = ROOT) -> list[str]:
         path = repository_root / relative
         if not path.exists():
             problems.append(f"missing required path: {relative}")
+
+    mkdocs_path = repository_root / "mkdocs.yml"
+    if mkdocs_path.is_file():
+        mkdocs_text = mkdocs_path.read_text(encoding="utf-8")
+        for page in CRITICAL_GUIDE_NAV:
+            marker = f": {page}"
+            count = mkdocs_text.count(marker)
+            if count != 1:
+                problems.append(
+                    f"mkdocs.yml: expected exactly one nav entry for {page}, found {count}"
+                )
 
     for document in markdown_files(repository_root):
         text = document.read_text(encoding="utf-8")

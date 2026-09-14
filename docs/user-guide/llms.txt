@@ -1,0 +1,54 @@
+# PixelScope User Guide - machine-readable entry point
+
+Canonical source root (repository): docs/user-guide/
+Generated site root: index.html
+All routes below are relative to the generated site root and resolve from site/llms.txt.
+
+Start:
+- index.html
+- getting-started/quick-start.html
+- getting-started/concepts.html
+
+Task workflows:
+- workflows/open-images.html
+- workflows/open-folders.html
+- workflows/compare-images.html
+- workflows/compare-many-images.html
+- workflows/curate-selection.html
+- workflows/compare-folder-positions.html
+- workflows/inspect-roi.html
+- workflows/inspect-histogram.html
+- workflows/inspect-line-profile.html
+- workflows/use-difference.html
+- workflows/export-analysis.html
+- workflows/save-and-restore-work.html
+- workflows/use-remote-iqa.html
+
+Format semantics:
+- formats/standard-images.html
+- formats/raw.html
+- formats/yuv.html
+
+Canonical reference:
+- reference/keyboard-shortcuts.html
+- reference/supported-formats.html
+- reference/settings.html
+- reference/terminology.html
+- troubleshooting/index.html
+
+Question routing:
+- How do I compare two folders? -> workflows/compare-folder-positions.html
+- How do I select an exact ROI? -> workflows/inspect-roi.html
+- How do I compare more than six images? -> workflows/compare-many-images.html
+- How do I reduce a large selection? -> workflows/curate-selection.html
+- How does PageUp/PageDown work? -> workflows/compare-folder-positions.html
+- How do I open RAW14? -> formats/raw.html
+- What does stride mean? -> formats/raw.html and troubleshooting/index.html
+- Why is Difference unavailable? -> workflows/use-difference.html and troubleshooting/index.html
+- How do I reset a line profile? -> workflows/inspect-line-profile.html
+- What is Primary? -> getting-started/concepts.html and reference/terminology.html
+- How do I export Histogram or Difference? -> workflows/export-analysis.html
+- How do I submit or inspect Remote IQA? -> workflows/use-remote-iqa.html
+
+Repository-aware agents can map each generated .html route to the matching Markdown source under docs/user-guide/ when source inspection is needed.
+Do not infer planned/deferred behavior from developer roadmap documents when answering end-user questions. Prefer current User Guide pages, then current product contracts/code when verification is required.
