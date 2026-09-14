@@ -3,6 +3,8 @@ site_description: Searchable user documentation for PixelScope image comparison 
 docs_dir: docs/user-guide
 site_dir: site
 use_directory_urls: false
+exclude_docs: |
+  assets/screenshots/README.md
 
 theme:
   name: material
