@@ -5,6 +5,7 @@ from PySide6.QtCore import (
     QEvent,
     QObject,
     QPointF,
+    QRect,
     QRectF,
     QSettings,
     QSize,
@@ -291,7 +292,7 @@ class PlotsDockTitleBar(QWidget):
         self._restore_to_docked = False
         self._sync_maximize_control()
 
-    def _available_screen_geometry(self):
+    def _available_screen_geometry(self) -> QRect | None:
         frame_geometry = self._dock.frameGeometry()
         screen = QGuiApplication.screenAt(frame_geometry.center())
         handle = self._dock.windowHandle()
