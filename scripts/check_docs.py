@@ -21,7 +21,6 @@ REQUIRED_PATHS = (
     "docs/ROADMAP.md",
     "docs/PACKAGING_CONSTRAINTS.md",
     "docs/USER_GUIDE.md",
-    "docs/USER_GUIDE_PRE_MKDOCS.md",
     "docs/USER_GUIDE_FOLLOW_UP.md",
     "docs/QUALITY.md",
     "docs/AGENT_HARNESS_NOTES.md",
@@ -39,6 +38,8 @@ REQUIRED_PATHS = (
     "docs/user-guide/troubleshooting/index.md",
     "docs/user-guide/assets/screenshots/README.md",
     "docs/user-guide/llms.txt",
+    "scripts/check_user_guide_site.py",
+    "tests/unit/test_user_guide_site_contract.py",
 )
 
 CRITICAL_GUIDE_NAV = (
