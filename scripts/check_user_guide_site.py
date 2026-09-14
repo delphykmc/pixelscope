@@ -34,9 +34,7 @@ class ResourceReferenceParser(HTMLParser):
         super().__init__()
         self.references: list[str] = []
 
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {name: value or "" for name, value in attrs}
 
         for attribute in ("src", "poster"):
