@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.toolbar_icons import toolbar_icon
 
-_COMPACT_PICK_COUNT_WIDTH = 50
+_PAGE_STATUS_OBSERVABLE_TEXT = "1 / 1"
+_PICK_COUNT_OBSERVABLE_TEXT = "● 0"
 _QT_WIDGET_SIZE_MAX = 16_777_215
 
 
@@ -100,7 +101,7 @@ def _set_bold_label(label: QLabel) -> None:
 
 
 class _ElidingMetadataLabel(QLabel):
-    """Keep complete label text as metadata while painting within its allocation."""
+    """Keep complete metadata while exposing only its priority-specific width floor."""
 
     def __init__(
         self,
@@ -108,10 +109,13 @@ class _ElidingMetadataLabel(QLabel):
         description: str,
         maximum_compact_width: int,
         parent: QWidget,
+        *,
+        minimum_observable_text: str = "",
     ) -> None:
         super().__init__(text, parent)
         self._description = description
         self._maximum_compact_width = maximum_compact_width
+        self._minimum_observable_text = minimum_observable_text
         self.setMinimumWidth(0)
         self.setMaximumWidth(maximum_compact_width)
         self._sync_metadata(text)
@@ -120,9 +124,16 @@ class _ElidingMetadataLabel(QLabel):
         super().setText(text)
         self._sync_metadata(text)
 
+    def observable_minimum_width(self) -> int:
+        """Return a semantic floor from the current font, never a literal pixel budget."""
+
+        if not self._minimum_observable_text:
+            return 0
+        return self.fontMetrics().horizontalAdvance(self._minimum_observable_text) + 2 * self.margin()
+
     def minimumSizeHint(self) -> QSize:  # noqa: N802 - Qt API override
         hint = super().minimumSizeHint()
-        return QSize(0, hint.height())
+        return QSize(self.observable_minimum_width(), hint.height())
 
     def setFixedWidth(self, width: int) -> None:  # noqa: N802 - Qt API override
         """Translate legacy reservations into an eliding upper bound."""
@@ -158,6 +169,8 @@ def _replace_page_label(
     description: str,
     stretch: int,
     maximum_width: int,
+    *,
+    minimum_observable_text: str = "",
 ) -> QLabel:
     old_label = getattr(window, attribute_name)
     if isinstance(old_label, _ElidingMetadataLabel):
@@ -170,13 +183,19 @@ def _replace_page_label(
     if index < 0:
         raise RuntimeError("Comparison Page label is missing from its command layout")
 
-    label = _ElidingMetadataLabel(old_label.text(), description, maximum_width, parent)
+    label = _ElidingMetadataLabel(
+        old_label.text(),
+        description,
+        maximum_width,
+        parent,
+        minimum_observable_text=minimum_observable_text,
+    )
     label.setObjectName(old_label.objectName())
     label.setAlignment(old_label.alignment())
     label.setEnabled(old_label.isEnabled())
     label.setVisible(not old_label.isHidden())
-    label.setMinimumWidth(0)
-    label.setMaximumWidth(maximum_width)
+    label.setFont(old_label.font())
+    label.setStyleSheet(old_label.styleSheet())
     label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
     parent_layout.removeWidget(old_label)
     parent_layout.insertWidget(index, label, stretch)
@@ -187,13 +206,73 @@ def _replace_page_label(
     return label
 
 
-def _set_compact_command_width(widget: QWidget, minimum_width: int) -> None:
-    """Let a command group yield to the viewer while retaining a clickable floor."""
+def _replace_review_count_label(review: Any) -> QLabel | None:
+    old_label = getattr(review, "count_label", None)
+    if isinstance(old_label, _ElidingMetadataLabel):
+        return old_label
+    if not isinstance(old_label, QLabel):
+        return None
+    parent = old_label.parentWidget()
+    parent_layout = parent.layout() if parent is not None else None
+    if not isinstance(parent, QWidget) or not isinstance(parent_layout, QHBoxLayout):
+        return old_label
+    index = parent_layout.indexOf(old_label)
+    if index < 0:
+        return old_label
 
-    widget.setMinimumWidth(minimum_width)
+    label = _ElidingMetadataLabel(
+        old_label.text(),
+        "Temporary Pick count",
+        _QT_WIDGET_SIZE_MAX,
+        parent,
+        minimum_observable_text=_PICK_COUNT_OBSERVABLE_TEXT,
+    )
+    label.setObjectName(old_label.objectName())
+    label.setAlignment(old_label.alignment())
+    label.setEnabled(old_label.isEnabled())
+    label.setVisible(not old_label.isHidden())
+    label.setFont(old_label.font())
+    label.setStyleSheet(old_label.styleSheet())
+    label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    parent_layout.removeWidget(old_label)
+    parent_layout.insertWidget(index, label)
+    old_label.hide()
+    old_label.setParent(None)
+    old_label.deleteLater()
+    review.count_label = label
+    return label
+
+
+def _set_elastic_width(widget: QWidget) -> None:
+    """Let a metadata surface yield while explicit semantic floors remain authoritative."""
+
+    widget.setMinimumWidth(0)
     policy = widget.sizePolicy()
     policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
     widget.setSizePolicy(policy)
+
+
+def _set_secondary_metadata(label: QLabel | None, accessible_name: str) -> None:
+    """Allow non-actionable captions to yield before commands under width pressure."""
+
+    if not isinstance(label, QLabel):
+        return
+    _set_elastic_width(label)
+    if not label.toolTip():
+        label.setToolTip(accessible_name)
+    if not label.accessibleName():
+        label.setAccessibleName(accessible_name)
+
+
+def _first_label(layout: QHBoxLayout | None) -> QLabel | None:
+    if not isinstance(layout, QHBoxLayout):
+        return None
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        widget = item.widget() if item is not None else None
+        if isinstance(widget, QLabel):
+            return widget
+    return None
 
 
 def _natural_width(widget: QWidget) -> int:
@@ -204,7 +283,7 @@ def _natural_width(widget: QWidget) -> int:
 
 
 class _CommandRowMetricRefresh(QObject):
-    """Own content-aware command floors for the lifetime of one composed window."""
+    """Own command and metadata floors for the lifetime of one composed window."""
 
     _METRIC_EVENTS = (QEvent.Type.FontChange, QEvent.Type.StyleChange)
 
@@ -217,6 +296,10 @@ class _CommandRowMetricRefresh(QObject):
         gain_combo: QComboBox,
         clear_button: QAbstractButton,
         keep_button: QAbstractButton,
+        count_label: QLabel,
+        page_status_label: QLabel,
+        page_range_label: QLabel,
+        secondary_labels: tuple[QLabel, ...],
     ) -> None:
         super().__init__(window)
         self._window = window
@@ -226,6 +309,10 @@ class _CommandRowMetricRefresh(QObject):
         self._gain_combo = gain_combo
         self._clear_button = clear_button
         self._keep_button = keep_button
+        self._count_label = count_label
+        self._page_status_label = page_status_label
+        self._page_range_label = page_range_label
+        self._secondary_labels = secondary_labels
         self._groups = (layout_combo.parentWidget(), gain_combo.parentWidget())
         self._refreshing = False
         self._refresh_pending = False
@@ -252,22 +339,29 @@ class _CommandRowMetricRefresh(QObject):
         self.refresh()
 
     def refresh(self) -> None:
-        """Recompute actionable floors from the current Qt font and style metrics."""
+        """Recompute priority-aware floors from the current Qt font/style metrics."""
 
         if self._refreshing:
             return
         self._refreshing = True
         try:
+            for label in (self._page_status_label, self._count_label):
+                _set_elastic_width(label)
+                if isinstance(label, _ElidingMetadataLabel):
+                    label.setMinimumWidth(label.observable_minimum_width())
+                label.updateGeometry()
+
+            _set_elastic_width(self._page_range_label)
+            self._page_range_label.updateGeometry()
+            for label in self._secondary_labels:
+                _set_elastic_width(label)
+                label.updateGeometry()
+
             page_layout = self._page_group.layout()
-            self._page_group.setMinimumWidth(0)
-            page_policy = self._page_group.sizePolicy()
-            page_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
-            self._page_group.setSizePolicy(page_policy)
+            _set_elastic_width(self._page_group)
             if isinstance(page_layout, QHBoxLayout):
                 page_layout.invalidate()
-                # The two zero-minimum eliding labels still need one boundary
-                # pixel each to remain inside the native host rectangle.
-                self._page_group.setMinimumWidth(page_layout.minimumSize().width() + 2)
+                self._page_group.setMinimumWidth(page_layout.minimumSize().width())
             self._page_group.updateGeometry()
 
             for button in (self._clear_button, self._keep_button):
@@ -318,10 +412,14 @@ class _CommandRowMetricRefresh(QObject):
                 self._gain_combo,
                 self._clear_button,
                 self._keep_button,
+                self._count_label,
+                self._page_status_label,
+                self._page_range_label,
+                *self._secondary_labels,
             ]
         )
         widgets.extend(group for group in self._groups if isinstance(group, QWidget))
-        return tuple(widgets)
+        return tuple(dict.fromkeys(widgets))
 
 
 def _install_command_row_metric_refresh(
@@ -332,6 +430,8 @@ def _install_command_row_metric_refresh(
     gain_combo: object,
     clear_button: object,
     keep_button: object,
+    count_label: object,
+    secondary_labels: tuple[QLabel, ...],
 ) -> None:
     """Install or refresh the one content-floor owner for the composed command row."""
 
@@ -339,12 +439,17 @@ def _install_command_row_metric_refresh(
     if isinstance(existing, _CommandRowMetricRefresh):
         existing.refresh()
         return
+    page_status_label = getattr(window, "comparison_page_label", None)
+    page_range_label = getattr(window, "comparison_page_range_label", None)
     if not (
         isinstance(page_group, QWidget)
         and isinstance(layout_combo, QComboBox)
         and isinstance(gain_combo, QComboBox)
         and isinstance(clear_button, QAbstractButton)
         and isinstance(keep_button, QAbstractButton)
+        and isinstance(count_label, QLabel)
+        and isinstance(page_status_label, QLabel)
+        and isinstance(page_range_label, QLabel)
     ):
         return
     owner = _CommandRowMetricRefresh(
@@ -355,6 +460,10 @@ def _install_command_row_metric_refresh(
         gain_combo,
         clear_button,
         keep_button,
+        count_label,
+        page_status_label,
+        page_range_label,
+        secondary_labels,
     )
     window._command_row_metric_refresh = owner
 
@@ -368,6 +477,8 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     layout_group = (
         layout_selector.parentWidget() if isinstance(layout_selector, QComboBox) else None
     )
+    layout_group_layout = layout_group.layout() if isinstance(layout_group, QWidget) else None
+    layout_caption = _first_label(layout_group_layout if isinstance(layout_group_layout, QHBoxLayout) else None)
     page_group = getattr(window, "comparison_page_group", None)
     page_layout = page_group.layout() if isinstance(page_group, QWidget) else None
     if isinstance(page_layout, QHBoxLayout):
@@ -375,20 +486,24 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         if isinstance(page_group, QWidget):
             page_group.setMinimumWidth(0)
         page_layout.invalidate()
+    page_caption = (
+        page_group.findChild(QLabel, "comparisonPageCaption")
+        if isinstance(page_group, QWidget)
+        else None
+    )
     gain_group = window.findChild(QWidget, "DisplayGainControl")
     review = getattr(window, "review_selection_controller", None)
-    count_label = getattr(review, "count_label", None)
+    count_label = _replace_review_count_label(review) if review is not None else None
     clear_button = getattr(review, "clear_button", None)
     keep_button = getattr(review, "keep_button", None)
 
-    compact_groups = (
-        (page_group, 0, 4),
-        (count_label, _COMPACT_PICK_COUNT_WIDTH, 1),
-    )
-    for widget, minimum_width, stretch in compact_groups:
+    for widget, stretch in (
+        (page_group, 4),
+        (count_label, 1),
+    ):
         if not isinstance(widget, QWidget):
             continue
-        _set_compact_command_width(widget, minimum_width)
+        _set_elastic_width(widget)
         index = layout.indexOf(widget)
         if index >= 0:
             layout.setStretch(index, stretch)
@@ -399,6 +514,15 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         gain_label.setText("Gain")
         gain_label.setAccessibleName(full_name)
         gain_label.setToolTip(full_name)
+
+    _set_secondary_metadata(layout_caption, "Layout")
+    _set_secondary_metadata(page_caption, "Comparison Page")
+    _set_secondary_metadata(gain_label, "Display Gain")
+    secondary_labels = tuple(
+        label
+        for label in (layout_caption, page_caption, gain_label)
+        if isinstance(label, QLabel)
+    )
 
     if isinstance(clear_button, QAbstractButton):
         clear_button.setText("Clear")
@@ -422,6 +546,8 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         gain_combo,
         clear_button,
         keep_button,
+        count_label,
+        secondary_labels,
     )
 
     for widget, stretch in (
@@ -437,7 +563,8 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
             layout.setStretch(index, stretch)
 
     # Keep some ordinary trailing breathing room, while allowing command groups to
-    # receive surplus width again on a wide/FHD desktop.
+    # receive surplus width again on a wide/FHD desktop. Stretch values are allocation
+    # tuning, not a durable product contract; minimum-floor priority is authoritative.
     if layout.count() > 0 and layout.itemAt(layout.count() - 1).spacerItem() is not None:
         layout.setStretch(layout.count() - 1, 1)
 
@@ -585,7 +712,6 @@ def polish_presentation_controls(window: Any) -> None:
     if isinstance(layout_selector, QComboBox):
         layout_selector.setAccessibleName("Layout")
         layout_selector.setFixedHeight(TOKENS.control_height)
-        layout_selector.setMinimumWidth(118)
 
     gain_selector = window.findChild(QComboBox, "DisplayGainCombo")
     if gain_selector is not None:
@@ -612,7 +738,14 @@ def polish_presentation_controls(window: Any) -> None:
         "Next Comparison Page",
         window.next_comparison_page,
     )
-    _replace_page_label(window, "comparison_page_label", "Comparison Page", 1, 54)
+    _replace_page_label(
+        window,
+        "comparison_page_label",
+        "Comparison Page",
+        1,
+        54,
+        minimum_observable_text=_PAGE_STATUS_OBSERVABLE_TEXT,
+    )
     _replace_page_label(
         window,
         "comparison_page_range_label",
