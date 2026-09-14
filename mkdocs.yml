@@ -9,6 +9,7 @@ exclude_docs: |
 theme:
   name: material
   language: en
+  font: false
   features:
     - navigation.sections
     - navigation.indexes
