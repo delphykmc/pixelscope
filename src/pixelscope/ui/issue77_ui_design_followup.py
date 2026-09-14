@@ -242,16 +242,15 @@ class Issue77UiDesignFollowup(QObject):
         if dialog is None:
             return None
         self._active_roi_dialog = dialog
-        dialog.finished.connect(  # type: ignore[attr-defined]
-            lambda _result, current=dialog: self._roi_dialog_finished(current)
-        )
+        dialog.finished.connect(self._roi_dialog_finished)  # type: ignore[attr-defined]
         dialog.open()
         return dialog
 
-    def _roi_dialog_finished(self, dialog: RoiEditorDialog) -> None:
-        if self._active_roi_dialog is dialog:
-            self._active_roi_dialog = None
-        dialog.deleteLater()
+    def _roi_dialog_finished(self, _result: int) -> None:
+        dialog = self._active_roi_dialog
+        self._active_roi_dialog = None
+        if dialog is not None:
+            dialog.deleteLater()
 
     def _install_three_view_affordance(self) -> None:
         controller = self.quick_compare
@@ -278,7 +277,7 @@ class Issue77UiDesignFollowup(QObject):
             controller.three_view_group.hide()
             self._sync_three_view_button()
 
-        controller._update_three_view_controls = update_three_view_controls
+        controller._update_three_view_controls = update_three_view_controls  # type: ignore[method-assign]
         metric_owner = getattr(self.window, "_command_row_metric_refresh", None)
         refresh = getattr(metric_owner, "refresh", None)
         if callable(refresh):
