@@ -55,7 +55,6 @@ jobs:
       - name: Check documentation checker style
         run: |
           python -m ruff check scripts/check_docs.py scripts/check_user_guide_site.py tests/unit/test_docs_contract.py tests/unit/test_user_guide_site_contract.py
-          python -m ruff format --diff scripts/check_docs.py scripts/check_user_guide_site.py tests/unit/test_docs_contract.py tests/unit/test_user_guide_site_contract.py
           python -m ruff format --check scripts/check_docs.py scripts/check_user_guide_site.py tests/unit/test_docs_contract.py tests/unit/test_user_guide_site_contract.py
       - name: Check branch diff for whitespace errors
         run: |
