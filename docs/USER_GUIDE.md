@@ -19,7 +19,7 @@ The canonical User Guide is now topic-oriented under [`docs/user-guide/`](user-g
 
 User-visible behavior belongs in the topic page that owns that workflow or feature. Do not maintain a second prose copy here. Developer architecture, implementation phase names, regression history, and deployment plans remain in the developer documentation rather than in the end-user site.
 
-The pre-MkDocs monolithic guide remains available in repository history (`git log -- docs/USER_GUIDE.md` and `git show <commit>:docs/USER_GUIDE.md`). It is intentionally not duplicated in the current tree because a second full guide would become a stale competing corpus for users, repository search, and agents.
+The pre-MkDocs monolithic guide remains available in repository history (`git log -- docs/USER_GUIDE.md` and `git show 6b8773fb:docs/USER_GUIDE.md`, or any earlier relevant commit). It is intentionally not duplicated in the current tree because a second full guide would become a stale competing corpus for users, repository search, and agents.
 
 ## Build the searchable site
 
