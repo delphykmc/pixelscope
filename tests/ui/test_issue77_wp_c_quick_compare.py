@@ -172,9 +172,8 @@ def test_three_view_defaults_equal_and_user_can_switch_focus_without_state_chang
         (1,),
         (1, 1, 1),
     )
-    assert controller.three_view_group.isVisible() == (
-        window.central_stack.currentWidget() is window.multi_compare_view
-    )
+    assert not controller.three_view_group.isVisible()
+    assert window.issue77_ui_design_followup.three_view_button.isEnabled()
 
     controller.set_three_view_variant("Focus")
 
