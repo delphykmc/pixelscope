@@ -1,6 +1,6 @@
 # User Guide follow-up work packages
 
-The searchable User Guide foundation deliberately stops at documentation source, static-site build, search, offline-capable output, validation, and screenshot strategy. Application/runtime integration remains separate.
+The searchable User Guide foundation deliberately stops at documentation source, static-site build, search, self-contained offline output, validation, and screenshot strategy. Application/runtime integration remains separate.
 
 ## WP-Help-A — Application Help integration
 
@@ -12,9 +12,11 @@ The searchable User Guide foundation deliberately stops at documentation source,
 ## WP-Help-B — Packaging integration
 
 - Build the MkDocs offline site as a release input.
+- Consume the already validated, self-contained `site/` artifact when producing the offline `help/` bundle; the installed application must not fetch documentation assets at runtime.
 - Include the generated help bundle in PyInstaller/Inno Setup artifacts.
-- Validate that installed relative links, search assets, and screenshots work without network access.
+- Validate that installed relative links, search assets, screenshots, and self-hosted external assets work without network access.
 - Add release-artifact checks without making documentation packages runtime dependencies.
+- Define cache/bootstrap handling separately if a documentation build itself must run in an air-gapped environment.
 
 ## WP-Help-C — Documentation deployment
 
