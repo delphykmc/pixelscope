@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtWidgets import QApplication, QDialog, QLayout
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiBounds
+from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.issue77_ui_design_followup import RoiEditorDialog
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
@@ -28,17 +29,61 @@ def _composed_window(qtbot: object) -> MainWindow:
     return window
 
 
-def test_roi_edit_button_opens_from_compact_region_contract(qtbot: object) -> None:
+def _drain_deferred_delete() -> None:
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def _direct_roi_dialogs(window: MainWindow) -> list[RoiEditorDialog]:
+    return window.findChildren(
+        RoiEditorDialog,
+        "",
+        Qt.FindChildOption.FindDirectChildrenOnly,
+    )
+
+
+def test_roi_region_uses_compact_geometry_summary_and_right_aligned_edit(qtbot: object) -> None:
     window = _composed_window(qtbot)
     followup = window.issue77_ui_design_followup
+    panel = window.comparison_analysis_panel
 
     assert not followup.roi_edit_button.isEnabled()
     document = _document("reference.png")
     window.add_document(document)
+    window.show()
+    qtbot.wait(20)  # type: ignore[attr-defined]
 
     assert followup.roi_edit_button.isEnabled()
+    assert followup.roi_edit_button.text() == "Edit"
+    assert followup.roi_edit_button.width() == 52
+    assert panel.roi_label.text() == "(0, 0) · 8 × 6"
+    assert "width" not in panel.roi_label.text().lower()
+    assert "height" not in panel.roi_label.text().lower()
+    assert panel.roi_label.alignment() & Qt.AlignmentFlag.AlignLeft
+    assert followup.roi_bounds_label.alignment() & Qt.AlignmentFlag.AlignLeft
+    assert followup.roi_bounds_label.geometry().left() < panel.roi_label.geometry().left()
+    assert panel.roi_label.geometry().left() < followup.roi_edit_button.geometry().left()
+    assert "Width 8" in panel.roi_label.toolTip()
+    window.close()
+
+
+def test_roi_dialog_is_dense_two_by_two_editor(qtbot: object) -> None:
+    window = _composed_window(qtbot)
+    window.add_document(_document("reference.png"))
+    followup = window.issue77_ui_design_followup
+
     dialog = followup.create_roi_dialog()
     assert isinstance(dialog, RoiEditorDialog)
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+
+    root = dialog.layout()
+    assert root is not None
+    assert root.sizeConstraint() == QLayout.SizeConstraint.SetFixedSize
+    assert dialog.x_input.width() == dialog.y_input.width() == 92
+    assert dialog.width_input.width() == dialog.height_input.width() == 92
+    assert dialog.cancel_button.width() == dialog.apply_button.width() == 64
     assert dialog.bounds() == RoiBounds(0, 0, 8, 6)
     window.close()
 
@@ -87,6 +132,43 @@ def test_roi_dialog_applies_only_on_confirmation_and_stays_open_on_invalid_input
     window.close()
 
 
+def test_roi_editor_uses_one_nonblocking_instance_and_disposes_after_finish(qtbot: object) -> None:
+    window = _composed_window(qtbot)
+    window.add_document(_document("reference.png"))
+    window.show()
+    followup = window.issue77_ui_design_followup
+
+    first = followup._show_roi_editor()
+    assert isinstance(first, RoiEditorDialog)
+    second = followup._show_roi_editor()
+    assert second is first
+    assert followup._active_roi_dialog is first
+    assert _direct_roi_dialogs(window) == [first]
+
+    first.reject()
+    _drain_deferred_delete()
+    assert followup._active_roi_dialog is None
+    assert _direct_roi_dialogs(window) == []
+
+    for accept in (True, False, True):
+        dialog = followup._show_roi_editor()
+        assert isinstance(dialog, RoiEditorDialog)
+        assert len(_direct_roi_dialogs(window)) == 1
+        if accept:
+            dialog.x_input.setValue(1)
+            dialog.y_input.setValue(1)
+            dialog.width_input.setValue(3)
+            dialog.height_input.setValue(3)
+            dialog._apply()
+        else:
+            dialog.reject()
+        _drain_deferred_delete()
+        assert followup._active_roi_dialog is None
+        assert _direct_roi_dialogs(window) == []
+
+    window.close()
+
+
 def test_three_view_arrangement_button_lives_beside_layout_and_toggles_geometry(
     qtbot: object,
 ) -> None:
@@ -98,6 +180,8 @@ def test_three_view_arrangement_button_lives_beside_layout_and_toggles_geometry(
     assert button.parentWidget() is window.layout_selector.parentWidget()
     assert button.isVisibleTo(window.presentation_controls)
     assert not button.isEnabled()
+    assert not button.icon().isNull()
+    assert not controller.three_view_group.isVisible()
 
     documents = [_document(f"{index}.png") for index in range(3)]
     for document in documents:
@@ -109,11 +193,13 @@ def test_three_view_arrangement_button_lives_beside_layout_and_toggles_geometry(
     assert button.isEnabled()
     assert controller._effective_three_view_variant() == "Equal"
     equal_geometry = window.multi_compare_view._fixed_geometry(3)
+    equal_icon_key = button.icon().cacheKey()
     assert "Equal" in button.toolTip()
 
     qtbot.mouseClick(button, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
     assert controller._effective_three_view_variant() == "Focus"
     assert window.multi_compare_view._fixed_geometry(3) != equal_geometry
+    assert button.icon().cacheKey() != equal_icon_key
     assert "Focus" in button.toolTip()
 
     fourth = _document("fourth.png")
@@ -122,4 +208,23 @@ def test_three_view_arrangement_button_lives_beside_layout_and_toggles_geometry(
         [*(document.document_id for document in documents), fourth.document_id]
     )
     assert not button.isEnabled()
+    window.close()
+
+
+def test_image_command_row_keeps_surplus_width_in_trailing_spacer(qtbot: object) -> None:
+    window = _composed_window(qtbot)
+    layout = window.presentation_controls_layout
+
+    assert layout.spacing() == TOKENS.spacing_sm
+    spacer_indices: list[int] = []
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        assert item is not None
+        if item.spacerItem() is not None:
+            spacer_indices.append(index)
+            assert layout.stretch(index) == 1
+        else:
+            assert layout.stretch(index) == 0
+
+    assert spacer_indices == [layout.count() - 1]
     window.close()
