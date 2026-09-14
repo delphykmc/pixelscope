@@ -21,6 +21,7 @@ theme:
 plugins:
   - search
   - offline
+  - privacy
 
 markdown_extensions:
   - admonition
