@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -67,7 +66,7 @@ def test_roi_dialog_applies_only_on_confirmation_and_stays_open_on_invalid_input
 
     qtbot.mouseClick(dialog.apply_button, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
     assert window._shared_roi == RoiBounds(1, 1, 3, 3)
-    assert dialog.result() == int(QDialog.Accepted) if False else dialog.result() == 1
+    assert dialog.result() == int(QDialog.DialogCode.Accepted)
 
     invalid_dialog = followup.create_roi_dialog()
     assert isinstance(invalid_dialog, RoiEditorDialog)
@@ -77,7 +76,10 @@ def test_roi_dialog_applies_only_on_confirmation_and_stays_open_on_invalid_input
     invalid_dialog.y_input.setValue(2)
     invalid_dialog.width_input.setValue(4)
     invalid_dialog.height_input.setValue(3)
-    qtbot.mouseClick(invalid_dialog.apply_button, Qt.MouseButton.LeftButton)  # type: ignore[attr-defined]
+    qtbot.mouseClick(  # type: ignore[attr-defined]
+        invalid_dialog.apply_button,
+        Qt.MouseButton.LeftButton,
+    )
 
     assert window._shared_roi == RoiBounds(1, 1, 3, 3)
     assert invalid_dialog.isVisible()
@@ -116,6 +118,8 @@ def test_three_view_arrangement_button_lives_beside_layout_and_toggles_geometry(
 
     fourth = _document("fourth.png")
     window.add_document(fourth, select=False)
-    window._select_document_ids([*(document.document_id for document in documents), fourth.document_id])
+    window._select_document_ids(
+        [*(document.document_id for document in documents), fourth.document_id]
+    )
     assert not button.isEnabled()
     window.close()
