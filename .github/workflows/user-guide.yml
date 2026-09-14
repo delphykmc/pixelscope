@@ -7,7 +7,9 @@ on:
       - "mkdocs.yml"
       - "requirements/docs.txt"
       - "scripts/check_docs.py"
+      - "scripts/check_user_guide_site.py"
       - "tests/unit/test_docs_contract.py"
+      - "tests/unit/test_user_guide_site_contract.py"
       - ".github/pull_request_template.md"
       - ".github/workflows/user-guide.yml"
   pull_request:
@@ -16,7 +18,9 @@ on:
       - "mkdocs.yml"
       - "requirements/docs.txt"
       - "scripts/check_docs.py"
+      - "scripts/check_user_guide_site.py"
       - "tests/unit/test_docs_contract.py"
+      - "tests/unit/test_user_guide_site_contract.py"
       - ".github/pull_request_template.md"
       - ".github/workflows/user-guide.yml"
 
@@ -43,15 +47,20 @@ jobs:
         run: python -m pip check
       - name: Check documentation contract
         run: python scripts/check_docs.py
-      - name: Run documentation contract test
-        run: python -m pytest -q tests/unit/test_docs_contract.py
+      - name: Run documentation contract tests
+        run: >-
+          python -m pytest -q
+          tests/unit/test_docs_contract.py
+          tests/unit/test_user_guide_site_contract.py
       - name: Check documentation checker style
         run: |
-          python -m ruff check scripts/check_docs.py tests/unit/test_docs_contract.py
-          python -m ruff format --check scripts/check_docs.py tests/unit/test_docs_contract.py
+          python -m ruff check scripts/check_docs.py scripts/check_user_guide_site.py tests/unit/test_docs_contract.py tests/unit/test_user_guide_site_contract.py
+          python -m ruff format --check scripts/check_docs.py scripts/check_user_guide_site.py tests/unit/test_docs_contract.py tests/unit/test_user_guide_site_contract.py
       - name: Check branch diff for whitespace errors
         run: |
           git fetch origin main:refs/remotes/origin/main
           git diff --check origin/main...HEAD
       - name: Build searchable offline-capable site
         run: python -m mkdocs build --strict
+      - name: Validate generated offline artifact
+        run: python scripts/check_user_guide_site.py site
