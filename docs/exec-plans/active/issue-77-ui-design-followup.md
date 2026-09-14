@@ -23,6 +23,7 @@ Baseline:
 - Existing Selected / Current Comparison Page / Primary / Difference / Split / Session contracts remain unchanged.
 - The ROI editor must follow the Issue #81 Qt lifetime discipline: no unbounded retained widgets and no new blocking nested event loop.
 - The new three-view affordance must use the established PixelScope toolbar icon language rather than a second rendering style.
+- PR #68 remains the authority for adaptive Image View command-row sizing and stretch allocation. This follow-up must not replace that policy with a new width-allocation scheme.
 - Additional owner requests received during this PR must be added to the PR body/checklist before implementation.
 
 ## Work item A — compact ROI presentation and editor
@@ -36,7 +37,7 @@ Revised design after owner review:
 - keep `Bounds` and the geometry summary together on the left;
 - align only the `Edit` command to the right;
 - use `Edit`, not `Edit...`, with a smaller width reservation;
-- use compact X/Y/W/H controls in the editor, preferably a 2×2 field grid rather than a tall form;
+- use compact X/Y/W/H controls in the editor as a 2×2 field grid rather than a tall form;
 - size the editor from its contents rather than a broad default button-box reservation;
 - mutate shared ROI only when Apply succeeds;
 - keep the dialog open with local validation feedback when the proposed ROI does not fit every current comparison frame;
@@ -45,9 +46,9 @@ Revised design after owner review:
 Acceptance:
 
 - [x] inline four-field production editor removed from the sidebar presentation;
-- [ ] compact `(x, y) · width × height` summary;
-- [ ] `Bounds` + summary left, compact `Edit` right;
-- [ ] compact editor geometry with no unnecessary width/height;
+- [x] compact `(x, y) · width × height` summary;
+- [x] `Bounds` + summary left, compact `Edit` right;
+- [x] compact editor geometry with no unnecessary width/height;
 - [x] Apply reuses `_numeric_roi_requested()` / `_apply_shared_roi()`;
 - [x] invalid proposal does not replace the existing ROI and does not close the dialog;
 - [ ] focused owner Windows visual validation.
@@ -66,11 +67,12 @@ Correction:
 
 Acceptance:
 
-- [ ] no `QDialog.exec()` in the production ROI editor path;
-- [ ] only one active ROI editor instance;
-- [ ] duplicate Edit raises the existing instance;
-- [ ] deterministic disposal after Accept/Cancel;
-- [ ] lifecycle regression coverage.
+- [x] no `QDialog.exec()` in the production ROI editor path;
+- [x] only one active ROI editor instance;
+- [x] duplicate Edit raises the existing instance;
+- [x] deterministic disposal after Accept/Cancel;
+- [x] lifecycle regression coverage;
+- [ ] exact-head runtime validation.
 
 ## Work item C — compact three-view arrangement control
 
@@ -94,28 +96,38 @@ Acceptance:
 - [x] compact icon control placed beside Layout;
 - [x] Equal/Focus state remains owned by the existing Quick Compare controller;
 - [x] non-three-view states disable the control rather than moving surrounding controls;
-- [ ] icon follows existing toolbar stroke/high-DPI conventions;
+- [x] icon follows existing toolbar stroke/high-DPI conventions;
 - [ ] focused owner Windows visual validation.
 
-## Work item D — Image View command-row density
+## Work item D — preserve PR #68 Image View command-row allocation
 
-Owner visual feedback after the first follow-up implementation reports that the Image View command row again shows unnecessary whitespace.
+Owner visual feedback after an intermediate follow-up showed Page and Picked becoming compressed/overlapping. Root cause was a follow-up override that set every non-spacer top-level stretch to zero. That contradicted the adaptive allocation deliberately established in PR #68.
 
-Required correction:
+Restored contract:
 
-- re-audit the fully composed production command row after adding the three-view button;
-- preserve the compact `spacing_sm` / `spacing_xs` rhythm established by prior Beta/DPI hardening;
-- preserve content-derived floors for Layout/Gain and the high-DPI anti-clipping behavior;
-- do not allow the new geometry button to become a new expanding width authority;
-- avoid distributing ordinary surplus width as arbitrary gaps inside/between command groups;
-- keep groups at their required content width and leave remaining width as one trailing flexible area.
+- PR #68 remains the command-row sizing authority;
+- preserve the established top-level stretch weights rather than replacing them:
+  - Layout group: `1`;
+  - Comparison Page group: `4`;
+  - Gain group: `1`;
+  - Picked count: `1`;
+  - Clear: `1`;
+  - Keep: `1`;
+  - trailing spacer: `1`;
+- preserve `Page` and `Picked` as shrinkable/eliding metadata surfaces with their existing `Ignored` policies;
+- preserve content-derived actionable floors for Layout/Gain/Clear/Keep and their font/style refresh behavior;
+- the new three-view button lives inside the existing Layout group, so its only sizing effect is to increase that group's content-derived minimum;
+- after adding the three-view child, refresh the existing `_CommandRowMetricRefresh`; do not introduce another top-level stretch owner.
 
 Acceptance:
 
-- [ ] composed command groups consume only their required content width;
-- [ ] no restored legacy fixed-width reservations;
-- [ ] no high-DPI actionable-control clipping regression;
-- [ ] representative constrained/FHD geometry regression coverage.
+- [x] follow-up zero-stretch override removed;
+- [x] PR #68 adaptive stretch weights preserved exactly;
+- [x] new three-view button remains inside the existing Layout group;
+- [x] existing metric owner is refreshed after insertion;
+- [x] focused regression asserts the PR #68 stretch contract remains intact;
+- [ ] rerun existing PR #68 constrained/FHD overlap regressions on exact HEAD;
+- [ ] owner Windows visual validation of Page/Picked observability.
 
 ## Validation plan
 
@@ -128,7 +140,7 @@ Focused automated coverage:
 - non-blocking single-dialog lifetime + DeferredDelete cleanup;
 - Layout-adjacent three-view control and 3-only enablement;
 - 3-view Equal/Focus geometry and icon transition;
-- composed Image View command-row compactness;
-- existing Beta UI / DPI command-row regressions.
+- exact preservation of PR #68 command-row stretch allocation;
+- existing PR #68 Beta UI / DPI command-row overlap, content-floor, 1280×720, and 1920×1080 regressions.
 
 Before merge, run the repository's normal exact-head validation gates including full pytest, Ruff check/format, mypy, docs check, pip check, and `git diff --check`, plus owner Windows UI validation.
