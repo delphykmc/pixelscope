@@ -13,12 +13,15 @@ Task workflows:
 - workflows/open-folders.md
 - workflows/compare-images.md
 - workflows/compare-many-images.md
+- workflows/curate-selection.md
 - workflows/compare-folder-positions.md
 - workflows/inspect-roi.md
 - workflows/inspect-histogram.md
 - workflows/inspect-line-profile.md
 - workflows/use-difference.md
+- workflows/export-analysis.md
 - workflows/save-and-restore-work.md
+- workflows/use-remote-iqa.md
 
 Format semantics:
 - formats/standard-images.md
@@ -36,11 +39,14 @@ Question routing:
 - How do I compare two folders? -> workflows/compare-folder-positions.md
 - How do I select an exact ROI? -> workflows/inspect-roi.md
 - How do I compare more than six images? -> workflows/compare-many-images.md
+- How do I reduce a large selection? -> workflows/curate-selection.md
 - How does PageUp/PageDown work? -> workflows/compare-folder-positions.md
 - How do I open RAW14? -> formats/raw.md
 - What does stride mean? -> formats/raw.md and troubleshooting/index.md
 - Why is Difference unavailable? -> workflows/use-difference.md and troubleshooting/index.md
 - How do I reset a line profile? -> workflows/inspect-line-profile.md
 - What is Primary? -> getting-started/concepts.md and reference/terminology.md
+- How do I export Histogram or Difference? -> workflows/export-analysis.md
+- How do I submit or inspect Remote IQA? -> workflows/use-remote-iqa.md
 
 Do not infer planned/deferred behavior from developer roadmap documents when answering end-user questions. Prefer current User Guide pages, then current product contracts/code when verification is required.

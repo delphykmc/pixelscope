@@ -1,6 +1,6 @@
 # Keyboard Shortcuts
 
-This reference lists shortcuts confirmed by the current application actions/shortcut controllers and current workflow contract.
+This reference lists shortcuts and interaction keys confirmed by the current application/workflow contract.
 
 | Shortcut | Action / scope |
 |---|---|
@@ -10,11 +10,14 @@ This reference lists shortcuts confirmed by the current application actions/shor
 | `Ctrl+1` | Single View |
 | `Ctrl+2` | Multi View |
 | `1` … `6` | Activate the corresponding visible slot on the Current Comparison Page |
+| `Left` / `Right` | Previous / next image in the complete ordered Selected set |
+| `Up` / `Down` | Normal row navigation while the Files tree has keyboard focus |
 | `PageUp` | Previous Folder Position; application-wide folder-position move |
 | `PageDown` | Next Folder Position; application-wide folder-position move |
 | `Alt+PageUp` | Add same-position source from the nearest eligible previous registered folder |
 | `Alt+PageDown` | Add same-position source from the nearest eligible next registered folder |
-| `Ctrl+Shift+R` | Clear ROI |
+| `Ctrl+Shift+R` | Clear ROI application action |
+| `Esc` | Clear/cancel ROI interaction when the ROI context owns the key |
 | `Shift+Esc` | Clear Line while the Line Profile tab is current |
 | `S` | Split Channels when applicable |
 | `Ctrl+Shift+I` | Show/hide IQA workspace |
@@ -25,8 +28,9 @@ This reference lists shortcuts confirmed by the current application actions/shor
 
 ## Pointer gestures
 
-`Shift+drag` defines a Line Profile while using the line workflow. ROI creation is controlled by the ROI interaction in Image View; exact ROI coordinates can also be entered in Statistics.
+- `Ctrl+drag`: create a shared ROI in Image View.
+- `Shift+drag`: define a Line Profile while using the line workflow.
 
 ## Shortcut context matters
 
-Some shortcuts are application-wide, while others are deliberately active only in a specific view/tab. If a shortcut appears inactive, first confirm the relevant workspace or view mode.
+Some shortcuts are application-wide, while others are deliberately active only in a specific view/tab or widget focus. If a shortcut appears inactive, first confirm the relevant workspace, view mode, or keyboard focus.

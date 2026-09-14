@@ -40,12 +40,15 @@ nav:
       - Open folders: workflows/open-folders.md
       - Compare images: workflows/compare-images.md
       - Compare more than six images: workflows/compare-many-images.md
+      - Curate a large selection: workflows/curate-selection.md
       - Compare folder positions: workflows/compare-folder-positions.md
       - Inspect an ROI: workflows/inspect-roi.md
       - Inspect a histogram: workflows/inspect-histogram.md
       - Inspect a line profile: workflows/inspect-line-profile.md
       - Use Difference: workflows/use-difference.md
+      - Export analysis: workflows/export-analysis.md
       - Save and restore work: workflows/save-and-restore-work.md
+      - Use Remote IQA: workflows/use-remote-iqa.md
   - Features:
       - Files workspace: features/files-workspace.md
       - Image View: features/image-view.md
@@ -56,6 +59,7 @@ nav:
       - Plots workspace: features/plots-workspace.md
       - IQA workspace: features/iqa-workspace.md
       - Settings: features/settings.md
+      - Runtime diagnostics: features/runtime-diagnostics.md
   - Formats:
       - Standard images: formats/standard-images.md
       - RAW: formats/raw.md

@@ -12,16 +12,17 @@ If a workflow uses unfamiliar terms such as **Registered**, **Selected**, **Curr
 
 ## Common tasks
 
-- [Open individual images](workflows/open-images.md)
-- [Register a folder](workflows/open-folders.md)
+- [Open individual images](workflows/open-images.md) or [register folders](workflows/open-folders.md)
 - [Compare two or more images](workflows/compare-images.md)
 - [Compare more than six selected images](workflows/compare-many-images.md)
+- [Curate a large selection with Pick](workflows/curate-selection.md)
 - [Move through matching folder positions](workflows/compare-folder-positions.md)
 - [Inspect an exact ROI](workflows/inspect-roi.md)
-- [Compare histograms](workflows/inspect-histogram.md)
-- [Create a line profile](workflows/inspect-line-profile.md)
+- [Compare histograms](workflows/inspect-histogram.md) or [line profiles](workflows/inspect-line-profile.md)
 - [Calculate Difference](workflows/use-difference.md)
-- [Save and restore a comparison](workflows/save-and-restore-work.md)
+- [Export current analysis](workflows/export-analysis.md)
+- [Save and restore a Session](workflows/save-and-restore-work.md)
+- [Use configured Remote IQA](workflows/use-remote-iqa.md)
 - [Open RAW](formats/raw.md) or [YUV](formats/yuv.md) data
 
 ## Feature reference
@@ -34,4 +35,4 @@ This site is generated from the Markdown in `docs/user-guide/`. The same source 
 
 ## Need help with an error?
 
-See [Troubleshooting](troubleshooting/index.md). Useful search terms include **Difference unavailable**, **RAW stride**, **RAW14**, **YUV size mismatch**, **ROI cleared**, **line profile reset**, **Primary**, and **PageUp**.
+See [Troubleshooting](troubleshooting/index.md). Useful search terms include **Difference unavailable**, **RAW stride**, **RAW14**, **YUV size mismatch**, **ROI cleared**, **line profile reset**, **Primary**, **PageUp**, **Pick**, and **Remote IQA**.
