@@ -97,7 +97,9 @@ def install_user_guide_help(window: QMainWindow) -> QAction:
     action = QAction("User Guide", window)
     action.setObjectName(_USER_GUIDE_ACTION_OBJECT_NAME)
     action.setStatusTip("Open the local PixelScope User Guide")
-    action.triggered.connect(lambda _checked=False: open_local_user_guide(window))  # type: ignore[attr-defined]
+    action.triggered.connect(  # type: ignore[attr-defined]
+        lambda _checked=False: open_local_user_guide(window)
+    )
 
     first_action = help_menu.actions()[0] if help_menu.actions() else None
     if first_action is None:
