@@ -3,13 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtWidgets import QApplication, QDialog, QLayout
+from PySide6.QtWidgets import QApplication, QDialog, QLayout, QWidget
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.roi import RoiBounds
-from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.issue77_ui_design_followup import RoiEditorDialog
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
@@ -211,20 +210,41 @@ def test_three_view_arrangement_button_lives_beside_layout_and_toggles_geometry(
     window.close()
 
 
-def test_image_command_row_keeps_surplus_width_in_trailing_spacer(qtbot: object) -> None:
+def test_three_view_button_preserves_pr68_adaptive_command_row_allocation(qtbot: object) -> None:
     window = _composed_window(qtbot)
     layout = window.presentation_controls_layout
+    review = window.review_selection_controller
+    layout_group = window.layout_selector.parentWidget()
+    gain_group = window.findChild(QWidget, "DisplayGainControl")
 
-    assert layout.spacing() == TOKENS.spacing_sm
-    spacer_indices: list[int] = []
-    for index in range(layout.count()):
-        item = layout.itemAt(index)
-        assert item is not None
-        if item.spacerItem() is not None:
-            spacer_indices.append(index)
-            assert layout.stretch(index) == 1
-        else:
-            assert layout.stretch(index) == 0
+    assert layout_group is not None
+    assert gain_group is not None
+    assert window.issue77_ui_design_followup.three_view_button.parentWidget() is layout_group
 
-    assert spacer_indices == [layout.count() - 1]
+    expected_stretches = (
+        (layout_group, 1),
+        (window.comparison_page_group, 4),
+        (gain_group, 1),
+        (review.count_label, 1),
+        (review.clear_button, 1),
+        (review.keep_button, 1),
+    )
+    for widget, expected in expected_stretches:
+        index = layout.indexOf(widget)
+        assert index >= 0
+        assert layout.stretch(index) == expected
+
+    separator_index = layout.indexOf(window.presentation_control_separator)
+    assert separator_index >= 0
+    assert layout.stretch(separator_index) == 0
+
+    trailing_index = layout.count() - 1
+    trailing_item = layout.itemAt(trailing_index)
+    assert trailing_item is not None
+    assert trailing_item.spacerItem() is not None
+    assert layout.stretch(trailing_index) == 1
+
+    group_layout = layout_group.layout()
+    assert group_layout is not None
+    assert layout_group.minimumWidth() >= group_layout.minimumSize().width()
     window.close()
