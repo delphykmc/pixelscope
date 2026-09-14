@@ -72,8 +72,7 @@ def _assert_layout_group_geometry(window: MainWindow) -> None:
 
     visible_children.sort(key=lambda child: child.geometry().left())
     assert all(
-        visible_children[index].geometry().right()
-        < visible_children[index + 1].geometry().left()
+        visible_children[index].geometry().right() < visible_children[index + 1].geometry().left()
         for index in range(len(visible_children) - 1)
     ), [child.geometry() for child in visible_children]
 
@@ -95,10 +94,7 @@ def _assert_command_row_minimum_budget(window: MainWindow) -> None:
             floors.append(item.minimumSize().width())
 
     minimum_budget = (
-        margins.left()
-        + margins.right()
-        + sum(floors)
-        + layout.spacing() * max(0, len(floors) - 1)
+        margins.left() + margins.right() + sum(floors) + layout.spacing() * max(0, len(floors) - 1)
     )
     assert minimum_budget <= host.width(), (minimum_budget, host.width(), floors)
     assert layout.minimumSize().width() <= host.width()
