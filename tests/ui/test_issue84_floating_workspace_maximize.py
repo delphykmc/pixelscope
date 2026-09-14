@@ -172,6 +172,45 @@ def test_docked_custom_maximize_restores_original_dock_area(
     window.close()
 
 
+@pytest.mark.parametrize(
+    ("workspace", "setting"),
+    [
+        ("plots", PLOTS_FLOATING_GEOMETRY_SETTING),
+        ("iqa", IQA_FLOATING_GEOMETRY_SETTING),
+    ],
+)
+def test_reset_workspace_clears_custom_maximized_state(
+    qtbot: object,
+    workspace: str,
+    setting: str,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    install_beta_workspace_hardening(window)
+    window.show()
+    dock, title = _prepare_floating_workspace(window, workspace, qtbot)
+
+    title._remember_floating_geometry()
+    assert not title._floating_geometry.isEmpty()
+    assert not _setting_geometry(setting).isEmpty()
+
+    title.maximize_button.click()
+    qtbot.waitUntil(lambda: title._workspace_maximized)  # type: ignore[attr-defined]
+    assert dock.isFloating()
+    assert not dock.isMaximized()
+
+    window.action_map["Reset Workspace Layout"].trigger()
+
+    assert not title._workspace_maximized
+    assert title._floating_geometry.isEmpty()
+    assert QSettings().value(setting) is None
+    assert dock.isHidden()
+    assert not dock.isFloating()
+    assert not dock.isMaximized()
+
+    window.close()
+
+
 def test_workspace_window_ownership_and_shutdown_quiesce_remain_bounded(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
