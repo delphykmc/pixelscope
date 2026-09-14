@@ -56,6 +56,12 @@ def test_running_iqa_loader_can_finish_after_window_destruction_without_cross_th
             lambda *_args, threads=signal_destruction_threads: threads.append(get_ident()),
             Qt.ConnectionType.DirectConnection,
         )
+        hardening = window.__dict__.get("beta_workspace_hardening_controller")
+        assert hardening is not None
+        plots_title = window.plots_dock_title
+        hardening_ref = ref(hardening)
+        dock_controller_refs = tuple(ref(item) for item in hardening._dock_controllers)
+        plots_title_ref = ref(plots_title)
         controller_ref = ref(controller)
         worker_ref = ref(worker)
 
@@ -65,12 +71,17 @@ def test_running_iqa_loader_can_finish_after_window_destruction_without_cross_th
         app.processEvents()
         del worker
         del controller
+        del plots_title
+        del hardening
         del window
         # Deliberately force the exact Issue #81 race inside this stress test;
         # this is not general test-boundary cleanup or a passing precondition.
         gc.collect()
 
         assert controller_ref() is None
+        assert plots_title_ref() is None
+        assert hardening_ref() is None
+        assert all(item_ref() is None for item_ref in dock_controller_refs)
         assert worker_ref() is not None
         assert pool.activeThreadCount() == 1
         release.set()

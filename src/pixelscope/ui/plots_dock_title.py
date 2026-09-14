@@ -5,13 +5,22 @@ from PySide6.QtCore import (
     QEvent,
     QObject,
     QPointF,
+    QRect,
     QRectF,
     QSettings,
     QSize,
     Qt,
     QTimer,
 )
-from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPen, QPixmap
+from PySide6.QtGui import (
+    QColor,
+    QGuiApplication,
+    QIcon,
+    QMouseEvent,
+    QPainter,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QDockWidget,
     QHBoxLayout,
@@ -122,6 +131,7 @@ class PlotsDockTitleBar(QWidget):
             if isinstance(stored_geometry, QByteArray | bytes)
             else QByteArray()
         )
+        self._workspace_maximized = False
         self._restoring_floating_geometry = False
         self._quiescing = False
         self._geometry_restore_timer = QTimer(self)
@@ -174,8 +184,10 @@ class PlotsDockTitleBar(QWidget):
         self.float_button.setToolTip(
             f"Dock {self._panel_title}" if floating else f"Float {self._panel_title}"
         )
-        if not floating and not self._dock.isMaximized():
-            self._set_maximize_state(False)
+        self._sync_maximize_control()
+
+    def _sync_maximize_control(self) -> None:
+        self._set_maximize_state(self._workspace_maximized or self._dock.isMaximized())
 
     def _apply_dock_frame(self, floating: bool) -> None:
         """Provide the frame native decorations would otherwise supply when floating."""
@@ -186,18 +198,17 @@ class PlotsDockTitleBar(QWidget):
         self._dock.setStyleSheet(f"{selector} {{ border: {border}; }}")
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if (
-            watched is self._dock
-            and event.type() in (QEvent.Type.Move, QEvent.Type.Resize)
-            and self._dock.isFloating()
-            and not self._dock.isMaximized()
-            and not self._restoring_floating_geometry
-            and not self._quiescing
-        ):
-            geometry = self._dock.saveGeometry()
-            if not geometry.isEmpty():
-                self._floating_geometry = geometry
-                self._settings.setValue(self._geometry_setting, geometry)
+        if watched is self._dock and not self._quiescing:
+            if event.type() == QEvent.Type.WindowStateChange:
+                self._sync_maximize_control()
+            if (
+                event.type() in (QEvent.Type.Move, QEvent.Type.Resize)
+                and self._dock.isFloating()
+                and not self._workspace_maximized
+                and not self._dock.isMaximized()
+                and not self._restoring_floating_geometry
+            ):
+                self._remember_floating_geometry()
         return super().eventFilter(watched, event)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
@@ -213,17 +224,20 @@ class PlotsDockTitleBar(QWidget):
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton and self._dock.isFloating():
+            self._workspace_maximized = False
             if self._dock.isMaximized():
                 self._dock.showNormal()
             self._restore_to_docked = False
             self._dock.setFloating(False)
             self._dock.show()
+            self._sync_maximize_control()
             event.accept()
             return
         # Docked double-click remains Qt-owned, including its standard float behavior.
         event.ignore()
 
     def _toggle_floating(self) -> None:
+        self._workspace_maximized = False
         if self._dock.isMaximized():
             self._dock.showNormal()
         if not self._dock.isFloating():
@@ -231,31 +245,77 @@ class PlotsDockTitleBar(QWidget):
         self._restore_to_docked = False
         self._dock.setFloating(not self._dock.isFloating())
         self._dock.show()
+        self._sync_maximize_control()
 
     def _toggle_maximized(self) -> None:
-        maximized = self._dock.isMaximized()
-        if maximized:
+        if self._workspace_maximized:
+            self._restore_workspace_geometry()
+            return
+        if self._dock.isMaximized():
             self._dock.showNormal()
-            if self._restore_to_docked:
-                window = self._main_window()
-                if window is not None:
-                    window.addDockWidget(self._restore_area, self._dock)
-                    self._dock.setFloating(False)
-                    self._dock.show()
-            self._restore_to_docked = False
+            self._sync_maximize_control()
+            return
+        self._maximize_workspace_geometry()
+
+    def _maximize_workspace_geometry(self) -> None:
+        self._restore_to_docked = not self._dock.isFloating()
+        if self._restore_to_docked:
+            self._remember_dock_area()
+            self._workspace_maximized = True
+            self._dock.setFloating(True)
         else:
-            self._restore_to_docked = not self._dock.isFloating()
-            if self._restore_to_docked:
-                self._remember_dock_area()
-                window = self._main_window()
-                if window is not None:
-                    self._dock.setFloating(True)
-            self._dock.showMaximized()
-        self._set_maximize_state(not maximized)
+            self._remember_floating_geometry()
+            self._workspace_maximized = True
+
+        available_geometry = self._available_screen_geometry()
+        if available_geometry is not None:
+            self._dock.setGeometry(available_geometry)
+        self._dock.show()
+        self._sync_maximize_control()
+
+    def _restore_workspace_geometry(self) -> None:
+        self._workspace_maximized = False
+        if self._restore_to_docked:
+            window = self._main_window()
+            if window is not None:
+                window.addDockWidget(self._restore_area, self._dock)
+                self._dock.setFloating(False)
+                self._dock.show()
+            self._restore_to_docked = False
+            self._sync_maximize_control()
+            return
+
+        if self._dock.isFloating() and not self._floating_geometry.isEmpty():
+            self._restoring_floating_geometry = True
+            self._dock.restoreGeometry(self._floating_geometry)
+            self._geometry_restore_timer.start(0)
+        self._restore_to_docked = False
+        self._sync_maximize_control()
+
+    def _available_screen_geometry(self) -> QRect | None:
+        frame_geometry = self._dock.frameGeometry()
+        screen = QGuiApplication.screenAt(frame_geometry.center())
+        handle = self._dock.windowHandle()
+        if screen is None and handle is not None:
+            screen = handle.screen()
+        if screen is None:
+            screen = self._dock.screen()
+        if screen is None:
+            return None
+        available_geometry = screen.availableGeometry()
+        return available_geometry if available_geometry.isValid() else None
 
     def _floating_changed(self, floating: bool) -> None:
+        if not floating:
+            self._workspace_maximized = False
+            self._restore_to_docked = False
         self.sync(floating)
-        if self._quiescing or not floating or self._floating_geometry.isEmpty():
+        if (
+            self._quiescing
+            or not floating
+            or self._workspace_maximized
+            or self._floating_geometry.isEmpty()
+        ):
             return
         self._restoring_floating_geometry = True
         self._dock.restoreGeometry(self._floating_geometry)
@@ -265,18 +325,35 @@ class PlotsDockTitleBar(QWidget):
         self._restoring_floating_geometry = False
         if self._quiescing:
             return
-        if self._dock.isFloating() and not self._dock.isMaximized():
-            geometry = self._dock.saveGeometry()
-            if not geometry.isEmpty():
-                self._floating_geometry = geometry
-                self._settings.setValue(self._geometry_setting, geometry)
+        if (
+            self._dock.isFloating()
+            and not self._workspace_maximized
+            and not self._dock.isMaximized()
+        ):
+            self._remember_floating_geometry()
+
+    def _remember_floating_geometry(self) -> None:
+        if (
+            self._quiescing
+            or not self._dock.isFloating()
+            or self._workspace_maximized
+            or self._dock.isMaximized()
+            or self._restoring_floating_geometry
+        ):
+            return
+        geometry = self._dock.saveGeometry()
+        if not geometry.isEmpty():
+            self._floating_geometry = geometry
+            self._settings.setValue(self._geometry_setting, geometry)
 
     def quiesce_pending_callbacks(self) -> None:
-        """Stop title/geometry work before the owning native window is destroyed."""
+        """Stop queued native-window adjustments before application teardown."""
 
         self._quiescing = True
         self._geometry_restore_timer.stop()
+        self._workspace_maximized = False
         self._restoring_floating_geometry = False
+        self._restore_to_docked = False
 
     def shutdown_dock_area(self) -> Qt.DockWidgetArea:
         """Return the remembered dock area used only for native shutdown teardown."""
@@ -291,6 +368,7 @@ class PlotsDockTitleBar(QWidget):
         window = self._main_window()
         if window is None:
             self._floating_geometry = QByteArray()
+            self._workspace_maximized = False
             return
         for dock in window.findChildren(QDockWidget):
             title_bar = self.controller_for_dock(dock)
@@ -303,6 +381,8 @@ class PlotsDockTitleBar(QWidget):
             if isinstance(title_bar, PlotsDockTitleBar):
                 title_bar._floating_geometry = QByteArray()
                 title_bar._settings.remove(title_bar._geometry_setting)
+                title_bar._workspace_maximized = False
+                title_bar._restore_to_docked = False
                 title_bar._remember_dock_area()
             if not dock.isFloating():
                 continue
