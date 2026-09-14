@@ -87,8 +87,7 @@ def find_site_problems(site_root: Path) -> list[str]:
             if is_remote_url(reference):
                 relative = html_path.relative_to(site_root)
                 problems.append(
-                    f"{relative}: remote resource dependency is not offline-safe: "
-                    f"{reference}"
+                    f"{relative}: remote resource dependency is not offline-safe: " f"{reference}"
                 )
 
     for css_path in sorted(site_root.rglob("*.css")):
