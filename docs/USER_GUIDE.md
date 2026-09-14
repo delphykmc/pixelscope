@@ -31,4 +31,4 @@ Install the documentation dependencies and run:
 .\.venv\Scripts\python.exe scripts\check_user_guide_site.py site
 ```
 
-The static output is written to `site/`. `mkdocs.yml` uses relative-file-friendly URLs, the Material offline plugin, and system fonts so the output does not depend on remote web-font assets. The generated-site checker verifies `llms.txt` routes and rejects remote resource dependencies. Hosting/deployment and installer inclusion are separate follow-up work.
+The static output is written to `site/`. `mkdocs.yml` uses relative-file-friendly URLs, the Material offline plugin, system fonts, and the Material privacy plugin. During the build, the privacy plugin self-hosts external assets required by the offline plugin (including its iframe-worker shim), so the generated `site/` does not require those network resources at runtime. The generated-site checker verifies `llms.txt` routes and rejects remaining remote resource dependencies. Hosting/deployment and installer inclusion are separate follow-up work.
