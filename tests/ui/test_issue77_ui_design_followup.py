@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
-from PySide6.QtWidgets import QApplication, QDialog, QLayout, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QLayout, QSizePolicy
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -206,45 +206,30 @@ def test_three_view_arrangement_button_lives_beside_layout_and_toggles_geometry(
     window._select_document_ids(
         [*(document.document_id for document in documents), fourth.document_id]
     )
+    assert button.isVisibleTo(window.presentation_controls)
     assert not button.isEnabled()
     window.close()
 
 
-def test_three_view_button_preserves_pr68_adaptive_command_row_allocation(qtbot: object) -> None:
+def test_three_view_button_reuses_priority_aware_command_row_sizing_owner(qtbot: object) -> None:
     window = _composed_window(qtbot)
-    layout = window.presentation_controls_layout
+    followup = window.issue77_ui_design_followup
     review = window.review_selection_controller
     layout_group = window.layout_selector.parentWidget()
-    gain_group = window.findChild(QWidget, "DisplayGainControl")
 
     assert layout_group is not None
-    assert gain_group is not None
-    assert window.issue77_ui_design_followup.three_view_button.parentWidget() is layout_group
-
-    expected_stretches = (
-        (layout_group, 1),
-        (window.comparison_page_group, 4),
-        (gain_group, 1),
-        (review.count_label, 1),
-        (review.clear_button, 1),
-        (review.keep_button, 1),
-    )
-    for widget, expected in expected_stretches:
-        index = layout.indexOf(widget)
-        assert index >= 0
-        assert layout.stretch(index) == expected
-
-    separator_index = layout.indexOf(window.presentation_control_separator)
-    assert separator_index >= 0
-    assert layout.stretch(separator_index) == 0
-
-    trailing_index = layout.count() - 1
-    trailing_item = layout.itemAt(trailing_index)
-    assert trailing_item is not None
-    assert trailing_item.spacerItem() is not None
-    assert layout.stretch(trailing_index) == 1
+    assert followup.three_view_button.parentWidget() is layout_group
+    assert followup.three_view_button.isVisibleTo(window.presentation_controls)
+    assert window._command_row_metric_refresh.parent() is window
 
     group_layout = layout_group.layout()
     assert group_layout is not None
     assert layout_group.minimumWidth() >= group_layout.minimumSize().width()
+
+    assert review.count_label.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    assert review.count_label.minimumWidth() > 0
+    assert window.comparison_page_label.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    assert window.comparison_page_label.minimumWidth() > 0
+    assert window.comparison_page_range_label.minimumWidth() == 0
+
     window.close()
