@@ -129,7 +129,9 @@ class _ElidingMetadataLabel(QLabel):
 
         if not self._minimum_observable_text:
             return 0
-        return self.fontMetrics().horizontalAdvance(self._minimum_observable_text) + 2 * self.margin()
+        return (
+            self.fontMetrics().horizontalAdvance(self._minimum_observable_text) + 2 * self.margin()
+        )
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802 - Qt API override
         hint = super().minimumSizeHint()
@@ -237,7 +239,7 @@ def _replace_review_count_label(review: Any) -> QLabel | None:
     parent_layout.removeWidget(old_label)
     parent_layout.insertWidget(index, label)
     old_label.hide()
-    old_label.setParent(None)
+    old_label.setParent(None)  # type: ignore[call-overload]  # PySide stub rejects valid detach
     old_label.deleteLater()
     review.count_label = label
     return label
@@ -348,7 +350,9 @@ class _CommandRowMetricRefresh(QObject):
             for label in (self._page_status_label, self._count_label):
                 _set_elastic_width(label)
                 if isinstance(label, _ElidingMetadataLabel):
-                    label.setMinimumWidth(label.observable_minimum_width())
+                    observable_width = label.observable_minimum_width()
+                    label.setMinimumWidth(observable_width)
+                    label.setMaximumWidth(max(label.maximumWidth(), observable_width))
                 label.updateGeometry()
 
             _set_elastic_width(self._page_range_label)
@@ -478,7 +482,9 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         layout_selector.parentWidget() if isinstance(layout_selector, QComboBox) else None
     )
     layout_group_layout = layout_group.layout() if isinstance(layout_group, QWidget) else None
-    layout_caption = _first_label(layout_group_layout if isinstance(layout_group_layout, QHBoxLayout) else None)
+    layout_caption = _first_label(
+        layout_group_layout if isinstance(layout_group_layout, QHBoxLayout) else None
+    )
     page_group = getattr(window, "comparison_page_group", None)
     page_layout = page_group.layout() if isinstance(page_group, QWidget) else None
     if isinstance(page_layout, QHBoxLayout):
@@ -486,11 +492,12 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
         if isinstance(page_group, QWidget):
             page_group.setMinimumWidth(0)
         page_layout.invalidate()
-    page_caption = (
+    page_caption_object = (
         page_group.findChild(QLabel, "comparisonPageCaption")
         if isinstance(page_group, QWidget)
         else None
     )
+    page_caption = page_caption_object if isinstance(page_caption_object, QLabel) else None
     gain_group = window.findChild(QWidget, "DisplayGainControl")
     review = getattr(window, "review_selection_controller", None)
     count_label = _replace_review_count_label(review) if review is not None else None
@@ -519,9 +526,7 @@ def _polish_compact_command_row(window: Any, layout: QHBoxLayout) -> None:
     _set_secondary_metadata(page_caption, "Comparison Page")
     _set_secondary_metadata(gain_label, "Display Gain")
     secondary_labels = tuple(
-        label
-        for label in (layout_caption, page_caption, gain_label)
-        if isinstance(label, QLabel)
+        label for label in (layout_caption, page_caption, gain_label) if isinstance(label, QLabel)
     )
 
     if isinstance(clear_button, QAbstractButton):

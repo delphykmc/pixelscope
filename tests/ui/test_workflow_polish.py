@@ -38,9 +38,12 @@ def test_shortcuts_page_reservations_and_initial_placeholders(qtbot: object) -> 
 
     page_width = window.comparison_page_label.width()
     range_width = window.comparison_page_range_label.width()
-    assert window.comparison_page_label.minimumWidth() == 0
+    assert window.comparison_page_label.minimumWidth() > 0
     assert window.comparison_page_range_label.minimumWidth() == 0
-    assert page_width <= window.comparison_page_label.maximumWidth() <= 54
+    assert page_width <= window.comparison_page_label.maximumWidth()
+    assert (
+        window.comparison_page_label.minimumWidth() <= window.comparison_page_label.maximumWidth()
+    )
     assert range_width <= window.comparison_page_range_label.maximumWidth() <= 90
 
     window._comparison_page_range = lambda: (9996, 10000, 10000)  # type: ignore[method-assign]

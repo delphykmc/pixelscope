@@ -228,7 +228,9 @@ def test_three_view_button_reuses_priority_aware_command_row_sizing_owner(qtbot:
 
     assert review.count_label.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
     assert review.count_label.minimumWidth() > 0
-    assert window.comparison_page_label.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    assert (
+        window.comparison_page_label.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
+    )
     assert window.comparison_page_label.minimumWidth() > 0
     assert window.comparison_page_range_label.minimumWidth() == 0
 

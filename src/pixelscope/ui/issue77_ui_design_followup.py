@@ -144,9 +144,7 @@ class Issue77UiDesignFollowup(QObject):
         self.roi_bounds_label.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
-        panel.roi_label.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
+        panel.roi_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.roi_edit_button = QPushButton("Edit", panel)
         self.roi_edit_button.setObjectName("roiEditButton")
@@ -196,9 +194,7 @@ class Issue77UiDesignFollowup(QObject):
                 return
             bounds = RoiBounds(0, 0, width, height)
 
-        panel.roi_label.setText(
-            f"({bounds.x}, {bounds.y}) · {bounds.width} × {bounds.height}"
-        )
+        panel.roi_label.setText(f"({bounds.x}, {bounds.y}) · {bounds.width} × {bounds.height}")
         panel.roi_label.setToolTip(
             f"X {bounds.x}, Y {bounds.y}, Width {bounds.width}, Height {bounds.height}"
         )
