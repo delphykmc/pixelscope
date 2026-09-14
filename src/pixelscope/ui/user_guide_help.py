@@ -89,11 +89,11 @@ def _find_help_menu(window: QMainWindow) -> QMenu:
 def install_user_guide_help(window: QMainWindow) -> QAction:
     """Install Help > User Guide ahead of diagnostic/support actions."""
 
-    existing = window.findChild(QAction, _USER_GUIDE_ACTION_OBJECT_NAME)
-    if existing is not None:
-        return existing
-
     help_menu = _find_help_menu(window)
+    for existing in help_menu.actions():
+        if existing.objectName() == _USER_GUIDE_ACTION_OBJECT_NAME:
+            return existing
+
     action = QAction("User Guide", window)
     action.setObjectName(_USER_GUIDE_ACTION_OBJECT_NAME)
     action.setStatusTip("Open the local PixelScope User Guide")
