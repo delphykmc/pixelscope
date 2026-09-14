@@ -125,7 +125,6 @@ class Issue77UiDesignFollowup(QObject):
 
         self._install_roi_affordance()
         self._install_three_view_affordance()
-        self._compact_command_row()
         self._wrap_render_selection()
         self._sync_controls()
 
@@ -278,25 +277,13 @@ class Issue77UiDesignFollowup(QObject):
             self._sync_three_view_button()
 
         controller._update_three_view_controls = update_three_view_controls  # type: ignore[method-assign]
+        # PR #68 owns Image View command-row allocation. The new button lives inside
+        # the existing Layout group, so only refresh that established content-derived
+        # minimum after adding the child; do not override top-level stretch weights.
         metric_owner = getattr(self.window, "_command_row_metric_refresh", None)
         refresh = getattr(metric_owner, "refresh", None)
         if callable(refresh):
             refresh()
-
-    def _compact_command_row(self) -> None:
-        """Keep command groups at content width and give surplus width to one trailing spacer."""
-
-        layout = self.window.presentation_controls_layout
-        if not isinstance(layout, QHBoxLayout):
-            return
-        layout.setSpacing(TOKENS.spacing_sm)
-        for index in range(layout.count()):
-            item = layout.itemAt(index)
-            if item is None:
-                continue
-            layout.setStretch(index, 1 if item.spacerItem() is not None else 0)
-        layout.invalidate()
-        layout.activate()
 
     def _three_view_enabled(self) -> bool:
         return (
