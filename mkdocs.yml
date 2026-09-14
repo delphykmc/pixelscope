@@ -1,0 +1,66 @@
+site_name: PixelScope User Guide
+site_description: Searchable user documentation for PixelScope image comparison and analysis workflows.
+docs_dir: docs/user-guide
+site_dir: site
+use_directory_urls: false
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - offline
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quick-start.md
+      - Core concepts: getting-started/concepts.md
+  - Workflows:
+      - Open images: workflows/open-images.md
+      - Open folders: workflows/open-folders.md
+      - Compare images: workflows/compare-images.md
+      - Compare more than six images: workflows/compare-many-images.md
+      - Compare folder positions: workflows/compare-folder-positions.md
+      - Inspect an ROI: workflows/inspect-roi.md
+      - Inspect a histogram: workflows/inspect-histogram.md
+      - Inspect a line profile: workflows/inspect-line-profile.md
+      - Use Difference: workflows/use-difference.md
+      - Save and restore work: workflows/save-and-restore-work.md
+  - Features:
+      - Files workspace: features/files-workspace.md
+      - Image View: features/image-view.md
+      - Statistics: features/statistics.md
+      - Histogram: features/histogram.md
+      - Line Profile: features/line-profile.md
+      - Difference: features/difference.md
+      - Plots workspace: features/plots-workspace.md
+      - IQA workspace: features/iqa-workspace.md
+      - Settings: features/settings.md
+  - Formats:
+      - Standard images: formats/standard-images.md
+      - RAW: formats/raw.md
+      - YUV: formats/yuv.md
+  - Reference:
+      - Keyboard shortcuts: reference/keyboard-shortcuts.md
+      - Supported formats: reference/supported-formats.md
+      - Settings reference: reference/settings.md
+      - Terminology: reference/terminology.md
+  - Troubleshooting: troubleshooting/index.md
