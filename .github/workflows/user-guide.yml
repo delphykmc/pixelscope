@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -49,7 +51,7 @@ jobs:
           python -m ruff format --check scripts/check_docs.py tests/unit/test_docs_contract.py
       - name: Check branch diff for whitespace errors
         run: |
-          git fetch origin main --depth=1
+          git fetch origin main:refs/remotes/origin/main
           git diff --check origin/main...HEAD
       - name: Build searchable offline-capable site
         run: python -m mkdocs build --strict
