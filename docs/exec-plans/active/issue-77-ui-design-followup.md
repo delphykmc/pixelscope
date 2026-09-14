@@ -23,7 +23,7 @@ Baseline:
 - Existing Selected / Current Comparison Page / Primary / Difference / Split / Session contracts remain unchanged.
 - The ROI editor must follow the Issue #81 Qt lifetime discipline: no unbounded retained widgets and no new blocking nested event loop.
 - The new three-view affordance must use the established PixelScope toolbar icon language rather than a second rendering style.
-- PR #68 remains the authority for adaptive Image View command-row sizing and stretch allocation. This follow-up must not replace that policy with a new width-allocation scheme.
+- PR #68 remains the architectural authority for adaptive Image View command-row sizing: one sizing owner, content-derived actionable floors, shrinkable metadata, and no overlap under qualified logical widths/font/style changes. Historical stretch numbers are implementation details, not durable product contracts.
 - Additional owner requests received during this PR must be added to the PR body/checklist before implementation.
 
 ## Work item A — compact ROI presentation and editor
@@ -84,9 +84,9 @@ Revised design after owner review:
 - button is not an on/off toggle; it cycles `Equal <-> Focus`;
 - icon reflects the current geometry;
 - render Equal/Focus with the shared high-DPI toolbar icon pipeline and the same 1.5 logical-pixel rounded stroke language;
-- keep the button position stable for every view count;
+- keep the button visible and in a stable position for every view count;
 - enable only when exactly three Multi View tiles are presented;
-- 1/2/4/5/6-view presentation leaves the button disabled;
+- 1/2/4/5/6-view presentation leaves the button visible but disabled;
 - retain context-aware defaults: ordinary/split three-view -> Equal, A/B/Difference -> Focus;
 - retain transient per-context override and no QSettings/session arrangement persistence.
 
@@ -99,35 +99,44 @@ Acceptance:
 - [x] icon follows existing toolbar stroke/high-DPI conventions;
 - [ ] focused owner Windows visual validation.
 
-## Work item D — preserve PR #68 Image View command-row allocation
+## Work item D — extend the PR #68 command-row sizing contract
 
-Owner visual feedback after an intermediate follow-up showed Page and Picked becoming compressed/overlapping. Root cause was a follow-up override that set every non-spacer top-level stretch to zero. That contradicted the adaptive allocation deliberately established in PR #68.
+Exact-head owner validation found a real command-row regression after the always-visible three-view button increased the Layout group's content floor. The two existing PR #68 font/style refresh regressions correctly detected top-level overlap. The fix must address the minimum-floor budget rather than weaken geometry checks or hide/shrink the new control.
 
-Restored contract:
+Sizing policy after independent review:
 
-- PR #68 remains the command-row sizing authority;
-- preserve the established top-level stretch weights rather than replacing them:
-  - Layout group: `1`;
-  - Comparison Page group: `4`;
-  - Gain group: `1`;
-  - Picked count: `1`;
-  - Clear: `1`;
-  - Keep: `1`;
-  - trailing spacer: `1`;
-- preserve `Page` and `Picked` as shrinkable/eliding metadata surfaces with their existing `Ignored` policies;
-- preserve content-derived actionable floors for Layout/Gain/Clear/Keep and their font/style refresh behavior;
-- the new three-view button lives inside the existing Layout group, so its only sizing effect is to increase that group's content-derived minimum;
-- after adding the three-view child, refresh the existing `_CommandRowMetricRefresh`; do not introduce another top-level stretch owner.
+1. **Actionable floor**
+   - Layout combo + three-view button, Previous/Next Page buttons, Gain, Clear, and Keep keep usable minima derived from the current Qt font/style/content.
+   - The three-view button remains at the normal toolbar size and remains always visible; only enabled state changes.
+2. **Core state metadata**
+   - Comparison Page status and Picked count may shrink/elide before actionable controls.
+   - They retain a small observable minimum derived from a short semantic representation using current font metrics rather than a literal pixel reservation.
+   - Full values remain available through tooltip/accessibility metadata.
+3. **Secondary/caption metadata**
+   - Page range and non-actionable captions such as `Layout`, `Page`, and `Gain` may yield more aggressively when the row is constrained.
+   - Their accessible meaning remains available even when visual space is reduced.
+
+Implementation constraints:
+
+- `presentation_controls.py` remains the only command-row sizing/metric authority;
+- remove the fixed Picked-count pixel floor rather than replacing it with another magic number;
+- derive metadata floors from the live Qt font metrics;
+- keep the existing queued font/style metric refresh path and include the newly classified metadata in that refresh;
+- do not add a second allocator or one-off width hack in `issue77_ui_design_followup.py`;
+- stretch factors may be adjusted if needed, but only after minimum-floor classification is correct; their exact numeric values are not a durable contract;
+- if the actionable-floor sum still cannot fit the qualified compact workspace after metadata elasticity is corrected, stop and return to product/layout review.
 
 Acceptance:
 
-- [x] follow-up zero-stretch override removed;
-- [x] PR #68 adaptive stretch weights preserved exactly;
-- [x] new three-view button remains inside the existing Layout group;
-- [x] existing metric owner is refreshed after insertion;
-- [x] focused regression asserts the PR #68 stretch contract remains intact;
-- [ ] rerun existing PR #68 constrained/FHD overlap regressions on exact HEAD;
-- [ ] owner Windows visual validation of Page/Picked observability.
+- [x] follow-up all-non-spacer-zero override removed;
+- [x] three-view button remains inside the existing Layout group and always visible;
+- [ ] one metric owner computes actionable and metadata floors from current Qt metrics;
+- [ ] no fixed Picked-count pixel reservation remains;
+- [ ] core metadata retains a content-derived observable floor;
+- [ ] secondary captions/range can yield before actionable controls;
+- [ ] strict top-level and Layout-internal containment/non-overlap regressions pass;
+- [ ] direct minimum-floor budget fits the available command-row host at qualified widths;
+- [ ] owner Windows 100/125/150/200% visual validation.
 
 ## Validation plan
 
@@ -138,9 +147,13 @@ Focused automated coverage:
 - compact production ROI summary/alignment;
 - modal ROI confirm/reject behavior;
 - non-blocking single-dialog lifetime + DeferredDelete cleanup;
-- Layout-adjacent three-view control and 3-only enablement;
+- Layout-adjacent three-view control, stable visibility, and 3-only enablement;
 - 3-view Equal/Focus geometry and icon transition;
-- exact preservation of PR #68 command-row stretch allocation;
-- existing PR #68 Beta UI / DPI command-row overlap, content-floor, 1280×720, and 1920×1080 regressions.
+- strict command-row containment/non-overlap without freezing historical stretch numbers;
+- Layout-group child containment for caption, combo, and three-view button;
+- direct minimum-floor-budget invariant against available host width;
+- existing PR #68 logical-width matrix: 960×540 with IQA hidden, 1280×720 with IQA hidden and docked/visible paths, and 1920×1080;
+- font enlargement and combo style/padding mutation through the existing metric-refresh owner;
+- worst-case interaction state with more than six Selected, the last Current Comparison Page containing exactly three sources, and a nonzero Picked state so Page navigation, enabled three-view, Picked, Clear, and Keep coexist.
 
 Before merge, run the repository's normal exact-head validation gates including full pytest, Ruff check/format, mypy, docs check, pip check, and `git diff --check`, plus owner Windows UI validation.
