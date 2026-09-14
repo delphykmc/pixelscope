@@ -79,9 +79,14 @@ def open_local_user_guide(
 
 
 def _find_help_menu(window: QMainWindow) -> QMenu:
+    menu_map = getattr(window, "_menu_map", None)
+    if isinstance(menu_map, dict):
+        help_menu = menu_map.get("Help")
+        if isinstance(help_menu, QMenu):
+            return help_menu
     for menu_action in window.menuBar().actions():
         menu = menu_action.menu()
-        if menu is not None and menu.title().replace("&", "") == "Help":
+        if isinstance(menu, QMenu) and menu.title().replace("&", "") == "Help":
             return menu
     raise RuntimeError("PixelScope Help menu is unavailable")
 

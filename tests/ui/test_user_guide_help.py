@@ -17,11 +17,9 @@ from pixelscope.ui.user_guide_help import (
 
 
 def _help_menu(window: MainWindow) -> QMenu:
-    for menu_action in window.menuBar().actions():
-        menu = menu_action.menu()
-        if menu is not None and menu.title().replace("&", "") == "Help":
-            return menu
-    raise AssertionError("Help menu not found")
+    menu = window._menu_map["Help"]
+    assert isinstance(menu, QMenu)
+    return menu
 
 
 def test_frozen_user_guide_candidate_is_relative_to_executable(tmp_path: Path) -> None:
