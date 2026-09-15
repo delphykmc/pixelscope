@@ -5,7 +5,6 @@ import os
 import subprocess
 import sys
 import tempfile
-from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -136,11 +135,16 @@ def _classify(returncode: int) -> str:
     return f"PYTEST_EXIT_{returncode}"
 
 
-def _full_suite(worktree: Path, env: dict[str, str], log: Path) -> tuple[int, list[str]]:
-    tail: deque[str] = deque(maxlen=30)
-    with log.open("w", encoding="utf-8", errors="replace") as stream:
-        process = subprocess.Popen(
-            [sys.executable, "-m", "pytest", "-q"],
+def _full_suite(
+    worktree: Path,
+    env: dict[str, str],
+    log: Path,
+    timeout_seconds: int,
+) -> tuple[str, list[str]]:
+    command = [sys.executable, "-m", "pytest", "-q"]
+    try:
+        completed = subprocess.run(
+            command,
             cwd=worktree,
             env=env,
             text=True,
@@ -148,14 +152,19 @@ def _full_suite(worktree: Path, env: dict[str, str], log: Path) -> tuple[int, li
             stderr=subprocess.STDOUT,
             encoding="utf-8",
             errors="replace",
-            bufsize=1,
+            timeout=timeout_seconds,
+            check=False,
         )
-        assert process.stdout is not None
-        for line in process.stdout:
-            stream.write(line)
-            stream.flush()
-            tail.append(line.rstrip())
-        return process.wait(), list(tail)
+        output = completed.stdout or ""
+        log.write_text(output, encoding="utf-8", errors="replace")
+        return _classify(completed.returncode), output.splitlines()[-30:]
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ""
+        if isinstance(output, bytes):
+            output = output.decode("utf-8", errors="replace")
+        marker = f"\n[diagnostic watchdog] timeout after {timeout_seconds}s\n"
+        log.write_text(output + marker, encoding="utf-8", errors="replace")
+        return f"HANG_TIMEOUT_{timeout_seconds}S", output.splitlines()[-30:]
 
 
 def _base_for_case(case: str) -> str:
@@ -163,12 +172,14 @@ def _base_for_case(case: str) -> str:
 
 
 def _case_summary(results: list[str]) -> str:
+    if any(item.startswith("HANG_TIMEOUT") for item in results):
+        return "HANG_REPRODUCED"
     if any(item.startswith("HEAP_CORRUPTION") for item in results):
         return "HEAP_CORRUPTION_REPRODUCED"
     if any("ACCESS_VIOLATION" in item or item.startswith("NATIVE_CRASH") for item in results):
         return "NATIVE_CRASH_REPRODUCED"
     if results and all(item in {"PASS", "PYTEST_COMPLETED_WITH_FAILURES"} for item in results):
-        return "NO_NATIVE_CRASH_OBSERVED"
+        return "NO_NATIVE_CRASH_OR_HANG_OBSERVED"
     return "INCONCLUSIVE"
 
 
@@ -182,10 +193,18 @@ def main() -> int:
         help="Cases to run. Default: all four cases.",
     )
     parser.add_argument("--repeats", type=int, default=1, help="Fresh-process runs per case.")
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=600,
+        help="Per-run watchdog timeout in seconds (default: 600).",
+    )
     parser.add_argument("--keep-worktrees", action="store_true")
     args = parser.parse_args()
     if args.repeats < 1:
         parser.error("--repeats must be at least 1")
+    if args.timeout_seconds < 1:
+        parser.error("--timeout-seconds must be at least 1")
 
     repo = _repo_root()
     _require_commit(repo, GOOD)
@@ -196,7 +215,8 @@ def main() -> int:
     output.mkdir(parents=True)
     print("PR #85 Qt lifecycle matrix diagnostic")
     print(f"Python: {sys.executable}")
-    print(f"Output: {output}\n")
+    print(f"Output: {output}")
+    print(f"Per-run watchdog: {args.timeout_seconds}s\n")
 
     summaries: dict[str, str] = {}
     all_results: dict[str, list[str]] = {}
@@ -221,10 +241,9 @@ def main() -> int:
             for index in range(1, args.repeats + 1):
                 log = logs / f"full-suite-{index}.log"
                 print(f"  run {index}/{args.repeats}: running")
-                returncode, tail = _full_suite(worktree, env, log)
-                result = _classify(returncode)
+                result, tail = _full_suite(worktree, env, log, args.timeout_seconds)
                 results.append(result)
-                print(f"  run {index}/{args.repeats}: {result} (exit={returncode})")
+                print(f"  run {index}/{args.repeats}: {result}")
                 if result not in {"PASS", "PYTEST_COMPLETED_WITH_FAILURES"}:
                     for line in tail[-8:]:
                         print(f"    {line}")
