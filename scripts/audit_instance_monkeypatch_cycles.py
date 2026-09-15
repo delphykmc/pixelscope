@@ -31,18 +31,38 @@ def _root_name(node: ast.AST) -> str | None:
 
 
 def _assigned_names(function: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
-    names = {argument.arg for argument in (*function.args.posonlyargs, *function.args.args, *function.args.kwonlyargs)}
+    names = {
+        argument.arg
+        for argument in (
+            *function.args.posonlyargs,
+            *function.args.args,
+            *function.args.kwonlyargs,
+        )
+    }
     if function.args.vararg is not None:
         names.add(function.args.vararg.arg)
     if function.args.kwarg is not None:
         names.add(function.args.kwarg.arg)
-    for node in ast.walk(function):
-        if node is function:
-            continue
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
-            continue
-        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
-            names.add(node.id)
+
+    class Visitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            if node is function:
+                for statement in node.body:
+                    self.visit(statement)
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            if node is function:
+                for statement in node.body:
+                    self.visit(statement)
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            return
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
+                names.add(node.id)
+
+    Visitor().visit(function)
     return names
 
 
@@ -72,6 +92,33 @@ def _closure_loads(function: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]
     return loaded
 
 
+def _direct_nested_functions(
+    function: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
+    nested: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+
+    class Visitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            if node is function:
+                for statement in node.body:
+                    self.visit(statement)
+                return
+            nested[node.name] = node
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            if node is function:
+                for statement in node.body:
+                    self.visit(statement)
+                return
+            nested[node.name] = node
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            return
+
+    Visitor().visit(function)
+    return nested
+
+
 def _target_attributes(statement: ast.Assign | ast.AnnAssign) -> list[ast.Attribute]:
     targets: list[ast.expr]
     if isinstance(statement, ast.Assign):
@@ -95,7 +142,11 @@ def _is_method_type_call(node: ast.AST) -> bool:
 
 
 def _owner_name(stack: list[ast.AST]) -> str:
-    names = [node.name for node in stack if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))]
+    names = [
+        node.name
+        for node in stack
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
     return ".".join(names) if names else "<module>"
 
 
@@ -103,6 +154,7 @@ def audit_file(path: Path) -> list[Candidate]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     candidates: list[Candidate] = []
     stack: list[ast.AST] = []
+    nested_scopes: list[dict[str, ast.FunctionDef | ast.AsyncFunctionDef]] = []
 
     class Visitor(ast.NodeVisitor):
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
@@ -112,17 +164,10 @@ def audit_file(path: Path) -> list[Candidate]:
 
         def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
             stack.append(node)
-            nested = {
-                child.name: child
-                for child in node.body
-                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
-            }
+            nested_scopes.append(_direct_nested_functions(node))
             for statement in node.body:
-                if isinstance(statement, (ast.Assign, ast.AnnAssign)):
-                    value = _value(statement)
-                    if value is not None:
-                        self._inspect_assignment(statement, value, nested)
                 self.visit(statement)
+            nested_scopes.pop()
             stack.pop()
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -131,30 +176,60 @@ def audit_file(path: Path) -> list[Candidate]:
         def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
             self._visit_function(node)
 
-        def _inspect_assignment(
+        def visit_Assign(self, node: ast.Assign) -> None:
+            self._inspect_assignment(node)
+            self.generic_visit(node)
+
+        def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+            self._inspect_assignment(node)
+            self.generic_visit(node)
+
+        def _nested_function(
             self,
-            statement: ast.Assign | ast.AnnAssign,
-            value: ast.expr,
-            nested: dict[str, ast.FunctionDef | ast.AsyncFunctionDef],
-        ) -> None:
+            name: str,
+        ) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+            for scope in reversed(nested_scopes):
+                candidate = scope.get(name)
+                if candidate is not None:
+                    return candidate
+            return None
+
+        def _inspect_assignment(self, statement: ast.Assign | ast.AnnAssign) -> None:
+            value = _value(statement)
+            if value is None:
+                return
             owner = _owner_name(stack)
             for target in _target_attributes(statement):
                 target_text = _expr_text(target)
                 target_root = _root_name(target) or "?"
                 if _is_method_type_call(value):
-                    detail = _expr_text(value)
                     candidates.append(
-                        Candidate(path, statement.lineno, owner, target_text, "MethodType", detail)
+                        Candidate(
+                            path,
+                            statement.lineno,
+                            owner,
+                            target_text,
+                            "MethodType",
+                            _expr_text(value),
+                        )
                     )
                     continue
 
-                if isinstance(value, ast.Name) and value.id in nested:
-                    loads = sorted(_closure_loads(nested[value.id]))
-                    detail = f"closure={value.id}; free_loads={','.join(loads)}"
-                    candidates.append(
-                        Candidate(path, statement.lineno, owner, target_text, "nested-closure", detail)
-                    )
-                    continue
+                if isinstance(value, ast.Name):
+                    nested = self._nested_function(value.id)
+                    if nested is not None:
+                        loads = sorted(_closure_loads(nested))
+                        candidates.append(
+                            Candidate(
+                                path,
+                                statement.lineno,
+                                owner,
+                                target_text,
+                                "nested-closure",
+                                f"closure={value.id}; free_loads={','.join(loads)}",
+                            )
+                        )
+                        continue
 
                 value_root = _root_name(value)
                 if isinstance(value, ast.Attribute) and value_root in {
@@ -162,10 +237,17 @@ def audit_file(path: Path) -> list[Candidate]:
                     "controller",
                     "lifecycle",
                     "review",
+                    "guard",
                 }:
-                    detail = f"target_root={target_root}; value={_expr_text(value)}"
                     candidates.append(
-                        Candidate(path, statement.lineno, owner, target_text, "bound-method", detail)
+                        Candidate(
+                            path,
+                            statement.lineno,
+                            owner,
+                            target_text,
+                            "bound-method",
+                            f"target_root={target_root}; value={_expr_text(value)}",
+                        )
                     )
 
     Visitor().visit(tree)
@@ -174,7 +256,10 @@ def audit_file(path: Path) -> list[Candidate]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Inventory instance monkey-patches that can participate in Python reference cycles."
+        description=(
+            "Inventory instance monkey-patches that can participate in Python "
+            "reference cycles."
+        )
     )
     parser.add_argument("root", nargs="?", default="src/pixelscope")
     args = parser.parse_args()
