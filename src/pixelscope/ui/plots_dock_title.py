@@ -184,7 +184,8 @@ class PlotsDockTitleBar(QWidget):
         self.float_button.setToolTip(
             f"Dock {self._panel_title}" if floating else f"Float {self._panel_title}"
         )
-        self._sync_maximize_control()
+        if not floating and not self._dock.isMaximized():
+            self._set_maximize_state(False)
 
     def _sync_maximize_control(self) -> None:
         self._set_maximize_state(self._workspace_maximized or self._dock.isMaximized())
@@ -198,17 +199,16 @@ class PlotsDockTitleBar(QWidget):
         self._dock.setStyleSheet(f"{selector} {{ border: {border}; }}")
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if watched is self._dock and not self._quiescing:
-            if event.type() == QEvent.Type.WindowStateChange:
-                self._sync_maximize_control()
-            if (
-                event.type() in (QEvent.Type.Move, QEvent.Type.Resize)
-                and self._dock.isFloating()
-                and not self._workspace_maximized
-                and not self._dock.isMaximized()
-                and not self._restoring_floating_geometry
-            ):
-                self._remember_floating_geometry()
+        if (
+            watched is self._dock
+            and event.type() in (QEvent.Type.Move, QEvent.Type.Resize)
+            and self._dock.isFloating()
+            and not self._workspace_maximized
+            and not self._dock.isMaximized()
+            and not self._restoring_floating_geometry
+            and not self._quiescing
+        ):
+            self._remember_floating_geometry()
         return super().eventFilter(watched, event)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
