@@ -5,7 +5,8 @@
 Active investigation / implementation plan.
 
 Tracking issue: #81
-Forensic PR: #88 (evidence only; not the implementation branch)
+Forensic PR: #88 (closed; evidence only, not the implementation branch)
+Implementation PR: #89
 Implementation branch: `fix/issue-81-monkeypatch-lifecycle`
 Base: `main@d51064d62291ed4057f2ddc215bc015143e634ef`
 
@@ -98,20 +99,25 @@ base -> IqaSceneInspection -> HistoricalIqaResults
 
 The authoritative install order already exists in `pixelscope.app.application._compose_main_window_presentation()` and `_compose_remote_iqa()`.
 
-The preferred hardening direction is a central, window-owned runtime patch registry that records every persistent instance-method replacement in installation order and restores them in strict reverse order before QObject/widget destruction.
+The first shared primitive is therefore a window-owned **composition teardown stack**, not an eager global unpatch operation. Each migrated feature owner registers a teardown callback in installation order. On `QEvent.Close`, the stack invokes those owners in strict reverse order. Each owner is responsible for its own feature cleanup first and then restoring the instance methods it installed.
+
+This distinction matters because some wrapped methods are themselves shutdown paths. Restoring every patched method before feature cleanup could bypass existing cleanup logic. For example, `IqaWorkspaceController.shutdown` is wrapped by Scene Inspection and Historical Results layers.
+
+The teardown stack holds feature owners only through weak references and resolves the callback at shutdown time. It must not create a second bound-method cycle of its own.
 
 Required properties:
 
-1. Register the exact target instance, attribute name, previous callable/value, and replacement.
-2. Restore in global LIFO order.
+1. Feature teardown runs in global reverse installation order.
+2. Each owner performs feature-specific cancel/disconnect/quiesce work before restoring its own patches when required.
 3. Restoration is idempotent.
-4. Teardown runs on the GUI thread and before Qt object destruction / Python cyclic GC becomes the owner of cleanup.
-5. The registry is cleared after restore so it cannot itself preserve the graph.
-6. Temporary `try/finally` monkey-patches used only inside one synchronous call are not converted unnecessarily.
-7. Existing signal/worker shutdown contracts remain intact; method restoration does not replace cancellation/quiescence.
-8. No `gc.disable()`, blanket `gc.collect()`, arbitrary sleeps, timeout inflation, or global-pool masking is accepted as a fix.
+4. Teardown runs on the GUI thread, before Qt object destruction / Python cyclic GC becomes cleanup authority.
+5. Teardown registration itself must not keep a feature owner alive; the shared stack uses weak owners rather than retained bound callbacks.
+6. Persistent patch owners must restore the exact layer they replaced. For class-defined methods that had no prior instance override, teardown should ultimately remove the instance override rather than leave a bound method stored on the instance.
+7. Temporary `try/finally` monkey-patches used only inside one synchronous call are not converted unnecessarily.
+8. Existing worker cancel/quiescence and signal-disconnect responsibilities remain intact; method restoration does not replace them.
+9. No `gc.disable()`, blanket `gc.collect()`, arbitrary sleeps, timeout inflation, or global-pool masking is accepted as a fix.
 
-If the central registry proves too invasive for a site, that site may keep an explicit `restore()` method, but the restore callback must still be registered centrally so cross-controller ordering remains deterministic.
+A more generic runtime patch helper may be introduced later if it reduces per-owner boilerplate, but global teardown ordering remains authoritative through the composition stack.
 
 ## Work sequence
 
@@ -119,16 +125,18 @@ Each work item is closed only after implementation review and focused validation
 
 ### WP-0 — Inventory and reproducer baseline
 
-- [ ] Port the static monkey-patch inventory audit from forensic PR #88.
-- [ ] Port the opt-in A -> B Qt lifecycle reproducer from forensic PR #88.
+- [x] Port the static monkey-patch inventory audit from forensic PR #88.
+- [x] Port the opt-in A -> B Qt lifecycle reproducer from forensic PR #88.
 - [ ] Run the audit on the implementation branch and reconcile all candidates with this plan.
 - [ ] Record baseline reproducer frequency on Windows.
 
-### WP-1 — Central LIFO patch lifecycle
+### WP-1 — Central LIFO composition lifecycle
 
-- [ ] Add the runtime patch registry / helper.
-- [ ] Integrate deterministic restore into `MainWindow.closeEvent()` before composed QObject destruction.
-- [ ] Add unit/UI tests for nested patch ordering, idempotent restore, and exact original-callable recovery.
+- [x] Add the weak-owner composition teardown stack.
+- [x] Install it at the start of production MainWindow composition.
+- [x] Add focused UI tests for LIFO ordering, idempotence, callback validation, and failure isolation.
+- [ ] Validate the new lifecycle tests locally on the pinned Windows/PySide environment.
+- [ ] Register the first real production patch owner and prove reverse-order cleanup through production composition.
 
 ### WP-2 — High-risk IQA patch chains
 
@@ -153,7 +161,7 @@ Each work item is closed only after implementation review and focused validation
 
 ### WP-5 — Guardrail and durable contract
 
-- [ ] Static/architecture check rejects new persistent instance monkey-patches that bypass the lifecycle helper or an explicit registered restore.
+- [ ] Static/architecture check rejects new persistent instance monkey-patches that bypass a registered lifecycle owner / restore contract.
 - [ ] `docs/QUALITY.md` explicitly documents runtime monkey-patch cycle and LIFO restoration requirements.
 - [ ] Update relevant architecture/harness documentation if implementation introduces a shared lifecycle primitive.
 
@@ -168,4 +176,4 @@ Each work item is closed only after implementation review and focused validation
 
 ## Acceptance
 
-This work is not complete merely because one reproducer stops failing. Completion requires the persistent monkey-patch inventory to be reconciled, deterministic GUI-thread LIFO restore to cover every relevant production site, no observable feature regression, and repeated full-suite validation under normal Python GC.
+This work is not complete merely because one reproducer stops failing. Completion requires the persistent monkey-patch inventory to be reconciled, deterministic GUI-thread LIFO teardown to cover every relevant production site, each migrated owner to restore its own runtime method layer without skipping feature cleanup, no observable feature regression, and repeated full-suite validation under normal Python GC.
