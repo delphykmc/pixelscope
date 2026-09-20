@@ -60,3 +60,20 @@ def test_user_guide_site_contract_rejects_omitted_offline_shim(tmp_path: Path) -
         "missing the offline-search iframe-worker shim" in problem
         for problem in find_site_problems(tmp_path)
     )
+
+
+def test_user_guide_site_contract_accepts_root_relative_404_assets(tmp_path: Path) -> None:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "iframe-worker.js").write_text("// local shim", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        '<html><script src="assets/iframe-worker.js"></script></html>',
+        encoding="utf-8",
+    )
+    (tmp_path / "404.html").write_text(
+        '<html><script src="/assets/iframe-worker.js"></script></html>',
+        encoding="utf-8",
+    )
+    (tmp_path / "llms.txt").write_text("- index.html\\n", encoding="utf-8")
+
+    assert find_site_problems(tmp_path) == []
