@@ -63,6 +63,7 @@ class _Section:
     route: str
     start: int
     lines: tuple[tuple[int, str], ...]
+    title_line: int
 
 
 def _tokens(value: str) -> list[str]:
@@ -78,6 +79,7 @@ def _sections(path: Path, root: Path) -> list[_Section]:
     source = (Path("docs/user-guide") / relative).as_posix()
     route = relative.with_suffix(".html").as_posix()
     title = relative.stem.replace("-", " ").title()
+    title_line = 0
     heading = title
     start = 1
     lines: list[tuple[int, str]] = []
@@ -86,7 +88,7 @@ def _sections(path: Path, root: Path) -> list[_Section]:
 
     def flush() -> None:
         if lines:
-            sections.append(_Section(title, heading, source, route, start, tuple(lines)))
+            sections.append(_Section(title, heading, source, route, start, tuple(lines), title_line))
 
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         stripped = line.strip()
@@ -105,6 +107,7 @@ def _sections(path: Path, root: Path) -> list[_Section]:
             heading = _plain(match.group(2))
             if len(match.group(1)) == 1:
                 title = heading
+                title_line = line_number
             start = line_number
             lines = []
         elif stripped:
@@ -117,6 +120,9 @@ def _rank(section: _Section, terms: list[str], phrase: str) -> int:
     title = _tokens(section.title)
     heading = _tokens(section.heading)
     body = [token for _, line in section.lines for token in _tokens(line)]
+    # Filename-only fallback titles have no actual source heading line to cite.
+    if section.title_line == 0:
+        title = []
     available = set(title + heading + body)
     matched = [term for term in terms if term in available]
     if not matched:
@@ -132,13 +138,25 @@ def _rank(section: _Section, terms: list[str], phrase: str) -> int:
 
 
 def _snippet(section: _Section, terms: list[str], *, max_chars: int = 260) -> tuple[int, str]:
-    best_line, best_text = max(
-        section.lines,
-        key=lambda item: (
-            sum(term in _tokens(item[1]) for term in terms),
-            -item[0],
-        ),
-    )
+    body_matches = [
+        (line, text)
+        for line, text in section.lines
+        if any(term in _tokens(text) for term in terms)
+    ]
+    if body_matches:
+        best_line, best_text = max(
+            body_matches,
+            key=lambda item: (
+                sum(term in _tokens(item[1]) for term in terms),
+                -item[0],
+            ),
+        )
+    elif any(term in _tokens(section.heading) for term in terms):
+        # Heading-only matches must cite the actual heading, not unrelated body prose.
+        best_line, best_text = section.start, section.heading
+    else:
+        # A document-title match in a later subsection belongs to the H1 line.
+        best_line, best_text = section.title_line, section.title
     snippet = best_text
     if len(snippet) > max_chars:
         # Prefer context surrounding the first matched term rather than an
