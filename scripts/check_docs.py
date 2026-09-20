@@ -128,7 +128,7 @@ def find_problems(root: Path = ROOT) -> list[str]:
     llms_path = repository_root / "docs/user-guide/llms.txt"
     if llms_path.is_file():
         llms_text = llms_path.read_text(encoding="utf-8")
-        advertised = re.findall(r"(?m)^- ([a-z0-9/-]+\\.html)$", llms_text)
+        advertised = re.findall(r"(?m)^- ([a-z0-9/-]+\.html)$", llms_text)
         for page in CRITICAL_GUIDE_NAV:
             route = page.removesuffix(".md") + ".html"
             if advertised.count(route) != 1:
