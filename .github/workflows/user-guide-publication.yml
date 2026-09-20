@@ -1,0 +1,99 @@
+name: User Guide publication (manual)
+
+# No implicit publishing on push/PR/tag. A repo owner must select a source
+# revision and a target through the Actions UI. Pages is separately opt-in.
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "main or the exact canonical release tag (for example v0.1.0)"
+        type: string
+        required: true
+        default: main
+      target:
+        description: "Produce a downloadable artifact or additionally publish to GitHub Pages"
+        type: choice
+        required: true
+        default: artifact
+        options:
+          - artifact
+          - pages
+
+permissions:
+  contents: read
+
+concurrency:
+  group: user-guide-publication
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.identity.outputs.source_sha }}
+      version: ${{ steps.identity.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements/docs.txt
+      - name: Install documentation-only build packages
+        run: python -m pip install -r requirements/docs.txt
+      - name: Check documentation toolchain
+        run: python -m pip check
+      - name: Prepare and validate static publication
+        env:
+          DOC_REVISION: ${{ inputs.revision }}
+        run: python scripts/prepare_user_guide_publication.py --revision "$DOC_REVISION"
+      - name: Record exact publication identity
+        id: identity
+        run: |
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(python -c 'from scripts.release_contract import release_version; print(release_version())')" >> "$GITHUB_OUTPUT"
+      - name: Archive verified static site and provenance for internal hosting
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixelscope-user-guide-${{ steps.identity.outputs.version }}-${{ steps.identity.outputs.source_sha }}
+          path: build/user-guide-publication/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Check explicit GitHub Pages opt-in
+        if: ${{ inputs.target == 'pages' }}
+        env:
+          PAGES_ENABLED: ${{ vars.PIXELSCOPE_DOCS_PAGES_ENABLED }}
+        run: |
+          if [ "$PAGES_ENABLED" != "true" ]; then
+            echo "::error::Pages publishing is not approved. Set PIXELSCOPE_DOCS_PAGES_ENABLED=true after enabling GitHub Pages and approving the destination."
+            exit 1
+          fi
+      - name: Configure approved GitHub Pages destination
+        if: ${{ inputs.target == 'pages' }}
+        uses: actions/configure-pages@v5
+      - name: Upload the same validated site as a Pages artifact
+        if: ${{ inputs.target == 'pages' }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/user-guide-publication/site/
+
+  deploy_pages:
+    if: ${{ inputs.target == 'pages' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish to explicitly enabled Pages destination
+        id: deployment
+        uses: actions/deploy-pages@v4
