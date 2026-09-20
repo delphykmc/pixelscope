@@ -122,8 +122,7 @@ def _rank(section: _Section, terms: list[str], phrase: str) -> int:
     if not matched:
         return 0
     score = sum(
-        8 * title.count(term) + 5 * heading.count(term) + min(body.count(term), 4)
-        for term in terms
+        8 * title.count(term) + 5 * heading.count(term) + min(body.count(term), 4) for term in terms
     )
     if len(matched) == len(terms):
         score += 10
@@ -155,9 +154,7 @@ def _snippet(section: _Section, terms: list[str], *, max_chars: int = 260) -> tu
     return best_line, snippet
 
 
-def search_guide(
-    query: str, *, docs_root: Path = GUIDE_ROOT, limit: int = 5
-) -> list[GuideMatch]:
+def search_guide(query: str, *, docs_root: Path = GUIDE_ROOT, limit: int = 5) -> list[GuideMatch]:
     """Return bounded, stable matches with Markdown source lines and site routes."""
     if not 1 <= limit <= 20:
         raise ValueError("limit must be between 1 and 20")
