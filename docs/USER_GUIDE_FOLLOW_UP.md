@@ -4,7 +4,7 @@ The searchable User Guide foundation is now merged. Follow-up work keeps applica
 
 ## WP-Help-A — Application Help integration
 
-Status: **implemented on the User Guide Help integration branch**.
+Status: **merged in PR #87**.
 
 - **Help > User Guide** is installed by the production application composition.
 - Frozen/release builds resolve the local entry point relative to the executable as `help/index.html`; the application does not depend on the process working directory.
@@ -15,7 +15,7 @@ Status: **implemented on the User Guide Help integration branch**.
 
 Online Documentation remains dependent on WP-Help-C establishing an authoritative deployment URL. F1/context-sensitive routing remains deferred until the static local Help path has shipped and proved stable.
 
-## WP-Help-B — Fully local documentation build and packaging — next
+## WP-Help-B — Fully local documentation build and packaging — in review
 
 **Non-negotiable security contract:** the User Guide must build from checked-in files plus a
 preinstalled documentation toolchain, even when individual external URLs are blocked. A
@@ -47,6 +47,27 @@ internet access on the release machine must not be prerequisites.
   approved internal package index or a prebuilt, pinned wheelhouse; this bootstrap is
   separate from the requirement for a network-free MkDocs build once installed.
 
+Implementation notes for this work package:
+
+- An exact published iframe-worker 1.0.4 shim is checked in with MIT license,
+  upstream provenance, and an executable SHA-256 integrity check. The configured
+  polyfill points to the local file and the privacy plugin is no longer needed.
+- The existing User Guide does not use Mermaid diagrams; no CDN-based Mermaid
+  file is part of the normal documentation build. Future Mermaid usage must
+  preserve the same network-free build contract.
+- CI invokes strict MkDocs with socket connections denied on both Windows and
+  Ubuntu, after deleting generated site and privacy cache.
+- Release build generates the site using the documentation environment, then
+  copies the validated files to `dist/PixelScope/help/` beside the executable.
+  The existing portable/installer pipelines retain the single canonical onedir
+  payload; artifact validation requires the bundled Help.
+- The generated 404.html is reserved for hosted documentation, excluded from
+  the local executable-relative bundle because its root-relative URLs do not
+  work through `file://`.
+- Windows owner validation remains necessary for the actual PyInstaller +
+  Inno Setup release chain and browser search behavior without connectivity.
+  GitHub's documentation CI is not evidence of an installer smoke run.
+
 ## WP-Help-C — Documentation deployment
 
 - Publish the same generated static site to GitHub Pages **or** an enterprise/internal static server.
@@ -59,7 +80,12 @@ internet access on the release machine must not be prerequisites.
 - Extend the static `llms.txt` entry point if agent ecosystems converge on additional conventions.
 - Evaluate local documentation search and an optional Ask PixelScope experience only after the static corpus and packaging path are stable.
 - Keep any future RAG/LLM service optional and separate from the canonical Markdown.
-- Evaluate F1/context-sensitive routing without coupling user documentation to Qt widget implementation details.
+
+## Deferred Help/navigation follow-up
+
+- F1/context-sensitive Help remains a UI navigation topic (not WP-Help-D agent work).
+- Add explicit tests for the missing-bundle and browser-open failure messages in
+  the earlier Help integration without changing their user-facing behavior.
 
 ## Deferred/non-goals
 
