@@ -47,7 +47,7 @@ def _valid_artifact(root: Path) -> Path:
     )
     _write(root / "help" / "search" / "search_index.js", b"var __index = {};")
     _write(root / "help" / "index.html", b'<script src="assets/vendor/iframe-worker-1.0.4.js"></script>')
-    _write(root / "help" / "llms.txt", b"- index.html\\n")
+    _write(root / "help" / "llms.txt", b"- index.html\n")
     return root
 
 
