@@ -105,4 +105,6 @@ def test_user_guide_site_contract_rejects_root_relative_assets(tmp_path: Path) -
     )
     (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
 
-    assert any("root-relative resource" in item for item in find_site_problems(tmp_path))
+    assert any(
+        "root-relative resource" in item for item in find_site_problems(tmp_path)
+    )
