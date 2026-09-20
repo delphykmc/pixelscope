@@ -3,12 +3,18 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
 _USER_GUIDE_ACTION_OBJECT_NAME = "userGuideAction"
+_ONLINE_GUIDE_ACTION_OBJECT_NAME = "onlineDocumentationAction"
+
+# Only set after the owner confirms a published, approved, authoritative URL.
+# The installed app does not infer a GitHub Pages URL or probe the network.
+ONLINE_DOCUMENTATION_URL: str | None = None
 
 
 def user_guide_candidates(
@@ -78,6 +84,40 @@ def open_local_user_guide(
     return False
 
 
+def validate_online_documentation_url(value: str) -> str:
+    """Require an explicitly approved HTTPS documentation origin."""
+    parts = urlsplit(value)
+    if (
+        parts.scheme != "https"
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+    ):
+        raise ValueError("Online Documentation requires an approved HTTPS URL")
+    return value
+
+
+def open_online_documentation(
+    parent: QMainWindow,
+    url: str,
+    *,
+    opener: Callable[[QUrl], bool] | None = None,
+) -> bool:
+    """Open only the configured online documentation, never as a local fallback."""
+    approved = validate_online_documentation_url(url)
+    open_url = opener or QDesktopServices.openUrl
+    if open_url(QUrl(approved)):
+        return True
+    QMessageBox.warning(
+        parent,
+        "Unable to open Online Documentation",
+        "PixelScope could not open the online documentation in the system browser.",
+    )
+    return False
+
+
 def _find_help_menu(window: QMainWindow) -> QMenu:
     menu_map = getattr(window, "_menu_map", None)
     if isinstance(menu_map, dict):
@@ -91,25 +131,53 @@ def _find_help_menu(window: QMainWindow) -> QMenu:
     raise RuntimeError("PixelScope Help menu is unavailable")
 
 
-def install_user_guide_help(window: QMainWindow) -> QAction:
-    """Install Help > User Guide ahead of diagnostic/support actions."""
+def install_user_guide_help(window: QMainWindow, *, online_url: str | None = None) -> QAction:
+    """Install local Help and optionally add a separately approved online action."""
 
     help_menu = _find_help_menu(window)
-    for existing in help_menu.actions():
-        if existing.objectName() == _USER_GUIDE_ACTION_OBJECT_NAME:
-            return existing
-
-    action = QAction("User Guide", window)
-    action.setObjectName(_USER_GUIDE_ACTION_OBJECT_NAME)
-    action.setStatusTip("Open the local PixelScope User Guide")
-    action.triggered.connect(  # type: ignore[attr-defined]
-        lambda _checked=False: open_local_user_guide(window)
+    local = next(
+        (
+            action
+            for action in help_menu.actions()
+            if action.objectName() == _USER_GUIDE_ACTION_OBJECT_NAME
+        ),
+        None,
     )
+    if local is None:
+        local = QAction("User Guide", window)
+        local.setObjectName(_USER_GUIDE_ACTION_OBJECT_NAME)
+        local.setStatusTip("Open the local PixelScope User Guide")
+        local.triggered.connect(  # type: ignore[attr-defined]
+            lambda _checked=False: open_local_user_guide(window)
+        )
 
-    first_action = help_menu.actions()[0] if help_menu.actions() else None
-    if first_action is None:
-        help_menu.addAction(action)
-    else:
-        help_menu.insertAction(first_action, action)
-        help_menu.insertSeparator(first_action)
-    return action
+        first_action = help_menu.actions()[0] if help_menu.actions() else None
+        if first_action is None:
+            help_menu.addAction(local)
+        else:
+            help_menu.insertAction(first_action, local)
+            help_menu.insertSeparator(first_action)
+
+    approved = ONLINE_DOCUMENTATION_URL if online_url is None else online_url
+    if approved is not None:
+        approved = validate_online_documentation_url(approved)
+        already_installed = any(
+            action.objectName() == _ONLINE_GUIDE_ACTION_OBJECT_NAME
+            for action in help_menu.actions()
+        )
+        if not already_installed:
+            online = QAction("Online Documentation", window)
+            online.setObjectName(_ONLINE_GUIDE_ACTION_OBJECT_NAME)
+            online.setStatusTip("Open the approved PixelScope documentation website")
+            online.triggered.connect(  # type: ignore[attr-defined]
+                lambda _checked=False: open_online_documentation(window, approved)
+            )
+            separator = next(
+                (action for action in help_menu.actions() if action.isSeparator()),
+                None,
+            )
+            if separator is None:
+                help_menu.addAction(online)
+            else:
+                help_menu.insertAction(separator, online)
+    return local

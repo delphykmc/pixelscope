@@ -83,6 +83,8 @@ def validate_artifact(root: Path = APP_DIR) -> None:
         errors.append("forbidden source cache directory: __pycache__")
 
     help_root = root / "help"
+    if (help_root / "404.html").exists():
+        errors.append("hosting-only help/404.html must not be in the offline bundle")
     if help_root.is_dir():
         errors.extend(f"offline User Guide: {message}" for message in find_site_problems(help_root))
         shim = help_root / "assets/vendor/iframe-worker-1.0.4.js"

@@ -15,7 +15,7 @@ Status: **merged in PR #87**.
 
 Online Documentation remains dependent on WP-Help-C establishing an authoritative deployment URL. F1/context-sensitive routing remains deferred until the static local Help path has shipped and proved stable.
 
-## WP-Help-B — Fully local documentation build and packaging — in review
+## WP-Help-B — Fully local documentation build and packaging — merged in PR #90
 
 **Non-negotiable security contract:** the User Guide must build from checked-in files plus a
 preinstalled documentation toolchain, even when individual external URLs are blocked. A
@@ -64,16 +64,30 @@ Implementation notes for this work package:
 - The generated 404.html is reserved for hosted documentation, excluded from
   the local executable-relative bundle because its root-relative URLs do not
   work through `file://`.
-- Windows owner validation remains necessary for the actual PyInstaller +
-  Inno Setup release chain and browser search behavior without connectivity.
-  GitHub's documentation CI is not evidence of an installer smoke run.
+- The owner reported the full Windows release/portable/installer smoke PASS
+  for PR #90; GitHub's documentation CI is not evidence of an installer smoke run.
 
-## WP-Help-C — Documentation deployment
+## WP-Help-C — Optional documentation publication — in implementation/review
 
-- Publish the same generated static site to GitHub Pages **or** an enterprise/internal static server.
-- Keep hosting optional so repositories with Pages disabled still build locally.
-- Define release/tag/version publication and retention policy.
-- Once an authoritative deployment URL exists, add an explicit **Online Documentation** action rather than silently falling back from local Help.
+- Produce an explicitly initiated, validated and version-identified static site
+  artifact from the existing User Guide source. Preserve release provenance
+  independently of P7 application release artifacts.
+- Support manual GitHub Pages publishing **only** when the repository owner
+  enables the Pages destination and explicitly opts in. Otherwise the same
+  site artifact can be moved to an approved enterprise/internal static host;
+  docs build, release and local Help remain independent of Pages.
+- Restrict publication source to merged `main` or the matching canonical
+  `v<version>` release tag and record the exact commit, version, inventory
+  and hashes. Do not automatically create tags or claim permanent HTML archives.
+- Define 14-day Actions transfer-artifact retention (or stricter platform
+  policy), manual rollback, and the distinction between current live docs
+  and historical source in Git. See `docs/USER_GUIDE_DEPLOYMENT.md`.
+- Prepare a separately gated **Online Documentation** action, which remains
+  disabled until an actual approved HTTPS site URL is configured in a
+  reviewed code change. Never fall back from local Help or reuse SSO tokens.
+- Fix the prior #90 reviewer P1: validate all local HTML navigation links,
+  not just generated `llms.txt` routes and resource references; reject
+  hosting-only 404 pages in an offline installed bundle.
 
 ## WP-Help-D — Agent interface
 

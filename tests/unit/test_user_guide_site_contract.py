@@ -105,3 +105,44 @@ def test_user_guide_site_contract_rejects_root_relative_assets(tmp_path: Path) -
     (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
 
     assert any("root-relative resource" in item for item in find_site_problems(tmp_path))
+
+
+def test_user_guide_site_contract_rejects_broken_non_llms_navigation(
+    tmp_path: Path,
+) -> None:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "iframe-worker.js").write_text("// local shim", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        '<script src="assets/iframe-worker.js"></script>'
+        '<a href="features/image-view.html?mode=read#example">Image View</a>',
+        encoding="utf-8",
+    )
+    (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
+
+    assert any(
+        "missing linked page: features/image-view.html?mode=read#example" in item
+        for item in find_site_problems(tmp_path)
+    )
+    target = tmp_path / "features" / "image-view.html"
+    target.parent.mkdir()
+    target.write_text("<h1>Image View</h1>", encoding="utf-8")
+
+    assert find_site_problems(tmp_path) == []
+
+
+def test_user_guide_site_contract_allows_external_navigation_but_not_external_assets(
+    tmp_path: Path,
+) -> None:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "iframe-worker.js").write_text("// shim", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        '<script src="assets/iframe-worker.js"></script>'
+        '<a href="https://example.com/vendor/license">Source</a>'
+        '<a href="mailto:support@example.com">Email</a>'
+        '<a href="#top">Top</a>',
+        encoding="utf-8",
+    )
+    (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
+    assert find_site_problems(tmp_path) == []
