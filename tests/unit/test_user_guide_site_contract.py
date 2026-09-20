@@ -45,7 +45,7 @@ def test_user_guide_site_contract_requires_actual_local_offline_shim(tmp_path: P
         '<html><script src="assets/iframe-worker.js"></script></html>',
         encoding="utf-8",
     )
-    (tmp_path / "llms.txt").write_text("- index.html\\n", encoding="utf-8")
+    (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
 
     problems = find_site_problems(tmp_path)
 
@@ -54,7 +54,7 @@ def test_user_guide_site_contract_requires_actual_local_offline_shim(tmp_path: P
 
 def test_user_guide_site_contract_rejects_omitted_offline_shim(tmp_path: Path) -> None:
     (tmp_path / "index.html").write_text("<html></html>", encoding="utf-8")
-    (tmp_path / "llms.txt").write_text("- index.html\\n", encoding="utf-8")
+    (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
 
     assert any(
         "missing the offline-search iframe-worker shim" in problem
@@ -74,6 +74,35 @@ def test_user_guide_site_contract_accepts_root_relative_404_assets(tmp_path: Pat
         '<html><script src="/assets/iframe-worker.js"></script></html>',
         encoding="utf-8",
     )
-    (tmp_path / "llms.txt").write_text("- index.html\\n", encoding="utf-8")
+    (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
 
     assert find_site_problems(tmp_path) == []
+
+
+def test_user_guide_site_contract_rejects_missing_local_images(tmp_path: Path) -> None:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "iframe-worker.js").write_text("// local shim", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        '<script src="assets/iframe-worker.js"></script>'
+        '<img src="assets/missing.png">',
+        encoding="utf-8",
+    )
+    (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
+
+    assert any(
+        "missing local resource: assets/missing.png" in item
+        for item in find_site_problems(tmp_path)
+    )
+
+
+def test_user_guide_site_contract_rejects_root_relative_assets(tmp_path: Path) -> None:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "iframe-worker.js").write_text("// local shim", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        '<script src="/assets/iframe-worker.js"></script>', encoding="utf-8"
+    )
+    (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
+
+    assert any("root-relative resource" in item for item in find_site_problems(tmp_path))
