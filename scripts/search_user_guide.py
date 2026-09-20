@@ -141,9 +141,7 @@ def _rank(section: _Section, terms: list[str], phrase: str) -> int:
 
 def _snippet(section: _Section, terms: list[str], *, max_chars: int = 260) -> tuple[int, str]:
     body_matches = [
-        (line, text)
-        for line, text in section.lines
-        if any(term in _tokens(text) for term in terms)
+        (line, text) for line, text in section.lines if any(term in _tokens(text) for term in terms)
     ]
     if body_matches:
         best_line, best_text = max(
