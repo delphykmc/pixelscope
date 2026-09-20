@@ -70,3 +70,15 @@ The future MkDocs 2.0 warning banner is an upstream advisory unrelated to
 these offline assets: `requirements/docs.txt` pins MkDocs 1.6.1 and Material
 9.7.7. Python package installation itself needs an approved internal package
 index or a wheelhouse in a fully air-gapped build environment.
+
+## Optional online publication
+
+The same generated static documentation can be staged for an approved internal
+static server or manually deployed to GitHub Pages when repository policy allows
+it. Online hosting is not needed for a local build, the installed offline Help,
+or the four-file PixelScope application release contract.
+
+See [User Guide deployment](USER_GUIDE_DEPLOYMENT.md) for explicit authorization,
+manual workflow steps, canonical `main`/release-tag identity, SHA-256 publication
+inventory, artifact retention, and online-link activation policy. No online
+documentation URL is assumed until an owner verifies the real deployed address.
