@@ -88,9 +88,9 @@ def test_prepare_publication_records_source_identity_without_release_artifacts(
 
 
 def test_docs_publication_workflow_is_manual_and_pages_is_opt_in() -> None:
-    script = (
-        publication.REPO_ROOT / ".github/workflows/user-guide-publication.yml"
-    ).read_text(encoding="utf-8")
+    script = (publication.REPO_ROOT / ".github/workflows/user-guide-publication.yml").read_text(
+        encoding="utf-8"
+    )
     assert "workflow_dispatch:" in script
     assert "\non:\n  workflow_dispatch:" in script
     assert "PIXELSCOPE_DOCS_PAGES_ENABLED" in script
