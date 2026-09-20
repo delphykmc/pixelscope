@@ -89,10 +89,10 @@ Implementation notes for this work package:
   not just generated `llms.txt` routes and resource references; reject
   hosting-only 404 pages in an offline installed bundle.
 
-## WP-Help-D — Agent interface — local foundation in implementation
+## WP-Help-D — Agent interface — merged in PR #92
 
-The merged WP-Help-C offline/static publication pipeline is the prerequisite.
-WP-Help-D delivers an agent-facing **retrieval interface**, not a chatbot:
+The merged WP-Help-C offline/static publication pipeline was the prerequisite.
+WP-Help-D delivered an agent-facing **retrieval interface**, not a chatbot:
 
 - Expand the existing static `llms.txt` to cover every canonical User Guide
   navigation route and keep its generated HTML paths under the same strict
