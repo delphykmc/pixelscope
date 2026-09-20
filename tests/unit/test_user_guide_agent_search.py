@@ -37,8 +37,7 @@ def test_heading_only_hit_cites_matching_heading_not_unrelated_body(tmp_path: Pa
     _write(
         tmp_path,
         "features/needle.md",
-        "# Needle\n\nUnrelated introductory text.\n\n"
-        "## Another topic\nStill unrelated prose.\n",
+        "# Needle\n\nUnrelated introductory text.\n\n" "## Another topic\nStill unrelated prose.\n",
     )
     matches = search_guide("Needle", docs_root=tmp_path)
     assert len(matches) == 2
@@ -54,8 +53,7 @@ def test_subheading_only_hit_cites_subheading_line(tmp_path: Path) -> None:
     _write(
         tmp_path,
         "features/tools.md",
-        "# Tools\n\nIntroduction.\n\n"
-        "## Rareword\nBody unrelated to the query.\n",
+        "# Tools\n\nIntroduction.\n\n" "## Rareword\nBody unrelated to the query.\n",
     )
     matches = search_guide("Rareword", docs_root=tmp_path)
     assert len(matches) == 1
