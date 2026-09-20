@@ -101,9 +101,16 @@ def _run_repository_validation(dev_python: Path) -> None:
     _run(["git", "diff", "--check"])
 
 
-def _run_release_pipeline(release_python: Path, compiler: Path) -> tuple[Path, ...]:
+def _run_release_pipeline(
+    release_python: Path,
+    compiler: Path,
+    *,
+    docs_python: Path | None = None,
+) -> tuple[Path, ...]:
     env = os.environ.copy()
     env["ISCC_PATH"] = str(compiler)
+    if docs_python is not None:
+        env["PIXELSCOPE_DOCS_PYTHON"] = str(docs_python)
 
     _run([str(release_python), "-m", "pip", "check"], env=env)
     _run([str(release_python), "scripts/build_release.py"], env=env)
@@ -195,7 +202,11 @@ def build_release_candidate(
 
     _run_repository_validation(dev_python)
     _require_clean_worktree()
-    artifacts = _run_release_pipeline(release_python, compiler)
+    artifacts = _run_release_pipeline(
+        release_python,
+        compiler,
+        docs_python=dev_python,
+    )
     stage_root = _stage_candidate(
         artifacts,
         version=version,

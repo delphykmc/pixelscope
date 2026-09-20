@@ -18,17 +18,15 @@ theme:
     - search.highlight
     - content.code.copy
 
-# The Material offline plugin honors an existing iframe-worker polyfill.
-# Pin its extension-bearing URL: privacy downloads it as a regular .js file,
-# avoiding the extensionless CDN alias that requires symlinks on Windows.
+# The offline plugin honors a configured iframe-worker shim. Keep it local so
+# clean builds and file:// search do not depend on any external CDN or cache.
 extra:
   polyfills:
-    - https://unpkg.com/iframe-worker@1.0.4/shim/index.js
+    - assets/vendor/iframe-worker-1.0.4.js
 
 plugins:
   - search
   - offline
-  - privacy
 
 markdown_extensions:
   - admonition

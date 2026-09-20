@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.build_user_guide import SHIM_SHA256  # noqa: E402
+from scripts.check_user_guide_site import find_site_problems  # noqa: E402
 from scripts.release_contract import APP_DIR  # noqa: E402
 
 
@@ -16,6 +19,10 @@ class ArtifactValidationError(RuntimeError):
 
 _REQUIRED_FILES = (
     Path("PixelScope.exe"),
+    Path("help/index.html"),
+    Path("help/llms.txt"),
+    Path("help/search/search_index.js"),
+    Path("help/assets/vendor/iframe-worker-1.0.4.js"),
     Path("pixelscope/assets/icons/pixelscope.svg"),
     Path("pixelscope/assets/icons/pixelscope.png"),
     Path("pixelscope/assets/icons/pixelscope.ico"),
@@ -74,6 +81,15 @@ def validate_artifact(root: Path = APP_DIR) -> None:
 
     if any(root.rglob("__pycache__")):
         errors.append("forbidden source cache directory: __pycache__")
+
+    help_root = root / "help"
+    if help_root.is_dir():
+        errors.extend(f"offline User Guide: {message}" for message in find_site_problems(help_root))
+        shim = help_root / "assets/vendor/iframe-worker-1.0.4.js"
+        if shim.is_file():
+            actual = hashlib.sha256(shim.read_bytes()).hexdigest()
+            if actual != SHIM_SHA256:
+                errors.append("offline User Guide shim SHA-256 mismatch")
 
     if errors:
         joined = "\n - ".join(errors)
