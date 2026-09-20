@@ -15,14 +15,37 @@ Status: **implemented on the User Guide Help integration branch**.
 
 Online Documentation remains dependent on WP-Help-C establishing an authoritative deployment URL. F1/context-sensitive routing remains deferred until the static local Help path has shipped and proved stable.
 
-## WP-Help-B — Packaging integration — next
+## WP-Help-B — Fully local documentation build and packaging — next
 
-- Build the MkDocs offline site as a release input.
-- Consume the already validated, self-contained `site/` artifact when producing the offline `help/` bundle; the installed application must not fetch documentation assets at runtime.
-- Include the generated help bundle in PyInstaller/Inno Setup artifacts so the WP-Help-A executable-relative `help/index.html` contract is satisfied.
-- Validate that installed relative links, search assets, screenshots, and self-hosted external assets work without network access.
-- Add release-artifact checks without making documentation packages runtime dependencies.
-- Define cache/bootstrap handling separately if a documentation build itself must run in an air-gapped environment.
+**Non-negotiable security contract:** the User Guide must build from checked-in files plus a
+preinstalled documentation toolchain, even when individual external URLs are blocked. A
+previously warmed MkDocs privacy cache, permitted CDN access, symlink privileges, or
+internet access on the release machine must not be prerequisites.
+
+- Replace the current CDN-based iframe-worker polyfill with a versioned, checked-in local
+  JavaScript asset. Preserve working `file://` search; do not disable the offline plugin,
+  substitute a no-op shim, or merely silence privacy-plugin warnings.
+- Investigate the current build-time Mermaid CDN fetch. If no supported User Guide page
+  uses Mermaid, remove its dependency without introducing an unbundled runtime URL.
+  Otherwise vendor the exact required script locally.
+- Record upstream version, source, license/attribution, and a reproducible content hash
+  for each vendored third-party asset. Avoid downloading arbitrary mutable CDN content
+  during routine documentation builds.
+- Make `mkdocs build --strict` work after clearing `site/` and
+  `.cache/plugin/privacy/` with outbound network access blocked. Include a deterministic
+  test/CI job that prevents outbound requests during the build, not just an assertion
+  that HTML is free of CDN links after a network-enabled build.
+- Extend the generated-site contract to cover all runtime-loaded HTML, CSS, and JS
+  references and to detect missing relative assets, especially the search shim.
+- Consume the validated, self-contained `site/` as a release input for the offline
+  `help/` bundle. Include it in portable ZIP and Inno Setup artifacts at the exact
+  executable-relative path `help/index.html`.
+- Validate offline search, navigation, screenshots, and relative links in installed
+  and portable builds on Windows without network access.
+- Documentation packages remain build-time dependencies, never PixelScope runtime
+  dependencies. If the package installation itself must occur air-gapped, provide an
+  approved internal package index or a prebuilt, pinned wheelhouse; this bootstrap is
+  separate from the requirement for a network-free MkDocs build once installed.
 
 ## WP-Help-C — Documentation deployment
 
