@@ -82,10 +82,14 @@ PR or a passing docs CI check.
 - **Current docs**: a deliberate `revision=main` publication represents
   current merged documentation at its recorded exact source commit.
 - **Release docs**: an existing annotated/lightweight
-  `v<canonical-version>` tag may be selected to reproduce a version-specific
-  site. Tags are created/approved by the separate P7-D release process, **not**
-  by documentation automation. The selected tag must resolve to the commit
-  being built. Do not attach new assets to the four-file P7 production bundle.
+  `v<canonical-version>` tag containing the WP-Help-C publication tooling may
+  be selected to reproduce a version-specific site. Tags are created/approved
+  by the separate P7-D release process, **not** by documentation automation.
+  The selected tag must resolve to the commit being built. Older tags lacking
+  this tooling need an individually reviewed manual historical-documentation
+  procedure; the workflow does not silently mix historical content with
+  newer publication code. Do not attach new assets to the four-file P7
+  production bundle.
 - **Live Pages root**: one site at a time, not an implicit multi-version
   archive. Manually running a previous approved tag is a rollback, and its
   deployment replaces the currently live root. Record this in the release log.
