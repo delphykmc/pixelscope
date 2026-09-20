@@ -83,6 +83,37 @@ CRITICAL_GUIDE_NAV = (
     "troubleshooting/index.md",
 )
 
+# Discover the actual MkDocs nav rather than assuming CRITICAL_GUIDE_NAV
+# enumerates every future page. Keep this stdlib-only for local doc checks.
+GUIDE_NAV_ENTRY = re.compile(r"(?m)^\s*-\s+.+?:\s+([a-zA-Z0-9_./-]+\.md)\s*$")
+LLMS_ROUTE_ENTRY = re.compile(r"(?m)^- ([a-z0-9/-]+\.html)$")
+
+
+def guide_nav_index_problems(mkdocs_text: str, llms_text: str) -> list[str]:
+    """Compare configured MkDocs pages with advertised agent route entries."""
+    nav_section = mkdocs_text.partition("\nnav:\n")[2]
+    if not nav_section:
+        return ["mkdocs.yml: missing nav section for agent route verification"]
+    pages = GUIDE_NAV_ENTRY.findall(nav_section)
+    if not pages:
+        return ["mkdocs.yml: no Markdown nav entries found for agent route verification"]
+
+    advertised = LLMS_ROUTE_ENTRY.findall(llms_text)
+    problems: list[str] = []
+    for page in sorted(set(pages)):
+        count = pages.count(page)
+        if count != 1:
+            problems.append(f"mkdocs.yml: duplicate nav entry for {page}: {count}")
+        route = page.removesuffix(".md") + ".html"
+        count = advertised.count(route)
+        if count != 1:
+            problems.append(
+                f"docs/user-guide/llms.txt: expected exactly one route for {route}, "
+                f"found {count}"
+            )
+    return problems
+
+
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 
 
@@ -129,16 +160,13 @@ def find_problems(root: Path = ROOT) -> list[str]:
                 )
 
     llms_path = repository_root / "docs/user-guide/llms.txt"
-    if llms_path.is_file():
-        llms_text = llms_path.read_text(encoding="utf-8")
-        advertised = re.findall(r"(?m)^- ([a-z0-9/-]+\.html)$", llms_text)
-        for page in CRITICAL_GUIDE_NAV:
-            route = page.removesuffix(".md") + ".html"
-            if advertised.count(route) != 1:
-                problems.append(
-                    f"docs/user-guide/llms.txt: expected exactly one route for {route}, "
-                    f"found {advertised.count(route)}"
-                )
+    if mkdocs_path.is_file() and llms_path.is_file():
+        problems.extend(
+            guide_nav_index_problems(
+                mkdocs_path.read_text(encoding="utf-8"),
+                llms_path.read_text(encoding="utf-8"),
+            )
+        )
 
     for document in markdown_files(repository_root):
         text = document.read_text(encoding="utf-8")
