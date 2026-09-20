@@ -41,6 +41,13 @@ def _valid_artifact(root: Path) -> Path:
     _write(root / "PySide6" / "Qt" / "plugins" / "platforms" / "qwindows.dll")
     _write(root / "numpy" / "core" / "_multiarray_umath.cp310-win_amd64.pyd")
     _write(root / "cv2" / "cv2.cp310-win_amd64.pyd")
+    _write(
+        root / "help" / "assets" / "vendor" / "iframe-worker-1.0.4.js",
+        (REPO_ROOT / "docs/user-guide/assets/vendor/iframe-worker-1.0.4.js").read_bytes(),
+    )
+    _write(root / "help" / "search" / "search_index.js", b"var __index = {};")
+    _write(root / "help" / "index.html", b'<script src="assets/vendor/iframe-worker-1.0.4.js"></script>')
+    _write(root / "help" / "llms.txt", b"- index.html\\n")
     return root
 
 
@@ -213,4 +220,20 @@ def test_artifact_validator_rejects_source_tree_leakage(tmp_path: Path) -> None:
     (root / "tests").mkdir()
 
     with pytest.raises(ArtifactValidationError, match="forbidden source/dev"):
+        validate_artifact(root)
+
+
+def test_artifact_validator_rejects_missing_offline_guide(tmp_path: Path) -> None:
+    root = _valid_artifact(tmp_path / "PixelScope")
+    (root / "help" / "index.html").unlink()
+
+    with pytest.raises(ArtifactValidationError, match="help/index.html"):
+        validate_artifact(root)
+
+
+def test_artifact_validator_rejects_tampered_search_shim(tmp_path: Path) -> None:
+    root = _valid_artifact(tmp_path / "PixelScope")
+    (root / "help/assets/vendor/iframe-worker-1.0.4.js").write_bytes(b"tampered")
+
+    with pytest.raises(ArtifactValidationError, match="shim SHA-256 mismatch"):
         validate_artifact(root)
