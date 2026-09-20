@@ -34,10 +34,29 @@ jobs:
       source_sha: ${{ steps.identity.outputs.source_sha }}
       version: ${{ steps.identity.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      # The workflow file is available only from main. Never checkout a
+      # user-supplied revision or run its requirements before verifying it.
+      - name: Checkout trusted dispatched main commit
+        uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.revision }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
+      - name: Validate requested revision before selected checkout
+        id: source
+        env:
+          DOC_REVISION: ${{ inputs.revision }}
+        run: >-
+          python3 scripts/validate_user_guide_publication_ref.py
+          --revision "$DOC_REVISION"
+          --trusted-main-sha "$GITHUB_SHA"
+          --github-output "$GITHUB_OUTPUT"
+      - name: Checkout pinned and approved documentation source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
@@ -50,12 +69,20 @@ jobs:
       - name: Prepare and validate static publication
         env:
           DOC_REVISION: ${{ inputs.revision }}
-        run: python scripts/prepare_user_guide_publication.py --revision "$DOC_REVISION"
-      - name: Record exact publication identity
+          DOC_SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        run: >-
+          python scripts/prepare_user_guide_publication.py
+          --revision "$DOC_REVISION"
+          --expected-commit "$DOC_SOURCE_SHA"
+      - name: Record verified publication identity
         id: identity
+        env:
+          DOC_SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          DOC_VERSION: ${{ steps.source.outputs.version }}
         run: |
-          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "version=$(python -c 'from scripts.release_contract import release_version; print(release_version())')" >> "$GITHUB_OUTPUT"
+          test "$(git rev-parse HEAD)" = "$DOC_SOURCE_SHA"
+          echo "source_sha=$DOC_SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$DOC_VERSION" >> "$GITHUB_OUTPUT"
       - name: Archive verified static site and provenance for internal hosting
         uses: actions/upload-artifact@v4
         with:
