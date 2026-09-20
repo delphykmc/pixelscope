@@ -104,15 +104,29 @@ def validate_publication_manifest(site: Path, metadata: dict[str, object]) -> No
         raise ValueError("Invalid User Guide site:\n - " + "\n - ".join(problems))
 
 
-def prepare_publication(revision: str, *, destination: Path = STAGING_ROOT) -> Path:
+def prepare_publication(
+    revision: str,
+    *,
+    destination: Path = STAGING_ROOT,
+    expected_commit: str | None = None,
+) -> Path:
     version = release_version()
     source_commit = _git_rev_parse("HEAD")
+    # For main, the preflight pins the dispatched main SHA: origin/main could
+    # advance before this build. For a tag, also recheck the actual tag target.
+    ref_commit = (
+        expected_commit
+        if revision == "main" and expected_commit is not None
+        else resolved_revision_commit(revision, version)
+    )
     validate_selected_revision(
         revision,
         version=version,
         source_commit=source_commit,
-        ref_commit=resolved_revision_commit(revision, version),
+        ref_commit=ref_commit,
     )
+    if expected_commit is not None and source_commit != expected_commit:
+        raise ValueError("Checked-out documentation source differs from preflight commit")
     site = build_user_guide()
     if destination.exists():
         shutil.rmtree(destination)
@@ -132,8 +146,9 @@ def prepare_publication(revision: str, *, destination: Path = STAGING_ROOT) -> P
 def main() -> int:
     parser = argparse.ArgumentParser(description="Prepare validated static User Guide for hosting")
     parser.add_argument("--revision", required=True, help="main or exact canonical v<version> tag")
+    parser.add_argument("--expected-commit", help="SHA approved by trusted workflow preflight")
     args = parser.parse_args()
-    root = prepare_publication(args.revision)
+    root = prepare_publication(args.revision, expected_commit=args.expected_commit)
     print(f"User Guide publication staged: {root}")
     print(f"Site root: {root / 'site'}")
     print(f"Provenance: {root / METADATA_NAME}")
