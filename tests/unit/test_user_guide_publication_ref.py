@@ -111,9 +111,9 @@ def test_preflight_tag_version_mismatch_fails_without_running_selected_code(
 
 
 def test_workflow_rejects_untrusted_ref_before_selected_checkout_or_install() -> None:
-    workflow = (
-        guard.REPO_ROOT / ".github/workflows/user-guide-publication.yml"
-    ).read_text(encoding="utf-8")
+    workflow = (guard.REPO_ROOT / ".github/workflows/user-guide-publication.yml").read_text(
+        encoding="utf-8"
+    )
     trusted = workflow.index("ref: ${{ github.sha }}")
     preflight = workflow.index("scripts/validate_user_guide_publication_ref.py")
     selected = workflow.index("ref: ${{ steps.source.outputs.source_sha }}")
@@ -121,7 +121,7 @@ def test_workflow_rejects_untrusted_ref_before_selected_checkout_or_install() ->
     pip_install = workflow.index("python -m pip install -r requirements/docs.txt")
     assert trusted < preflight < selected < setup < pip_install
     assert "ref: ${{ inputs.revision }}" not in workflow
-    assert 'if: ${{ github.ref == \'refs/heads/main\' }}' in workflow
+    assert "if: ${{ github.ref == 'refs/heads/main' }}" in workflow
     assert "persist-credentials: false" in workflow
     assert '--expected-commit "$DOC_SOURCE_SHA"' in workflow
     assert "workflow_dispatch:" in workflow
