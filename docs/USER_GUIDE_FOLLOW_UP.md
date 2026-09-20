@@ -67,7 +67,7 @@ Implementation notes for this work package:
 - The owner reported the full Windows release/portable/installer smoke PASS
   for PR #90; GitHub's documentation CI is not evidence of an installer smoke run.
 
-## WP-Help-C — Optional documentation publication — in implementation/review
+## WP-Help-C — Optional documentation publication — merged in PR #91
 
 - Produce an explicitly initiated, validated and version-identified static site
   artifact from the existing User Guide source. Preserve release provenance
@@ -89,11 +89,27 @@ Implementation notes for this work package:
   not just generated `llms.txt` routes and resource references; reject
   hosting-only 404 pages in an offline installed bundle.
 
-## WP-Help-D — Agent interface
+## WP-Help-D — Agent interface — local foundation in implementation
 
-- Extend the static `llms.txt` entry point if agent ecosystems converge on additional conventions.
-- Evaluate local documentation search and an optional Ask PixelScope experience only after the static corpus and packaging path are stable.
-- Keep any future RAG/LLM service optional and separate from the canonical Markdown.
+The merged WP-Help-C offline/static publication pipeline is the prerequisite.
+WP-Help-D delivers an agent-facing **retrieval interface**, not a chatbot:
+
+- Expand the existing static `llms.txt` to cover every canonical User Guide
+  navigation route and keep its generated HTML paths under the same strict
+  site validation. Do not invent a new protocol or duplicate Markdown.
+- Provide a deterministic repository-local User Guide search CLI with text and
+  bounded JSON results, source-relative path/line citations and generated site
+  routes. It reads the canonical Markdown only and needs no network, credentials,
+  local image files, embeddings, or runtime application dependency.
+- Lock down coverage with focused tests and documentation CI; keep offline Help,
+  manual publication, and P7's release-bundle contract unchanged.
+- Evaluate Ask PixelScope separately in
+  [Agent interface](USER_GUIDE_AGENT_INTERFACE.md). An optional model/RAG
+  experience requires a justified UX, source grounding, privacy/security design,
+  provider approval, and a distinct owner decision. Do not add one by default.
+
+The repository-side search tool is not shipped as a new application feature;
+installed users retain their existing local Help/search without an AI service.
 
 ## Deferred Help/navigation follow-up
 

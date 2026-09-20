@@ -6,11 +6,14 @@ on:
       - "docs/**"
       - "mkdocs.yml"
       - "requirements/docs.txt"
+      - "requirements/runtime.txt"
+      - "pyproject.toml"
       - "scripts/check_docs.py"
       - "scripts/check_user_guide_site.py"
       - "scripts/build_user_guide.py"
       - "scripts/check_user_guide_build_offline.py"
       - "scripts/prepare_user_guide_publication.py"
+      - "scripts/search_user_guide.py"
       - "scripts/validate_user_guide_publication_ref.py"
       - "src/pixelscope/ui/user_guide_help.py"
       - "tests/ui/test_user_guide_help.py"
@@ -22,6 +25,7 @@ on:
       - "tests/unit/test_user_guide_site_contract.py"
       - "tests/unit/test_user_guide_publication.py"
       - "tests/unit/test_user_guide_publication_ref.py"
+      - "tests/unit/test_user_guide_agent_search.py"
       - "tests/unit/test_user_guide_packaging.py"
       - ".github/pull_request_template.md"
       - ".github/workflows/user-guide.yml"
@@ -30,11 +34,14 @@ on:
       - "docs/**"
       - "mkdocs.yml"
       - "requirements/docs.txt"
+      - "requirements/runtime.txt"
+      - "pyproject.toml"
       - "scripts/check_docs.py"
       - "scripts/check_user_guide_site.py"
       - "scripts/build_user_guide.py"
       - "scripts/check_user_guide_build_offline.py"
       - "scripts/prepare_user_guide_publication.py"
+      - "scripts/search_user_guide.py"
       - "scripts/validate_user_guide_publication_ref.py"
       - "src/pixelscope/ui/user_guide_help.py"
       - "tests/ui/test_user_guide_help.py"
@@ -46,6 +53,7 @@ on:
       - "tests/unit/test_user_guide_site_contract.py"
       - "tests/unit/test_user_guide_publication.py"
       - "tests/unit/test_user_guide_publication_ref.py"
+      - "tests/unit/test_user_guide_agent_search.py"
       - ".github/pull_request_template.md"
       - ".github/workflows/user-guide.yml"
 
@@ -88,6 +96,7 @@ jobs:
           tests/unit/test_user_guide_packaging.py
           tests/unit/test_user_guide_publication.py
           tests/unit/test_user_guide_publication_ref.py
+          tests/unit/test_user_guide_agent_search.py
       - name: Run release-artifact regressions on Windows
         if: runner.os == 'Windows'
         run: python -m pytest -q tests/unit/test_release_packaging.py

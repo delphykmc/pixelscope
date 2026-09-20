@@ -1,11 +1,14 @@
-# PixelScope User Guide - machine-readable entry point
+# PixelScope User Guide — agent-readable route index
 
-Canonical source root (repository): docs/user-guide/
-Generated site root: index.html
-All routes below are relative to the generated site root and resolve from site/llms.txt.
+Canonical authority: topic Markdown under docs/user-guide/ in this repository.
+Generated site: the same pages in HTML; every route below is relative to site/llms.txt.
+Local installed Help: an offline static copy; no online service or login is required.
+Use the current User Guide for end-user answers. Do not substitute planned/deferred
+roadmap behavior or invent an answer when a topic is missing.
 
-Start:
+Start here:
 - index.html
+- getting-started/installation.html
 - getting-started/quick-start.html
 - getting-started/concepts.html
 
@@ -24,6 +27,18 @@ Task workflows:
 - workflows/save-and-restore-work.html
 - workflows/use-remote-iqa.html
 
+Features:
+- features/files-workspace.html
+- features/image-view.html
+- features/statistics.html
+- features/histogram.html
+- features/line-profile.html
+- features/difference.html
+- features/plots-workspace.html
+- features/iqa-workspace.html
+- features/settings.html
+- features/runtime-diagnostics.html
+
 Format semantics:
 - formats/standard-images.html
 - formats/raw.html
@@ -36,19 +51,25 @@ Canonical reference:
 - reference/terminology.html
 - troubleshooting/index.html
 
-Question routing:
-- How do I compare two folders? -> workflows/compare-folder-positions.html
-- How do I select an exact ROI? -> workflows/inspect-roi.html
-- How do I compare more than six images? -> workflows/compare-many-images.html
-- How do I reduce a large selection? -> workflows/curate-selection.html
-- How does PageUp/PageDown work? -> workflows/compare-folder-positions.html
-- How do I open RAW14? -> formats/raw.html
-- What does stride mean? -> formats/raw.html and troubleshooting/index.html
-- Why is Difference unavailable? -> workflows/use-difference.html and troubleshooting/index.html
-- How do I reset a line profile? -> workflows/inspect-line-profile.html
-- What is Primary? -> getting-started/concepts.html and reference/terminology.html
-- How do I export Histogram or Difference? -> workflows/export-analysis.html
-- How do I submit or inspect Remote IQA? -> workflows/use-remote-iqa.html
+Question routing examples:
+- Compare two folders or use PageUp? -> workflows/compare-folder-positions.html
+- Compare more than six images? -> workflows/compare-many-images.html
+- Select an exact ROI? -> workflows/inspect-roi.html
+- Open RAW14, interpret stride or offset? -> formats/raw.html
+- Understand native YUV layout? -> formats/yuv.html
+- Difference unavailable? -> workflows/use-difference.html and troubleshooting/index.html
+- Clear a line profile? -> workflows/inspect-line-profile.html
+- Understand Primary/Active? -> getting-started/concepts.html and reference/terminology.html
+- Export Histogram or Difference? -> workflows/export-analysis.html
+- Submit or inspect Remote IQA? -> workflows/use-remote-iqa.html
 
-Repository-aware agents can map each generated .html route to the matching Markdown source under docs/user-guide/ when source inspection is needed.
-Do not infer planned/deferred behavior from developer roadmap documents when answering end-user questions. Prefer current User Guide pages, then current product contracts/code when verification is required.
+Repository-side optional agent search (not shipped with the installed Help):
+- python scripts/search_user_guide.py "RAW14 stride" --json
+- Searches checked-in User Guide Markdown locally; emits source path, source line,
+  heading, site route and bounded excerpt. It makes no network or LLM calls.
+- Use the corresponding source and cited line to verify answers in the same
+  checked-out revision; links and line numbers may change across releases.
+
+This route index is not a separate content authority or an endorsement of an
+unstandardized llms-full/RAG protocol. Do not upload local image data, credentials,
+internal paths, or private results to an external model to answer Help questions.

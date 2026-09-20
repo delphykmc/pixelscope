@@ -113,6 +113,17 @@ def test_release_requirements_keep_pyinstaller_out_of_runtime() -> None:
     assert "PyInstaller" not in dev
 
 
+def test_runtime_pyqtgraph_pin_matches_project_metadata() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    runtime = (REPO_ROOT / "requirements" / "runtime.txt").read_text(encoding="utf-8")
+    runtime_pin = next(
+        line.strip() for line in runtime.splitlines() if line.startswith("pyqtgraph==")
+    )
+    project_section = pyproject.split("[project]", 1)[1].split("\n[", 1)[0]
+
+    assert f'"{runtime_pin}"' in project_section
+
+
 def test_release_scripts_support_repo_root_file_execution_imports() -> None:
     for script_name in (
         "build_release.py",
