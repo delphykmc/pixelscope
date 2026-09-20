@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QMenu
+from PySide6.QtWidgets import QMenu, QMessageBox
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.ui import user_guide_help
@@ -156,3 +156,37 @@ def test_online_documentation_rejects_unapproved_protocols() -> None:
     ):
         with pytest.raises(ValueError, match="approved HTTPS"):
             validate_online_documentation_url(value)
+
+
+def test_missing_local_guide_shows_explicit_message(
+    tmp_path: Path, qtbot: Any, monkeypatch: Any
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    shown: list[tuple[str, str]] = []
+
+    def information(_parent: Any, title: str, message: str) -> None:
+        shown.append((title, message))
+
+    monkeypatch.setattr(QMessageBox, "information", information)
+    assert not open_local_user_guide(window, index_path=tmp_path / "missing.html")
+    assert shown and shown[0][0] == "User Guide unavailable"
+    window.close()
+
+
+def test_local_browser_failure_does_not_open_online(
+    tmp_path: Path, qtbot: Any, monkeypatch: Any
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    index = tmp_path / "index.html"
+    index.write_text("guide", encoding="utf-8")
+    shown: list[str] = []
+
+    def warning(_parent: Any, title: str, _message: str) -> None:
+        shown.append(title)
+
+    monkeypatch.setattr(QMessageBox, "warning", warning)
+    assert not open_local_user_guide(window, index_path=index, opener=lambda _url: False)
+    assert shown == ["Unable to open User Guide"]
+    window.close()
