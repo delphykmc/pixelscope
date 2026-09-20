@@ -9,6 +9,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.build_user_guide import build_user_guide  # noqa: E402
 from scripts.release_contract import (  # noqa: E402
     BUILD_ROOT,
     DIST_ROOT,
@@ -17,7 +18,6 @@ from scripts.release_contract import (  # noqa: E402
     validate_release_host,
     write_windows_version_info,
 )
-from scripts.build_user_guide import build_user_guide  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 
