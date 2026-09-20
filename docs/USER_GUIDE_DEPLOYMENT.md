@@ -43,9 +43,17 @@ After this work package is merged into the default branch:
    Optionally choose `target=pages` only after Pages/Actions/environment
    permission and public/internal audience approval. A Pages request without
    the repository opt-in fails with an explicit diagnostic.
-3. The workflow checks out the selected commit with tags, installs **build-time
-   only** documentation packages, runs strict MkDocs, validates local assets
-   and HTML navigation, then stages:
+3. The workflow first checks out the **trusted dispatched main SHA** and
+   runs `scripts/validate_user_guide_publication_ref.py` from that checkout
+   using the runner's Python. It rejects arbitrary branches, pull refs and
+   ref expressions **before** checking out or installing requirements from
+   any selected source. For tags, it verifies a strictly formatted
+   `v<version>` ref, a commit in the trusted main history, the matching
+   literal `__version__` without executing tag code, and publication tooling
+   files present in that commit. Only then does the workflow check out the
+   **validated full SHA**, install build-time documentation packages and run
+   strict MkDocs. Publication staging rechecks the exact preflight SHA and
+   validates local assets and HTML navigation, then stages:
 
    ```text
    build/user-guide-publication/
@@ -81,9 +89,11 @@ PR or a passing docs CI check.
 
 - **Current docs**: a deliberate `revision=main` publication represents
   current merged documentation at its recorded exact source commit.
-- **Release docs**: an existing annotated/lightweight
+- **Release docs**: protect/approve release tags under repository policy;
+  an existing annotated/lightweight
   `v<canonical-version>` tag containing the WP-Help-C publication tooling may
-  be selected to reproduce a version-specific site. Tags are created/approved
+  be selected to reproduce a version-specific site. Tag commits must be
+  ancestors of the dispatched trusted main commit. Tags are created/approved
   by the separate P7-D release process, **not** by documentation automation.
   The selected tag must resolve to the commit being built. Older tags lacking
   this tooling need an individually reviewed manual historical-documentation
