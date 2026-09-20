@@ -33,6 +33,36 @@ def test_source_search_returns_real_markdown_line_and_site_route(tmp_path: Path)
     assert "PageUp" in result.snippet
 
 
+def test_heading_only_hit_cites_matching_heading_not_unrelated_body(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "features/needle.md",
+        "# Needle\n\nUnrelated introductory text.\n\n"
+        "## Another topic\nStill unrelated prose.\n",
+    )
+    matches = search_guide("Needle", docs_root=tmp_path)
+    assert len(matches) == 2
+    # The H1 section matches both the heading and title; later section only
+    # inherits the document title. Both must cite the real matching H1 line.
+    assert [(match.line, match.snippet) for match in matches] == [
+        (1, "Needle"),
+        (1, "Needle"),
+    ]
+
+
+def test_subheading_only_hit_cites_subheading_line(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "features/tools.md",
+        "# Tools\n\nIntroduction.\n\n"
+        "## Rareword\nBody unrelated to the query.\n",
+    )
+    matches = search_guide("Rareword", docs_root=tmp_path)
+    assert len(matches) == 1
+    assert matches[0].line == 5
+    assert matches[0].snippet == "Rareword"
+
+
 def test_source_search_never_indexes_fenced_code_or_screenshot_assets(tmp_path: Path) -> None:
     _write(
         tmp_path,
