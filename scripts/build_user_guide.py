@@ -34,7 +34,7 @@ def build_user_guide(*, python: Path | None = None) -> Path:
     )
     problems = find_site_problems(SITE_ROOT)
     if problems:
-        raise RuntimeError("Generated User Guide is invalid:\\n - " + "\\n - ".join(problems))
+        raise RuntimeError("Generated User Guide is invalid:\n - " + "\n - ".join(problems))
     return SITE_ROOT
 
 
