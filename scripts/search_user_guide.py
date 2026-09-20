@@ -81,7 +81,7 @@ def _sections(path: Path, root: Path) -> list[_Section]:
     title = relative.stem.replace("-", " ").title()
     title_line = 0
     heading = title
-    start = 1
+    start = 0  # A file without a Markdown heading has no heading source line.
     lines: list[tuple[int, str]] = []
     sections: list[_Section] = []
     fence: str | None = None
@@ -118,7 +118,7 @@ def _sections(path: Path, root: Path) -> list[_Section]:
 
 def _rank(section: _Section, terms: list[str], phrase: str) -> int:
     title = _tokens(section.title)
-    heading = _tokens(section.heading)
+    heading = _tokens(section.heading) if section.start else []
     body = [token for _, line in section.lines for token in _tokens(line)]
     # Filename-only fallback titles have no actual source heading line to cite.
     if section.title_line == 0:
