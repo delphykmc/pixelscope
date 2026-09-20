@@ -16,8 +16,8 @@ RESOURCE_LINK_RELS = {
     "stylesheet",
 }
 SITE_ROUTE = re.compile(r"(?<![\w./-])(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.html\b")
-CSS_REMOTE_RESOURCE = re.compile(
-    r"(?:url\(\s*|@import\s+)[\"']?(?P<url>(?:https?:)?//[^\"')\s;]+)",
+CSS_RESOURCE = re.compile(
+    r"(?:url\(\s*|@import\s+)[\"']?(?P<url>[^\"')\s;]+)",
     re.IGNORECASE,
 )
 
@@ -56,6 +56,27 @@ class ResourceReferenceParser(HTMLParser):
                 self.references.append(href)
 
 
+def local_resource_problem(
+    reference: str, *, parent: Path, site_root: Path, label: str
+) -> str | None:
+    if is_remote_url(reference):
+        return f"{label}: remote resource dependency is not offline-safe: {reference}"
+    url = urlsplit(reference)
+    if url.scheme in {"data", "blob"} or not url.path or url.path.startswith("#"):
+        return None
+    if url.scheme or url.netloc:
+        return f"{label}: unsupported resource URL: {reference}"
+    path = unquote(url.path)
+    if path.startswith("/"):
+        return f"{label}: root-relative resource does not work from file://: {reference}"
+    resolved = (parent / path).resolve()
+    if not resolved.is_relative_to(site_root):
+        return f"{label}: resource escapes offline bundle: {reference}"
+    if not resolved.is_file():
+        return f"{label}: missing local resource: {reference}"
+    return None
+
+
 def find_site_problems(site_root: Path) -> list[str]:
     site_root = site_root.resolve()
     problems: list[str] = []
@@ -89,29 +110,34 @@ def find_site_problems(site_root: Path) -> list[str]:
             problems.append("site/index.html is missing the offline-search iframe-worker shim")
 
         for reference in parser.references:
-            if is_remote_url(reference):
-                relative = html_path.relative_to(site_root)
-                problems.append(
-                    f"{relative}: remote resource dependency is not offline-safe: " f"{reference}"
-                )
-            elif "iframe-worker" in urlsplit(reference).path:
-                ref_path = unquote(urlsplit(reference).path)
-                base = site_root if ref_path.startswith("/") else html_path.parent
-                local_path = (base / ref_path.lstrip("/")).resolve()
-                if not local_path.is_file():
-                    relative = html_path.relative_to(site_root)
+            # MkDocs' 404.html is hosting-only, not part of packaged Help.
+            if html_path.name == "404.html" and reference.startswith("/"):
+                continue
+            problem = local_resource_problem(
+                reference,
+                parent=html_path.parent,
+                site_root=site_root,
+                label=html_path.relative_to(site_root).as_posix(),
+            )
+            if problem:
+                problems.append(problem)
+                if "iframe-worker" in reference and "missing local resource" in problem:
                     problems.append(
-                        f"{relative}: missing local offline-search shim asset: {reference}"
+                        f"{html_path.relative_to(site_root)}: "
+                        f"missing local offline-search shim asset: {reference}"
                     )
 
     for css_path in sorted(site_root.rglob("*.css")):
         css_text = css_path.read_text(encoding="utf-8")
-        for match in CSS_REMOTE_RESOURCE.finditer(css_text):
-            relative = css_path.relative_to(site_root)
-            problems.append(
-                f"{relative}: remote CSS resource dependency is not offline-safe: "
-                f"{match.group('url')}"
+        for match in CSS_RESOURCE.finditer(css_text):
+            problem = local_resource_problem(
+                match.group("url"),
+                parent=css_path.parent,
+                site_root=site_root,
+                label=css_path.relative_to(site_root).as_posix(),
             )
+            if problem:
+                problems.append(problem)
 
     return problems
 
