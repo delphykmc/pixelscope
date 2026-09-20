@@ -3,9 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import pytest
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import QMenu, QMessageBox
+
+import pytest
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.ui import user_guide_help
@@ -13,9 +14,9 @@ from pixelscope.ui.user_guide_help import (
     install_user_guide_help,
     open_local_user_guide,
     open_online_documentation,
-    validate_online_documentation_url,
     resolve_local_user_guide_index,
     user_guide_candidates,
+    validate_online_documentation_url,
 )
 
 
