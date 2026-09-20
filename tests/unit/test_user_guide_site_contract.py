@@ -84,8 +84,7 @@ def test_user_guide_site_contract_rejects_missing_local_images(tmp_path: Path) -
     assets.mkdir()
     (assets / "iframe-worker.js").write_text("// local shim", encoding="utf-8")
     (tmp_path / "index.html").write_text(
-        '<script src="assets/iframe-worker.js"></script>'
-        '<img src="assets/missing.png">',
+        '<script src="assets/iframe-worker.js"></script>' '<img src="assets/missing.png">',
         encoding="utf-8",
     )
     (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
@@ -105,6 +104,4 @@ def test_user_guide_site_contract_rejects_root_relative_assets(tmp_path: Path) -
     )
     (tmp_path / "llms.txt").write_text("- index.html\n", encoding="utf-8")
 
-    assert any(
-        "root-relative resource" in item for item in find_site_problems(tmp_path)
-    )
+    assert any("root-relative resource" in item for item in find_site_problems(tmp_path))
