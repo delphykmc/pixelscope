@@ -104,9 +104,7 @@ def test_unconfigured_online_documentation_is_not_in_help_menu(qtbot: Any) -> No
     qtbot.addWidget(window)
     install_user_guide_help(window)
 
-    assert "Online Documentation" not in [
-        item.text() for item in _help_menu(window).actions()
-    ]
+    assert "Online Documentation" not in [item.text() for item in _help_menu(window).actions()]
     window.close()
 
 
