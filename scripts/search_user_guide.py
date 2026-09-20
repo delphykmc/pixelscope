@@ -88,7 +88,9 @@ def _sections(path: Path, root: Path) -> list[_Section]:
 
     def flush() -> None:
         if lines:
-            sections.append(_Section(title, heading, source, route, start, tuple(lines), title_line))
+            sections.append(
+                _Section(title, heading, source, route, start, tuple(lines), title_line)
+            )
 
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         stripped = line.strip()
