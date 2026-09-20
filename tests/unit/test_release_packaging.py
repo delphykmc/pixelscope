@@ -240,3 +240,11 @@ def test_artifact_validator_rejects_tampered_search_shim(tmp_path: Path) -> None
 
     with pytest.raises(ArtifactValidationError, match="shim SHA-256 mismatch"):
         validate_artifact(root)
+
+
+def test_artifact_validator_rejects_hosting_only_404(tmp_path: Path) -> None:
+    root = _valid_artifact(tmp_path / "PixelScope")
+    _write(root / "help" / "404.html", b"hosting-only")
+
+    with pytest.raises(ArtifactValidationError, match="hosting-only help/404.html"):
+        validate_artifact(root)
