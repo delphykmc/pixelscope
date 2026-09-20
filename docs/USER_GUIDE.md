@@ -71,6 +71,26 @@ these offline assets: `requirements/docs.txt` pins MkDocs 1.6.1 and Material
 9.7.7. Python package installation itself needs an approved internal package
 index or a wheelhouse in a fully air-gapped build environment.
 
+## Repository-side agent lookup
+
+The checked-in `docs/user-guide/llms.txt` lists every end-user documentation
+route for agents consuming the generated site or offline Help. An agent with an
+authorized repository checkout can search the canonical Markdown locally,
+without an external model or generated static site:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\search_user_guide.py "RAW14 stride" --json
+```
+
+Results identify the source Markdown, one-based source line, heading, short
+excerpt, and matching generated HTML route. Check the cited source before
+answering a user; a lexical match is not an authoritative answer. The CLI is
+repository tooling, not bundled into the installed application. Existing
+offline MkDocs search continues to serve installed users.
+
+See [Agent interface](USER_GUIDE_AGENT_INTERFACE.md) for scope, security
+boundaries, and the separately deferred Ask PixelScope evaluation.
+
 ## Optional online publication
 
 The same generated static documentation can be staged for an approved internal
