@@ -59,6 +59,9 @@ def main() -> int:
     if help_root.exists():
         shutil.rmtree(help_root)
     shutil.copytree(site, help_root)
+    # MkDocs' generated 404.html is hosting-only and contains absolute /assets
+    # references that cannot resolve when opened from file://.
+    (help_root / "404.html").unlink(missing_ok=True)
     validate_artifact()
     return 0
 
