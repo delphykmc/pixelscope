@@ -131,9 +131,7 @@ def _find_help_menu(window: QMainWindow) -> QMenu:
     raise RuntimeError("PixelScope Help menu is unavailable")
 
 
-def install_user_guide_help(
-    window: QMainWindow, *, online_url: str | None = None
-) -> QAction:
+def install_user_guide_help(window: QMainWindow, *, online_url: str | None = None) -> QAction:
     """Install local Help and optionally add a separately approved online action."""
 
     help_menu = _find_help_menu(window)
