@@ -125,6 +125,18 @@ def find_problems(root: Path = ROOT) -> list[str]:
                     f"mkdocs.yml: expected exactly one nav entry for {page}, found {count}"
                 )
 
+    llms_path = repository_root / "docs/user-guide/llms.txt"
+    if llms_path.is_file():
+        llms_text = llms_path.read_text(encoding="utf-8")
+        advertised = re.findall(r"(?m)^- ([a-z0-9/-]+\\.html)$", llms_text)
+        for page in CRITICAL_GUIDE_NAV:
+            route = page.removesuffix(".md") + ".html"
+            if advertised.count(route) != 1:
+                problems.append(
+                    f"docs/user-guide/llms.txt: expected exactly one route for {route}, "
+                    f"found {advertised.count(route)}"
+                )
+
     for document in markdown_files(repository_root):
         text = document.read_text(encoding="utf-8")
         for match in MARKDOWN_LINK.finditer(text):
