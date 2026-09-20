@@ -95,7 +95,9 @@ def find_site_problems(site_root: Path) -> list[str]:
                     f"{relative}: remote resource dependency is not offline-safe: " f"{reference}"
                 )
             elif "iframe-worker" in urlsplit(reference).path:
-                local_path = (html_path.parent / unquote(urlsplit(reference).path)).resolve()
+                ref_path = unquote(urlsplit(reference).path)
+                base = site_root if ref_path.startswith("/") else html_path.parent
+                local_path = (base / ref_path.lstrip("/")).resolve()
                 if not local_path.is_file():
                     relative = html_path.relative_to(site_root)
                     problems.append(
