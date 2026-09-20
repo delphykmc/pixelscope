@@ -1,0 +1,2 @@
+# Preserve exact published vendored JavaScript bytes (SHA-256) on Windows.
+docs/user-guide/assets/vendor/*.js -text
