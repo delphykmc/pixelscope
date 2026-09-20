@@ -29,7 +29,12 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Validate on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
         with:

@@ -391,6 +391,7 @@ class MainWindow(QMainWindow):
             "View": menu_bar.addMenu("&View"),
             "Help": menu_bar.addMenu("&Help"),
         }
+        self._menu_map = menus
         for menu in menus.values():
             menu.setStyleSheet(menu_style())
         add_action("File", "Open Images...", self.open_images, "Ctrl+O")

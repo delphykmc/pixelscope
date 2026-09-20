@@ -4,7 +4,7 @@ import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_LINK_RELS = {
@@ -83,12 +83,26 @@ def find_site_problems(site_root: Path) -> list[str]:
     for html_path in sorted(site_root.rglob("*.html")):
         parser = ResourceReferenceParser()
         parser.feed(html_path.read_text(encoding="utf-8"))
+        if html_path == site_root / "index.html" and not any(
+            "iframe-worker" in reference for reference in parser.references
+        ):
+            problems.append("site/index.html is missing the offline-search iframe-worker shim")
+
         for reference in parser.references:
             if is_remote_url(reference):
                 relative = html_path.relative_to(site_root)
                 problems.append(
                     f"{relative}: remote resource dependency is not offline-safe: " f"{reference}"
                 )
+            elif "iframe-worker" in urlsplit(reference).path:
+                ref_path = unquote(urlsplit(reference).path)
+                base = site_root if ref_path.startswith("/") else html_path.parent
+                local_path = (base / ref_path.lstrip("/")).resolve()
+                if not local_path.is_file():
+                    relative = html_path.relative_to(site_root)
+                    problems.append(
+                        f"{relative}: missing local offline-search shim asset: {reference}"
+                    )
 
     for css_path in sorted(site_root.rglob("*.css")):
         css_text = css_path.read_text(encoding="utf-8")
