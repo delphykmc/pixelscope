@@ -11,8 +11,7 @@ _SHA_RE = re.compile(r"[0-9a-f]{40}")
 # Accept stable and conventional Python pre-release tags. Reject path, ref,
 # expression and checkout-option syntax before resolving any user-selected ref.
 _TAG_RE = re.compile(
-    r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
-    r"(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?"
+    r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)" r"(?:(?:a|b|rc)(?:0|[1-9][0-9]*))?"
 )
 _REQUIRED_TAG_FILES = (
     "scripts/prepare_user_guide_publication.py",
@@ -96,9 +95,7 @@ def main() -> int:
     parser.add_argument("--trusted-main-sha", required=True)
     parser.add_argument("--github-output", type=Path, required=True)
     args = parser.parse_args()
-    source_commit, version = validate_publication_source(
-        args.revision, args.trusted_main_sha
-    )
+    source_commit, version = validate_publication_source(args.revision, args.trusted_main_sha)
     with args.github_output.open("a", encoding="utf-8") as output:
         output.write(f"source_sha={source_commit}\nversion={version}\n")
     print(f"Approved User Guide publication: {args.revision} at {source_commit}")
