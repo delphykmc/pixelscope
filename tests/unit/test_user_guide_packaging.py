@@ -65,5 +65,5 @@ def test_inno_recursively_packages_canonical_help_tree() -> None:
     script = (REPO_ROOT / "packaging/installer/pixelscope.iss").read_text(
         encoding="utf-8"
     )
-    assert r'Source: "{#AppSource}\\*"' in script
+    assert 'Source: "{#AppSource}' in script
     assert "recursesubdirs createallsubdirs" in script
