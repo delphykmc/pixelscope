@@ -56,5 +56,7 @@ def test_user_guide_site_contract_rejects_omitted_offline_shim(tmp_path: Path) -
     (tmp_path / "index.html").write_text("<html></html>", encoding="utf-8")
     (tmp_path / "llms.txt").write_text("- index.html\\n", encoding="utf-8")
 
-    assert any("missing the offline-search iframe-worker shim" in problem
-               for problem in find_site_problems(tmp_path))
+    assert any(
+        "missing the offline-search iframe-worker shim" in problem
+        for problem in find_site_problems(tmp_path)
+    )
