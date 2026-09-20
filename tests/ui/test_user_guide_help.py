@@ -11,6 +11,8 @@ from pixelscope.ui import user_guide_help
 from pixelscope.ui.user_guide_help import (
     install_user_guide_help,
     open_local_user_guide,
+    open_online_documentation,
+    validate_online_documentation_url,
     resolve_local_user_guide_index,
     user_guide_candidates,
 )
@@ -94,3 +96,64 @@ def test_open_local_user_guide_uses_local_file_url(tmp_path: Path, qtbot: Any) -
     assert opened[0].isLocalFile()
     assert Path(opened[0].toLocalFile()) == index_path.resolve()
     window.close()
+
+
+def test_unconfigured_online_documentation_is_not_in_help_menu(qtbot: Any) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    install_user_guide_help(window)
+
+    assert "Online Documentation" not in [
+        item.text() for item in _help_menu(window).actions()
+    ]
+    window.close()
+
+
+def test_opted_in_online_documentation_is_separate_and_idempotent(qtbot: Any) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    url = "https://docs.example.org/pixelscope/"
+    local = install_user_guide_help(window)
+    install_user_guide_help(window, online_url=url)
+    install_user_guide_help(window, online_url=url)
+
+    assert local.objectName() == "userGuideAction"
+    assert [item.text() for item in _help_menu(window).actions()] == [
+        "User Guide",
+        "Online Documentation",
+        "",
+        "Copy Diagnostics",
+    ]
+    window.close()
+
+
+def test_online_documentation_opens_approved_https_only(
+    qtbot: Any,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    opened: list[QUrl] = []
+
+    def opener(url: QUrl) -> bool:
+        opened.append(url)
+        return True
+
+    url = "https://docs.example.org/pixelscope/"
+    assert open_online_documentation(window, url, opener=opener)
+    assert len(opened) == 1
+    assert opened[0].toString() == url
+    assert not opened[0].isLocalFile()
+    window.close()
+
+
+def test_online_documentation_rejects_unapproved_protocols() -> None:
+    import pytest
+
+    for value in (
+        "http://docs.example.org/",
+        "file:///etc/index.html",
+        "https://user:token@docs.example.org/",
+        "https://docs.example.org/?access_token=secret",
+    ):
+        with pytest.raises(ValueError, match="approved HTTPS"):
+            validate_online_documentation_url(value)
