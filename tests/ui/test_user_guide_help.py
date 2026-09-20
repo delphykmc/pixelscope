@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import QMenu
 
@@ -147,8 +148,6 @@ def test_online_documentation_opens_approved_https_only(
 
 
 def test_online_documentation_rejects_unapproved_protocols() -> None:
-    import pytest
-
     for value in (
         "http://docs.example.org/",
         "file:///etc/index.html",
