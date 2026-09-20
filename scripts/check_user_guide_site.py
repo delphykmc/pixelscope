@@ -33,6 +33,7 @@ class ResourceReferenceParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.references: list[str] = []
+        self.navigation: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {name: value or "" for name, value in attrs}
@@ -48,6 +49,9 @@ class ResourceReferenceParser(HTMLParser):
                 url = candidate.strip().split(maxsplit=1)[0]
                 if url:
                     self.references.append(url)
+
+        if tag == "a" and attributes.get("href"):
+            self.navigation.append(attributes["href"])
 
         if tag == "link":
             rels = set(attributes.get("rel", "").lower().split())
@@ -74,6 +78,32 @@ def local_resource_problem(
         return f"{label}: resource escapes offline bundle: {reference}"
     if not resolved.is_file():
         return f"{label}: missing local resource: {reference}"
+    return None
+
+
+def local_navigation_problem(
+    reference: str, *, parent: Path, site_root: Path, label: str
+) -> str | None:
+    """Validate local page navigation, allowing external/provenance hyperlinks."""
+    if is_remote_url(reference):
+        return None
+    url = urlsplit(reference)
+    if url.scheme in {"mailto", "tel"}:
+        return None
+    if url.scheme or url.netloc:
+        return f"{label}: unsupported navigation URL: {reference}"
+    if not url.path:
+        return None  # fragment-only links or query parameters on this page
+    path = unquote(url.path)
+    if path.startswith("/"):
+        return f"{label}: root-relative navigation does not work from file://: {reference}"
+    target = (parent / path).resolve()
+    if not target.is_relative_to(site_root):
+        return f"{label}: navigation escapes site: {reference}"
+    if target.is_dir():
+        target /= "index.html"
+    if not target.is_file():
+        return f"{label}: missing linked page: {reference}"
     return None
 
 
@@ -126,6 +156,19 @@ def find_site_problems(site_root: Path) -> list[str]:
                         f"{html_path.relative_to(site_root)}: "
                         f"missing local offline-search shim asset: {reference}"
                     )
+
+        for reference in parser.navigation:
+            # MkDocs' 404.html is for static hosting only, not packaged file:// Help.
+            if html_path.name == "404.html" and reference.startswith("/"):
+                continue
+            problem = local_navigation_problem(
+                reference,
+                parent=html_path.parent,
+                site_root=site_root,
+                label=html_path.relative_to(site_root).as_posix(),
+            )
+            if problem:
+                problems.append(problem)
 
     for css_path in sorted(site_root.rglob("*.css")):
         css_text = css_path.read_text(encoding="utf-8")
