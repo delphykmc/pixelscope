@@ -31,6 +31,42 @@ Install the documentation dependencies and run:
 .\.venv\Scripts\python.exe scripts\check_user_guide_site.py site
 ```
 
-The static output is written to `site/`. `mkdocs.yml` uses relative-file-friendly URLs, the Material offline plugin, system fonts, and the Material privacy plugin. The iframe-worker shim is pinned to an explicit version and `.js` URL. Material's offline plugin recognizes the configured shim, while the privacy plugin downloads it as a regular file rather than attempting to create a Windows symlink for an extensionless CDN alias. The generated-site checker verifies `llms.txt` routes, local shim presence, and the absence of remote runtime resource dependencies. Hosting/deployment and installer inclusion are separate follow-up work.
+The generated `site/` uses local relative assets, the Material offline plugin,
+and system fonts. The exact MIT-licensed iframe-worker 1.0.4 JS is checked
+in under `docs/user-guide/assets/vendor/`, together with its upstream license,
+provenance, and SHA-256. The privacy plugin has been removed; it is not needed
+to download an asset that already exists in the repository. Mermaid diagrams
+are not currently part of the supported User Guide; introducing them requires
+local asset handling before use.
 
-A clean documentation build may require network access to fetch the pinned shim; the generated `site/` does not. The Material for MkDocs banner about future MkDocs 2.0 compatibility is an upstream advisory, not the cause of a failed build: `requirements/docs.txt` pins MkDocs 1.6.1 and Material 9.7.7. Do not suppress privacy-plugin warnings or enable Windows Developer Mode merely to make this build pass.
+To prove the build does not rely on internet access, a previously populated
+privacy cache, or individually permitted CDN URLs, run the cold-cache
+network-blocked validation (requires the documentation packages to be installed):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\check_user_guide_build_offline.py
+```
+
+The network-blocked test is also enforced by GitHub Actions on Windows and
+Ubuntu. `site/404.html` is intended for static hosting and is excluded from
+installed `file://` Help because MkDocs generates root-relative 404 assets.
+
+## Release packaging
+
+The canonical `scripts/build_release.py` rebuilds the validated User Guide
+and copies `site/` alongside the frozen executable as `dist/PixelScope/help/`.
+Both the portable ZIP and Inno Setup installer consume that same onedir
+payload; `Help > User Guide` uses `PixelScope.exe`-relative `help/index.html`.
+The release artifact validator rejects missing, incomplete, or altered Help
+assets before distribution.
+
+If building from the separate release venv, specify the docs-enabled interpreter
+through `PIXELSCOPE_DOCS_PYTHON` or install the docs toolchain in the ordinary
+`.venv`. The release-candidate pipeline supplies its dev interpreter
+automatically. MkDocs and Material are **build-time only** and are never required
+on the installed machine.
+
+The future MkDocs 2.0 warning banner is an upstream advisory unrelated to
+these offline assets: `requirements/docs.txt` pins MkDocs 1.6.1 and Material
+9.7.7. Python package installation itself needs an approved internal package
+index or a wheelhouse in a fully air-gapped build environment.
