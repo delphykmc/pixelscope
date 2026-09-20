@@ -9,6 +9,7 @@ source and tests before changing behavior.
 - Current implementation and verified backlog: `docs/CURRENT_STATE.md`
 - Documentation ownership and task-based reading paths: `docs/index.md`
 - Reusable implementation/review harness lessons: `docs/AGENT_HARNESS_NOTES.md`
+- End-user Help / agent lookup: `docs/user-guide/llms.txt` and `scripts/search_user_guide.py` (canonical User Guide Markdown, not the roadmap).
 - Product behavior: `docs/PRODUCT_SPEC.md`
 - Architecture and lifecycle invariants: `docs/ARCHITECTURE.md`
 - Durable engineering decisions: `docs/DECISIONS.md`
