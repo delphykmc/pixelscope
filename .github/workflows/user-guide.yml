@@ -99,7 +99,6 @@ jobs:
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
-          python -m ruff format --diff scripts/search_user_guide.py
           python -m ruff format --check .
       - name: Install pinned mypy for full source validation
         if: runner.os == 'Windows'
