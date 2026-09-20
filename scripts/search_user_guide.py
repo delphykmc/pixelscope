@@ -127,7 +127,7 @@ def _rank(section: _Section, terms: list[str], phrase: str) -> int:
     )
     if len(matched) == len(terms):
         score += 10
-    if phrase and phrase in (" ".join(heading).casefold(),):
+    if phrase and phrase in section.heading.casefold():
         score += 5
     return score
 
