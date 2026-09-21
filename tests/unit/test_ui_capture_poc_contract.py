@@ -41,6 +41,14 @@ def test_poc_validator_requires_decodable_nonblank_png_and_exact_identity(tmp_pa
     _metadata(metadata, png, sha)
     assert validate_capture(png, metadata, "single_image", sha)["status"] == "captured"
 
+    pinned = json.loads(metadata.read_text(encoding="utf-8"))
+    pinned["capture_profile"] = "windows-e1-poc-v1"
+    metadata.write_text(json.dumps(pinned), encoding="utf-8")
+    with pytest.raises(ValueError, match="pinned capture profile"):
+        validate_capture(png, metadata, "single_image", sha)
+    pinned.pop("capture_profile")
+    metadata.write_text(json.dumps(pinned), encoding="utf-8")
+
     with pytest.raises(ValueError, match="source SHA mismatch"):
         validate_capture(png, metadata, "single_image", "2" * 40)
 
