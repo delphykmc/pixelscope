@@ -68,6 +68,10 @@ def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
     window._select_document_ids([document.document_id])
     window.set_layout_mode("Single View")
     window.resize(*WINDOW_SIZE)
+    # Windows hosted runners can have a 1024x768 desktop. QWidget.grab() must
+    # retain the explicit logical viewport rather than accepting Qt's top-level
+    # auto-clamped available-screen size as a matching screenshot profile.
+    window.setFixedSize(*WINDOW_SIZE)
     window.bottom_dock.hide()
     fixture_sha256 = hashlib.sha256(document.source.tobytes()).hexdigest()
 
@@ -123,9 +127,7 @@ BUILDERS = {
 }
 
 
-def _wait_until_ready(
-    app: QApplication, widget: QWidget, ready: Callable[[], bool]
-) -> None:
+def _wait_until_ready(app: QApplication, widget: QWidget, ready: Callable[[], bool]) -> None:
     """Process Qt events until concrete scene state and geometry are realized.
 
     No arbitrary settling sleep, global pool wait, GC suppression or full-suite
@@ -135,11 +137,7 @@ def _wait_until_ready(
     consecutive = 0
     while time.monotonic() < deadline:
         app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
-        realized = (
-            widget.isVisible()
-            and widget.width() > 0
-            and widget.height() > 0
-        )
+        realized = widget.isVisible() and widget.width() > 0 and widget.height() > 0
         if realized and ready():
             consecutive += 1
             if consecutive >= 3:
