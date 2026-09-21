@@ -37,6 +37,11 @@ jobs:
         run: |
           python -m pip install -e . Pillow==12.3.0 ruff==0.1.15
           python -m pip check
+      - name: Check E1 source and focused unit contract
+        run: |
+          python -m ruff check scripts/capture_ui_scene.py scripts/run_ui_capture_poc.py tests/unit/test_ui_capture_poc_contract.py
+          python -m ruff format --check scripts/capture_ui_scene.py scripts/run_ui_capture_poc.py tests/unit/test_ui_capture_poc_contract.py
+          python -m pytest -q tests/unit/test_ui_capture_poc_contract.py
       - name: Record runner GUI capability
         shell: pwsh
         run: |
