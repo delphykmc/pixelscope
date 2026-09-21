@@ -178,3 +178,13 @@ Only accepted assets under `docs/user-guide/assets/screenshots/` enter Git and h
 - Validation results: GitHub source review only; no test command or Windows-hosted PoC executed in E0.
 - Remaining limitations: exact capture UI reliability, per-feature mapping and new scenarios are implementation work.
 - Durable docs: this file, `docs/USER_GUIDE_FOLLOW_UP.md`, screenshot strategy README.
+
+## E1 implementation log (separate from completed E0)
+
+- E0 plan merged from PR #93 at `main@92189bd71f9bfcf9d45b339ba3ff273259f090af` after independent blocker-free re-review and owner approval.
+- E1 branch: `feature/wp-help-e1-isolated-capture-poc`; **PoC feasibility pending**.
+- New `scripts/capture_ui_scene.py` reuses `scripts/capture_ui_review.py::review_document` and actual application composition, with isolated temporary INI QSettings and two explicit scenarios: Single View and RAW profile dialog. The original ten-scene manual-review script remains available; E2 owns unification into a manifest-driven registry. No PNG file names/IDs have yet been migrated.
+- `scripts/run_ui_capture_poc.py` runs both scenes in two independent fresh Python processes each, with separate PNG and JSON metadata per attempt; it checks content variation, exact source identity, PNG integrity and changed-pixel fraction. A native process exit/timeout is distinct from a visual difference; the runner must still archive diagnostics.
+- `.github/workflows/ui-screenshot-poc.yml` is a limited read-only Windows-hosted PR/manual probe, not PR-wide impact analysis or a permanent Screenshot CI. It has no PR write permission, secrets, artifact promotion or public documentation publishing.
+- `tests/unit/test_ui_capture_poc_contract.py` exercises synthetic valid/blank/corrupt PNG inputs and repeatability calculations, independently of Qt.
+- **Unverified until real Actions results and artifact inspection:** Windows GUI availability, actual Single View/dialog content and labels, repeated pixel stability, Qt process teardown and Issue #81 behavior. A green documentation test does not advance this gate. If the hosted PoC fails or cannot establish faithful images, record the failure and revise E2–E6 environment assumptions with the owner rather than declaring success.
