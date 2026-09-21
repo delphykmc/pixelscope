@@ -1,0 +1,66 @@
+name: WP-Help-E1 Windows GUI screenshot PoC
+
+# Feasibility probe only. No baseline diff, manifest, publication or PNG commits.
+on:
+  pull_request:
+    paths:
+      - "scripts/capture_ui_scene.py"
+      - "scripts/capture_ui_review.py"
+      - "scripts/run_ui_capture_poc.py"
+      - ".github/workflows/ui-screenshot-poc.yml"
+      - "requirements/runtime.txt"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-real-gui:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact source without retained write credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements/runtime.txt
+      - name: Install pinned PixelScope and PNG inspection dependency
+        run: |
+          python -m pip install -e . Pillow==12.3.0 ruff==0.1.15
+          python -m pip check
+      - name: Record runner GUI capability
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/ui-capture-poc | Out-Null
+          [Environment]::OSVersion.VersionString | Out-File build/ui-capture-poc/windows.txt
+          python --version | Out-File build/ui-capture-poc/python.txt
+          python -m pip freeze | Out-File build/ui-capture-poc/packages.txt
+          Get-CimInstance Win32_VideoController |
+            Select-Object Name,CurrentHorizontalResolution,CurrentVerticalResolution |
+            Format-List | Out-File build/ui-capture-poc/video.txt
+      - name: Capture real Single View and RAW Dialog in separate processes, twice
+        shell: pwsh
+        env:
+          CAPTURE_SOURCE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          QT_SCALE_FACTOR: "1"
+          PYTHONHASHSEED: "0"
+        run: |
+          python scripts/run_ui_capture_poc.py --output-dir build/ui-capture-poc --source-sha "$env:CAPTURE_SOURCE_SHA"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload inspectable PoC PNGs, metadata and report even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixelscope-e1-windows-gui-poc-${{ github.run_id }}
+          path: build/ui-capture-poc/
+          if-no-files-found: warn
+          retention-days: 14
