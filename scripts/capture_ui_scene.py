@@ -38,9 +38,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.capture_ui_review import review_document  # noqa: E402
 from pixelscope.io.raw_profile import RawProfile  # noqa: E402
 from pixelscope.ui.raw_open_dialog import RawOpenDialog  # noqa: E402
+from scripts.capture_ui_review import review_document  # noqa: E402
 
 PROFILE = "windows-e1-poc-v1"
 SCENARIOS = ("single_image", "raw_profile_dialog")
@@ -174,49 +174,50 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
     }
     widget: QWidget | None = None
     app: QApplication | None = None
+    directory: tempfile.TemporaryDirectory[str] | None = None
     try:
-        with tempfile.TemporaryDirectory(prefix="pixelscope-e1-settings-") as directory:
-            _configure_isolated_settings(Path(directory))
-            app = create_application([])
-            widget, ready, fixture_sha256 = BUILDERS[scene](app)
-            report["fixture_sha256"] = fixture_sha256
-            widget.show()
-            _wait_until_ready(app, widget, ready)
-            # Native QWidget grab. Neither a PIL composition nor fake UI.
-            pixmap = widget.grab()
-            if pixmap.isNull():
-                raise RuntimeError("QWidget.grab returned a null pixmap")
-            if not pixmap.save(str(output), "PNG"):
-                raise RuntimeError("QWidget.grab PNG save failed")
-            if not output.is_file() or output.stat().st_size == 0:
-                raise RuntimeError("saved PNG is empty")
-            screen = widget.screen() or app.primaryScreen()
-            report["screen"] = (
-                {
-                    "name": screen.name(),
-                    "logical_dpi": screen.logicalDotsPerInch(),
-                    "physical_dpi": screen.physicalDotsPerInch(),
-                    "device_pixel_ratio": screen.devicePixelRatio(),
-                    "geometry": [
-                        screen.geometry().width(),
-                        screen.geometry().height(),
-                    ],
-                    "available_geometry": [
-                        screen.availableGeometry().width(),
-                        screen.availableGeometry().height(),
-                    ],
-                }
-                if screen is not None
-                else None
-            )
-            report["geometry"] = {
-                "logical_widget": [widget.width(), widget.height()],
-                "pixel_png": [pixmap.width(), pixmap.height()],
-                "device_pixel_ratio": pixmap.devicePixelRatio(),
+        directory = tempfile.TemporaryDirectory(prefix="pixelscope-e1-settings-")
+        _configure_isolated_settings(Path(directory.name))
+        app = create_application([])
+        widget, ready, fixture_sha256 = BUILDERS[scene](app)
+        report["fixture_sha256"] = fixture_sha256
+        widget.show()
+        _wait_until_ready(app, widget, ready)
+        # Native QWidget grab. Neither a PIL composition nor fake UI.
+        pixmap = widget.grab()
+        if pixmap.isNull():
+            raise RuntimeError("QWidget.grab returned a null pixmap")
+        if not pixmap.save(str(output), "PNG"):
+            raise RuntimeError("QWidget.grab PNG save failed")
+        if not output.is_file() or output.stat().st_size == 0:
+            raise RuntimeError("saved PNG is empty")
+        screen = widget.screen() or app.primaryScreen()
+        report["screen"] = (
+            {
+                "name": screen.name(),
+                "logical_dpi": screen.logicalDotsPerInch(),
+                "physical_dpi": screen.physicalDotsPerInch(),
+                "device_pixel_ratio": screen.devicePixelRatio(),
+                "geometry": [
+                    screen.geometry().width(),
+                    screen.geometry().height(),
+                ],
+                "available_geometry": [
+                    screen.availableGeometry().width(),
+                    screen.availableGeometry().height(),
+                ],
             }
-            report["image_sha256"] = hashlib.sha256(output.read_bytes()).hexdigest()
-            report["status"] = "captured"
-            return 0
+            if screen is not None
+            else None
+        )
+        report["geometry"] = {
+            "logical_widget": [widget.width(), widget.height()],
+            "pixel_png": [pixmap.width(), pixmap.height()],
+            "device_pixel_ratio": pixmap.devicePixelRatio(),
+        }
+        report["image_sha256"] = hashlib.sha256(output.read_bytes()).hexdigest()
+        report["status"] = "captured"
+        return 0
     except Exception as exc:
         report["error_type"] = type(exc).__name__
         output.unlink(missing_ok=True)
@@ -228,6 +229,8 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
         if app is not None:
             QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             app.processEvents()
+        if directory is not None:
+            directory.cleanup()
         metadata_path.write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
