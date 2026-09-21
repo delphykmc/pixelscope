@@ -39,7 +39,9 @@ jobs:
           python -m pip check
       - name: Diagnose candidate formatting for exact-head review
         continue-on-error: true
-        run: python -m ruff format --diff scripts/capture_ui_scene.py scripts/run_ui_capture_poc.py tests/unit/test_ui_capture_poc_contract.py
+        run: |
+          python -m ruff check --select I --diff tests/unit/test_ui_capture_poc_contract.py
+          python -m ruff format --diff scripts/capture_ui_scene.py scripts/run_ui_capture_poc.py tests/unit/test_ui_capture_poc_contract.py
       - name: Check E1 source and focused unit contract
         run: |
           python -m ruff check scripts/capture_ui_scene.py scripts/run_ui_capture_poc.py tests/unit/test_ui_capture_poc_contract.py
