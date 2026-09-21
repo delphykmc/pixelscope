@@ -14,7 +14,7 @@ This directory contains only screenshots captured from the real PixelScope appli
 
 ## Captures still needed
 
-The following should be captured manually from a release-representative build before visual coverage is considered complete:
+The following remain missing; before WP-Help-E automation is proven, they still require reviewed, release-representative real-application captures. WP-Help-E intends to automate scene construction and replace manual capture as the normal workflow:
 
 - Main window overview with workspace labels visible.
 - Files workspace focused on registration/selection.
@@ -39,3 +39,18 @@ When a new screenshot is added, record the application version/commit in the pul
 ![Difference](difference-analysis.png)
 
 ![RAW profile dialog](raw-profile-dialog.png)
+
+## Automated lifecycle proposal (E0; not implemented)
+
+The [WP-Help-E execution plan](../../../exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
+documents the proposed manifest, real-QWidget scene registry, Windows hosted capture
+feasibility gate, main/PR visual comparisons, conditional Markdown insertion, and
+human-reviewed promotion. The current seven PNGs are real application captures, but
+their exact capture commits and runtime environment are not established; do not
+invent provenance. The existing `scripts/capture_ui_review.py` generates ten
+snake_case filenames that do not match the seven committed hyphenated names.
+
+Until E1 proves Windows-hosted GUI capture, no screenshot workflow, automated update,
+or missing-image omission behavior should be described as available. A PR-produced
+candidate is never an approved User Guide image until its content and provenance have
+been checked and the PNG plus manifest changes have been committed through review.

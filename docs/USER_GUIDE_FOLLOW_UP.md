@@ -89,10 +89,10 @@ Implementation notes for this work package:
   not just generated `llms.txt` routes and resource references; reject
   hosting-only 404 pages in an offline installed bundle.
 
-## WP-Help-D — Agent interface — local foundation in implementation
+## WP-Help-D — Agent interface — merged in PR #92
 
-The merged WP-Help-C offline/static publication pipeline is the prerequisite.
-WP-Help-D delivers an agent-facing **retrieval interface**, not a chatbot:
+The merged WP-Help-C offline/static publication pipeline was the prerequisite.
+WP-Help-D delivered an agent-facing **retrieval interface**, not a chatbot:
 
 - Expand the existing static `llms.txt` to cover every canonical User Guide
   navigation route and keep its generated HTML paths under the same strict
@@ -120,3 +120,26 @@ installed users retain their existing local Help/search without an AI service.
 ## Deferred/non-goals
 
 No embedded PyQt Help window, QWebEngineView, QtHelp/QCH, chatbot, RAG server, Remote LLM API, implicit online fallback, or context-sensitive F1 routing is part of WP-Help-A. Installer bundle integration is owned by WP-Help-B.
+
+## WP-Help-E — Automated Screenshot Lifecycle — E0 planning PR
+
+E0 is a planning-only follow-up to merged WP-Help-A/B/C/D (#87/#90/#91/#92).
+The [WP-Help-E execution plan](exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
+records the existing real-QWidget capture implementation, tracked screenshots and
+missing scenes; a single Screenshot ID manifest; PR impact selection and conservative
+fallback; pinned-main/head visual diff; separate Documentation CI and Screenshot CI;
+reviewed image provenance; security, Windows Qt lifecycle and release boundaries.
+
+**Gate:** E1 first proves real screenshot capture on a Windows GitHub-hosted runner
+using isolated scenarios. No hosted-GUI feasibility or Issue #81 native-crash fix is
+claimed by E0. If the PoC fails, revise the remaining WP sequence and obtain owner
+approval for another execution environment before implementing a full screenshot CI.
+
+The proposed sequence is E0 plan → E1 isolated capture/Windows PoC → E2 manifest/
+scenario contract → E3 conservative impact analysis → E4 pinned baseline/head visual
+diff and PR artifacts → E5 conditional MkDocs screenshot rendering and independent
+documentation validation → E6 human approval/provenance/release policy. E5 can proceed
+in parallel with E3/E4 after E2 settles the manifest schema. Each implementation WP
+uses a separate reviewed PR; image candidates never auto-commit and PRs never
+self-merge. Existing screenshot guidance remains at
+[user-guide/assets/screenshots/README.md](user-guide/assets/screenshots/README.md).
