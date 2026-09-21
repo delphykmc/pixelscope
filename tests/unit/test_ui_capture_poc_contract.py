@@ -4,8 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
-import pytest
 from PIL import Image
+import pytest
 
 from scripts.run_ui_capture_poc import changed_fraction, validate_capture
 
