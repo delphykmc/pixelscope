@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENES = ("single_image", "raw_profile_dialog")
 ATTEMPTS = 2
 MAX_CHANGED_FRACTION = 0.01
+EXPECTED_LOGICAL_SIZE = {"single_image": [1680, 980], "raw_profile_dialog": [520, 620]}
 
 
 def validate_capture(path: Path, metadata: Path, scene: str, source_sha: str) -> dict[str, object]:
@@ -44,6 +45,11 @@ def validate_capture(path: Path, metadata: Path, scene: str, source_sha: str) ->
         geometry = result["geometry"]
         if not isinstance(geometry, dict) or geometry["pixel_png"] != [width, height]:
             raise ValueError("captured PNG dimensions disagree with QWidget.grab metadata")
+        if (
+            result.get("capture_profile") == "windows-e1-poc-v1"
+            and geometry["logical_widget"] != EXPECTED_LOGICAL_SIZE[scene]
+        ):
+            raise ValueError("captured widget geometry differs from pinned capture profile")
     return result
 
 
