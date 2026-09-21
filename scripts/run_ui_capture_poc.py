@@ -126,7 +126,10 @@ def run(output: Path, source_sha: str) -> int:
                     entry["capture_status"] = json.loads(meta.read_text(encoding="utf-8"))["status"]
                 except (ValueError, OSError, KeyError):
                     entry["capture_status"] = "invalid_metadata"
-            print(f"{scene} attempt {attempt}: exit={entry['process_exit']}, error={entry.get('error')}")
+            print(
+                f"{scene} attempt {attempt}: "
+                f"exit={entry['process_exit']}, error={entry.get('error')}"
+            )
             results.append(entry)
         scene_report: dict[str, object] = {"attempts": results}
         if all("image_sha256" in item for item in results):
@@ -141,10 +144,12 @@ def run(output: Path, source_sha: str) -> int:
         report["scenes"][scene] = scene_report  # type: ignore[index]
 
     report["status"] = "passed" if success else "failed"
-    (output / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / "report.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     (output / "summary.md").write_text(
         "# WP-Help-E1 hosted Windows GUI proof of concept\n\n"
-        f"- Source SHA: \`{source_sha}\`\n"
+        f"- Source SHA: `{source_sha}`\n"
         f"- Result: **{report['status']}**\n"
         "- Scenes: real Single View and RAW profile dialog; two fresh processes each.\n"
         "- Pixel repeatability tolerance: 1% changed pixels; exact fraction in report.json.\n"
@@ -159,7 +164,9 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
     args = parser.parse_args()
-    if len(args.source_sha) != 40 or not all(ch in "0123456789abcdef" for ch in args.source_sha):
+    if len(args.source_sha) != 40 or not all(
+        ch in "0123456789abcdef" for ch in args.source_sha
+    ):
         parser.error("--source-sha requires an exact lowercase Git SHA")
     return run(args.output_dir, args.source_sha)
 
