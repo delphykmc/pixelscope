@@ -76,6 +76,9 @@ def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
             document.document_id in window.documents
             and window.central_stack.currentWidget() is not window.empty_workspace
             and window.central_stack.currentWidget().isVisible()
+            and window.viewer.document is document
+            and window.viewer._displayed_preview is document.preview
+            and document.preview is not None
         )
 
     return window, ready, fixture_sha256
@@ -136,7 +139,6 @@ def _wait_until_ready(
             widget.isVisible()
             and widget.width() > 0
             and widget.height() > 0
-            and widget.isVisibleTo(None)
         )
         if realized and ready():
             consecutive += 1
