@@ -27,7 +27,7 @@ def _metadata(path: Path, image: Path, source_sha: str) -> None:
                 "scenario": "single_image",
                 "source_sha": source_sha,
                 "image_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
-                "geometry": {"pixel_png": [500, 400]},
+                "geometry": {"pixel_png": [500, 400], "logical_widget": [500, 400]},
             }
         ),
         encoding="utf-8",
