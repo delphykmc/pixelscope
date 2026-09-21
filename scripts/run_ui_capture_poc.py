@@ -133,9 +133,7 @@ def run(output: Path, source_sha: str) -> int:
             results.append(entry)
         scene_report: dict[str, object] = {"attempts": results}
         if all("image_sha256" in item for item in results):
-            fraction = changed_fraction(
-                output / f"{scene}-1.png", output / f"{scene}-2.png"
-            )
+            fraction = changed_fraction(output / f"{scene}-1.png", output / f"{scene}-2.png")
             scene_report["changed_pixel_fraction"] = fraction
             scene_report["identical_pixels"] = fraction == 0.0
             if fraction > MAX_CHANGED_FRACTION:
@@ -164,9 +162,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
     args = parser.parse_args()
-    if len(args.source_sha) != 40 or not all(
-        ch in "0123456789abcdef" for ch in args.source_sha
-    ):
+    if len(args.source_sha) != 40 or not all(ch in "0123456789abcdef" for ch in args.source_sha):
         parser.error("--source-sha requires an exact lowercase Git SHA")
     return run(args.output_dir, args.source_sha)
 
