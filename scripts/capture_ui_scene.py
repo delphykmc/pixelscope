@@ -14,8 +14,8 @@ import platform
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pyqtgraph
 from PySide6 import __version__ as pyside_version
