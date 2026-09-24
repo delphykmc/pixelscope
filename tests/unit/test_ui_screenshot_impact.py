@@ -79,9 +79,10 @@ def test_known_transitive_rendering_paths_never_silently_omit_the_scene(
     result = report(manifest, path)
     assert result["warnings"] == []
     assert affected_id in result["selected_ids"]
-    assert f"feature-owner:{affected_id}" in result["selected_screenshots"][
-        result["selected_ids"].index(affected_id)
-    ]["reasons"]
+    assert (
+        f"feature-owner:{affected_id}"
+        in result["selected_screenshots"][result["selected_ids"].index(affected_id)]["reasons"]
+    )
     assert len(result["selected_ids"]) < 14
 
 
