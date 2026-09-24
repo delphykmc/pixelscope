@@ -16,7 +16,7 @@ ASSET = Path("docs/user-guide/assets/screenshots")
 GUIDE = Path("docs/user-guide")
 
 
-def _png(path: Path) -> None:
+def _png(path: Path, *, color: int = 2, interlace: int = 0) -> None:
     """Write a tiny valid RGB PNG with stdlib to exercise real CRC/IDAT checks."""
 
     def chunk(kind: bytes, data: bytes) -> bytes:
@@ -31,7 +31,7 @@ def _png(path: Path) -> None:
     raw += b"\x00" + b"\x20\x80\x40" * 2
     path.write_bytes(
         b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, color, 0, 0, interlace))
         + chunk(b"IDAT", zlib.compress(raw))
         + chunk(b"IEND", b"")
     )
@@ -196,3 +196,65 @@ def test_malformed_marker_and_swapped_legacy_output_are_detected(repo: Path) -> 
     )
     _modify(repo, lambda m: m["screenshots"][0].update(legacy_output="histogram_docked.png"))
     assert any("no matching output" in e for e in find_problems(repo))
+
+
+def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path) -> None:
+    scene_source = repo / "scripts/capture_ui_scene.py"
+    scene_source.write_text(
+        'BUILDERS = {"single_image": object(), "raw_profile_dialog": object(), '
+        '"window_overview": object()}\n',
+        encoding="utf-8",
+    )
+    _modify(
+        repo,
+        lambda m: m["screenshots"][7].update(
+            capture_mode="isolated", placement="required", status="capture-ready"
+        ),
+    )
+    page = repo / GUIDE / "features/image-view.md"
+    with page.open("a", encoding="utf-8") as handle:
+        handle.write("<!-- pixelscope:screenshot window-overview -->\n")
+    assert find_problems(repo) == []
+
+    # A new isolated scene may be unapproved and missing, but must not commit
+    # its candidate PNG as approved documentation without a provenance review.
+    _png(repo / ASSET / "window-overview.png")
+    assert any("unapproved capture-ready PNG" in e for e in find_problems(repo))
+    (repo / ASSET / "window-overview.png").unlink()
+
+    # Historical outputs must never become unowned while adding new builders.
+    _modify(
+        repo,
+        lambda m: m["screenshots"][0].pop("legacy_output"),
+    )
+    assert any("legacy scene missing historical manual output" in e for e in find_problems(repo))
+
+
+def test_diagnostic_and_guide_manual_capture_ownership_must_not_overlap(repo: Path) -> None:
+    _modify(
+        repo,
+        lambda m: m["diagnostic_legacy_outputs"].append("single_image.png"),
+    )
+    assert any(
+        "manual output declared as both guide screenshot and diagnostic" in e
+        for e in find_problems(repo)
+    )
+
+
+@pytest.mark.parametrize(
+    ("color", "interlace"),
+    [(3, 0), (2, 1)],
+)
+def test_crc_valid_unsupported_png_encoding_fails(
+    tmp_path: Path, color: int, interlace: int
+) -> None:
+    png = tmp_path / "invalid.png"
+    _png(png, color=color, interlace=interlace)
+    assert png_problems(png) == [
+        "unsupported PNG encoding: expected non-interlaced 8-bit RGB/RGBA"
+    ]
+
+
+def test_target_profile_is_not_historical_capture_provenance(repo: Path) -> None:
+    _modify(repo, lambda m: m.update(target_capture_profile=""))
+    assert any("target_capture_profile is required" in e for e in find_problems(repo))
