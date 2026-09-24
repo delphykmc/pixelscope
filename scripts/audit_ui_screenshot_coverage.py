@@ -88,11 +88,9 @@ def decision_problems(
                     errors.append(f"E6 {key}: promoted requires approved manifest and present PNG")
                 else:
                     approved = row.get("approved") or {}
-                    if (
-                        approved.get("approval_ref") != item["review_ref"]
-                        or hashlib.sha256(source.read_bytes()).hexdigest()
-                        != approved.get("image_sha256")
-                    ):
+                    if approved.get("approval_ref") != item["review_ref"] or hashlib.sha256(
+                        source.read_bytes()
+                    ).hexdigest() != approved.get("image_sha256"):
                         errors.append(f"E6 {key}: approval ref or image bytes disagree")
                 if group == "gaps" and (
                     row["capture_mode"] != "isolated" or row["placement"] != "required"
