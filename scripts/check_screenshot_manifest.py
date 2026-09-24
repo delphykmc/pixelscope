@@ -339,9 +339,7 @@ def find_problems(root: Path = ROOT) -> list[str]:
             if key not in by_id:
                 problems.append(f"{rel}: unknown screenshot ID {key}")
                 continue
-            if by_id[key].get("placement") != "required" or rel not in by_id[key].get(
-                "pages", []
-            ):
+            if by_id[key].get("placement") != "required" or rel not in by_id[key].get("pages", []):
                 problems.append(f"{rel}: screenshot marker not declared for page: {key}")
             if key in observed:
                 problems.append(f"{rel}: duplicate screenshot marker: {key}")
