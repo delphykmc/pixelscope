@@ -17,11 +17,13 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from scripts.compare_ui_screenshots import compare_pair, documentation_relation, scene_contract
-from scripts.run_ui_capture_poc import assess_capture_process, sanitized_stderr
-from scripts.select_ui_screenshots import git_changed_files, resolve_sha, select_changes
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.compare_ui_screenshots import compare_pair, documentation_relation, scene_contract  # noqa: E402
+from scripts.run_ui_capture_poc import assess_capture_process, sanitized_stderr  # noqa: E402
+from scripts.select_ui_screenshots import _git_text, git_changed_files, resolve_sha, select_changes  # noqa: E402
 SHA = re.compile(r"[0-9a-f]{40}")
 TIMEOUT = 100
 
@@ -149,17 +151,7 @@ def run(
     _pinned(base_root, base_sha)
     _pinned(head_root, head_sha)
     base_manifest, head_manifest = _read_manifest(base_root), _read_manifest(head_root)
-    selection = select_changes(
-        git_changed_files(head_root, base_sha, head_sha),
-        base_manifest,
-        head_manifest,
-        base_sha=base_sha,
-        head_sha=head_sha,
-        read_at_revision=None,  # Real revisions are read below (not page-path heuristics).
-    )
-    # The actual content reader is required so prose-only guide edits select none.
-    from scripts.select_ui_screenshots import _git_text
-
+    # Read real pinned Markdown on both sides: prose-only changes select none.
     selection = select_changes(
         git_changed_files(head_root, base_sha, head_sha),
         base_manifest,
