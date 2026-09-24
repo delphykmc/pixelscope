@@ -11,6 +11,10 @@ on:
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
       - "scripts/select_ui_screenshots.py"
+      - "scripts/compare_ui_screenshots.py"
+      - "scripts/run_ui_screenshot_diff.py"
+      - "scripts/probe_ui_screenshot_environment.py"
+      - ".github/workflows/ui-screenshot-diff.yml"
       - "scripts/capture_ui_scene.py"
       - "scripts/capture_ui_review.py"
       - "scripts/check_user_guide_site.py"
@@ -28,6 +32,7 @@ on:
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_ui_screenshot_impact.py"
+      - "tests/unit/test_ui_screenshot_diff.py"
       - "tests/unit/test_user_guide_site_contract.py"
       - "tests/unit/test_user_guide_publication.py"
       - "tests/unit/test_user_guide_publication_ref.py"
@@ -45,6 +50,10 @@ on:
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
       - "scripts/select_ui_screenshots.py"
+      - "scripts/compare_ui_screenshots.py"
+      - "scripts/run_ui_screenshot_diff.py"
+      - "scripts/probe_ui_screenshot_environment.py"
+      - ".github/workflows/ui-screenshot-diff.yml"
       - "scripts/capture_ui_scene.py"
       - "scripts/capture_ui_review.py"
       - "scripts/check_user_guide_site.py"
@@ -62,6 +71,7 @@ on:
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_ui_screenshot_impact.py"
+      - "tests/unit/test_ui_screenshot_diff.py"
       - "tests/unit/test_user_guide_site_contract.py"
       - "tests/unit/test_user_guide_publication.py"
       - "tests/unit/test_user_guide_publication_ref.py"
@@ -92,7 +102,7 @@ jobs:
       - name: Install documentation validation dependencies
         run: >-
           python -m pip install -r requirements/docs.txt
-          pytest==7.4.4 ruff==0.1.15
+          pytest==7.4.4 ruff==0.1.15 Pillow==12.3.0
       - name: Install application for Windows release-artifact regression tests
         if: runner.os == 'Windows'
         run: python -m pip install -e .
@@ -106,6 +116,7 @@ jobs:
           tests/unit/test_docs_contract.py
           tests/unit/test_screenshot_manifest_contract.py
           tests/unit/test_ui_screenshot_impact.py
+          tests/unit/test_ui_screenshot_diff.py
           tests/unit/test_user_guide_site_contract.py
           tests/unit/test_user_guide_packaging.py
           tests/unit/test_user_guide_publication.py
