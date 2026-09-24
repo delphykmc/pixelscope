@@ -57,7 +57,9 @@ def main() -> int:
     try:
         result = probe()
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        args.output.write_text(
+            json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
     except Exception as exc:
         print(f"Renderer environment probe failed: {type(exc).__name__}", file=sys.stderr)
         return 1
