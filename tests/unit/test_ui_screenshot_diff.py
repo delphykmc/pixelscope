@@ -364,9 +364,7 @@ def test_new_real_scene_uses_pinned_manifest_geometry_through_e1_validator(
     assert evidence["exit_code"] == 0
 
     fixed = {**record, "geometry_policy": "fixed"}
-    rejected, failure = capture_scene(
-        tmp_path, sha, "settings_dialog", tmp_path / "fixed", fixed
-    )
+    rejected, failure = capture_scene(tmp_path, sha, "settings_dialog", tmp_path / "fixed", fixed)
     assert rejected is None
     assert "capture_contract_geometry" in failure["error"]
 
