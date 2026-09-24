@@ -14,9 +14,10 @@ import re
 import subprocess
 import sys
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = "docs/user-guide/assets/screenshots/manifest.json"
@@ -186,8 +187,12 @@ def select_changes(
         reasons: set[str] = set()
         for path in change.paths:
             if path == MANIFEST_PATH:
-                old_header = {key: value for key, value in base_manifest.items() if key != "screenshots"}
-                new_header = {key: value for key, value in head_manifest.items() if key != "screenshots"}
+                old_header = {
+                    key: value for key, value in base_manifest.items() if key != "screenshots"
+                }
+                new_header = {
+                    key: value for key, value in head_manifest.items() if key != "screenshots"
+                }
                 if old_header != new_header:
                     selected |= all_ids
                     reasons.add("manifest-shared-contract")
@@ -209,7 +214,7 @@ def select_changes(
                     reasons.add("committed-screenshot-png")
                 png_changes.append({"path": path, "status": change.status, "screenshot_id": key})
                 continue
-            if path == ".github/workflows/ui-screenshot-poc.yml" or path == "scripts/select_ui_screenshots.py":
+            if path in (".github/workflows/ui-screenshot-poc.yml", "scripts/select_ui_screenshots.py"):
                 selected |= all_ids
                 reasons.add("screenshot-automation-contract")
                 continue
@@ -243,7 +248,10 @@ def select_changes(
                     new_text = read_at_revision(head_sha, path)
                     previous = screenshot_references(old_text)
                     current = screenshot_references(new_text)
-                    if previous != current or screenshot_markup(old_text) != screenshot_markup(new_text):
+                    if (
+                        previous != current
+                        or screenshot_markup(old_text) != screenshot_markup(new_text)
+                    ):
                         refs = previous | current
                         selected |= refs & all_ids
                         if refs - all_ids:
@@ -255,7 +263,8 @@ def select_changes(
                 continue
             if path.startswith(FALLBACK_DIRS) or CAPTURE_HELPER.fullmatch(path):
                 if not _glob(path, shared) and not any(
-                    _glob(path, row.get("source_globs", [])) for row in list(old.values()) + list(new.values())
+                    _glob(path, row.get("source_globs", []))
+                    for row in list(old.values()) + list(new.values())
                 ):
                     selected |= all_ids
                     warnings.add(f"unmapped-ui-impact: {path}")
