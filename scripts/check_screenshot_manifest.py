@@ -143,7 +143,10 @@ def find_problems(root: Path = ROOT) -> list[str]:
         return [f"manifest cannot be read: {type(exc).__name__}"]
     if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
         return ["screenshot manifest schema_version must be 1"]
-    if not isinstance(manifest.get("target_capture_profile"), str) or not manifest["target_capture_profile"]:
+    if (
+        not isinstance(manifest.get("target_capture_profile"), str)
+        or not manifest["target_capture_profile"]
+    ):
         problems.append("target_capture_profile is required")
     if manifest.get("impact_ownership_status") not in ("e3-pending", "complete"):
         problems.append("impact_ownership_status must be e3-pending or complete")
