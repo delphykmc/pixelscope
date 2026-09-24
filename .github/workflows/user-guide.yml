@@ -111,6 +111,12 @@ jobs:
           tests/unit/test_user_guide_publication.py
           tests/unit/test_user_guide_publication_ref.py
           tests/unit/test_user_guide_agent_search.py
+      - name: Validate E3 impact selection for pinned PR base and head
+        if: github.event_name == 'pull_request'
+        run: >-
+          python scripts/select_ui_screenshots.py
+          --base "${{ github.event.pull_request.base.sha }}"
+          --head "${{ github.event.pull_request.head.sha }}"
       - name: Run release-artifact regressions on Windows
         if: runner.os == 'Windows'
         run: python -m pytest -q tests/unit/test_release_packaging.py
