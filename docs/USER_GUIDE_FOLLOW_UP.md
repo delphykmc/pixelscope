@@ -121,7 +121,7 @@ installed users retain their existing local Help/search without an AI service.
 
 No embedded PyQt Help window, QWebEngineView, QtHelp/QCH, chatbot, RAG server, Remote LLM API, implicit online fallback, or context-sensitive F1 routing is part of WP-Help-A. Installer bundle integration is owned by WP-Help-B.
 
-## WP-Help-E — Automated Screenshot Lifecycle — E0 planning PR
+## WP-Help-E — Automated Screenshot Lifecycle — E0 merged / E1 active
 
 E0 is a planning-only follow-up to merged WP-Help-A/B/C/D (#87/#90/#91/#92).
 The [WP-Help-E execution plan](exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
@@ -143,3 +143,11 @@ in parallel with E3/E4 after E2 settles the manifest schema. Each implementation
 uses a separate reviewed PR; image candidates never auto-commit and PRs never
 self-merge. Existing screenshot guidance remains at
 [user-guide/assets/screenshots/README.md](user-guide/assets/screenshots/README.md).
+
+E0 planning was merged as PR #93. E1 implements a limited, isolated Windows real-GUI
+capture feasibility probe for Single View and RAW profile dialog, with two fresh
+capture attempts per scenario, PNG/metadata artifacts and explicit native-failure
+reporting. It does **not** yet replace the seven approved guide screenshots,
+produce a manifest or activate change-impact Screenshot CI. E1 success requires
+inspection of actual hosted Windows PNGs and repeatability; static checks alone
+are not evidence of GUI availability or a fix for Issue #81.
