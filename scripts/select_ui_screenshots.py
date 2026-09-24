@@ -214,7 +214,10 @@ def select_changes(
                     reasons.add("committed-screenshot-png")
                 png_changes.append({"path": path, "status": change.status, "screenshot_id": key})
                 continue
-            if path in (".github/workflows/ui-screenshot-poc.yml", "scripts/select_ui_screenshots.py"):
+            if path in (
+                ".github/workflows/ui-screenshot-poc.yml",
+                "scripts/select_ui_screenshots.py",
+            ):
                 selected |= all_ids
                 reasons.add("screenshot-automation-contract")
                 continue
