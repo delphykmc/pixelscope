@@ -282,3 +282,68 @@ def test_e3_complete_manifest_requires_shared_and_per_scene_owners(repo: Path) -
     )
     _modify(repo, lambda m: m["screenshots"][7].update(source_globs=[]))
     assert any("E3-complete impact ownership" in error for error in find_problems(repo))
+
+
+def test_e5_all_declared_images_can_be_absent_without_losing_page_markers(repo: Path) -> None:
+    manifest = json.loads((repo / ASSET / "manifest.json").read_text(encoding="utf-8"))
+    for row in manifest["screenshots"]:
+        (repo / ASSET / row["filename"]).unlink(missing_ok=True)
+    assert find_problems(repo) == []
+    for row in manifest["screenshots"]:
+        if row["placement"] == "required":
+            for page in row["pages"]:
+                source = (repo / GUIDE / page).read_text(encoding="utf-8")
+                assert source.count(f"<!-- pixelscope:screenshot {row['id']} -->") == 1
+
+
+def test_e5_missing_approved_png_retains_historical_provenance(repo: Path) -> None:
+    import hashlib
+
+    image = repo / ASSET / "single-image.png"
+    last_hash = hashlib.sha256(image.read_bytes()).hexdigest()
+    _modify(
+        repo,
+        lambda m: m["screenshots"][0].update(
+            status="approved",
+            approved={
+                "capture_source_sha": "a" * 40,
+                "application_version": "0.1.0",
+                "comparison_profile_id": "windows-e1-poc-v1",
+                "scenario_contract_id": "single_image-v1",
+                "image_sha256": last_hash,
+                "approval_ref": "https://github.com/example/pull/1#review",
+            },
+        ),
+    )
+    image.unlink()
+    assert find_problems(repo) == []
+    _png(image)
+    image.write_bytes(image.read_bytes() + b"corrupt")
+    assert any("PNG missing IEND" in p or "hash mismatch" in p for p in find_problems(repo))
+
+
+def test_e5_rejects_literal_png_and_duplicate_marker(repo: Path) -> None:
+    page = repo / GUIDE / "features/image-view.md"
+    marker = "<!-- pixelscope:screenshot single-image -->"
+    page.write_text(
+        "# Page\n" + marker + "\n" + marker + "\n"
+        "![old screenshot](../assets/screenshots/single-image.png)\n",
+        encoding="utf-8",
+    )
+    errors = find_problems(repo)
+    assert any("duplicate screenshot marker" in error for error in errors)
+    assert any("hard-coded screenshot image forbidden" in error for error in errors)
+
+
+def test_e5_page_move_and_unknown_required_id_fail(repo: Path) -> None:
+    original = repo / GUIDE / "features/image-view.md"
+    marker = "<!-- pixelscope:screenshot single-image -->"
+    original.write_text("# Page\n", encoding="utf-8")
+    other = repo / GUIDE / "features/settings.md"
+    other.parent.mkdir(parents=True, exist_ok=True)
+    other.write_text("# Settings\n" + marker + "\n", encoding="utf-8")
+    problems = find_problems(repo)
+    assert any("missing required screenshot marker" in problem for problem in problems)
+    assert any("screenshot marker not declared for page" in problem for problem in problems)
+    other.write_text("# Settings\n<!-- pixelscope:screenshot unknown-future -->\n", encoding="utf-8")
+    assert any("unknown screenshot ID" in problem for problem in find_problems(repo))
