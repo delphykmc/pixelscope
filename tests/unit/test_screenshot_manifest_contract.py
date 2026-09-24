@@ -9,7 +9,6 @@ import zlib
 from pathlib import Path
 
 import pytest
-
 from scripts.check_screenshot_manifest import find_problems, png_problems
 
 ROOT = Path(__file__).resolve().parents[2]
