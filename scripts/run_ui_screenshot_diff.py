@@ -39,9 +39,9 @@ TIMEOUT = 100
 
 
 def _read_manifest(root: Path) -> dict[str, Any]:
-    data = json.loads((root / "docs/user-guide/assets/screenshots/manifest.json").read_text(
-        encoding="utf-8"
-    ))
+    data = json.loads(
+        (root / "docs/user-guide/assets/screenshots/manifest.json").read_text(encoding="utf-8")
+    )
     if data.get("schema_version") != 1:
         raise ValueError("unsupported screenshot manifest")
     return data
@@ -82,14 +82,10 @@ def _execute(root: Path, args: list[str], env: dict[str, str]) -> subprocess.Com
     )
 
 
-def renderer_environment(
-    root: Path, output: Path, probe: Path
-) -> dict[str, Any]:
+def renderer_environment(root: Path, output: Path, probe: Path) -> dict[str, Any]:
     process = _execute(root, [str(probe), "--output", str(output)], _env(root))
     if process.returncode or not output.is_file():
-        raise ValueError(
-            "renderer probe failed: " + sanitized_stderr(process.stderr)
-        )
+        raise ValueError("renderer probe failed: " + sanitized_stderr(process.stderr))
     result = json.loads(output.read_text(encoding="utf-8"))
     if not isinstance(result, dict) or result.get("primary_screen") is None:
         raise ValueError("renderer probe lacks an active Windows screen")
@@ -105,8 +101,14 @@ def capture_scene(
     try:
         command = [
             str(root / "scripts/capture_ui_scene.py"),
-            "--scene", scene, "--output", str(png),
-            "--metadata", str(meta), "--source-sha", sha,
+            "--scene",
+            scene,
+            "--output",
+            str(png),
+            "--metadata",
+            str(meta),
+            "--source-sha",
+            sha,
         ]
         process = _execute(root, command, _env(root))
         process_info["exit_code"] = process.returncode
@@ -153,9 +155,7 @@ def _write_report(output: Path, report: dict[str, Any]) -> None:
     (output / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run(
-    base_root: Path, head_root: Path, base_sha: str, head_sha: str, output: Path
-) -> int:
+def run(base_root: Path, head_root: Path, base_sha: str, head_sha: str, output: Path) -> int:
     if os.name != "nt":
         raise ValueError("E4 real-QWidget captures require Windows, not offscreen")
     if base_root.resolve() == head_root.resolve():
@@ -190,12 +190,11 @@ def run(
             return 0
         old = {row["id"]: row for row in base_manifest["screenshots"]}
         new = {row["id"]: row for row in head_manifest["screenshots"]}
-        compatible_runtime = (
-            (base_root / "requirements/runtime.txt").read_bytes()
-            == (head_root / "requirements/runtime.txt").read_bytes()
-            and (base_root / "pyproject.toml").read_bytes()
-            == (head_root / "pyproject.toml").read_bytes()
-        )
+        compatible_runtime = (base_root / "requirements/runtime.txt").read_bytes() == (
+            head_root / "requirements/runtime.txt"
+        ).read_bytes() and (base_root / "pyproject.toml").read_bytes() == (
+            head_root / "pyproject.toml"
+        ).read_bytes()
         base_env = head_env = None
         if compatible_runtime:
             probe = ROOT / "scripts/probe_ui_screenshot_environment.py"
@@ -254,11 +253,17 @@ def run(
                 continue
             try:
                 result = compare_pair(
-                    base_dir / "capture.png", head_dir / "capture.png",
-                    base_meta, head_meta, base_env, head_env,
+                    base_dir / "capture.png",
+                    head_dir / "capture.png",
+                    base_meta,
+                    head_meta,
+                    base_env,
+                    head_env,
                     scene_contract(base_root, old[key]["scenario"]),
                     scene_contract(head_root, new[key]["scenario"]),
-                    old[key], new[key], output / key / "comparison",
+                    old[key],
+                    new[key],
+                    output / key / "comparison",
                 )
             except (OSError, ValueError, SyntaxError) as exc:
                 result = {"status": "COMPARISON_FAILED", "reason": type(exc).__name__}
@@ -284,8 +289,11 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return run(
-            args.base_root.resolve(), args.head_root.resolve(),
-            args.base_sha, args.head_sha, args.output_dir.resolve(),
+            args.base_root.resolve(),
+            args.head_root.resolve(),
+            args.base_sha,
+            args.head_sha,
+            args.output_dir.resolve(),
         )
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         _write_report(
