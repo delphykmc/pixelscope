@@ -173,14 +173,55 @@ def test_capture_fingerprint_requires_geometry_and_probe(captures) -> None:
 def test_scene_ast_ignores_whitespace_but_tracks_behavior(tmp_path: Path) -> None:
     script = tmp_path / "scripts/capture_ui_scene.py"
     script.parent.mkdir()
-    script.write_text("def _single_image(app):\n    return 1\n", encoding="utf-8")
+    script.write_text(
+        "def _single_image(app):\n    return 1\n"
+        "BUILDERS = {'single_image': _single_image}\n",
+        encoding="utf-8",
+    )
     baseline = scene_contract(tmp_path, "single_image")
-    script.write_text("def _single_image( app ):\n  return 1  # same AST\n", encoding="utf-8")
+    script.write_text(
+        "def _single_image( app ):\n  return 1  # same AST\n"
+        "BUILDERS = { 'single_image': _single_image }\n",
+        encoding="utf-8",
+    )
     assert scene_contract(tmp_path, "single_image") == baseline
-    script.write_text("def _single_image(app):\n    return 2\n", encoding="utf-8")
+    script.write_text(
+        "def _single_image(app):\n    return 2\n"
+        "BUILDERS = {'single_image': _single_image}\n",
+        encoding="utf-8",
+    )
     assert scene_contract(tmp_path, "single_image") != baseline
     with pytest.raises(ValueError, match="unregistered scene"):
         scene_contract(tmp_path, "planned_scene")
+
+
+def test_scene_contract_uses_new_actual_registry_entries_without_a_second_id_list(
+    tmp_path: Path,
+) -> None:
+    script = tmp_path / "scripts/capture_ui_scene.py"
+    script.parent.mkdir()
+    script.write_text(
+        "def _single_image(app):\n    return 1\n"
+        "def _new_real_dialog(app):\n    return 7\n"
+        "BUILDERS = {'single_image': _single_image, 'settings_dialog': _new_real_dialog}\n",
+        encoding="utf-8",
+    )
+    original = scene_contract(tmp_path, "settings_dialog")
+    script.write_text(
+        "def _single_image(app):\n    return 1\n"
+        "def _new_real_dialog(app):\n    return 8\n"
+        "BUILDERS = {'single_image': _single_image, 'settings_dialog': _new_real_dialog}\n",
+        encoding="utf-8",
+    )
+    assert scene_contract(tmp_path, "settings_dialog") != original
+    with pytest.raises(ValueError, match="invalid pinned BUILDERS"):
+        script.write_text(
+            "def _new_real_dialog(app):\n    return 7\n"
+            "BUILDERS = {'settings_dialog': _new_real_dialog, "
+            "'settings_dialog': _new_real_dialog}\n",
+            encoding="utf-8",
+        )
+        scene_contract(tmp_path, "settings_dialog")
 
 
 def test_legacy_pixel_relation_is_review_debt_without_artifact_side_effect(
