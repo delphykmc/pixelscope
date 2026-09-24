@@ -48,9 +48,11 @@ def decision_problems(
         errors.append("E6 decision schema_version/phase is invalid")
     rows = manifest["screenshots"]
     by_id = {row["id"]: row for row in rows}
+    # Stable *historical* cohorts: a gap stays a gap after gaining a real
+    # isolated builder; migration must not silently reclassify its decision.
     expected = {
-        "existing": {row["id"] for row in rows if row["capture_mode"] != "planned"},
-        "gaps": {row["id"] for row in rows if row["capture_mode"] == "planned"},
+        "existing": {row["id"] for row in rows if row.get("legacy_output") is not None},
+        "gaps": {row["id"] for row in rows if row.get("legacy_output") is None},
     }
     for group in ("existing", "gaps"):
         items = decisions.get(group)
