@@ -119,6 +119,22 @@ def test_geometry_change_reports_changed_dimensions_not_identical(captures) -> N
         assert delta.size == (600, 400)
 
 
+def test_label_only_fixture_change_is_not_misreported_as_a_ui_delta(captures) -> None:
+    _, _, meta, _, output = captures
+    previous = copy.deepcopy(meta)
+    current = copy.deepcopy(meta)
+    pixels = b"unchanged synthetic pixels"
+    previous["fixture_sha256"] = single_view_fixture_identity(
+        pixels, "isp_capture_01.png", "C:/PixelScope_Review/camera_1/isp_capture_01.png"
+    )
+    current["fixture_sha256"] = single_view_fixture_identity(
+        pixels, "isp_capture_02.png", "C:/PixelScope_Review/camera_1/isp_capture_02.png"
+    )
+    outcome = _compare(captures, before=previous, after=current)
+    assert outcome["status"] == "BASELINE_INCOMPATIBLE"
+    assert not output.exists()
+
+
 def test_inconsistent_actual_png_size_and_sidecar_fails_comparison(captures) -> None:
     _, head, _, _, output = captures
     Image.new("RGB", (600, 400), (0, 50, 100)).save(head)
