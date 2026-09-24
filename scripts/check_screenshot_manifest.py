@@ -29,7 +29,7 @@ MAX_PNG_BYTES = 64 * 1024 * 1024
 MAX_DECODED_BYTES = 128 * 1024 * 1024
 CAPTURE_MODES = {"isolated", "legacy-manual", "planned"}
 PLACEMENTS = {"legacy-literal", "legacy-unreferenced", "planned", "required"}
-STATUSES = {"legacy-unverified", "planned", "approved"}
+STATUSES = {"legacy-unverified", "planned", "capture-ready", "approved"}
 
 
 def png_problems(path: Path) -> list[str]:
@@ -215,6 +215,8 @@ def find_problems(root: Path = ROOT) -> list[str]:
             problems.append(f"{key}: planned capture must use planned placement")
         if mode != "planned" and status == "planned":
             problems.append(f"{key}: existing scene may not report planned provenance")
+        if status == "capture-ready" and mode != "isolated":
+            problems.append(f"{key}: capture-ready requires a registered isolated scene")
         if (
             mode != "planned"
             and status == "legacy-unverified"
@@ -253,15 +255,20 @@ def find_problems(root: Path = ROOT) -> list[str]:
             if mode == "isolated" and scene not in isolated:
                 problems.append(f"{key}: no isolated real-UI builder registered for {scene}")
         legacy = record.get("legacy_output")
-        if mode != "planned":
-            if not isinstance(legacy, str) or legacy not in manual or legacy != f"{scene}.png":
-                problems.append(f"{key}: no matching output in historical manual capture script")
-            elif legacy in manual_registered:
-                problems.append(f"{key}: duplicated historical manual output {legacy}")
-            else:
-                manual_registered.add(legacy)
-        elif legacy is not None:
-            problems.append(f"{key}: planned scene must not claim legacy capture")
+        # A new E2+ isolated builder has no historical manual output by design.
+        # Legacy assets still require their real, uniquely owned capture output.
+        if mode == "planned":
+            if legacy is not None:
+                problems.append(f"{key}: planned scene must not claim legacy capture")
+        elif legacy is None:
+            if mode != "isolated" or status != "capture-ready":
+                problems.append(f"{key}: legacy scene missing historical manual output")
+        elif not isinstance(legacy, str) or legacy not in manual or legacy != f"{scene}.png":
+            problems.append(f"{key}: no matching output in historical manual capture script")
+        elif legacy in manual_registered:
+            problems.append(f"{key}: duplicated historical manual output {legacy}")
+        else:
+            manual_registered.add(legacy)
         if not isinstance(record.get("alt"), str) or not record["alt"].strip():
             problems.append(f"{key}: alt text is required")
         if not isinstance(record.get("features"), list) or not record["features"]:
@@ -285,6 +292,8 @@ def find_problems(root: Path = ROOT) -> list[str]:
         elif actual.is_file():
             if placement == "planned":
                 problems.append(f"{key}: planned scene has an unexpected committed PNG")
+            if status == "capture-ready":
+                problems.append(f"{key}: unapproved capture-ready PNG cannot be committed")
             problems.extend(f"{key}: {error}" for error in png_problems(actual))
             if status == "approved" and isinstance(record.get("approved"), dict):
                 import hashlib
@@ -305,12 +314,21 @@ def find_problems(root: Path = ROOT) -> list[str]:
         or any(not isinstance(name, str) or name not in manual for name in diagnostics)
     ):
         problems.append("diagnostic_legacy_outputs must reference unique manual PNG outputs")
-    elif manual - manual_registered - set(diagnostics):
-        problems.append(
-            "manual capture outputs not classified in manifest: "
-            + ", ".join(sorted(manual - manual_registered - set(diagnostics)))
-        )
-    elif (manual_registered | set(diagnostics)) - manual:
+    else:
+        overlapping = manual_registered & set(diagnostics)
+        if overlapping:
+            problems.append(
+                "manual output declared as both guide screenshot and diagnostic: "
+                + ", ".join(sorted(overlapping))
+            )
+        if manual - manual_registered - set(diagnostics):
+            problems.append(
+                "manual capture outputs not classified in manifest: "
+                + ", ".join(sorted(manual - manual_registered - set(diagnostics)))
+            )
+    if isinstance(diagnostics, list) and (manual_registered | set(
+        name for name in diagnostics if isinstance(name, str)
+    )) - manual:
         problems.append("manifest lists nonexistent manual capture output")
     if isolated - used_scenes:
         problems.append(
