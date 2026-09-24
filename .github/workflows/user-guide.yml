@@ -10,6 +10,7 @@ on:
       - "pyproject.toml"
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
+      - "scripts/select_ui_screenshots.py"
       - "scripts/capture_ui_scene.py"
       - "scripts/capture_ui_review.py"
       - "scripts/check_user_guide_site.py"
@@ -26,6 +27,7 @@ on:
       - "tests/unit/test_release_packaging.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
+      - "tests/unit/test_ui_screenshot_impact.py"
       - "tests/unit/test_user_guide_site_contract.py"
       - "tests/unit/test_user_guide_publication.py"
       - "tests/unit/test_user_guide_publication_ref.py"
@@ -42,6 +44,7 @@ on:
       - "pyproject.toml"
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
+      - "scripts/select_ui_screenshots.py"
       - "scripts/capture_ui_scene.py"
       - "scripts/capture_ui_review.py"
       - "scripts/check_user_guide_site.py"
@@ -58,6 +61,7 @@ on:
       - "tests/unit/test_release_packaging.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
+      - "tests/unit/test_ui_screenshot_impact.py"
       - "tests/unit/test_user_guide_site_contract.py"
       - "tests/unit/test_user_guide_publication.py"
       - "tests/unit/test_user_guide_publication_ref.py"
@@ -101,6 +105,7 @@ jobs:
           python -m pytest -q
           tests/unit/test_docs_contract.py
           tests/unit/test_screenshot_manifest_contract.py
+          tests/unit/test_ui_screenshot_impact.py
           tests/unit/test_user_guide_site_contract.py
           tests/unit/test_user_guide_packaging.py
           tests/unit/test_user_guide_publication.py
