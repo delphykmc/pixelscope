@@ -2,7 +2,7 @@
 
 Image View is the primary visual inspection surface.
 
-![Single Image View](../assets/screenshots/single-image.png)
+<!-- pixelscope:screenshot single-image -->
 
 ## Single and Multi View
 
