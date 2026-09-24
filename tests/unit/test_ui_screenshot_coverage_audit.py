@@ -39,7 +39,10 @@ def test_each_gap_requires_its_own_record_and_real_owner_decision() -> None:
     errors = decision_problems(manifest, records, ROOT / ASSETS)
     assert any("missing individual gaps decision" in error for error in errors)
     records["gaps"].append(copy.deepcopy(records["gaps"][0]))
-    assert any("duplicate decision" in error for error in decision_problems(manifest, records, ROOT / ASSETS))
+    assert any(
+        "duplicate decision" in error
+        for error in decision_problems(manifest, records, ROOT / ASSETS)
+    )
 
 
 def test_blanket_defer_without_reason_owner_reference_followup_is_rejected() -> None:
