@@ -145,6 +145,17 @@ def screenshot_references(text: str) -> set[str]:
     return found
 
 
+def screenshot_markup(text: str) -> tuple[str, ...]:
+    """Preserve reference syntax and alt/target changes, unlike just the ID set."""
+    found = ["marker:" + m.group() for m in MARKER.finditer(text)]
+    found += [
+        "image:" + m.group()
+        for m in SCREENSHOT_IMAGE.finditer(text)
+        if "assets/screenshots/" in m.group(1)
+    ]
+    return tuple(sorted(found))
+
+
 def select_changes(
     changed: list[ChangedFile],
     base_manifest: dict[str, Any],
@@ -197,6 +208,10 @@ def select_changes(
                     reasons.add("committed-screenshot-png")
                 png_changes.append({"path": path, "status": change.status, "screenshot_id": key})
                 continue
+            if path == ".github/workflows/ui-screenshot-poc.yml" or path == "scripts/select_ui_screenshots.py":
+                selected |= all_ids
+                reasons.add("screenshot-automation-contract")
+                continue
             if path == ASSET_DIR + "README.md":
                 selected |= all_ids
                 reasons.add("screenshot-readme-reference")
@@ -223,20 +238,17 @@ def select_changes(
                     if selected:
                         reasons.add("screenshot-markdown-page")
                 else:
-                    previous = screenshot_references(read_at_revision(base_sha, path))
-                    current = screenshot_references(read_at_revision(head_sha, path))
-                    if previous != current:
+                    old_text = read_at_revision(base_sha, path)
+                    new_text = read_at_revision(head_sha, path)
+                    previous = screenshot_references(old_text)
+                    current = screenshot_references(new_text)
+                    if previous != current or screenshot_markup(old_text) != screenshot_markup(new_text):
                         refs = previous | current
-                        # Unknown refs are independently rejected by E2's doc checker.
-                        known = refs & all_ids
-                        selected |= known
+                        selected |= refs & all_ids
                         if refs - all_ids:
                             selected |= all_ids
                             warnings.add(f"unmapped-screenshot-reference: {path}")
                         reasons.add("screenshot-markdown-reference")
-                    elif "pixelscope:screenshot" in read_at_revision(head_sha, path):
-                        # A malformed changed marker must not be a silent zero-impact.
-                        pass
                 if not reasons:
                     reasons.add("docs-prose-only")
                 continue
