@@ -1,8 +1,8 @@
 # Execution plan: WP-Help-E — Automated Screenshot Lifecycle
 
-Status: **E0/E1 merged; E2 manifest foundation in draft; E3–E6 not implemented**
+Status: **E0–E2 merged; E3 impact selection in progress; E4–E6 not implemented**
 Owner: ChatGPT-assisted implementation; repository owner approval and Windows validation
-Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E2 branch/PR: `feature/wp-help-e2-screenshot-manifest-foundation` / draft #95
+Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E3 branch: `feature/wp-help-e3-conservative-impact-selection` (base `main@415dab7cf4742cce0d6369024cdc91da652556d7`)
 Baseline: `main@aabc1fe338aed2fea9afd15db1275aff7b549109` (2026-09-21 KST)
 Last updated: 2026-09-24
 
@@ -228,3 +228,10 @@ Only accepted assets under `docs/user-guide/assets/screenshots/` enter Git and h
 - Newly implemented isolated scenes can progress `planned → isolated/capture-ready → isolated/approved` **without any invented historical `legacy_output`**; future required marker/page and explicit approval are separate steps. Actual seven historical/manual assets still require correctly matching manual outputs, and all ten manual outputs must remain uniquely accounted for.
 - Validation now rejects disjointness violations between guide-owned manual outputs and three non-guide diagnostic outputs. The intentionally supported PNG decode contract is **non-interlaced 8-bit RGB/RGBA only** (all seven existing guide PNGs were checked to be RGB/8-bit/non-interlaced): indexed or interlaced images are rejected rather than incorrectly declared renderable on CRC/zlib evidence alone.
 - Focused tests exercise planned → isolated ready → reviewed approved, pending PNG rejection, old-manual ownership preservation, diagnostic duplication, CRC-valid indexed PNG without PLTE, CRC-valid Adam7 claim, and missing target profile. Reviewer comments were answered in the PR. The original reviewed HEAD's docs CI was red; the amended HEAD's Windows/Ubuntu docs and E1 GUI jobs are independent gates, not inherited PASS from older runs.
+
+### E2 owner smoke and E3 handoff — 2026-09-24
+
+- E2 PR #95 merged at `main@415dab7cf4742cce0d6369024cdc91da652556d7` after independent re-review, exact-HEAD Windows/Ubuntu documentation CI, E1 Windows GUI PoC and owner-reported full pytest and live Help smoke PASS.
+- **Observed screenshot debt:** owner confirmed local Help opens and guide PNGs render but noticed some legacy screenshots do not reflect current PixelScope UI. Specific stale scene IDs and any textual guide inaccuracies were not yet established. Preserve all seven PNG bytes and unknown capture provenance through E3. Review each against current production UI and promote fresh real-app captures only through E4–E6 with owner approval; do not equate CRC validity with current UI fidelity.
+- E3 maps source ownership per manifest ID and globally shared shell/rendering dependencies, selects impact from immutable SHA-pair Git name-status changes including rename/deletion and old/new paths, and emits a Qt-free reason report. Unmapped rendering-relevant ui/app/core/io paths conservatively select all 14 manifest IDs with a visible warning; changed tracked PNGs require explicit owner review, including legacy-unverified assets. E3 produces no screenshots, pixel comparisons, PR auto-commits, approval or runtime UI changes.
+- **Evidence pending:** independent E3 code review and exact E3 branch CI/owner authorization. No unobserved Windows GUI/full-suite result is claimed for E3.
