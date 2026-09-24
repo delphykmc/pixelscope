@@ -290,8 +290,12 @@ def select_changes(
                 continue
             if path in (
                 ".github/workflows/ui-screenshot-poc.yml",
+                ".github/workflows/ui-screenshot-diff.yml",
                 "scripts/select_ui_screenshots.py",
                 "scripts/check_screenshot_manifest.py",
+                "scripts/compare_ui_screenshots.py",
+                "scripts/run_ui_screenshot_diff.py",
+                "scripts/probe_ui_screenshot_environment.py",
             ):
                 _tag_impact(
                     per_id_reasons,
