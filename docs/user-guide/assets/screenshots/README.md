@@ -26,21 +26,26 @@ The following remain missing; before WP-Help-E automation is proven, they still 
 
 When a new screenshot is added, record the application version/commit in the pull request that adds it and verify that labels/actions still match the current guide. Avoid screenshots containing private paths, company-internal data, credentials, hostnames, or user-identifying content.
 
-## Current examples
+## Screenshot ID examples (conditional)
 
-![Single Image View](single-image.png)
+The six topic-page insertions now use exact manifest markers instead of hard-coded image
+links. This strategy README records their stable IDs without embedding an image that
+becomes a broken Markdown link when the corresponding PNG is intentionally absent:
 
-![Six-image Multi View](six-image-multiview.png)
+- `single-image` — Image View.
+- `six-image-multiview` — Quick start.
+- `histogram-docked` — Histogram.
+- `line-profile-docked` — Line Profile.
+- `difference-analysis` — Difference.
+- `raw-profile-dialog` — RAW.
+- `plots-floating` — tracked but not currently used by a topic page.
 
-![Histogram](histogram-docked.png)
+The canonical, searchable topic Markdown owns the actual placement. The MkDocs E5
+hook expands `<!-- pixelscope:screenshot ID -->` to a local image only when the
+manifest-declared file exists, and otherwise emits nothing. The hook does not
+generate, replace or approve any PNG.
 
-![Line Profile](line-profile-docked.png)
-
-![Difference](difference-analysis.png)
-
-![RAW profile dialog](raw-profile-dialog.png)
-
-## Automated lifecycle: E1 verified / E2 manifest foundation
+## Automated lifecycle: E0–E4 merged / E5 optional rendering
 
 The [WP-Help-E execution plan](../../../exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
 documents the proposed manifest, real-QWidget scene registry, Windows hosted capture
@@ -50,7 +55,7 @@ their exact capture commits and runtime environment are not established; do not
 invent provenance. The existing `scripts/capture_ui_review.py` generates ten
 snake_case filenames that do not match the seven committed hyphenated names.
 
-E1 proved hosted Windows capture for real Single View and RAW Dialog in separate processes (PR #94), not the other manual scenarios. E2's versioned [Screenshot Manifest](manifest.json) records seven checked-in legacy PNGs, the seven outstanding coverage gaps, capture ownership and three non-guide diagnostic outputs. It retains unknown legacy capture SHA rather than inventing provenance. It is a static validation/inventory contract only: E3 impact selection, E4 baseline/HEAD visual diff, E5 missing-image omission and E6 reviewed promotion are **not available yet**. A PR-produced
+E1 proved hosted Windows capture for real Single View and RAW Dialog in separate processes (PR #94), not the other manual scenarios. E2's versioned [Screenshot Manifest](manifest.json) records seven checked-in legacy PNGs, the seven outstanding coverage gaps, capture ownership and three non-guide diagnostic outputs. It retains unknown legacy capture SHA rather than inventing provenance. E3 provides conservative screenshot impact selection and E4 provides pinned native Windows candidate comparison. E5 converts the six existing topic embeds to conditional ID markers; E6 reviewed promotion and full scene coverage are still outstanding. A PR-produced
 candidate is never an approved User Guide image until its content and provenance have
 been checked and the PNG plus manifest changes have been committed through review.
 
@@ -64,4 +69,4 @@ The E2 PNG validator intentionally accepts only verified non-interlaced 8-bit RG
 
 ## Owner-observed current-UI screenshot staleness
 
-On 2026-09-24 the owner confirmed live Help opens and images render, but some existing screenshots appear outdated relative to the running application. Exact pages are not yet established; treat **all seven legacy-unverified images** as requiring a scene-by-scene current-UI review before E6 closeout. E3's selector does not replace pixels. E4/E5/E6 must capture real PixelScope UI, inspect image labels/layout/privacy, preserve the existing six linked topic images during transition, and only commit owner-approved replacements with actual provenance. Do not infer that the Markdown instructions themselves are wrong without a separate finding.
+On 2026-09-24 the owner confirmed live Help opens and images render, but some existing screenshots appear outdated relative to the running application. Exact pages are not yet established; treat **all seven legacy-unverified images** as requiring a scene-by-scene current-UI review before E6 closeout. E3's selector does not replace pixels. E4/E5/E6 must capture real PixelScope UI, inspect image labels/layout/privacy, preserve the existing six topic image placements during transition (including intentional missing-image omission), and only commit owner-approved replacements with actual provenance. Do not infer that the Markdown instructions themselves are wrong without a separate finding.
