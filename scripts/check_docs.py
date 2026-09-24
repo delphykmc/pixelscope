@@ -188,6 +188,16 @@ def find_problems(root: Path = ROOT) -> list[str]:
                     f"{match.group(1)}"
                 )
 
+    # E2 is Qt-free. E5 will migrate literal images to optional ID markers;
+    # until then, the existing whole-repository link policy remains unchanged.
+    if (repository_root / "docs/user-guide/assets/screenshots/manifest.json").is_file():
+        if __package__:
+            from .check_screenshot_manifest import find_problems as screenshot_problems
+        else:
+            from check_screenshot_manifest import find_problems as screenshot_problems
+
+        problems.extend(screenshot_problems(repository_root))
+
     return problems
 
 
