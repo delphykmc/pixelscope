@@ -63,6 +63,22 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
             raise ValueError("expected real PNG captures")
         first, second = a.convert("RGB"), z.convert("RGB")
     if first.size != second.size:
+        # Incompatible extents are a CHANGED UI result, not an excuse to omit
+        # the promised review artifact. Pad *only the diagnostics*: never use
+        # synthetic padding to declare two captured regions identical.
+        if output is not None:
+            output.mkdir(parents=True, exist_ok=True)
+            canvas_width = max(first.width, second.width)
+            canvas_height = max(first.height, second.height)
+            base_canvas = Image.new("RGB", (canvas_width, canvas_height))
+            head_canvas = Image.new("RGB", (canvas_width, canvas_height))
+            base_canvas.paste(first, (0, 0))
+            head_canvas.paste(second, (0, 0))
+            combined = Image.new("RGB", (canvas_width * 2, canvas_height))
+            combined.paste(base_canvas, (0, 0))
+            combined.paste(head_canvas, (canvas_width, 0))
+            combined.save(output / "side-by-side.png")
+            ImageChops.difference(base_canvas, head_canvas).save(output / "diff.png")
         return {
             "identical": False,
             "dimension_changed": True,
@@ -71,6 +87,7 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
             "changed_pixel_fraction": 1.0,
             "max_channel_error": None,
             "mean_channel_error": None,
+            "diagnostic_note": "padded visual artifact; dimensions differ",
         }
     diff = ImageChops.difference(first, second)
     extrema = diff.getextrema()
