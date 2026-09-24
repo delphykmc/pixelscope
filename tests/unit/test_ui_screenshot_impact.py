@@ -122,16 +122,20 @@ def test_unmapped_rendering_source_fails_open(manifest: dict, path: str) -> None
 def test_docs_prose_only_and_test_only_do_not_force_capture(manifest: dict) -> None:
     assert report(manifest, "tests/unit/test_core.py")["selected_ids"] == []
     assert report(manifest, "docs/user-guide/features/raw.md")["selected_ids"] == []
-    assert report(
-        manifest,
-        "docs/user-guide/formats/raw.md",
-        read=lambda sha, path: "# Same prose-only page in both revisions\\n",
-    )["selected_ids"] == []
+    assert (
+        report(
+            manifest,
+            "docs/user-guide/formats/raw.md",
+            read=lambda sha, path: "# Same prose-only page in both revisions\\n",
+        )["selected_ids"]
+        == []
+    )
     assert report(manifest, "docs/ROADMAP.md")["no_selection_reason"] is not None
     old_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody old\n"
     new_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody changed\n"
     def get_text(sha: str, path: str) -> str:
         return old_text if sha == FULL else new_text
+
     assert report(manifest, "docs/user-guide/formats/raw.md", read=get_text)["selected_ids"] == []
 
 
@@ -140,6 +144,7 @@ def test_markdown_screenshot_reference_changes_select_declared_ids(manifest: dic
     after = "<!-- pixelscope:screenshot raw-profile-dialog -->\n"
     def get_text(sha: str, path: str) -> str:
         return before if sha == FULL else after
+
     result = report(manifest, "docs/user-guide/formats/raw.md", read=get_text)
     # Even a literal -> ID-marker migration is a screenshot Markdown change.
     assert result["selected_ids"] == ["raw-profile-dialog"]
@@ -160,9 +165,7 @@ def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> 
         [
             ChangedFile("M", base + "single-image.png"),
             ChangedFile("D", base + "plots-floating.png"),
-            ChangedFile(
-                "R100", base + "difference-analysis.png", base + "histogram-docked.png"
-            ),
+            ChangedFile("R100", base + "difference-analysis.png", base + "histogram-docked.png"),
             ChangedFile("A", base + "unlisted-new.png"),
         ],
         manifest,
@@ -237,8 +240,7 @@ def test_real_git_pinned_rename_deletion_and_new_file(tmp_path: Path, manifest: 
     head = _git(tmp_path, "rev-parse", "HEAD")
     entries = git_changed_files(tmp_path, resolve_sha(tmp_path, base), resolve_sha(tmp_path, head))
     assert any(
-        x.status.startswith("R") and x.old_path.endswith("raw_open_dialog.py")
-        for x in entries
+        x.status.startswith("R") and x.old_path.endswith("raw_open_dialog.py") for x in entries
     )
     assert any(x.status == "D" for x in entries)
     assert any(x.status == "A" for x in entries)
