@@ -310,15 +310,18 @@ def select_changes(
     capture_deferred: list[dict[str, str]] = []
     for key in sorted(selected_reasons):
         record = new.get(key, old.get(key, {}))
+        present_in_head = key in new
         mode = record.get("capture_mode", "removed")
-        eligible = key in new and mode == "isolated"
+        eligible = present_in_head and mode == "isolated"
         if eligible:
             capture_eligible_ids.append(key)
         else:
-            capture_deferred.append({"id": key, "reason": f"capture-mode:{mode}"})
+            defer_reason = f"capture-mode:{mode}" if present_in_head else "removed-from-head"
+            capture_deferred.append({"id": key, "reason": defer_reason})
         screenshots.append(
             {
                 "id": key,
+                "present_in_head": present_in_head,
                 "capture_mode": mode,
                 "status": record.get("status", "removed"),
                 "capture_eligible": eligible,
