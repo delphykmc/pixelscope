@@ -10,14 +10,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import platform
+import re
 import sys
 import tempfile
 import time
 from collections.abc import Callable
-from types import TracebackType
 from pathlib import Path
+from types import TracebackType
 
 import pyqtgraph
 from PySide6 import __version__ as pyside_version
@@ -292,7 +292,10 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
     except Exception as exc:
         report["error_type"] = type(exc).__name__
         report["error_detail"] = sanitized_diagnostic(exc)
-        print(f"E1 capture failed: {report['error_type']}: {report['error_detail']}", file=sys.stderr)
+        print(
+            f"E1 capture failed: {report['error_type']}: {report['error_detail']}",
+            file=sys.stderr,
+        )
     finally:
         try:
             if widget is not None:
