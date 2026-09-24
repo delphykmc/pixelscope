@@ -217,9 +217,24 @@ def select_changes(
     png_changes: list[dict[str, str]] = []
 
     for change in changed:
-        selected: set[str] = set()
+        # A rename/copy contains two independently meaningful paths. Record
+        # screenshot-specific evidence separately from the path-level summary:
+        # a fallback on one side must not claim that *all* IDs own the other.
+        per_id_reasons: dict[str, set[str]] = defaultdict(set)
         reasons: set[str] = set()
+
+        def select(ids: set[str], reason: str) -> None:
+            for key in ids:
+                per_id_reasons[key].add(reason)
+            reasons.add(reason)
+
         for path in change.paths:
+            path_reasons: set[str] = set()
+
+            def add(ids: set[str], reason: str) -> None:
+                select(ids, reason)
+                path_reasons.add(reason)
+
             if path == MANIFEST_PATH:
                 old_header = {
                     key: value for key, value in base_manifest.items() if key != "screenshots"
@@ -228,24 +243,20 @@ def select_changes(
                     key: value for key, value in head_manifest.items() if key != "screenshots"
                 }
                 if old_header != new_header:
-                    selected |= all_ids
-                    reasons.add("manifest-shared-contract")
+                    add(all_ids, "manifest-shared-contract")
                 for key in all_ids:
                     if old.get(key) != new.get(key):
-                        selected.add(key)
-                        reasons.add("manifest-scene-contract")
-                if not reasons:
+                        add({key}, "manifest-scene-contract")
+                if not path_reasons:
                     reasons.add("manifest-format-only")
                 continue
             if path.startswith(ASSET_DIR) and path.endswith(".png"):
                 key = path[len(ASSET_DIR) : -4]
                 if "/" in key or key not in all_ids:
-                    selected |= all_ids
+                    add(all_ids, "unmapped-screenshot-asset")
                     warnings.add(f"unmapped-screenshot-asset: {path}")
-                    reasons.add("unmapped-screenshot-asset")
                 else:
-                    selected.add(key)
-                    reasons.add("committed-screenshot-png")
+                    add({key}, "committed-screenshot-png")
                 png_changes.append({"path": path, "status": change.status, "screenshot_id": key})
                 continue
             if path in (
@@ -253,47 +264,37 @@ def select_changes(
                 "scripts/select_ui_screenshots.py",
                 "scripts/check_screenshot_manifest.py",
             ):
-                selected |= all_ids
-                reasons.add("screenshot-automation-contract")
+                add(all_ids, "screenshot-automation-contract")
                 continue
             if path == ASSET_DIR + "README.md":
-                selected |= all_ids
-                reasons.add("screenshot-readme-reference")
+                add(all_ids, "screenshot-readme-reference")
                 continue
             if _glob(path, shared):
-                selected |= all_ids
-                reasons.add("shared-rendering-or-capture-dependency")
+                add(all_ids, "shared-rendering-or-capture-dependency")
                 continue
-            for key, record in new.items():
-                if _glob(path, record.get("source_globs", [])):
-                    selected.add(key)
-                    reasons.add("feature-owner:" + key)
+            head_owners = {
+                key for key, record in new.items() if _glob(path, record.get("source_globs", []))
+            }
+            for key in head_owners:
+                add({key}, "feature-owner:" + key)
             # Ownership can change in the same PR as code. Preserve base-side
-            # ownership for *all* IDs, not only IDs removed from the manifest.
+            # ownership for every ID, not only IDs removed from the manifest.
             for key, record in old.items():
-                if _glob(path, record.get("source_globs", [])):
-                    if key not in selected:
-                        reasons.add(
-                            ("removed-feature-owner:" if key not in new else "base-feature-owner:")
-                            + key
-                        )
-                    selected.add(key)
+                if key not in head_owners and _glob(path, record.get("source_globs", [])):
+                    label = "removed-feature-owner:" if key not in new else "base-feature-owner:"
+                    add({key}, label + key)
             if path.startswith(GUIDE_DIR) and path.endswith(".md"):
                 if read_at_revision is None:
                     # The caller may omit a revision reader in unit/embedding
                     # contexts. The fallback still respects both page graphs.
-                    selected |= {
-                        key
-                        for key, row in old.items()
-                        if path.removeprefix(GUIDE_DIR) in row.get("pages", [])
+                    page = path.removeprefix(GUIDE_DIR)
+                    page_owners = {
+                        key for key, row in old.items() if page in row.get("pages", [])
+                    } | {
+                        key for key, row in new.items() if page in row.get("pages", [])
                     }
-                    selected |= {
-                        key
-                        for key, row in new.items()
-                        if path.removeprefix(GUIDE_DIR) in row.get("pages", [])
-                    }
-                    if selected:
-                        reasons.add("screenshot-markdown-page")
+                    if page_owners:
+                        add(page_owners, "screenshot-markdown-page")
                 else:
                     old_text = read_at_revision(base_sha, path)
                     new_text = read_at_revision(head_sha, path)
@@ -303,12 +304,11 @@ def select_changes(
                         new_text
                     ):
                         refs = previous | current
-                        selected |= refs & all_ids
+                        add(refs & all_ids, "screenshot-markdown-reference")
                         if refs - all_ids:
-                            selected |= all_ids
+                            add(all_ids, "unmapped-screenshot-reference")
                             warnings.add(f"unmapped-screenshot-reference: {path}")
-                        reasons.add("screenshot-markdown-reference")
-                if not reasons:
+                if not path_reasons:
                     reasons.add("docs-prose-only")
                 continue
             if path.startswith(FALLBACK_DIRS) or CAPTURE_HELPER.fullmatch(path):
@@ -316,19 +316,18 @@ def select_changes(
                     _glob(path, row.get("source_globs", []))
                     for row in list(old.values()) + list(new.values())
                 ):
-                    selected |= all_ids
+                    add(all_ids, "unmapped-ui-impact-full-capture")
                     warnings.add(f"unmapped-ui-impact: {path}")
-                    reasons.add("unmapped-ui-impact-full-capture")
-            elif not reasons:
+            if not path_reasons:
                 reasons.add("no-rendered-ui-impact")
-        for key in selected:
-            selected_reasons[key].update(reasons)
+        for key, own_reasons in per_id_reasons.items():
+            selected_reasons[key].update(own_reasons)
         paths.append(
             {
                 "status": change.status,
                 "path": change.path,
                 "old_path": change.old_path,
-                "selected_ids": sorted(selected),
+                "selected_ids": sorted(per_id_reasons),
                 "reasons": sorted(reasons),
             }
         )
