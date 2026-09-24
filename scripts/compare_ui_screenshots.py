@@ -13,18 +13,39 @@ from typing import Any
 
 from PIL import Image, ImageChops, ImageStat
 
-SCENE_FUNCTIONS = {"single_image": "_single_image", "raw_profile_dialog": "_raw_dialog"}
 RUNTIME_KEYS = ("capture_profile", "python", "qt", "pyside6", "pyqtgraph")
 SCREEN_KEYS = ("logical_dpi", "physical_dpi", "device_pixel_ratio")
 GEOMETRY_KEYS = ("logical_widget", "device_pixel_ratio")
 
 
 def scene_contract(root: Path, scenario: str) -> str:
-    """A builder's semantic AST, not source commit/formatting/app version."""
-    function = SCENE_FUNCTIONS.get(scenario)
+    """Resolve the actual pinned BUILDERS registry and hash its real scene AST.
+
+    Never maintain a parallel two-scene mapping that fails once E5/E6 adds a
+    reviewed isolated builder. Qt is not imported or executed to do this.
+    """
+    tree = ast.parse((root / "scripts/capture_ui_scene.py").read_text(encoding="utf-8"))
+    registry = [
+        node.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "BUILDERS" for t in node.targets)
+    ]
+    if len(registry) != 1 or not isinstance(registry[0], ast.Dict):
+        raise ValueError("missing or ambiguous pinned BUILDERS registry")
+    mapping: dict[str, str] = {}
+    for key, value in zip(registry[0].keys, registry[0].values):
+        if (
+            not isinstance(key, ast.Constant)
+            or not isinstance(key.value, str)
+            or not isinstance(value, ast.Name)
+            or key.value in mapping
+        ):
+            raise ValueError("invalid pinned BUILDERS registry entry")
+        mapping[key.value] = value.id
+    function = mapping.get(scenario)
     if function is None:
         raise ValueError("E4 cannot assert a contract for an unregistered scene")
-    tree = ast.parse((root / "scripts/capture_ui_scene.py").read_text(encoding="utf-8"))
     matches = [
         node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == function
     ]
