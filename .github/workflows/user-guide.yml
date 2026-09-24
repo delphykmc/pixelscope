@@ -134,6 +134,7 @@ jobs:
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
+          python -m ruff format --diff tests/unit/test_ui_screenshot_diff.py
           python -m ruff format --check .
       - name: Install pinned mypy for full source validation
         if: runner.os == 'Windows'
