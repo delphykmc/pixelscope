@@ -6,6 +6,7 @@ Markdown or the manifest. No fake screenshots and no live GUI are involved.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -56,6 +57,22 @@ def test_missing_each_declared_png_keeps_full_repo_and_network_blocked_help_vali
 ) -> None:
     clone = _clone_repo(tmp_path)
     filename = screenshot["filename"]
+    if screenshot["id"] == "single-image":
+        # Exercise an absent last-approved image through BOTH whole-repository
+        # link checking and the actual network-blocked strict MkDocs build.
+        manifest_path = clone / ASSETS / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        row = next(item for item in manifest["screenshots"] if item["id"] == screenshot["id"])
+        row["status"] = "approved"
+        row["approved"] = {
+            "capture_source_sha": "a" * 40,
+            "application_version": "0.1.0",
+            "comparison_profile_id": "windows-e1-poc-v1",
+            "scenario_contract_id": "single_image-v1",
+            "image_sha256": hashlib.sha256((clone / ASSETS / filename).read_bytes()).hexdigest(),
+            "approval_ref": "https://github.com/example/pull/1#review",
+        }
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     (clone / ASSETS / filename).unlink()
     assert find_problems(clone) == []
 
