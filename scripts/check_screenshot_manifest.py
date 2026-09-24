@@ -126,6 +126,7 @@ def _legacy_outputs(path: Path) -> set[str]:
         if isinstance(node, ast.Constant)
         and isinstance(node.value, str)
         and node.value.endswith(".png")
+        and node.value != ".png"
         and "/" not in node.value
         and "\\" not in node.value
     }
