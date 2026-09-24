@@ -2,7 +2,7 @@
 
 Histogram is the distribution view in the Plots workspace.
 
-![Histogram workspace](../assets/screenshots/histogram-docked.png)
+<!-- pixelscope:screenshot histogram-docked -->
 
 ## Scope
 

@@ -2,7 +2,7 @@
 
 PixelScope can open headerless RAW-like data when enough metadata is available to interpret its bytes. The filename suffix alone is not sufficient to infer every storage property.
 
-![RAW profile dialog](../assets/screenshots/raw-profile-dialog.png)
+<!-- pixelscope:screenshot raw-profile-dialog -->
 
 ## RAW-like files
 

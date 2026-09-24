@@ -2,7 +2,7 @@
 
 Difference compares two explicitly assigned, compatible sources and provides both a visual map and numerical metrics.
 
-![Difference analysis](../assets/screenshots/difference-analysis.png)
+<!-- pixelscope:screenshot difference-analysis -->
 
 ## Roles
 

@@ -1,7 +1,7 @@
-"""Qt-free E2 screenshot manifest and transitional legacy Guide contract checker.
+"""Qt-free E2–E5 screenshot manifest, optional-PNG and marker contract checker.
 
-E2 inventories checked-in PNGs without changing E5's literal Markdown rendering or
-asserting that E1 can capture scenarios that remain legacy/manual or planned.
+Check the complete guide source/page graph without Qt, Pillow or network access.
+A declared but absent PNG is intentionally valid; a present damaged PNG is not.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ PNG_HEADER = b"\x89PNG\r\n\x1a\n"
 MAX_PNG_BYTES = 64 * 1024 * 1024
 MAX_DECODED_BYTES = 128 * 1024 * 1024
 CAPTURE_MODES = {"isolated", "legacy-manual", "planned"}
-PLACEMENTS = {"legacy-literal", "legacy-unreferenced", "planned", "required"}
+PLACEMENTS = {"legacy-unreferenced", "planned", "required"}
 STATUSES = {"legacy-unverified", "planned", "capture-ready", "approved"}
 
 
@@ -212,7 +212,7 @@ def find_problems(root: Path = ROOT) -> list[str]:
                 problems.append(f"{key}: invalid or missing declared page: {page}")
         if placement in ("legacy-unreferenced",) and pages:
             problems.append(f"{key}: unreferenced placement must have no pages")
-        if placement in ("legacy-literal", "required") and not pages:
+        if placement == "required" and not pages:
             problems.append(f"{key}: referenced placement requires pages")
         if placement == "planned" and (mode != "planned" or status != "planned"):
             problems.append(f"{key}: planned placement needs planned capture/status")
@@ -312,10 +312,9 @@ def find_problems(root: Path = ROOT) -> list[str]:
                     "image_sha256"
                 ):
                     problems.append(f"{key}: approved PNG hash mismatch")
-        elif placement in ("legacy-literal", "legacy-unreferenced"):
-            problems.append(
-                f"{key}: legacy literal/unreferenced PNG is missing before E5 migration"
-            )
+        # A missing declared PNG is valid for every placement, including
+        # previously existing legacy images and historically approved bytes.
+        # A present declared PNG must still pass decode and approved SHA checks.
 
     diagnostics = manifest.get("diagnostic_legacy_outputs")
     if (
@@ -346,11 +345,10 @@ def find_problems(root: Path = ROOT) -> list[str]:
     for png in asset.glob("*.png"):
         if png.name not in declared:
             problems.append(f"unexpected screenshot PNG not in manifest: {png.name}")
-    # E2 transitional compatibility: five literal topic images remain until E5.
-    # README examples are not canonical guide placements and will migrate in E5.
+    # E5: scan *all* source Markdown, including unnavlisted guide/asset pages.
+    # A rendered image only comes from a declared required marker, never a
+    # hard-coded PNG embed (which would become a broken link when omitted).
     for page in guide.rglob("*.md"):
-        if page.relative_to(guide).parts[:1] == ("assets",):
-            continue
         rel = page.relative_to(guide).as_posix()
         text = page.read_text(encoding="utf-8")
         observed: set[str] = set()
@@ -378,19 +376,17 @@ def find_problems(root: Path = ROOT) -> list[str]:
             if key not in by_id or by_id[key].get("filename") != name:
                 problems.append(f"{rel}: undeclared literal screenshot image: {name}")
                 continue
-            rec = by_id[key]
-            if rec.get("placement") != "legacy-literal" or rel not in rec.get("pages", []):
-                problems.append(f"{rel}: screenshot literal not declared for page: {key}")
+            problems.append(f"{rel}: hard-coded screenshot image forbidden: {key}")
             if key in observed:
                 problems.append(f"{rel}: duplicate screenshot insertion: {key}")
             observed.add(key)
         for key, rec in by_id.items():
             if (
                 rel in rec.get("pages", [])
-                and rec.get("placement") in ("legacy-literal", "required")
+                and rec.get("placement") == "required"
                 and key not in observed
             ):
-                problems.append(f"{rel}: missing required screenshot reference: {key}")
+                problems.append(f"{rel}: missing required screenshot marker: {key}")
     return problems
 
 
@@ -404,7 +400,7 @@ def main() -> int:
         for problem in problems:
             print(f"- {problem}")
         return 1
-    print("Screenshot manifest passed: 7 legacy assets and 7 planned coverage IDs.")
+    print("Screenshot manifest passed: conditional IDs, owned pages and present PNG assets.")
     return 0
 
 

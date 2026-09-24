@@ -24,7 +24,7 @@ Use **Single View** (`Ctrl+1`) to focus on one selected source or **Multi View**
 
 Zoom and pan in Image View to inspect detail. Pixel/cursor readout follows the native source coordinate system where the format supports it.
 
-![Six-image Multi View](../assets/screenshots/six-image-multiview.png)
+<!-- pixelscope:screenshot six-image-multiview -->
 
 ## 5. Mark an ROI
 

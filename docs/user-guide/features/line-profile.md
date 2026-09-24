@@ -2,7 +2,7 @@
 
 Line Profile plots source values along a shared horizontal or vertical line.
 
-![Line Profile workspace](../assets/screenshots/line-profile-docked.png)
+<!-- pixelscope:screenshot line-profile-docked -->
 
 ## Define the line
 

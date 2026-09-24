@@ -1,8 +1,8 @@
 # Execution plan: WP-Help-E — Automated Screenshot Lifecycle
 
-Status: **E0–E3 merged; E4 pinned Windows baseline/head comparison in implementation; E5–E6 pending**
+Status: **E0–E4 merged; E5 conditional Markdown/MkDocs screenshot rendering in Draft implementation; E6 pending**
 Owner: ChatGPT-assisted implementation; repository owner approval and Windows validation
-Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E4 branch: `feature/wp-help-e4-pinned-windows-screenshot-diff` (base `main@5e5a418d19393560f484f332d2c64a5cc0149526`)
+Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E5 branch: `feature/wp-help-e5-conditional-guide-screenshots` (base merged E4 `main@985e69d6dd1840cbf5b0739be8ca29b758c36cdc`)
 Baseline: `main@aabc1fe338aed2fea9afd15db1275aff7b549109` (2026-09-21 KST)
 Last updated: 2026-09-24
 
@@ -273,3 +273,12 @@ Only accepted assets under `docs/user-guide/assets/screenshots/` enter Git and h
 - **P2 visual fixture identity:** a Qt-free canonical fixture descriptor now hashes Single View's synthetic RGB bytes, **display_name** and public-safe **source_path** as shown in Files. A label/folder-only change changes fixture hash even with identical pixel bytes. Introducing the stronger descriptor changes Single View's SHA vs the already-merged E3 base, so that first cross-contract comparison may correctly say `BASELINE_INCOMPATIBLE`; head/base candidate captures must still be present and this is **not** a native capture failure or a claim that current UI changed. After E4 merges, later normal pinned comparisons use the same descriptor on both legs.
 - **P2 RGBA:** E2 legitimately accepts noninterlaced RGB/RGBA. E4 preserves all channels for comparison (normalizing RGB/RGBA pairs to RGBA when necessary); an alpha-only difference is `CHANGED` and produces visible alpha-aware diff evidence, not silently `UNCHANGED`. Tests exercise actual metadata widget resizing, invalid sidecar size, future-scene validation, fixed-viewport error, fixture label/folder identity and alpha-only pixel difference.
 - No guide image was changed or promoted. E1 native capture code still instantiates real widgets and uses the same public-safe fixtures; the original E1 PoC also re-runs because its fixture identity implementation and reusable validator were updated. E4/latest-head Windows GUI + Windows/Ubuntu docs CI gates remain independent of any older passing run.
+
+
+### E4 owner closure / E5 implementation contract — 2026-09-24
+
+- Independent E4 reviewer rechecked `339e0d7b9062123979061f8d5c74821811c6d6e4` with no blockers; owner reported full **local Windows pytest PASS**, authorized merge and E5. PR #97 merged normally at `main@985e69d6dd1840cbf5b0739be8ca29b758c36cdc`. E5 starts from that exact commit; no unapproved PNGs are promoted.
+- E5 atomically migrates the six topic-page literal Markdown image embeds and the screenshot strategy README's six unconditional image examples, replacing topic embeds with six exact source markers `<!-- pixelscope:screenshot ID -->`. The ID→filename/page/alt mapping remains **solely** in the version-controlled manifest. The seventh tracked floating Plots asset remains an unreferenced historical image (not a new topic insertion); the seven declared missing scenes remain planned.
+- The Qt-free `scripts/check_screenshot_manifest.py` validates ID/source-page bidirectionality and **all** guide Markdown, rejects unknown/duplicate/malformed markers and hard-coded screenshot images, checks present PNG encodings/CRC and approved hashes, and allows a declared image to be absent **including the last historically approved bytes** without mutating status/provenance. Entire-repo `scripts/check_docs.py` continues to enforce all unrelated links. Direct strict MkDocs invokes the same validator before building; the hook expands only present required IDs into local relative image embeds, omitting missing ones (no remote fallback, placeholder image or alternative prose).
+- E5 evidence gates: full-repository temporary-copy removal of **each of the seven declared historical PNGs** (six topic images + unreferenced Plots), check_docs and network-blocked `mkdocs build --strict`/generated site for every omission, intact six topic images when present, damaged present PNG/unknown marker/missing page/mislocated asset failures and full Windows/Ubuntu docs matrix. E5 does not depend on live Qt or Screenshot CI, and adds no installation runtime dependency.
+- Still deferred: owner-observed legacy UI screenshot staleness, seven planned real capture scenarios, E6 image replacement/provenance/owner approval/release coverage and Issue #81 lifecycle work.

@@ -24,6 +24,7 @@ REQUIRED_PATHS = (
     "docs/USER_GUIDE_FOLLOW_UP.md",
     "docs/USER_GUIDE_AGENT_INTERFACE.md",
     "scripts/search_user_guide.py",
+    "scripts/user_guide_screenshot_hook.py",
     "tests/unit/test_user_guide_agent_search.py",
     "docs/QUALITY.md",
     "docs/AGENT_HARNESS_NOTES.md",
@@ -188,8 +189,8 @@ def find_problems(root: Path = ROOT) -> list[str]:
                     f"{match.group(1)}"
                 )
 
-    # E2 is Qt-free. E5 will migrate literal images to optional ID markers;
-    # until then, the existing whole-repository link policy remains unchanged.
+    # Marker-only optional screenshots have no Markdown file links to check
+    # when absent; every *other* local link remains strictly required.
     if (repository_root / "docs/user-guide/assets/screenshots/manifest.json").is_file():
         if __package__:
             from .check_screenshot_manifest import find_problems as screenshot_problems

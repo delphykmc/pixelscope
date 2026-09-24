@@ -121,7 +121,7 @@ installed users retain their existing local Help/search without an AI service.
 
 No embedded PyQt Help window, QWebEngineView, QtHelp/QCH, chatbot, RAG server, Remote LLM API, implicit online fallback, or context-sensitive F1 routing is part of WP-Help-A. Installer bundle integration is owned by WP-Help-B.
 
-## WP-Help-E — Automated Screenshot Lifecycle — E0/E1 merged / E2 active
+## WP-Help-E — Automated Screenshot Lifecycle — E0–E4 merged / E5 in progress
 
 E0 is a planning-only follow-up to merged WP-Help-A/B/C/D (#87/#90/#91/#92).
 The [WP-Help-E execution plan](exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
@@ -159,3 +159,28 @@ E1 was owner-approved and merged as PR #94 at `main@ec8563df821a77b270363b00cff8
 E2 PR #95 merged at `main@415dab7cf4742cce0d6369024cdc91da652556d7` after owner full-pytest and live Help/image-rendering smoke PASS. Owner also observed that **some existing guide screenshots appear older than current UI**. This is tracked as screenshot-content review/replacement debt in E4–E6, not proof that guide instructions are incorrect; existing `legacy-unverified` PNGs must not be called current, automatically replaced or assigned invented capture commits.
 
 E3 owns Qt-free source-file change impact inference with verified per-scene ownership, shared shell/fixture mapping, conservative unknown UI/core/io fallback, renames/deletions and committed PNG changes. It is distinct from actual E4 Windows comparison and E5/E6 User Guide image migration/promotion.
+
+
+### E3/E4 merged; E5 source-marker migration
+
+E3 impact-selection PR #96 merged at `main@5e5a418d19393560f484f332d2c64a5cc0149526`.
+E4 pinned real-Windows baseline/HEAD comparison PR #97 merged at
+`main@985e69d6dd1840cbf5b0739be8ca29b758c36cdc`, following independent
+blocker-free review and owner-reported full local Windows pytest PASS. E4
+generates read-only, inspectable candidate PNGs/reports; it does **not** prove
+seven legacy screenshot captures are current or approve/promote any of them.
+
+E5 migrates the six topic-page literal PNG image links to canonical manifest
+Screenshot ID markers. The Qt-free manifest checker verifies source placements
+and real committed PNGs; the same checker executes before direct strict MkDocs
+builds. A declared missing PNG is omitted from web and installed offline HTML
+without a broken link or altered source explanation. All unrelated documentation
+links remain under the existing whole-repository `check_docs.py` validator.
+E5 separately tests all seven declared historical PNGs removed one at a time
+from a full repository copy under network-blocked strict MkDocs builds. The
+floating Plots PNG stays declared but has no invented topic placement.
+
+E6 still owns fresh current-UI candidate review, explicit owner approval,
+screenshot byte promotion, trustworthy provenance and per-gap closeout of the
+seven not-yet-automated scenes. Neither E5 nor CI changes approved PNGs
+automatically; Issue #81 remains a separate lifecycle task.

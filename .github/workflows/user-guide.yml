@@ -10,6 +10,7 @@ on:
       - "pyproject.toml"
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
+      - "scripts/user_guide_screenshot_hook.py"
       - "scripts/select_ui_screenshots.py"
       - "scripts/compare_ui_screenshots.py"
       - "scripts/run_ui_screenshot_diff.py"
@@ -33,6 +34,7 @@ on:
       - "tests/unit/test_release_packaging.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
+      - "tests/unit/test_user_guide_screenshot_rendering.py"
       - "tests/unit/test_ui_screenshot_impact.py"
       - "tests/unit/test_ui_screenshot_diff.py"
       - "tests/unit/test_user_guide_site_contract.py"
@@ -51,6 +53,7 @@ on:
       - "pyproject.toml"
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
+      - "scripts/user_guide_screenshot_hook.py"
       - "scripts/select_ui_screenshots.py"
       - "scripts/compare_ui_screenshots.py"
       - "scripts/run_ui_screenshot_diff.py"
@@ -74,6 +77,7 @@ on:
       - "tests/unit/test_release_packaging.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
+      - "tests/unit/test_user_guide_screenshot_rendering.py"
       - "tests/unit/test_ui_screenshot_impact.py"
       - "tests/unit/test_ui_screenshot_diff.py"
       - "tests/unit/test_user_guide_site_contract.py"
@@ -119,6 +123,7 @@ jobs:
           python -m pytest -q
           tests/unit/test_docs_contract.py
           tests/unit/test_screenshot_manifest_contract.py
+          tests/unit/test_user_guide_screenshot_rendering.py
           tests/unit/test_ui_screenshot_impact.py
           tests/unit/test_ui_screenshot_diff.py
           tests/unit/test_user_guide_site_contract.py
