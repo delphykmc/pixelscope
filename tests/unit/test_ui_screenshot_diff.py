@@ -19,9 +19,7 @@ from scripts.run_ui_screenshot_diff import _env, _pinned, _write_report, capture
 
 def _picture(path: Path, changed: bool = False) -> None:
     image = Image.new("RGB", (500, 400))
-    image.putdata(
-        [(x % 256, y % 256, (x + y) % 256) for y in range(400) for x in range(500)]
-    )
+    image.putdata([(x % 256, y % 256, (x + y) % 256) for y in range(400) for x in range(500)])
     if changed:
         image.putpixel((10, 20), (0, 0, 0))
     image.save(path)
@@ -61,9 +59,17 @@ def captures(tmp_path: Path):
 def _compare(captures, *, before=None, after=None, old=None, new=None, left="a", right="a"):
     base, head, meta, record, output = captures
     return compare_pair(
-        base, head, before or meta, after or meta,
-        {"font": "Default"}, {"font": "Default"},
-        left, right, old or record, new or record, output,
+        base,
+        head,
+        before or meta,
+        after or meta,
+        {"font": "Default"},
+        {"font": "Default"},
+        left,
+        right,
+        old or record,
+        new or record,
+        output,
     )
 
 
@@ -130,8 +136,17 @@ def test_runtime_or_renderer_mismatch_does_not_get_pixel_diffs(captures, field: 
     else:
         second_env = {"font": "Different"}
     result = compare_pair(
-        base, head, meta, after, first_env, second_env,
-        "a", "a", record, record, output,
+        base,
+        head,
+        meta,
+        after,
+        first_env,
+        second_env,
+        "a",
+        "a",
+        record,
+        record,
+        output,
     )
     assert result["status"] == "ENVIRONMENT_MISMATCH"
     assert not output.exists()
@@ -185,7 +200,8 @@ def test_failed_native_child_is_capture_failed_not_changed(
     from scripts import run_ui_screenshot_diff as runner
 
     monkeypatch.setattr(
-        runner, "_execute",
+        runner,
+        "_execute",
         lambda *_args: subprocess.CompletedProcess([], 3221225477, "", "native crash"),
     )
     meta, evidence = capture_scene(tmp_path, "a" * 40, "single_image", tmp_path / "out")
@@ -205,7 +221,9 @@ def test_pinned_sha_rejects_wrong_checkout(tmp_path: Path) -> None:
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "first"], check=True)
     sha = subprocess.run(
         ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
-        text=True, capture_output=True, check=True,
+        text=True,
+        capture_output=True,
+        check=True,
     ).stdout.strip()
     _pinned(tmp_path, sha)
     with pytest.raises(ValueError, match="immutable"):
