@@ -126,6 +126,7 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
     extrema = diff.getextrema()
     assert isinstance(extrema, tuple)
     max_error = max(high for _, high in extrema)
+    bands = diff.split()
     if max_error and output is not None:
         output.mkdir(parents=True, exist_ok=True)
         combined = Image.new("RGB", (first.width * 2, first.height))
@@ -134,12 +135,11 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
         combined.save(output / "side-by-side.png")
         if use_alpha:
             diagnostic = bands[0]
-            for band in diff.split()[1:]:
+            for band in bands[1:]:
                 diagnostic = ImageChops.lighter(diagnostic, band)
             Image.merge("RGB", (diagnostic, diagnostic, diagnostic)).save(output / "diff.png")
         else:
             diff.save(output / "diff.png")
-    bands = diff.split()
     any_channel = bands[0]
     for band in bands[1:]:
         any_channel = ImageChops.lighter(any_channel, band)
