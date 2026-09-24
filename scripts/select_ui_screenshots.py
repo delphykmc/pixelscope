@@ -385,7 +385,11 @@ def select_changes(
                 )
             ):
                 _tag_impact(
-                    per_id_reasons, reasons, path_reasons, all_ids, "unmapped-ui-impact-full-capture"
+                    per_id_reasons,
+                    reasons,
+                    path_reasons,
+                    all_ids,
+                    "unmapped-ui-impact-full-capture",
                 )
                 warnings.add(f"unmapped-ui-impact: {path}")
             if not path_reasons:
