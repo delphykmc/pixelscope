@@ -218,9 +218,27 @@ def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path
 
     # A new isolated scene may be unapproved and missing, but must not commit
     # its candidate PNG as approved documentation without a provenance review.
-    _png(repo / ASSET / "window-overview.png")
+    image = repo / ASSET / "window-overview.png"
+    _png(image)
     assert any("unapproved capture-ready PNG" in e for e in find_problems(repo))
-    (repo / ASSET / "window-overview.png").unlink()
+
+    # A new isolated scene must also be able to reach an E6-reviewed approved
+    # state without inventing a historical manual capture filename.
+    import hashlib
+
+    approved = {
+        "capture_source_sha": "b" * 40,
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "window_overview-v1",
+        "image_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+        "approval_ref": "https://github.com/example/pull/2#review",
+    }
+    _modify(
+        repo,
+        lambda m: m["screenshots"][7].update(status="approved", approved=approved),
+    )
+    assert find_problems(repo) == []
 
     # Historical outputs must never become unowned while adding new builders.
     _modify(
