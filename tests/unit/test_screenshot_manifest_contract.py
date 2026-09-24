@@ -47,7 +47,10 @@ def repo(tmp_path: Path) -> Path:
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     (scripts / "capture_ui_scene.py").write_text(
-        'BUILDERS = {"single_image": object(), "raw_profile_dialog": object()}\n',
+        'BUILDERS = {"single_image": object(), "six_image_multiview": object(), '
+        '"difference_analysis": object(), "histogram_docked": object(), '
+        '"line_profile_docked": object(), "plots_floating": object(), '
+        '"raw_profile_dialog": object()}\n',
         encoding="utf-8",
     )
     legacy = [s["legacy_output"] for s in document["screenshots"] if s["capture_mode"] != "planned"]
@@ -198,7 +201,10 @@ def test_malformed_marker_and_swapped_legacy_output_are_detected(repo: Path) -> 
 def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path) -> None:
     scene_source = repo / "scripts/capture_ui_scene.py"
     scene_source.write_text(
-        'BUILDERS = {"single_image": object(), "raw_profile_dialog": object(), '
+        'BUILDERS = {"single_image": object(), "six_image_multiview": object(), '
+        '"difference_analysis": object(), "histogram_docked": object(), '
+        '"line_profile_docked": object(), "plots_floating": object(), '
+        '"raw_profile_dialog": object(), '
         '"window_overview": object()}\n',
         encoding="utf-8",
     )

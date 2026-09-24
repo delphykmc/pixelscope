@@ -19,10 +19,16 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageStat
 
 ROOT = Path(__file__).resolve().parents[1]
-SCENES = ("single_image", "raw_profile_dialog")
+MANIFEST = ROOT / "docs/user-guide/assets/screenshots/manifest.json"
+_MANIFEST_ROWS = json.loads(MANIFEST.read_text(encoding="utf-8"))["screenshots"]
+SCENES = tuple(row["scenario"] for row in _MANIFEST_ROWS if row["capture_mode"] == "isolated")
 ATTEMPTS = 2
 MAX_CHANGED_FRACTION = 0.01
-EXPECTED_LOGICAL_SIZE = {"single_image": [1680, 980], "raw_profile_dialog": [280, 685]}
+EXPECTED_LOGICAL_SIZE = {
+    row["scenario"]: [row["viewport"]["width"], row["viewport"]["height"]]
+    for row in _MANIFEST_ROWS
+    if row["capture_mode"] == "isolated"
+}
 CALLBACK_ERROR_MARKER = "PIXELSCOPE_E1_QT_CALLBACK_EXCEPTION"
 
 

@@ -59,7 +59,7 @@
       ],
       "placement": "required",
       "scenario": "six_image_multiview",
-      "capture_mode": "legacy-manual",
+      "capture_mode": "isolated",
       "legacy_output": "six_image_multiview.png",
       "alt": "Six-image Multi View",
       "features": [
@@ -83,7 +83,8 @@
         "height": 980
       },
       "status": "legacy-unverified",
-      "approved": null
+      "approved": null,
+      "geometry_policy": "fixed"
     },
     {
       "id": "difference-analysis",
@@ -93,7 +94,7 @@
       ],
       "placement": "required",
       "scenario": "difference_analysis",
-      "capture_mode": "legacy-manual",
+      "capture_mode": "isolated",
       "legacy_output": "difference_analysis.png",
       "alt": "Difference analysis",
       "features": [
@@ -116,7 +117,8 @@
         "height": 980
       },
       "status": "legacy-unverified",
-      "approved": null
+      "approved": null,
+      "geometry_policy": "fixed"
     },
     {
       "id": "histogram-docked",
@@ -126,7 +128,7 @@
       ],
       "placement": "required",
       "scenario": "histogram_docked",
-      "capture_mode": "legacy-manual",
+      "capture_mode": "isolated",
       "legacy_output": "histogram_docked.png",
       "alt": "Histogram workspace",
       "features": [
@@ -146,7 +148,8 @@
         "height": 980
       },
       "status": "legacy-unverified",
-      "approved": null
+      "approved": null,
+      "geometry_policy": "fixed"
     },
     {
       "id": "line-profile-docked",
@@ -156,7 +159,7 @@
       ],
       "placement": "required",
       "scenario": "line_profile_docked",
-      "capture_mode": "legacy-manual",
+      "capture_mode": "isolated",
       "legacy_output": "line_profile_docked.png",
       "alt": "Line Profile workspace",
       "features": [
@@ -177,7 +180,8 @@
         "height": 980
       },
       "status": "legacy-unverified",
-      "approved": null
+      "approved": null,
+      "geometry_policy": "fixed"
     },
     {
       "id": "plots-floating",
@@ -185,7 +189,7 @@
       "pages": [],
       "placement": "legacy-unreferenced",
       "scenario": "plots_floating",
-      "capture_mode": "legacy-manual",
+      "capture_mode": "isolated",
       "legacy_output": "plots_floating.png",
       "alt": "Floating Plots workspace",
       "features": [
@@ -205,7 +209,8 @@
         "height": 520
       },
       "status": "legacy-unverified",
-      "approved": null
+      "approved": null,
+      "geometry_policy": "fixed"
     },
     {
       "id": "raw-profile-dialog",
