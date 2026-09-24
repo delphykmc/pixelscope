@@ -272,3 +272,14 @@ def test_crc_valid_unsupported_png_encoding_fails(
 def test_target_profile_is_not_historical_capture_provenance(repo: Path) -> None:
     _modify(repo, lambda m: m.update(target_capture_profile=""))
     assert any("target_capture_profile is required" in e for e in find_problems(repo))
+
+
+def test_e3_complete_manifest_requires_shared_and_per_scene_owners(repo: Path) -> None:
+    _modify(repo, lambda m: m.update(shared_source_globs=[]))
+    assert any("E3 shared_source_globs" in error for error in find_problems(repo))
+    _modify(
+        repo,
+        lambda m: m.update(shared_source_globs=["src/pixelscope/app/main_window.py"]),
+    )
+    _modify(repo, lambda m: m["screenshots"][7].update(source_globs=[]))
+    assert any("E3-complete impact ownership" in error for error in find_problems(repo))
