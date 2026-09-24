@@ -21,7 +21,7 @@ ASSET = Path("docs/user-guide/assets/screenshots")
 GUIDE = Path("docs/user-guide")
 ID_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 SCENE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
-MARKER = re.compile(r"<!--\s*pixelscope:screenshot\b[^>]*-->")
+MARKER = re.compile(r"<!--\s*pixelscope:screenshot\b[^\n]*?(?:-->|$)")
 STRICT_MARKER = re.compile(r"<!-- pixelscope:screenshot ([a-z][a-z0-9-]*) -->")
 IMAGE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)")
 PNG_HEADER = b"\x89PNG\r\n\x1a\n"
@@ -254,7 +254,7 @@ def find_problems(root: Path = ROOT) -> list[str]:
                 problems.append(f"{key}: no isolated real-UI builder registered for {scene}")
         legacy = record.get("legacy_output")
         if mode != "planned":
-            if not isinstance(legacy, str) or legacy not in manual:
+            if not isinstance(legacy, str) or legacy not in manual or legacy != f"{scene}.png":
                 problems.append(f"{key}: no matching output in historical manual capture script")
             elif legacy in manual_registered:
                 problems.append(f"{key}: duplicated historical manual output {legacy}")
