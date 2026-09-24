@@ -264,7 +264,7 @@ def find_problems(root: Path = ROOT) -> list[str]:
             if legacy is not None:
                 problems.append(f"{key}: planned scene must not claim legacy capture")
         elif legacy is None:
-            if mode != "isolated" or status != "capture-ready":
+            if mode != "isolated" or status not in ("capture-ready", "approved"):
                 problems.append(f"{key}: legacy scene missing historical manual output")
         elif not isinstance(legacy, str) or legacy not in manual or legacy != f"{scene}.png":
             problems.append(f"{key}: no matching output in historical manual capture script")
