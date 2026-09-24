@@ -30,7 +30,7 @@ def sanitized_stderr(stderr: str) -> str:
     """Record bounded diagnostic evidence without local paths or usernames."""
     text = stderr[-2400:].replace(str(ROOT), "<repo>").replace(str(Path.home()), "<home>")
     return re.sub(
-        r"[A-Za-z]:[\\/][^\\s'\\\"<>]*|/(?:home|Users|mnt|tmp|var|opt)/[^\\s'\\\"<>]*",
+        r"[A-Za-z]:[/\\][^\s'\"<>]*|/(?:home|Users|mnt|tmp|var|opt)/[^\s'\"<>]*",
         "<path>",
         text,
     )[-1200:]
