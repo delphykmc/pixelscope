@@ -252,9 +252,7 @@ def test_non_isolated_selection_carries_explicit_capture_debt(manifest: dict) ->
     full = report(manifest, "src/pixelscope/app/main_window.py")
     assert len(full["capture_eligible_ids"]) == 2
     assert len(full["capture_deferred"]) == 12
-    assert {"id": "window-overview", "reason": "capture-mode:planned"} in full[
-        "capture_deferred"
-    ]
+    assert {"id": "window-overview", "reason": "capture-mode:planned"} in full["capture_deferred"]
     assert {"id": "plots-floating", "reason": "capture-mode:legacy-manual"} in full[
         "capture_deferred"
     ]
@@ -345,4 +343,3 @@ def test_present_git_blob_read_failure_is_not_silently_empty(
         patch.setattr("scripts.select_ui_screenshots.subprocess.run", fail_blob_read)
         with pytest.raises(ValueError, match="Git show failed for present path"):
             _git_text(tmp_path, commit, "docs/user-guide/formats/raw.md")
-
