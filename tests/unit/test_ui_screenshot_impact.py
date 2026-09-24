@@ -258,6 +258,20 @@ def test_non_isolated_selection_carries_explicit_capture_debt(manifest: dict) ->
     ]
 
 
+def test_removed_scene_is_not_reported_as_capture_ready(manifest: dict) -> None:
+    previous = copy.deepcopy(manifest)
+    manifest["screenshots"] = [
+        row for row in manifest["screenshots"] if row["id"] != "raw-profile-dialog"
+    ]
+    selection = report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)
+    assert selection["selected_ids"] == ["raw-profile-dialog"]
+    assert selection["capture_eligible_ids"] == []
+    assert selection["capture_deferred"] == [
+        {"id": "raw-profile-dialog", "reason": "removed-from-head"}
+    ]
+    assert selection["selected_screenshots"][0]["present_in_head"] is False
+
+
 def test_screenshot_readme_and_no_changes(manifest: dict) -> None:
     result = report(manifest, "docs/user-guide/assets/screenshots/README.md")
     assert len(result["selected_ids"]) == 14
