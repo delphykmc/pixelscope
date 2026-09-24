@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,48 @@ SCENES = ("single_image", "raw_profile_dialog")
 ATTEMPTS = 2
 MAX_CHANGED_FRACTION = 0.01
 EXPECTED_LOGICAL_SIZE = {"single_image": [1680, 980], "raw_profile_dialog": [520, 620]}
+CALLBACK_ERROR_MARKER = "PIXELSCOPE_E1_QT_CALLBACK_EXCEPTION"
+
+
+def sanitized_stderr(stderr: str) -> str:
+    """Record bounded diagnostic evidence without local paths or usernames."""
+    text = stderr[-2400:].replace(str(ROOT), "<repo>").replace(str(Path.home()), "<home>")
+    return re.sub(
+        r"[A-Za-z]:[\\/][^\\s'\\\"<>]*|/(?:home|Users|mnt|tmp|var|opt)/[^\\s'\\\"<>]*",
+        "<path>",
+        text,
+    )[-1200:]
+
+
+def stderr_has_callback_exception(stderr: str) -> bool:
+    """Distinguish Python/Qt callback tracebacks from benign Qt warnings."""
+    return any(
+        marker in stderr
+        for marker in (
+            CALLBACK_ERROR_MARKER,
+            "Traceback (most recent call last):",
+            "Error calling Python override",
+        )
+    )
+
+
+def assess_capture_process(
+    process: subprocess.CompletedProcess[str],
+    png: Path,
+    metadata_path: Path,
+    scene: str,
+    source_sha: str,
+) -> dict[str, object]:
+    """A zero native exit and a valid PNG are insufficient after a Qt callback error."""
+    if process.returncode != 0:
+        raise ValueError("capture_process_failed")
+    if stderr_has_callback_exception(process.stderr):
+        raise ValueError("qt_callback_exception")
+    metadata = validate_capture(png, metadata_path, scene, source_sha)
+    if metadata.get("callback_errors"):
+        raise ValueError("qt_callback_exception")
+    return metadata
+
 
 
 def validate_capture(path: Path, metadata: Path, scene: str, source_sha: str) -> dict[str, object]:
@@ -29,6 +72,8 @@ def validate_capture(path: Path, metadata: Path, scene: str, source_sha: str) ->
     result = json.loads(metadata.read_text(encoding="utf-8"))
     if result["status"] != "captured" or result["scenario"] != scene:
         raise ValueError("capture metadata reports failure or wrong scenario")
+    if result.get("callback_errors"):
+        raise ValueError("capture metadata contains a Qt callback exception")
     if result["source_sha"] != source_sha:
         raise ValueError("capture source SHA mismatch")
     if hashlib.sha256(path.read_bytes()).hexdigest() != result["image_sha256"]:
@@ -110,14 +155,19 @@ def run(output: Path, source_sha: str) -> int:
                     check=False,
                 )
                 entry["process_exit"] = process.returncode
-                if process.returncode != 0:
-                    entry["error"] = "capture_process_failed"
-                    # Paths and incidental environment details are not copied
-                    # into a downloadable public artifact.
-                    entry["stderr_tail"] = process.stderr[-1200:].replace(str(ROOT), "<repo>")
+                try:
+                    metadata = assess_capture_process(process, png, meta, scene, source_sha)
+                except (OSError, KeyError, ValueError) as exc:
+                    entry["error"] = (
+                        str(exc)
+                        if isinstance(exc, ValueError)
+                        and str(exc) in {"capture_process_failed", "qt_callback_exception"}
+                        else type(exc).__name__
+                    )
+                    if process.stderr:
+                        entry["stderr_tail"] = sanitized_stderr(process.stderr)
                     success = False
                 else:
-                    metadata = validate_capture(png, meta, scene, source_sha)
                     entry["image_sha256"] = metadata["image_sha256"]
                     entry["geometry"] = metadata["geometry"]
                     entry["screen"] = metadata["screen"]
@@ -129,7 +179,14 @@ def run(output: Path, source_sha: str) -> int:
                 success = False
             if meta.is_file():
                 try:
-                    entry["capture_status"] = json.loads(meta.read_text(encoding="utf-8"))["status"]
+                    capture_meta = json.loads(meta.read_text(encoding="utf-8"))
+                    entry["capture_status"] = capture_meta["status"]
+                    if capture_meta.get("error_type"):
+                        entry["capture_error_type"] = capture_meta["error_type"]
+                    if capture_meta.get("error_detail"):
+                        entry["capture_error_detail"] = str(capture_meta["error_detail"])[:300]
+                    if capture_meta.get("callback_errors"):
+                        entry["callback_errors"] = capture_meta["callback_errors"][:8]
                 except (ValueError, OSError, KeyError):
                     entry["capture_status"] = "invalid_metadata"
             print(
