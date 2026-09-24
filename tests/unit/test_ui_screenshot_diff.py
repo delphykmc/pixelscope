@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -14,6 +15,7 @@ from scripts.compare_ui_screenshots import (
     fingerprint,
     scene_contract,
 )
+from scripts.screenshot_fixture_identity import single_view_fixture_identity
 from scripts.run_ui_screenshot_diff import _env, _pinned, _write_report, capture_scene
 
 
@@ -99,7 +101,10 @@ def test_changed_pixels_are_not_silenced_by_small_diagnostic_fraction(captures) 
 def test_geometry_change_reports_changed_dimensions_not_identical(captures) -> None:
     base, head, meta, record, output = captures
     Image.new("RGB", (600, 400), (0, 50, 100)).save(head)
-    result = _compare(captures)
+    changed_meta = copy.deepcopy(meta)
+    changed_meta["geometry"]["logical_widget"] = [600, 400]
+    changed_meta["geometry"]["pixel_png"] = [600, 400]
+    result = _compare(captures, after=changed_meta)
     assert result["status"] == "CHANGED"
     assert result["dimension_changed"] is True
     assert result["base_size"] == [500, 400]
@@ -112,6 +117,50 @@ def test_geometry_change_reports_changed_dimensions_not_identical(captures) -> N
         assert side.size == (1200, 400)
     with Image.open(diff) as delta:
         assert delta.size == (600, 400)
+
+
+def test_inconsistent_actual_png_size_and_sidecar_fails_comparison(captures) -> None:
+    _, head, _, _, output = captures
+    Image.new("RGB", (600, 400), (0, 50, 100)).save(head)
+    result = _compare(captures)
+    assert result["status"] == "COMPARISON_FAILED"
+    assert result["reason"] == "PNG dimensions disagree with capture metadata"
+    assert not output.exists()
+
+
+def test_alpha_only_difference_changes_decoded_pixels(captures) -> None:
+    base, head, _, _, output = captures
+    for path in (base, head):
+        with Image.open(path) as loaded:
+            loaded.convert("RGBA").save(path)
+    with Image.open(head) as loaded:
+        modified = loaded.copy()
+    red, green, blue, _ = modified.getpixel((13, 23))
+    modified.putpixel((13, 23), (red, green, blue, 0))
+    modified.save(head)
+    result = _compare(captures)
+    assert result["status"] == "CHANGED"
+    assert result["changed_pixel_fraction"] > 0
+    assert result["max_channel_error"] == 255
+    with Image.open(output / "diff.png") as changed:
+        assert changed.getpixel((13, 23)) != (0, 0, 0)
+
+
+def test_fixture_identity_changes_with_visible_name_and_synthetic_path() -> None:
+    pixels = b"same synthetic RGB pixels"
+    baseline = single_view_fixture_identity(
+        pixels, "isp_capture_01.png", "C:/PixelScope_Review/camera_1/isp_capture_01.png"
+    )
+    assert len(baseline) == 64
+    assert baseline != single_view_fixture_identity(
+        pixels, "capture_renamed.png", "C:/PixelScope_Review/camera_1/isp_capture_01.png"
+    )
+    assert baseline != single_view_fixture_identity(
+        pixels, "isp_capture_01.png", "C:/PixelScope_Review/camera_2/isp_capture_01.png"
+    )
+    assert baseline != single_view_fixture_identity(
+        pixels + b"x", "isp_capture_01.png", "C:/PixelScope_Review/camera_1/isp_capture_01.png"
+    )
 
 
 @pytest.mark.parametrize("field", ["fixture", "scenario", "viewport", "scene_contract"])
@@ -255,6 +304,55 @@ def test_failed_native_child_is_capture_failed_not_changed(
     assert meta is None
     assert evidence["exit_code"] == 3221225477
     assert evidence["failure"] == "ValueError"
+
+
+def test_new_real_scene_uses_pinned_manifest_geometry_through_e1_validator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import run_ui_screenshot_diff as runner
+
+    sha = "f" * 40
+    record = {
+        "viewport": {"width": 500, "height": 400},
+        "geometry_policy": "resizable",
+    }
+
+    def synthetic_child(root: Path, args: list[str], env: dict[str, str]):
+        png = Path(args[args.index("--output") + 1])
+        meta = Path(args[args.index("--metadata") + 1])
+        _picture(png)
+        with Image.open(png) as opened:
+            opened.resize((520, 400)).save(png)
+        sidecar = {
+            "status": "captured",
+            "scenario": "settings_dialog",
+            "source_sha": sha,
+            "image_sha256": hashlib.sha256(png.read_bytes()).hexdigest(),
+            "capture_profile": "windows-e1-poc-v1",
+            "callback_errors": [],
+            "geometry": {
+                "pixel_png": [520, 400],
+                "logical_widget": [520, 400],
+                "device_pixel_ratio": 1.0,
+            },
+        }
+        meta.write_text(json.dumps(sidecar), encoding="utf-8")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(runner, "_execute", synthetic_child)
+    accepted, evidence = capture_scene(
+        tmp_path, sha, "settings_dialog", tmp_path / "resize", record
+    )
+    assert accepted is not None
+    assert accepted["geometry"]["logical_widget"] == [520, 400]
+    assert evidence["exit_code"] == 0
+
+    fixed = {**record, "geometry_policy": "fixed"}
+    rejected, failure = capture_scene(
+        tmp_path, sha, "settings_dialog", tmp_path / "fixed", fixed
+    )
+    assert rejected is None
+    assert "capture_contract_geometry" in failure["error"]
 
 
 def test_pinned_sha_rejects_wrong_checkout(tmp_path: Path) -> None:
