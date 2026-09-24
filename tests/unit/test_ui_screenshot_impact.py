@@ -133,6 +133,7 @@ def test_docs_prose_only_and_test_only_do_not_force_capture(manifest: dict) -> N
     assert report(manifest, "docs/ROADMAP.md")["no_selection_reason"] is not None
     old_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody old\n"
     new_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody changed\n"
+
     def get_text(sha: str, path: str) -> str:
         return old_text if sha == FULL else new_text
 
@@ -142,6 +143,7 @@ def test_docs_prose_only_and_test_only_do_not_force_capture(manifest: dict) -> N
 def test_markdown_screenshot_reference_changes_select_declared_ids(manifest: dict) -> None:
     before = "![RAW](../assets/screenshots/raw-profile-dialog.png)\n"
     after = "<!-- pixelscope:screenshot raw-profile-dialog -->\n"
+
     def get_text(sha: str, path: str) -> str:
         return before if sha == FULL else after
 
