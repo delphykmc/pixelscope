@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "capture_profile": "windows-e1-poc-v1",
+  "target_capture_profile": "windows-e1-poc-v1",
   "impact_ownership_status": "e3-pending",
   "diagnostic_legacy_outputs": [
     "empty_state.png",
