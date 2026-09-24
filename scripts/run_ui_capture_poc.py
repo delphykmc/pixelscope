@@ -127,7 +127,7 @@ def validate_capture(
             and actual_size != expected_logical_size
         ):
             raise ValueError(
-                "capture_contract_geometry: captured widget geometry differs from pinned capture profile"
+                "capture_contract_geometry: widget geometry differs from pinned capture profile"
             )
     return result
 
