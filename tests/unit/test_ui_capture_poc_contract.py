@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from PIL import Image
+from scripts import capture_ui_scene
 from scripts.capture_ui_scene import statistics_ready
 from scripts.run_ui_capture_poc import (
     assess_capture_process,
@@ -161,3 +162,23 @@ print(len(monitor.errors))
     with pytest.raises(ValueError, match="Qt callback exception"):
         validate_capture(png, metadata, "single_image", sha)
     assert "<path>" in sanitized_stderr(r"C:\Users\someone\sensitive.txt")
+
+
+def test_scene_wait_times_out_without_async_completion(monkeypatch: pytest.MonkeyPatch) -> None:
+    class WaitingApp:
+        def processEvents(self, *_args: object) -> None:
+            pass
+
+    class VisibleWidget:
+        def isVisible(self) -> bool:
+            return True
+
+        def width(self) -> int:
+            return 1680
+
+        def height(self) -> int:
+            return 980
+
+    monkeypatch.setattr(capture_ui_scene, "TIMEOUT_SECONDS", 0.0)
+    with pytest.raises(TimeoutError, match="visible and ready"):
+        capture_ui_scene._wait_until_ready(WaitingApp(), VisibleWidget(), lambda: False)
