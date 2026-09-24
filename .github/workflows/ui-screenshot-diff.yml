@@ -33,6 +33,7 @@ jobs:
       PYTHONHASHSEED: "0"
       QT_SCALE_FACTOR: "1"
       PYTHONIOENCODING: "utf-8"
+      PYTHONPATH: ${{ github.workspace }}/head
       BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || inputs.base_sha }}
       HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}
     steps:
@@ -61,10 +62,14 @@ jobs:
           python -m pip install -e ./head Pillow==12.3.0 pytest==7.4.4 ruff==0.1.15
           python -m pip check
       - name: Validate E4 comparator contract
+        shell: pwsh
         run: |
           python -m ruff check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/tests/unit/test_ui_screenshot_diff.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m ruff format --check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/tests/unit/test_ui_screenshot_diff.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pytest -q head/tests/unit/test_ui_screenshot_diff.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Capture pinned base and head in isolated native GUI processes
         run: >-
           python head/scripts/run_ui_screenshot_diff.py
