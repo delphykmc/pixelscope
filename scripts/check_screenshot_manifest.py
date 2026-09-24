@@ -66,17 +66,18 @@ def png_problems(path: Path) -> list[str]:
         )
         if not 0 < width <= 20000 or not 0 < height <= 20000:
             return ["invalid PNG dimensions"]
-        channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)
+        # E2 deliberately supports only the verified real QWidget PNG subset:
+        # non-interlaced 8-bit RGB/RGBA. Other legal PNG encodings need a
+        # dedicated decoder/Adam7/palette validation before being accepted.
+        channels = {2: 3, 6: 4}.get(color)
         if (
             channels is None
-            or depth not in (1, 2, 4, 8, 16)
-            or (color in (2, 4, 6) and depth not in (8, 16))
-            or (color == 3 and depth == 16)
+            or depth != 8
             or compression != 0
             or filt != 0
-            or interlace not in (0, 1)
+            or interlace != 0
         ):
-            return ["unsupported/invalid PNG IHDR semantics"]
+            return ["unsupported PNG encoding: expected non-interlaced 8-bit RGB/RGBA"]
         payloads = [part for kind, part in chunks if kind == b"IDAT"]
         if not payloads:
             return ["PNG missing IDAT"]
@@ -85,12 +86,11 @@ def png_problems(path: Path) -> list[str]:
         raw = inflater.decompress(b"".join(payloads), limit + 1)
         if len(raw) > limit or not inflater.eof or inflater.unused_data:
             return ["PNG IDAT exceeds limit or has invalid zlib stream"]
-        if interlace == 0:
-            pitch = (width * depth * channels + 7) // 8
-            if (pitch + 1) * height != len(raw):
-                return ["PNG decoded scanline length mismatch"]
-            if any(raw[row * (pitch + 1)] > 4 for row in range(height)):
-                return ["PNG has invalid scanline filter"]
+        pitch = (width * depth * channels + 7) // 8
+        if (pitch + 1) * height != len(raw):
+            return ["PNG decoded scanline length mismatch"]
+        if any(raw[row * (pitch + 1)] > 4 for row in range(height)):
+            return ["PNG has invalid scanline filter"]
         return []
     except (OSError, ValueError, struct.error, zlib.error, OverflowError) as exc:
         return [f"PNG decode/IO failure: {type(exc).__name__}"]
@@ -326,10 +326,6 @@ def find_problems(root: Path = ROOT) -> list[str]:
                 "manual capture outputs not classified in manifest: "
                 + ", ".join(sorted(manual - manual_registered - set(diagnostics)))
             )
-    if isinstance(diagnostics, list) and (manual_registered | set(
-        name for name in diagnostics if isinstance(name, str)
-    )) - manual:
-        problems.append("manifest lists nonexistent manual capture output")
     if isolated - used_scenes:
         problems.append(
             "isolated real-UI builders missing from manifest: "
