@@ -62,10 +62,9 @@ def repo(tmp_path: Path) -> Path:
             destination.parent.mkdir(parents=True, exist_ok=True)
             if not destination.exists():
                 destination.write_text("# Page\n", encoding="utf-8")
-            if screenshot["placement"] == "legacy-literal":
-                path = "../assets/screenshots/" + screenshot["filename"]
+            if screenshot["placement"] == "required":
                 with destination.open("a", encoding="utf-8") as handle:
-                    handle.write(f"![{screenshot['alt']}]({path})\n")
+                    handle.write(f"<!-- pixelscope:screenshot {screenshot['id']} -->\n")
         if screenshot["capture_mode"] != "planned":
             _png(assets / screenshot["filename"])
     return tmp_path
@@ -86,10 +85,10 @@ def test_fixture_manifest_and_qt_free_registry_valid(repo: Path) -> None:
     assert find_problems(repo) == []
 
 
-def test_missing_or_corrupted_legacy_png_fails_before_e5(repo: Path) -> None:
+def test_missing_declared_png_is_valid_but_corrupted_existing_png_fails(repo: Path) -> None:
     image = repo / ASSET / "single-image.png"
     image.unlink()
-    assert any("legacy literal/unreferenced PNG is missing" in e for e in find_problems(repo))
+    assert find_problems(repo) == []
     _png(image)
     damaged = bytearray(image.read_bytes())
     damaged[-8] ^= 1
@@ -109,7 +108,7 @@ def test_unknown_duplicate_and_orphan_guide_assets_fail(repo: Path) -> None:
     )
     errors = find_problems(repo)
     assert any("unknown screenshot ID" in e for e in errors)
-    assert any("missing required screenshot reference" in e for e in errors)
+    assert any("missing required screenshot marker" in e for e in errors)
     _modify(
         repo,
         lambda m: m["screenshots"].append(copy.deepcopy(m["screenshots"][0])),
@@ -130,7 +129,7 @@ def test_missing_page_and_stale_literal_mapping_fail(repo: Path) -> None:
         lambda m: m["screenshots"][2].update(pages=["features/image-view.md"]),
     )
     errors = find_problems(repo)
-    assert any("screenshot literal not declared for page" in e for e in errors)
+    assert any("hard-coded screenshot image forbidden" in e for e in errors)
 
 
 def test_unregistered_scene_and_unaccounted_manual_output_fail(repo: Path) -> None:
