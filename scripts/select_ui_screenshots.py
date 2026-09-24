@@ -89,9 +89,7 @@ def parse_name_status_z(payload: bytes) -> list[ChangedFile]:
 
 
 def _git(root: Path, *args: str) -> bytes:
-    command = subprocess.run(
-        ["git", "-C", str(root), *args], capture_output=True, check=False
-    )
+    command = subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=False)
     if command.returncode:
         detail = command.stderr.decode("utf-8", errors="replace").strip()[:500]
         raise ValueError(f"Git command failed ({args[0]}): {detail}")
@@ -251,9 +249,8 @@ def select_changes(
                     new_text = read_at_revision(head_sha, path)
                     previous = screenshot_references(old_text)
                     current = screenshot_references(new_text)
-                    if (
-                        previous != current
-                        or screenshot_markup(old_text) != screenshot_markup(new_text)
+                    if previous != current or screenshot_markup(old_text) != screenshot_markup(
+                        new_text
                     ):
                         refs = previous | current
                         selected |= refs & all_ids
@@ -310,7 +307,9 @@ def select_changes(
         "warnings": sorted(warnings),
         "no_selection_reason": (
             "no changed paths" if not changed else "no screenshot-affecting change detected"
-        ) if not screenshots else None,
+        )
+        if not screenshots
+        else None,
     }
 
 
