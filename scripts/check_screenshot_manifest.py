@@ -215,7 +215,11 @@ def find_problems(root: Path = ROOT) -> list[str]:
             problems.append(f"{key}: planned capture must use planned placement")
         if mode != "planned" and status == "planned":
             problems.append(f"{key}: existing scene may not report planned provenance")
-        if mode != "planned" and status == "legacy-unverified" and record.get("approved") is not None:
+        if (
+            mode != "planned"
+            and status == "legacy-unverified"
+            and record.get("approved") is not None
+        ):
             problems.append(f"{key}: legacy image must not invent approved provenance")
         if status == "approved":
             approved = record.get("approved")
@@ -290,7 +294,9 @@ def find_problems(root: Path = ROOT) -> list[str]:
                 ):
                     problems.append(f"{key}: approved PNG hash mismatch")
         elif placement in ("legacy-literal", "legacy-unreferenced"):
-            problems.append(f"{key}: legacy literal/unreferenced PNG is missing before E5 migration")
+            problems.append(
+                f"{key}: legacy literal/unreferenced PNG is missing before E5 migration"
+            )
 
     diagnostics = manifest.get("diagnostic_legacy_outputs")
     if (
@@ -308,7 +314,8 @@ def find_problems(root: Path = ROOT) -> list[str]:
         problems.append("manifest lists nonexistent manual capture output")
     if isolated - used_scenes:
         problems.append(
-            "isolated real-UI builders missing from manifest: " + ", ".join(sorted(isolated - used_scenes))
+            "isolated real-UI builders missing from manifest: "
+            + ", ".join(sorted(isolated - used_scenes))
         )
 
     declared = set(by_filename)
@@ -356,12 +363,12 @@ def find_problems(root: Path = ROOT) -> list[str]:
                 problems.append(f"{rel}: duplicate screenshot insertion: {key}")
             observed.add(key)
         for key, rec in by_id.items():
-            if rel in rec.get("pages", []) and rec.get("placement") in (
-                "legacy-literal",
-                "required",
+            if (
+                rel in rec.get("pages", [])
+                and rec.get("placement") in ("legacy-literal", "required")
+                and key not in observed
             ):
-                if key not in observed:
-                    problems.append(f"{rel}: missing required screenshot reference: {key}")
+                problems.append(f"{rel}: missing required screenshot reference: {key}")
     return problems
 
 
