@@ -390,7 +390,7 @@
       ],
       "source_globs": [
         "src/pixelscope/ui/iqa_*.py",
-        "src/pixelscope/remote/**",
+        "src/pixelscope/remote/iqa_*.py",
         "src/pixelscope/app/iqa_history.py",
         "src/pixelscope/core/comparison_set.py"
       ],
@@ -445,10 +445,12 @@
     "src/pixelscope/app/application.py",
     "src/pixelscope/app/main_window.py",
     "src/pixelscope/app/resources.py",
+    "src/pixelscope/app/settings.py",
     "src/pixelscope/assets/**",
     "src/pixelscope/core/channel_views.py",
     "src/pixelscope/core/display_transform.py",
     "src/pixelscope/core/image_document.py",
+    "src/pixelscope/core/performance_settings.py",
     "src/pixelscope/io/image_reader.py",
     "src/pixelscope/ui/design_tokens.py",
     "src/pixelscope/ui/plot_colors.py",
