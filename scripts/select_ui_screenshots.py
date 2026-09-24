@@ -205,6 +205,7 @@ def select_changes(
         "filename",
         "placement",
         "viewport",
+        "geometry_policy",
         "pages",
         "alt",
         "legacy_output",
