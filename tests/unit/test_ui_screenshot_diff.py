@@ -104,6 +104,14 @@ def test_geometry_change_reports_changed_dimensions_not_identical(captures) -> N
     assert result["dimension_changed"] is True
     assert result["base_size"] == [500, 400]
     assert result["head_size"] == [600, 400]
+    assert result["diagnostic_note"] == "padded visual artifact; dimensions differ"
+    side_by_side = output / "side-by-side.png"
+    diff = output / "diff.png"
+    assert side_by_side.is_file() and diff.is_file()
+    with Image.open(side_by_side) as side:
+        assert side.size == (1200, 400)
+    with Image.open(diff) as delta:
+        assert delta.size == (600, 400)
 
 
 @pytest.mark.parametrize("field", ["fixture", "scenario", "viewport", "scene_contract"])
