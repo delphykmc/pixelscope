@@ -182,5 +182,11 @@ floating Plots PNG stays declared but has no invented topic placement.
 
 E6 still owns fresh current-UI candidate review, explicit owner approval,
 screenshot byte promotion, trustworthy provenance and per-gap closeout of the
-seven not-yet-automated scenes. Neither E5 nor CI changes approved PNGs
+seven not-yet-automated scenes. E5 was owner-approved and merged as PR #98 at
+`main@0381d4e69df82f060dc4917b4117f68b8cebc574`. The new
+[E6 owner review procedure](exec-plans/active/wp-help-e6-owner-review.md) and
+[14-ID decision inventory](exec-plans/active/wp-help-e6-coverage-decisions.json)
+deliberately record no blanket acceptance: `python scripts/audit_ui_screenshot_coverage.py`
+reports unresolved images without inventing approvals, and
+`--require-complete` fails until per-ID review decisions are made. Neither E5 nor CI changes approved PNGs
 automatically; Issue #81 remains a separate lifecycle task.
