@@ -144,6 +144,14 @@ def find_problems(root: Path = ROOT) -> list[str]:
         problems.append("target_capture_profile is required")
     if manifest.get("impact_ownership_status") not in ("e3-pending", "complete"):
         problems.append("impact_ownership_status must be e3-pending or complete")
+    shared = manifest.get("shared_source_globs", [])
+    if (
+        not isinstance(shared, list)
+        or any(not isinstance(glob, str) or not glob for glob in shared)
+        or len(shared) != len(set(map(str, shared)))
+        or (manifest.get("impact_ownership_status") == "complete" and not shared)
+    ):
+        problems.append("E3 shared_source_globs must be a nonempty unique string list")
     screenshots = manifest.get("screenshots")
     if not isinstance(screenshots, list):
         return problems + ["screenshots must be a list"]
@@ -271,10 +279,12 @@ def find_problems(root: Path = ROOT) -> list[str]:
         if not isinstance(record.get("features"), list) or not record["features"]:
             problems.append(f"{key}: feature tags are required")
         globs = record.get("source_globs")
-        if not isinstance(globs, list) or not all(isinstance(g, str) for g in globs):
-            problems.append(f"{key}: source_globs must be a string list")
+        if not isinstance(globs, list) or not all(isinstance(g, str) and g for g in globs):
+            problems.append(f"{key}: source_globs must be a nonempty-string list")
         elif manifest.get("impact_ownership_status") == "complete" and not globs:
             problems.append(f"{key}: E3-complete impact ownership requires globs")
+        elif len(globs) != len(set(globs)):
+            problems.append(f"{key}: source_globs must be unique")
         viewport = record.get("viewport")
         if not isinstance(viewport, dict) or any(
             not isinstance(viewport.get(dim), int)
