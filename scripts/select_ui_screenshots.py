@@ -248,20 +248,44 @@ def select_changes(
                     key: value for key, value in head_manifest.items() if key != "screenshots"
                 }
                 if old_header != new_header:
-                    _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "manifest-shared-contract")
+                    _tag_impact(
+                        per_id_reasons,
+                        reasons,
+                        path_reasons,
+                        all_ids,
+                        "manifest-shared-contract",
+                    )
                 for key in all_ids:
                     if old.get(key) != new.get(key):
-                        _tag_impact(per_id_reasons, reasons, path_reasons, {key}, "manifest-scene-contract")
+                        _tag_impact(
+                            per_id_reasons,
+                            reasons,
+                            path_reasons,
+                            {key},
+                            "manifest-scene-contract",
+                        )
                 if not path_reasons:
                     reasons.add("manifest-format-only")
                 continue
             if path.startswith(ASSET_DIR) and path.endswith(".png"):
                 key = path[len(ASSET_DIR) : -4]
                 if "/" in key or key not in all_ids:
-                    _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "unmapped-screenshot-asset")
+                    _tag_impact(
+                        per_id_reasons,
+                        reasons,
+                        path_reasons,
+                        all_ids,
+                        "unmapped-screenshot-asset",
+                    )
                     warnings.add(f"unmapped-screenshot-asset: {path}")
                 else:
-                    _tag_impact(per_id_reasons, reasons, path_reasons, {key}, "committed-screenshot-png")
+                    _tag_impact(
+                        per_id_reasons,
+                        reasons,
+                        path_reasons,
+                        {key},
+                        "committed-screenshot-png",
+                    )
                 png_changes.append({"path": path, "status": change.status, "screenshot_id": key})
                 continue
             if path in (
@@ -269,13 +293,31 @@ def select_changes(
                 "scripts/select_ui_screenshots.py",
                 "scripts/check_screenshot_manifest.py",
             ):
-                _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "screenshot-automation-contract")
+                _tag_impact(
+                    per_id_reasons,
+                    reasons,
+                    path_reasons,
+                    all_ids,
+                    "screenshot-automation-contract",
+                )
                 continue
             if path == ASSET_DIR + "README.md":
-                _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "screenshot-readme-reference")
+                _tag_impact(
+                    per_id_reasons,
+                    reasons,
+                    path_reasons,
+                    all_ids,
+                    "screenshot-readme-reference",
+                )
                 continue
             if _glob(path, shared):
-                _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "shared-rendering-or-capture-dependency")
+                _tag_impact(
+                    per_id_reasons,
+                    reasons,
+                    path_reasons,
+                    all_ids,
+                    "shared-rendering-or-capture-dependency",
+                )
                 continue
             head_owners = {
                 key for key, record in new.items() if _glob(path, record.get("source_globs", []))
@@ -299,7 +341,13 @@ def select_changes(
                         key for key, row in new.items() if page in row.get("pages", [])
                     }
                     if page_owners:
-                        _tag_impact(per_id_reasons, reasons, path_reasons, page_owners, "screenshot-markdown-page")
+                        _tag_impact(
+                            per_id_reasons,
+                            reasons,
+                            path_reasons,
+                            page_owners,
+                            "screenshot-markdown-page",
+                        )
                 else:
                     old_text = read_at_revision(base_sha, path)
                     new_text = read_at_revision(head_sha, path)
@@ -309,9 +357,21 @@ def select_changes(
                         new_text
                     ):
                         refs = previous | current
-                        _tag_impact(per_id_reasons, reasons, path_reasons, refs & all_ids, "screenshot-markdown-reference")
+                        _tag_impact(
+                            per_id_reasons,
+                            reasons,
+                            path_reasons,
+                            refs & all_ids,
+                            "screenshot-markdown-reference",
+                        )
                         if refs - all_ids:
-                            _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "unmapped-screenshot-reference")
+                            _tag_impact(
+                                per_id_reasons,
+                                reasons,
+                                path_reasons,
+                                all_ids,
+                                "unmapped-screenshot-reference",
+                            )
                             warnings.add(f"unmapped-screenshot-reference: {path}")
                 if not path_reasons:
                     reasons.add("docs-prose-only")
