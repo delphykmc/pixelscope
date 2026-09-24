@@ -33,8 +33,18 @@ def _clone_repo(tmp_path: Path) -> Path:
         ROOT,
         clone,
         ignore=shutil.ignore_patterns(
-            ".git", ".venv", ".tox", ".mypy_cache", ".pytest_cache",
-            ".ruff_cache", "__pycache__", ".cache", "build", "dist", "site", "temp",
+            ".git",
+            ".venv",
+            ".tox",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            "__pycache__",
+            ".cache",
+            "build",
+            "dist",
+            "site",
+            "temp",
         ),
     )
     return clone
@@ -61,9 +71,7 @@ def test_missing_each_declared_png_keeps_full_repo_and_network_blocked_help_vali
 
     # In a generated page the missing marker becomes NO img and NO fallback.
     for page in screenshot["pages"]:
-        html = (clone / "site" / Path(page).with_suffix(".html")).read_text(
-            encoding="utf-8"
-        )
+        html = (clone / "site" / Path(page).with_suffix(".html")).read_text(encoding="utf-8")
         assert filename not in html
     assert not (clone / "site" / ASSETS.relative_to(GUIDE) / filename).exists()
 
@@ -84,9 +92,7 @@ def test_all_six_present_declared_topic_images_still_render_with_relative_paths(
     assert process.returncode == 0, process.stdout[-2500:] + process.stderr[-2500:]
     for shot in _REFERENCED:
         for page in shot["pages"]:
-            html = (clone / "site" / Path(page).with_suffix(".html")).read_text(
-                encoding="utf-8"
-            )
+            html = (clone / "site" / Path(page).with_suffix(".html")).read_text(encoding="utf-8")
             assert shot["filename"] in html
             assert (clone / "site" / ASSETS.relative_to(GUIDE) / shot["filename"]).is_file()
 
