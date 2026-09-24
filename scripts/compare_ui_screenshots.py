@@ -45,9 +45,11 @@ def fingerprint(meta: dict[str, Any], environment: dict[str, Any]) -> dict[str, 
     result["screen"] = {key: screen.get(key) for key in SCREEN_KEYS}
     result["geometry"] = {key: geometry.get(key) for key in GEOMETRY_KEYS}
     result["renderer_probe"] = environment
-    if any(value is None for value in result.values()) or any(
-        value is None for value in result["screen"].values()
-    ) or any(value is None for value in result["geometry"].values()):
+    if (
+        any(value is None for value in result.values())
+        or any(value is None for value in result["screen"].values())
+        or any(value is None for value in result["geometry"].values())
+    ):
         raise ValueError("incomplete capture comparability metadata")
     return result
 
