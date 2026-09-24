@@ -294,6 +294,8 @@ def select_changes(
                 ".github/workflows/ui-screenshot-diff.yml",
                 "scripts/select_ui_screenshots.py",
                 "scripts/check_screenshot_manifest.py",
+                "scripts/run_ui_capture_poc.py",
+                "scripts/screenshot_fixture_identity.py",
                 "scripts/compare_ui_screenshots.py",
                 "scripts/run_ui_screenshot_diff.py",
                 "scripts/probe_ui_screenshot_environment.py",
