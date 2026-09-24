@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from scripts.select_ui_screenshots import (
     ChangedFile,
+    _git_text,
     git_changed_files,
     parse_name_status_z,
     resolve_sha,
@@ -60,6 +61,23 @@ def test_parse_git_name_status_nul_rename_delete_unicode_and_space() -> None:
         parse_name_status_z(b"M\x00file")
     with pytest.raises(ValueError, match="unsupported"):
         parse_name_status_z(b"U\x00file\x00")
+
+
+def test_single_view_capture_depends_on_visible_files_and_statistics(manifest: dict) -> None:
+    # E1 Single View actually shows Files and asynchronous Statistics, not
+    # only the ImageViewer pixels (statistics_ready gates its capture).
+    for path in (
+        "src/pixelscope/ui/comparison_analysis_panel.py",
+        "src/pixelscope/ui/document_list.py",
+        "src/pixelscope/ui/file_status_icons.py",
+        "src/pixelscope/app/registration_controller.py",
+    ):
+        assert "single-image" in report(manifest, path)["selected_ids"]
+    for path in (
+        "src/pixelscope/ui/responsive_control_layout.py",
+        "src/pixelscope/ui/session_restore_overlay.py",
+    ):
+        assert len(report(manifest, path)["selected_ids"]) == 14
 
 
 def test_single_feature_owner_and_shared_shell(manifest: dict) -> None:
@@ -185,6 +203,36 @@ def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> 
     assert exact["requires_image_review"] is True
 
 
+def test_base_and_head_feature_owners_are_both_selected(manifest: dict) -> None:
+    previous = copy.deepcopy(manifest)
+    old_owner = "src/pixelscope/ui/raw_open_dialog.py"
+    raw = next(row for row in manifest["screenshots"] if row["id"] == "raw-profile-dialog")
+    settings = next(row for row in manifest["screenshots"] if row["id"] == "settings-dialog")
+    raw["source_globs"].remove(old_owner)
+    settings["source_globs"].append(old_owner)
+    selection = report(manifest, old_owner, old=previous)
+    assert selection["selected_ids"] == ["raw-profile-dialog", "settings-dialog"]
+    assert "base-feature-owner:raw-profile-dialog" in selection["changed_paths"][0]["reasons"]
+
+
+def test_old_page_ownership_survives_no_reader_fallback(manifest: dict) -> None:
+    previous = copy.deepcopy(manifest)
+    old_page = "getting-started/quick-start.md"
+    previous["screenshots"][0]["pages"] = [old_page]
+    result = report(
+        manifest,
+        "docs/user-guide/" + old_page,
+        old=previous,
+    )
+    assert set(result["selected_ids"]) == {"single-image", "six-image-multiview"}
+
+
+def test_screenshot_validator_edits_select_all(manifest: dict) -> None:
+    selection = report(manifest, "scripts/check_screenshot_manifest.py")
+    assert len(selection["selected_ids"]) == 14
+    assert "screenshot-automation-contract" in selection["changed_paths"][0]["reasons"]
+
+
 def test_manifest_single_id_change_and_shared_profile_change(manifest: dict) -> None:
     previous = copy.deepcopy(manifest)
     manifest["screenshots"][6]["alt"] = "RAW updated"
@@ -194,6 +242,22 @@ def test_manifest_single_id_change_and_shared_profile_change(manifest: dict) -> 
     manifest["target_capture_profile"] = "new-profile"
     result = report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)
     assert len(result["selected_ids"]) == 14
+
+
+def test_non_isolated_selection_carries_explicit_capture_debt(manifest: dict) -> None:
+    scoped = report(manifest, "src/pixelscope/ui/raw_open_dialog.py")
+    assert scoped["capture_eligible_ids"] == ["raw-profile-dialog"]
+    assert scoped["capture_deferred"] == []
+
+    full = report(manifest, "src/pixelscope/app/main_window.py")
+    assert len(full["capture_eligible_ids"]) == 2
+    assert len(full["capture_deferred"]) == 12
+    assert {"id": "window-overview", "reason": "capture-mode:planned"} in full[
+        "capture_deferred"
+    ]
+    assert {"id": "plots-floating", "reason": "capture-mode:legacy-manual"} in full[
+        "capture_deferred"
+    ]
 
 
 def test_screenshot_readme_and_no_changes(manifest: dict) -> None:
@@ -251,3 +315,34 @@ def test_real_git_pinned_rename_deletion_and_new_file(tmp_path: Path, manifest: 
     assert any(x.startswith("unmapped-ui-impact:") for x in selection["warnings"])
     with pytest.raises(ValueError, match="40-character"):
         resolve_sha(tmp_path, "HEAD")
+
+    # Missing on one side of a real rename is allowed.
+    assert _git_text(tmp_path, base, "src/pixelscope/ui/raw_open_dialog.py") == "before\n"
+    assert _git_text(tmp_path, head, "src/pixelscope/ui/raw_open_dialog.py") == ""
+    assert _git_text(tmp_path, head, "src/pixelscope/ui/new_dialog.py") == "before\n"
+
+
+def test_present_git_blob_read_failure_is_not_silently_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "e3@example.invalid")
+    _git(tmp_path, "config", "user.name", "E3 test")
+    page = tmp_path / "docs/user-guide/formats/raw.md"
+    page.parent.mkdir(parents=True)
+    page.write_text("![RAW](../assets/screenshots/raw-profile-dialog.png)\n", encoding="utf-8")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "base")
+    commit = _git(tmp_path, "rev-parse", "HEAD")
+    real_run = subprocess.run
+
+    def fail_blob_read(command: list[str], *args: object, **kwargs: object):
+        if "show" in command:
+            return subprocess.CompletedProcess(command, 128, b"", b"synthetic object read failure")
+        return real_run(command, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr("scripts.select_ui_screenshots.subprocess.run", fail_blob_read)
+        with pytest.raises(ValueError, match="Git show failed for present path"):
+            _git_text(tmp_path, commit, "docs/user-guide/formats/raw.md")
+
