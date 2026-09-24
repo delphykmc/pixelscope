@@ -120,6 +120,9 @@ jobs:
       - name: Run release-artifact regressions on Windows
         if: runner.os == 'Windows'
         run: python -m pytest -q tests/unit/test_release_packaging.py
+      - name: Show E3 pinned formatter diff (temporary diagnostic)
+        run: python -m ruff format --diff scripts/select_ui_screenshots.py tests/unit/test_ui_screenshot_impact.py
+        continue-on-error: true
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
