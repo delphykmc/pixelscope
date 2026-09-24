@@ -150,7 +150,9 @@ def test_planned_image_does_not_fabricate_capture_or_provenance(repo: Path) -> N
     (repo / ASSET / "iqa-neutral.png").unlink()
     _modify(
         repo,
-        lambda m: m["screenshots"][12].update(status="approved", approved={"approval_commit": "future"}),
+        lambda m: m["screenshots"][12].update(
+            status="approved", approved={"approval_commit": "future"}
+        ),
     )
     errors = find_problems(repo)
     assert any("planned placement needs planned capture/status" in e for e in errors)
