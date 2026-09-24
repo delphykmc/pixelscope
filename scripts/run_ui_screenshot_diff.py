@@ -21,9 +21,19 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.compare_ui_screenshots import compare_pair, documentation_relation, scene_contract  # noqa: E402
+from scripts.compare_ui_screenshots import (  # noqa: E402
+    compare_pair,
+    documentation_relation,
+    scene_contract,
+)
 from scripts.run_ui_capture_poc import assess_capture_process, sanitized_stderr  # noqa: E402
-from scripts.select_ui_screenshots import _git_text, git_changed_files, resolve_sha, select_changes  # noqa: E402
+from scripts.select_ui_screenshots import (  # noqa: E402
+    _git_text,
+    git_changed_files,
+    resolve_sha,
+    select_changes,
+)
+
 SHA = re.compile(r"[0-9a-f]{40}")
 TIMEOUT = 100
 
@@ -105,7 +115,9 @@ def capture_scene(
         return observed, process_info
     except (OSError, ValueError, KeyError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
         process_info["failure"] = type(exc).__name__
-        process_info["error"] = str(exc)[:150] if isinstance(exc, ValueError) else type(exc).__name__
+        process_info["error"] = (
+            str(exc)[:150] if isinstance(exc, ValueError) else type(exc).__name__
+        )
         return None, process_info
 
 
@@ -211,7 +223,9 @@ def run(
                 row["reason"] = "pinned runtime packaging/dependencies differ"
                 continue
             head_dir = output / key / "head"
-            head_meta, head_process = capture_scene(head_root, head_sha, new[key]["scenario"], head_dir)
+            head_meta, head_process = capture_scene(
+                head_root, head_sha, new[key]["scenario"], head_dir
+            )
             row["head_process"] = head_process
             if head_meta is None:
                 row["status"] = "CAPTURE_FAILED_HEAD"
