@@ -15,8 +15,8 @@ from scripts.compare_ui_screenshots import (
     fingerprint,
     scene_contract,
 )
-from scripts.screenshot_fixture_identity import single_view_fixture_identity
 from scripts.run_ui_screenshot_diff import _env, _pinned, _write_report, capture_scene
+from scripts.screenshot_fixture_identity import single_view_fixture_identity
 
 
 def _picture(path: Path, changed: bool = False) -> None:
