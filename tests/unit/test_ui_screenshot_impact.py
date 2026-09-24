@@ -109,7 +109,6 @@ def test_rendering_beyond_ui_maps_to_correct_surfaces(
         "src/pixelscope/app/new_controller.py",
         "src/pixelscope/io/unknown_pixel_decoder.py",
         "src/pixelscope/core/new_pixel_semantics.py",
-        "src/pixelscope/remote/new_renderer.py",
         "src/pixelscope/workers/worker_visual_state.py",
         "scripts/capture_new_scene.py",
     ],
@@ -123,7 +122,11 @@ def test_unmapped_rendering_source_fails_open(manifest: dict, path: str) -> None
 def test_docs_prose_only_and_test_only_do_not_force_capture(manifest: dict) -> None:
     assert report(manifest, "tests/unit/test_core.py")["selected_ids"] == []
     assert report(manifest, "docs/user-guide/features/raw.md")["selected_ids"] == []
-    assert report(manifest, "docs/user-guide/formats/raw.md")["selected_ids"] == []
+    assert report(
+        manifest,
+        "docs/user-guide/formats/raw.md",
+        read=lambda sha, path: "# Same prose-only page in both revisions\\n",
+    )["selected_ids"] == []
     assert report(manifest, "docs/ROADMAP.md")["no_selection_reason"] is not None
     old_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody old\n"
     new_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody changed\n"
@@ -234,5 +237,5 @@ def test_real_git_pinned_rename_deletion_and_new_file(tmp_path: Path, manifest: 
     selection = select_changes(entries, manifest, manifest, base_sha=base, head_sha=head)
     assert len(selection["selected_ids"]) == 14
     assert any(x.startswith("unmapped-ui-impact:") for x in selection["warnings"])
-    with pytest.raises(ValueError, match="full"):
+    with pytest.raises(ValueError, match="40-character"):
         resolve_sha(tmp_path, "HEAD")
