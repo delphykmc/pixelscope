@@ -213,6 +213,7 @@ def test_base_and_head_feature_owners_are_both_selected(manifest: dict) -> None:
     selection = report(manifest, old_owner, old=previous)
     assert selection["selected_ids"] == ["raw-profile-dialog", "settings-dialog"]
     assert "base-feature-owner:raw-profile-dialog" in selection["changed_paths"][0]["reasons"]
+    assert selection["requires_image_review"] is False  # globs alone do not change pixels
 
 
 def test_old_page_ownership_survives_no_reader_fallback(manifest: dict) -> None:
@@ -236,9 +237,10 @@ def test_screenshot_validator_edits_select_all(manifest: dict) -> None:
 def test_manifest_single_id_change_and_shared_profile_change(manifest: dict) -> None:
     previous = copy.deepcopy(manifest)
     manifest["screenshots"][6]["alt"] = "RAW updated"
-    assert report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)[
-        "selected_ids"
-    ] == ["raw-profile-dialog"]
+    change = report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)
+    assert change["selected_ids"] == ["raw-profile-dialog"]
+    assert change["manifest_review_ids"] == ["raw-profile-dialog"]
+    assert change["requires_image_review"] is True
     manifest["target_capture_profile"] = "new-profile"
     result = report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)
     assert len(result["selected_ids"]) == 14
@@ -266,6 +268,9 @@ def test_removed_scene_is_not_reported_as_capture_ready(manifest: dict) -> None:
     selection = report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)
     assert selection["selected_ids"] == ["raw-profile-dialog"]
     assert selection["capture_eligible_ids"] == []
+    assert selection["requires_image_review"] is True
+    assert selection["removed_ids"] == ["raw-profile-dialog"]
+    assert selection["manifest_review_ids"] == ["raw-profile-dialog"]
     assert selection["capture_deferred"] == [
         {"id": "raw-profile-dialog", "reason": "removed-from-head"}
     ]
