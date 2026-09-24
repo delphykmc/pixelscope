@@ -112,14 +112,22 @@ def git_changed_files(root: Path, base: str, head: str) -> list[ChangedFile]:
 
 
 def _git_text(root: Path, revision: str, path: str) -> str:
-    # Git path separator intentionally cannot contain a NUL and is not a shell token.
+    """Read a pinned blob; only a genuinely absent page may count as empty.
+
+    Treat object/database/read failures as selection failures, not a docs-only
+    change. A renamed or deleted Markdown page is legitimately missing on one
+    side of a pinned comparison.
+    """
     command = subprocess.run(
         ["git", "-C", str(root), "show", f"{revision}:{path}"],
         capture_output=True,
         check=False,
     )
     if command.returncode:
-        return ""  # Deleted/new Markdown page has no text at the missing revision.
+        names = _git(root, "ls-tree", "-z", "--full-tree", "--name-only", revision, "--", path)
+        if path.encode("utf-8") not in names.split(b"\x00"):
+            return ""
+        raise ValueError(f"Git show failed for present path: {path}")
     return command.stdout.decode("utf-8")
 
 
@@ -215,6 +223,7 @@ def select_changes(
             if path in (
                 ".github/workflows/ui-screenshot-poc.yml",
                 "scripts/select_ui_screenshots.py",
+                "scripts/check_screenshot_manifest.py",
             ):
                 selected |= all_ids
                 reasons.add("screenshot-automation-contract")
@@ -231,15 +240,28 @@ def select_changes(
                 if _glob(path, record.get("source_globs", [])):
                     selected.add(key)
                     reasons.add("feature-owner:" + key)
+            # Ownership can change in the same PR as code. Preserve base-side
+            # ownership for *all* IDs, not only IDs removed from the manifest.
             for key, record in old.items():
-                if key not in new and _glob(path, record.get("source_globs", [])):
+                if _glob(path, record.get("source_globs", [])):
+                    if key not in selected:
+                        reasons.add(
+                            ("removed-feature-owner:" if key not in new else "base-feature-owner:")
+                            + key
+                        )
                     selected.add(key)
-                    reasons.add("removed-feature-owner:" + key)
             if path.startswith(GUIDE_DIR) and path.endswith(".md"):
                 if read_at_revision is None:
+                    # The caller may omit a revision reader in unit/embedding
+                    # contexts. The fallback still respects both page graphs.
                     selected |= {
                         key
-                        for key, row in {**old, **new}.items()
+                        for key, row in old.items()
+                        if path.removeprefix(GUIDE_DIR) in row.get("pages", [])
+                    }
+                    selected |= {
+                        key
+                        for key, row in new.items()
                         if path.removeprefix(GUIDE_DIR) in row.get("pages", [])
                     }
                     if selected:
@@ -284,14 +306,22 @@ def select_changes(
         )
 
     screenshots = []
+    capture_eligible_ids: list[str] = []
+    capture_deferred: list[dict[str, str]] = []
     for key in sorted(selected_reasons):
         record = new.get(key, old.get(key, {}))
+        mode = record.get("capture_mode", "removed")
+        eligible = key in new and mode == "isolated"
+        if eligible:
+            capture_eligible_ids.append(key)
+        else:
+            capture_deferred.append({"id": key, "reason": f"capture-mode:{mode}"})
         screenshots.append(
             {
                 "id": key,
-                "capture_mode": record.get("capture_mode", "removed"),
+                "capture_mode": mode,
                 "status": record.get("status", "removed"),
-                "capture_eligible": record.get("capture_mode") == "isolated",
+                "capture_eligible": eligible,
                 "reasons": sorted(selected_reasons[key]),
             }
         )
@@ -302,6 +332,8 @@ def select_changes(
         "changed_paths": paths,
         "selected_ids": sorted(selected_reasons),
         "selected_screenshots": screenshots,
+        "capture_eligible_ids": capture_eligible_ids,
+        "capture_deferred": capture_deferred,
         "committed_png_changes": png_changes,
         "requires_image_review": bool(png_changes),
         "warnings": sorted(warnings),
