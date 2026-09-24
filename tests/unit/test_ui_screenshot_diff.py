@@ -174,8 +174,7 @@ def test_scene_ast_ignores_whitespace_but_tracks_behavior(tmp_path: Path) -> Non
     script = tmp_path / "scripts/capture_ui_scene.py"
     script.parent.mkdir()
     script.write_text(
-        "def _single_image(app):\n    return 1\n"
-        "BUILDERS = {'single_image': _single_image}\n",
+        "def _single_image(app):\n    return 1\n" "BUILDERS = {'single_image': _single_image}\n",
         encoding="utf-8",
     )
     baseline = scene_contract(tmp_path, "single_image")
@@ -186,8 +185,7 @@ def test_scene_ast_ignores_whitespace_but_tracks_behavior(tmp_path: Path) -> Non
     )
     assert scene_contract(tmp_path, "single_image") == baseline
     script.write_text(
-        "def _single_image(app):\n    return 2\n"
-        "BUILDERS = {'single_image': _single_image}\n",
+        "def _single_image(app):\n    return 2\n" "BUILDERS = {'single_image': _single_image}\n",
         encoding="utf-8",
     )
     assert scene_contract(tmp_path, "single_image") != baseline
