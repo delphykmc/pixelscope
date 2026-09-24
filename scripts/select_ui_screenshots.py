@@ -177,6 +177,31 @@ def select_changes(
     old = _screenshots(base_manifest)
     new = _screenshots(head_manifest)
     all_ids = set(old) | set(new)
+    removed_ids = sorted(set(old) - set(new))
+    # Changes to screenshot meaning/placement require human review even when
+    # no PNG was committed (e.g. a scene-contract or approval metadata edit).
+    review_fields = (
+        "scenario",
+        "capture_mode",
+        "status",
+        "approved",
+        "filename",
+        "placement",
+        "viewport",
+        "pages",
+        "alt",
+        "legacy_output",
+    )
+    manifest_review_ids = sorted(
+        key
+        for key in all_ids
+        if old.get(key) != new.get(key)
+        and (
+            key not in old
+            or key not in new
+            or any(old[key].get(field) != new[key].get(field) for field in review_fields)
+        )
+    )
     shared = head_manifest.get("shared_source_globs", [])
     if not shared or head_manifest.get("impact_ownership_status") != "complete":
         raise ValueError("E3 needs complete manifest ownership and shared_source_globs")
@@ -338,7 +363,9 @@ def select_changes(
         "capture_eligible_ids": capture_eligible_ids,
         "capture_deferred": capture_deferred,
         "committed_png_changes": png_changes,
-        "requires_image_review": bool(png_changes),
+        "manifest_review_ids": manifest_review_ids,
+        "removed_ids": removed_ids,
+        "requires_image_review": bool(png_changes or manifest_review_ids),
         "warnings": sorted(warnings),
         "no_selection_reason": (
             "no changed paths" if not changed else "no screenshot-affecting change detected"
