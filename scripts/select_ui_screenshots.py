@@ -337,9 +337,7 @@ def select_changes(
                     page = path.removeprefix(GUIDE_DIR)
                     page_owners = {
                         key for key, row in old.items() if page in row.get("pages", [])
-                    } | {
-                        key for key, row in new.items() if page in row.get("pages", [])
-                    }
+                    } | {key for key, row in new.items() if page in row.get("pages", [])}
                     if page_owners:
                         _tag_impact(
                             per_id_reasons,
