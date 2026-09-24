@@ -1,16 +1,16 @@
 # Execution plan: WP-Help-E — Automated Screenshot Lifecycle
 
-Status: **E0 plan proposed / E1–E6 not implemented**
+Status: **E0/E1 merged; E2 manifest foundation in draft; E3–E6 not implemented**
 Owner: ChatGPT-assisted implementation; repository owner approval and Windows validation
-Branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / E0 planning PR
+Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E2 branch/PR: `feature/wp-help-e2-screenshot-manifest-foundation` / draft #95
 Baseline: `main@aabc1fe338aed2fea9afd15db1275aff7b549109` (2026-09-21 KST)
-Last updated: 2026-09-21
+Last updated: 2026-09-24
 
 ## Goal and acceptance boundary
 
 Make screenshots in the canonical Markdown User Guide reproducible from the **real PixelScope QWidget UI**, detect PR-relevant visual changes against a pinned main baseline, and supply reviewable images/diffs without CI editing the PR or automatically approving documentation. Users must not have to arrange the app interactively to capture a supported scenario.
 
-**This PR contains E0 planning only.** In particular, there is no Windows hosted-runner GUI PoC result, no new manifest implementation, no conditional MkDocs renderer, no screenshot workflow, and no assertion that Issue #81 is fixed. E1 is a technical feasibility gate before committing to an end-to-end hosted capture pipeline.
+**The original E0 PR contained planning only.** E1 later proved two isolated real-GUI hosted Windows scenes and was merged as #94; E2 now introduces the static manifest/inventory contract under #95. No E3 change-impact engine, E4 baseline/head visual-diff CI, E5 conditional MkDocs renderer, E6 screenshot promotion or assertion that Issue #81 is fixed is implied by E0–E2. E1 is a technical feasibility gate before committing to an end-to-end hosted capture pipeline.
 
 ## Scope and preflight inventory
 
@@ -212,3 +212,19 @@ Only accepted assets under `docs/user-guide/assets/screenshots/` enter Git and h
 - A scoped child `sys.excepthook` records Qt signal/slot callback exceptions with path-redacted, bounded diagnostics in the JSON sidecar and stderr marker; capture is failed and PNG discarded even if an exception occurs during teardown. The parent checks both structured callback errors and fatal traceback/Qt-override stderr on **zero native exit**; harmless Qt warnings alone do not fail. Real callback exception + otherwise valid PNG and delayed/error/completed Statistics have focused tests.
 - **Validation status:** these fixes are source changes on the E1 branch, not a claim of current-head Windows-hosted PASS, owner-local Windows full-suite PASS, or closure of Issue #81. The new exact-head screenshot/artifact and documentation job results must be recorded after observation, and the owner will report separate Windows validation before merge.
 - **Not performed:** owner-local Windows full pytest or installer/portable Help smoke; main/base visual diff, seven-scene inventory closeout, CI promotion or documentation PNG updates. All of these remain outside E1.
+
+## E2 screenshot manifest foundation (separate PR; not E3–E6)
+
+- E1 PR #94 merged following owner-reported Windows PASS and successful exact-head Windows-hosted screenshot/Docs CI. Baseline for E2 is `main@ec8563df821a77b270363b00cff83e6c97e9db07`; Issue #81 remains independent.
+- `docs/user-guide/assets/screenshots/manifest.json` now records **seven actual checked-in images** with `legacy-unverified` provenance (never invent capture source SHA), **seven planned/missing scenario IDs** with page targets/technical follow-up, and three explicitly non-guide legacy diagnostic scenes. One historical PNG (Floating Plots) remains unreferenced in canonical topic Markdown until E5: `legacy-unreferenced` is visible **migration debt**, not approved placement. Six legacy topic images already have hard-coded Markdown references, including Six-image in `getting-started/quick-start.md`; E5 must migrate them without losing the visible images. Only E1's Single View and RAW dialog are `isolated`; the other five remain `legacy-manual` until real scoped scene implementations pass their own Windows proof. Unimplemented gaps are `planned`, not alleged real UI captures.
+- `scripts/check_screenshot_manifest.py` validates schema/IDs/paths and page associations, static scene keys from actual E1 `BUILDERS` (without importing PySide), real manual script PNG outputs, all seven checked-in PNGs via CRC + bounded zlib scanline checks, the pending 7 and 3 diagnostic outputs; the manifest is checked by `check_docs.py` and Windows/Ubuntu Documentation CI. E1's argparse choices now derive from the actual `BUILDERS` keys rather than a second hard-coded scene list.
+- E2 intentionally **does not migrate the six literal topic image embeds or README examples**: replacing these atomically alongside the conditional MkDocs hook and narrowly aligned whole-repository link checks is E5. Consequently a missing legacy PNG still fails the current whole-repo documentation checker; do not confuse the static E2 manifest with the E5 optional-image feature.
+- `source_globs` remain empty and `impact_ownership_status: e3-pending`: no feature-glob completeness is claimed. E3 must verify actual ownership (including core/io render semantics) before marking impact mapping complete, with conservative fallback for unmapped files. E2 does not run diff CI, approve PNGs, modify release behavior, or close the seven-gap E6 inventory.
+- **Validation status:** GitHub Documentation CI / new focused tests must be inspected at the exact E2 PR HEAD before approval. Owner-local Windows and the full native UI suite are independent; no new scenario or Issue #81 crash fix is claimed by this inventory PR.
+
+### E2 independent review follow-up — 2026-09-24
+
+- Reviewer at `88fc25f4` identified one schema P1, red exact-head Ruff formatting CI, and three P2 follow-ups. E2 now distinguishes a prospective `target_capture_profile` from the **actual** E1/legacy capture metadata; a manifest-wide target is not historical evidence or an E4 comparability fingerprint.
+- Newly implemented isolated scenes can progress `planned → isolated/capture-ready → isolated/approved` **without any invented historical `legacy_output`**; future required marker/page and explicit approval are separate steps. Actual seven historical/manual assets still require correctly matching manual outputs, and all ten manual outputs must remain uniquely accounted for.
+- Validation now rejects disjointness violations between guide-owned manual outputs and three non-guide diagnostic outputs. The intentionally supported PNG decode contract is **non-interlaced 8-bit RGB/RGBA only** (all seven existing guide PNGs were checked to be RGB/8-bit/non-interlaced): indexed or interlaced images are rejected rather than incorrectly declared renderable on CRC/zlib evidence alone.
+- Focused tests exercise planned → isolated ready → reviewed approved, pending PNG rejection, old-manual ownership preservation, diagnostic duplication, CRC-valid indexed PNG without PLTE, CRC-valid Adam7 claim, and missing target profile. Reviewer comments were answered in the PR. The original reviewed HEAD's docs CI was red; the amended HEAD's Windows/Ubuntu docs and E1 GUI jobs are independent gates, not inherited PASS from older runs.

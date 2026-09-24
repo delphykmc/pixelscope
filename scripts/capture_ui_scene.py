@@ -45,7 +45,6 @@ from pixelscope.ui.raw_open_dialog import RawOpenDialog  # noqa: E402
 from scripts.capture_ui_review import review_document  # noqa: E402
 
 PROFILE = "windows-e1-poc-v1"
-SCENARIOS = ("single_image", "raw_profile_dialog")
 WINDOW_SIZE = (1680, 980)
 DIALOG_SIZE = (520, 620)
 TIMEOUT_SECONDS = 15.0
@@ -193,6 +192,8 @@ BUILDERS = {
     "single_image": _single_image,
     "raw_profile_dialog": _raw_dialog,
 }
+
+SCENARIOS = tuple(BUILDERS)
 
 
 def _wait_until_ready(app: QApplication, widget: QWidget, ready: Callable[[], bool]) -> None:
