@@ -187,7 +187,7 @@ def test_malformed_marker_and_swapped_legacy_output_are_detected(repo: Path) -> 
     page = repo / GUIDE / "features/image-view.md"
     page.write_text(
         "# Page\n![single](../assets/screenshots/single-image.png)\n"
-        "<!-- pixelscope:screenshot single-image\n",
+        "<!-- pixelscope:screenshot single-image\nnext paragraph\n",
         encoding="utf-8",
     )
     assert any("malformed screenshot marker" in e for e in find_problems(repo))
