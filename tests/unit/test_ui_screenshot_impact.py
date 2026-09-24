@@ -136,9 +136,8 @@ def test_markdown_screenshot_reference_changes_select_declared_ids(manifest: dic
     after = "<!-- pixelscope:screenshot raw-profile-dialog -->\n"
     get_text = lambda sha, path: before if sha == FULL else after
     result = report(manifest, "docs/user-guide/formats/raw.md", read=get_text)
-    # Ref *semantics* are stable; changing the insertion kind still needs E2
-    # docs checks but not a needless GUI recapture.
-    assert result["selected_ids"] == []
+    # Even a literal -> ID-marker migration is a screenshot Markdown change.
+    assert result["selected_ids"] == ["raw-profile-dialog"]
     after = "<!-- pixelscope:screenshot yuv-profile-dialog -->\n"
     result = report(
         manifest,
