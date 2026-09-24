@@ -10,11 +10,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import platform
 import sys
 import tempfile
 import time
 from collections.abc import Callable
+from types import TracebackType
 from pathlib import Path
 
 import pyqtgraph
@@ -47,6 +49,72 @@ SCENARIOS = ("single_image", "raw_profile_dialog")
 WINDOW_SIZE = (1680, 980)
 DIALOG_SIZE = (520, 620)
 TIMEOUT_SECONDS = 15.0
+CALLBACK_ERROR_MARKER = "PIXELSCOPE_E1_QT_CALLBACK_EXCEPTION"
+
+
+def sanitized_diagnostic(exc: BaseException) -> str:
+    """Bound messages and redact sensitive filesystem locations from artifacts."""
+    message = " ".join(str(exc).splitlines())
+    for prefix in (str(ROOT), str(Path.home())):
+        if prefix:
+            message = message.replace(prefix, "<path>")
+    message = re.sub(
+        r"[A-Za-z]:[\\\\/][^\\s'\\\"<>]*|/(?:home|Users|mnt|tmp|var|opt)/[^\\s'\\\"<>]*",
+        "<path>",
+        message,
+    )
+    return message[:300]
+
+
+class CallbackExceptionMonitor:
+    """Capture PySide slot exceptions routed through sys.excepthook.
+
+    A Qt callback exception can be printed without propagating from processEvents.
+    The parent additionally recognizes traceback stderr for other Qt callback paths.
+    """
+
+    def __init__(self) -> None:
+        self.errors: list[str] = []
+        self._previous = sys.excepthook
+
+    def install(self) -> None:
+        self._previous = sys.excepthook
+        sys.excepthook = self._handle
+
+    def restore(self) -> None:
+        sys.excepthook = self._previous
+
+    def _handle(
+        self,
+        exception_type: type[BaseException],
+        exception: BaseException,
+        _traceback: TracebackType | None,
+    ) -> None:
+        diagnostic = f"{exception_type.__name__}: {sanitized_diagnostic(exception)}"
+        if len(self.errors) < 8:
+            self.errors.append(diagnostic)
+        print(f"{CALLBACK_ERROR_MARKER}: {diagnostic}", file=sys.stderr)
+
+
+def statistics_ready(panel: object, document: object) -> bool:
+    """Require successful current-request analysis, not a displayed preview alone."""
+    # Use the owner's existing request/result authority, without joining pools.
+    status = panel.status.text()  # type: ignore[attr-defined]
+    if status.startswith("Error:"):
+        raise RuntimeError(f"Statistics analysis failed: {status}")
+    request = panel._request_signature  # type: ignore[attr-defined]
+    return bool(
+        request
+        and request == panel._completed_signature  # type: ignore[attr-defined]
+        and len(panel.last_results) == 1  # type: ignore[attr-defined]
+        and len(panel._documents) == 1  # type: ignore[attr-defined]
+        and panel._documents[0] is document  # type: ignore[attr-defined]
+        and panel.image_summary.rowCount() == 1  # type: ignore[attr-defined]
+        and panel.table.rowCount() >= 3  # type: ignore[attr-defined]
+        and panel.status.text() == ""  # type: ignore[attr-defined]
+        and not panel.busy.isVisible()  # type: ignore[attr-defined]
+    )
+
 
 
 def _configure_isolated_settings(directory: Path) -> None:
@@ -83,6 +151,7 @@ def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
             and window.viewer.document is document
             and window.viewer._displayed_preview is document.preview
             and document.preview is not None
+            and statistics_ready(window.comparison_analysis_panel, document)
         )
 
     return window, ready, fixture_sha256
@@ -171,10 +240,14 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
         "geometry": None,
         "screen": None,
         "error_type": None,
+        "error_detail": None,
+        "callback_errors": [],
     }
     widget: QWidget | None = None
     app: QApplication | None = None
     directory: tempfile.TemporaryDirectory[str] | None = None
+    monitor = CallbackExceptionMonitor()
+    monitor.install()
     try:
         directory = tempfile.TemporaryDirectory(prefix="pixelscope-e1-settings-")
         _configure_isolated_settings(Path(directory.name))
@@ -183,6 +256,8 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
         report["fixture_sha256"] = fixture_sha256
         widget.show()
         _wait_until_ready(app, widget, ready)
+        if monitor.errors:
+            raise RuntimeError("Qt callback exception before capture")
         # Native QWidget grab. Neither a PIL composition nor fake UI.
         pixmap = widget.grab()
         if pixmap.isNull():
@@ -198,10 +273,7 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
                 "logical_dpi": screen.logicalDotsPerInch(),
                 "physical_dpi": screen.physicalDotsPerInch(),
                 "device_pixel_ratio": screen.devicePixelRatio(),
-                "geometry": [
-                    screen.geometry().width(),
-                    screen.geometry().height(),
-                ],
+                "geometry": [screen.geometry().width(), screen.geometry().height()],
                 "available_geometry": [
                     screen.availableGeometry().width(),
                     screen.availableGeometry().height(),
@@ -217,24 +289,35 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
         }
         report["image_sha256"] = hashlib.sha256(output.read_bytes()).hexdigest()
         report["status"] = "captured"
-        return 0
     except Exception as exc:
         report["error_type"] = type(exc).__name__
-        output.unlink(missing_ok=True)
-        print("E1 capture failed: " + type(exc).__name__, file=sys.stderr)
-        return 1
+        report["error_detail"] = sanitized_diagnostic(exc)
+        print(f"E1 capture failed: {report['error_type']}: {report['error_detail']}", file=sys.stderr)
     finally:
-        if widget is not None:
-            widget.close()
-        if app is not None:
-            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-            app.processEvents()
-        if directory is not None:
-            directory.cleanup()
+        try:
+            if widget is not None:
+                widget.close()
+            if app is not None:
+                QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+                app.processEvents()
+        except Exception as exc:
+            report["error_type"] = type(exc).__name__
+            report["error_detail"] = "Qt teardown: " + sanitized_diagnostic(exc)
+        finally:
+            monitor.restore()
+            if directory is not None:
+                directory.cleanup()
+        if monitor.errors:
+            report["callback_errors"] = monitor.errors
+            report["error_type"] = "QtCallbackException"
+            report["error_detail"] = "Qt signal/event callback raised"
+        if report["error_type"] is not None:
+            report["status"] = "failed"
+            output.unlink(missing_ok=True)
         metadata_path.write_text(
-            json.dumps(report, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
+    return 0 if report["status"] == "captured" else 1
 
 
 def main() -> int:
