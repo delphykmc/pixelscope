@@ -22,8 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = "docs/user-guide/assets/screenshots/manifest.json"
 ASSET_DIR = "docs/user-guide/assets/screenshots/"
 GUIDE_DIR = "docs/user-guide/"
-MARKER = re.compile(r"<!--\\s*pixelscope:screenshot\\s+([a-z0-9-]+)\\s*-->")
-SCREENSHOT_IMAGE = re.compile(r"!\\[[^]\\n]*\\]\\(([^)\\n]+)\\)")
+MARKER = re.compile(r"<!--\s*pixelscope:screenshot\s+([a-z0-9-]+)\s*-->")
+SCREENSHOT_IMAGE = re.compile(r"!\[[^]\n]*\]\(([^)\n]+)\)")
 SHA = re.compile(r"[0-9a-fA-F]{40}")
 STATUS = re.compile(r"(?:[AMDT]|[RC][0-9]{1,3})")
 FALLBACK_DIRS = (
@@ -35,7 +35,7 @@ FALLBACK_DIRS = (
     "src/pixelscope/workers/",
     "src/pixelscope/assets/",
 )
-CAPTURE_HELPER = re.compile(r"scripts/(?:capture|run_ui_capture|generate_).*\\.py$")
+CAPTURE_HELPER = re.compile(r"scripts/(?:capture|run_ui_capture|generate_).*\.py$")
 
 
 @dataclass(frozen=True)
@@ -53,10 +53,10 @@ def _path(raw: bytes) -> str:
     value = raw.decode("utf-8")
     if (
         not value
-        or "\\\\" in value
+        or "\\" in value
         or value.startswith("/")
         or any(part in (".", "..") for part in value.split("/"))
-        or "\\x00" in value
+        or "\x00" in value
     ):
         raise ValueError("unsafe path in Git name-status result")
     return value
@@ -66,9 +66,9 @@ def parse_name_status_z(payload: bytes) -> list[ChangedFile]:
     """Parse Git's -z format without splitting filenames on spaces, tabs or newlines."""
     if not payload:
         return []
-    if not payload.endswith(b"\\x00"):
+    if not payload.endswith(b"\x00"):
         raise ValueError("truncated Git name-status -z output")
-    values = payload[:-1].split(b"\\x00")
+    values = payload[:-1].split(b"\x00")
     results: list[ChangedFile] = []
     offset = 0
     while offset < len(values):
@@ -313,7 +313,7 @@ def main() -> int:
     except (OSError, UnicodeError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         print(f"E3 screenshot impact selection failed: {exc}", file=sys.stderr)
         return 1
-    output = json.dumps(report, sort_keys=True, indent=2) + "\\n"
+    output = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(output, encoding="utf-8")
