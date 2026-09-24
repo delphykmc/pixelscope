@@ -54,20 +54,39 @@ def assess_capture_process(
     metadata_path: Path,
     scene: str,
     source_sha: str,
+    *,
+    expected_logical_size: list[int] | None = None,
+    allow_widget_resize: bool = False,
 ) -> dict[str, object]:
-    """A zero native exit and a valid PNG are insufficient after a Qt callback error."""
+    """Validate a real child; E4 supplies pinned manifest geometry for new scenes."""
     if process.returncode != 0:
         raise ValueError("capture_process_failed")
     if stderr_has_callback_exception(process.stderr):
         raise ValueError("qt_callback_exception")
-    metadata = validate_capture(png, metadata_path, scene, source_sha)
+    metadata = validate_capture(
+        png,
+        metadata_path,
+        scene,
+        source_sha,
+        expected_logical_size=expected_logical_size,
+        allow_widget_resize=allow_widget_resize,
+    )
     if metadata.get("callback_errors"):
         raise ValueError("qt_callback_exception")
     return metadata
 
 
-def validate_capture(path: Path, metadata: Path, scene: str, source_sha: str) -> dict[str, object]:
-    """Read a real PNG and verify it is not merely a blank surface."""
+def validate_capture(
+    path: Path,
+    metadata: Path,
+    scene: str,
+    source_sha: str,
+    *,
+    expected_logical_size: list[int] | None = None,
+    allow_widget_resize: bool = False,
+) -> dict[str, object]:
+    """Validate a real PNG; E1 defaults stay strict, E4 uses manifest viewport."""
+
     result = json.loads(metadata.read_text(encoding="utf-8"))
     if result["status"] != "captured" or result["scenario"] != scene:
         raise ValueError("capture metadata reports failure or wrong scenario")
@@ -89,11 +108,25 @@ def validate_capture(path: Path, metadata: Path, scene: str, source_sha: str) ->
         geometry = result["geometry"]
         if not isinstance(geometry, dict) or geometry["pixel_png"] != [width, height]:
             raise ValueError("captured PNG dimensions disagree with QWidget.grab metadata")
+        actual_size = geometry.get("logical_widget")
         if (
-            result.get("capture_profile") == "windows-e1-poc-v1"
-            and geometry["logical_widget"] != EXPECTED_LOGICAL_SIZE[scene]
+            not isinstance(actual_size, list)
+            or len(actual_size) != 2
+            or any(not isinstance(n, int) or n <= 0 for n in actual_size)
         ):
-            raise ValueError("captured widget geometry differs from pinned capture profile")
+            raise ValueError("invalid captured QWidget geometry")
+        if expected_logical_size is None and result.get("capture_profile") == "windows-e1-poc-v1":
+            # E1's original two-scene PoC remains strict. E4 never uses this
+            # table: it provides viewport/policy from each pinned manifest.
+            expected_logical_size = EXPECTED_LOGICAL_SIZE.get(scene)
+            if expected_logical_size is None:
+                raise ValueError("E1 scene requires explicit expected geometry")
+        if (
+            not allow_widget_resize
+            and expected_logical_size is not None
+            and actual_size != expected_logical_size
+        ):
+            raise ValueError("capture_contract_geometry: fixed viewport not realized")
     return result
 
 
