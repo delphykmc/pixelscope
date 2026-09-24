@@ -66,7 +66,6 @@ def assess_capture_process(
     return metadata
 
 
-
 def validate_capture(path: Path, metadata: Path, scene: str, source_sha: str) -> dict[str, object]:
     """Read a real PNG and verify it is not merely a blank surface."""
     result = json.loads(metadata.read_text(encoding="utf-8"))
