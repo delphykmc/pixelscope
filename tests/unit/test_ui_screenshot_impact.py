@@ -244,6 +244,8 @@ def test_manifest_single_id_change_and_shared_profile_change(manifest: dict) -> 
     manifest["target_capture_profile"] = "new-profile"
     result = report(manifest, "docs/user-guide/assets/screenshots/manifest.json", old=previous)
     assert len(result["selected_ids"]) == 14
+    assert result["target_profile_changed"] is True
+    assert result["requires_image_review"] is True
 
 
 def test_non_isolated_selection_carries_explicit_capture_debt(manifest: dict) -> None:
