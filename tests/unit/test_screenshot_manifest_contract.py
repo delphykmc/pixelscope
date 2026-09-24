@@ -181,3 +181,18 @@ def test_approved_hash_and_e3_ownership_gate(repo: Path) -> None:
     assert any("PNG missing IEND" in e or "hash mismatch" in e for e in find_problems(repo))
     _modify(repo, lambda m: m.update(impact_ownership_status="complete"))
     assert any("E3-complete impact ownership requires globs" in e for e in find_problems(repo))
+
+
+def test_malformed_marker_and_swapped_legacy_output_are_detected(repo: Path) -> None:
+    page = repo / GUIDE / "features/image-view.md"
+    page.write_text(
+        "# Page\n![single](../assets/screenshots/single-image.png)\n"
+        "<!-- pixelscope:screenshot single-image\n",
+        encoding="utf-8",
+    )
+    assert any("malformed screenshot marker" in e for e in find_problems(repo))
+    page.write_text(
+        "# Page\n![single](../assets/screenshots/single-image.png)\n", encoding="utf-8"
+    )
+    _modify(repo, lambda m: m["screenshots"][0].update(legacy_output="histogram_docked.png"))
+    assert any("no matching output" in e for e in find_problems(repo))
