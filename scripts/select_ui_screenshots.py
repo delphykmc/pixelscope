@@ -178,9 +178,8 @@ def select_changes(
     new = _screenshots(head_manifest)
     all_ids = set(old) | set(new)
     removed_ids = sorted(set(old) - set(new))
-    target_profile_changed = (
-        base_manifest.get("target_capture_profile")
-        != head_manifest.get("target_capture_profile")
+    target_profile_changed = base_manifest.get("target_capture_profile") != head_manifest.get(
+        "target_capture_profile"
     )
     # Changes to screenshot meaning/placement require human review even when
     # no PNG was committed (e.g. a scene-contract or approval metadata edit).
@@ -370,9 +369,7 @@ def select_changes(
         "manifest_review_ids": manifest_review_ids,
         "removed_ids": removed_ids,
         "target_profile_changed": target_profile_changed,
-        "requires_image_review": bool(
-            png_changes or manifest_review_ids or target_profile_changed
-        ),
+        "requires_image_review": bool(png_changes or manifest_review_ids or target_profile_changed),
         "warnings": sorted(warnings),
         "no_selection_reason": (
             "no changed paths" if not changed else "no screenshot-affecting change detected"
