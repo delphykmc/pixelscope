@@ -8,7 +8,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from scripts.select_ui_screenshots import (
     ChangedFile,
     git_changed_files,
@@ -130,14 +129,16 @@ def test_docs_prose_only_and_test_only_do_not_force_capture(manifest: dict) -> N
     assert report(manifest, "docs/ROADMAP.md")["no_selection_reason"] is not None
     old_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody old\n"
     new_text = "## Guide\n<!-- pixelscope:screenshot raw-profile-dialog -->\nBody changed\n"
-    get_text = lambda sha, path: old_text if sha == FULL else new_text
+    def get_text(sha: str, path: str) -> str:
+        return old_text if sha == FULL else new_text
     assert report(manifest, "docs/user-guide/formats/raw.md", read=get_text)["selected_ids"] == []
 
 
 def test_markdown_screenshot_reference_changes_select_declared_ids(manifest: dict) -> None:
     before = "![RAW](../assets/screenshots/raw-profile-dialog.png)\n"
     after = "<!-- pixelscope:screenshot raw-profile-dialog -->\n"
-    get_text = lambda sha, path: before if sha == FULL else after
+    def get_text(sha: str, path: str) -> str:
+        return before if sha == FULL else after
     result = report(manifest, "docs/user-guide/formats/raw.md", read=get_text)
     # Even a literal -> ID-marker migration is a screenshot Markdown change.
     assert result["selected_ids"] == ["raw-profile-dialog"]
@@ -158,7 +159,9 @@ def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> 
         [
             ChangedFile("M", base + "single-image.png"),
             ChangedFile("D", base + "plots-floating.png"),
-            ChangedFile("R100", base + "difference-analysis.png", base + "histogram-docked.png"),
+            ChangedFile(
+                "R100", base + "difference-analysis.png", base + "histogram-docked.png"
+            ),
             ChangedFile("A", base + "unlisted-new.png"),
         ],
         manifest,
@@ -188,7 +191,8 @@ def test_manifest_single_id_change_and_shared_profile_change(manifest: dict) -> 
 
 
 def test_screenshot_readme_and_no_changes(manifest: dict) -> None:
-    assert len(report(manifest, "docs/user-guide/assets/screenshots/README.md")["selected_ids"]) == 14
+    result = report(manifest, "docs/user-guide/assets/screenshots/README.md")
+    assert len(result["selected_ids"]) == 14
     empty = select_changes([], manifest, manifest, base_sha=FULL, head_sha=NEXT)
     assert empty["selected_ids"] == []
     assert empty["no_selection_reason"] == "no changed paths"
@@ -231,7 +235,10 @@ def test_real_git_pinned_rename_deletion_and_new_file(tmp_path: Path, manifest: 
     _git(tmp_path, "commit", "-qm", "head")
     head = _git(tmp_path, "rev-parse", "HEAD")
     entries = git_changed_files(tmp_path, resolve_sha(tmp_path, base), resolve_sha(tmp_path, head))
-    assert any(x.status.startswith("R") and x.old_path.endswith("raw_open_dialog.py") for x in entries)
+    assert any(
+        x.status.startswith("R") and x.old_path.endswith("raw_open_dialog.py")
+        for x in entries
+    )
     assert any(x.status == "D" for x in entries)
     assert any(x.status == "A" for x in entries)
     selection = select_changes(entries, manifest, manifest, base_sha=base, head_sha=head)
