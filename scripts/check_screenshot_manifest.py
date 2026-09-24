@@ -293,6 +293,9 @@ def find_problems(root: Path = ROOT) -> list[str]:
             for dim in ("width", "height")
         ):
             problems.append(f"{key}: invalid capture viewport")
+        policy = record.get("geometry_policy", "resizable")
+        if policy not in ("fixed", "resizable"):
+            problems.append(f"{key}: invalid capture geometry policy")
         actual = asset / name
         if actual.is_symlink():
             problems.append(f"{key}: screenshot symlinks are not permitted")

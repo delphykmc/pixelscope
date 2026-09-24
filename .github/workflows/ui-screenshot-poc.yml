@@ -7,6 +7,7 @@ on:
       - "scripts/capture_ui_scene.py"
       - "scripts/capture_ui_review.py"
       - "scripts/run_ui_capture_poc.py"
+      - "scripts/screenshot_fixture_identity.py"
       - ".github/workflows/ui-screenshot-poc.yml"
       - "requirements/runtime.txt"
       - "pyproject.toml"

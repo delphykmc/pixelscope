@@ -43,6 +43,7 @@ if str(ROOT) not in sys.path:
 from pixelscope.io.raw_profile import RawProfile  # noqa: E402
 from pixelscope.ui.raw_open_dialog import RawOpenDialog  # noqa: E402
 from scripts.capture_ui_review import review_document  # noqa: E402
+from scripts.screenshot_fixture_identity import single_view_fixture_identity  # noqa: E402
 
 PROFILE = "windows-e1-poc-v1"
 WINDOW_SIZE = (1680, 980)
@@ -139,7 +140,11 @@ def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
     # auto-clamped available-screen size as a matching screenshot profile.
     window.setFixedSize(*WINDOW_SIZE)
     window.bottom_dock.hide()
-    fixture_sha256 = hashlib.sha256(document.source.tobytes()).hexdigest()
+    if document.source_path is None:
+        raise ValueError("Single View fixture must carry a synthetic displayed source path")
+    fixture_sha256 = single_view_fixture_identity(
+        document.source.tobytes(), document.display_name, document.source_path.as_posix()
+    )
 
     def ready() -> bool:
         return (

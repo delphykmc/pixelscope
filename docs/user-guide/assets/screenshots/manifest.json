@@ -48,7 +48,8 @@
         "height": 980
       },
       "status": "legacy-unverified",
-      "approved": null
+      "approved": null,
+      "geometry_policy": "fixed"
     },
     {
       "id": "six-image-multiview",
@@ -234,7 +235,8 @@
         "height": 620
       },
       "status": "legacy-unverified",
-      "approved": null
+      "approved": null,
+      "geometry_policy": "resizable"
     },
     {
       "id": "window-overview",

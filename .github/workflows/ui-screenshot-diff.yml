@@ -1,0 +1,88 @@
+name: WP-Help-E4 pinned Windows screenshot comparison
+
+# No pull_request_target, write token, secrets, push, or publication. Fork code
+# is never executed: an owner can reproduce a trusted same-repo change instead.
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "scripts/**"
+      - "docs/user-guide/**"
+      - "requirements/runtime.txt"
+      - "pyproject.toml"
+      - ".github/workflows/ui-screenshot-diff.yml"
+      - ".github/workflows/ui-screenshot-poc.yml"
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: "Exact 40-character base commit"
+        required: true
+      head_sha:
+        description: "Exact 40-character head commit"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      PYTHONHASHSEED: "0"
+      QT_SCALE_FACTOR: "1"
+      PYTHONIOENCODING: "utf-8"
+      PYTHONPATH: ${{ github.workspace }}/head
+      BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || inputs.base_sha }}
+      HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.head_sha }}
+    steps:
+      - name: Checkout pinned base with no persisted credential
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_SHA }}
+          path: base
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout pinned PR head with no persisted credential
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          path: head
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: head/requirements/runtime.txt
+      - name: Install pinned application and image decoder on one Windows runner
+        run: |
+          python -m pip install -e ./head Pillow==12.3.0 pytest==7.4.4 ruff==0.1.15
+          python -m pip check
+      - name: Validate E4 comparator contract
+        shell: pwsh
+        run: |
+          python -m ruff check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/tests/unit/test_ui_screenshot_diff.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m ruff format --check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/tests/unit/test_ui_screenshot_diff.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q head/tests/unit/test_ui_screenshot_diff.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Capture pinned base and head in isolated native GUI processes
+        run: >-
+          python head/scripts/run_ui_screenshot_diff.py
+          --base-root base
+          --head-root head
+          --base-sha "$env:BASE_SHA"
+          --head-sha "$env:HEAD_SHA"
+          --output-dir build/ui-screenshot-diff
+      - name: Upload result, base/head candidates, metadata and visual diffs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixelscope-e4-windows-diff-${{ github.run_id }}
+          path: build/ui-screenshot-diff/
+          if-no-files-found: error
+          retention-days: 14
