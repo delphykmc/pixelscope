@@ -116,7 +116,6 @@ def statistics_ready(panel: object, document: object) -> bool:
     )
 
 
-
 def _configure_isolated_settings(directory: Path) -> None:
     """Ensure QSettings cannot clear, write or read the owner's real preferences."""
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
