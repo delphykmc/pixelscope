@@ -59,7 +59,7 @@ def sanitized_diagnostic(exc: BaseException) -> str:
         if prefix:
             message = message.replace(prefix, "<path>")
     message = re.sub(
-        r"[A-Za-z]:[\\\\/][^\\s'\\\"<>]*|/(?:home|Users|mnt|tmp|var|opt)/[^\\s'\\\"<>]*",
+        r"[A-Za-z]:[\\/][^\s'\"<>]*|/(?:home|Users|mnt|tmp|var|opt)/[^\s'\"<>]*",
         "<path>",
         message,
     )
