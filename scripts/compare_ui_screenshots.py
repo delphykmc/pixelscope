@@ -15,7 +15,7 @@ from PIL import Image, ImageChops, ImageStat
 
 RUNTIME_KEYS = ("capture_profile", "python", "qt", "pyside6", "pyqtgraph")
 SCREEN_KEYS = ("logical_dpi", "physical_dpi", "device_pixel_ratio")
-GEOMETRY_KEYS = ("logical_widget", "device_pixel_ratio")
+GEOMETRY_KEYS = ("device_pixel_ratio",)
 
 
 def scene_contract(root: Path, scenario: str) -> str:
@@ -55,7 +55,7 @@ def scene_contract(root: Path, scenario: str) -> str:
 
 
 def fingerprint(meta: dict[str, Any], environment: dict[str, Any]) -> dict[str, Any]:
-    """Exclude SHA, app version, machine name, timestamps, screenshots and paths."""
+    """Exclude provenance AND actual QWidget extent from renderer comparability."""
     geometry = meta.get("geometry")
     screen = meta.get("screen")
     if not isinstance(geometry, dict) or not isinstance(screen, dict):
@@ -82,7 +82,11 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
         z.load()
         if a.format != "PNG" or z.format != "PNG":
             raise ValueError("expected real PNG captures")
-        first, second = a.convert("RGB"), z.convert("RGB")
+        # E2 accepts both RGB and RGBA. Normalize to RGBA if either PNG has
+        # alpha: an alpha-only change is a real decoded-pixel difference.
+        use_alpha = a.mode == "RGBA" or z.mode == "RGBA"
+        mode = "RGBA" if use_alpha else "RGB"
+        first, second = a.convert(mode), z.convert(mode)
     if first.size != second.size:
         # Incompatible extents are a CHANGED UI result, not an excuse to omit
         # the promised review artifact. Pad *only the diagnostics*: never use
@@ -91,15 +95,23 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
             output.mkdir(parents=True, exist_ok=True)
             canvas_width = max(first.width, second.width)
             canvas_height = max(first.height, second.height)
-            base_canvas = Image.new("RGB", (canvas_width, canvas_height))
-            head_canvas = Image.new("RGB", (canvas_width, canvas_height))
+            base_canvas = Image.new(mode, (canvas_width, canvas_height))
+            head_canvas = Image.new(mode, (canvas_width, canvas_height))
             base_canvas.paste(first, (0, 0))
             head_canvas.paste(second, (0, 0))
-            combined = Image.new("RGB", (canvas_width * 2, canvas_height))
+            combined = Image.new(mode, (canvas_width * 2, canvas_height))
             combined.paste(base_canvas, (0, 0))
             combined.paste(head_canvas, (canvas_width, 0))
             combined.save(output / "side-by-side.png")
-            ImageChops.difference(base_canvas, head_canvas).save(output / "diff.png")
+            diagnostic = ImageChops.difference(base_canvas, head_canvas)
+            if use_alpha:
+                # Expose alpha-only differences in a visible grayscale delta.
+                channels = diagnostic.split()
+                union = channels[0]
+                for band in channels[1:]:
+                    union = ImageChops.lighter(union, band)
+                diagnostic = Image.merge("RGB", (union, union, union))
+            diagnostic.save(output / "diff.png")
         return {
             "identical": False,
             "dimension_changed": True,
@@ -120,9 +132,17 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
         combined.paste(first, (0, 0))
         combined.paste(second, (first.width, 0))
         combined.save(output / "side-by-side.png")
-        diff.save(output / "diff.png")
+        if use_alpha:
+            diagnostic = bands[0]
+            for band in diff.split()[1:]:
+                diagnostic = ImageChops.lighter(diagnostic, band)
+            Image.merge("RGB", (diagnostic, diagnostic, diagnostic)).save(output / "diff.png")
+        else:
+            diff.save(output / "diff.png")
     bands = diff.split()
-    any_channel = ImageChops.lighter(ImageChops.lighter(bands[0], bands[1]), bands[2])
+    any_channel = bands[0]
+    for band in bands[1:]:
+        any_channel = ImageChops.lighter(any_channel, band)
     fraction = 1.0 - any_channel.histogram()[0] / (first.width * first.height)
     return {
         "identical": max_error == 0,
@@ -131,7 +151,7 @@ def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[st
         "head_size": list(second.size),
         "changed_pixel_fraction": fraction,
         "max_channel_error": max_error,
-        "mean_channel_error": sum(ImageStat.Stat(diff).mean) / 3,
+        "mean_channel_error": sum(ImageStat.Stat(diff).mean) / len(bands),
     }
 
 
@@ -166,6 +186,20 @@ def compare_pair(
     if first != second:
         keys = sorted(key for key in first if first[key] != second[key])
         return {"status": "ENVIRONMENT_MISMATCH", "different_fields": keys}
+    # A capture's metadata must describe its real PNG, not conceal geometry
+    # corruption as a legitimate UI resize. E4 validates this after each
+    # child process as well, but keep the comparator independently fail-closed.
+    try:
+        with Image.open(base_png) as left, Image.open(head_png) as right:
+            for image, meta in ((left, base_meta), (right, head_meta)):
+                geometry = meta.get("geometry", {})
+                if not isinstance(geometry, dict) or geometry.get("pixel_png") != list(image.size):
+                    return {
+                        "status": "COMPARISON_FAILED",
+                        "reason": "PNG dimensions disagree with capture metadata",
+                    }
+    except (OSError, ValueError, TypeError):
+        return {"status": "COMPARISON_FAILED", "reason": "invalid capture PNG"}
     try:
         metrics = pixel_metrics(base_png, head_png, output)
     except (OSError, ValueError) as exc:
