@@ -108,6 +108,7 @@ def test_rendering_beyond_ui_maps_to_correct_surfaces(
         "src/pixelscope/app/new_controller.py",
         "src/pixelscope/io/unknown_pixel_decoder.py",
         "src/pixelscope/core/new_pixel_semantics.py",
+        "src/pixelscope/remote/new_renderer.py",
         "src/pixelscope/workers/worker_visual_state.py",
         "scripts/capture_new_scene.py",
     ],
