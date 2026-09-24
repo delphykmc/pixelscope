@@ -12,7 +12,6 @@ from scripts.compare_ui_screenshots import (
     compare_pair,
     documentation_relation,
     fingerprint,
-    pixel_metrics,
     scene_contract,
 )
 from scripts.run_ui_screenshot_diff import _env, _pinned, _write_report, capture_scene
@@ -197,7 +196,9 @@ def test_failed_native_child_is_capture_failed_not_changed(
 
 def test_pinned_sha_rejects_wrong_checkout(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "e4@example.invalid"], check=True)
+    subprocess.run(
+        ["git", "-C", str(tmp_path), "config", "user.email", "e4@example.invalid"], check=True
+    )
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "E4"], check=True)
     (tmp_path / "file.txt").write_text("main", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
@@ -211,7 +212,9 @@ def test_pinned_sha_rejects_wrong_checkout(tmp_path: Path) -> None:
         _pinned(tmp_path, "HEAD")
 
 
-def test_offscreen_is_not_a_real_windows_gui(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_offscreen_is_not_a_real_windows_gui(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     with pytest.raises(ValueError, match="offscreen"):
         _env(tmp_path)
