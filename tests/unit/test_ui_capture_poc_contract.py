@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
 from PIL import Image
-from scripts.run_ui_capture_poc import changed_fraction, validate_capture
+from scripts.capture_ui_scene import statistics_ready
+from scripts.run_ui_capture_poc import (
+    assess_capture_process,
+    changed_fraction,
+    sanitized_stderr,
+    stderr_has_callback_exception,
+    validate_capture,
+)
 
 
 def _pattern(path: Path) -> None:
@@ -75,3 +85,79 @@ def test_poc_repeatability_is_exact_pixel_not_png_metadata(tmp_path: Path) -> No
     assert 0 < changed_fraction(first, second) < 0.01
     Image.new("RGB", (450, 400)).save(second)
     assert changed_fraction(first, second) == 1.0
+
+
+def test_statistics_readiness_waits_for_successful_current_request_and_rows() -> None:
+    document = object()
+    panel = SimpleNamespace(
+        status=SimpleNamespace(text=lambda: "Preparing analysis..."),
+        busy=SimpleNamespace(isVisible=lambda: True),
+        _request_signature=("current",),
+        _completed_signature=(),
+        _documents=[document],
+        last_results=(),
+        image_summary=SimpleNamespace(rowCount=lambda: 0),
+        table=SimpleNamespace(rowCount=lambda: 0),
+    )
+    assert not statistics_ready(panel, document)
+
+    # A stale result must not authorize capturing the currently requested document.
+    panel._completed_signature = ("previous",)
+    panel.last_results = (object(),)
+    panel.image_summary = SimpleNamespace(rowCount=lambda: 1)
+    panel.table = SimpleNamespace(rowCount=lambda: 3)
+    assert not statistics_ready(panel, document)
+    panel._completed_signature = ("current",)
+    panel.status = SimpleNamespace(text=lambda: "")
+    panel.busy = SimpleNamespace(isVisible=lambda: False)
+    assert statistics_ready(panel, document)
+
+    panel.status = SimpleNamespace(text=lambda: "Error: synthetic worker failure")
+    with pytest.raises(RuntimeError, match="Statistics analysis failed"):
+        statistics_ready(panel, document)
+
+    panel.status = SimpleNamespace(text=lambda: "Calculating...")
+    assert not statistics_ready(panel, document)
+
+
+def test_zero_exit_callback_error_fails_even_with_valid_png(tmp_path: Path) -> None:
+    png, metadata = tmp_path / "capture.png", tmp_path / "capture.json"
+    sha = "a" * 40
+    _pattern(png)
+    _metadata(metadata, png, sha)
+    quiet = subprocess.CompletedProcess([], 0, "", "QWindowsWindow: harmless warning\n")
+    assert assess_capture_process(quiet, png, metadata, "single_image", sha)["status"] == "captured"
+
+    # A real QCoreApplication callback raises while processEvents returns normally.
+    script = """
+from PySide6.QtCore import QCoreApplication, QTimer
+from scripts.capture_ui_scene import CallbackExceptionMonitor
+app = QCoreApplication([])
+monitor = CallbackExceptionMonitor()
+monitor.install()
+def broken_slot():
+    raise RuntimeError("intentional test callback failure")
+QTimer.singleShot(0, broken_slot)
+app.processEvents()
+monitor.restore()
+print(len(monitor.errors))
+"""
+    process = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert process.returncode == 0
+    assert "1" in process.stdout
+    assert stderr_has_callback_exception(process.stderr)
+    with pytest.raises(ValueError, match="qt_callback_exception"):
+        assess_capture_process(process, png, metadata, "single_image", sha)
+
+    pinned = json.loads(metadata.read_text(encoding="utf-8"))
+    pinned["callback_errors"] = ["RuntimeError: recorded Qt callback failure"]
+    metadata.write_text(json.dumps(pinned), encoding="utf-8")
+    with pytest.raises(ValueError, match="Qt callback exception"):
+        validate_capture(png, metadata, "single_image", sha)
+    assert "<path>" in sanitized_stderr(r"C:\Users\someone\sensitive.txt")
