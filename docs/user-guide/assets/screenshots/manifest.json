@@ -34,8 +34,10 @@
     {
       "id": "six-image-multiview",
       "filename": "six-image-multiview.png",
-      "pages": [],
-      "placement": "legacy-unreferenced",
+      "pages": [
+        "getting-started/quick-start.md"
+      ],
+      "placement": "legacy-literal",
       "scenario": "six_image_multiview",
       "capture_mode": "legacy-manual",
       "legacy_output": "six_image_multiview.png",
