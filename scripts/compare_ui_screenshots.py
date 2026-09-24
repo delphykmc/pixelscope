@@ -34,7 +34,7 @@ def scene_contract(root: Path, scenario: str) -> str:
     if len(registry) != 1 or not isinstance(registry[0], ast.Dict):
         raise ValueError("missing or ambiguous pinned BUILDERS registry")
     mapping: dict[str, str] = {}
-    for key, value in zip(registry[0].keys, registry[0].values):
+    for key, value in zip(registry[0].keys, registry[0].values, strict=True):
         if (
             not isinstance(key, ast.Constant)
             or not isinstance(key.value, str)
