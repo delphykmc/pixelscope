@@ -51,7 +51,7 @@ def fingerprint(meta: dict[str, Any], environment: dict[str, Any]) -> dict[str, 
     return result
 
 
-def pixel_metrics(base: Path, head: Path, output: Path) -> dict[str, Any]:
+def pixel_metrics(base: Path, head: Path, output: Path | None = None) -> dict[str, Any]:
     """Exact decoded RGB pixels decide CHANGED; no tolerance masks text."""
     with Image.open(base) as a, Image.open(head) as z:
         a.load()
@@ -73,7 +73,7 @@ def pixel_metrics(base: Path, head: Path, output: Path) -> dict[str, Any]:
     extrema = diff.getextrema()
     assert isinstance(extrema, tuple)
     max_error = max(high for _, high in extrema)
-    if max_error:
+    if max_error and output is not None:
         output.mkdir(parents=True, exist_ok=True)
         combined = Image.new("RGB", (first.width * 2, first.height))
         combined.paste(first, (0, 0))
@@ -138,11 +138,9 @@ def documentation_relation(root: Path, record: dict[str, Any], head_png: Path) -
     if not path.is_file():
         return {"state": "MISSING", "provenance": record.get("status")}
     try:
-        metrics = pixel_metrics(path, head_png, Path("__no_diff_artifacts__"))
+        metrics = pixel_metrics(path, head_png)
     except (OSError, ValueError):
         return {"state": "INVALID_COMMITTED_IMAGE", "provenance": record.get("status")}
-    # Above must not create untracked images when the two pictures differ:
-    # compare directly without requesting emitted artifact pixels.
     return {
         "state": "SAME_PIXELS" if metrics["identical"] else "DIFFERENT_PIXELS_REVIEW",
         "provenance": record.get("status"),
