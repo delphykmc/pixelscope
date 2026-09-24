@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "target_capture_profile": "windows-e1-poc-v1",
-  "impact_ownership_status": "e3-pending",
+  "impact_ownership_status": "complete",
   "diagnostic_legacy_outputs": [
     "empty_state.png",
     "three_image_multiview.png",
@@ -23,7 +23,26 @@
         "image-view",
         "statistics"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/app/registration_controller.py",
+        "src/pixelscope/core/channel_views.py",
+        "src/pixelscope/core/display_transform.py",
+        "src/pixelscope/core/image_cache.py",
+        "src/pixelscope/core/image_document.py",
+        "src/pixelscope/core/raw_display.py",
+        "src/pixelscope/core/roi.py",
+        "src/pixelscope/core/statistics.py",
+        "src/pixelscope/io/image_reader.py",
+        "src/pixelscope/ui/comparison_analysis_panel.py",
+        "src/pixelscope/ui/display_gain*.py",
+        "src/pixelscope/ui/document_list.py",
+        "src/pixelscope/ui/file_status_icons.py",
+        "src/pixelscope/ui/folder_display_tags.py",
+        "src/pixelscope/ui/image_viewer.py",
+        "src/pixelscope/ui/pixel_inspector.py",
+        "src/pixelscope/ui/presentation_controls.py",
+        "src/pixelscope/ui/tile_header.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -46,7 +65,18 @@
         "multi-view",
         "selection"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/multi_compare_view.py",
+        "src/pixelscope/ui/quick_compare.py",
+        "src/pixelscope/ui/document_list.py",
+        "src/pixelscope/ui/multiview_reorder_stability.py",
+        "src/pixelscope/ui/tile_header.py",
+        "src/pixelscope/ui/review_selection.py",
+        "src/pixelscope/core/comparison_set.py",
+        "src/pixelscope/core/review_selection.py",
+        "src/pixelscope/core/image_document.py",
+        "src/pixelscope/core/spatial_sampling.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -69,7 +99,17 @@
         "difference",
         "multi-view"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/app/yuv_difference_semantics.py",
+        "src/pixelscope/app/yuv_runtime_contracts.py",
+        "src/pixelscope/core/diff_engine.py",
+        "src/pixelscope/core/difference_cache.py",
+        "src/pixelscope/core/image_document.py",
+        "src/pixelscope/core/spatial_sampling.py",
+        "src/pixelscope/core/yuv_difference.py",
+        "src/pixelscope/ui/difference*.py",
+        "src/pixelscope/ui/multi_compare_view.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -92,7 +132,14 @@
         "histogram",
         "plots"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/comparison_analysis_panel.py",
+        "src/pixelscope/ui/plot_*.py",
+        "src/pixelscope/ui/plots_dock_title.py",
+        "src/pixelscope/core/statistics.py",
+        "src/pixelscope/core/roi.py",
+        "src/pixelscope/core/channel_views.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -115,7 +162,15 @@
         "line-profile",
         "plots"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/line_profile_panel.py",
+        "src/pixelscope/ui/comparison_analysis_panel.py",
+        "src/pixelscope/ui/plot_*.py",
+        "src/pixelscope/core/line_profile.py",
+        "src/pixelscope/core/roi.py",
+        "src/pixelscope/core/spatial_sampling.py",
+        "src/pixelscope/core/channel_views.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -136,7 +191,14 @@
         "plots",
         "workspace"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/comparison_analysis_panel.py",
+        "src/pixelscope/ui/line_profile_panel.py",
+        "src/pixelscope/ui/plots_dock_title.py",
+        "src/pixelscope/ui/plot_*.py",
+        "src/pixelscope/core/statistics.py",
+        "src/pixelscope/core/line_profile.py"
+      ],
       "viewport": {
         "width": 1200,
         "height": 520
@@ -159,7 +221,14 @@
         "raw",
         "input"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/raw_open_dialog.py",
+        "src/pixelscope/io/raw_*.py",
+        "src/pixelscope/app/raw_input_compatibility.py",
+        "src/pixelscope/core/bayer.py",
+        "src/pixelscope/core/raw_display.py",
+        "src/pixelscope/core/image_document.py"
+      ],
       "viewport": {
         "width": 520,
         "height": 620
@@ -180,7 +249,13 @@
       "features": [
         "common-shell"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/presentation_controls.py",
+        "src/pixelscope/ui/empty_state.py",
+        "src/pixelscope/ui/structured_status_bar.py",
+        "src/pixelscope/ui/workflow_polish.py",
+        "src/pixelscope/ui/tile_header.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -203,7 +278,18 @@
         "files",
         "registration"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/document_list.py",
+        "src/pixelscope/ui/file_status_icons.py",
+        "src/pixelscope/ui/folder_display_tags.py",
+        "src/pixelscope/ui/recent_entries.py",
+        "src/pixelscope/app/registration_controller.py",
+        "src/pixelscope/app/recent_entries.py",
+        "src/pixelscope/io/path_discovery.py",
+        "src/pixelscope/io/image_reader.py",
+        "src/pixelscope/core/folder_navigation.py",
+        "src/pixelscope/core/recent_entries.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -226,7 +312,13 @@
         "roi",
         "statistics"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/image_viewer.py",
+        "src/pixelscope/ui/comparison_analysis_panel.py",
+        "src/pixelscope/core/roi.py",
+        "src/pixelscope/core/statistics.py",
+        "src/pixelscope/core/spatial_sampling.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -248,7 +340,13 @@
       "features": [
         "statistics"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/comparison_analysis_panel.py",
+        "src/pixelscope/ui/image_viewer.py",
+        "src/pixelscope/core/statistics.py",
+        "src/pixelscope/core/roi.py",
+        "src/pixelscope/core/image_document.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -270,7 +368,13 @@
       "features": [
         "settings"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/settings_dialog.py",
+        "src/pixelscope/ui/iqa_remote_settings.py",
+        "src/pixelscope/app/settings.py",
+        "src/pixelscope/core/performance_settings.py",
+        "src/pixelscope/remote/iqa_settings.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -292,7 +396,12 @@
       "features": [
         "iqa"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/iqa_*.py",
+        "src/pixelscope/remote/iqa_*.py",
+        "src/pixelscope/app/iqa_history.py",
+        "src/pixelscope/core/comparison_set.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -315,7 +424,13 @@
         "yuv",
         "input"
       ],
-      "source_globs": [],
+      "source_globs": [
+        "src/pixelscope/ui/yuv_open_dialog.py",
+        "src/pixelscope/io/yuv_*.py",
+        "src/pixelscope/core/yuv*.py",
+        "src/pixelscope/app/yuv_*.py",
+        "src/pixelscope/core/channel_views.py"
+      ],
       "viewport": {
         "width": 1680,
         "height": 980
@@ -324,5 +439,43 @@
       "approved": null,
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     }
+  ],
+  "shared_source_globs": [
+    "pyproject.toml",
+    "requirements/runtime.txt",
+    "scripts/capture_ui_review.py",
+    "scripts/capture_ui_scene.py",
+    "scripts/generate_iqa_fixture.py",
+    "scripts/generate_test_images.py",
+    "scripts/generate_yuv_manual_fixtures.py",
+    "scripts/run_ui_capture_poc.py",
+    "src/pixelscope/__main__.py",
+    "src/pixelscope/app/application.py",
+    "src/pixelscope/app/main_window.py",
+    "src/pixelscope/app/resources.py",
+    "src/pixelscope/app/settings.py",
+    "src/pixelscope/assets/**",
+    "src/pixelscope/core/bayer.py",
+    "src/pixelscope/core/channel_views.py",
+    "src/pixelscope/core/display_transform.py",
+    "src/pixelscope/core/image_cache.py",
+    "src/pixelscope/core/image_document.py",
+    "src/pixelscope/core/performance_settings.py",
+    "src/pixelscope/core/raw_display.py",
+    "src/pixelscope/core/yuv.py",
+    "src/pixelscope/io/image_reader.py",
+    "src/pixelscope/io/raw_reader.py",
+    "src/pixelscope/io/yuv_reader.py",
+    "src/pixelscope/ui/design_tokens.py",
+    "src/pixelscope/ui/plot_colors.py",
+    "src/pixelscope/ui/plot_text.py",
+    "src/pixelscope/ui/responsive_control_layout.py",
+    "src/pixelscope/ui/session.py",
+    "src/pixelscope/ui/session_restore_overlay.py",
+    "src/pixelscope/ui/structured_status_bar.py",
+    "src/pixelscope/ui/toolbar_icons.py",
+    "src/pixelscope/ui/workflow_polish.py",
+    "src/pixelscope/version.py",
+    "tests/ui/conftest.py"
   ]
 }

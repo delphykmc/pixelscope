@@ -153,3 +153,9 @@ inspection of actual hosted Windows PNGs and repeatability; static checks alone
 are not evidence of GUI availability or a fix for Issue #81.
 
 E1 was owner-approved and merged as PR #94 at `main@ec8563df821a77b270363b00cff83e6c97e9db07` after Windows-hosted PoC, documentation CI and reported owner Windows validation. This proves only the two isolated capture scenes; Issue #81 is not marked resolved. E2 introduces a versioned seven-legacy/seven-planned Screenshot Manifest, classifies legacy-only scenes and three diagnostics, and adds Qt-free inventory/PNG/reference checks. E2 **does not yet** enable Screenshot ID Markdown insertion, missing-PNG omission, E3 impact mapping, E4 visual baselines or E6 promotion; these retain their separate review gates.
+
+### E2 completed / E3 impact selector
+
+E2 PR #95 merged at `main@415dab7cf4742cce0d6369024cdc91da652556d7` after owner full-pytest and live Help/image-rendering smoke PASS. Owner also observed that **some existing guide screenshots appear older than current UI**. This is tracked as screenshot-content review/replacement debt in E4–E6, not proof that guide instructions are incorrect; existing `legacy-unverified` PNGs must not be called current, automatically replaced or assigned invented capture commits.
+
+E3 owns Qt-free source-file change impact inference with verified per-scene ownership, shared shell/fixture mapping, conservative unknown UI/core/io fallback, renames/deletions and committed PNG changes. It is distinct from actual E4 Windows comparison and E5/E6 User Guide image migration/promotion.
