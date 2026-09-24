@@ -123,6 +123,7 @@ jobs:
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
+          python -m ruff format --diff scripts/select_ui_screenshots.py tests/unit/test_ui_screenshot_impact.py
           python -m ruff format --check .
       - name: Install pinned mypy for full source validation
         if: runner.os == 'Windows'
