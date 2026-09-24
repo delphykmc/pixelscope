@@ -40,9 +40,9 @@ becomes a broken Markdown link when the corresponding PNG is intentionally absen
 - `raw-profile-dialog` — RAW.
 - `plots-floating` — tracked but not currently used by a topic page.
 
-The canonical, searchable topic Markdown owns the actual placement. The MkDocs E5
-hook expands `<!-- pixelscope:screenshot ID -->` to a local image only when the
-manifest-declared file exists, and otherwise emits nothing. The hook does not
+The canonical, searchable topic Markdown owns the actual placement. The MkDocs E5 hook expands a valid `pixelscope:screenshot` HTML-comment marker
+with its literal manifest ID to a local image only when the manifest-declared
+file exists, and otherwise emits nothing. The hook does not
 generate, replace or approve any PNG.
 
 ## Automated lifecycle: E0–E4 merged / E5 optional rendering
