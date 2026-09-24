@@ -27,6 +27,7 @@ SCREENSHOT_IMAGE = re.compile(r"!\[[^]\n]*\]\(([^)\n]+)\)")
 SHA = re.compile(r"[0-9a-fA-F]{40}")
 STATUS = re.compile(r"(?:[AMDT]|[RC][0-9]{1,3})")
 FALLBACK_DIRS = (
+    "src/pixelscope/",
     "src/pixelscope/ui/",
     "src/pixelscope/app/",
     "src/pixelscope/core/",
