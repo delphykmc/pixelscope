@@ -191,9 +191,7 @@ def test_malformed_marker_and_swapped_legacy_output_are_detected(repo: Path) -> 
         encoding="utf-8",
     )
     assert any("malformed screenshot marker" in e for e in find_problems(repo))
-    page.write_text(
-        "# Page\n![single](../assets/screenshots/single-image.png)\n", encoding="utf-8"
-    )
+    page.write_text("# Page\n![single](../assets/screenshots/single-image.png)\n", encoding="utf-8")
     _modify(repo, lambda m: m["screenshots"][0].update(legacy_output="histogram_docked.png"))
     assert any("no matching output" in e for e in find_problems(repo))
 
@@ -268,9 +266,7 @@ def test_crc_valid_unsupported_png_encoding_fails(
 ) -> None:
     png = tmp_path / "invalid.png"
     _png(png, color=color, interlace=interlace)
-    assert png_problems(png) == [
-        "unsupported PNG encoding: expected non-interlaced 8-bit RGB/RGBA"
-    ]
+    assert png_problems(png) == ["unsupported PNG encoding: expected non-interlaced 8-bit RGB/RGBA"]
 
 
 def test_target_profile_is_not_historical_capture_provenance(repo: Path) -> None:
