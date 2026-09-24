@@ -14,7 +14,7 @@
       "pages": [
         "features/image-view.md"
       ],
-      "placement": "legacy-literal",
+      "placement": "required",
       "scenario": "single_image",
       "capture_mode": "isolated",
       "legacy_output": "single_image.png",
@@ -57,7 +57,7 @@
       "pages": [
         "getting-started/quick-start.md"
       ],
-      "placement": "legacy-literal",
+      "placement": "required",
       "scenario": "six_image_multiview",
       "capture_mode": "legacy-manual",
       "legacy_output": "six_image_multiview.png",
@@ -91,7 +91,7 @@
       "pages": [
         "features/difference.md"
       ],
-      "placement": "legacy-literal",
+      "placement": "required",
       "scenario": "difference_analysis",
       "capture_mode": "legacy-manual",
       "legacy_output": "difference_analysis.png",
@@ -124,7 +124,7 @@
       "pages": [
         "features/histogram.md"
       ],
-      "placement": "legacy-literal",
+      "placement": "required",
       "scenario": "histogram_docked",
       "capture_mode": "legacy-manual",
       "legacy_output": "histogram_docked.png",
@@ -154,7 +154,7 @@
       "pages": [
         "features/line-profile.md"
       ],
-      "placement": "legacy-literal",
+      "placement": "required",
       "scenario": "line_profile_docked",
       "capture_mode": "legacy-manual",
       "legacy_output": "line_profile_docked.png",
@@ -213,7 +213,7 @@
       "pages": [
         "formats/raw.md"
       ],
-      "placement": "legacy-literal",
+      "placement": "required",
       "scenario": "raw_profile_dialog",
       "capture_mode": "isolated",
       "legacy_output": "raw_profile_dialog.png",
