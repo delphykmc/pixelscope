@@ -28,6 +28,11 @@ plugins:
   - search
   - offline
 
+# Build-time only. Canonical User Guide Markdown stores screenshot IDs, not
+# hard-coded PNG paths or copies of the instructions.
+hooks:
+  - scripts/user_guide_screenshot_hook.py
+
 markdown_extensions:
   - admonition
   - attr_list
