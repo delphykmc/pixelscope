@@ -1,16 +1,16 @@
 # Execution plan: WP-Help-E — Automated Screenshot Lifecycle
 
-Status: **E0 plan proposed / E1–E6 not implemented**
+Status: **E0/E1 merged; E2 manifest foundation in draft; E3–E6 not implemented**
 Owner: ChatGPT-assisted implementation; repository owner approval and Windows validation
-Branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / E0 planning PR
+Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E2 branch/PR: `feature/wp-help-e2-screenshot-manifest-foundation` / draft #95
 Baseline: `main@aabc1fe338aed2fea9afd15db1275aff7b549109` (2026-09-21 KST)
-Last updated: 2026-09-21
+Last updated: 2026-09-24
 
 ## Goal and acceptance boundary
 
 Make screenshots in the canonical Markdown User Guide reproducible from the **real PixelScope QWidget UI**, detect PR-relevant visual changes against a pinned main baseline, and supply reviewable images/diffs without CI editing the PR or automatically approving documentation. Users must not have to arrange the app interactively to capture a supported scenario.
 
-**This PR contains E0 planning only.** In particular, there is no Windows hosted-runner GUI PoC result, no new manifest implementation, no conditional MkDocs renderer, no screenshot workflow, and no assertion that Issue #81 is fixed. E1 is a technical feasibility gate before committing to an end-to-end hosted capture pipeline.
+**The original E0 PR contained planning only.** E1 later proved two isolated real-GUI hosted Windows scenes and was merged as #94; E2 now introduces the static manifest/inventory contract under #95. No E3 change-impact engine, E4 baseline/head visual-diff CI, E5 conditional MkDocs renderer, E6 screenshot promotion or assertion that Issue #81 is fixed is implied by E0–E2. E1 is a technical feasibility gate before committing to an end-to-end hosted capture pipeline.
 
 ## Scope and preflight inventory
 
