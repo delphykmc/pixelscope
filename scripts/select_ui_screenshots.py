@@ -164,6 +164,20 @@ def screenshot_markup(text: str) -> tuple[str, ...]:
     return tuple(sorted(found))
 
 
+def _tag_impact(
+    per_id: dict[str, set[str]],
+    grouped: set[str],
+    for_path: set[str],
+    ids: set[str],
+    reason: str,
+) -> None:
+    """Attribute a reason only to affected IDs, also recording path evidence."""
+    for key in ids:
+        per_id[key].add(reason)
+    grouped.add(reason)
+    for_path.add(reason)
+
+
 def select_changes(
     changed: list[ChangedFile],
     base_manifest: dict[str, Any],
@@ -223,17 +237,8 @@ def select_changes(
         per_id_reasons: dict[str, set[str]] = defaultdict(set)
         reasons: set[str] = set()
 
-        def select(ids: set[str], reason: str) -> None:
-            for key in ids:
-                per_id_reasons[key].add(reason)
-            reasons.add(reason)
-
         for path in change.paths:
             path_reasons: set[str] = set()
-
-            def add(ids: set[str], reason: str) -> None:
-                select(ids, reason)
-                path_reasons.add(reason)
 
             if path == MANIFEST_PATH:
                 old_header = {
@@ -243,20 +248,20 @@ def select_changes(
                     key: value for key, value in head_manifest.items() if key != "screenshots"
                 }
                 if old_header != new_header:
-                    add(all_ids, "manifest-shared-contract")
+                    _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "manifest-shared-contract")
                 for key in all_ids:
                     if old.get(key) != new.get(key):
-                        add({key}, "manifest-scene-contract")
+                        _tag_impact(per_id_reasons, reasons, path_reasons, {key}, "manifest-scene-contract")
                 if not path_reasons:
                     reasons.add("manifest-format-only")
                 continue
             if path.startswith(ASSET_DIR) and path.endswith(".png"):
                 key = path[len(ASSET_DIR) : -4]
                 if "/" in key or key not in all_ids:
-                    add(all_ids, "unmapped-screenshot-asset")
+                    _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "unmapped-screenshot-asset")
                     warnings.add(f"unmapped-screenshot-asset: {path}")
                 else:
-                    add({key}, "committed-screenshot-png")
+                    _tag_impact(per_id_reasons, reasons, path_reasons, {key}, "committed-screenshot-png")
                 png_changes.append({"path": path, "status": change.status, "screenshot_id": key})
                 continue
             if path in (
@@ -264,25 +269,25 @@ def select_changes(
                 "scripts/select_ui_screenshots.py",
                 "scripts/check_screenshot_manifest.py",
             ):
-                add(all_ids, "screenshot-automation-contract")
+                _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "screenshot-automation-contract")
                 continue
             if path == ASSET_DIR + "README.md":
-                add(all_ids, "screenshot-readme-reference")
+                _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "screenshot-readme-reference")
                 continue
             if _glob(path, shared):
-                add(all_ids, "shared-rendering-or-capture-dependency")
+                _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "shared-rendering-or-capture-dependency")
                 continue
             head_owners = {
                 key for key, record in new.items() if _glob(path, record.get("source_globs", []))
             }
             for key in head_owners:
-                add({key}, "feature-owner:" + key)
+                _tag_impact(per_id_reasons, reasons, path_reasons, {key}, "feature-owner:" + key)
             # Ownership can change in the same PR as code. Preserve base-side
             # ownership for every ID, not only IDs removed from the manifest.
             for key, record in old.items():
                 if key not in head_owners and _glob(path, record.get("source_globs", [])):
                     label = "removed-feature-owner:" if key not in new else "base-feature-owner:"
-                    add({key}, label + key)
+                    _tag_impact(per_id_reasons, reasons, path_reasons, {key}, label + key)
             if path.startswith(GUIDE_DIR) and path.endswith(".md"):
                 if read_at_revision is None:
                     # The caller may omit a revision reader in unit/embedding
@@ -294,7 +299,7 @@ def select_changes(
                         key for key, row in new.items() if page in row.get("pages", [])
                     }
                     if page_owners:
-                        add(page_owners, "screenshot-markdown-page")
+                        _tag_impact(per_id_reasons, reasons, path_reasons, page_owners, "screenshot-markdown-page")
                 else:
                     old_text = read_at_revision(base_sha, path)
                     new_text = read_at_revision(head_sha, path)
@@ -304,20 +309,25 @@ def select_changes(
                         new_text
                     ):
                         refs = previous | current
-                        add(refs & all_ids, "screenshot-markdown-reference")
+                        _tag_impact(per_id_reasons, reasons, path_reasons, refs & all_ids, "screenshot-markdown-reference")
                         if refs - all_ids:
-                            add(all_ids, "unmapped-screenshot-reference")
+                            _tag_impact(per_id_reasons, reasons, path_reasons, all_ids, "unmapped-screenshot-reference")
                             warnings.add(f"unmapped-screenshot-reference: {path}")
                 if not path_reasons:
                     reasons.add("docs-prose-only")
                 continue
-            if path.startswith(FALLBACK_DIRS) or CAPTURE_HELPER.fullmatch(path):
-                if not _glob(path, shared) and not any(
+            if (
+                (path.startswith(FALLBACK_DIRS) or CAPTURE_HELPER.fullmatch(path))
+                and not _glob(path, shared)
+                and not any(
                     _glob(path, row.get("source_globs", []))
                     for row in list(old.values()) + list(new.values())
-                ):
-                    add(all_ids, "unmapped-ui-impact-full-capture")
-                    warnings.add(f"unmapped-ui-impact: {path}")
+                )
+            ):
+                _tag_impact(
+                    per_id_reasons, reasons, path_reasons, all_ids, "unmapped-ui-impact-full-capture"
+                )
+                warnings.add(f"unmapped-ui-impact: {path}")
             if not path_reasons:
                 reasons.add("no-rendered-ui-impact")
         for key, own_reasons in per_id_reasons.items():
