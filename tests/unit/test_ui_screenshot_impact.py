@@ -63,6 +63,28 @@ def test_parse_git_name_status_nul_rename_delete_unicode_and_space() -> None:
         parse_name_status_z(b"U\x00file\x00")
 
 
+@pytest.mark.parametrize(
+    ("path", "affected_id"),
+    [
+        ("src/pixelscope/core/roi.py", "single-image"),
+        ("src/pixelscope/core/statistics.py", "single-image"),
+        ("src/pixelscope/core/spatial_sampling.py", "difference-analysis"),
+    ],
+)
+def test_known_transitive_rendering_paths_never_silently_omit_the_scene(
+    manifest: dict, path: str, affected_id: str
+) -> None:
+    # These paths already belong to *other* scenes, so unmapped-path fallback
+    # cannot rescue a missing owner for the actual visible output.
+    result = report(manifest, path)
+    assert result["warnings"] == []
+    assert affected_id in result["selected_ids"]
+    assert f"feature-owner:{affected_id}" in result["selected_screenshots"][
+        result["selected_ids"].index(affected_id)
+    ]["reasons"]
+    assert len(result["selected_ids"]) < 14
+
+
 def test_single_view_capture_depends_on_visible_files_and_statistics(manifest: dict) -> None:
     # E1 Single View actually shows Files and asynchronous Statistics, not
     # only the ImageViewer pixels (statistics_ready gates its capture).
@@ -177,6 +199,32 @@ def test_markdown_screenshot_reference_changes_select_declared_ids(manifest: dic
     assert set(result["selected_ids"]) == {"raw-profile-dialog", "yuv-profile-dialog"}
     assert "screenshot-markdown-reference" in result["changed_paths"][0]["reasons"]
     assert screenshot_references("This is unrelated prose.") == set()
+
+
+def test_mixed_rename_reasons_belong_to_affected_ids_only(manifest: dict) -> None:
+    old_raw = "src/pixelscope/ui/raw_open_dialog.py"
+    new_unmapped = "src/pixelscope/ui/unmapped_new_dialog.py"
+    selection = select_changes(
+        [ChangedFile("R100", new_unmapped, old_raw)],
+        manifest,
+        manifest,
+        base_sha=FULL,
+        head_sha=NEXT,
+    )
+    assert len(selection["selected_ids"]) == 14
+    assert selection["warnings"] == [f"unmapped-ui-impact: {new_unmapped}"]
+    assert selection["changed_paths"][0]["reasons"] == [
+        "feature-owner:raw-profile-dialog",
+        "unmapped-ui-impact-full-capture",
+    ]
+    by_id = {entry["id"]: entry["reasons"] for entry in selection["selected_screenshots"]}
+    assert by_id["raw-profile-dialog"] == [
+        "feature-owner:raw-profile-dialog",
+        "unmapped-ui-impact-full-capture",
+    ]
+    for key, own_reasons in by_id.items():
+        if key != "raw-profile-dialog":
+            assert own_reasons == ["unmapped-ui-impact-full-capture"]
 
 
 def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> None:
