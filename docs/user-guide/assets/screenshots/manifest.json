@@ -1,0 +1,326 @@
+{
+  "schema_version": 1,
+  "capture_profile": "windows-e1-poc-v1",
+  "impact_ownership_status": "e3-pending",
+  "diagnostic_legacy_outputs": [
+    "empty_state.png",
+    "three_image_multiview.png",
+    "five_image_multiview.png"
+  ],
+  "screenshots": [
+    {
+      "id": "single-image",
+      "filename": "single-image.png",
+      "pages": [
+        "features/image-view.md"
+      ],
+      "placement": "legacy-literal",
+      "scenario": "single_image",
+      "capture_mode": "isolated",
+      "legacy_output": "single_image.png",
+      "alt": "Single Image View",
+      "features": [
+        "image-view",
+        "statistics"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "legacy-unverified",
+      "approved": null
+    },
+    {
+      "id": "six-image-multiview",
+      "filename": "six-image-multiview.png",
+      "pages": [],
+      "placement": "legacy-unreferenced",
+      "scenario": "six_image_multiview",
+      "capture_mode": "legacy-manual",
+      "legacy_output": "six_image_multiview.png",
+      "alt": "Six-image Multi View",
+      "features": [
+        "multi-view",
+        "selection"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "legacy-unverified",
+      "approved": null
+    },
+    {
+      "id": "difference-analysis",
+      "filename": "difference-analysis.png",
+      "pages": [
+        "features/difference.md"
+      ],
+      "placement": "legacy-literal",
+      "scenario": "difference_analysis",
+      "capture_mode": "legacy-manual",
+      "legacy_output": "difference_analysis.png",
+      "alt": "Difference analysis",
+      "features": [
+        "difference",
+        "multi-view"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "legacy-unverified",
+      "approved": null
+    },
+    {
+      "id": "histogram-docked",
+      "filename": "histogram-docked.png",
+      "pages": [
+        "features/histogram.md"
+      ],
+      "placement": "legacy-literal",
+      "scenario": "histogram_docked",
+      "capture_mode": "legacy-manual",
+      "legacy_output": "histogram_docked.png",
+      "alt": "Histogram workspace",
+      "features": [
+        "histogram",
+        "plots"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "legacy-unverified",
+      "approved": null
+    },
+    {
+      "id": "line-profile-docked",
+      "filename": "line-profile-docked.png",
+      "pages": [
+        "features/line-profile.md"
+      ],
+      "placement": "legacy-literal",
+      "scenario": "line_profile_docked",
+      "capture_mode": "legacy-manual",
+      "legacy_output": "line_profile_docked.png",
+      "alt": "Line Profile workspace",
+      "features": [
+        "line-profile",
+        "plots"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "legacy-unverified",
+      "approved": null
+    },
+    {
+      "id": "plots-floating",
+      "filename": "plots-floating.png",
+      "pages": [],
+      "placement": "legacy-unreferenced",
+      "scenario": "plots_floating",
+      "capture_mode": "legacy-manual",
+      "legacy_output": "plots_floating.png",
+      "alt": "Floating Plots workspace",
+      "features": [
+        "plots",
+        "workspace"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1200,
+        "height": 520
+      },
+      "status": "legacy-unverified",
+      "approved": null
+    },
+    {
+      "id": "raw-profile-dialog",
+      "filename": "raw-profile-dialog.png",
+      "pages": [
+        "formats/raw.md"
+      ],
+      "placement": "legacy-literal",
+      "scenario": "raw_profile_dialog",
+      "capture_mode": "isolated",
+      "legacy_output": "raw_profile_dialog.png",
+      "alt": "RAW profile dialog",
+      "features": [
+        "raw",
+        "input"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 520,
+        "height": 620
+      },
+      "status": "legacy-unverified",
+      "approved": null
+    },
+    {
+      "id": "window-overview",
+      "filename": "window-overview.png",
+      "pages": [
+        "features/image-view.md"
+      ],
+      "placement": "planned",
+      "scenario": "window_overview",
+      "capture_mode": "planned",
+      "alt": "window overview",
+      "features": [
+        "common-shell"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "planned",
+      "approved": null,
+      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+    },
+    {
+      "id": "files-workspace",
+      "filename": "files-workspace.png",
+      "pages": [
+        "features/files-workspace.md"
+      ],
+      "placement": "planned",
+      "scenario": "files_workspace",
+      "capture_mode": "planned",
+      "alt": "files workspace",
+      "features": [
+        "files",
+        "registration"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "planned",
+      "approved": null,
+      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+    },
+    {
+      "id": "roi-exact",
+      "filename": "roi-exact.png",
+      "pages": [
+        "workflows/inspect-roi.md"
+      ],
+      "placement": "planned",
+      "scenario": "roi_exact",
+      "capture_mode": "planned",
+      "alt": "roi exact",
+      "features": [
+        "roi",
+        "statistics"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "planned",
+      "approved": null,
+      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+    },
+    {
+      "id": "statistics-workspace",
+      "filename": "statistics-workspace.png",
+      "pages": [
+        "features/statistics.md"
+      ],
+      "placement": "planned",
+      "scenario": "statistics_workspace",
+      "capture_mode": "planned",
+      "alt": "statistics workspace",
+      "features": [
+        "statistics"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "planned",
+      "approved": null,
+      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+    },
+    {
+      "id": "settings-dialog",
+      "filename": "settings-dialog.png",
+      "pages": [
+        "features/settings.md"
+      ],
+      "placement": "planned",
+      "scenario": "settings_dialog",
+      "capture_mode": "planned",
+      "alt": "settings dialog",
+      "features": [
+        "settings"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "planned",
+      "approved": null,
+      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+    },
+    {
+      "id": "iqa-neutral",
+      "filename": "iqa-neutral.png",
+      "pages": [
+        "features/iqa-workspace.md"
+      ],
+      "placement": "planned",
+      "scenario": "iqa_neutral",
+      "capture_mode": "planned",
+      "alt": "iqa neutral",
+      "features": [
+        "iqa"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "planned",
+      "approved": null,
+      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+    },
+    {
+      "id": "yuv-profile-dialog",
+      "filename": "yuv-profile-dialog.png",
+      "pages": [
+        "formats/yuv.md"
+      ],
+      "placement": "planned",
+      "scenario": "yuv_profile_dialog",
+      "capture_mode": "planned",
+      "alt": "yuv profile dialog",
+      "features": [
+        "yuv",
+        "input"
+      ],
+      "source_globs": [],
+      "viewport": {
+        "width": 1680,
+        "height": 980
+      },
+      "status": "planned",
+      "approved": null,
+      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+    }
+  ]
+}
