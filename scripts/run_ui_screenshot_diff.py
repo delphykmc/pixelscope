@@ -93,7 +93,11 @@ def renderer_environment(root: Path, output: Path, probe: Path) -> dict[str, Any
 
 
 def capture_scene(
-    root: Path, sha: str, scene: str, folder: Path
+    root: Path,
+    sha: str,
+    scene: str,
+    folder: Path,
+    record: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     folder.mkdir(parents=True, exist_ok=True)
     png, meta = folder / "capture.png", folder / "capture.json"
@@ -113,7 +117,24 @@ def capture_scene(
         process = _execute(root, command, _env(root))
         process_info["exit_code"] = process.returncode
         process_info["stderr"] = sanitized_stderr(process.stderr)
-        observed = assess_capture_process(process, png, meta, scene, sha)
+        if record is None:
+            # Existing unit callers may exercise early native child failures
+            # without a manifest; production always supplies its pinned row.
+            observed = assess_capture_process(process, png, meta, scene, sha)
+        else:
+            viewport = record["viewport"]
+            policy = record.get("geometry_policy", "resizable")
+            if policy not in ("fixed", "resizable"):
+                raise ValueError("invalid capture geometry policy")
+            observed = assess_capture_process(
+                process,
+                png,
+                meta,
+                scene,
+                sha,
+                expected_logical_size=[viewport["width"], viewport["height"]],
+                allow_widget_resize=policy == "resizable",
+            )
         return observed, process_info
     except (OSError, ValueError, KeyError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
         process_info["failure"] = type(exc).__name__
@@ -223,7 +244,7 @@ def run(base_root: Path, head_root: Path, base_sha: str, head_sha: str, output: 
                 continue
             head_dir = output / key / "head"
             head_meta, head_process = capture_scene(
-                head_root, head_sha, new[key]["scenario"], head_dir
+                head_root, head_sha, new[key]["scenario"], head_dir, new[key]
             )
             row["head_process"] = head_process
             if head_meta is None:
@@ -244,7 +265,7 @@ def run(base_root: Path, head_root: Path, base_sha: str, head_sha: str, output: 
                 continue
             base_dir = output / key / "base"
             base_meta, base_process = capture_scene(
-                base_root, base_sha, old[key]["scenario"], base_dir
+                base_root, base_sha, old[key]["scenario"], base_dir, old[key]
             )
             row["base_process"] = base_process
             if base_meta is None:
