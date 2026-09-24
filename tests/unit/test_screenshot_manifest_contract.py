@@ -345,5 +345,7 @@ def test_e5_page_move_and_unknown_required_id_fail(repo: Path) -> None:
     problems = find_problems(repo)
     assert any("missing required screenshot marker" in problem for problem in problems)
     assert any("screenshot marker not declared for page" in problem for problem in problems)
-    other.write_text("# Settings\n<!-- pixelscope:screenshot unknown-future -->\n", encoding="utf-8")
+    other.write_text(
+        "# Settings\n<!-- pixelscope:screenshot unknown-future -->\n", encoding="utf-8"
+    )
     assert any("unknown screenshot ID" in problem for problem in find_problems(repo))
