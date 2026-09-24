@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENES = ("single_image", "raw_profile_dialog")
 ATTEMPTS = 2
 MAX_CHANGED_FRACTION = 0.01
-EXPECTED_LOGICAL_SIZE = {"single_image": [1680, 980], "raw_profile_dialog": [520, 620]}
+EXPECTED_LOGICAL_SIZE = {"single_image": [1680, 980], "raw_profile_dialog": [280, 685]}
 CALLBACK_ERROR_MARKER = "PIXELSCOPE_E1_QT_CALLBACK_EXCEPTION"
 
 
@@ -101,7 +101,7 @@ def validate_capture(
     with Image.open(path) as opened:
         image = opened.convert("RGB")
         width, height = image.size
-        if width < 400 or height < 350:
+        if width < 250 or height < 350:
             raise ValueError("captured screen is smaller than the minimum useful UI")
         if max(ImageStat.Stat(image).stddev) < 7.0:
             raise ValueError("captured UI has insufficient pixel variation")

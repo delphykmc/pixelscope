@@ -22,7 +22,7 @@ from types import TracebackType
 import pyqtgraph
 from PySide6 import __version__ as pyside_version
 from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, QSettings, qVersion
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from pixelscope.app.application import (
     _compose_main_window_presentation,
@@ -40,14 +40,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pixelscope.io.raw_profile import RawProfile  # noqa: E402
+from pixelscope.io.path_discovery import ImageInput  # noqa: E402
 from pixelscope.ui.raw_open_dialog import RawOpenDialog  # noqa: E402
 from scripts.capture_ui_review import review_document  # noqa: E402
 from scripts.screenshot_fixture_identity import single_view_fixture_identity  # noqa: E402
 
 PROFILE = "windows-e1-poc-v1"
 WINDOW_SIZE = (1680, 980)
-DIALOG_SIZE = (520, 620)
+DIALOG_SIZE = (280, 685)
+SINGLE_VIEW_ZOOM_FACTOR = 1.5
 TIMEOUT_SECONDS = 15.0
 CALLBACK_ERROR_MARKER = "PIXELSCOPE_E1_QT_CALLBACK_EXCEPTION"
 
@@ -116,6 +117,11 @@ def statistics_ready(panel: object, document: object) -> bool:
     )
 
 
+def apply_single_view_capture_zoom(viewer: object) -> None:
+    """Set the real viewer state used by the guide candidate capture."""
+    viewer.zoom_by(1.0 / SINGLE_VIEW_ZOOM_FACTOR)  # type: ignore[attr-defined]
+
+
 def _configure_isolated_settings(directory: Path) -> None:
     """Ensure QSettings cannot clear, write or read the owner's real preferences."""
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
@@ -145,9 +151,11 @@ def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
     fixture_sha256 = single_view_fixture_identity(
         document.source.tobytes(), document.display_name, document.source_path.as_posix()
     )
+    zoom_applied = False
 
     def ready() -> bool:
-        return (
+        nonlocal zoom_applied
+        base_ready = (
             document.document_id in window.documents
             and window.central_stack.currentWidget() is not window.empty_workspace
             and window.central_stack.currentWidget().isVisible()
@@ -156,41 +164,73 @@ def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
             and document.preview is not None
             and statistics_ready(window.comparison_analysis_panel, document)
         )
+        if base_ready and not zoom_applied:
+            # Change the real ImageViewer state before capture. This produces a useful
+            # 60-75% central-canvas image footprint without cropping or post-processing.
+            apply_single_view_capture_zoom(window.viewer)
+            zoom_applied = True
+            return False
+        return base_ready and zoom_applied
 
     return window, ready, fixture_sha256
 
 
-def _raw_dialog(_app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
-    profile = RawProfile(
-        name="capture_profile",
-        width=3840,
-        height=2160,
-        dtype="uint16",
-        stride_bytes=7680,
-        bit_depth=10,
-        packing="unpacked_u16",
-        channel_layout="BAYER",
-        bayer_pattern="RGGB",
-        black_level=(64, 64, 64, 64),
-        white_level=1023,
-    )
-    dialog = RawOpenDialog()
-    dialog.set_profile(profile)
-    dialog.resize(*DIALOG_SIZE)
+def _raw_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    repository, settings, performance = load_startup_settings()
+    analysis_thread_pool()
+    result_pool = remote_iqa_thread_pool()
+    window = MainWindow(settings, performance, repository, iqa_result_pool=result_pool)
+    _compose_main_window_presentation(window)
+    window.setWindowIcon(app.windowIcon())
+
+    settings_root = Path(QSettings().fileName()).parent
+    source = settings_root / "public-safe-capture.raw"
+    source.write_bytes(bytes(640 * 480 * 2))
+    captured: list[RawOpenDialog] = []
+    original_exec = RawOpenDialog.exec
+
+    def intercept_exec(dialog: RawOpenDialog) -> QDialog.DialogCode:
+        captured.append(dialog)
+        return QDialog.DialogCode.Rejected
+
+    try:
+        RawOpenDialog.exec = intercept_exec  # type: ignore[method-assign]
+        window._confirm_raw_profile(ImageInput(source, None), None)
+    finally:
+        RawOpenDialog.exec = original_exec  # type: ignore[method-assign]
+    if len(captured) != 1:
+        raise RuntimeError("RAW open path did not create exactly one profile dialog")
+    dialog = captured[0]
+    dialog.setFixedWidth(DIALOG_SIZE[0])
+    dialog._resize_dialog_to_content()
+    # Retain the production parent for the complete capture lifetime.
+    dialog._capture_parent_window = window  # type: ignore[attr-defined]
     fixture_sha256 = hashlib.sha256(
         json.dumps(
             {
-                "name": profile.name,
-                "width": profile.width,
-                "height": profile.height,
-                "stride_bytes": profile.stride_bytes,
-                "bit_depth": profile.bit_depth,
-                "bayer_pattern": profile.bayer_pattern,
+                "source_size": source.stat().st_size,
+                "width": dialog.width_box.value(),
+                "height": dialog.height_box.value(),
+                "stride_bytes": dialog.stride.value(),
+                "bit_depth": dialog.bit_depth.value(),
+                "pixel_layout": dialog.layout_kind.currentText(),
             },
             sort_keys=True,
         ).encode("utf-8")
     ).hexdigest()
-    return dialog, lambda: dialog.width_box.value() == 3840, fixture_sha256
+    return (
+        dialog,
+        lambda: (
+            dialog.width_box.value() == 640
+            and dialog.height_box.value() == 480
+            and dialog.actual_file_size_value.text() == "614,400 bytes"
+            and dialog.file_size_state == "match"
+            and dialog.footer.isVisible()
+            and dialog.ok_button.isVisible()
+            and dialog.cancel_button.isVisible()
+        ),
+        fixture_sha256,
+    )
 
 
 BUILDERS = {

@@ -231,8 +231,8 @@
         "src/pixelscope/core/image_document.py"
       ],
       "viewport": {
-        "width": 520,
-        "height": 620
+        "width": 280,
+        "height": 685
       },
       "status": "legacy-unverified",
       "approved": null,

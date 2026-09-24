@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 from scripts import capture_ui_scene
-from scripts.capture_ui_scene import statistics_ready
+from scripts.capture_ui_scene import apply_single_view_capture_zoom, statistics_ready
 from scripts.run_ui_capture_poc import (
     assess_capture_process,
     changed_fraction,
@@ -101,7 +101,6 @@ def test_statistics_readiness_waits_for_successful_current_request_and_rows() ->
         table=SimpleNamespace(rowCount=lambda: 0),
     )
     assert not statistics_ready(panel, document)
-
     # A stale result must not authorize capturing the currently requested document.
     panel._completed_signature = ("previous",)
     panel.last_results = (object(),)
@@ -119,6 +118,15 @@ def test_statistics_readiness_waits_for_successful_current_request_and_rows() ->
 
     panel.status = SimpleNamespace(text=lambda: "Calculating...")
     assert not statistics_ready(panel, document)
+
+
+def test_single_view_candidate_changes_real_viewer_zoom_state() -> None:
+    factors: list[float] = []
+    viewer = SimpleNamespace(zoom_by=factors.append)
+
+    apply_single_view_capture_zoom(viewer)
+
+    assert factors == [pytest.approx(2.0 / 3.0)]
 
 
 def test_zero_exit_callback_error_fails_even_with_valid_png(tmp_path: Path) -> None:
