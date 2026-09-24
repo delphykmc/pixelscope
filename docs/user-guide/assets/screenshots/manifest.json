@@ -30,6 +30,8 @@
         "src/pixelscope/core/image_cache.py",
         "src/pixelscope/core/image_document.py",
         "src/pixelscope/core/raw_display.py",
+        "src/pixelscope/core/roi.py",
+        "src/pixelscope/core/statistics.py",
         "src/pixelscope/io/image_reader.py",
         "src/pixelscope/ui/comparison_analysis_panel.py",
         "src/pixelscope/ui/display_gain*.py",
@@ -98,14 +100,15 @@
         "multi-view"
       ],
       "source_globs": [
-        "src/pixelscope/ui/difference*.py",
-        "src/pixelscope/ui/multi_compare_view.py",
-        "src/pixelscope/core/diff_engine.py",
-        "src/pixelscope/core/difference_cache.py",
-        "src/pixelscope/core/yuv_difference.py",
         "src/pixelscope/app/yuv_difference_semantics.py",
         "src/pixelscope/app/yuv_runtime_contracts.py",
-        "src/pixelscope/core/image_document.py"
+        "src/pixelscope/core/diff_engine.py",
+        "src/pixelscope/core/difference_cache.py",
+        "src/pixelscope/core/image_document.py",
+        "src/pixelscope/core/spatial_sampling.py",
+        "src/pixelscope/core/yuv_difference.py",
+        "src/pixelscope/ui/difference*.py",
+        "src/pixelscope/ui/multi_compare_view.py"
       ],
       "viewport": {
         "width": 1680,
