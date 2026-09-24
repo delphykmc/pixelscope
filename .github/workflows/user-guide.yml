@@ -11,6 +11,7 @@ on:
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
       - "scripts/user_guide_screenshot_hook.py"
+      - "scripts/audit_ui_screenshot_coverage.py"
       - "scripts/select_ui_screenshots.py"
       - "scripts/compare_ui_screenshots.py"
       - "scripts/run_ui_screenshot_diff.py"
@@ -35,6 +36,7 @@ on:
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_user_guide_screenshot_rendering.py"
+      - "tests/unit/test_ui_screenshot_coverage_audit.py"
       - "tests/unit/test_ui_screenshot_impact.py"
       - "tests/unit/test_ui_screenshot_diff.py"
       - "tests/unit/test_user_guide_site_contract.py"
@@ -54,6 +56,7 @@ on:
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
       - "scripts/user_guide_screenshot_hook.py"
+      - "scripts/audit_ui_screenshot_coverage.py"
       - "scripts/select_ui_screenshots.py"
       - "scripts/compare_ui_screenshots.py"
       - "scripts/run_ui_screenshot_diff.py"
@@ -78,6 +81,7 @@ on:
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_user_guide_screenshot_rendering.py"
+      - "tests/unit/test_ui_screenshot_coverage_audit.py"
       - "tests/unit/test_ui_screenshot_impact.py"
       - "tests/unit/test_ui_screenshot_diff.py"
       - "tests/unit/test_user_guide_site_contract.py"
@@ -124,6 +128,7 @@ jobs:
           tests/unit/test_docs_contract.py
           tests/unit/test_screenshot_manifest_contract.py
           tests/unit/test_user_guide_screenshot_rendering.py
+          tests/unit/test_ui_screenshot_coverage_audit.py
           tests/unit/test_ui_screenshot_impact.py
           tests/unit/test_ui_screenshot_diff.py
           tests/unit/test_user_guide_site_contract.py
@@ -131,6 +136,8 @@ jobs:
           tests/unit/test_user_guide_publication.py
           tests/unit/test_user_guide_publication_ref.py
           tests/unit/test_user_guide_agent_search.py
+      - name: Check E6 coverage decisions without fabricating completion
+        run: python scripts/audit_ui_screenshot_coverage.py
       - name: Validate E3 impact selection for pinned PR base and head
         if: github.event_name == 'pull_request'
         run: >-
