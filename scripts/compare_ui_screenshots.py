@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import json
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +25,9 @@ def scene_contract(root: Path, scenario: str) -> str:
     if function is None:
         raise ValueError("E4 cannot assert a contract for an unregistered scene")
     tree = ast.parse((root / "scripts/capture_ui_scene.py").read_text(encoding="utf-8"))
-    matches = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == function]
+    matches = [
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == function
+    ]
     if len(matches) != 1:
         raise ValueError("isolated scene builder missing or ambiguous at pinned revision")
     return hashlib.sha256(ast.dump(matches[0], include_attributes=False).encode()).hexdigest()
