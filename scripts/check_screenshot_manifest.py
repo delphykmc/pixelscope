@@ -70,13 +70,7 @@ def png_problems(path: Path) -> list[str]:
         # non-interlaced 8-bit RGB/RGBA. Other legal PNG encodings need a
         # dedicated decoder/Adam7/palette validation before being accepted.
         channels = {2: 3, 6: 4}.get(color)
-        if (
-            channels is None
-            or depth != 8
-            or compression != 0
-            or filt != 0
-            or interlace != 0
-        ):
+        if channels is None or depth != 8 or compression != 0 or filt != 0 or interlace != 0:
             return ["unsupported PNG encoding: expected non-interlaced 8-bit RGB/RGBA"]
         payloads = [part for kind, part in chunks if kind == b"IDAT"]
         if not payloads:
