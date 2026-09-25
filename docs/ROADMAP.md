@@ -82,12 +82,20 @@ WP-Help-E0–E6 completed with screenshot-promotion PR #99. **E7 Context Help**
 (F1 navigation plus exact existing Help-error regression coverage) was completed
 and owner-accepted in independently reviewed
 [PR #101](https://github.com/delphykmc/pixelscope/pull/101).
-**E8 screenshot-rendering test performance** is the next independent work
-package from post-E7 `main`, tracked in open
-[Issue #100](https://github.com/delphykmc/pixelscope/issues/100). The observed
-owner-local Windows E8 baseline is 18 tests / 138.72 s; improvements must retain
-full documentation/strict offline validation and be measurement-backed. See
-[`docs/USER_GUIDE_FOLLOW_UP.md`](USER_GUIDE_FOLLOW_UP.md).
+**E8 screenshot-rendering test performance and Help CI-cost reduction** is
+implemented, owner-measured and independently reviewed in
+[PR #102](https://github.com/delphykmc/pixelscope/pull/102), tracked by
+[Issue #100](https://github.com/delphykmc/pixelscope/issues/100).
+Owner Windows screenshot tests went from a historical **18 / 138.72 s** to
+**20 / 34.98 s median** after five full repository copies were reduced to one;
+different environments/test counts mean this is an indicative wall-time comparison,
+not a controlled same-run causal estimate. All 14 omission IDs, the original
+three strict build regimes, offline site/link/hash contracts and independent
+review were retained. Docs CI deduplicates push work only when a pinned PR merge
+tree equals the branch head tree; E4 skips native dependencies/capture for
+validated zero-ID selections, including a real unmerged [PR #103](https://github.com/delphykmc/pixelscope/pull/103)
+smoke. Merge and Issue closeout details belong to the linked PR/Issue.
+See [`docs/USER_GUIDE_FOLLOW_UP.md`](USER_GUIDE_FOLLOW_UP.md).
 
 ## Forward sequence
 

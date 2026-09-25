@@ -57,20 +57,34 @@ jobs:
           architecture: x64
           cache: pip
           cache-dependency-path: head/requirements/runtime.txt
+      # E3 is stdlib-only: do not install Qt/Pillow or launch any real GUI for
+      # an explicitly harmless, pinned base/head selection. Unknown/failed
+      # impact selection fails the job; it never becomes a zero-ID success.
+      - name: Resolve pinned E3 impact before installing native GUI dependencies
+        id: impact
+        shell: pwsh
+        run: |
+          python head/scripts/select_ui_screenshots.py --root head --base "$env:BASE_SHA" --head "$env:HEAD_SHA" --output build/ui-screenshot-diff/selection.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python head/scripts/preflight_ui_screenshot_diff.py --selection build/ui-screenshot-diff/selection.json --base "$env:BASE_SHA" --head "$env:HEAD_SHA" --output-dir build/ui-screenshot-diff
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install pinned application and image decoder on one Windows runner
+        if: steps.impact.outputs.capture_required == 'true'
         run: |
           python -m pip install -e ./head Pillow==12.3.0 pytest==7.4.4 ruff==0.1.15
           python -m pip check
       - name: Validate E4 comparator contract
+        if: steps.impact.outputs.capture_required == 'true'
         shell: pwsh
         run: |
-          python -m ruff check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/tests/unit/test_ui_screenshot_diff.py
+          python -m ruff check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/scripts/preflight_ui_screenshot_diff.py head/tests/unit/test_ui_screenshot_diff.py head/tests/unit/test_ui_screenshot_preflight.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m ruff format --check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/tests/unit/test_ui_screenshot_diff.py
+          python -m ruff format --check head/scripts/compare_ui_screenshots.py head/scripts/run_ui_screenshot_diff.py head/scripts/probe_ui_screenshot_environment.py head/scripts/preflight_ui_screenshot_diff.py head/tests/unit/test_ui_screenshot_diff.py head/tests/unit/test_ui_screenshot_preflight.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m pytest -q head/tests/unit/test_ui_screenshot_diff.py
+          python -m pytest -q head/tests/unit/test_ui_screenshot_diff.py head/tests/unit/test_ui_screenshot_preflight.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Capture pinned base and head in isolated native GUI processes
+        if: steps.impact.outputs.capture_required == 'true'
         run: >-
           python head/scripts/run_ui_screenshot_diff.py
           --base-root base
