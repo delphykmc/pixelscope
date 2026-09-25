@@ -385,15 +385,11 @@ def test_f1_real_key_dispatch_main_workspaces_and_presentation_controls(
         (1, "features/difference.html"),
     ):
         window.analysis_tabs.setCurrentIndex(index)
-        _key_f1_on_actual_focus(
-            qtbot, window.analysis_tabs.tabBar(), seen, window, topic
-        )
+        _key_f1_on_actual_focus(qtbot, window.analysis_tabs.tabBar(), seen, window, topic)
     window.close()
 
 
-def test_f1_real_key_dispatch_docked_and_floating_analyses(
-    qtbot: Any, monkeypatch: Any
-) -> None:
+def test_f1_real_key_dispatch_docked_and_floating_analyses(qtbot: Any, monkeypatch: Any) -> None:
     window = MainWindow()
     qtbot.addWidget(window)
     install_user_guide_help(window)
@@ -412,9 +408,7 @@ def test_f1_real_key_dispatch_docked_and_floating_analyses(
         (1, "features/line-profile.html"),
     ):
         window.bottom_tabs.setCurrentIndex(index)
-        _key_f1_on_actual_focus(
-            qtbot, window.bottom_tabs.tabBar(), seen, window, topic
-        )
+        _key_f1_on_actual_focus(qtbot, window.bottom_tabs.tabBar(), seen, window, topic)
 
     window.iqa_dock.show()
     window.iqa_workspace.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -430,9 +424,7 @@ def test_f1_real_key_dispatch_docked_and_floating_analyses(
         (1, "features/line-profile.html"),
     ):
         window.bottom_tabs.setCurrentIndex(index)
-        _key_f1_on_actual_focus(
-            qtbot, window.bottom_tabs.tabBar(), seen, window, topic
-        )
+        _key_f1_on_actual_focus(qtbot, window.bottom_tabs.tabBar(), seen, window, topic)
 
     window.iqa_dock.setFloating(True)
     window.iqa_dock.show()
@@ -464,9 +456,7 @@ def test_f1_real_key_dispatch_settings_dialog_with_child_focus(
 
     monkeypatch.setattr(user_guide_help, "open_local_user_guide", fake_open)
     assert len(dialog.findChildren(QShortcut, "contextHelpShortcut")) == 1
-    _key_f1_on_actual_focus(
-        qtbot, dialog, seen, dialog, "features/settings.html"
-    )
+    _key_f1_on_actual_focus(qtbot, dialog, seen, dialog, "features/settings.html")
     dialog.close()
     window.close()
 
@@ -498,9 +488,7 @@ def test_f1_real_key_dispatch_from_actual_raw_and_yuv_construction_paths(
                 self.setModal(True)
                 self.show()
                 self.activateWindow()
-                _key_f1_on_actual_focus(
-                    qtbot, self.width_box, seen, self, route
-                )
+                _key_f1_on_actual_focus(qtbot, self.width_box, seen, self, route)
                 routes.append((type(self).__name__, route))
                 self.close()
                 return QDialog.DialogCode.Rejected
@@ -540,7 +528,9 @@ def test_f1_real_key_dispatch_from_actual_raw_and_yuv_construction_paths(
     yuv_controller = NativeYuvSemanticsController(window)
     assert yuv_controller._show_yuv_dialog(yuv, None, None) is None
     assert [route for _, route in routes] == [
-        "formats/raw.html", "formats/raw.html", "formats/yuv.html"
+        "formats/raw.html",
+        "formats/raw.html",
+        "formats/yuv.html",
     ]
     window.close()
 
@@ -586,13 +576,9 @@ def test_context_help_error_paths_never_open_online(
         "open_online_documentation",
         lambda *_args, **_kwargs: online.append("unexpected") or False,
     )
-    assert not open_local_user_guide(
-        window, index_path=index, page=page, opener=failed_open
-    )
+    assert not open_local_user_guide(window, index_path=index, page=page, opener=failed_open)
     assert len(opened) == 1 and opened[0].isLocalFile()
-    assert Path(opened[0].toLocalFile()) == (
-        topic.resolve() if topic_exists else index.resolve()
-    )
+    assert Path(opened[0].toLocalFile()) == (topic.resolve() if topic_exists else index.resolve())
     assert warnings == [
         (
             "Unable to open User Guide",
@@ -608,8 +594,10 @@ def test_context_help_error_paths_never_open_online(
 
     monkeypatch.setattr(QMessageBox, "information", information)
     assert not open_local_user_guide(
-        window, index_path=tmp_path / "missing" / "index.html",
-        page="features/histogram.html", opener=failed_open,
+        window,
+        index_path=tmp_path / "missing" / "index.html",
+        page="features/histogram.html",
+        opener=failed_open,
     )
     assert missing_messages == [
         (
