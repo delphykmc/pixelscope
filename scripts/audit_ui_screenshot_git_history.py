@@ -48,9 +48,9 @@ def audit_ref(root: Path, ref: str) -> dict[str, Any]:
         approved = row["approved"]
         try:
             blob = _git(root, "show", f"{commit}:{path}")
-            introducing = _git(
-                root, "log", "-n", "1", "--format=%H", commit, "--", path
-            ).decode().strip()
+            introducing = (
+                _git(root, "log", "-n", "1", "--format=%H", commit, "--", path).decode().strip()
+            )
         except ValueError:
             errors.append(f"{key}: approved PNG/blob missing at {ref}")
             continue
@@ -59,12 +59,14 @@ def audit_ref(root: Path, ref: str) -> dict[str, Any]:
         if len(introducing) != 40:
             errors.append(f"{key}: cannot derive introducing Git commit at {ref}")
         else:
-            cases.append({
-                "id": key,
-                "image_sha256": hashlib.sha256(blob).hexdigest(),
-                "introducing_commit": introducing,
-                "capture_source_sha": approved["capture_source_sha"],
-            })
+            cases.append(
+                {
+                    "id": key,
+                    "image_sha256": hashlib.sha256(blob).hexdigest(),
+                    "introducing_commit": introducing,
+                    "capture_source_sha": approved["capture_source_sha"],
+                }
+            )
     return {"ref": ref, "resolved_commit": commit, "approved_images": cases, "errors": errors}
 
 
