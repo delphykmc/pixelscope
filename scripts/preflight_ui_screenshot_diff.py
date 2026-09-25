@@ -29,8 +29,13 @@ def capture_required(selection: dict[str, Any], base_sha: str, head_sha: str) ->
     if not isinstance(selected, list) or any(not isinstance(key, str) for key in selected):
         raise ValueError("E4 preflight requires an explicit selected ID list")
     warnings = selection.get("warnings")
-    if not isinstance(warnings, list):
-        raise ValueError("E4 preflight requires an explicit warning list")
+    if not isinstance(warnings, list) or any(not isinstance(item, str) for item in warnings):
+        raise ValueError("E4 preflight requires an explicit string warning list")
+    changed_paths = selection.get("changed_paths")
+    if not isinstance(changed_paths, list) or any(
+        not isinstance(item, dict) for item in changed_paths
+    ):
+        raise ValueError("E4 preflight requires an explicit changed-path report")
     if selected:
         return True  # removed/deferred IDs still need E4's real review report
     for field, expected_type in (
