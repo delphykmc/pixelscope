@@ -104,11 +104,8 @@ def test_all_declared_pngs_absent_keeps_real_offline_site_valid(tmp_path: Path) 
     for row in _REGISTERED:
         assert not (clone / "site" / ASSETS.relative_to(GUIDE) / row["filename"]).exists()
         for page in row["pages"]:
-            html = (clone / "site" / Path(page).with_suffix(".html")).read_text(
-                encoding="utf-8"
-            )
+            html = (clone / "site" / Path(page).with_suffix(".html")).read_text(encoding="utf-8")
             assert row["filename"] not in html
-
 
 
 def test_all_present_declared_topic_images_render_with_relative_paths(
