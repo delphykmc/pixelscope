@@ -161,59 +161,70 @@ def test_missing_each_declared_png_keeps_full_repo_links_and_hook_valid(
             image.write_bytes(original)
 
 
-def test_all_declared_pngs_absent_keeps_real_offline_site_valid(tmp_path: Path) -> None:
-    """One full-repo cold-cache build covers every missing declared ID together."""
-    clone = _clone_repo(tmp_path)
-    with measure_phase("all-absent-remove-pngs"):
-        for row in _REGISTERED:
-            (clone / ASSETS / row["filename"]).unlink()
-    with measure_phase("all-absent-check-docs"):
-        assert find_problems(clone) == []
-    with measure_phase("all-absent-offline-build-subprocess"):
-        process = subprocess.run(
-            [sys.executable, "scripts/check_user_guide_build_offline.py"],
-            cwd=clone,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-    if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
-        print(process.stdout, end="", flush=True)
-        print(process.stderr, end="", flush=True)
-    assert process.returncode == 0, process.stdout[-2500:] + process.stderr[-2500:]
-    for row in _REGISTERED:
-        assert not (clone / "site" / ASSETS.relative_to(GUIDE) / row["filename"]).exists()
-        for page in row["pages"]:
-            html = (clone / "site" / Path(page).with_suffix(".html")).read_text(encoding="utf-8")
-            assert row["filename"] not in html
+def test_all_declared_pngs_absent_keeps_real_offline_site_valid(_clean_repo: Path) -> None:
+    """One cold-cache build; restore each of the 14 approved PNGs on any failure."""
+    clone = _clean_repo
+    try:
+        with ExitStack() as missing:
+            with measure_phase("all-absent-remove-pngs"):
+                for row in _REGISTERED:
+                    missing.enter_context(_without_png(clone / ASSETS / row["filename"]))
+            with measure_phase("all-absent-check-docs"):
+                assert find_problems(clone) == []
+            with measure_phase("all-absent-offline-build-subprocess"):
+                process = subprocess.run(
+                    [sys.executable, "scripts/check_user_guide_build_offline.py"],
+                    cwd=clone,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+            if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
+                print(process.stdout, end="", flush=True)
+                print(process.stderr, end="", flush=True)
+            assert process.returncode == 0, process.stdout[-2500:] + process.stderr[-2500:]
+            for row in _REGISTERED:
+                assert not (clone / "site" / ASSETS.relative_to(GUIDE) / row["filename"]).exists()
+                for page in row["pages"]:
+                    html = (clone / "site" / Path(page).with_suffix(".html")).read_text(
+                        encoding="utf-8"
+                    )
+                    assert row["filename"] not in html
+    finally:
+        _clear_generated_site(clone)
 
 
 def test_all_present_declared_topic_images_render_with_relative_paths(
-    tmp_path: Path,
+    _clean_repo: Path,
 ) -> None:
-    clone = _clone_repo(tmp_path)
-    with measure_phase("all-present-check-docs"):
-        assert find_problems(clone) == []
-    with measure_phase("all-present-offline-build-subprocess"):
-        process = subprocess.run(
-            [sys.executable, "scripts/check_user_guide_build_offline.py"],
-            cwd=clone,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-    if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
-        print(process.stdout, end="", flush=True)
-        print(process.stderr, end="", flush=True)
-    assert process.returncode == 0, process.stdout[-2500:] + process.stderr[-2500:]
-    present = [shot for shot in _REFERENCED if (clone / ASSETS / shot["filename"]).is_file()]
-    for shot in present:
-        for page in shot["pages"]:
-            html = (clone / "site" / Path(page).with_suffix(".html")).read_text(encoding="utf-8")
-            assert shot["filename"] in html
-            assert (clone / "site" / ASSETS.relative_to(GUIDE) / shot["filename"]).is_file()
+    clone = _clean_repo
+    try:
+        with measure_phase("all-present-check-docs"):
+            assert find_problems(clone) == []
+        with measure_phase("all-present-offline-build-subprocess"):
+            process = subprocess.run(
+                [sys.executable, "scripts/check_user_guide_build_offline.py"],
+                cwd=clone,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+        if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
+            print(process.stdout, end="", flush=True)
+            print(process.stderr, end="", flush=True)
+        assert process.returncode == 0, process.stdout[-2500:] + process.stderr[-2500:]
+        present = [shot for shot in _REFERENCED if (clone / ASSETS / shot["filename"]).is_file()]
+        for shot in present:
+            for page in shot["pages"]:
+                html = (clone / "site" / Path(page).with_suffix(".html")).read_text(
+                    encoding="utf-8"
+                )
+                assert shot["filename"] in html
+                assert (clone / "site" / ASSETS.relative_to(GUIDE) / shot["filename"]).is_file()
+    finally:
+        _clear_generated_site(clone)
 
 
 def test_hook_keeps_source_markers_and_omits_only_absent_declared_png(
