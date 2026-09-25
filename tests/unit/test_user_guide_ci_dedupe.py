@@ -36,9 +36,7 @@ def _open_pr(**changes: object) -> dict:
 
 
 def test_only_existing_matching_pr_validation_can_replace_push() -> None:
-    assert has_equivalent_pr_run(
-        [_run()], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={102}
-    )
+    assert has_equivalent_pr_run([_run()], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={102})
     assert has_equivalent_pr_run(
         [_run(status="completed", conclusion="failure")],
         repo=REPO,
@@ -71,9 +69,7 @@ def test_branch_only_push_executes_without_polling() -> None:
         urls.append(url)
         return []
 
-    assert not should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch
-    )
+    assert not should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch)
     assert len(urls) == 1 and "/pulls?" in urls[0]
 
 
@@ -122,6 +118,4 @@ def test_missing_token_closed_pr_wrong_sha_or_api_error_runs_push() -> None:
     def unavailable(_url: str, _token: str) -> object:
         raise urllib.error.URLError("synthetic outage")
 
-    assert not should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=unavailable
-    )
+    assert not should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=unavailable)
