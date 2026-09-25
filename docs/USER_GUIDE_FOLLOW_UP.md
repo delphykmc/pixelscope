@@ -196,3 +196,22 @@ automatically; Issue #81 remains a separate lifecycle task.
 E6 PR #99 provides 14/14 real-UI, source-and-hash-attested, owner-approved screenshot promotions (seven replaced historical images and seven newly covered topics), with original owner-local capture-packet verification and independently reviewed provenance/coverage audits. All fourteen decision records are `promoted`; the owner also confirmed the installed Guide opens normally and that the replaced screenshots render correctly after successful local tests and release-candidate validation: [owner final acceptance](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5831061914). The independent review found no remaining code-review blocker, and the owner authorized merge after documentation closeout. Earlier E5-era references to seven planned screenshots and unresolved approval above are preserved as *historical stage descriptions*, not the present inventory.
 
 After merge, run `scripts/audit_ui_screenshot_git_history.py --ref origin/main` against the actual merged history. An eventual release tag must separately pass the per-ref image/manifest/rollback audit when that tag exists. This is not permission for automatic website publication or a statement that Issue #81 native crash is solved.
+
+## WP-Help-E7 — Context-sensitive offline Help and error-message regression — implementation PR
+
+Status: **In progress (2026-09-26); independent review, Windows owner validation and merge pending**.
+Depends on the merged E6 screenshot/Guide integration in PR #99.
+
+- Keep **Help > User Guide** opening the local guide index. Add a separate **Help > Context Help (F1)** action that routes the focused Files, Image View, Statistics/Difference, Histogram/Line Profile or IQA workspace to its existing MkDocs HTML topic. Where focus is ambiguous or no topic is available, open the local index.
+- Provide scoped F1 Help on the existing Settings, RAW Profile and native YUV dialogs. Preserve Qt object ownership and do not install a global event filter, embedded browser, network fallback, online URL, or duplicate documentation source.
+- Resolve topic paths relative to the already-authoritative local `help/index.html` (frozen) or `site/index.html` / `help/index.html` (source). Restrict navigation to the local bundle; a missing topic falls back to its index; a missing bundle and browser-open failure retain the current explicit messages.
+- Extend existing `tests/ui/test_user_guide_help.py` to verify **exact error titles and bodies**, no online fallback, F1 route selection, action idempotence, dialog shortcut ownership, and safe page fallback. Update the shortcut reference. Check documentation links and release Help packaging; visually smoke F1 in installed Portable/Installer before owner merge acceptance.
+- E7 is independent of Issue #81 crash root-cause claims. Do not merge merely because a GitHub review/workflow is green.
+
+## WP-Help-E8 — Screenshot-rendering test performance follow-up — Issue #100
+
+Status: **Planned / issue opened 2026-09-26; implementation begins only after E7 merges**.
+
+The owner-local Windows screenshot-rendering test baseline is **18 passed in 138.72 s**. The module-scoped repository-copy fixture costs **58.85 s setup**; separate full integration calls are **20.51 s** (all PNGs absent), **19.98 s** (all present), **16.64 s** (corrupt PNG), and **16.38 s** (hook-only test that copies the repository). Issue [#100](https://github.com/delphykmc/pixelscope/issues/100) is authoritative for phase-level profiling, measured optimization, preserved 14-ID/strict-offline/source-link coverage, review and owner Windows acceptance. Close #100 only with reviewed, validated, merged E8 work and a measured closeout comment. Do not use `--skip-pytest` as a substitute for E8 test evidence.
+
+Resolution-aware FHD/UHD viewer synchronization is explicitly not part of E7 or E8 and will be planned in a separate session.
