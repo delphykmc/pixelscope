@@ -78,10 +78,13 @@ arrangement persistence.
 
 ## Help follow-ups (independent of the P5/P7 phase gates)
 
-WP-Help-E0–E6 completed with the E6 screenshot-promotion PR #99. **E7 Context Help**
-(F1 plus existing Help-error regression coverage) is in independent implementation
-[PR #101](https://github.com/delphykmc/pixelscope/pull/101); **E8 screenshot-rendering test performance** follows E7 completion and is tracked
-by [Issue #100](https://github.com/delphykmc/pixelscope/issues/100). The observed
+WP-Help-E0–E6 completed with screenshot-promotion PR #99. **E7 Context Help**
+(F1 navigation plus exact existing Help-error regression coverage) was completed
+and owner-accepted in independently reviewed
+[PR #101](https://github.com/delphykmc/pixelscope/pull/101).
+**E8 screenshot-rendering test performance** is the next independent work
+package from post-E7 `main`, tracked in open
+[Issue #100](https://github.com/delphykmc/pixelscope/issues/100). The observed
 owner-local Windows E8 baseline is 18 tests / 138.72 s; improvements must retain
 full documentation/strict offline validation and be measurement-backed. See
 [`docs/USER_GUIDE_FOLLOW_UP.md`](USER_GUIDE_FOLLOW_UP.md).
