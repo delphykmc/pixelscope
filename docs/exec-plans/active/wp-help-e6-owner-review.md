@@ -6,8 +6,8 @@ E6 begins after owner-authorized E5 PR #98 merged at
 in Draft PR #99 at `68ed33412a17711ed549793cfab6f8d9e9cd3397`, from
 capture source `631779bb91278e846f39e376dd1bef8210df1e5c`. The 14 decision
 records are `promoted` and the read-only audit reports `complete: true`.
-This does **not** close the outstanding external exact-byte attestation,
-candidate-sidecar verification or post-merge history/release acceptance.
+The [owner's exact-byte attestation](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533) binds all fourteen per-ID PNG hashes to the previously reviewed guide.
+The [owner-local original capture packet verification](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828441867) reports PASS against the original PNG+JSON sidecars at PR HEAD `8d01bf6f87b7eb365b94f6c8293cfa4b7d6a134f`. The PNG bytes remain unchanged since promotion. Post-merge history/release acceptance and owner packaged Help smoke are distinct outstanding gates.
 The superseded E6-entry inventory below is preserved as historical context;
 never invent the old seven PNGs' original capture SHA.
 
@@ -88,24 +88,26 @@ installer shape changes or resolution claim for Issue #81.
 
 Review the per-ID approved PNG SHA list in
 [`wp-help-e6-approved-image-hashes.md`](wp-help-e6-approved-image-hashes.md).
-Only the owner can confirm these *exact bytes* are those visually accepted;
-matching manifest hashes alone proves integrity but not what a human saw.
+The owner confirmed these exact bytes as visually accepted in PR comment
+`#issuecomment-5828359533`; the per-ID manifest and E6 decisions now cite it.
 The SHA list can be checked from GitHub on any OS and requires no new capture.
 The original owner-local capture PNGs and their `*.json` sidecars (not a
 new runner recapture) are needed for a source-sidecar identity verification.
 Hosted Windows GUI captures from a different machine may be visually equivalent
 but differ at the byte level and must not be substituted as provenance for the
-14 owner-local PNGs. Until the original packet is independently matched,
-source-sidecar verification must be reported as **pending**, not PASS.
+14 owner-local PNGs. The original local packet was subsequently matched:
+[Codex verification comment](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828441867)
+records `E6 original capture packet PASS: every approved PNG matches original sidecar.`
+The original private packet is not attached to the repository; the owner-local
+PASS is externally reported evidence, distinct from CI's repeat capture.
 
-### Local original-packet verification (only if Codex kept the original files)
+### Local original-packet verification (completed; reproducible if needed)
 
-The committed PNG SHA-256 list and the capture-source Git commit can be
-checked through GitHub on any OS; **no new Windows capture is required** for
-that review. Only the owner can attest that the listed bytes are the images
-already approved visually. The historical original capture sidecar check is
-separate: if Codex's source-SHA-qualified PNG/JSON packet remains on the local
-Windows disk, run from PR #99's checkout (Python 3.10, no Qt import required):
+The committed PNG SHA-256 list and the capture-source Git commit can be checked
+through GitHub on any OS; **no new Windows capture is required**. The owner has
+attested the hashes and Codex has run this exact original-packet check
+successfully. To reproduce it with the retained local PNG/JSON evidence
+from PR #99's checkout (Python 3.10, no Qt import required):
 
 ```powershell
 cd C:\\path\\to\\pixelscope
