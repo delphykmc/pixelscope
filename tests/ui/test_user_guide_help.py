@@ -11,14 +11,12 @@ from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox, QWidget
 from pixelscope.app import main_window as main_window_module
 from pixelscope.app import raw_input_compatibility as raw_compatibility_module
 from pixelscope.app import yuv_input_semantics as yuv_semantics_module
+from pixelscope.app.main_window import MainWindow
 from pixelscope.app.raw_input_compatibility import RawInputCompatibilityController
 from pixelscope.app.yuv_input_semantics import NativeYuvSemanticsController
 from pixelscope.io.path_discovery import ImageInput
-from pixelscope.ui.raw_open_dialog import RawOpenDialog
-from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
-
-from pixelscope.app.main_window import MainWindow
 from pixelscope.ui import user_guide_help
+from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.user_guide_help import (
     context_help_page,
     install_dialog_context_help,
@@ -29,6 +27,7 @@ from pixelscope.ui.user_guide_help import (
     user_guide_candidates,
     validate_online_documentation_url,
 )
+from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 
 
 def _help_menu(window: MainWindow) -> QMenu:
