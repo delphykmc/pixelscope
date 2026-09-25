@@ -9,6 +9,7 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.path_discovery import ImageInput, is_raw_like_path
 from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
+from pixelscope.ui.user_guide_help import install_dialog_context_help
 
 
 class RawInputCompatibilityController:
@@ -107,6 +108,7 @@ class RawInputCompatibilityController:
             )
 
         dialog = RawOpenDialog(self.window)
+        install_dialog_context_help(dialog, "formats/raw.html")
         set_source_path = getattr(dialog, "set_source_path", None)
         if callable(set_source_path):
             set_source_path(image_input.path)

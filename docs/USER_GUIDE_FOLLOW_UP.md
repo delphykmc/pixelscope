@@ -13,7 +13,7 @@ Status: **merged in PR #87**.
 - A build without a local bundle reports that the User Guide is unavailable instead of guessing an online location.
 - Focused tests cover path resolution, Help-menu placement, idempotent installation, and local-file URL handoff.
 
-Online Documentation remains dependent on WP-Help-C establishing an authoritative deployment URL. F1/context-sensitive routing remains deferred until the static local Help path has shipped and proved stable.
+Online Documentation remains dependent on an explicitly approved authoritative HTTPS deployment URL. At the time of WP-Help-A, F1/context-sensitive routing was deferred; it was subsequently delivered in WP-Help-E7 / PR #101.
 
 ## WP-Help-B — Fully local documentation build and packaging — merged in PR #90
 
@@ -111,15 +111,14 @@ WP-Help-D delivered an agent-facing **retrieval interface**, not a chatbot:
 The repository-side search tool is not shipped as a new application feature;
 installed users retain their existing local Help/search without an AI service.
 
-## Deferred Help/navigation follow-up
+## Help/navigation follow-up — completed by WP-Help-E7
 
-- F1/context-sensitive Help remains a UI navigation topic (not WP-Help-D agent work).
-- Add explicit tests for the missing-bundle and browser-open failure messages in
-  the earlier Help integration without changing their user-facing behavior.
+- F1/context-sensitive Help is an application UI navigation feature, not WP-Help-D agent work.
+- E7 / PR #101 adds real-key Qt shortcut regression coverage and exact, unchanged missing-bundle/browser-open failure messages. The original WP-Help-A deferral above is historical.
 
 ## Deferred/non-goals
 
-No embedded PyQt Help window, QWebEngineView, QtHelp/QCH, chatbot, RAG server, Remote LLM API, implicit online fallback, or context-sensitive F1 routing is part of WP-Help-A. Installer bundle integration is owned by WP-Help-B.
+WP-Help-A did not include an embedded PyQt Help window, QWebEngineView, QtHelp/QCH, chatbot, RAG server, Remote LLM API, implicit online fallback, or context-sensitive F1 routing; **F1 was delivered later in E7**, not retroactively in A. Installer bundle integration is owned by WP-Help-B.
 
 ## WP-Help-E — Automated Screenshot Lifecycle — E0–E5 merged / E6 final acceptance recorded
 
@@ -196,3 +195,24 @@ automatically; Issue #81 remains a separate lifecycle task.
 E6 PR #99 provides 14/14 real-UI, source-and-hash-attested, owner-approved screenshot promotions (seven replaced historical images and seven newly covered topics), with original owner-local capture-packet verification and independently reviewed provenance/coverage audits. All fourteen decision records are `promoted`; the owner also confirmed the installed Guide opens normally and that the replaced screenshots render correctly after successful local tests and release-candidate validation: [owner final acceptance](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5831061914). The independent review found no remaining code-review blocker, and the owner authorized merge after documentation closeout. Earlier E5-era references to seven planned screenshots and unresolved approval above are preserved as *historical stage descriptions*, not the present inventory.
 
 After merge, run `scripts/audit_ui_screenshot_git_history.py --ref origin/main` against the actual merged history. An eventual release tag must separately pass the per-ref image/manifest/rollback audit when that tag exists. This is not permission for automatic website publication or a statement that Issue #81 native crash is solved.
+
+## WP-Help-E7 — Context-sensitive offline Help and error-message regression — completed in PR #101
+
+Status: **Implementation complete, independently re-reviewed without remaining E7 blockers and owner-accepted on 2026-09-26** in [PR #101](https://github.com/delphykmc/pixelscope/pull/101) at reviewed code HEAD `d4ddf75379b684e22f0efb68102181dfb9b78668`. The PR merge record is authoritative for the final `main` merge SHA.
+Depends on the merged E6 screenshot/Guide integration in PR #99.
+
+- Keep **Help > User Guide** opening the local guide index. Add a separate **Help > Context Help (F1)** action that routes the focused Files, Image View, Statistics/Difference, Histogram/Line Profile or IQA workspace to its existing MkDocs HTML topic. Where focus is ambiguous or no topic is available, open the local index.
+- Provide scoped F1 Help on the existing Settings, RAW Profile and native YUV dialogs. Preserve Qt object ownership and do not install a global event filter, embedded browser, network fallback, online URL, or duplicate documentation source.
+- Resolve topic paths relative to the already-authoritative local `help/index.html` (frozen) or `site/index.html` / `help/index.html` (source). Restrict navigation to the local bundle; a missing topic falls back to its index; a missing bundle and browser-open failure retain the current explicit messages.
+- Extend existing `tests/ui/test_user_guide_help.py` to verify **exact error titles and bodies**, no online fallback, F1 route selection, action idempotence, dialog shortcut ownership, and safe page fallback. Update the shortcut reference. Check documentation links and release Help packaging; visually smoke F1 in installed Portable/Installer before owner merge acceptance.
+- **Completion evidence:** initial P1/P2 review findings were addressed and all five original threads resolved; exact reviewed HEAD [Windows/Ubuntu User Guide CI #36158028297](https://github.com/delphykmc/pixelscope/actions/runs/36158028297) and [E4 Windows GUI screenshot comparison #36158028316](https://github.com/delphykmc/pixelscope/actions/runs/36158028316) passed. Windows E7 UI suite: **23 passed**, docs-focused suite: **145 passed**, Windows release-artifact unit suite: **31 passed**; Ruff, full-source mypy and strict network-blocked offline site checks passed. These are not claims of owner-local full pytest or actual Installer/Portable build automation.
+- **Owner acceptance:** the owner reported pressing F1 in the actual PixelScope application and observing normal Help behavior, then authorized E7 merge. No separate per-distribution/per-dialog Owner smoke result is inferred beyond that report.
+- E7 does not change Issue #81 lifecycle/native-crash root-cause status; online publication remains manually gated.
+
+## WP-Help-E8 — Screenshot-rendering test performance follow-up — Issue #100
+
+Status: **Next independent work package / [Issue #100](https://github.com/delphykmc/pixelscope/issues/100) OPEN; implementation starts from post-E7 `main`**. E7's completion does not imply that E8 profiling or optimization has started.
+
+The owner-local Windows screenshot-rendering test baseline is **18 passed in 138.72 s**. The module-scoped repository-copy fixture costs **58.85 s setup**; separate full integration calls are **20.51 s** (all PNGs absent), **19.98 s** (all present), **16.64 s** (corrupt PNG), and **16.38 s** (hook-only test that copies the repository). Issue [#100](https://github.com/delphykmc/pixelscope/issues/100) is authoritative for phase-level profiling, measured optimization, preserved 14-ID/strict-offline/source-link coverage, review and owner Windows acceptance. Close #100 only with reviewed, validated, merged E8 work and a measured closeout comment. Do not use `--skip-pytest` as a substitute for E8 test evidence.
+
+Resolution-aware FHD/UHD viewer synchronization is explicitly not part of E7 or E8 and will be planned in a separate session.

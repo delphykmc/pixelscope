@@ -5,12 +5,22 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from PySide6.QtCore import QUrl
-from PySide6.QtGui import QAction, QDesktopServices
-from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QTabWidget,
+    QWidget,
+)
 
 _USER_GUIDE_ACTION_OBJECT_NAME = "userGuideAction"
 _ONLINE_GUIDE_ACTION_OBJECT_NAME = "onlineDocumentationAction"
+_CONTEXT_HELP_ACTION_OBJECT_NAME = "contextHelpAction"
+_DIALOG_CONTEXT_HELP_OBJECT_NAME = "contextHelpShortcut"
 
 # Only set after the owner confirms a published, approved, authoritative URL.
 # The installed app does not infer a GitHub Pages URL or probe the network.
@@ -56,9 +66,10 @@ def resolve_local_user_guide_index(
 
 
 def open_local_user_guide(
-    parent: QMainWindow,
+    parent: QWidget,
     *,
     index_path: Path | None = None,
+    page: str | None = None,
     opener: Callable[[QUrl], bool] | None = None,
 ) -> bool:
     """Open the local User Guide in the platform browser, with explicit failure UX."""
@@ -72,8 +83,16 @@ def open_local_user_guide(
         )
         return False
 
+    target = resolved.resolve()
+    if page is not None:
+        candidate = (target.parent / page).resolve()
+        # A missing page falls back to the local index; never navigate outside
+        # the installed bundle, guess an online URL, or show a broken file URL.
+        if candidate.is_relative_to(target.parent) and candidate.is_file():
+            target = candidate
+
     open_url = opener or QDesktopServices.openUrl
-    if open_url(QUrl.fromLocalFile(str(resolved.resolve()))):
+    if open_url(QUrl.fromLocalFile(str(target))):
         return True
 
     QMessageBox.warning(
@@ -82,6 +101,99 @@ def open_local_user_guide(
         "PixelScope could not open the local User Guide in the system browser.",
     )
     return False
+
+
+def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> str | None:
+    """Map the focused production workspace to an existing local MkDocs HTML route.
+
+    Focus takes precedence over whichever other dock happens to be visible.
+    Unrecognized focus (including an empty window/menu) uses the guide home.
+    """
+    widget = QApplication.focusWidget() if focus is None else focus
+    if widget is None or not (widget is window or window.isAncestorOf(widget)):
+        return None
+
+    def within(parent: QWidget) -> bool:
+        return widget is parent or parent.isAncestorOf(widget)
+
+    iqa_dock = getattr(window, "iqa_dock", None)
+    if isinstance(iqa_dock, QWidget) and iqa_dock.isVisible() and within(iqa_dock):
+        return "features/iqa-workspace.html"
+
+    plots_dock = getattr(window, "bottom_dock", None)
+    plots = getattr(window, "bottom_tabs", None)
+    if isinstance(plots_dock, QWidget) and plots_dock.isVisible() and within(plots_dock):
+        if isinstance(plots, QTabWidget) and plots.currentIndex() == 1:
+            return "features/line-profile.html"
+        return "features/histogram.html"
+
+    files = getattr(window, "document_list", None)
+    if isinstance(files, QWidget) and within(files):
+        return "features/files-workspace.html"
+
+    analysis = getattr(window, "analysis_tabs", None)
+    if isinstance(analysis, QTabWidget) and within(analysis):
+        return (
+            "features/difference.html"
+            if analysis.currentIndex() == 1
+            else "features/statistics.html"
+        )
+
+    presentation = getattr(window, "central_stack", None)
+    controls = getattr(window, "presentation_controls", None)
+    if (
+        isinstance(presentation, QWidget)
+        and within(presentation)
+        or isinstance(controls, QWidget)
+        and within(controls)
+    ):
+        return "features/image-view.html"
+    return None
+
+
+def _install_floating_dock_context_help(window: QMainWindow) -> None:
+    """F1 also works when Plots/IQA becomes a separate top-level dock window."""
+    for dock_name in ("bottom_dock", "iqa_dock"):
+        dock = getattr(window, dock_name, None)
+        if not isinstance(dock, QDockWidget):
+            continue
+        if dock.findChild(QShortcut, "floatingContextHelpShortcut") is not None:
+            continue
+        shortcut = QShortcut(QKeySequence(Qt.Key.Key_F1), dock)
+        shortcut.setObjectName("floatingContextHelpShortcut")
+        shortcut.setEnabled(dock.isFloating())
+        dock.topLevelChanged.connect(shortcut.setEnabled)  # type: ignore[attr-defined]
+        if dock_name == "bottom_dock":
+            tabs = dock.widget()
+            shortcut.activated.connect(  # type: ignore[attr-defined]
+                lambda tabs=tabs: open_local_user_guide(
+                    window,
+                    page=(
+                        "features/line-profile.html"
+                        if isinstance(tabs, QTabWidget) and tabs.currentIndex() == 1
+                        else "features/histogram.html"
+                    ),
+                )
+            )
+        else:
+            shortcut.activated.connect(  # type: ignore[attr-defined]
+                lambda: open_local_user_guide(window, page="features/iqa-workspace.html")
+            )
+
+
+def install_dialog_context_help(dialog: object, page: str) -> QShortcut | None:
+    """Give real modal dialogs F1; preserve non-QWidget profile test doubles."""
+    if not isinstance(dialog, QWidget):
+        return None
+    existing = dialog.findChild(QShortcut, _DIALOG_CONTEXT_HELP_OBJECT_NAME)
+    if isinstance(existing, QShortcut):
+        return existing
+    shortcut = QShortcut(QKeySequence(Qt.Key.Key_F1), dialog)
+    shortcut.setObjectName(_DIALOG_CONTEXT_HELP_OBJECT_NAME)
+    shortcut.activated.connect(  # type: ignore[attr-defined]
+        lambda: open_local_user_guide(dialog, page=page)
+    )
+    return shortcut
 
 
 def validate_online_documentation_url(value: str) -> str:
@@ -157,6 +269,37 @@ def install_user_guide_help(window: QMainWindow, *, online_url: str | None = Non
         else:
             help_menu.insertAction(first_action, local)
             help_menu.insertSeparator(first_action)
+
+    context = next(
+        (
+            action
+            for action in help_menu.actions()
+            if action.objectName() == _CONTEXT_HELP_ACTION_OBJECT_NAME
+        ),
+        None,
+    )
+    if context is None:
+        context = QAction("Context Help", window)
+        context.setObjectName(_CONTEXT_HELP_ACTION_OBJECT_NAME)
+        context.setShortcut(QKeySequence(Qt.Key.Key_F1))
+        context.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        # A menu-only QAction may display F1 without registering it in the main
+        # window shortcut map; explicitly attach it to the owning window too.
+        window.addAction(context)
+        context.setStatusTip("Open help for the focused PixelScope workspace")
+        context.triggered.connect(  # type: ignore[attr-defined]
+            lambda _checked=False: open_local_user_guide(window, page=context_help_page(window))
+        )
+        separator = next(
+            (action for action in help_menu.actions() if action.isSeparator()),
+            None,
+        )
+        if separator is None:
+            help_menu.addAction(context)
+        else:
+            help_menu.insertAction(separator, context)
+
+    _install_floating_dock_context_help(window)
 
     approved = ONLINE_DOCUMENTATION_URL if online_url is None else online_url
     if approved is not None:

@@ -100,6 +100,7 @@ from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.settings_dialog import SettingsDialog
 from pixelscope.ui.structured_status_bar import StructuredStatusBar
 from pixelscope.ui.toolbar_icons import toolbar_icon
+from pixelscope.ui.user_guide_help import install_dialog_context_help
 from pixelscope.workers.image_load_worker import ImageLoadWorker
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
@@ -496,6 +497,7 @@ class MainWindow(QMainWindow):
             self,
         )
         dialog.settings_saved.connect(self._application_settings_saved)
+        install_dialog_context_help(dialog, "features/settings.html")
         return dialog
 
     def open_settings(self) -> None:
@@ -1284,6 +1286,7 @@ class MainWindow(QMainWindow):
             return initial_profile
 
         dialog = RawOpenDialog(self)
+        install_dialog_context_help(dialog, "formats/raw.html")
         set_source_path = getattr(dialog, "set_source_path", None)
         if callable(set_source_path):
             set_source_path(image_input.path)

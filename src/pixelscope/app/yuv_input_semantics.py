@@ -19,6 +19,7 @@ from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
 from pixelscope.ui.design_tokens import channel_button_style
 from pixelscope.ui.plot_colors import channel_color
+from pixelscope.ui.user_guide_help import install_dialog_context_help
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 from pixelscope.workers.task_worker import TaskWorker
 
@@ -136,6 +137,7 @@ class NativeYuvSemanticsController:
         initial: YuvProfile | None,
     ) -> object | None:
         dialog = YuvOpenDialog(self.window)
+        install_dialog_context_help(dialog, "formats/yuv.html")
         dialog.set_source_path(path)
         if initial is not None:
             dialog.set_profile(initial)

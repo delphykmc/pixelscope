@@ -4,6 +4,7 @@ This reference lists shortcuts and interaction keys confirmed by the current app
 
 | Shortcut | Action / scope |
 |---|---|
+| `F1` | Open local User Guide topic for the focused workspace or Settings/RAW/YUV dialog; fall back to guide home when no topic is available |
 | `Ctrl+O` | Open Images |
 | `Ctrl+Shift+O` | Open Folder |
 | `Ctrl+Q` | Exit |
