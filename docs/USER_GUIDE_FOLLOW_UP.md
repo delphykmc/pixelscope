@@ -227,12 +227,16 @@ Owner Windows sampling command (PowerShell from repository root, in the same con
 
 ```powershell
 $env:PIXELSCOPE_E8_PROFILE = '1'
-1..3 | ForEach-Object {
-    & .\\.venv\\Scripts\\python.exe -m pytest -q -s tests/unit/test_user_guide_screenshot_rendering.py --durations=0 2>&1 |
-        Tee-Object -FilePath "e8-phase-$_.log"
-    if ($LASTEXITCODE -ne 0) { throw "E8 screenshot rendering run $_ failed ($LASTEXITCODE)" }
+New-Item -ItemType Directory -Force temp/e8 | Out-Null
+try {
+    1..3 | ForEach-Object {
+        & .\.venv\Scripts\python.exe -m pytest -q -s tests/unit/test_user_guide_screenshot_rendering.py --durations=0 2>&1 |
+            Tee-Object -FilePath "temp/e8/phase-$_.log"
+        if ($LASTEXITCODE -ne 0) { throw "E8 screenshot rendering run $_ failed ($LASTEXITCODE)" }
+    }
+} finally {
+    Remove-Item Env:PIXELSCOPE_E8_PROFILE
 }
-Remove-Item Env:PIXELSCOPE_E8_PROFILE
 ```
 
 Run the same command in three fresh Python processes; preferably alternate cold/warm order with unrelated work to reduce first-run cache bias. Record Python, pytest, MkDocs, SSD/NTFS context if known, exact E8 HEAD SHA, wall time/phase medians and spread; compare Windows owner-local with Windows CI and Ubuntu CI **separately**. Keep the new logs untracked (e.g. write under `temp/`) and do not include local absolute paths/private environment data in PR screenshots or logs. A/B optimization and any CI-event change require another comparable 3-process sample, a test-coverage mapping and mutation/regression proof, not just a lower `--durations` value.
