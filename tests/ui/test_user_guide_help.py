@@ -291,3 +291,7 @@ def test_modal_dialog_f1_has_own_shortcut_and_opens_offline_topic(
     assert seen == [(dialog, "features/settings.html")]
     dialog.close()
     window.close()
+
+
+def test_dialog_f1_installer_preserves_non_qwidget_profile_test_doubles() -> None:
+    assert install_dialog_context_help(object(), "formats/raw.html") is None
