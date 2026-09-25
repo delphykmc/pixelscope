@@ -36,3 +36,5 @@ This site is generated from the Markdown in `docs/user-guide/`. The same source 
 ## Need help with an error?
 
 See [Troubleshooting](troubleshooting/index.md). Useful search terms include **Difference unavailable**, **RAW stride**, **RAW14**, **YUV size mismatch**, **ROI cleared**, **line profile reset**, **Primary**, **PageUp**, **Pick**, and **Remote IQA**.
+
+<!-- E8 temporary zero-impact E4 Actions smoke; test PR only, never merge. -->
