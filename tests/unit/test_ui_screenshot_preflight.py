@@ -18,6 +18,9 @@ def _selection(**changes: object) -> dict:
         "base_sha": BASE,
         "head_sha": HEAD,
         "selected_ids": [],
+        "selected_screenshots": [],
+        "capture_eligible_ids": [],
+        "capture_deferred": [],
         "warnings": [],
         "requires_image_review": False,
         "committed_png_changes": [],
@@ -67,9 +70,15 @@ def test_any_selected_id_runs_e4_even_if_removed_or_deferred(changed: dict) -> N
     "changed",
     [
         {"requires_image_review": True},
+        {"requires_image_review": None},
+        {"selected_screenshots": [{"id": "single-image"}]},
+        {"capture_eligible_ids": ["single-image"]},
+        {"capture_deferred": [{"id": "single-image"}]},
         {"warnings": ["unknown impact"]},
         {"committed_png_changes": [{"path": "asset.png"}]},
+        {"committed_png_changes": None},
         {"manifest_review_ids": ["single-image"]},
+        {"manifest_review_ids": None},
         {"removed_ids": ["single-image"]},
         {"target_profile_changed": True},
         {"no_selection_reason": None},
@@ -84,6 +93,26 @@ def test_any_selected_id_runs_e4_even_if_removed_or_deferred(changed: dict) -> N
 def test_uncertain_or_mismatched_empty_selection_must_fail(changed: dict) -> None:
     with pytest.raises(ValueError):
         capture_required(_selection(**changed), BASE, HEAD)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "selected_screenshots",
+        "capture_eligible_ids",
+        "capture_deferred",
+        "requires_image_review",
+        "committed_png_changes",
+        "manifest_review_ids",
+        "removed_ids",
+        "target_profile_changed",
+    ],
+)
+def test_missing_E3_impact_field_fails_closed(field: str) -> None:
+    selection = _selection()
+    del selection[field]
+    with pytest.raises(ValueError, match="missing/invalid E3 field"):
+        capture_required(selection, BASE, HEAD)
 
 
 def test_preflight_cli_emits_job_output_and_no_impact_artifact(
