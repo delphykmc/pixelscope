@@ -108,7 +108,7 @@ def test_uncertain_or_mismatched_empty_selection_must_fail(changed: dict) -> Non
         "target_profile_changed",
     ],
 )
-def test_missing_E3_impact_field_fails_closed(field: str) -> None:
+def test_missing_e3_impact_field_fails_closed(field: str) -> None:
     selection = _selection()
     del selection[field]
     with pytest.raises(ValueError, match="missing/invalid E3 field"):
