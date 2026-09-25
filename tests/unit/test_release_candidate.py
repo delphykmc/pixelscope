@@ -257,3 +257,69 @@ def test_release_note_source_is_dated_versioned_and_has_commit_marker() -> None:
 
     assert source.name == "2026-08-26-v0.1.0.md"
     assert "{{SOURCE_COMMIT}}" in source.read_text(encoding="utf-8")
+
+
+
+@pytest.mark.parametrize("skip_pytest", [False, True], ids=["default", "skip-pytest"])
+def test_candidate_repository_validation_preserves_other_gates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    skip_pytest: bool,
+) -> None:
+    commands: list[list[str]] = []
+
+    def record(command: list[str], *, env: dict[str, str] | None = None) -> None:
+        del env
+        commands.append(command)
+
+    dev_python = tmp_path / "python.exe"
+    monkeypatch.setattr(candidate, "_run", record)
+
+    candidate._run_repository_validation(dev_python, skip_pytest=skip_pytest)
+
+    pytest_commands = [command for command in commands if "-m" in command and "pytest" in command]
+    if skip_pytest:
+        assert pytest_commands == []
+    else:
+        assert pytest_commands == [
+            [
+                str(dev_python),
+                "-m",
+                "pytest",
+                "-q",
+                "tests/unit/test_release_candidate.py",
+                "tests/unit/test_release_candidate_provenance.py",
+                "tests/unit/test_release_distribution.py",
+            ],
+            [str(dev_python), "-m", "pytest", "-q"],
+        ]
+
+    assert [str(dev_python), "scripts/check_docs.py"] in commands
+    assert [str(dev_python), "-m", "ruff", "check", "."] in commands
+    assert [str(dev_python), "-m", "mypy", "src"] in commands
+    assert [str(dev_python), "-m", "pip", "check"] in commands
+    assert ["git", "diff", "--check"] in commands
+
+
+@pytest.mark.parametrize("skip_pytest", [False, True], ids=["default", "skip-pytest"])
+def test_release_candidate_cli_forwards_explicit_pytest_choice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    skip_pytest: bool,
+) -> None:
+    passed: list[dict[str, object]] = []
+
+    def fake_build_release_candidate(**kwargs: object) -> Path:
+        passed.append(kwargs)
+        return tmp_path
+
+    monkeypatch.setattr(candidate, "build_release_candidate", fake_build_release_candidate)
+    arguments = ["build_release_candidate.py", "--dev-python", str(tmp_path / "dev-python.exe")]
+    if skip_pytest:
+        arguments.append("--skip-pytest")
+    monkeypatch.setattr(candidate.sys, "argv", arguments)
+
+    assert candidate.main() == 0
+    assert len(passed) == 1
+    assert passed[0]["skip_pytest"] is skip_pytest
+    assert passed[0]["dev_python"] == tmp_path / "dev-python.exe"
