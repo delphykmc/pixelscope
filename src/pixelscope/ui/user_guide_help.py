@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QMenu, QMessageBox, QWidget
+from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QMenu, QMessageBox, QTabWidget, QWidget
 
 _USER_GUIDE_ACTION_OBJECT_NAME = "userGuideAction"
 _ONLINE_GUIDE_ACTION_OBJECT_NAME = "onlineDocumentationAction"
@@ -151,12 +151,13 @@ def _install_floating_dock_context_help(window: QMainWindow) -> None:
         shortcut.setEnabled(dock.isFloating())
         dock.topLevelChanged.connect(shortcut.setEnabled)  # type: ignore[attr-defined]
         if dock_name == "bottom_dock":
+            tabs = dock.widget()
             shortcut.activated.connect(  # type: ignore[attr-defined]
                 lambda: open_local_user_guide(
                     window,
                     page=(
                         "features/line-profile.html"
-                        if getattr(window, "bottom_tabs").currentIndex() == 1
+                        if isinstance(tabs, QTabWidget) and tabs.currentIndex() == 1
                         else "features/histogram.html"
                     ),
                 )
