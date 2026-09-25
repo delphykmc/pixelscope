@@ -7,7 +7,15 @@ from urllib.parse import urlsplit
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QMenu, QMessageBox, QTabWidget, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QTabWidget,
+    QWidget,
+)
 
 _USER_GUIDE_ACTION_OBJECT_NAME = "userGuideAction"
 _ONLINE_GUIDE_ACTION_OBJECT_NAME = "onlineDocumentationAction"
@@ -95,7 +103,6 @@ def open_local_user_guide(
     return False
 
 
-
 def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> str | None:
     """Map the focused production workspace to an existing local MkDocs HTML route.
 
@@ -181,6 +188,7 @@ def install_dialog_context_help(dialog: object, page: str) -> QShortcut | None:
         lambda: open_local_user_guide(dialog, page=page)
     )
     return shortcut
+
 
 def validate_online_documentation_url(value: str) -> str:
     """Require an explicitly approved HTTPS documentation origin."""
