@@ -123,7 +123,7 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
     plots_dock = getattr(window, "bottom_dock", None)
     plots = getattr(window, "bottom_tabs", None)
     if isinstance(plots_dock, QWidget) and plots_dock.isVisible() and within(plots_dock):
-        if plots is not None and plots.currentIndex() == 1:
+        if isinstance(plots, QTabWidget) and plots.currentIndex() == 1:
             return "features/line-profile.html"
         return "features/histogram.html"
 
@@ -180,7 +180,7 @@ def install_dialog_context_help(dialog: object, page: str) -> QShortcut | None:
     if not isinstance(dialog, QWidget):
         return None
     existing = dialog.findChild(QShortcut, _DIALOG_CONTEXT_HELP_OBJECT_NAME)
-    if existing is not None:
+    if isinstance(existing, QShortcut):
         return existing
     shortcut = QShortcut(QKeySequence(Qt.Key.Key_F1), dialog)
     shortcut.setObjectName(_DIALOG_CONTEXT_HELP_OBJECT_NAME)
