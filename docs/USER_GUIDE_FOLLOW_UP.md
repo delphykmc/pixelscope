@@ -211,7 +211,7 @@ Depends on the merged E6 screenshot/Guide integration in PR #99.
 
 ## WP-Help-E8 — Screenshot-rendering test performance follow-up — Issue #100
 
-Status: **In progress on independent post-E7 branch `perf/wp-help-e8-screenshot-rendering-tests` (2026-09-26), [Issue #100](https://github.com/delphykmc/pixelscope/issues/100) OPEN; owner-local phase measurements, optimization, independent review, and merge remain pending.**
+Status: **E8 A/B screenshot-test optimization and owner Windows timing completed; independent A/B review found no P1/P2 blocker. CI cost improvements (E4 early selection and Docs push/PR duplication) are being evaluated on `perf/wp-help-e8-screenshot-rendering-tests`; final CI/independent review, owner acceptance and merge remain pending. [Issue #100](https://github.com/delphykmc/pixelscope/issues/100) OPEN.**
 
 The owner-local Windows screenshot-rendering test baseline is **18 passed in 138.72 s**. The module-scoped repository-copy fixture costs **58.85 s setup**; separate full integration calls are **20.51 s** (all PNGs absent), **19.98 s** (all present), **16.64 s** (corrupt PNG), and **16.38 s** (hook-only test that copies the repository). Issue [#100](https://github.com/delphykmc/pixelscope/issues/100) is authoritative for phase-level profiling, measured optimization, preserved 14-ID/strict-offline/source-link coverage, review and owner Windows acceptance. Close #100 only with reviewed, validated, merged E8 work and a measured closeout comment. Do not use `--skip-pytest` as a substitute for E8 test evidence.
 
