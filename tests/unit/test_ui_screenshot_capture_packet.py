@@ -31,21 +31,21 @@ def _packet(tmp_path: Path) -> tuple[dict, Path, Path]:
         "capture_profile": approved["comparison_profile_id"],
         "image_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
         "fixture_sha256": "c" * 64,
-        "geometry": {"pixel_png": list(_dimensions(image)), "logical_widget": [
-            row["viewport"]["width"], row["viewport"]["height"]
-        ]},
+        "geometry": {
+            "pixel_png": list(_dimensions(image)),
+            "logical_widget": [row["viewport"]["width"], row["viewport"]["height"]],
+        },
         "callback_errors": [],
         "error_type": None,
     }
-    (packet / (row["scenario"] + "-1.json")).write_text(
-        json.dumps(sidecar), encoding="utf-8"
-    )
+    (packet / (row["scenario"] + "-1.json")).write_text(json.dumps(sidecar), encoding="utf-8")
     manifest["screenshots"] = [copy.deepcopy(row)]
     return manifest, packet, assets
 
 
 def _dimensions(image: Path) -> tuple[int, int]:
     import struct
+
     return struct.unpack_from(">II", image.read_bytes(), 16)
 
 
@@ -84,8 +84,7 @@ def test_missing_original_sidecar_and_incorrect_geometry_fail(tmp_path: Path) ->
     sidecar["geometry"]["pixel_png"] = [800, 600]
     p.write_text(json.dumps(sidecar), encoding="utf-8")
     assert any(
-        "sidecar PNG dimensions" in error
-        for error in packet_problems(manifest, packet, assets)
+        "sidecar PNG dimensions" in error for error in packet_problems(manifest, packet, assets)
     )
     p.unlink()
     assert any(
