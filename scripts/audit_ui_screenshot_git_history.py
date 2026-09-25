@@ -11,7 +11,6 @@ import argparse
 import hashlib
 import json
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -73,7 +72,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--ref", default="HEAD")
-    parser.add_argument("--release-ref", help="Optional actual release tag/ref to audit independently")
+    parser.add_argument(
+        "--release-ref", help="Optional actual release tag/ref to audit independently"
+    )
     args = parser.parse_args(argv)
     try:
         reports = [audit_ref(args.root, args.ref)]
