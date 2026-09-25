@@ -110,10 +110,8 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
         return widget is parent or parent.isAncestorOf(widget)
 
     iqa_dock = getattr(window, "iqa_dock", None)
-    iqa = getattr(window, "iqa_workspace", None)
-    if isinstance(iqa_dock, QWidget) and iqa_dock.isVisible() and isinstance(iqa, QWidget):
-        if within(iqa_dock):
-            return "features/iqa-workspace.html"
+    if isinstance(iqa_dock, QWidget) and iqa_dock.isVisible() and within(iqa_dock):
+        return "features/iqa-workspace.html"
 
     plots_dock = getattr(window, "bottom_dock", None)
     plots = getattr(window, "bottom_tabs", None)
@@ -128,7 +126,11 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
 
     analysis = getattr(window, "analysis_tabs", None)
     if isinstance(analysis, QWidget) and within(analysis):
-        return "features/difference.html" if analysis.currentIndex() == 1 else "features/statistics.html"
+        return (
+            "features/difference.html"
+            if analysis.currentIndex() == 1
+            else "features/statistics.html"
+        )
 
     presentation = getattr(window, "central_stack", None)
     if isinstance(presentation, QWidget) and within(presentation):
