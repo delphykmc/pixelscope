@@ -169,6 +169,9 @@ jobs:
       - name: Run release-artifact regressions on Windows
         if: runner.os == 'Windows'
         run: python -m pytest -q tests/unit/test_release_packaging.py tests/unit/test_release_candidate.py
+      - name: Diagnose E8 formatter delta (temporary)
+        run: python -m ruff format --diff tests/unit/test_user_guide_screenshot_rendering.py
+        continue-on-error: true
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
