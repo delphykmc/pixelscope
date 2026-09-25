@@ -12,6 +12,8 @@ from PIL import Image
 from scripts import capture_ui_scene
 from scripts.capture_ui_scene import apply_single_view_capture_zoom, statistics_ready
 from scripts.run_ui_capture_poc import (
+    ALLOW_WIDGET_RESIZE,
+    EXPECTED_LOGICAL_SIZE,
     assess_capture_process,
     changed_fraction,
     sanitized_stderr,
@@ -100,6 +102,12 @@ def test_poc_validator_accepts_compact_real_dialog_but_rejects_tiny_ui(tmp_path:
     _metadata(metadata, png, sha, (249, 179))
     with pytest.raises(ValueError, match="minimum useful UI"):
         validate_capture(png, metadata, "single_image", sha)
+
+
+def test_manifest_geometry_policy_allows_native_yuv_dialog_size() -> None:
+    assert EXPECTED_LOGICAL_SIZE["yuv_profile_dialog"] == [299, 200]
+    assert ALLOW_WIDGET_RESIZE["yuv_profile_dialog"] is True
+    assert ALLOW_WIDGET_RESIZE["settings_dialog"] is False
 
 
 def test_statistics_readiness_waits_for_successful_current_request_and_rows() -> None:

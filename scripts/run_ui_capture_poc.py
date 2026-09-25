@@ -29,6 +29,11 @@ EXPECTED_LOGICAL_SIZE = {
     for row in _MANIFEST_ROWS
     if row["capture_mode"] == "isolated"
 }
+ALLOW_WIDGET_RESIZE = {
+    row["scenario"]: row.get("geometry_policy", "resizable") == "resizable"
+    for row in _MANIFEST_ROWS
+    if row["capture_mode"] == "isolated"
+}
 CALLBACK_ERROR_MARKER = "PIXELSCOPE_E1_QT_CALLBACK_EXCEPTION"
 
 
@@ -196,7 +201,15 @@ def run(output: Path, source_sha: str) -> int:
                 )
                 entry["process_exit"] = process.returncode
                 try:
-                    metadata = assess_capture_process(process, png, meta, scene, source_sha)
+                    metadata = assess_capture_process(
+                        process,
+                        png,
+                        meta,
+                        scene,
+                        source_sha,
+                        expected_logical_size=EXPECTED_LOGICAL_SIZE[scene],
+                        allow_widget_resize=ALLOW_WIDGET_RESIZE[scene],
+                    )
                 except (OSError, KeyError, ValueError) as exc:
                     entry["error"] = (
                         str(exc)
