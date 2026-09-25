@@ -211,8 +211,28 @@ Depends on the merged E6 screenshot/Guide integration in PR #99.
 
 ## WP-Help-E8 — Screenshot-rendering test performance follow-up — Issue #100
 
-Status: **Next independent work package / [Issue #100](https://github.com/delphykmc/pixelscope/issues/100) OPEN; implementation starts from post-E7 `main`**. E7's completion does not imply that E8 profiling or optimization has started.
+Status: **In progress on independent post-E7 branch `perf/wp-help-e8-screenshot-rendering-tests` (2026-09-26), [Issue #100](https://github.com/delphykmc/pixelscope/issues/100) OPEN; owner-local phase measurements, optimization, independent review, and merge remain pending.**
 
 The owner-local Windows screenshot-rendering test baseline is **18 passed in 138.72 s**. The module-scoped repository-copy fixture costs **58.85 s setup**; separate full integration calls are **20.51 s** (all PNGs absent), **19.98 s** (all present), **16.64 s** (corrupt PNG), and **16.38 s** (hook-only test that copies the repository). Issue [#100](https://github.com/delphykmc/pixelscope/issues/100) is authoritative for phase-level profiling, measured optimization, preserved 14-ID/strict-offline/source-link coverage, review and owner Windows acceptance. Close #100 only with reviewed, validated, merged E8 work and a measured closeout comment. Do not use `--skip-pytest` as a substitute for E8 test evidence.
 
 Resolution-aware FHD/UHD viewer synchronization is explicitly not part of E7 or E8 and will be planned in a separate session.
+
+### E8 implementation checkpoint — instrumentation first (2026-09-26)
+
+The independent optimizer's [Issue #100 review](https://github.com/delphykmc/pixelscope/issues/100#issuecomment-5835678722) sets the order: measure distinct phases first, then A (hook-only full-clone removal), B (safe reusable full-repo fixture), C (per-ID duplicate validator calls only with mutation-based equivalent coverage), and finally CI event/selector improvements if justified by measured cost and conservative impact contracts. E7 merged `main@31275ec0855037dcfe90a8e09fe908bbe15c204b` is the frozen baseline for this branch.
+
+The first E8 commits add **opt-in diagnostic timing only** to the existing screenshot-rendering tests and the cold-cache network-blocked documentation build script. `PIXELSCOPE_E8_PROFILE=1` prints `PIXELSCOPE_E8_PHASE` JSON lines for repository copies (and separate file inventory), per-ID check_docs/pre-build/marker render, PNG remove/restore, full-build parent subprocess, and child cache purge/MkDocs/site-validation phases. Parent subprocess wall time **includes** child phases and must not be added to them. Normal CI/test behavior is unchanged when the env var is absent. The 138.72 s owner-local result is the historical uninstrumented baseline, **not** a measured post-optimization result; measured results are requested before A/B changes.
+
+Owner Windows sampling command (PowerShell from repository root, in the same configured docs/pytest venv; `-s` ensures phase markers are retained in the log):
+
+```powershell
+$env:PIXELSCOPE_E8_PROFILE = '1'
+1..3 | ForEach-Object {
+    & .\\.venv\\Scripts\\python.exe -m pytest -q -s tests/unit/test_user_guide_screenshot_rendering.py --durations=0 2>&1 |
+        Tee-Object -FilePath "e8-phase-$_.log"
+    if ($LASTEXITCODE -ne 0) { throw "E8 screenshot rendering run $_ failed ($LASTEXITCODE)" }
+}
+Remove-Item Env:PIXELSCOPE_E8_PROFILE
+```
+
+Run the same command in three fresh Python processes; preferably alternate cold/warm order with unrelated work to reduce first-run cache bias. Record Python, pytest, MkDocs, SSD/NTFS context if known, exact E8 HEAD SHA, wall time/phase medians and spread; compare Windows owner-local with Windows CI and Ubuntu CI **separately**. Keep the new logs untracked (e.g. write under `temp/`) and do not include local absolute paths/private environment data in PR screenshots or logs. A/B optimization and any CI-event change require another comparable 3-process sample, a test-coverage mapping and mutation/regression proof, not just a lower `--durations` value.
