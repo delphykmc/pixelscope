@@ -5,7 +5,8 @@ from typing import Any
 
 import pytest
 from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QMenu, QMessageBox, QShortcut
+from PySide6.QtGui import QShortcut
+from PySide6.QtWidgets import QMenu, QMessageBox
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.ui import user_guide_help
