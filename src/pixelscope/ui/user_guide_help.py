@@ -283,6 +283,9 @@ def install_user_guide_help(window: QMainWindow, *, online_url: str | None = Non
         context.setObjectName(_CONTEXT_HELP_ACTION_OBJECT_NAME)
         context.setShortcut(QKeySequence(Qt.Key.Key_F1))
         context.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        # A menu-only QAction may display F1 without registering it in the main
+        # window shortcut map; explicitly attach it to the owning window too.
+        window.addAction(context)
         context.setStatusTip("Open help for the focused PixelScope workspace")
         context.triggered.connect(  # type: ignore[attr-defined]
             lambda _checked=False: open_local_user_guide(window, page=context_help_page(window))
