@@ -60,6 +60,8 @@ def test_install_user_guide_help_places_action_before_diagnostics(qtbot: Any) ->
     context = next(a for a in _help_menu(window).actions() if a.text() == "Context Help")
     assert context.shortcut().toString() == "F1"
     assert len([a for a in _help_menu(window).actions() if a.text() == "Context Help"]) == 1
+    for dock in (window.bottom_dock, window.iqa_dock):
+        assert len(dock.findChildren(QShortcut, "floatingContextHelpShortcut")) == 1
     assert [item.text() for item in _help_menu(window).actions()] == [
         "User Guide",
         "Context Help",
@@ -295,3 +297,24 @@ def test_modal_dialog_f1_has_own_shortcut_and_opens_offline_topic(
 
 def test_dialog_f1_installer_preserves_non_qwidget_profile_test_doubles() -> None:
     assert install_dialog_context_help(object(), "formats/raw.html") is None
+
+
+def test_floating_docks_own_separate_f1_routes(qtbot: Any, monkeypatch: Any) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+    install_user_guide_help(window)
+    seen: list[str | None] = []
+
+    def fake_open(_parent: object, *, page: str | None = None) -> bool:
+        seen.append(page)
+        return True
+
+    monkeypatch.setattr(user_guide_help, "open_local_user_guide", fake_open)
+    plots = window.bottom_dock.findChild(QShortcut, "floatingContextHelpShortcut")
+    iqa = window.iqa_dock.findChild(QShortcut, "floatingContextHelpShortcut")
+    assert plots is not None and iqa is not None
+    window.bottom_tabs.setCurrentIndex(1)
+    plots.activated.emit()
+    iqa.activated.emit()
+    assert seen == ["features/line-profile.html", "features/iqa-workspace.html"]
+    window.close()
