@@ -6,8 +6,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
-from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QMenu, QMessageBox, QShortcut, QWidget
+from PySide6.QtGui import QAction, QDesktopServices, QKeySequence, QShortcut
+from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QMenu, QMessageBox, QWidget
 
 _USER_GUIDE_ACTION_OBJECT_NAME = "userGuideAction"
 _ONLINE_GUIDE_ACTION_OBJECT_NAME = "onlineDocumentationAction"
