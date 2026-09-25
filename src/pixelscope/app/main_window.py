@@ -496,6 +496,9 @@ class MainWindow(QMainWindow):
             self,
         )
         dialog.settings_saved.connect(self._application_settings_saved)
+        from pixelscope.ui.user_guide_help import install_dialog_context_help
+
+        install_dialog_context_help(dialog, "features/settings.html")
         return dialog
 
     def open_settings(self) -> None:
@@ -1284,6 +1287,9 @@ class MainWindow(QMainWindow):
             return initial_profile
 
         dialog = RawOpenDialog(self)
+        from pixelscope.ui.user_guide_help import install_dialog_context_help
+
+        install_dialog_context_help(dialog, "formats/raw.html")
         set_source_path = getattr(dialog, "set_source_path", None)
         if callable(set_source_path):
             set_source_path(image_input.path)
