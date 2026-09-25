@@ -4,50 +4,50 @@
   "existing": [
     {
       "id": "single-image",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "six-image-multiview",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "difference-analysis",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "histogram-docked",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "line-profile-docked",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "plots-floating",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "raw-profile-dialog",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     }
@@ -55,50 +55,50 @@
   "gaps": [
     {
       "id": "window-overview",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "files-workspace",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "roi-exact",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "statistics-workspace",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "settings-dialog",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "iqa-neutral",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     },
     {
       "id": "yuv-profile-dialog",
-      "decision": "pending",
-      "review_ref": null,
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017",
       "reason": null,
       "follow_up": null
     }

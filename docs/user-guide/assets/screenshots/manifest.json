@@ -47,8 +47,15 @@
         "width": 1680,
         "height": 980
       },
-      "status": "legacy-unverified",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "single_image-v1",
+        "image_sha256": "75dc3be635ac5e27b93b10a3590bfb9338da063cdb750de1e777d5bfaf31765c",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed"
     },
     {
@@ -82,8 +89,15 @@
         "width": 1680,
         "height": 980
       },
-      "status": "legacy-unverified",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "six_image_multiview-v1",
+        "image_sha256": "9427c502776e4c1692c1e9d5ef9fcb3fa6ee28c28f32a39ec70290d29e2eb945",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed"
     },
     {
@@ -116,8 +130,15 @@
         "width": 1680,
         "height": 980
       },
-      "status": "legacy-unverified",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "difference_analysis-v1",
+        "image_sha256": "77ed5d0e9f1ed7ead96cd27de2b19f5829dd108ecc56d1ac5cc08f97f01e14a5",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed"
     },
     {
@@ -147,8 +168,15 @@
         "width": 1680,
         "height": 980
       },
-      "status": "legacy-unverified",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "histogram_docked-v1",
+        "image_sha256": "611990dbc4d0ed008ef3d016fbc25db42dc1a935bbad58a1ef985b1868e08776",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed"
     },
     {
@@ -179,15 +207,24 @@
         "width": 1680,
         "height": 980
       },
-      "status": "legacy-unverified",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "line_profile_docked-v1",
+        "image_sha256": "d015b4d690bc9d6d8ee095e6a8f298f4f5a7caca213c653487e0b62930afe270",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed"
     },
     {
       "id": "plots-floating",
       "filename": "plots-floating.png",
-      "pages": [],
-      "placement": "legacy-unreferenced",
+      "pages": [
+        "features/plots-workspace.md"
+      ],
+      "placement": "required",
       "scenario": "plots_floating",
       "capture_mode": "isolated",
       "legacy_output": "plots_floating.png",
@@ -208,8 +245,15 @@
         "width": 1200,
         "height": 520
       },
-      "status": "legacy-unverified",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "plots_floating-v1",
+        "image_sha256": "39f2632a4044e12dcb63a90e85a2bbb5f5903e4a7b07b72df443a4b2ccde8e98",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed"
     },
     {
@@ -239,8 +283,15 @@
         "width": 280,
         "height": 685
       },
-      "status": "legacy-unverified",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "raw_profile_dialog-v1",
+        "image_sha256": "637420c42709e37d5adf0756a0c046c5f42e686d608fff77f78564c59dde2dae",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "resizable"
     },
     {
@@ -267,10 +318,17 @@
         "width": 1680,
         "height": 980
       },
-      "status": "capture-ready",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "window_overview-v1",
+        "image_sha256": "6b7dc3f1404ef2bd26b5da5d6c7bf93c1af80e329eac4c6a54e69beb44db8549",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed",
-      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+      "coverage_note": "Owner-approved real-UI capture promoted in E6."
     },
     {
       "id": "files-workspace",
@@ -302,10 +360,17 @@
         "width": 1680,
         "height": 980
       },
-      "status": "capture-ready",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "files_workspace-v1",
+        "image_sha256": "3346f5c561de5d1e43143e7593ea3bf5f6b43bbae26007293d98c1d1618ab7f7",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed",
-      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+      "coverage_note": "Owner-approved real-UI capture promoted in E6."
     },
     {
       "id": "roi-exact",
@@ -332,10 +397,17 @@
         "width": 1680,
         "height": 980
       },
-      "status": "capture-ready",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "roi_exact-v1",
+        "image_sha256": "c879ea98a72be0cf3ec728aa91ced2316c9ef0d93222d701491a00c4913cacf4",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed",
-      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+      "coverage_note": "Owner-approved real-UI capture promoted in E6."
     },
     {
       "id": "statistics-workspace",
@@ -361,10 +433,17 @@
         "width": 1680,
         "height": 980
       },
-      "status": "capture-ready",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "statistics_workspace-v1",
+        "image_sha256": "a3430f6d27773c7fe10db1cfd886166b81fecf5911dbf7bbec849961e995157e",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed",
-      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+      "coverage_note": "Owner-approved real-UI capture promoted in E6."
     },
     {
       "id": "settings-dialog",
@@ -390,10 +469,17 @@
         "width": 960,
         "height": 620
       },
-      "status": "capture-ready",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "settings_dialog-v1",
+        "image_sha256": "fb6a2f25428990107f8163cea1973421d8671cd1cd7bafba21144949d8b0bcdd",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed",
-      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+      "coverage_note": "Owner-approved real-UI capture promoted in E6."
     },
     {
       "id": "iqa-neutral",
@@ -418,10 +504,17 @@
         "width": 1680,
         "height": 980
       },
-      "status": "capture-ready",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "iqa_neutral-v1",
+        "image_sha256": "691b940cac980bc2be89dfda0ad389b886d62074a7c40f3c2f57db5b5f49f6b9",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "fixed",
-      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+      "coverage_note": "Owner-approved real-UI capture promoted in E6."
     },
     {
       "id": "yuv-profile-dialog",
@@ -448,10 +541,17 @@
         "width": 299,
         "height": 200
       },
-      "status": "capture-ready",
-      "approved": null,
+      "status": "approved",
+      "approved": {
+        "capture_source_sha": "631779bb91278e846f39e376dd1bef8210df1e5c",
+        "application_version": "0.1.0",
+        "comparison_profile_id": "windows-e1-poc-v1",
+        "scenario_contract_id": "yuv_profile_dialog-v1",
+        "image_sha256": "e7d87c656c5ff3bfce76324e7dcbefd03aa692938e3219076a1b47abb07e08fc",
+        "approval_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017"
+      },
       "geometry_policy": "resizable",
-      "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
+      "coverage_note": "Owner-approved real-UI capture promoted in E6."
     }
   ],
   "shared_source_globs": [

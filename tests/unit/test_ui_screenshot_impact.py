@@ -248,7 +248,7 @@ def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> 
     assert any("unmapped-screenshot-asset" in x for x in selection["warnings"])
     exact = report(manifest, base + "raw-profile-dialog.png")
     assert exact["selected_ids"] == ["raw-profile-dialog"]
-    assert exact["selected_screenshots"][0]["status"] == "legacy-unverified"
+    assert exact["selected_screenshots"][0]["status"] == "approved"
     assert exact["requires_image_review"] is True
 
 

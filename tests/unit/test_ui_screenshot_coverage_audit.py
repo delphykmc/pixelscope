@@ -20,17 +20,23 @@ from scripts.audit_ui_screenshot_coverage import (
 def _fixtures() -> tuple[dict, dict]:
     manifest = json.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
     decisions = json.loads((ROOT / DECISIONS).read_text(encoding="utf-8"))
+    for group in ("existing", "gaps"):
+        for record in decisions[group]:
+            record.update(decision="pending", review_ref=None, reason=None, follow_up=None)
+    for row in manifest["screenshots"]:
+        row["status"] = "legacy-unverified" if "legacy_output" in row else "capture-ready"
+        row["approved"] = None
     return manifest, decisions
 
 
-def test_real_e6_entry_is_valid_but_not_falsely_complete() -> None:
+def test_real_e6_entry_is_valid_and_complete_after_owner_approval() -> None:
     result = audit()
     assert result["errors"] == []
-    assert result["complete"] is False
-    assert len(result["pending_ids"]) == 14
+    assert result["complete"] is True
+    assert result["pending_ids"] == []
     strict = audit(require_complete=True)
-    assert strict["complete"] is False
-    assert any("14 individual owner decisions pending" in error for error in strict["errors"])
+    assert strict["complete"] is True
+    assert strict["errors"] == []
 
 
 def test_each_gap_requires_its_own_record_and_real_owner_decision() -> None:

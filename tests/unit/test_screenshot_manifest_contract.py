@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import struct
 import zlib
@@ -72,7 +73,13 @@ def repo(tmp_path: Path) -> Path:
                 with destination.open("a", encoding="utf-8") as handle:
                     handle.write(f"<!-- pixelscope:screenshot {screenshot['id']} -->\n")
         if "legacy_output" in screenshot:
-            _png(assets / screenshot["filename"])
+            image = assets / screenshot["filename"]
+            _png(image)
+            if screenshot["status"] == "approved":
+                screenshot["approved"]["image_sha256"] = hashlib.sha256(
+                    image.read_bytes()
+                ).hexdigest()
+    (assets / "manifest.json").write_text(json.dumps(document), encoding="utf-8")
     return tmp_path
 
 
@@ -222,7 +229,7 @@ def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path
     _modify(
         repo,
         lambda m: m["screenshots"][7].update(
-            capture_mode="planned", placement="planned", status="planned"
+            capture_mode="planned", placement="planned", status="planned", approved=None
         ),
     )
     _modify(
@@ -260,7 +267,10 @@ def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path
     # Historical outputs must never become unowned while adding new builders.
     _modify(
         repo,
-        lambda m: m["screenshots"][0].pop("legacy_output"),
+        lambda m: (
+            m["screenshots"][0].update(status="legacy-unverified", approved=None),
+            m["screenshots"][0].pop("legacy_output"),
+        ),
     )
     assert any("legacy scene missing historical manual output" in e for e in find_problems(repo))
 
