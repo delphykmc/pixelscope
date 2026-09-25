@@ -145,7 +145,9 @@ def install_dialog_context_help(dialog: object, page: str) -> QShortcut | None:
         return existing
     shortcut = QShortcut(QKeySequence(Qt.Key.Key_F1), dialog)
     shortcut.setObjectName(_DIALOG_CONTEXT_HELP_OBJECT_NAME)
-    shortcut.activated.connect(lambda: open_local_user_guide(dialog, page=page))
+    shortcut.activated.connect(  # type: ignore[attr-defined]
+        lambda: open_local_user_guide(dialog, page=page)
+    )
     return shortcut
 
 def validate_online_documentation_url(value: str) -> str:
