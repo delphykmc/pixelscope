@@ -24,15 +24,17 @@ def _write_snapshot(root: Path, name: bytes, source: str) -> None:
     image.parent.mkdir(parents=True, exist_ok=True)
     image.write_bytes(name)
     record = {
-        "screenshots": [{
-            "id": "single-image",
-            "filename": "single-image.png",
-            "status": "approved",
-            "approved": {
-                "capture_source_sha": source,
-                "image_sha256": hashlib.sha256(name).hexdigest(),
-            },
-        }]
+        "screenshots": [
+            {
+                "id": "single-image",
+                "filename": "single-image.png",
+                "status": "approved",
+                "approved": {
+                    "capture_source_sha": source,
+                    "image_sha256": hashlib.sha256(name).hexdigest(),
+                },
+            }
+        ]
     }
     (root / MANIFEST).write_text(json.dumps(record), encoding="utf-8")
 
