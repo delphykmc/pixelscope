@@ -348,6 +348,10 @@ def _key_f1_on_actual_focus(
 ) -> None:
     """Exercise Qt's shortcut map, rather than invoking QAction/Signal callbacks."""
     assert widget.isVisible(), "F1 target must be a visible production widget"
+    top_level = widget.window()
+    top_level.activateWindow()
+    QApplication.setActiveWindow(top_level)
+    qtbot.waitUntil(lambda: QApplication.activeWindow() is top_level, timeout=3000)
     widget.setFocus()
     qtbot.waitUntil(lambda: QApplication.focusWidget() is widget, timeout=3000)
     before = len(seen)
