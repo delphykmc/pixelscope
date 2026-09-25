@@ -220,9 +220,7 @@ def test_context_help_routes_from_focused_workspace(qtbot: Any) -> None:
         "features/statistics.html"
     )
     window.analysis_tabs.setCurrentIndex(1)
-    assert context_help_page(window, focus=window.difference_panel) == (
-        "features/difference.html"
-    )
+    assert context_help_page(window, focus=window.difference_panel) == ("features/difference.html")
     assert context_help_page(window, focus=window) is None
     window.close()
 
@@ -261,18 +259,24 @@ def test_local_context_help_uses_installed_topic_or_index_fallback(
     opened: list[QUrl] = []
 
     assert open_local_user_guide(
-        window, index_path=index, page="features/histogram.html",
+        window,
+        index_path=index,
+        page="features/histogram.html",
         opener=lambda url: opened.append(url) or True,
     )
     assert Path(opened[-1].toLocalFile()) == topic.resolve()
 
     assert open_local_user_guide(
-        window, index_path=index, page="features/not-yet-built.html",
+        window,
+        index_path=index,
+        page="features/not-yet-built.html",
         opener=lambda url: opened.append(url) or True,
     )
     assert Path(opened[-1].toLocalFile()) == index.resolve()
     assert open_local_user_guide(
-        window, index_path=index, page="../outside.html",
+        window,
+        index_path=index,
+        page="../outside.html",
         opener=lambda url: opened.append(url) or True,
     )
     assert Path(opened[-1].toLocalFile()) == index.resolve()
