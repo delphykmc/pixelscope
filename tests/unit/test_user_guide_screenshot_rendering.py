@@ -83,14 +83,14 @@ def _assert_clean_repo(clone: Path) -> None:
     for shot in _REGISTERED:
         image = clone / ASSETS / shot["filename"]
         assert image.is_file(), f"unrestored screenshot: {shot['id']}"
-        assert hashlib.sha256(image.read_bytes()).hexdigest() == shot["approved"][
-            "image_sha256"
-        ], f"modified approved screenshot: {shot['id']}"
+        assert (
+            hashlib.sha256(image.read_bytes()).hexdigest() == shot["approved"]["image_sha256"]
+        ), f"modified approved screenshot: {shot['id']}"
     for page in {name for shot in _REGISTERED for name in shot["pages"]}:
         source = GUIDE / page
-        assert (clone / source).read_bytes() == (ROOT / source).read_bytes(), (
-            f"unrestored guide Markdown: {page}"
-        )
+        assert (clone / source).read_bytes() == (
+            ROOT / source
+        ).read_bytes(), f"unrestored guide Markdown: {page}"
 
 
 @pytest.fixture
