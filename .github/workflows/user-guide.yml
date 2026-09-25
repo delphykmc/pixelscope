@@ -121,7 +121,8 @@ permissions:
 
 jobs:
   build:
-    name: Validate on ${{ matrix.os }}
+    # Preserve existing required PR check names; duplicate push is a distinct context.
+    name: ${{ github.event_name == 'push' && format('Push validation on {0}', matrix.os) || format('Validate on {0}', matrix.os) }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -137,9 +138,10 @@ jobs:
           cache: pip
           cache-dependency-path: requirements/docs.txt
       # Preserve automatic standalone-branch validation. Skip duplicate push
-      # work ONLY if GitHub confirms a real matching same-SHA PR docs run.
-      # The PR run itself is NEVER skipped or cancelled; API/race fails open.
-      - name: Detect equivalent PR run before expensive push validation
+      # work ONLY if a valid matching PR run tests an IDENTICAL Git tree
+      # (synthetic merge tree == standalone branch HEAD tree). Otherwise
+      # retain BOTH validations. PR runs are never skipped or cancelled.
+      - name: Check PR run and merge-tree identity before duplicate push validation
         id: duplicate_push
         if: github.event_name == 'push' && github.ref != 'refs/heads/main'
         env:
