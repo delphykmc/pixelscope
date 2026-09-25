@@ -96,9 +96,7 @@ def main() -> int:
         if output:
             with Path(output).open("a", encoding="utf-8") as handle:
                 handle.write(f"capture_required={str(needed).lower()}\n")
-        print(
-            f"E4 pinned preflight: {'run native GUI' if needed else 'no affected screenshots'}"
-        )
+        print(f"E4 pinned preflight: {'run native GUI' if needed else 'no affected screenshots'}")
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
         print(f"E4 preflight FAILED (fail-closed): {type(exc).__name__}: {exc}")
         return 1
