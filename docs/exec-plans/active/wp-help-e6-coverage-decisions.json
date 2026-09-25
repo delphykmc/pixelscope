@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "phase": "WP-Help-E6",
+  "existing": [
+    {
+      "id": "single-image",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "six-image-multiview",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "difference-analysis",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "histogram-docked",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "line-profile-docked",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "plots-floating",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "raw-profile-dialog",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    }
+  ],
+  "gaps": [
+    {
+      "id": "window-overview",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "files-workspace",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "roi-exact",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "statistics-workspace",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "settings-dialog",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "iqa-neutral",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    },
+    {
+      "id": "yuv-profile-dialog",
+      "decision": "promoted",
+      "review_ref": "https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533",
+      "reason": null,
+      "follow_up": null
+    }
+  ]
+}

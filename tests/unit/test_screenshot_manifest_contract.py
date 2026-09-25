@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import struct
 import zlib
@@ -47,10 +48,16 @@ def repo(tmp_path: Path) -> Path:
     scripts = tmp_path / "scripts"
     scripts.mkdir()
     (scripts / "capture_ui_scene.py").write_text(
-        'BUILDERS = {"single_image": object(), "raw_profile_dialog": object()}\n',
+        'BUILDERS = {"single_image": object(), "six_image_multiview": object(), '
+        '"difference_analysis": object(), "histogram_docked": object(), '
+        '"line_profile_docked": object(), "plots_floating": object(), '
+        '"raw_profile_dialog": object(), "window_overview": object(), '
+        '"files_workspace": object(), "roi_exact": object(), '
+        '"statistics_workspace": object(), "settings_dialog": object(), '
+        '"iqa_neutral": object(), "yuv_profile_dialog": object()}\n',
         encoding="utf-8",
     )
-    legacy = [s["legacy_output"] for s in document["screenshots"] if s["capture_mode"] != "planned"]
+    legacy = [s["legacy_output"] for s in document["screenshots"] if "legacy_output" in s]
     legacy += document["diagnostic_legacy_outputs"]
     (scripts / "capture_ui_review.py").write_text(
         "OUTPUTS = [" + ", ".join(repr(name) for name in legacy) + "]\n",
@@ -65,8 +72,14 @@ def repo(tmp_path: Path) -> Path:
             if screenshot["placement"] == "required":
                 with destination.open("a", encoding="utf-8") as handle:
                     handle.write(f"<!-- pixelscope:screenshot {screenshot['id']} -->\n")
-        if screenshot["capture_mode"] != "planned":
-            _png(assets / screenshot["filename"])
+        if "legacy_output" in screenshot:
+            image = assets / screenshot["filename"]
+            _png(image)
+            if screenshot["status"] == "approved":
+                screenshot["approved"]["image_sha256"] = hashlib.sha256(
+                    image.read_bytes()
+                ).hexdigest()
+    (assets / "manifest.json").write_text(json.dumps(document), encoding="utf-8")
     return tmp_path
 
 
@@ -143,6 +156,12 @@ def test_unregistered_scene_and_unaccounted_manual_output_fail(repo: Path) -> No
 
 
 def test_planned_image_does_not_fabricate_capture_or_provenance(repo: Path) -> None:
+    _modify(
+        repo,
+        lambda m: m["screenshots"][12].update(
+            capture_mode="planned", placement="planned", status="planned"
+        ),
+    )
     _png(repo / ASSET / "iqa-neutral.png")
     assert any("planned scene has an unexpected committed PNG" in e for e in find_problems(repo))
     (repo / ASSET / "iqa-neutral.png").unlink()
@@ -198,9 +217,20 @@ def test_malformed_marker_and_swapped_legacy_output_are_detected(repo: Path) -> 
 def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path) -> None:
     scene_source = repo / "scripts/capture_ui_scene.py"
     scene_source.write_text(
-        'BUILDERS = {"single_image": object(), "raw_profile_dialog": object(), '
-        '"window_overview": object()}\n',
+        'BUILDERS = {"single_image": object(), "six_image_multiview": object(), '
+        '"difference_analysis": object(), "histogram_docked": object(), '
+        '"line_profile_docked": object(), "plots_floating": object(), '
+        '"raw_profile_dialog": object(), "window_overview": object(), '
+        '"files_workspace": object(), "roi_exact": object(), '
+        '"statistics_workspace": object(), "settings_dialog": object(), '
+        '"iqa_neutral": object(), "yuv_profile_dialog": object()}\n',
         encoding="utf-8",
+    )
+    _modify(
+        repo,
+        lambda m: m["screenshots"][7].update(
+            capture_mode="planned", placement="planned", status="planned", approved=None
+        ),
     )
     _modify(
         repo,
@@ -208,9 +238,6 @@ def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path
             capture_mode="isolated", placement="required", status="capture-ready"
         ),
     )
-    page = repo / GUIDE / "features/image-view.md"
-    with page.open("a", encoding="utf-8") as handle:
-        handle.write("<!-- pixelscope:screenshot window-overview -->\n")
     assert find_problems(repo) == []
 
     # A new isolated scene may be unapproved and missing, but must not commit
@@ -240,7 +267,10 @@ def test_planned_scene_can_become_new_isolated_without_manual_capture(repo: Path
     # Historical outputs must never become unowned while adding new builders.
     _modify(
         repo,
-        lambda m: m["screenshots"][0].pop("legacy_output"),
+        lambda m: (
+            m["screenshots"][0].update(status="legacy-unverified", approved=None),
+            m["screenshots"][0].pop("legacy_output"),
+        ),
     )
     assert any("legacy scene missing historical manual output" in e for e in find_problems(repo))
 

@@ -1,5 +1,7 @@
 # Inspect an ROI
 
+<!-- pixelscope:screenshot roi-exact -->
+
 Use a Region of Interest (ROI) when analysis should describe a specific rectangular source region rather than the full image.
 
 ## Draw an ROI

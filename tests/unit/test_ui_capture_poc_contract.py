@@ -10,8 +10,10 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 from scripts import capture_ui_scene
-from scripts.capture_ui_scene import statistics_ready
+from scripts.capture_ui_scene import apply_single_view_capture_zoom, statistics_ready
 from scripts.run_ui_capture_poc import (
+    ALLOW_WIDGET_RESIZE,
+    EXPECTED_LOGICAL_SIZE,
     assess_capture_process,
     changed_fraction,
     sanitized_stderr,
@@ -20,17 +22,18 @@ from scripts.run_ui_capture_poc import (
 )
 
 
-def _pattern(path: Path) -> None:
-    image = Image.new("RGB", (500, 400))
+def _pattern(path: Path, size: tuple[int, int] = (500, 400)) -> None:
+    width, height = size
+    image = Image.new("RGB", size)
     pixels = image.load()
     assert pixels is not None
-    for y in range(400):
-        for x in range(500):
+    for y in range(height):
+        for x in range(width):
             pixels[x, y] = (x % 256, y % 256, (x + y) % 256)
     image.save(path)
 
 
-def _metadata(path: Path, image: Path, source_sha: str) -> None:
+def _metadata(path: Path, image: Path, source_sha: str, size: tuple[int, int] = (500, 400)) -> None:
     path.write_text(
         json.dumps(
             {
@@ -38,7 +41,7 @@ def _metadata(path: Path, image: Path, source_sha: str) -> None:
                 "scenario": "single_image",
                 "source_sha": source_sha,
                 "image_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
-                "geometry": {"pixel_png": [500, 400], "logical_widget": [500, 400]},
+                "geometry": {"pixel_png": list(size), "logical_widget": list(size)},
             }
         ),
         encoding="utf-8",
@@ -88,6 +91,25 @@ def test_poc_repeatability_is_exact_pixel_not_png_metadata(tmp_path: Path) -> No
     assert changed_fraction(first, second) == 1.0
 
 
+def test_poc_validator_accepts_compact_real_dialog_but_rejects_tiny_ui(tmp_path: Path) -> None:
+    png, metadata = tmp_path / "dialog.png", tmp_path / "dialog.json"
+    sha = "3" * 40
+    _pattern(png, (299, 198))
+    _metadata(metadata, png, sha, (299, 198))
+    assert validate_capture(png, metadata, "single_image", sha)["status"] == "captured"
+
+    _pattern(png, (249, 179))
+    _metadata(metadata, png, sha, (249, 179))
+    with pytest.raises(ValueError, match="minimum useful UI"):
+        validate_capture(png, metadata, "single_image", sha)
+
+
+def test_manifest_geometry_policy_allows_native_yuv_dialog_size() -> None:
+    assert EXPECTED_LOGICAL_SIZE["yuv_profile_dialog"] == [299, 200]
+    assert ALLOW_WIDGET_RESIZE["yuv_profile_dialog"] is True
+    assert ALLOW_WIDGET_RESIZE["settings_dialog"] is False
+
+
 def test_statistics_readiness_waits_for_successful_current_request_and_rows() -> None:
     document = object()
     panel = SimpleNamespace(
@@ -101,7 +123,6 @@ def test_statistics_readiness_waits_for_successful_current_request_and_rows() ->
         table=SimpleNamespace(rowCount=lambda: 0),
     )
     assert not statistics_ready(panel, document)
-
     # A stale result must not authorize capturing the currently requested document.
     panel._completed_signature = ("previous",)
     panel.last_results = (object(),)
@@ -119,6 +140,15 @@ def test_statistics_readiness_waits_for_successful_current_request_and_rows() ->
 
     panel.status = SimpleNamespace(text=lambda: "Calculating...")
     assert not statistics_ready(panel, document)
+
+
+def test_single_view_candidate_changes_real_viewer_zoom_state() -> None:
+    factors: list[float] = []
+    viewer = SimpleNamespace(zoom_by=factors.append)
+
+    apply_single_view_capture_zoom(viewer)
+
+    assert factors == [pytest.approx(2.0 / 3.0)]
 
 
 def test_zero_exit_callback_error_fails_even_with_valid_png(tmp_path: Path) -> None:

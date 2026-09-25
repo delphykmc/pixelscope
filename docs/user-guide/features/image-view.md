@@ -1,5 +1,7 @@
 # Image View
 
+<!-- pixelscope:screenshot window-overview -->
+
 Image View is the primary visual inspection surface.
 
 <!-- pixelscope:screenshot single-image -->

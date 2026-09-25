@@ -248,7 +248,7 @@ def test_changed_image_add_delete_and_rename_are_first_class(manifest: dict) -> 
     assert any("unmapped-screenshot-asset" in x for x in selection["warnings"])
     exact = report(manifest, base + "raw-profile-dialog.png")
     assert exact["selected_ids"] == ["raw-profile-dialog"]
-    assert exact["selected_screenshots"][0]["status"] == "legacy-unverified"
+    assert exact["selected_screenshots"][0]["status"] == "approved"
     assert exact["requires_image_review"] is True
 
 
@@ -297,18 +297,14 @@ def test_manifest_single_id_change_and_shared_profile_change(manifest: dict) -> 
     assert result["requires_image_review"] is True
 
 
-def test_non_isolated_selection_carries_explicit_capture_debt(manifest: dict) -> None:
+def test_all_capture_ready_scenes_are_eligible_without_capture_debt(manifest: dict) -> None:
     scoped = report(manifest, "src/pixelscope/ui/raw_open_dialog.py")
     assert scoped["capture_eligible_ids"] == ["raw-profile-dialog"]
     assert scoped["capture_deferred"] == []
 
     full = report(manifest, "src/pixelscope/app/main_window.py")
-    assert len(full["capture_eligible_ids"]) == 2
-    assert len(full["capture_deferred"]) == 12
-    assert {"id": "window-overview", "reason": "capture-mode:planned"} in full["capture_deferred"]
-    assert {"id": "plots-floating", "reason": "capture-mode:legacy-manual"} in full[
-        "capture_deferred"
-    ]
+    assert len(full["capture_eligible_ids"]) == 14
+    assert full["capture_deferred"] == []
 
 
 def test_removed_scene_is_not_reported_as_capture_ready(manifest: dict) -> None:

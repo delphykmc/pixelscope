@@ -22,7 +22,7 @@ from types import TracebackType
 import pyqtgraph
 from PySide6 import __version__ as pyside_version
 from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, QSettings, qVersion
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from pixelscope.app.application import (
     _compose_main_window_presentation,
@@ -32,6 +32,8 @@ from pixelscope.app.application import (
     remote_iqa_thread_pool,
 )
 from pixelscope.app.main_window import MainWindow
+from pixelscope.core.line_profile import LineSelection
+from pixelscope.core.roi import RoiBounds
 from pixelscope.version import __version__ as app_version
 
 # Direct script invocation has scripts/ as sys.path[0]. This path is repository
@@ -40,14 +42,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pixelscope.io.raw_profile import RawProfile  # noqa: E402
+from pixelscope.io.path_discovery import ImageInput  # noqa: E402
 from pixelscope.ui.raw_open_dialog import RawOpenDialog  # noqa: E402
+from pixelscope.ui.yuv_open_dialog import YuvOpenDialog  # noqa: E402
 from scripts.capture_ui_review import review_document  # noqa: E402
 from scripts.screenshot_fixture_identity import single_view_fixture_identity  # noqa: E402
 
 PROFILE = "windows-e1-poc-v1"
 WINDOW_SIZE = (1680, 980)
-DIALOG_SIZE = (520, 620)
+DIALOG_SIZE = (280, 685)
+SINGLE_VIEW_ZOOM_FACTOR = 1.5
 TIMEOUT_SECONDS = 15.0
 CALLBACK_ERROR_MARKER = "PIXELSCOPE_E1_QT_CALLBACK_EXCEPTION"
 
@@ -116,6 +120,65 @@ def statistics_ready(panel: object, document: object) -> bool:
     )
 
 
+def apply_single_view_capture_zoom(viewer: object) -> None:
+    """Set the real viewer state used by the guide candidate capture."""
+    viewer.zoom_by(1.0 / SINGLE_VIEW_ZOOM_FACTOR)  # type: ignore[attr-defined]
+
+
+def _fixture_identity(documents: list[object], scene: str) -> str:
+    digest = hashlib.sha256(scene.encode("utf-8"))
+    for document in documents:
+        digest.update(document.source.tobytes())  # type: ignore[attr-defined]
+        digest.update(document.display_name.encode("utf-8"))  # type: ignore[attr-defined]
+        source_path = document.source_path  # type: ignore[attr-defined]
+        digest.update(source_path.as_posix().encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _populated_window(
+    app: QApplication,
+    count: int,
+    layout: str,
+) -> tuple[MainWindow, list[object]]:
+    repository, settings, performance = load_startup_settings()
+    analysis_thread_pool()
+    result_pool = remote_iqa_thread_pool()
+    window = MainWindow(settings, performance, repository, iqa_result_pool=result_pool)
+    _compose_main_window_presentation(window)
+    window.setWindowIcon(app.windowIcon())
+    documents = [review_document(index) for index in range(count)]
+    for document in documents:
+        window.add_document(document, select=False)
+    window._select_document_ids([document.document_id for document in documents])
+    window.set_layout_mode(layout)
+    window.resize(*WINDOW_SIZE)
+    window.setFixedSize(*WINDOW_SIZE)
+    window.bottom_dock.hide()
+    return window, documents
+
+
+def _documents_presented(window: MainWindow, documents: list[object]) -> bool:
+    presented = [viewer.document for viewer in window.multi_compare_view.occupied_viewers]
+    return len(presented) == len(documents) and all(
+        actual is expected for actual, expected in zip(presented, documents, strict=True)
+    )
+
+
+def _analysis_ready(panel: object, documents: list[object]) -> bool:
+    status = panel.status.text()  # type: ignore[attr-defined]
+    if status.startswith("Error:"):
+        raise RuntimeError(f"Analysis failed: {status}")
+    return bool(
+        panel._request_signature  # type: ignore[attr-defined]
+        and panel._request_signature  # type: ignore[attr-defined]
+        == panel._completed_signature  # type: ignore[attr-defined]
+        and list(panel._documents) == documents  # type: ignore[attr-defined]
+        and len(panel.last_results) == len(documents)  # type: ignore[attr-defined]
+        and panel.status.text() == ""  # type: ignore[attr-defined]
+        and not panel.busy.isVisible()  # type: ignore[attr-defined]
+    )
+
+
 def _configure_isolated_settings(directory: Path) -> None:
     """Ensure QSettings cannot clear, write or read the owner's real preferences."""
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
@@ -124,30 +187,18 @@ def _configure_isolated_settings(directory: Path) -> None:
 
 
 def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
-    repository, settings, performance = load_startup_settings()
-    analysis_thread_pool()
-    result_pool = remote_iqa_thread_pool()
-    window = MainWindow(settings, performance, repository, iqa_result_pool=result_pool)
-    _compose_main_window_presentation(window)
-    window.setWindowIcon(app.windowIcon())
-    document = review_document(0)
-    window.add_document(document, select=False)
-    window._select_document_ids([document.document_id])
-    window.set_layout_mode("Single View")
-    window.resize(*WINDOW_SIZE)
-    # Windows hosted runners can have a 1024x768 desktop. QWidget.grab() must
-    # retain the explicit logical viewport rather than accepting Qt's top-level
-    # auto-clamped available-screen size as a matching screenshot profile.
-    window.setFixedSize(*WINDOW_SIZE)
-    window.bottom_dock.hide()
+    window, documents = _populated_window(app, 1, "Single View")
+    document = documents[0]
     if document.source_path is None:
         raise ValueError("Single View fixture must carry a synthetic displayed source path")
     fixture_sha256 = single_view_fixture_identity(
         document.source.tobytes(), document.display_name, document.source_path.as_posix()
     )
+    zoom_applied = False
 
     def ready() -> bool:
-        return (
+        nonlocal zoom_applied
+        base_ready = (
             document.document_id in window.documents
             and window.central_stack.currentWidget() is not window.empty_workspace
             and window.central_stack.currentWidget().isVisible()
@@ -156,46 +207,343 @@ def _single_image(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
             and document.preview is not None
             and statistics_ready(window.comparison_analysis_panel, document)
         )
+        if base_ready and not zoom_applied:
+            # Change the real ImageViewer state before capture. This produces a useful
+            # 60-75% central-canvas image footprint without cropping or post-processing.
+            apply_single_view_capture_zoom(window.viewer)
+            zoom_applied = True
+            return False
+        return base_ready and zoom_applied
 
     return window, ready, fixture_sha256
 
 
-def _raw_dialog(_app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
-    profile = RawProfile(
-        name="capture_profile",
-        width=3840,
-        height=2160,
-        dtype="uint16",
-        stride_bytes=7680,
-        bit_depth=10,
-        packing="unpacked_u16",
-        channel_layout="BAYER",
-        bayer_pattern="RGGB",
-        black_level=(64, 64, 64, 64),
-        white_level=1023,
+def _six_image_multiview(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 6, "Multi View")
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, documents)
+            and _analysis_ready(window.comparison_analysis_panel, documents)
+        ),
+        _fixture_identity(documents, "six_image_multiview"),
     )
-    dialog = RawOpenDialog()
-    dialog.set_profile(profile)
-    dialog.resize(*DIALOG_SIZE)
+
+
+def _difference_analysis(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    started = False
+
+    def ready() -> bool:
+        nonlocal started
+        if not started:
+            if not _documents_presented(window, documents):
+                return False
+            window.analysis_tabs.setCurrentWidget(window.difference_panel)
+            window.difference_panel.calculate_difference()
+            started = True
+            return False
+        return bool(
+            window._difference_document is not None
+            and window.difference_panel.last_result is not None
+            and window.difference_panel._worker is None
+        )
+
+    return window, ready, _fixture_identity(documents, "difference_analysis")
+
+
+def _histogram_docked(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 3, "Multi View")
+    configured = False
+
+    def ready() -> bool:
+        nonlocal configured
+        if not _documents_presented(window, documents):
+            return False
+        if not configured:
+            window._show_bottom_results()
+            window.bottom_tabs.setCurrentWidget(window.comparison_analysis_panel.histogram_panel)
+            configured = True
+            return False
+        panel = window.comparison_analysis_panel
+        return bool(
+            window.bottom_dock.isVisible()
+            and _analysis_ready(panel, documents)
+            and any(panel._histogram_series)
+        )
+
+    return window, ready, _fixture_identity(documents, "histogram_docked")
+
+
+def _line_profile_docked(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    configured = False
+
+    def ready() -> bool:
+        nonlocal configured
+        if not _documents_presented(window, documents):
+            return False
+        if not configured:
+            window._show_bottom_results()
+            window._shared_line_changed(LineSelection(40, 180, 580))
+            window.bottom_tabs.setCurrentWidget(window.line_profile_panel)
+            configured = True
+            return False
+        panel = window.line_profile_panel
+        return bool(
+            window.bottom_dock.isVisible()
+            and panel._selection is not None
+            and panel._worker is None
+            and len(panel.last_results) == len(documents)
+            and any(panel._profile_series)
+        )
+
+    return window, ready, _fixture_identity(documents, "line_profile_docked")
+
+
+def _plots_floating(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    configured = False
+
+    def ready() -> bool:
+        nonlocal configured
+        if not _documents_presented(window, documents):
+            return False
+        if not configured:
+            window._show_bottom_results()
+            window.bottom_tabs.setCurrentWidget(window.comparison_analysis_panel.histogram_panel)
+            window.bottom_dock.setFloating(True)
+            window.bottom_dock.resize(1200, 520)
+            configured = True
+            return False
+        panel = window.comparison_analysis_panel
+        return bool(
+            window.bottom_dock.isVisible()
+            and window.bottom_dock.isFloating()
+            and _analysis_ready(panel, documents)
+            and any(panel._histogram_series)
+        )
+
+    window.show()
+    dock = window.bottom_dock
+    dock._capture_parent_window = window  # type: ignore[attr-defined]
+    return dock, ready, _fixture_identity(documents, "plots_floating")
+
+
+def _window_overview(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 3, "Multi View")
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, documents)
+            and _analysis_ready(window.comparison_analysis_panel, documents)
+        ),
+        _fixture_identity(documents, "window_overview"),
+    )
+
+
+def _files_workspace(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, selected = _populated_window(app, 3, "Multi View")
+    registered = selected + [review_document(index) for index in range(3, 8)]
+    for document in registered[3:]:
+        window.add_document(document, select=False)
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, selected)
+            and window.document_list.topLevelItemCount() >= 3
+            and _analysis_ready(window.comparison_analysis_panel, selected)
+        ),
+        _fixture_identity(registered, "files_workspace"),
+    )
+
+
+def _statistics_workspace(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, documents)
+            and _analysis_ready(window.comparison_analysis_panel, documents)
+            and window.comparison_analysis_panel.image_summary.rowCount() == 2
+        ),
+        _fixture_identity(documents, "statistics_workspace"),
+    )
+
+
+def _roi_exact(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    bounds = RoiBounds(96, 72, 320, 180)
+    applied = False
+
+    def ready() -> bool:
+        nonlocal applied
+        if not _documents_presented(window, documents):
+            return False
+        if not applied:
+            if not window._apply_shared_roi(bounds, allow_channel_split=False):
+                raise RuntimeError("exact ROI was rejected by the production window")
+            applied = True
+            return False
+        panel = window.comparison_analysis_panel
+        return bool(
+            window._shared_roi == bounds
+            and _analysis_ready(panel, documents)
+            and panel.region_scope.currentText() == "Active ROI"
+            and panel.roi_x_input.value() == bounds.x
+            and panel.roi_y_input.value() == bounds.y
+            and panel.roi_width_input.value() == bounds.width
+            and panel.roi_height_input.value() == bounds.height
+        )
+
+    return window, ready, _fixture_identity(documents, "roi_exact")
+
+
+def _settings_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, _documents = _populated_window(app, 0, "Auto")
+    dialog = window.create_settings_dialog()
+    dialog._capture_parent_window = window  # type: ignore[attr-defined]
+    identity = hashlib.sha256(b"settings-dialog-default-isolated-v1").hexdigest()
+    return (
+        dialog,
+        lambda: (
+            dialog.category_list.count() >= 3
+            and dialog.page_stack.count() >= 3
+            and dialog.button_box.isVisible()
+        ),
+        identity,
+    )
+
+
+def _yuv_profile_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, _documents = _populated_window(app, 0, "Auto")
+    settings_root = Path(QSettings().fileName()).parent
+    source = settings_root / "public-safe-capture.yuv"
+    source.write_bytes(bytes(640 * 480 * 3 // 2))
+    controller = window.native_yuv_semantics_controller
+    captured: list[YuvOpenDialog] = []
+    original_exec = YuvOpenDialog.exec
+
+    def intercept_exec(dialog: YuvOpenDialog) -> QDialog.DialogCode:
+        captured.append(dialog)
+        return QDialog.DialogCode.Rejected
+
+    try:
+        YuvOpenDialog.exec = intercept_exec  # type: ignore[method-assign]
+        controller._show_yuv_dialog(source, None, None)
+    finally:
+        YuvOpenDialog.exec = original_exec  # type: ignore[method-assign]
+    if len(captured) != 1:
+        raise RuntimeError("YUV open path did not create exactly one profile dialog")
+    dialog = captured[0]
+    dialog.width_box.setValue(640)
+    dialog.height_box.setValue(480)
+    dialog.adjustSize()
+    dialog._capture_parent_window = window  # type: ignore[attr-defined]
+    identity = hashlib.sha256(f"{source.stat().st_size}:640:480:YUV420".encode()).hexdigest()
+    return (
+        dialog,
+        lambda: (
+            dialog.layout_kind.currentData() == "YUV420"
+            and "460,800" in dialog.file_size.text()
+            and "match" in dialog.file_size.text()
+        ),
+        identity,
+    )
+
+
+def _iqa_neutral(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    window.iqa_dock.setMinimumWidth(300)
+    window.iqa_dock.show()
+    window.iqa_dock.raise_()
+    workspace = window.remote_iqa_workspace
+    workspace.tabs.setCurrentWidget(workspace.setup_page)
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, documents)
+            and window.iqa_dock.isVisible()
+            and workspace.tabs.count() == 3
+            and workspace.configuration_label.text() == "Not configured"
+        ),
+        _fixture_identity(documents, "iqa_neutral"),
+    )
+
+
+def _raw_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    repository, settings, performance = load_startup_settings()
+    analysis_thread_pool()
+    result_pool = remote_iqa_thread_pool()
+    window = MainWindow(settings, performance, repository, iqa_result_pool=result_pool)
+    _compose_main_window_presentation(window)
+    window.setWindowIcon(app.windowIcon())
+
+    settings_root = Path(QSettings().fileName()).parent
+    source = settings_root / "public-safe-capture.raw"
+    source.write_bytes(bytes(640 * 480 * 2))
+    captured: list[RawOpenDialog] = []
+    original_exec = RawOpenDialog.exec
+
+    def intercept_exec(dialog: RawOpenDialog) -> QDialog.DialogCode:
+        captured.append(dialog)
+        return QDialog.DialogCode.Rejected
+
+    try:
+        RawOpenDialog.exec = intercept_exec  # type: ignore[method-assign]
+        window._confirm_raw_profile(ImageInput(source, None), None)
+    finally:
+        RawOpenDialog.exec = original_exec  # type: ignore[method-assign]
+    if len(captured) != 1:
+        raise RuntimeError("RAW open path did not create exactly one profile dialog")
+    dialog = captured[0]
+    dialog.setFixedWidth(DIALOG_SIZE[0])
+    dialog._resize_dialog_to_content()
+    # Retain the production parent for the complete capture lifetime.
+    dialog._capture_parent_window = window  # type: ignore[attr-defined]
     fixture_sha256 = hashlib.sha256(
         json.dumps(
             {
-                "name": profile.name,
-                "width": profile.width,
-                "height": profile.height,
-                "stride_bytes": profile.stride_bytes,
-                "bit_depth": profile.bit_depth,
-                "bayer_pattern": profile.bayer_pattern,
+                "source_size": source.stat().st_size,
+                "width": dialog.width_box.value(),
+                "height": dialog.height_box.value(),
+                "stride_bytes": dialog.stride.value(),
+                "bit_depth": dialog.bit_depth.value(),
+                "pixel_layout": dialog.layout_kind.currentText(),
             },
             sort_keys=True,
         ).encode("utf-8")
     ).hexdigest()
-    return dialog, lambda: dialog.width_box.value() == 3840, fixture_sha256
+    return (
+        dialog,
+        lambda: (
+            dialog.width_box.value() == 640
+            and dialog.height_box.value() == 480
+            and dialog.actual_file_size_value.text() == "614,400 bytes"
+            and dialog.file_size_state == "match"
+            and dialog.footer.isVisible()
+            and dialog.ok_button.isVisible()
+            and dialog.cancel_button.isVisible()
+        ),
+        fixture_sha256,
+    )
 
 
 BUILDERS = {
     "single_image": _single_image,
+    "six_image_multiview": _six_image_multiview,
+    "difference_analysis": _difference_analysis,
+    "histogram_docked": _histogram_docked,
+    "line_profile_docked": _line_profile_docked,
+    "plots_floating": _plots_floating,
     "raw_profile_dialog": _raw_dialog,
+    "window_overview": _window_overview,
+    "files_workspace": _files_workspace,
+    "roi_exact": _roi_exact,
+    "statistics_workspace": _statistics_workspace,
+    "settings_dialog": _settings_dialog,
+    "iqa_neutral": _iqa_neutral,
+    "yuv_profile_dialog": _yuv_profile_dialog,
 }
 
 SCENARIOS = tuple(BUILDERS)
@@ -305,6 +653,9 @@ def capture(scene: str, output: Path, metadata_path: Path, source_sha: str) -> i
         try:
             if widget is not None:
                 widget.close()
+                parent_window = getattr(widget, "_capture_parent_window", None)
+                if parent_window is not None:
+                    parent_window.close()
             if app is not None:
                 QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
                 app.processEvents()

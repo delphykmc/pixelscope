@@ -1,5 +1,7 @@
 # Statistics
 
+<!-- pixelscope:screenshot statistics-workspace -->
+
 Statistics reports numeric measurements for sources on the Current Comparison Page.
 
 ## Analysis region

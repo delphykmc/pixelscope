@@ -1,5 +1,7 @@
 # YUV Guide
 
+<!-- pixelscope:screenshot yuv-profile-dialog -->
+
 PixelScope has an explicit native YUV path in addition to the Generic RAW interpretation available for `.yuv` files.
 
 ## Current native YUV support

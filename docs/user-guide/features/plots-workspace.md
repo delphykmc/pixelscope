@@ -1,5 +1,7 @@
 # Plots Workspace
 
+<!-- pixelscope:screenshot plots-floating -->
+
 Plots contains Histogram and Line Profile in one movable workspace.
 
 ## Docking and floating

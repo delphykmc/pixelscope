@@ -81,20 +81,27 @@ def _require_clean_worktree() -> None:
         )
 
 
-def _run_repository_validation(dev_python: Path) -> None:
+def _run_repository_validation(dev_python: Path, *, skip_pytest: bool = False) -> None:
     _run([str(dev_python), "scripts/check_docs.py"])
-    _run(
-        [
-            str(dev_python),
-            "-m",
-            "pytest",
-            "-q",
-            "tests/unit/test_release_candidate.py",
-            "tests/unit/test_release_candidate_provenance.py",
-            "tests/unit/test_release_distribution.py",
-        ]
-    )
-    _run([str(dev_python), "-m", "pytest", "-q"])
+    if skip_pytest:
+        print(
+            "WARNING: --skip-pytest skips focused release tests and the full "
+            "repository pytest suite; this candidate requires separate test evidence.",
+            flush=True,
+        )
+    else:
+        _run(
+            [
+                str(dev_python),
+                "-m",
+                "pytest",
+                "-q",
+                "tests/unit/test_release_candidate.py",
+                "tests/unit/test_release_candidate_provenance.py",
+                "tests/unit/test_release_distribution.py",
+            ]
+        )
+        _run([str(dev_python), "-m", "pytest", "-q"])
     _run([str(dev_python), "-m", "ruff", "check", "."])
     _run([str(dev_python), "-m", "mypy", "src"])
     _run([str(dev_python), "-m", "pip", "check"])
@@ -183,6 +190,7 @@ def build_release_candidate(
     dev_python: Path,
     release_python: Path,
     iscc: Path | None = None,
+    skip_pytest: bool = False,
 ) -> Path:
     if sys.platform != "win32":
         raise RuntimeError("P7-C release-candidate builds are supported only on Windows")
@@ -200,7 +208,7 @@ def build_release_candidate(
     if RELEASE_ROOT.exists():
         shutil.rmtree(RELEASE_ROOT)
 
-    _run_repository_validation(dev_python)
+    _run_repository_validation(dev_python, skip_pytest=skip_pytest)
     _require_clean_worktree()
     artifacts = _run_release_pipeline(
         release_python,
@@ -214,7 +222,13 @@ def build_release_candidate(
         release_python=release_python,
         compiler=compiler,
     )
-    print(f"PixelScope release candidate PASS: {stage_root.resolve()}")
+    if skip_pytest:
+        print(
+            "PixelScope release candidate artifact smoke PASS (repository pytest SKIPPED): "
+            f"{stage_root.resolve()}"
+        )
+    else:
+        print(f"PixelScope release candidate PASS: {stage_root.resolve()}")
     return stage_root
 
 
@@ -240,11 +254,20 @@ def main() -> int:
         default=None,
         help="supported Inno Setup ISCC.exe; otherwise use existing P7-B discovery",
     )
+    parser.add_argument(
+        "--skip-pytest",
+        action="store_true",
+        help=(
+            "skip BOTH focused release pytest and full repository pytest; "
+            "still run docs/Ruff/mypy/pip checks and all packaged release smoke tests"
+        ),
+    )
     args = parser.parse_args()
     build_release_candidate(
         dev_python=args.dev_python,
         release_python=args.release_python,
         iscc=args.iscc,
+        skip_pytest=args.skip_pytest,
     )
     return 0
 
