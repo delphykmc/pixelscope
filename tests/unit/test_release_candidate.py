@@ -259,7 +259,6 @@ def test_release_note_source_is_dated_versioned_and_has_commit_marker() -> None:
     assert "{{SOURCE_COMMIT}}" in source.read_text(encoding="utf-8")
 
 
-
 @pytest.mark.parametrize("skip_pytest", [False, True], ids=["default", "skip-pytest"])
 def test_candidate_repository_validation_preserves_other_gates(
     monkeypatch: pytest.MonkeyPatch,
