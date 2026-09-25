@@ -163,8 +163,12 @@ def test_all_present_declared_topic_images_render_with_relative_paths(
             assert (clone / "site" / ASSETS.relative_to(GUIDE) / shot["filename"]).is_file()
 
 
-def test_hook_keeps_source_markers_and_omits_only_absent_declared_png(tmp_path: Path) -> None:
-    clone = _clone_repo(tmp_path)
+def test_hook_keeps_source_markers_and_omits_only_absent_declared_png(
+    _shared_omission_repo: Path,
+) -> None:
+    # Pure rendering coverage can reuse the full validated clone; do not
+    # weaken pre-build's authoritative whole-manifest validation.
+    clone = _shared_omission_repo
     page = SimpleNamespace(file=SimpleNamespace(src_path="formats/raw.md"))
     config = {"docs_dir": str(clone / GUIDE)}
     marker = "<!-- pixelscope:screenshot raw-profile-dialog -->"
@@ -178,13 +182,18 @@ def test_hook_keeps_source_markers_and_omits_only_absent_declared_png(tmp_path: 
     assert "Keep this explanation." in present
     assert original.endswith("Keep this explanation.\n")  # source never rewritten
 
-    (clone / ASSETS / "raw-profile-dialog.png").unlink()
-    with measure_phase("hook-only-pre-build-absent"):
-        on_pre_build(config)
-    with measure_phase("hook-only-render-absent"):
-        absent = on_page_markdown(original, page=page, config=config, files=None)
-    assert marker not in absent and "raw-profile-dialog.png" not in absent
-    assert "Keep this explanation." in absent
+    image = clone / ASSETS / "raw-profile-dialog.png"
+    original_image = image.read_bytes()
+    image.unlink()
+    try:
+        with measure_phase("hook-only-pre-build-absent"):
+            on_pre_build(config)
+        with measure_phase("hook-only-render-absent"):
+            absent = on_page_markdown(original, page=page, config=config, files=None)
+        assert marker not in absent and "raw-profile-dialog.png" not in absent
+        assert "Keep this explanation." in absent
+    finally:
+        image.write_bytes(original_image)
 
 
 def test_direct_strict_mkdocs_rejects_corrupt_declared_image(tmp_path: Path) -> None:
