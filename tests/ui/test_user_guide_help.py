@@ -178,7 +178,10 @@ def test_missing_local_guide_shows_explicit_message(
     monkeypatch.setattr(QMessageBox, "information", information)
     assert not open_local_user_guide(window, index_path=tmp_path / "missing.html")
     assert shown == [
-        ("User Guide unavailable", "This build does not include the local PixelScope User Guide bundle.")
+        (
+            "User Guide unavailable",
+            "This build does not include the local PixelScope User Guide bundle.",
+        )
     ]
     window.close()
 
@@ -198,7 +201,10 @@ def test_local_browser_failure_does_not_open_online(
     monkeypatch.setattr(QMessageBox, "warning", warning)
     assert not open_local_user_guide(window, index_path=index, opener=lambda _url: False)
     assert shown == [
-        ("Unable to open User Guide", "PixelScope could not open the local User Guide in the system browser.")
+        (
+            "Unable to open User Guide",
+            "PixelScope could not open the local User Guide in the system browser.",
+        )
     ]
     window.close()
 
