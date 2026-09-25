@@ -132,7 +132,7 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
         return "features/files-workspace.html"
 
     analysis = getattr(window, "analysis_tabs", None)
-    if isinstance(analysis, QWidget) and within(analysis):
+    if isinstance(analysis, QTabWidget) and within(analysis):
         return (
             "features/difference.html"
             if analysis.currentIndex() == 1
