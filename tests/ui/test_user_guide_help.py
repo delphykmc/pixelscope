@@ -374,6 +374,9 @@ def test_f1_real_key_dispatch_main_workspaces_and_presentation_controls(
 
     monkeypatch.setattr(user_guide_help, "open_local_user_guide", fake_open)
     window.central_stack.setCurrentWidget(window.viewer)
+    # GraphicsLayoutWidget's viewport defaults to NoFocus; allow the actual
+    # presented image surface to own focus during native F1 key delivery.
+    window.viewer._graphics.viewport().setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     window.show()
     window.activateWindow()
 
