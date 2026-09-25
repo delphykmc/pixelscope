@@ -249,9 +249,9 @@
       "pages": [
         "features/image-view.md"
       ],
-      "placement": "planned",
+      "placement": "required",
       "scenario": "window_overview",
-      "capture_mode": "planned",
+      "capture_mode": "isolated",
       "alt": "window overview",
       "features": [
         "common-shell"
@@ -267,8 +267,9 @@
         "width": 1680,
         "height": 980
       },
-      "status": "planned",
+      "status": "capture-ready",
       "approved": null,
+      "geometry_policy": "fixed",
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     },
     {
@@ -277,9 +278,9 @@
       "pages": [
         "features/files-workspace.md"
       ],
-      "placement": "planned",
+      "placement": "required",
       "scenario": "files_workspace",
-      "capture_mode": "planned",
+      "capture_mode": "isolated",
       "alt": "files workspace",
       "features": [
         "files",
@@ -301,8 +302,9 @@
         "width": 1680,
         "height": 980
       },
-      "status": "planned",
+      "status": "capture-ready",
       "approved": null,
+      "geometry_policy": "fixed",
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     },
     {
@@ -311,9 +313,9 @@
       "pages": [
         "workflows/inspect-roi.md"
       ],
-      "placement": "planned",
+      "placement": "required",
       "scenario": "roi_exact",
-      "capture_mode": "planned",
+      "capture_mode": "isolated",
       "alt": "roi exact",
       "features": [
         "roi",
@@ -330,8 +332,9 @@
         "width": 1680,
         "height": 980
       },
-      "status": "planned",
+      "status": "capture-ready",
       "approved": null,
+      "geometry_policy": "fixed",
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     },
     {
@@ -340,9 +343,9 @@
       "pages": [
         "features/statistics.md"
       ],
-      "placement": "planned",
+      "placement": "required",
       "scenario": "statistics_workspace",
-      "capture_mode": "planned",
+      "capture_mode": "isolated",
       "alt": "statistics workspace",
       "features": [
         "statistics"
@@ -358,8 +361,9 @@
         "width": 1680,
         "height": 980
       },
-      "status": "planned",
+      "status": "capture-ready",
       "approved": null,
+      "geometry_policy": "fixed",
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     },
     {
@@ -368,9 +372,9 @@
       "pages": [
         "features/settings.md"
       ],
-      "placement": "planned",
+      "placement": "required",
       "scenario": "settings_dialog",
-      "capture_mode": "planned",
+      "capture_mode": "isolated",
       "alt": "settings dialog",
       "features": [
         "settings"
@@ -383,11 +387,12 @@
         "src/pixelscope/remote/iqa_settings.py"
       ],
       "viewport": {
-        "width": 1680,
-        "height": 980
+        "width": 960,
+        "height": 620
       },
-      "status": "planned",
+      "status": "capture-ready",
       "approved": null,
+      "geometry_policy": "fixed",
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     },
     {
@@ -396,9 +401,9 @@
       "pages": [
         "features/iqa-workspace.md"
       ],
-      "placement": "planned",
+      "placement": "required",
       "scenario": "iqa_neutral",
-      "capture_mode": "planned",
+      "capture_mode": "isolated",
       "alt": "iqa neutral",
       "features": [
         "iqa"
@@ -413,8 +418,9 @@
         "width": 1680,
         "height": 980
       },
-      "status": "planned",
+      "status": "capture-ready",
       "approved": null,
+      "geometry_policy": "fixed",
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     },
     {
@@ -423,9 +429,9 @@
       "pages": [
         "formats/yuv.md"
       ],
-      "placement": "planned",
+      "placement": "required",
       "scenario": "yuv_profile_dialog",
-      "capture_mode": "planned",
+      "capture_mode": "isolated",
       "alt": "yuv profile dialog",
       "features": [
         "yuv",
@@ -439,11 +445,12 @@
         "src/pixelscope/core/channel_views.py"
       ],
       "viewport": {
-        "width": 1680,
-        "height": 980
+        "width": 299,
+        "height": 200
       },
-      "status": "planned",
+      "status": "capture-ready",
       "approved": null,
+      "geometry_policy": "resizable",
       "coverage_note": "Real-UI setup and owner approval pending; must close or explicitly defer by E6."
     }
   ],

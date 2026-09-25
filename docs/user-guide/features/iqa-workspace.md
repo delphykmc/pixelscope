@@ -1,5 +1,7 @@
 # IQA Workspace
 
+<!-- pixelscope:screenshot iqa-neutral -->
+
 The IQA workspace is the optional Image Quality Assessment surface for configured submission, job tracking, and published-result inspection. Local image comparison does not require a remote IQA service.
 
 ## Workspace areas

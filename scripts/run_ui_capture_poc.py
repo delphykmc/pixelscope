@@ -107,7 +107,7 @@ def validate_capture(
     with Image.open(path) as opened:
         image = opened.convert("RGB")
         width, height = image.size
-        if width < 250 or height < 350:
+        if width < 250 or height < 180:
             raise ValueError("captured screen is smaller than the minimum useful UI")
         if max(ImageStat.Stat(image).stddev) < 7.0:
             raise ValueError("captured UI has insufficient pixel variation")

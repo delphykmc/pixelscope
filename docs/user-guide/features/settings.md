@@ -1,5 +1,7 @@
 # Settings
 
+<!-- pixelscope:screenshot settings-dialog -->
+
 Settings contains persistent application preferences. Open **Edit > Settings...**.
 
 ## Core categories

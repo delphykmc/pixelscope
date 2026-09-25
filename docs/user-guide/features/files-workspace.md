@@ -1,5 +1,7 @@
 # Files Workspace
 
+<!-- pixelscope:screenshot files-workspace -->
+
 The Files workspace is the source-registration and selection surface for PixelScope.
 
 ## What it shows

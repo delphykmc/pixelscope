@@ -99,6 +99,8 @@ def test_hash_and_external_ref_are_both_bound_to_reviewed_image(tmp_path: Path) 
 def test_planned_gap_cannot_be_promoted_without_actual_isolated_scene(tmp_path: Path) -> None:
     manifest, records = _fixtures()
     row = manifest["screenshots"][7]
+    row["capture_mode"] = "planned"
+    row["placement"] = "planned"
     item = records["gaps"][0]
     item["decision"] = "promoted"
     item["review_ref"] = "https://github.com/owner/repo/pull/100#issuecomment-101"

@@ -20,17 +20,18 @@ from scripts.run_ui_capture_poc import (
 )
 
 
-def _pattern(path: Path) -> None:
-    image = Image.new("RGB", (500, 400))
+def _pattern(path: Path, size: tuple[int, int] = (500, 400)) -> None:
+    width, height = size
+    image = Image.new("RGB", size)
     pixels = image.load()
     assert pixels is not None
-    for y in range(400):
-        for x in range(500):
+    for y in range(height):
+        for x in range(width):
             pixels[x, y] = (x % 256, y % 256, (x + y) % 256)
     image.save(path)
 
 
-def _metadata(path: Path, image: Path, source_sha: str) -> None:
+def _metadata(path: Path, image: Path, source_sha: str, size: tuple[int, int] = (500, 400)) -> None:
     path.write_text(
         json.dumps(
             {
@@ -38,7 +39,7 @@ def _metadata(path: Path, image: Path, source_sha: str) -> None:
                 "scenario": "single_image",
                 "source_sha": source_sha,
                 "image_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
-                "geometry": {"pixel_png": [500, 400], "logical_widget": [500, 400]},
+                "geometry": {"pixel_png": list(size), "logical_widget": list(size)},
             }
         ),
         encoding="utf-8",
@@ -86,6 +87,19 @@ def test_poc_repeatability_is_exact_pixel_not_png_metadata(tmp_path: Path) -> No
     assert 0 < changed_fraction(first, second) < 0.01
     Image.new("RGB", (450, 400)).save(second)
     assert changed_fraction(first, second) == 1.0
+
+
+def test_poc_validator_accepts_compact_real_dialog_but_rejects_tiny_ui(tmp_path: Path) -> None:
+    png, metadata = tmp_path / "dialog.png", tmp_path / "dialog.json"
+    sha = "3" * 40
+    _pattern(png, (299, 198))
+    _metadata(metadata, png, sha, (299, 198))
+    assert validate_capture(png, metadata, "single_image", sha)["status"] == "captured"
+
+    _pattern(png, (249, 179))
+    _metadata(metadata, png, sha, (249, 179))
+    with pytest.raises(ValueError, match="minimum useful UI"):
+        validate_capture(png, metadata, "single_image", sha)
 
 
 def test_statistics_readiness_waits_for_successful_current_request_and_rows() -> None:

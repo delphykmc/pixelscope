@@ -33,6 +33,7 @@ from pixelscope.app.application import (
 )
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.line_profile import LineSelection
+from pixelscope.core.roi import RoiBounds
 from pixelscope.version import __version__ as app_version
 
 # Direct script invocation has scripts/ as sys.path[0]. This path is repository
@@ -43,6 +44,7 @@ if str(ROOT) not in sys.path:
 
 from pixelscope.io.path_discovery import ImageInput  # noqa: E402
 from pixelscope.ui.raw_open_dialog import RawOpenDialog  # noqa: E402
+from pixelscope.ui.yuv_open_dialog import YuvOpenDialog  # noqa: E402
 from scripts.capture_ui_review import review_document  # noqa: E402
 from scripts.screenshot_fixture_identity import single_view_fixture_identity  # noqa: E402
 
@@ -328,6 +330,147 @@ def _plots_floating(app: QApplication) -> tuple[QWidget, Callable[[], bool], str
     return dock, ready, _fixture_identity(documents, "plots_floating")
 
 
+def _window_overview(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 3, "Multi View")
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, documents)
+            and _analysis_ready(window.comparison_analysis_panel, documents)
+        ),
+        _fixture_identity(documents, "window_overview"),
+    )
+
+
+def _files_workspace(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, selected = _populated_window(app, 3, "Multi View")
+    registered = selected + [review_document(index) for index in range(3, 8)]
+    for document in registered[3:]:
+        window.add_document(document, select=False)
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, selected)
+            and window.document_list.topLevelItemCount() >= 3
+            and _analysis_ready(window.comparison_analysis_panel, selected)
+        ),
+        _fixture_identity(registered, "files_workspace"),
+    )
+
+
+def _statistics_workspace(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, documents)
+            and _analysis_ready(window.comparison_analysis_panel, documents)
+            and window.comparison_analysis_panel.image_summary.rowCount() == 2
+        ),
+        _fixture_identity(documents, "statistics_workspace"),
+    )
+
+
+def _roi_exact(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    bounds = RoiBounds(96, 72, 320, 180)
+    applied = False
+
+    def ready() -> bool:
+        nonlocal applied
+        if not _documents_presented(window, documents):
+            return False
+        if not applied:
+            if not window._apply_shared_roi(bounds, allow_channel_split=False):
+                raise RuntimeError("exact ROI was rejected by the production window")
+            applied = True
+            return False
+        panel = window.comparison_analysis_panel
+        return bool(
+            window._shared_roi == bounds
+            and _analysis_ready(panel, documents)
+            and panel.region_scope.currentText() == "Active ROI"
+            and panel.roi_x_input.value() == bounds.x
+            and panel.roi_y_input.value() == bounds.y
+            and panel.roi_width_input.value() == bounds.width
+            and panel.roi_height_input.value() == bounds.height
+        )
+
+    return window, ready, _fixture_identity(documents, "roi_exact")
+
+
+def _settings_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, _documents = _populated_window(app, 0, "Auto")
+    dialog = window.create_settings_dialog()
+    dialog._capture_parent_window = window  # type: ignore[attr-defined]
+    identity = hashlib.sha256(b"settings-dialog-default-isolated-v1").hexdigest()
+    return (
+        dialog,
+        lambda: (
+            dialog.category_list.count() >= 3
+            and dialog.page_stack.count() >= 3
+            and dialog.button_box.isVisible()
+        ),
+        identity,
+    )
+
+
+def _yuv_profile_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, _documents = _populated_window(app, 0, "Auto")
+    settings_root = Path(QSettings().fileName()).parent
+    source = settings_root / "public-safe-capture.yuv"
+    source.write_bytes(bytes(640 * 480 * 3 // 2))
+    controller = window.native_yuv_semantics_controller
+    captured: list[YuvOpenDialog] = []
+    original_exec = YuvOpenDialog.exec
+
+    def intercept_exec(dialog: YuvOpenDialog) -> QDialog.DialogCode:
+        captured.append(dialog)
+        return QDialog.DialogCode.Rejected
+
+    try:
+        YuvOpenDialog.exec = intercept_exec  # type: ignore[method-assign]
+        controller._show_yuv_dialog(source, None, None)
+    finally:
+        YuvOpenDialog.exec = original_exec  # type: ignore[method-assign]
+    if len(captured) != 1:
+        raise RuntimeError("YUV open path did not create exactly one profile dialog")
+    dialog = captured[0]
+    dialog.width_box.setValue(640)
+    dialog.height_box.setValue(480)
+    dialog.adjustSize()
+    dialog._capture_parent_window = window  # type: ignore[attr-defined]
+    identity = hashlib.sha256(f"{source.stat().st_size}:640:480:YUV420".encode()).hexdigest()
+    return (
+        dialog,
+        lambda: (
+            dialog.layout_kind.currentData() == "YUV420"
+            and "460,800" in dialog.file_size.text()
+            and "match" in dialog.file_size.text()
+        ),
+        identity,
+    )
+
+
+def _iqa_neutral(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
+    window, documents = _populated_window(app, 2, "Multi View")
+    window.iqa_dock.setMinimumWidth(300)
+    window.iqa_dock.show()
+    window.iqa_dock.raise_()
+    workspace = window.remote_iqa_workspace
+    workspace.tabs.setCurrentWidget(workspace.setup_page)
+    return (
+        window,
+        lambda: (
+            _documents_presented(window, documents)
+            and window.iqa_dock.isVisible()
+            and workspace.tabs.count() == 3
+            and workspace.configuration_label.text() == "Not configured"
+        ),
+        _fixture_identity(documents, "iqa_neutral"),
+    )
+
+
 def _raw_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
     repository, settings, performance = load_startup_settings()
     analysis_thread_pool()
@@ -394,6 +537,13 @@ BUILDERS = {
     "line_profile_docked": _line_profile_docked,
     "plots_floating": _plots_floating,
     "raw_profile_dialog": _raw_dialog,
+    "window_overview": _window_overview,
+    "files_workspace": _files_workspace,
+    "roi_exact": _roi_exact,
+    "statistics_workspace": _statistics_workspace,
+    "settings_dialog": _settings_dialog,
+    "iqa_neutral": _iqa_neutral,
+    "yuv_profile_dialog": _yuv_profile_dialog,
 }
 
 SCENARIOS = tuple(BUILDERS)
