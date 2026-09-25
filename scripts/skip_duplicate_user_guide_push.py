@@ -34,10 +34,10 @@ def has_matching_pr_run(
         and run.get("head_branch") == branch
         and (run.get("head_repository") or {}).get("full_name") == repo
         and (
-            (run.get("status") in ("queued", "in_progress")
-             and run.get("conclusion") is None)
-            or (run.get("status") == "completed"
-                and run.get("conclusion") in ("success", "failure"))
+            (run.get("status") in ("queued", "in_progress") and run.get("conclusion") is None)
+            or (
+                run.get("status") == "completed" and run.get("conclusion") in ("success", "failure")
+            )
         )
         and any(
             pr.get("number") in open_pr_numbers
