@@ -6,7 +6,6 @@ Markdown or the manifest. No fake screenshots and no live GUI are involved.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 import subprocess
@@ -52,30 +51,41 @@ def _clone_repo(tmp_path: Path) -> Path:
 
 
 @pytest.mark.parametrize("screenshot", _REGISTERED, ids=lambda row: row["id"])
-def test_missing_each_declared_png_keeps_full_repo_and_network_blocked_help_valid(
+def test_missing_each_declared_png_keeps_full_repo_links_and_hook_valid(
     tmp_path: Path, screenshot: dict
 ) -> None:
+    """Fast per-ID contract; expensive strict/offline integration is shared below."""
     clone = _clone_repo(tmp_path)
-    filename = screenshot["filename"]
-    if screenshot["id"] == "single-image":
-        # Exercise an absent last-approved image through BOTH whole-repository
-        # link checking and the actual network-blocked strict MkDocs build.
-        manifest_path = clone / ASSETS / "manifest.json"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        row = next(item for item in manifest["screenshots"] if item["id"] == screenshot["id"])
-        row["status"] = "approved"
-        row["approved"] = {
-            "capture_source_sha": "a" * 40,
-            "application_version": "0.1.0",
-            "comparison_profile_id": "windows-e1-poc-v1",
-            "scenario_contract_id": "single_image-v1",
-            "image_sha256": hashlib.sha256((clone / ASSETS / filename).read_bytes()).hexdigest(),
-            "approval_ref": "https://github.com/example/pull/1#review",
-        }
-        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    (clone / ASSETS / filename).unlink(missing_ok=True)
+    image = clone / ASSETS / screenshot["filename"]
+    assert image.is_file()
+    image.unlink()
     assert find_problems(clone) == []
+    config = {"docs_dir": str(clone / GUIDE)}
+    on_pre_build(config)
+    for page in screenshot["pages"]:
+        source = (clone / GUIDE / page).read_text(encoding="utf-8")
+        rendered = on_page_markdown(
+            source,
+            page=SimpleNamespace(file=SimpleNamespace(src_path=page)),
+            config=config,
+            files=None,
+        )
+        assert screenshot["filename"] not in rendered
+        assert "<!-- pixelscope:screenshot" not in rendered or any(
+            row["id"] != screenshot["id"] and row["id"] in source
+            for row in _REFERENCED
+        )
+    assert screenshot["filename"] not in [
+        entry.name for entry in (clone / ASSETS).glob("*.png")
+    ]
 
+
+def test_all_declared_pngs_absent_keeps_real_offline_site_valid(tmp_path: Path) -> None:
+    """One full-repo cold-cache build covers every missing declared ID together."""
+    clone = _clone_repo(tmp_path)
+    for row in _REGISTERED:
+        (clone / ASSETS / row["filename"]).unlink()
+    assert find_problems(clone) == []
     process = subprocess.run(
         [sys.executable, "scripts/check_user_guide_build_offline.py"],
         cwd=clone,
@@ -85,12 +95,14 @@ def test_missing_each_declared_png_keeps_full_repo_and_network_blocked_help_vali
         check=False,
     )
     assert process.returncode == 0, process.stdout[-2500:] + process.stderr[-2500:]
+    for row in _REGISTERED:
+        assert not (clone / "site" / ASSETS.relative_to(GUIDE) / row["filename"]).exists()
+        for page in row["pages"]:
+            html = (clone / "site" / Path(page).with_suffix(".html")).read_text(
+                encoding="utf-8"
+            )
+            assert row["filename"] not in html
 
-    # In a generated page the missing marker becomes NO img and NO fallback.
-    for page in screenshot["pages"]:
-        html = (clone / "site" / Path(page).with_suffix(".html")).read_text(encoding="utf-8")
-        assert filename not in html
-    assert not (clone / "site" / ASSETS.relative_to(GUIDE) / filename).exists()
 
 
 def test_all_present_declared_topic_images_render_with_relative_paths(
