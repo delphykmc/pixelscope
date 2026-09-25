@@ -81,11 +81,8 @@ def should_skip_push(
         }
         if not matching:
             return False  # branch-only push must retain its automatic validation
-        runs_url = (
-            f"{base}/actions/workflows/user-guide.yml/runs?"
-            + urllib.parse.urlencode(
-                {"event": "pull_request", "head_sha": sha, "per_page": "100"}
-            )
+        runs_url = f"{base}/actions/workflows/user-guide.yml/runs?" + urllib.parse.urlencode(
+            {"event": "pull_request", "head_sha": sha, "per_page": "100"}
         )
         # Push and PR events may enqueue in either order. Bounded polling saves
         # jobs when PR exists but never assumes that a filtered PR will run.
