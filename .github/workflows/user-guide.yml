@@ -154,6 +154,14 @@ jobs:
         run: >-
           python -m pip install -r requirements/docs.txt
           pytest==7.4.4 ruff==0.1.15 Pillow==12.3.0
+      - name: Diagnose pinned formatter delta for new E8 CI utilities (temporary)
+        if: steps.duplicate_push.outputs.skip != 'true'
+        continue-on-error: true
+        run: >-
+          python -m ruff format --diff
+          scripts/preflight_ui_screenshot_diff.py
+          scripts/skip_duplicate_user_guide_push.py
+          tests/unit/test_user_guide_ci_dedupe.py
       - name: Install application for Windows release-artifact regression tests
         if: runner.os == 'Windows' && steps.duplicate_push.outputs.skip != 'true'
         run: python -m pip install -e .
