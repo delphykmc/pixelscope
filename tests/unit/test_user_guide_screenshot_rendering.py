@@ -287,7 +287,7 @@ def test_unrelated_link_still_fails_when_declared_png_is_missing(_clean_repo: Pa
         try:
             guide_page.write_bytes(
                 original
-                + b"\\n[E8 intentionally broken local link](../reference/__e8_missing__.md)\\n"
+                + b"\n[E8 intentionally broken local link](../reference/__e8_missing__.md)\n"
             )
             problems = find_problems(clone)
             assert any(
