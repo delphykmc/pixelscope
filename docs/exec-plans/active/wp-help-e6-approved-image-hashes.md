@@ -1,6 +1,6 @@
 # WP-Help-E6 — exact approved screenshot byte identities
 
-**Provisional hash listing, not a substitute for the owner's explicit exact-byte attestation.**
+**Owner-attested hash listing.** The owner explicitly confirmed all fourteen IDs and SHA-256 values as the exact PNG files viewed and approved in the temporary User Guide in [PR #99 owner exact-byte attestation](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533).
 
 - Source code at actual local capture: `631779bb91278e846f39e376dd1bef8210df1e5c`
 - Draft PR #99 promotion commit at initial image approval: `68ed33412a17711ed549793cfab6f8d9e9cd3397`
@@ -25,14 +25,9 @@
 | `iqa-neutral` | `691b940cac980bc2be89dfda0ad389b886d62074a7c40f3c2f57db5b5f49f6b9` | `iqa-neutral.png` |
 | `yuv-profile-dialog` | `e7d87c656c5ff3bfce76324e7dcbefd03aa692938e3219076a1b47abb07e08fc` | `yuv-profile-dialog.png` |
 
-**Owner evidence gate:** the owner should confirm that these specific 14
-committed files/hashes, not merely the screenshot *names*, are the unchanged
-images viewed and approved in the temporary local User Guide. Record that
-attestation as a new external owner PR comment referencing this hash listing
-and the exact promotion commit. Do not interpret a maintainer-generated list
-as the owner's attestation; use the new owner's comment as the approval
-reference after that explicit confirmation. Future image-byte modifications
-require new visual approval.
+**Owner evidence gate — satisfied:** the explicit [exact-byte approval](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533) names this hash list and capture source `631779bb91278e846f39e376dd1bef8210df1e5c`. Each manifest `approved.approval_ref` and each E6 decision `review_ref` points to that comment. The original [visual review](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5827211017) remains as prior evidence. Future PNG byte changes require fresh visual approval and a new hash-specific owner reference.
+
+**Original local capture packet — independently reported PASS:** [2026-09-25 Codex/owner local verification](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828441867) reports the original 28 PNG and 28 JSON sidecars checked at PR source `8d01bf6f87b7eb365b94f6c8293cfa4b7d6a134f` with `scripts/verify_ui_screenshot_capture_packet.py`: `E6 original capture packet PASS: every approved PNG matches original sidecar.` The packet stays owner-local; CI-hosted re-captures are not a substitute for those exact PNG bytes.
 
 **Capture provenance is a different gate.** Local candidate sidecars from the
 original `631779bb91278e846f39e376dd1bef8210df1e5c` capture must independently agree with the matching
