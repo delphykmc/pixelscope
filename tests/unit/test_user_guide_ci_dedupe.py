@@ -66,9 +66,7 @@ def _api(
             return _open_pr() if detailed_pr is None else detailed_pr
         if url.endswith("/git/commits/" + MERGE):
             return {
-                "parents": (
-                    [{"sha": BASE}, {"sha": SHA}] if parents is None else parents
-                ),
+                "parents": ([{"sha": BASE}, {"sha": SHA}] if parents is None else parents),
                 "tree": {"sha": merge_tree},
             }
         if url.endswith("/git/commits/" + SHA):
@@ -87,9 +85,7 @@ def test_matching_pr_run_requires_valid_status_and_conclusion() -> None:
         _run(status="completed", conclusion="success"),
         _run(status="completed", conclusion="failure"),
     ]:
-        assert has_matching_pr_run(
-            [run], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={102}
-        )
+        assert has_matching_pr_run([run], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={102})
 
 
 @pytest.mark.parametrize(
@@ -115,16 +111,12 @@ def test_matching_pr_run_requires_valid_status_and_conclusion() -> None:
     ],
 )
 def test_nonvalidating_and_mismatched_pr_runs_cannot_skip_push(run: dict) -> None:
-    assert not has_matching_pr_run(
-        [run], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={102}
-    )
+    assert not has_matching_pr_run([run], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={102})
 
 
 def test_identical_current_head_and_merge_tree_may_skip_push() -> None:
     fetch, calls = _api()
-    assert should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch
-    )
+    assert should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch)
     assert any("/pulls/102" in call for call in calls)
     assert any("/git/commits/" + MERGE in call for call in calls)
     assert any("/git/commits/" + SHA in call for call in calls)
@@ -132,9 +124,7 @@ def test_identical_current_head_and_merge_tree_may_skip_push() -> None:
 
 def test_differs_from_pr_synthetic_merge_tree_must_keep_push_checks() -> None:
     fetch, _ = _api(merge_tree=OTHER_TREE)
-    assert not should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch
-    )
+    assert not should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch)
 
 
 @pytest.mark.parametrize(
@@ -147,25 +137,17 @@ def test_differs_from_pr_synthetic_merge_tree_must_keep_push_checks() -> None:
 )
 def test_base_advanced_force_push_or_missing_merge_ref_keeps_push(detail: dict) -> None:
     fetch, _ = _api(detailed_pr=detail)
-    assert not should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch
-    )
+    assert not should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch)
 
 
 def test_wrong_merge_parents_keep_push_checks() -> None:
     fetch, _ = _api(parents=[{"sha": "e" * 40}, {"sha": SHA}])
-    assert not should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch
-    )
+    assert not should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch)
 
 
 def test_pr_run_metadata_must_name_same_tested_base() -> None:
-    fetch, _ = _api(
-        run=_run(pull_requests=[{"number": 102, "base": {"sha": "f" * 40}}])
-    )
-    assert not should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch
-    )
+    fetch, _ = _api(run=_run(pull_requests=[{"number": 102, "base": {"sha": "f" * 40}}]))
+    assert not should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch)
 
 
 def test_direct_tree_comparison_succeeds_only_for_same_pinned_base() -> None:
@@ -256,6 +238,4 @@ def test_invalid_github_merge_commit_response_falls_back_to_push() -> None:
             return {"parents": None}
         return fetch_api(url, token)
 
-    assert not should_skip_push(
-        repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch
-    )
+    assert not should_skip_push(repo=REPO, branch=BRANCH, sha=SHA, token="fake", fetch=fetch)
