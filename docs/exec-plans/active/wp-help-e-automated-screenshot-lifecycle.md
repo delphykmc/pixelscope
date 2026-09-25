@@ -1,8 +1,9 @@
 # Execution plan: WP-Help-E — Automated Screenshot Lifecycle
 
-Status: **E0–E5 merged; E6 14/14 image approvals, owner exact-byte attestation and original local capture-packet verification recorded in Draft PR #99; independent re-review, packaged Help and post-merge release checks pending**
+Status: **E0–E5 merged; E6 PR #99 independently re-reviewed without remaining code-review blockers, 14/14 images owner-approved and promoted, original capture packet and owner Windows installed Help/release acceptance recorded; merge authorized, actual post-merge main and future real release-tag audits remain**
 Owner: ChatGPT-assisted implementation; repository owner approval and Windows validation
-Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E6 branch: `feature/wp-help-e6-reviewed-screenshot-promotion` (base E5 merge `main@0381d4e69df82f060dc4917b4117f68b8cebc574`)
+Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93
+Current E6 branch: `feature/wp-help-e6-reviewed-screenshot-promotion` (base E5 merge `main@0381d4e69df82f060dc4917b4117f68b8cebc574`)
 Baseline: `main@aabc1fe338aed2fea9afd15db1275aff7b549109` (2026-09-21 KST)
 Last updated: 2026-09-25
 
@@ -302,3 +303,10 @@ Only accepted assets under `docs/user-guide/assets/screenshots/` enter Git and h
 - Codex reports [owner-local original packet verification PASS](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828441867), using the original 14 scenes × 2 PNG/JSON pairs without recapture or regenerated sidecars and the repository verifier at `8d01bf6f87b7eb365b94f6c8293cfa4b7d6a134f`. The first restricted-account run lacked Git safe-directory access; rerunning in the actual Git owner environment passed. Owner-local report is not misrepresented as a GitHub-hosted reproducible packet.
 - Both evidence updates changed only manifest approval references / decision references / documentation; the original 14 image bytes and the capture-source SHA `631779bb91278e846f39e376dd1bef8210df1e5c` remain unchanged. No new screenshot visual approval is necessary for metadata-only updates.
 - Remaining E6 exit checks: independent reviewer on latest PR HEAD, owner actual newly built portable/installer Help smoke, owner merge authorization; **after merge**, audit the real merged `main` and a real release tag when one exists. Do not claim Issue #81 Qt lifecycle closure or invent a future merge/tag SHA.
+
+### E6 final owner release acceptance and merge authorization — 2026-09-25
+
+- Independent exact-HEAD re-review at `ec1d61666942f516b030b1a8b0ea4a4deeab0810` closed both original P1s, the P2 documentation issue and slow-test concern; it reported no remaining code-review blocker. The subsequent candidate-build option commit at `c087587f387c80b5d1c10f2b95d2595a382a1f06` passed [Windows/Ubuntu Guide and release regression CI](https://github.com/delphykmc/pixelscope/actions/runs/36111848659), [real Windows screenshot CI on retry](https://github.com/delphykmc/pixelscope/actions/runs/36111848564) and [pinned comparison CI](https://github.com/delphykmc/pixelscope/actions/runs/36111848547). The first RAW two-capture repeatability attempt exceeded the existing 1% diagnostic gate; no threshold or screenshot bytes were changed to mask it.
+- The owner [reported final local testing, release-candidate success, installed Guide/Help operation and correctly replaced screenshots](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5831061914), and explicitly authorized documentation closeout followed by PR #99 merge if no new blocker. The optional `--skip-pytest` packaging run is not itself evidence of full pytest; retain separately reported test evidence and the source SHA to which each check applies.
+- E6 has **14/14 approved/promoted screenshots, including all seven original coverage gaps**. No pending E6 image decisions or generic gap deferrals remain. This completes the pre-merge E6 image-promotion/installed-Help acceptance scope; do not rewrite historical E0–E5 evidence or confuse it with present status.
+- Post-merge gate: audit actual merged `origin/main` with `scripts/audit_ui_screenshot_git_history.py --ref origin/main`. A second audit with `--release-ref <actual-release-tag>` is deferred until a real tag exists; do not invent its name or claim its PASS now. Issue #81 remains separately unresolved. Future improvements to whole-packet second attempts and the known first-attempt RAW renderer jitter are follow-up hardening, not a retroactive rejection of the fourteen approved bytes.
