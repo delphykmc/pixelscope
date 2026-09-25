@@ -103,6 +103,42 @@ It defaults to:
 and accepts explicit `--dev-python`, `--release-python`, and `--iscc` paths when the
 corporate workstation layout differs.
 
+### Owner-local build verification without repeating pytest
+
+Normal `build_release_candidate.py` runs both its focused release pytest slice
+**and the full repository pytest suite** before building artifacts, even when
+the owner has already run pytest manually. For an explicit, faster
+Portable/Installer Help inspection, run from a clean checkout:
+
+```powershell
+.\\.venv\\Scripts\\python.exe scripts\\build_release_candidate.py --skip-pytest
+```
+
+`--skip-pytest` skips **both** in-script pytest invocations, not documentation
+checks, Ruff, mypy, Git worktree/diff checks, development/release `pip check`,
+real packaged executable smoke, Portable ZIP smoke, Installer smoke, or bundle
+validation. The terminal labels the result `repository pytest SKIPPED`. It is
+**not evidence** that pytest passed at the candidate source SHA: record the
+separately executed exact-HEAD full-suite result before a real release decision.
+
+The candidate uses two environments: `.venv` for repository validation/Guide
+generation and `.venv-release` for frozen packaging. Both must satisfy their
+respective `pip check` independently. A dependency mismatch such as
+`pixelscope 0.1.0 requires pyqtgraph==0.13.3, installed 0.13.7` while
+`pyproject.toml` and `requirements/runtime.txt` both pin `0.13.7`
+indicates stale **installed PixelScope distribution metadata** in the local
+virtual environment, not a reason to downgrade pyqtgraph or bypass `pip check`.
+From the checkout root, refresh the editable installation and verify:
+
+```powershell
+.\\.venv\\Scripts\\python.exe -m pip install -e .
+.\\.venv\\Scripts\\python.exe -m pip check
+.\\.venv-release\\Scripts\\python.exe -m pip check
+```
+
+`pip check` still runs with `--skip-pytest`, and remaining mismatch messages
+must be resolved before treating the build candidate as validated.
+
 Before validation it requires a clean source worktree and captures the exact Git
 commit. After repository validation completes, it checks the worktree again immediately
 before artifact generation so packaging cannot silently proceed from source mutated by
