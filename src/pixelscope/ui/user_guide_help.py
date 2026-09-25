@@ -140,7 +140,13 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
         )
 
     presentation = getattr(window, "central_stack", None)
-    if isinstance(presentation, QWidget) and within(presentation):
+    controls = getattr(window, "presentation_controls", None)
+    if (
+        isinstance(presentation, QWidget)
+        and within(presentation)
+        or isinstance(controls, QWidget)
+        and within(controls)
+    ):
         return "features/image-view.html"
     return None
 
