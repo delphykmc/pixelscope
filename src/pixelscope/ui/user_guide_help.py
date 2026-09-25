@@ -136,8 +136,10 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
     return None
 
 
-def install_dialog_context_help(dialog: QWidget, page: str) -> QShortcut:
-    """Give a modal settings/RAW/YUV dialog its own F1 shortcut and Qt owner."""
+def install_dialog_context_help(dialog: object, page: str) -> QShortcut | None:
+    """Give real modal dialogs F1; preserve non-QWidget profile test doubles."""
+    if not isinstance(dialog, QWidget):
+        return None
     existing = dialog.findChild(QShortcut, _DIALOG_CONTEXT_HELP_OBJECT_NAME)
     if existing is not None:
         return existing
