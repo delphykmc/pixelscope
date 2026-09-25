@@ -18,7 +18,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from scripts.check_screenshot_manifest import find_problems, png_problems
+if __package__:
+    from .check_screenshot_manifest import find_problems, png_problems
+else:
+    from check_screenshot_manifest import find_problems, png_problems
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path("docs/user-guide/assets/screenshots/manifest.json")
@@ -174,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         errors = verify(args.root, args.packet_dir)
-    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
         print(f"E6 original capture verification input invalid: {type(exc).__name__}")
         return 1
     if errors:
