@@ -116,7 +116,7 @@ def test_missing_token_closed_pr_wrong_sha_or_api_error_runs_push() -> None:
             branch=BRANCH,
             sha=SHA,
             token="fake",
-            fetch=lambda _url, _token: [entry],
+            fetch=lambda _url, _token, payload=entry: [payload],
         )
 
     def unavailable(_url: str, _token: str) -> object:
