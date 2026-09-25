@@ -1,10 +1,10 @@
 # Execution plan: WP-Help-E — Automated Screenshot Lifecycle
 
-Status: **E0–E5 merged; E6 reviewed screenshot promotion and gap closeout in Draft; no image approved yet**
+Status: **E0–E5 merged; E6 all 14 real-UI images owner-reviewed/promoted in Draft PR #99; final provenance/release review pending**
 Owner: ChatGPT-assisted implementation; repository owner approval and Windows validation
 Original plan branch/PR: `docs/wp-help-e0-screenshot-lifecycle-plan` / merged #93\nCurrent E6 branch: `feature/wp-help-e6-reviewed-screenshot-promotion` (base E5 merge `main@0381d4e69df82f060dc4917b4117f68b8cebc574`)
 Baseline: `main@aabc1fe338aed2fea9afd15db1275aff7b549109` (2026-09-21 KST)
-Last updated: 2026-09-24
+Last updated: 2026-09-25
 
 ## Goal and acceptance boundary
 
@@ -291,7 +291,7 @@ Only accepted assets under `docs/user-guide/assets/screenshots/` enter Git and h
 - **Gate C — explicit owner visual approval:** show old guide PNG alongside actual current candidate and relevant base/head/diff where available, scene/page and visible text; check missing icons, stale layout, representative controls, privacy, scale and crop. For **each image separately**, record accepted unchanged bytes, rejected, owner-local recapture or no-replacement visual intent, tied to exact candidate PNG SHA-256 and source SHA. No owner approval has yet been given for any new PNG or gap deferral by merely authorizing this E6 phase.
 - **Gate D — final integration:** only explicitly accepted immutable candidate bytes go into a reviewed PNG/manifest PR, with E6 captured-source SHA, app version, profile/scenario ID, PNG hash and an existing external approval reference. Use merged history to derive introducing commit; verify correct output in offline MkDocs, portable/installer `help/`, and release-tag rollback. Owner Windows full pytest/actual Help smoke and separate code review/merge approval are independent. An approval-less E6 foundation PR may close **only Gate A**, not mark WP-Help-E fully complete.
 
-**Current condition:** seven real historical PNGs remain `legacy-unverified`; only two process-isolated Windows GUI scenes proven; five manual scenes plus seven coverage gaps require engineering/review or individual owner-approved deferral. Missing screenshots are allowed in E5 documentation; missing reviewed coverage is not permission to claim E6 finished.
+**Historical E6-entry condition (before 2026-09-25 promotion):** seven historical PNGs were `legacy-unverified`; only two isolated Windows GUI scenes were proven, and the other twelve scenes needed capture/owner decisions. **Current state is superseded by the E6 owner approval/promotion log below:** all 14 are approved in Draft PR #99; provenance/release acceptance and review remain open.
 
 - **2026-09-25 E6 local capture preparation:** all five remaining historical scenes and all seven coverage-gap scenes now have isolated real-widget builders with synthetic public-safe fixtures, condition-driven readiness and isolated QSettings. The seven gaps are registered as `isolated` / `capture-ready` and have conditional page markers, but no new PNG is committed and no approval/provenance decision is recorded. Local probe inspection found the native Settings, exact ROI, neutral IQA and native YUV presentations usable after widening the IQA dock; source-SHA-qualified two-attempt evidence and the temporary candidate guide remain the next gate.
 - **2026-09-25 E6 owner approval and promotion preparation:** the owner inspected the complete temporary guide and explicitly approved all fourteen candidates. PR #99 comment `#issuecomment-5827211017` records that external approval. Each scene captured twice from `631779bb91278e846f39e376dd1bef8210df1e5c` in an independent process with exit 0, no callback exception and identical pixels; the approved manifest binds application `0.1.0`, profile/scenario IDs and each PNG SHA-256. All seven historical decisions and seven gap decisions are `promoted`, and Floating Plots now has a canonical Plots Workspace marker. This remains a Draft PR pending exact-head CI, owner Windows full-suite/actual Help smoke, independent review and merge authorization.
