@@ -50,34 +50,40 @@ def _clone_repo(tmp_path: Path) -> Path:
     return clone
 
 
+@pytest.fixture(scope="module")
+def _shared_omission_repo(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Clone once; always restore the one removed PNG before the next ID."""
+    return _clone_repo(tmp_path_factory.mktemp("screenshot-omission"))
+
+
 @pytest.mark.parametrize("screenshot", _REGISTERED, ids=lambda row: row["id"])
 def test_missing_each_declared_png_keeps_full_repo_links_and_hook_valid(
-    tmp_path: Path, screenshot: dict
+    _shared_omission_repo: Path, screenshot: dict
 ) -> None:
     """Fast per-ID contract; expensive strict/offline integration is shared below."""
-    clone = _clone_repo(tmp_path)
+    clone = _shared_omission_repo
     image = clone / ASSETS / screenshot["filename"]
-    assert image.is_file()
+    original = image.read_bytes()
     image.unlink()
-    assert find_problems(clone) == []
-    config = {"docs_dir": str(clone / GUIDE)}
-    on_pre_build(config)
-    for page in screenshot["pages"]:
-        source = (clone / GUIDE / page).read_text(encoding="utf-8")
-        rendered = on_page_markdown(
-            source,
-            page=SimpleNamespace(file=SimpleNamespace(src_path=page)),
-            config=config,
-            files=None,
-        )
-        assert screenshot["filename"] not in rendered
-        assert "<!-- pixelscope:screenshot" not in rendered or any(
-            row["id"] != screenshot["id"] and row["id"] in source
-            for row in _REFERENCED
-        )
-    assert screenshot["filename"] not in [
-        entry.name for entry in (clone / ASSETS).glob("*.png")
-    ]
+    try:
+        assert find_problems(clone) == []
+        config = {"docs_dir": str(clone / GUIDE)}
+        on_pre_build(config)
+        for page in screenshot["pages"]:
+            source = (clone / GUIDE / page).read_text(encoding="utf-8")
+            rendered = on_page_markdown(
+                source,
+                page=SimpleNamespace(file=SimpleNamespace(src_path=page)),
+                config=config,
+                files=None,
+            )
+            assert screenshot["filename"] not in rendered
+            assert f"<!-- pixelscope:screenshot {screenshot['id']} -->" not in rendered
+            for other in _REFERENCED:
+                if other["id"] != screenshot["id"] and page in other["pages"]:
+                    assert other["filename"] in rendered
+    finally:
+        image.write_bytes(original)
 
 
 def test_all_declared_pngs_absent_keeps_real_offline_site_valid(tmp_path: Path) -> None:
