@@ -169,9 +169,6 @@ jobs:
       - name: Run release-artifact regressions on Windows
         if: runner.os == 'Windows'
         run: python -m pytest -q tests/unit/test_release_packaging.py tests/unit/test_release_candidate.py
-      - name: Diagnose E7 formatter drift (temporary)
-        run: python -m ruff format --diff src/pixelscope/ui/user_guide_help.py tests/ui/test_user_guide_help.py
-        continue-on-error: true
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
