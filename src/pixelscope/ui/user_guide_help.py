@@ -279,9 +279,7 @@ def install_user_guide_help(window: QMainWindow, *, online_url: str | None = Non
         context.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         context.setStatusTip("Open help for the focused PixelScope workspace")
         context.triggered.connect(  # type: ignore[attr-defined]
-            lambda _checked=False: open_local_user_guide(
-                window, page=context_help_page(window)
-            )
+            lambda _checked=False: open_local_user_guide(window, page=context_help_page(window))
         )
         separator = next(
             (action for action in help_menu.actions() if action.isSeparator()),
