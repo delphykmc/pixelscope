@@ -160,7 +160,7 @@ def _install_floating_dock_context_help(window: QMainWindow) -> None:
         if dock_name == "bottom_dock":
             tabs = dock.widget()
             shortcut.activated.connect(  # type: ignore[attr-defined]
-                lambda: open_local_user_guide(
+                lambda tabs=tabs: open_local_user_guide(
                     window,
                     page=(
                         "features/line-profile.html"
