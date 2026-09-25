@@ -246,34 +246,64 @@ def test_hook_keeps_source_markers_and_omits_only_absent_declared_png(
     assert "Keep this explanation." in present
     assert original.endswith("Keep this explanation.\n")  # source never rewritten
 
-    image = clone / ASSETS / "raw-profile-dialog.png"
-    original_image = image.read_bytes()
-    image.unlink()
-    try:
+    with _without_png(clone / ASSETS / "raw-profile-dialog.png"):
         with measure_phase("hook-only-pre-build-absent"):
             on_pre_build(config)
         with measure_phase("hook-only-render-absent"):
             absent = on_page_markdown(original, page=page, config=config, files=None)
         assert marker not in absent and "raw-profile-dialog.png" not in absent
         assert "Keep this explanation." in absent
+
+
+def test_direct_strict_mkdocs_rejects_corrupt_declared_image(_clean_repo: Path) -> None:
+    clone = _clean_repo
+    try:
+        with _replaced_png(clone / ASSETS / "raw-profile-dialog.png", b"corrupt"):
+            with measure_phase("corrupt-direct-strict-build-subprocess"):
+                process = subprocess.run(
+                    [sys.executable, "-m", "mkdocs", "build", "--strict"],
+                    cwd=clone,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+            if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
+                print(process.stdout, end="", flush=True)
+                print(process.stderr, end="", flush=True)
+            assert process.returncode != 0
+            assert "Screenshot manifest contract failed" in process.stdout + process.stderr
     finally:
-        image.write_bytes(original_image)
+        _clear_generated_site(clone)
 
 
-def test_direct_strict_mkdocs_rejects_corrupt_declared_image(tmp_path: Path) -> None:
-    clone = _clone_repo(tmp_path)
-    (clone / ASSETS / "raw-profile-dialog.png").write_bytes(b"corrupt")
-    with measure_phase("corrupt-direct-strict-build-subprocess"):
-        process = subprocess.run(
-            [sys.executable, "-m", "mkdocs", "build", "--strict"],
-            cwd=clone,
-            capture_output=True,
-            text=True,
-            timeout=120,
-            check=False,
-        )
-    if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
-        print(process.stdout, end="", flush=True)
-        print(process.stderr, end="", flush=True)
-    assert process.returncode != 0
-    assert "Screenshot manifest contract failed" in process.stdout + process.stderr
+def test_unrelated_link_still_fails_when_declared_png_is_missing(_clean_repo: Path) -> None:
+    """A missing declared image may not exempt an unrelated broken Markdown link."""
+    clone = _clean_repo
+    image = clone / ASSETS / "single-image.png"
+    guide_page = clone / GUIDE / "features/image-view.md"
+    original = guide_page.read_bytes()
+    with _without_png(image):
+        try:
+            guide_page.write_bytes(
+                original
+                + b"\\n[E8 intentionally broken local link](../reference/__e8_missing__.md)\\n"
+            )
+            problems = find_problems(clone)
+            assert any(
+                "broken local link" in problem and "__e8_missing__.md" in problem
+                for problem in problems
+            )
+        finally:
+            guide_page.write_bytes(original)
+
+
+def test_png_recovery_after_unexpected_failure(_clean_repo: Path) -> None:
+    """The shared clone survives mid-test errors without changing approved bytes."""
+    image = _clean_repo / ASSETS / "raw-profile-dialog.png"
+    original_sha = hashlib.sha256(image.read_bytes()).hexdigest()
+    with pytest.raises(RuntimeError, match="intentional interruption"):
+        with _without_png(image):
+            assert not image.exists()
+            raise RuntimeError("intentional interruption")
+    assert hashlib.sha256(image.read_bytes()).hexdigest() == original_sha
