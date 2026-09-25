@@ -97,3 +97,41 @@ Hosted Windows GUI captures from a different machine may be visually equivalent
 but differ at the byte level and must not be substituted as provenance for the
 14 owner-local PNGs. Until the original packet is independently matched,
 source-sidecar verification must be reported as **pending**, not PASS.
+
+### Local original-packet verification (only if Codex kept the original files)
+
+The committed PNG SHA-256 list and the capture-source Git commit can be
+checked through GitHub on any OS; **no new Windows capture is required** for
+that review. Only the owner can attest that the listed bytes are the images
+already approved visually. The historical original capture sidecar check is
+separate: if Codex's source-SHA-qualified PNG/JSON packet remains on the local
+Windows disk, run from PR #99's checkout (Python 3.10, no Qt import required):
+
+```powershell
+cd C:\\path\\to\\pixelscope
+git checkout feature/wp-help-e6-reviewed-screenshot-promotion
+python scripts/verify_ui_screenshot_capture_packet.py --packet-dir "C:\\path\\to\\original-e6-captures"
+python scripts/audit_ui_screenshot_git_history.py --ref HEAD
+```
+
+The packet directory must contain matching `<scenario>-1.png` and
+`<scenario>-1.json` (or `<screenshot-id>.png/json`) for all 14 original
+locally approved captures. The verifier requires *exact byte equality* with
+the committed PNGs, original capture sidecar source SHA, app version, scenario,
+profile, image SHA, fixture and QWidget dimensions. It is read-only: no PNG
+or manifest will be copied, approved, recaptured or mutated. Do not substitute
+a newer GitHub-hosted runner packet if its PNG hashes differ from the local
+approved pictures, even when both were rendered at the same code SHA.
+
+After merge, derive introducing commits from the **actual merged history**,
+and verify the eventual release tag as an independent immutable snapshot:
+
+```powershell
+git fetch origin --tags
+python scripts/audit_ui_screenshot_git_history.py --ref origin/main
+python scripts/audit_ui_screenshot_git_history.py --ref origin/main --release-ref <actual-release-tag>
+```
+
+Do not run a made-up future release tag or claim post-merge validation before
+it exists. The old historical tag still must validate against *its own*
+manifest/image bytes, so a future E6 screenshot cannot rewrite rollback data.
