@@ -32,9 +32,11 @@ on:
       - "src/pixelscope/ui/user_guide_help.py"
       - "tests/ui/test_user_guide_help.py"
       - ".github/workflows/user-guide-publication.yml"
+      - "scripts/build_release_candidate.py"
       - "scripts/build_release.py"
       - "scripts/validate_release_artifact.py"
       - "tests/unit/test_release_packaging.py"
+      - "tests/unit/test_release_candidate.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_user_guide_screenshot_rendering.py"
@@ -81,9 +83,11 @@ on:
       - "src/pixelscope/ui/user_guide_help.py"
       - "tests/ui/test_user_guide_help.py"
       - ".github/workflows/user-guide-publication.yml"
+      - "scripts/build_release_candidate.py"
       - "scripts/build_release.py"
       - "scripts/validate_release_artifact.py"
       - "tests/unit/test_release_packaging.py"
+      - "tests/unit/test_release_candidate.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_user_guide_screenshot_rendering.py"
@@ -158,7 +162,7 @@ jobs:
           --head "${{ github.event.pull_request.head.sha }}"
       - name: Run release-artifact regressions on Windows
         if: runner.os == 'Windows'
-        run: python -m pytest -q tests/unit/test_release_packaging.py
+        run: python -m pytest -q tests/unit/test_release_packaging.py tests/unit/test_release_candidate.py
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
