@@ -14,7 +14,6 @@ import json
 import re
 import struct
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
