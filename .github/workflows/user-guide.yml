@@ -130,6 +130,12 @@ jobs:
       - name: Install application for Windows release-artifact regression tests
         if: runner.os == 'Windows'
         run: python -m pip install -e .
+      - name: Install pinned Qt UI test harness on Windows
+        if: runner.os == 'Windows'
+        run: python -m pip install pytest-qt==4.2.0
+      - name: Validate E7 local and context Help UI on Windows
+        if: runner.os == 'Windows'
+        run: python -m pytest -q tests/ui/test_user_guide_help.py
       - name: Check installed documentation environment
         run: python -m pip check
       - name: Check documentation contract
