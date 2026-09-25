@@ -156,7 +156,7 @@ def _install_floating_dock_context_help(window: QMainWindow) -> None:
                     window,
                     page=(
                         "features/line-profile.html"
-                        if window.bottom_tabs.currentIndex() == 1
+                        if getattr(window, "bottom_tabs").currentIndex() == 1
                         else "features/histogram.html"
                     ),
                 )
