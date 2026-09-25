@@ -66,6 +66,7 @@ def same_tested_tree(
     repo: str,
     pr_number: int,
     head_sha: str,
+    tested_base_sha: str,
     fetch: Callable[[str, str], Any],
     token: str,
 ) -> bool:
@@ -87,6 +88,7 @@ def same_tested_tree(
         or len(merge_sha) != 40
         or not isinstance(base_sha, str)
         or len(base_sha) != 40
+        or base_sha != tested_base_sha
     ):
         return False
     merge = fetch(f"{base}/git/commits/{merge_sha}", token)
@@ -138,15 +140,26 @@ def should_skip_push(
                 # A PR run for the same head SHA may have tested a different
                 # base+head merge tree. Only skip if the merge *content* equals
                 # the standalone push's head tree; otherwise keep both gates.
-                for number in sorted(matching):
-                    if same_tested_tree(
-                        repo=repo,
-                        pr_number=number,
-                        head_sha=sha,
-                        fetch=fetch,
-                        token=token,
+                for run in runs:
+                    if not has_matching_pr_run(
+                        [run], repo=repo, branch=branch, sha=sha, open_pr_numbers=matching
                     ):
-                        return True
+                        continue
+                    for record in run["pull_requests"]:
+                        if record["number"] not in matching:
+                            continue
+                        tested_base_sha = record.get("base", {}).get("sha")
+                        if not isinstance(tested_base_sha, str):
+                            continue
+                        if same_tested_tree(
+                            repo=repo,
+                            pr_number=record["number"],
+                            head_sha=sha,
+                            tested_base_sha=tested_base_sha,
+                            fetch=fetch,
+                            token=token,
+                        ):
+                            return True
                 return False
             if attempt < 2:
                 sleep(3)
