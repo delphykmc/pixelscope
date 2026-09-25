@@ -302,8 +302,7 @@ def test_png_recovery_after_unexpected_failure(_clean_repo: Path) -> None:
     """The shared clone survives mid-test errors without changing approved bytes."""
     image = _clean_repo / ASSETS / "raw-profile-dialog.png"
     original_sha = hashlib.sha256(image.read_bytes()).hexdigest()
-    with pytest.raises(RuntimeError, match="intentional interruption"):
-        with _without_png(image):
-            assert not image.exists()
-            raise RuntimeError("intentional interruption")
+    with pytest.raises(RuntimeError, match="intentional interruption"), _without_png(image):
+        assert not image.exists()
+        raise RuntimeError("intentional interruption")
     assert hashlib.sha256(image.read_bytes()).hexdigest() == original_sha
