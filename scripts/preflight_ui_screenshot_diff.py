@@ -33,14 +33,20 @@ def capture_required(selection: dict[str, Any], base_sha: str, head_sha: str) ->
         raise ValueError("E4 preflight requires an explicit warning list")
     if selected:
         return True  # removed/deferred IDs still need E4's real review report
-    for field in (
-        "requires_image_review",
-        "committed_png_changes",
-        "manifest_review_ids",
-        "removed_ids",
-        "target_profile_changed",
+    for field, expected_type in (
+        ("selected_screenshots", list),
+        ("capture_eligible_ids", list),
+        ("capture_deferred", list),
+        ("requires_image_review", bool),
+        ("committed_png_changes", list),
+        ("manifest_review_ids", list),
+        ("removed_ids", list),
+        ("target_profile_changed", bool),
     ):
-        if selection.get(field):
+        value = selection.get(field)
+        if not isinstance(value, expected_type):
+            raise ValueError(f"E4 preflight missing/invalid E3 field: {field}")
+        if value:
             raise ValueError(f"E4 preflight cannot bypass native path: {field}")
     if warnings:
         raise ValueError("E4 preflight cannot bypass warnings with empty selection")
