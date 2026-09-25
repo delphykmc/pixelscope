@@ -28,9 +28,7 @@ ASSETS = MANIFEST.parent
 SOURCE_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
-def packet_problems(
-    manifest: dict[str, Any], packet: Path, assets: Path
-) -> list[str]:
+def packet_problems(manifest: dict[str, Any], packet: Path, assets: Path) -> list[str]:
     """Bind each exact capture-sidecar and PNG to an approved screenshot ID."""
     errors: list[str] = []
     rows = manifest["screenshots"]
@@ -114,7 +112,8 @@ def packet_problems(
             errors.append(f"{key}: invalid original logical widget geometry")
             continue
         if row.get("geometry_policy") == "fixed" and logical != [
-            row["viewport"]["width"], row["viewport"]["height"]
+            row["viewport"]["width"],
+            row["viewport"]["height"],
         ]:
             errors.append(f"{key}: fixed-widget geometry differs from manifest")
     return errors
@@ -147,9 +146,21 @@ def source_history_problems(root: Path, manifest: dict[str, Any]) -> list[str]:
     # Staging/promotion may change documents and tests; it must not quietly
     # change app, builder, pinned runtime or UI between capture and promotion.
     result = subprocess.run(
-        ["git", "-C", str(root), "diff", "--name-only", source, "HEAD", "--",
-         "src", "scripts/capture_ui_scene.py", "scripts/capture_ui_review.py",
-         "requirements/runtime.txt", "pyproject.toml"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "diff",
+            "--name-only",
+            source,
+            "HEAD",
+            "--",
+            "src",
+            "scripts/capture_ui_scene.py",
+            "scripts/capture_ui_review.py",
+            "requirements/runtime.txt",
+            "pyproject.toml",
+        ],
         capture_output=True,
         text=True,
         check=False,
