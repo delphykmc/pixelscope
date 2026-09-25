@@ -151,6 +151,13 @@ jobs:
           --repo "${{ github.repository }}"
           --branch "${{ github.ref_name }}"
           --sha "${{ github.sha }}"
+      - name: Diagnose E8 policy formatter changes (temporary)
+        if: steps.duplicate_push.outputs.skip != 'true'
+        continue-on-error: true
+        run: >-
+          python -m ruff format --diff
+          scripts/skip_duplicate_user_guide_push.py
+          tests/unit/test_user_guide_ci_dedupe.py
       - name: Install documentation validation dependencies
         if: steps.duplicate_push.outputs.skip != 'true'
         run: >-
