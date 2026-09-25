@@ -1,8 +1,9 @@
-"""Reduce duplicate User Guide push jobs ONLY when a real equivalent PR run exists.
+"""Skip Docs push work only if PR and push are provably the same Git tree.
 
-The fallback is always to execute both matrix jobs. Never infer a PR-run
-guarantee merely from an open PR, cancel a required check, or drop standalone
-branch pushes. Queries use the read-only workflow token, no third-party action.
+A pull_request checkout tests the synthetic base+head merge tree, NOT its
+workflow_run.head_sha alone. Require a real eligible PR run, its pinned base,
+the current PR merge commit's parents, and equal head/merge tree objects.
+Any absent/stale API evidence runs BOTH push matrix jobs. No write token.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from collections.abc import Callable
 from typing import Any
 
 
-def has_equivalent_pr_run(
+def has_matching_pr_run(
     runs: list[dict[str, Any]],
     *,
     repo: str,
@@ -26,13 +27,18 @@ def has_equivalent_pr_run(
     sha: str,
     open_pr_numbers: set[int],
 ) -> bool:
-    """Only an actual, non-cancelled Docs PR run on the same ref can replace push."""
+    """Identify an eligible PR run; Git *tree* equivalence is checked separately."""
     return any(
         run.get("event") == "pull_request"
         and run.get("head_sha") == sha
         and run.get("head_branch") == branch
         and (run.get("head_repository") or {}).get("full_name") == repo
-        and run.get("conclusion") not in ("cancelled", "skipped", "action_required")
+        and (
+            (run.get("status") in ("queued", "in_progress")
+             and run.get("conclusion") is None)
+            or (run.get("status") == "completed"
+                and run.get("conclusion") in ("success", "failure"))
+        )
         and any(
             pr.get("number") in open_pr_numbers
             for pr in run.get("pull_requests", [])
@@ -55,6 +61,44 @@ def query_json(url: str, token: str) -> Any:
         return json.load(response)
 
 
+def same_tested_tree(
+    *,
+    repo: str,
+    pr_number: int,
+    head_sha: str,
+    fetch: Callable[[str, str], Any],
+    token: str,
+) -> bool:
+    """Check the exact current PR synthetic merge tree equals its head tree.
+
+    GitHub's PR checkout defaults to refs/pull/N/merge. The PR workflow run
+    metadata head_sha is NOT the checkout SHA. A changed merge base, stale
+    merge ref, malformed parent list or unavailable commit forces push testing.
+    """
+    base = f"https://api.github.com/repos/{repo}"
+    pr = fetch(f"{base}/pulls/{pr_number}", token)
+    head = pr["head"]
+    merge_sha = pr.get("merge_commit_sha")
+    base_sha = pr["base"]["sha"]
+    if (
+        head["sha"] != head_sha
+        or head["repo"]["full_name"] != repo
+        or not isinstance(merge_sha, str)
+        or len(merge_sha) != 40
+        or not isinstance(base_sha, str)
+        or len(base_sha) != 40
+    ):
+        return False
+    merge = fetch(f"{base}/git/commits/{merge_sha}", token)
+    parents = [entry["sha"] for entry in merge["parents"]]
+    if parents != [base_sha, head_sha]:
+        return False
+    head_commit = fetch(f"{base}/git/commits/{head_sha}", token)
+    merge_tree = merge["tree"]["sha"]
+    head_tree = head_commit["tree"]["sha"]
+    return bool(merge_tree and merge_tree == head_tree)
+
+
 def should_skip_push(
     *,
     repo: str,
@@ -64,7 +108,7 @@ def should_skip_push(
     fetch: Callable[[str, str], Any] = query_json,
     sleep: Callable[[float], None] = time.sleep,
 ) -> bool:
-    """Fail open on API errors or PR path-filter/race: run full push validation."""
+    """Unknown or unequal PR merge/head trees retain standalone push checks."""
     if not token or not repo or not branch or len(sha) != 40:
         return False
     owner = repo.split("/", 1)[0]
@@ -88,10 +132,22 @@ def should_skip_push(
         # jobs when PR exists but never assumes that a filtered PR will run.
         for attempt in range(3):
             runs = fetch(runs_url, token)["workflow_runs"]
-            if has_equivalent_pr_run(
+            if has_matching_pr_run(
                 runs, repo=repo, branch=branch, sha=sha, open_pr_numbers=matching
             ):
-                return True
+                # A PR run for the same head SHA may have tested a different
+                # base+head merge tree. Only skip if the merge *content* equals
+                # the standalone push's head tree; otherwise keep both gates.
+                for number in sorted(matching):
+                    if same_tested_tree(
+                        repo=repo,
+                        pr_number=number,
+                        head_sha=sha,
+                        fetch=fetch,
+                        token=token,
+                    ):
+                        return True
+                return False
             if attempt < 2:
                 sleep(3)
     except (
@@ -120,9 +176,9 @@ def main() -> int:
         with open(output, "a", encoding="utf-8") as handle:
             handle.write(f"skip={str(skip).lower()}\n")
     print(
-        "Docs push: equivalent required PR validation exists; skip redundant push matrix job"
+        "Docs push: matching PR run AND identical merge/head Git tree; skip duplicate checks"
         if skip
-        else "Docs push: no proven equivalent PR validation; run full matrix job"
+        else "Docs push: no proven identical PR-tested Git tree; run full matrix checks"
     )
     return 0
 
