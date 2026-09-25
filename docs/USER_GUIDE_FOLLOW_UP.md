@@ -221,6 +221,25 @@ Resolution-aware FHD/UHD viewer synchronization is explicitly not part of E7 or 
 
 The independent optimizer's [Issue #100 review](https://github.com/delphykmc/pixelscope/issues/100#issuecomment-5835678722) sets the order: measure distinct phases first, then A (hook-only full-clone removal), B (safe reusable full-repo fixture), C (per-ID duplicate validator calls only with mutation-based equivalent coverage), and finally CI event/selector improvements if justified by measured cost and conservative impact contracts. E7 merged `main@31275ec0855037dcfe90a8e09fe908bbe15c204b` is the frozen baseline for this branch.
 
+#### Windows owner Phase 0 measurements — pre-optimization (`0478953d8`)
+
+The owner supplied three fresh-process `phase-1.log` / `phase-2.log` / `phase-3.log` captures from the **opt-in instrumented, unoptimized** E8 HEAD `0478953d8c680004a1177850312682639a6ffd93`. All three report **18 passed**. Reconstructed exclusive top-level phase observations:
+
+| Windows local measurement | Run 1 (s) | Run 2 (s) | Run 3 (s) | Median (s) |
+|---|---:|---:|---:|---:|
+| Entire pytest invocation | 108.81 | 110.33 | 101.87 | **108.81** |
+| Full repository copy, 5 times combined | 83.27 | 85.76 | 78.30 | **83.27** |
+| Opt-in file count/byte inventory, 5 times | 8.27 | 8.10 | 7.76 | **8.10** |
+| 14 per-ID `check_docs` calls | 4.38 | 4.27 | 4.04 | **4.27** |
+| 14 per-ID `on_pre_build` calls | 2.07 | 1.95 | 1.93 | **1.95** |
+| All PNGs absent: offline-build subprocess | 4.34 | 3.66 | 3.48 | **3.66** |
+| All PNGs present: offline-build subprocess | 3.60 | 3.91 | 3.67 | **3.67** |
+| Corrupt PNG: expected-failing strict build | 0.95 | 0.92 | 1.04 | **0.95** |
+
+Each copy measured **7,823 files / 1,053,048,342 bytes (~1.05 GB)** in about 15–18 seconds. The initial fixture and the four separate integration tests create **five copies**; this is the measured dominant expense, not image marker substitution. The original, profiler-OFF **138.72 s** run and the opt-in instrumented **108.81 s median** were performed under different conditions; their difference is *not* a measured optimization effect. Nested child `offline-strict-mkdocs` and `offline-generated-site-validation` are already included in the parent subprocess timer and must not be counted twice. The corrupt-PNG traceback is an intentional PASS of the negative regression.
+
+On this evidence A/B fixture reuse was implemented in separate commits with per-test approved PNG SHA-256 and original Markdown byte checks, reversible image mutation in `try/finally`, generated-site cleanup and explicit negative-link/error-recovery regressions. **No speedup value is claimed until equivalent post-change owner-local runs are reported.** The same phase tool remains opt-in. The original 14 per-ID tests and all three actual build regimes remain mandatory. This stage was documented in [Issue #100](https://github.com/delphykmc/pixelscope/issues/100#issuecomment-5835985205).
+
 The first E8 commits add **opt-in diagnostic timing only** to the existing screenshot-rendering tests and the cold-cache network-blocked documentation build script. `PIXELSCOPE_E8_PROFILE=1` prints `PIXELSCOPE_E8_PHASE` JSON lines for repository copies (and separate file inventory), per-ID check_docs/pre-build/marker render, PNG remove/restore, full-build parent subprocess, and child cache purge/MkDocs/site-validation phases. Parent subprocess wall time **includes** child phases and must not be added to them. Normal CI/test behavior is unchanged when the env var is absent. The 138.72 s owner-local result is the historical uninstrumented baseline, **not** a measured post-optimization result; measured results are requested before A/B changes.
 
 Owner Windows sampling command (PowerShell from repository root, in the same configured docs/pytest venv; `-s` ensures phase markers are retained in the log):
