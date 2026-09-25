@@ -2,11 +2,16 @@
 
 E6 begins after owner-authorized E5 PR #98 merged at
 `main@0381d4e69df82f060dc4917b4117f68b8cebc574`.
-It is **not complete** merely because the MkDocs hook renders existing images
-or the Windows GUI comparison workflow passes. The seven historical screenshot
-files retain their unknown original capture SHA; never backfill one by guessing.
+**Current state (2026-09-25):** all 14 PNGs were visually approved and promoted
+in Draft PR #99 at `68ed33412a17711ed549793cfab6f8d9e9cd3397`, from
+capture source `631779bb91278e846f39e376dd1bef8210df1e5c`. The 14 decision
+records are `promoted` and the read-only audit reports `complete: true`.
+This does **not** close the outstanding external exact-byte attestation,
+candidate-sidecar verification or post-merge history/release acceptance.
+The superseded E6-entry inventory below is preserved as historical context;
+never invent the old seven PNGs' original capture SHA.
 
-## What exists versus what remains
+## Historical E6 entry inventory (superseded by current promotion)
 
 | Group | Screenshot IDs | Current proof | Next action |
 | --- | --- | --- | --- |
@@ -45,17 +50,17 @@ automatic stale/current judgment. Ask the owner to record one of:
 
 Record only actual decisions in
 [`wp-help-e6-coverage-decisions.json`](wp-help-e6-coverage-decisions.json).
-The initialized file deliberately marks **all 14** IDs `pending` without
-fabricated owner evidence. Run:
+The E6 initial inventory deliberately marked **all 14** IDs `pending` without
+fabricated owner evidence. At the current PR HEAD all 14 are `promoted`. Run:
 
 ```powershell
 python scripts/audit_ui_screenshot_coverage.py
 python scripts/audit_ui_screenshot_coverage.py --require-complete
 ```
 
-The normal audit succeeds while reporting unresolved IDs; the completion
-flag deliberately fails until all decisions are individually recorded
-and consistent with manifest bytes/provenance. The audit does **not** verify
+The normal audit checks all individual decisions, and `--require-complete`
+requires no pending IDs and consistent manifest bytes/provenance. It now
+passes on Draft PR #99 following the owner's visual approvals. The audit does **not** verify
 the real human identity behind a URL; that is an explicit PR review step.
 
 ## Promotion and final release gate
@@ -78,3 +83,17 @@ in both portable/installer builds and inspecting six topic images plus any
 newly approved gap pages. Validate a release-tag checkout builds using
 the exact reviewed PNG and manifest; no new public URL, automatic publication,
 installer shape changes or resolution claim for Issue #81.
+
+## Final exact-byte attestation and original capture packet
+
+Review the per-ID approved PNG SHA list in
+[`wp-help-e6-approved-image-hashes.md`](wp-help-e6-approved-image-hashes.md).
+Only the owner can confirm these *exact bytes* are those visually accepted;
+matching manifest hashes alone proves integrity but not what a human saw.
+The SHA list can be checked from GitHub on any OS and requires no new capture.
+The original owner-local capture PNGs and their `*.json` sidecars (not a
+new runner recapture) are needed for a source-sidecar identity verification.
+Hosted Windows GUI captures from a different machine may be visually equivalent
+but differ at the byte level and must not be substituted as provenance for the
+14 owner-local PNGs. Until the original packet is independently matched,
+source-sidecar verification must be reported as **pending**, not PASS.
