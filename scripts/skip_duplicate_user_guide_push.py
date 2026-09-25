@@ -95,6 +95,7 @@ def should_skip_push(
             if attempt < 2:
                 sleep(3)
     except (
+        AttributeError,
         OSError,
         KeyError,
         TypeError,
