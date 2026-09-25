@@ -47,8 +47,16 @@ def test_no_impact_skips_gui_but_preserves_pinned_report(tmp_path: Path) -> None
     "changed",
     [
         {"selected_ids": ["single-image"], "no_selection_reason": None},
-        {"selected_ids": ["removed-id"], "removed_ids": ["removed-id"], "no_selection_reason": None},
-        {"selected_ids": ["planned-id"], "requires_image_review": True, "no_selection_reason": None},
+        {
+            "selected_ids": ["removed-id"],
+            "removed_ids": ["removed-id"],
+            "no_selection_reason": None,
+        },
+        {
+            "selected_ids": ["planned-id"],
+            "requires_image_review": True,
+            "no_selection_reason": None,
+        },
     ],
 )
 def test_any_selected_id_runs_e4_even_if_removed_or_deferred(changed: dict) -> None:
