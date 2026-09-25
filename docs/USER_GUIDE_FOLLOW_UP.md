@@ -199,7 +199,7 @@ After merge, run `scripts/audit_ui_screenshot_git_history.py --ref origin/main` 
 
 ## WP-Help-E7 — Context-sensitive offline Help and error-message regression — implementation PR
 
-Status: **In progress (2026-09-26); independent review, Windows owner validation and merge pending**.
+Status: **Draft implementation PR [#101](https://github.com/delphykmc/pixelscope/pull/101) (2026-09-26); independent review, Windows owner validation and merge pending**.
 Depends on the merged E6 screenshot/Guide integration in PR #99.
 
 - Keep **Help > User Guide** opening the local guide index. Add a separate **Help > Context Help (F1)** action that routes the focused Files, Image View, Statistics/Difference, Histogram/Line Profile or IQA workspace to its existing MkDocs HTML topic. Where focus is ambiguous or no topic is available, open the local index.
