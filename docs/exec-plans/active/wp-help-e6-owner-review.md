@@ -7,7 +7,7 @@ in Draft PR #99 at `68ed33412a17711ed549793cfab6f8d9e9cd3397`, from
 capture source `631779bb91278e846f39e376dd1bef8210df1e5c`. The 14 decision
 records are `promoted` and the read-only audit reports `complete: true`.
 The [owner's exact-byte attestation](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828359533) binds all fourteen per-ID PNG hashes to the previously reviewed guide.
-The [owner-local original capture packet verification](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828441867) reports PASS against the original PNG+JSON sidecars at PR HEAD `8d01bf6f87b7eb365b94f6c8293cfa4b7d6a134f`. The PNG bytes remain unchanged since promotion. Post-merge history/release acceptance and owner packaged Help smoke are distinct outstanding gates.
+The [owner-local original capture packet verification](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5828441867) reports PASS against the original PNG+JSON sidecars at PR HEAD `8d01bf6f87b7eb365b94f6c8293cfa4b7d6a134f`. The PNG bytes remain unchanged since promotion. Owner packaged/installed Help smoke was subsequently accepted; post-merge main history and future real release-tag checks remain separate.
 The superseded E6-entry inventory below is preserved as historical context;
 never invent the old seven PNGs' original capture SHA.
 
@@ -137,3 +137,9 @@ python scripts/audit_ui_screenshot_git_history.py --ref origin/main --release-re
 Do not run a made-up future release tag or claim post-merge validation before
 it exists. The old historical tag still must validate against *its own*
 manifest/image bytes, so a future E6 screenshot cannot rewrite rollback data.
+
+## E6 final owner validation and transition — 2026-09-25
+
+The owner [confirmed local test completion, successful release-candidate testing, the installed application's working Guide/Help and correct display of replaced images](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5831061914). The exact-byte approval continues to be the distinct fourteen-image attestation `#issuecomment-5828359533`; this release acceptance does not alter or replace PNG bytes or their provenance. Independent re-review closed the prior P1/P2 findings and found no outstanding code-review blocker; the subsequent opt-in `--skip-pytest` candidate-build update was independently covered by exact-HEAD Windows/Ubuntu Guide and release-unit CI. Skipping in-script pytest is never represented as full pytest PASS.
+
+Owner authorized PR #99 merge after documentation closeout. After the actual merge, check the real merged main ref; check any real release tag only after that tag is created. No release publication or Issue #81 native crash resolution is implied.
