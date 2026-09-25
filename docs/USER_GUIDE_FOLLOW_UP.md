@@ -121,7 +121,7 @@ installed users retain their existing local Help/search without an AI service.
 
 No embedded PyQt Help window, QWebEngineView, QtHelp/QCH, chatbot, RAG server, Remote LLM API, implicit online fallback, or context-sensitive F1 routing is part of WP-Help-A. Installer bundle integration is owned by WP-Help-B.
 
-## WP-Help-E — Automated Screenshot Lifecycle — E0–E4 merged / E5 in progress
+## WP-Help-E — Automated Screenshot Lifecycle — E0–E5 merged / E6 final acceptance recorded
 
 E0 is a planning-only follow-up to merged WP-Help-A/B/C/D (#87/#90/#91/#92).
 The [WP-Help-E execution plan](exec-plans/active/wp-help-e-automated-screenshot-lifecycle.md)
@@ -190,3 +190,9 @@ deliberately record no blanket acceptance: `python scripts/audit_ui_screenshot_c
 reports unresolved images without inventing approvals, and
 `--require-complete` fails until per-ID review decisions are made. Neither E5 nor CI changes approved PNGs
 automatically; Issue #81 remains a separate lifecycle task.
+
+### E6 screenshot promotion and owner release closeout — 2026-09-25
+
+E6 PR #99 provides 14/14 real-UI, source-and-hash-attested, owner-approved screenshot promotions (seven replaced historical images and seven newly covered topics), with original owner-local capture-packet verification and independently reviewed provenance/coverage audits. All fourteen decision records are `promoted`; the owner also confirmed the installed Guide opens normally and that the replaced screenshots render correctly after successful local tests and release-candidate validation: [owner final acceptance](https://github.com/delphykmc/pixelscope/pull/99#issuecomment-5831061914). The independent review found no remaining code-review blocker, and the owner authorized merge after documentation closeout. Earlier E5-era references to seven planned screenshots and unresolved approval above are preserved as *historical stage descriptions*, not the present inventory.
+
+After merge, run `scripts/audit_ui_screenshot_git_history.py --ref origin/main` against the actual merged history. An eventual release tag must separately pass the per-ref image/manifest/rollback audit when that tag exists. This is not permission for automatic website publication or a statement that Issue #81 native crash is solved.
