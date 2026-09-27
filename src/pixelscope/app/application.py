@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from PySide6.QtCore import QSettings, QThreadPool
 from PySide6.QtWidgets import QApplication, QComboBox
 
+from pixelscope.app.composition_lifecycle import install_composition_lifecycle
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.raw_input_compatibility import install_raw_input_compatibility
 from pixelscope.app.registration_controller import install_large_folder_registration
@@ -116,6 +117,7 @@ def load_startup_settings() -> tuple[SettingsRepository, ApplicationSettings, Pe
 def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     """Install the production presentation control composition in one authoritative order."""
 
+    install_composition_lifecycle(window)
     gain_control = install_display_gain_control(window)
     review_controller = install_review_selection(window)
     install_difference_curation_lifecycle(window, review_controller)
