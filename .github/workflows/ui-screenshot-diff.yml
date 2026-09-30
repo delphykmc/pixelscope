@@ -3,11 +3,25 @@ name: WP-Help-E4 pinned Windows screenshot comparison
 # No pull_request_target, write token, secrets, push, or publication. Fork code
 # is never executed: an owner can reproduce a trusted same-repo change instead.
 on:
+  # Native screenshot capture is an explicit review gate, not a per-sync test.
+  # It runs once when a relevant ready PR is opened/reopened (or leaves draft);
+  # later relevant commits require an explicit workflow_dispatch on the final
+  # pinned base/head pair before merge.
   pull_request:
+    types: [opened, reopened, ready_for_review]
     paths:
-      - "src/**"
-      - "scripts/**"
-      - "docs/user-guide/**"
+      - "src/pixelscope/ui/**"
+      - "src/pixelscope/app/**"
+      - "src/pixelscope/assets/**"
+      - "docs/user-guide/assets/screenshots/**"
+      - "scripts/capture_ui_scene.py"
+      - "scripts/capture_ui_review.py"
+      - "scripts/select_ui_screenshots.py"
+      - "scripts/compare_ui_screenshots.py"
+      - "scripts/run_ui_screenshot_diff.py"
+      - "scripts/probe_ui_screenshot_environment.py"
+      - "scripts/preflight_ui_screenshot_diff.py"
+      - "scripts/screenshot_fixture_identity.py"
       - "requirements/runtime.txt"
       - "pyproject.toml"
       - ".github/workflows/ui-screenshot-diff.yml"
@@ -26,7 +40,10 @@ permissions:
 
 jobs:
   compare:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.pull_request.head.repo.full_name == github.repository &&
+           github.event.pull_request.draft == false) }}
     runs-on: windows-2022
     timeout-minutes: 35
     env:
