@@ -105,8 +105,11 @@ jobs:
             pyproject.toml
       - name: Install cheap validation tools
         run: python -m pip install pytest==7.4.4 ruff==0.1.15
-      - name: Validate CI classifier contract
-        run: python -m pytest -q tests/unit/test_ci_change_classification.py
+      - name: Validate CI policy contracts
+        run: >-
+          python -m pytest -q
+          tests/unit/test_ci_change_classification.py
+          tests/unit/test_ci_workflow_policy.py
       - name: Install documentation validation dependencies
         if: needs.classify.outputs.docs == 'true'
         run: python -m pip install -r requirements/docs.txt Pillow==12.3.0
