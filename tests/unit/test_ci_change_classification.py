@@ -86,3 +86,11 @@ def test_ci_workflow_change_keeps_docs_contract_validation() -> None:
 
     assert groups["docs"]
     assert groups["any_validation"]
+
+
+def test_examples_and_pr_template_stay_in_docs_contract() -> None:
+    examples = classify("examples/raw_profiles/example_packed_stream_raw10.json")
+    template = classify(".github/pull_request_template.md")
+
+    assert examples["docs"] and examples["any_validation"]
+    assert template["docs"] and template["any_validation"]
