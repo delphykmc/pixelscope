@@ -2,6 +2,7 @@ name: RAW input validation
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     paths:
       - "src/pixelscope/io/raw_format.py"
       - "src/pixelscope/io/raw_profile.py"
@@ -74,10 +75,12 @@ jobs:
       - name: Type-check source
         run: python -m mypy src
       # Full pytest is intentionally not part of every RAW PR synchronization.
-      # docs/QUALITY.md keeps it as completion evidence; run this workflow manually
-      # on the merge-ready branch to execute the exact full-suite command once.
+      # For merge-ready evidence, add the temporary HTML marker below to the PR
+      # body. An edited-event run executes the full suite against the same HEAD.
       - name: Run full repository suite
-        if: github.event_name == 'workflow_dispatch'
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          contains(github.event.pull_request.body || '', '<!-- raw-full-validation -->')
         run: python -m pytest -q
       - name: Check diff whitespace
         if: github.event_name == 'pull_request'
