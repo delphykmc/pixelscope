@@ -77,6 +77,93 @@ def test_profile_validates_storage_rules_and_migrates_legacy_fields() -> None:
         )
 
 
+def _pack_stream(values: list[int], bit_depth: int, bit_order: str) -> bytes:
+    bits: list[int] = []
+    for value in values:
+        shifts = (
+            range(bit_depth - 1, -1, -1)
+            if bit_order == "msb"
+            else range(bit_depth)
+        )
+        bits.extend((value >> shift) & 1 for shift in shifts)
+    bits.extend([0] * ((-len(bits)) % 8))
+    packed = bytearray()
+    for start in range(0, len(bits), 8):
+        byte_bits = bits[start : start + 8]
+        if bit_order == "msb":
+            packed.append(sum(bit << (7 - index) for index, bit in enumerate(byte_bits)))
+        else:
+            packed.append(sum(bit << index for index, bit in enumerate(byte_bits)))
+    return bytes(packed)
+
+
+def test_packed_stream_profile_and_row_size_rules() -> None:
+    profile = make_profile(
+        width=5,
+        height=3,
+        stride_bytes=9,
+        storage_format="packed_stream",
+        container_dtype=None,
+        endianness=None,
+        bit_depth=10,
+        bit_alignment=None,
+        packed_bit_order="lsb",
+        white_level=1023,
+    )
+    assert profile.minimum_row_bytes == 7
+    assert profile.container_dtype is None
+    assert profile.endianness is None
+    assert profile.bit_alignment is None
+    assert profile.packed_bit_order == "lsb"
+
+    with pytest.raises(ValidationError, match="must not exceed 16"):
+        make_profile(
+            storage_format="packed_stream",
+            container_dtype=None,
+            endianness=None,
+            bit_depth=17,
+            bit_alignment=None,
+            packed_bit_order="msb",
+            stride_bytes=9,
+            white_level=65535,
+        )
+
+
+@pytest.mark.parametrize("bit_order", ["msb", "lsb"])
+def test_packed_stream_decodes_cross_byte_samples_and_row_padding(
+    tmp_path: Path,
+    bit_order: str,
+) -> None:
+    rows = [
+        [0, 1, 2, 511, 1023],
+        [1023, 512, 257, 3, 0],
+    ]
+    packed_rows = [_pack_stream(row, 10, bit_order) for row in rows]
+    assert all(len(row) == 7 for row in packed_rows)
+    profile = make_profile(
+        width=5,
+        height=2,
+        stride_bytes=9,
+        storage_format="packed_stream",
+        container_dtype=None,
+        endianness=None,
+        bit_depth=10,
+        bit_alignment=None,
+        packed_bit_order=bit_order,
+        white_level=1023,
+    )
+    path = tmp_path / f"packed-{bit_order}.raw"
+    path.write_bytes(
+        packed_rows[0]
+        + b"\xAA\xBB"
+        + packed_rows[1]
+        + b"\xCC\xDD"
+    )
+
+    assert required_file_size(profile) == 18
+    assert read_raw(path, profile).tolist() == rows
+
+
 def test_unpacked_stride_endianness_and_bit_alignment(tmp_path: Path) -> None:
     lsb_profile = make_profile(width=4, height=1, stride_bytes=10, offset_bytes=2)
     lsb_path = tmp_path / "lsb.raw"
