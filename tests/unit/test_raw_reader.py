@@ -80,10 +80,7 @@ def test_profile_validates_storage_rules_and_migrates_legacy_fields() -> None:
 def _pack_stream(values: list[int], bit_depth: int, bit_order: str) -> bytes:
     bits: list[int] = []
     for value in values:
-        if bit_order == "msb":
-            shifts = range(bit_depth - 1, -1, -1)
-        else:
-            shifts = range(bit_depth)
+        shifts = range(bit_depth - 1, -1, -1) if bit_order == "msb" else range(bit_depth)
         for shift in shifts:
             bits.append((value >> shift) & 1)
 
