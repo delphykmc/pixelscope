@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -109,7 +109,7 @@ def _decode_packed_stream(
         else np.arange(bit_depth, dtype=np.uint16)
     )
     weights = np.left_shift(np.uint16(1), exponents)
-    numpy_bit_order = "big" if bit_order == "msb" else "little"
+    numpy_bit_order: Literal["big", "little"] = "big" if bit_order == "msb" else "little"
 
     chunk_rows = 64
     for start in range(0, profile.height, chunk_rows):
