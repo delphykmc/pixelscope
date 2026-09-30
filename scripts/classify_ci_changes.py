@@ -77,7 +77,12 @@ def git_changed_paths(root: Path, base: str, head: str) -> list[ChangedPath]:
         if status.startswith(("R", "C")):
             if offset + 2 >= len(values):
                 raise ValueError("truncated Git rename/copy entry")
-            changes.append(ChangedPath(_safe_path(values[offset + 2]), _safe_path(values[offset + 1])))
+            changes.append(
+                ChangedPath(
+                    _safe_path(values[offset + 2]),
+                    _safe_path(values[offset + 1]),
+                )
+            )
             offset += 3
         else:
             if offset + 1 >= len(values):
