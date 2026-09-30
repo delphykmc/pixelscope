@@ -39,10 +39,7 @@ def test_expensive_e4_capture_is_not_a_per_synchronize_gate() -> None:
 
 
 def test_active_native_gui_workflows_share_the_reviewed_runner_generation() -> None:
-    for path in (
-        ".github/workflows/user-guide.yml",
-        ".github/workflows/ui-screenshot-diff.yml",
-    ):
+    for path in (".github/workflows/user-guide.yml", ".github/workflows/ui-screenshot-diff.yml"):
         workflow = _read(path)
         assert "windows-latest" not in workflow
         assert "windows-2022" in workflow
