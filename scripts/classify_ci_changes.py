@@ -213,9 +213,7 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     docs = docs_core or screenshots or publication
 
     help_ui = any(path in HELP_EXACT for path in paths)
-    release = any(
-        _matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths
-    )
+    release = any(_matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths)
     raw = any(path.startswith(RAW_PREFIXES + RAW_TEST_PREFIXES) for path in paths)
     yuv = any(path.startswith(YUV_PREFIXES + YUV_TEST_PREFIXES) for path in paths)
     shared_runtime = any(path in SHARED_RUNTIME for path in paths)
