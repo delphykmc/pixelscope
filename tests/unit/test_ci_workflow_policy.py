@@ -18,6 +18,8 @@ def test_shared_validation_is_feature_neutral() -> None:
     assert not (ROOT / ".github/workflows/user-guide.yml").exists()
     assert "Validate on ubuntu-latest" in workflow
     assert "Validate on windows-2022" in workflow
+    assert "group: focused-validation-${{ github.head_ref || github.ref_name }}" in workflow
+    assert "cancel-in-progress: true" in workflow
 
 
 def test_generic_src_runs_mypy_without_requiring_native_pytest() -> None:
