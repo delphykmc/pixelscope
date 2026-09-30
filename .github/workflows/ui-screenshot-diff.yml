@@ -25,7 +25,6 @@ on:
       - "requirements/runtime.txt"
       - "pyproject.toml"
       - ".github/workflows/ui-screenshot-diff.yml"
-      - ".github/workflows/ui-screenshot-poc.yml"
   workflow_dispatch:
     inputs:
       base_sha:
