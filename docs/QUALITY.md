@@ -61,10 +61,11 @@ through a dedicated CI-policy PR that records the candidate runner image and cle
 Help/E4 native results. Keep active native-GUI validation on the same reviewed runner
 generation unless a documented exception requires otherwise.
 
-The historical E1 screenshot PoC remains a legacy feasibility workflow until its
-required-check status can be verified by a repository owner. The GitHub App cannot
-read legacy branch-protection settings, so Issue #105 does not delete or otherwise
-mutate that workflow merely to make the runner policy look uniform.
+The historical E1 screenshot PoC workflow was removed after the repository owner
+confirmed there are no branch-protection required checks. E1 proved hosted Windows
+GUI capture feasibility; E4 now performs the real pinned base/head capture and visual
+comparison. E1-derived capture/validation modules remain shared implementation used
+by E4, but the standalone feasibility workflow no longer consumes PR CI.
 
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
