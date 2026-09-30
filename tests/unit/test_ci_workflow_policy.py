@@ -38,15 +38,20 @@ def test_expensive_e4_capture_is_not_a_per_synchronize_gate() -> None:
     assert 'runs-on: windows-2022' in workflow
 
 
-def test_native_gui_workflows_share_the_reviewed_runner_generation() -> None:
+def test_active_native_gui_workflows_share_the_reviewed_runner_generation() -> None:
     for path in (
         ".github/workflows/user-guide.yml",
         ".github/workflows/ui-screenshot-diff.yml",
-        ".github/workflows/ui-screenshot-poc.yml",
     ):
         workflow = _read(path)
         assert "windows-latest" not in workflow
         assert "windows-2022" in workflow
+
+
+def test_legacy_e1_poc_remains_explicitly_identified_as_feasibility_only() -> None:
+    workflow = _read(".github/workflows/ui-screenshot-poc.yml")
+
+    assert "Feasibility probe only" in workflow
 
 
 def test_feature_workflows_do_not_add_repository_full_pytest_gate() -> None:
