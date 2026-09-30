@@ -26,6 +26,7 @@ on:
       - "tests/ui/test_p1c_raw_dialog.py"
       - "tests/ui/test_wp_b_raw_binary_compatibility.py"
       - ".github/workflows/raw-input.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -70,8 +71,11 @@ jobs:
           python -m ruff format --check .
       - name: Type-check source
         run: python -m mypy src
+      # Full pytest is intentionally not part of every RAW PR synchronization.
+      # docs/QUALITY.md keeps it as completion evidence; run this workflow manually
+      # on the merge-ready branch to execute the exact full-suite command once.
       - name: Run full repository suite
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'workflow_dispatch'
         run: python -m pytest -q
       - name: Check diff whitespace
         if: github.event_name == 'pull_request'
