@@ -51,12 +51,10 @@ jobs:
             requirements/runtime.txt
             pyproject.toml
       - name: Install focused RAW validation environment
-        run: >-
-          python -m pip install
-          -r requirements/runtime.txt
-          -e . --no-deps
-          pytest==7.4.4 pytest-qt==4.2.0
-          ruff==0.1.15 mypy==1.8.0
+        run: |
+          python -m pip install -r requirements/runtime.txt
+          python -m pip install -e . --no-deps
+          python -m pip install pytest==7.4.4 pytest-qt==4.2.0 ruff==0.1.15 mypy==1.8.0
       - name: Check installed environment
         run: python -m pip check
       - name: Run focused RAW contract slice
