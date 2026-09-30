@@ -210,6 +210,7 @@ YUV_TEST_PREFIXES = (
 )
 
 SHARED_RUNTIME = ("requirements/runtime.txt", "pyproject.toml")
+STATIC_CONFIG = ("pyproject.toml",)
 
 
 def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
@@ -234,10 +235,12 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     if shared_runtime:
         help_ui = release = raw = yuv = True
 
-    static = any(path.endswith(".py") for path in paths)
+    static_config_changed = any(path in STATIC_CONFIG for path in paths)
+    static = any(path.endswith(".py") for path in paths) or static_config_changed
     src_changed = any(path.startswith("src/") and path.endswith(".py") for path in paths)
+    typecheck = src_changed or static_config_changed
     windows_native = help_ui or release or raw or yuv
-    any_validation = docs or ci_policy or static or windows_native
+    any_validation = docs or ci_policy or static or typecheck or windows_native
 
     return {
         "docs": docs,
@@ -250,7 +253,9 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
         "raw": raw,
         "yuv": yuv,
         "static": static,
+        "static_config_changed": static_config_changed,
         "src_changed": src_changed,
+        "typecheck": typecheck,
         "windows_native": windows_native,
         "any_validation": any_validation,
     }
