@@ -18,7 +18,10 @@ def test_shared_validation_is_feature_neutral() -> None:
     assert not (ROOT / ".github/workflows/user-guide.yml").exists()
     assert "Validate on ubuntu-latest" in workflow
     assert "Validate on windows-2022" in workflow
-    assert "group: focused-validation-${{ github.head_ref || github.ref_name }}" in workflow
+    assert (
+        "group: focused-validation-${{ github.event_name }}-"
+        "${{ github.head_ref || github.ref_name }}" in workflow
+    )
     assert "cancel-in-progress: true" in workflow
 
 
@@ -26,7 +29,7 @@ def test_generic_src_runs_mypy_without_requiring_native_pytest() -> None:
     workflow = _read(".github/workflows/validation.yml")
     ubuntu, windows = workflow.split("\n  windows:\n", maxsplit=1)
 
-    assert "needs.classify.outputs.src_changed == 'true'" in ubuntu
+    assert "needs.classify.outputs.typecheck == 'true'" in ubuntu
     assert "python -m mypy src" in ubuntu
     assert "requirements/runtime.txt mypy==1.8.0" in ubuntu
     assert "needs.classify.outputs.windows_native == 'true'" in windows
@@ -71,3 +74,22 @@ def test_obsolete_e1_workflow_is_removed_but_shared_capture_engine_remains() -> 
     assert not (ROOT / ".github/workflows/ui-screenshot-poc.yml").exists()
     assert (ROOT / "scripts/capture_ui_scene.py").exists()
     assert (ROOT / "scripts/run_ui_capture_poc.py").exists()
+
+
+def test_pyproject_config_change_is_wired_to_static_and_typecheck_gates() -> None:
+    workflow = _read(".github/workflows/validation.yml")
+
+    assert "static_config_changed:" in workflow
+    assert "typecheck:" in workflow
+    assert "needs.classify.outputs.typecheck == 'true'" in workflow
+    assert "needs.classify.outputs.static == 'true'" in workflow
+
+
+def test_push_and_pr_runs_use_distinct_concurrency_identities() -> None:
+    workflow = _read(".github/workflows/validation.yml")
+
+    assert "github.event_name" in workflow
+    assert (
+        "focused-validation-${{ github.event_name }}-"
+        "${{ github.head_ref || github.ref_name }}" in workflow
+    )
