@@ -78,7 +78,7 @@ def git_changed_paths(root: Path, base: str, head: str) -> list[ChangedPath]:
             if offset + 2 >= len(values):
                 raise ValueError("truncated Git rename/copy entry")
             changes.append(
-                ChangedPath(_safe_path(values[offset + 2]), _safe_path(values[offset + 1]))
+                ChangedPath(_safe_path(values[offset + 2]), _safe_path(values[offset + 1])),
             )
             offset += 3
         else:
@@ -184,13 +184,9 @@ SHARED_RUNTIME = ("requirements/runtime.txt", "pyproject.toml")
 
 def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     paths = {path for change in changes for path in change.paths}
-    docs = any(
-        _matches(path, exact=DOC_EXACT, prefixes=("docs/", "examples/")) for path in paths
-    )
+    docs = any(_matches(path, exact=DOC_EXACT, prefixes=("docs/", "examples/")) for path in paths)
     help_ui = any(path in HELP_EXACT for path in paths)
-    release = any(
-        _matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths
-    )
+    release = any(_matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths)
     raw = any(path.startswith(RAW_PREFIXES + RAW_TEST_PREFIXES) for path in paths)
     yuv = any(path.startswith(YUV_PREFIXES + YUV_TEST_PREFIXES) for path in paths)
     shared_runtime = any(path in SHARED_RUNTIME for path in paths)
@@ -253,9 +249,7 @@ def main() -> int:
         "schema_version": 1,
         "base_sha": base,
         "head_sha": head,
-        "changed_paths": [
-            {"path": change.path, "old_path": change.old_path} for change in changes
-        ],
+        "changed_paths": [{"path": change.path, "old_path": change.old_path} for change in changes],
         "groups": groups,
     }
     payload = json.dumps(report, sort_keys=True, indent=2) + "\n"
