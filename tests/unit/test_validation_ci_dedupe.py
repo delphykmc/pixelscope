@@ -1,4 +1,4 @@
-"""E8: only a truly identical PR-tested Git tree may replace Docs push checks."""
+"""Only a truly identical PR-tested Git tree may replace duplicate push validation."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import urllib.error
 from typing import Any
 
 import pytest
-from scripts.skip_duplicate_user_guide_push import (
+from scripts.skip_duplicate_validation_push import (
     has_matching_pr_run,
     same_tested_tree,
     should_skip_push,
@@ -71,7 +71,7 @@ def _api(
             }
         if url.endswith("/git/commits/" + SHA):
             return {"tree": {"sha": head_tree}}
-        if "/actions/workflows/user-guide.yml/runs?" in url:
+        if "/actions/workflows/validation.yml/runs?" in url:
             return {"workflow_runs": [_run()] if run is None else [run]}
         raise AssertionError("unexpected GitHub API request: " + url)
 
@@ -202,7 +202,7 @@ def test_actual_pr_run_after_event_race_short_circuits_push() -> None:
 
     def fetch(url: str, token: str) -> Any:
         nonlocal checks
-        if "/actions/workflows/user-guide.yml/runs?" in url:
+        if "/actions/workflows/validation.yml/runs?" in url:
             checks += 1
             return {"workflow_runs": [_run()]} if checks == 2 else {"workflow_runs": []}
         return fetch_api(url, token)

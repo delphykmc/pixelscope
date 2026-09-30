@@ -93,10 +93,17 @@ def _matches(path: str, *, exact: tuple[str, ...] = (), prefixes: tuple[str, ...
     return path in exact or any(path.startswith(prefix) for prefix in prefixes)
 
 
-DOC_EXACT = (
+DOC_CORE_EXACT = (
     "mkdocs.yml",
     "requirements/docs.txt",
     "scripts/check_docs.py",
+    "scripts/check_user_guide_site.py",
+    "scripts/build_user_guide.py",
+    "scripts/search_user_guide.py",
+    ".github/pull_request_template.md",
+)
+
+SCREENSHOT_EXACT = (
     "scripts/check_screenshot_manifest.py",
     "scripts/user_guide_screenshot_hook.py",
     "scripts/audit_ui_screenshot_coverage.py",
@@ -110,19 +117,28 @@ DOC_EXACT = (
     "scripts/run_ui_capture_poc.py",
     "scripts/capture_ui_scene.py",
     "scripts/capture_ui_review.py",
-    "scripts/check_user_guide_site.py",
-    "scripts/build_user_guide.py",
-    "scripts/check_user_guide_build_offline.py",
     "scripts/e8_profile.py",
     "scripts/preflight_ui_screenshot_diff.py",
-    "scripts/skip_duplicate_user_guide_push.py",
-    "scripts/prepare_user_guide_publication.py",
-    "scripts/search_user_guide.py",
-    "scripts/validate_user_guide_publication_ref.py",
-    ".github/workflows/user-guide.yml",
-    ".github/workflows/user-guide-publication.yml",
     ".github/workflows/ui-screenshot-diff.yml",
-    ".github/pull_request_template.md",
+)
+
+PUBLICATION_EXACT = (
+    "scripts/prepare_user_guide_publication.py",
+    "scripts/validate_user_guide_publication_ref.py",
+    ".github/workflows/user-guide-publication.yml",
+    "scripts/build_release.py",
+    "scripts/release_contract.py",
+)
+
+CI_POLICY_EXACT = (
+    ".github/workflows/validation.yml",
+    "scripts/classify_ci_changes.py",
+    "scripts/ci_test_groups.py",
+    "scripts/skip_duplicate_validation_push.py",
+    "tests/unit/test_ci_change_classification.py",
+    "tests/unit/test_ci_workflow_policy.py",
+    "tests/unit/test_ci_test_groups.py",
+    "tests/unit/test_validation_ci_dedupe.py",
 )
 
 HELP_EXACT = (
@@ -184,9 +200,22 @@ SHARED_RUNTIME = ("requirements/runtime.txt", "pyproject.toml")
 
 def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     paths = {path for change in changes for path in change.paths}
-    docs = any(_matches(path, exact=DOC_EXACT, prefixes=("docs/", "examples/")) for path in paths)
+
+    docs_core = any(
+        path.startswith(("docs/", "examples/")) or path in DOC_CORE_EXACT for path in paths
+    )
+    screenshots = any(
+        path.startswith("docs/user-guide/assets/screenshots/") or path in SCREENSHOT_EXACT
+        for path in paths
+    )
+    publication = any(path in PUBLICATION_EXACT for path in paths)
+    ci_policy = any(path in CI_POLICY_EXACT for path in paths)
+    docs = docs_core or screenshots or publication
+
     help_ui = any(path in HELP_EXACT for path in paths)
-    release = any(_matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths)
+    release = any(
+        _matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths
+    )
     raw = any(path.startswith(RAW_PREFIXES + RAW_TEST_PREFIXES) for path in paths)
     yuv = any(path.startswith(YUV_PREFIXES + YUV_TEST_PREFIXES) for path in paths)
     shared_runtime = any(path in SHARED_RUNTIME for path in paths)
@@ -196,10 +225,14 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     static = any(path.endswith(".py") for path in paths)
     src_changed = any(path.startswith("src/") and path.endswith(".py") for path in paths)
     windows_native = help_ui or release or raw or yuv
-    any_validation = docs or static or windows_native
+    any_validation = docs or ci_policy or static or windows_native
 
     return {
         "docs": docs,
+        "docs_core": docs_core,
+        "screenshots": screenshots,
+        "publication": publication,
+        "ci_policy": ci_policy,
         "help_ui": help_ui,
         "release": release,
         "raw": raw,
@@ -246,7 +279,7 @@ def main() -> int:
         return 1
 
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "base_sha": base,
         "head_sha": head,
         "changed_paths": [{"path": change.path, "old_path": change.old_path} for change in changes],

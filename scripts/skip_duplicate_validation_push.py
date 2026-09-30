@@ -1,4 +1,4 @@
-"""Skip Docs push work only if PR and push are provably the same Git tree.
+"""Skip Validation push work only if PR and push are provably the same Git tree.
 
 A pull_request checkout tests the synthetic base+head merge tree, NOT its
 workflow_run.head_sha alone. Require a real eligible PR run, its pinned base,
@@ -127,7 +127,7 @@ def should_skip_push(
         }
         if not matching:
             return False  # branch-only push must retain its automatic validation
-        runs_url = f"{base}/actions/workflows/user-guide.yml/runs?" + urllib.parse.urlencode(
+        runs_url = f"{base}/actions/workflows/validation.yml/runs?" + urllib.parse.urlencode(
             {"event": "pull_request", "head_sha": sha, "per_page": "100"}
         )
         # Push and PR events may enqueue in either order. Bounded polling saves
@@ -171,7 +171,7 @@ def should_skip_push(
         ValueError,
         urllib.error.URLError,
     ) as exc:
-        print(f"Docs push dedupe unavailable ({type(exc).__name__}); running validation")
+        print(f"Validation push dedupe unavailable ({type(exc).__name__}); running validation")
     return False
 
 
@@ -189,9 +189,9 @@ def main() -> int:
         with open(output, "a", encoding="utf-8") as handle:
             handle.write(f"skip={str(skip).lower()}\n")
     print(
-        "Docs push: matching PR run AND identical merge/head Git tree; skip duplicate checks"
+        "Validation push: matching PR run AND identical merge/head Git tree; skip duplicate checks"
         if skip
-        else "Docs push: no proven identical PR-tested Git tree; run full matrix checks"
+        else "Validation push: no proven identical PR-tested Git tree; run full matrix checks"
     )
     return 0
 

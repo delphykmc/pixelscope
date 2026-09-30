@@ -26,20 +26,32 @@ reason, and unverified risk.
 
 ### CI validation ownership
 
-Automatic PR validation is change-scoped. `.github/workflows/user-guide.yml` retains
-its historical filename/check names for branch-protection compatibility, but its
-internal responsibility is repository-wide classification and focused validation:
+Automatic PR validation is change-scoped and feature-neutral through
+`.github/workflows/validation.yml`.
 
-- documentation/tooling changes run the documentation contract on Ubuntu without
-  installing the application or Qt;
-- Help, release, RAW, and YUV implementation changes opt into the relevant focused
-  Windows slice;
-- unrelated Python changes receive cheap static validation without starting a
-  Windows native-GUI runner;
-- a feature adds or updates a focused test group in this shared selector rather than
-  adding another permanent feature-named workflow; and
-- repository-wide `python -m pytest -q` is not a per-commit CI gate. Run it once on
+- Ruff/format and mypy are baseline static gates for Python source changes. Mypy runs
+  on Ubuntu whenever `src/**` changes and does not require native Qt pytest to run.
+- Documentation is split into core/prose, screenshot-lifecycle, and publication/
+  packaging families. A prose edit does not automatically run screenshot provenance
+  or publication contracts. The offline User Guide build remains a cheap docs-wide
+  gate.
+- Help, release, RAW, and YUV implementation changes opt into a deliberately small
+  durable Windows contract slice.
+- Durable CI pytest nodes live in `scripts/ci_test_groups.py` with explicit contract
+  rationales. A feature PR may temporarily run additional focused tests while it is
+  under development, but those nodes must be removed before completion unless they
+  are explicitly promoted as small durable core contracts. Tests remain in the
+  repository test suite regardless of CI promotion.
+- Do not let the durable registry become a historical phase archive. Prefer canonical
+  contract modules or individual authoritative nodes over whole legacy phase modules.
+- Repository-wide `python -m pytest -q` is not a per-commit CI gate. Run it once on
   the final merge-ready owner Windows environment and record the exact result.
+
+If a durable CI pytest slice grows beyond roughly two minutes or about 30% of the
+owner-local full-suite runtime, review the slice before adding more permanent nodes.
+Do not maintain a second hand-written "remaining tests" list. If complement execution
+becomes worthwhile, derive it from the same central registry so CI-covered and
+owner-local residual coverage cannot drift.
 
 E4 native screenshot capture is an expensive final-review check. A relevant ready PR
 gets one automatic pinned base/head capture when it is opened, reopened, or leaves
@@ -58,14 +70,11 @@ to dismiss Issue #81 or other reproducible Qt/Shiboken lifecycle failures.
 Revalidate the Windows runner pin whenever Python/PySide is upgraded, GitHub changes
 or deprecates the pinned image, and at least once per quarter. Advance the pin only
 through a dedicated CI-policy PR that records the candidate runner image and clean
-Help/E4 native results. Keep active native-GUI validation on the same reviewed runner
-generation unless a documented exception requires otherwise.
+Help/E4 native results.
 
 The historical E1 screenshot PoC workflow was removed after the repository owner
-confirmed there are no branch-protection required checks. E1 proved hosted Windows
-GUI capture feasibility; E4 now performs the real pinned base/head capture and visual
-comparison. E1-derived capture/validation modules remain shared implementation used
-by E4, but the standalone feasibility workflow no longer consumes PR CI.
+confirmed there are no branch-protection required checks. E1-derived capture and
+validation modules remain shared implementation used by E4.
 
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget

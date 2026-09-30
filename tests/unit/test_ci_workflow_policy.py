@@ -11,22 +11,35 @@ def _read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_change_scoped_workflow_preserves_legacy_pr_check_names() -> None:
-    workflow = _read(".github/workflows/user-guide.yml")
+def test_shared_validation_is_feature_neutral() -> None:
+    workflow = _read(".github/workflows/validation.yml")
 
-    assert "Classify validation scope" in workflow
+    assert "name: Focused validation" in workflow
+    assert not (ROOT / ".github/workflows/user-guide.yml").exists()
     assert "Validate on ubuntu-latest" in workflow
     assert "Validate on windows-2022" in workflow
-    assert "Run focused RAW contracts" in workflow
-    assert "Run focused YUV contracts" in workflow
 
 
-def test_docs_only_validation_can_skip_windows_native_job() -> None:
-    workflow = _read(".github/workflows/user-guide.yml")
+def test_generic_src_runs_mypy_without_requiring_native_pytest() -> None:
+    workflow = _read(".github/workflows/validation.yml")
+    ubuntu, windows = workflow.split("\n  windows:\n", maxsplit=1)
 
-    assert "needs.classify.outputs.windows_native == 'true'" in workflow
-    assert "Install documentation validation dependencies" in workflow
-    assert "runs-on: windows-2022" in workflow
+    assert "needs.classify.outputs.src_changed == 'true'" in ubuntu
+    assert "python -m mypy src" in ubuntu
+    assert "requirements/runtime.txt mypy==1.8.0" in ubuntu
+    assert "needs.classify.outputs.windows_native == 'true'" in windows
+    assert "python -m mypy src" not in windows
+
+
+def test_docs_families_have_separate_pytest_steps() -> None:
+    workflow = _read(".github/workflows/validation.yml")
+
+    assert "Run core documentation contracts" in workflow
+    assert "Run screenshot lifecycle contracts" in workflow
+    assert "Run publication and packaging contracts" in workflow
+    assert "needs.classify.outputs.docs_core == 'true'" in workflow
+    assert "needs.classify.outputs.screenshots == 'true'" in workflow
+    assert "needs.classify.outputs.publication == 'true'" in workflow
 
 
 def test_expensive_e4_capture_is_not_a_per_synchronize_gate() -> None:
@@ -39,17 +52,14 @@ def test_expensive_e4_capture_is_not_a_per_synchronize_gate() -> None:
 
 
 def test_active_native_gui_workflows_share_the_reviewed_runner_generation() -> None:
-    for path in (".github/workflows/user-guide.yml", ".github/workflows/ui-screenshot-diff.yml"):
+    for path in (".github/workflows/validation.yml", ".github/workflows/ui-screenshot-diff.yml"):
         workflow = _read(path)
         assert "windows-latest" not in workflow
         assert "windows-2022" in workflow
 
 
 def test_feature_workflows_do_not_add_repository_full_pytest_gate() -> None:
-    for path in (
-        ".github/workflows/user-guide.yml",
-        ".github/workflows/ui-screenshot-diff.yml",
-    ):
+    for path in (".github/workflows/validation.yml", ".github/workflows/ui-screenshot-diff.yml"):
         workflow = _read(path)
         lines = [line.strip() for line in workflow.splitlines()]
         assert "run: python -m pytest -q" not in lines

@@ -9,10 +9,13 @@ def classify(*paths: str) -> dict[str, bool]:
     return classify_paths([ChangedPath(path) for path in paths])
 
 
-def test_docs_prose_does_not_wake_native_raw_validation() -> None:
+def test_docs_prose_only_wakes_core_docs_validation() -> None:
     groups = classify("docs/user-guide/formats/raw.md")
 
     assert groups["docs"]
+    assert groups["docs_core"]
+    assert not groups["screenshots"]
+    assert not groups["publication"]
     assert not groups["raw"]
     assert not groups["windows_native"]
 
@@ -81,11 +84,22 @@ def test_rename_checks_both_old_and_new_ownership() -> None:
     assert groups["windows_native"]
 
 
-def test_ci_workflow_change_keeps_docs_contract_validation() -> None:
-    groups = classify(".github/workflows/user-guide.yml")
+def test_ci_workflow_change_runs_policy_without_docs_bundle() -> None:
+    groups = classify(".github/workflows/validation.yml")
 
-    assert groups["docs"]
+    assert groups["ci_policy"]
     assert groups["any_validation"]
+    assert not groups["docs"]
+
+
+def test_screenshot_and_publication_paths_are_separate_docs_families() -> None:
+    screenshot = classify("docs/user-guide/assets/screenshots/manifest.json")
+    publication = classify("scripts/prepare_user_guide_publication.py")
+
+    assert screenshot["docs"] and screenshot["screenshots"]
+    assert not screenshot["publication"]
+    assert publication["docs"] and publication["publication"]
+    assert not publication["screenshots"]
 
 
 def test_examples_and_pr_template_stay_in_docs_contract() -> None:
