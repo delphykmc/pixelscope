@@ -48,18 +48,17 @@ def test_active_native_gui_workflows_share_the_reviewed_runner_generation() -> N
         assert "windows-2022" in workflow
 
 
-def test_legacy_e1_poc_remains_explicitly_identified_as_feasibility_only() -> None:
-    workflow = _read(".github/workflows/ui-screenshot-poc.yml")
-
-    assert "Feasibility probe only" in workflow
-
-
 def test_feature_workflows_do_not_add_repository_full_pytest_gate() -> None:
     for path in (
         ".github/workflows/user-guide.yml",
         ".github/workflows/ui-screenshot-diff.yml",
-        ".github/workflows/ui-screenshot-poc.yml",
     ):
         workflow = _read(path)
         lines = [line.strip() for line in workflow.splitlines()]
         assert "run: python -m pytest -q" not in lines
+
+
+def test_obsolete_e1_workflow_is_removed_but_shared_capture_engine_remains() -> None:
+    assert not (ROOT / ".github/workflows/ui-screenshot-poc.yml").exists()
+    assert (ROOT / "scripts/capture_ui_scene.py").exists()
+    assert (ROOT / "scripts/run_ui_capture_poc.py").exists()
