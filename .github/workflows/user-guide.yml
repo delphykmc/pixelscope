@@ -1,118 +1,39 @@
 name: User Guide validation
 
+# Historical workflow/check names are retained because the GitHub App cannot read
+# legacy branch-protection required-check settings. Internally this is now the
+# repository's generic change-scoped validation gate.
 on:
   push:
     paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
       - "docs/**"
-      - "mkdocs.yml"
-      - "requirements/docs.txt"
-      - "requirements/runtime.txt"
+      - "examples/**"
+      - "packaging/**"
+      - "requirements/**"
       - "pyproject.toml"
-      - "scripts/check_docs.py"
-      - "scripts/check_screenshot_manifest.py"
-      - "scripts/user_guide_screenshot_hook.py"
-      - "scripts/audit_ui_screenshot_coverage.py"
-      - "scripts/verify_ui_screenshot_capture_packet.py"
-      - "scripts/audit_ui_screenshot_git_history.py"
-      - "scripts/select_ui_screenshots.py"
-      - "scripts/compare_ui_screenshots.py"
-      - "scripts/run_ui_screenshot_diff.py"
-      - "scripts/probe_ui_screenshot_environment.py"
-      - "scripts/screenshot_fixture_identity.py"
-      - "scripts/run_ui_capture_poc.py"
-      - ".github/workflows/ui-screenshot-diff.yml"
-      - "scripts/capture_ui_scene.py"
-      - "scripts/capture_ui_review.py"
-      - "scripts/check_user_guide_site.py"
-      - "scripts/build_user_guide.py"
-      - "scripts/check_user_guide_build_offline.py"
-      - "scripts/e8_profile.py"
-      - "scripts/preflight_ui_screenshot_diff.py"
-      - "scripts/skip_duplicate_user_guide_push.py"
-      - "scripts/prepare_user_guide_publication.py"
-      - "scripts/search_user_guide.py"
-      - "scripts/validate_user_guide_publication_ref.py"
-      - "src/pixelscope/ui/user_guide_help.py"
-      - "tests/ui/test_user_guide_help.py"
-      - ".github/workflows/user-guide-publication.yml"
-      - "scripts/build_release_candidate.py"
-      - "scripts/build_release.py"
-      - "scripts/validate_release_artifact.py"
-      - "tests/unit/test_release_packaging.py"
-      - "tests/unit/test_release_candidate.py"
-      - "tests/unit/test_docs_contract.py"
-      - "tests/unit/test_screenshot_manifest_contract.py"
-      - "tests/unit/test_user_guide_screenshot_rendering.py"
-      - "tests/unit/test_ui_screenshot_coverage_audit.py"
-      - "tests/unit/test_ui_screenshot_capture_packet.py"
-      - "tests/unit/test_ui_screenshot_git_history.py"
-      - "tests/unit/test_ui_screenshot_impact.py"
-      - "tests/unit/test_ui_screenshot_diff.py"
-      - "tests/unit/test_ui_screenshot_preflight.py"
-      - "tests/unit/test_user_guide_ci_dedupe.py"
-      - "tests/unit/test_user_guide_site_contract.py"
-      - "tests/unit/test_user_guide_publication.py"
-      - "tests/unit/test_user_guide_publication_ref.py"
-      - "tests/unit/test_user_guide_agent_search.py"
-      - "tests/unit/test_user_guide_packaging.py"
-      - ".github/pull_request_template.md"
+      - "mkdocs.yml"
       - ".github/workflows/user-guide.yml"
+      - ".github/workflows/user-guide-publication.yml"
+      - ".github/workflows/ui-screenshot-diff.yml"
+      - ".github/workflows/ui-screenshot-poc.yml"
   pull_request:
     paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
       - "docs/**"
-      - "mkdocs.yml"
-      - "requirements/docs.txt"
-      - "requirements/runtime.txt"
+      - "examples/**"
+      - "packaging/**"
+      - "requirements/**"
       - "pyproject.toml"
-      - "scripts/check_docs.py"
-      - "scripts/check_screenshot_manifest.py"
-      - "scripts/user_guide_screenshot_hook.py"
-      - "scripts/audit_ui_screenshot_coverage.py"
-      - "scripts/verify_ui_screenshot_capture_packet.py"
-      - "scripts/audit_ui_screenshot_git_history.py"
-      - "scripts/select_ui_screenshots.py"
-      - "scripts/compare_ui_screenshots.py"
-      - "scripts/run_ui_screenshot_diff.py"
-      - "scripts/probe_ui_screenshot_environment.py"
-      - "scripts/screenshot_fixture_identity.py"
-      - "scripts/run_ui_capture_poc.py"
-      - ".github/workflows/ui-screenshot-diff.yml"
-      - "scripts/capture_ui_scene.py"
-      - "scripts/capture_ui_review.py"
-      - "scripts/check_user_guide_site.py"
-      - "scripts/build_user_guide.py"
-      - "scripts/check_user_guide_build_offline.py"
-      - "scripts/e8_profile.py"
-      - "scripts/preflight_ui_screenshot_diff.py"
-      - "scripts/skip_duplicate_user_guide_push.py"
-      - "scripts/prepare_user_guide_publication.py"
-      - "scripts/search_user_guide.py"
-      - "scripts/validate_user_guide_publication_ref.py"
-      - "src/pixelscope/ui/user_guide_help.py"
-      - "tests/ui/test_user_guide_help.py"
-      - ".github/workflows/user-guide-publication.yml"
-      - "scripts/build_release_candidate.py"
-      - "scripts/build_release.py"
-      - "scripts/validate_release_artifact.py"
-      - "tests/unit/test_release_packaging.py"
-      - "tests/unit/test_release_candidate.py"
-      - "tests/unit/test_docs_contract.py"
-      - "tests/unit/test_screenshot_manifest_contract.py"
-      - "tests/unit/test_user_guide_screenshot_rendering.py"
-      - "tests/unit/test_ui_screenshot_coverage_audit.py"
-      - "tests/unit/test_ui_screenshot_capture_packet.py"
-      - "tests/unit/test_ui_screenshot_git_history.py"
-      - "tests/unit/test_ui_screenshot_impact.py"
-      - "tests/unit/test_ui_screenshot_diff.py"
-      - "tests/unit/test_ui_screenshot_preflight.py"
-      - "tests/unit/test_user_guide_ci_dedupe.py"
-      - "tests/unit/test_user_guide_site_contract.py"
-      - "tests/unit/test_user_guide_publication.py"
-      - "tests/unit/test_user_guide_publication_ref.py"
-      - "tests/unit/test_user_guide_agent_search.py"
-      - "tests/unit/test_user_guide_packaging.py"
-      - ".github/pull_request_template.md"
+      - "mkdocs.yml"
       - ".github/workflows/user-guide.yml"
+      - ".github/workflows/user-guide-publication.yml"
+      - ".github/workflows/ui-screenshot-diff.yml"
+      - ".github/workflows/ui-screenshot-poc.yml"
 
 permissions:
   contents: read
@@ -120,14 +41,20 @@ permissions:
   pull-requests: read
 
 jobs:
-  build:
-    # Preserve existing required PR check names; duplicate push is a distinct context.
-    name: ${{ github.event_name == 'push' && format('Push validation on {0}', matrix.os) || format('Validate on {0}', matrix.os) }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-2022]
+  classify:
+    name: Classify validation scope
+    runs-on: ubuntu-latest
+    outputs:
+      skip_push: ${{ steps.duplicate_push.outputs.skip }}
+      docs: ${{ steps.scope.outputs.docs }}
+      help_ui: ${{ steps.scope.outputs.help_ui }}
+      release: ${{ steps.scope.outputs.release }}
+      raw: ${{ steps.scope.outputs.raw }}
+      yuv: ${{ steps.scope.outputs.yuv }}
+      static: ${{ steps.scope.outputs.static }}
+      src_changed: ${{ steps.scope.outputs.src_changed }}
+      windows_native: ${{ steps.scope.outputs.windows_native }}
+      any_validation: ${{ steps.scope.outputs.any_validation }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,12 +62,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-          cache: pip
-          cache-dependency-path: requirements/docs.txt
-      # Preserve automatic standalone-branch validation. Skip duplicate push
-      # work ONLY if a valid matching PR run tests an IDENTICAL Git tree
-      # (synthetic merge tree == standalone branch HEAD tree). Otherwise
-      # retain BOTH validations. PR runs are never skipped or cancelled.
+      # Preserve branch-push validation unless a current PR run proves that its
+      # synthetic merge tree is byte-identical to the standalone branch tree.
       - name: Check PR run and merge-tree identity before duplicate push validation
         id: duplicate_push
         if: github.event_name == 'push' && github.ref != 'refs/heads/main'
@@ -151,28 +74,50 @@ jobs:
           --repo "${{ github.repository }}"
           --branch "${{ github.ref_name }}"
           --sha "${{ github.sha }}"
+      - name: Classify changed paths
+        id: scope
+        if: steps.duplicate_push.outputs.skip != 'true'
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          python scripts/classify_ci_changes.py --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA" --output build/ci-classification.json --github-output "$GITHUB_OUTPUT"
+
+  ubuntu:
+    name: ${{ github.event_name == 'push' && 'Push validation on ubuntu-latest' || 'Validate on ubuntu-latest' }}
+    needs: classify
+    if: needs.classify.outputs.skip_push != 'true' && needs.classify.outputs.any_validation == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: |
+            requirements/docs.txt
+            pyproject.toml
+      - name: Install cheap validation tools
+        run: python -m pip install pytest==7.4.4 ruff==0.1.15
+      - name: Validate CI classifier contract
+        run: python -m pytest -q tests/unit/test_ci_change_classification.py
       - name: Install documentation validation dependencies
-        if: steps.duplicate_push.outputs.skip != 'true'
-        run: >-
-          python -m pip install -r requirements/docs.txt
-          pytest==7.4.4 ruff==0.1.15 Pillow==12.3.0
-      - name: Install application for Windows release-artifact regression tests
-        if: runner.os == 'Windows' && steps.duplicate_push.outputs.skip != 'true'
-        run: python -m pip install -e .
-      - name: Install pinned Qt UI test harness on Windows
-        if: runner.os == 'Windows' && steps.duplicate_push.outputs.skip != 'true'
-        run: python -m pip install pytest-qt==4.2.0
-      - name: Validate E7 local and context Help UI on Windows
-        if: runner.os == 'Windows' && steps.duplicate_push.outputs.skip != 'true'
-        run: python -m pytest -q tests/ui/test_user_guide_help.py
+        if: needs.classify.outputs.docs == 'true'
+        run: python -m pip install -r requirements/docs.txt Pillow==12.3.0
       - name: Check installed documentation environment
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.docs == 'true'
         run: python -m pip check
       - name: Check documentation contract
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.docs == 'true'
         run: python scripts/check_docs.py
       - name: Run documentation contract tests
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.docs == 'true'
         run: >-
           python -m pytest -q
           tests/unit/test_docs_contract.py
@@ -191,39 +136,78 @@ jobs:
           tests/unit/test_user_guide_publication_ref.py
           tests/unit/test_user_guide_agent_search.py
       - name: Check E6 coverage decisions without fabricating completion
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.docs == 'true'
         run: python scripts/audit_ui_screenshot_coverage.py
       - name: Audit approved screenshot image blobs and historical commits
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.docs == 'true'
         run: python scripts/audit_ui_screenshot_git_history.py
       - name: Validate E3 impact selection for pinned PR base and head
-        if: github.event_name == 'pull_request' && steps.duplicate_push.outputs.skip != 'true'
+        if: github.event_name == 'pull_request' && needs.classify.outputs.docs == 'true'
         run: >-
           python scripts/select_ui_screenshots.py
           --base "${{ github.event.pull_request.base.sha }}"
           --head "${{ github.event.pull_request.head.sha }}"
-      - name: Run release-artifact regressions on Windows
-        if: runner.os == 'Windows' && steps.duplicate_push.outputs.skip != 'true'
-        run: python -m pytest -q tests/unit/test_release_packaging.py tests/unit/test_release_candidate.py
       - name: Check whole-repository Ruff lint and formatting
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.static == 'true'
         run: |
           python -m ruff check .
           python -m ruff format --check .
-      - name: Install pinned mypy for full source validation
-        if: runner.os == 'Windows' && steps.duplicate_push.outputs.skip != 'true'
-        run: python -m pip install mypy==1.8.0
-      - name: Type-check entire src with mypy
-        if: runner.os == 'Windows' && steps.duplicate_push.outputs.skip != 'true'
-        run: python -m mypy src
       - name: Check branch diff for whitespace errors
-        if: steps.duplicate_push.outputs.skip != 'true'
-        run: |
-          git fetch origin main:refs/remotes/origin/main
-          git diff --check origin/main...HEAD
+        run: git diff --check "$CI_BASE_SHA...$CI_HEAD_SHA"
       - name: Build from checked-in files with outbound sockets blocked
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.docs == 'true'
         run: python scripts/check_user_guide_build_offline.py
       - name: Validate generated offline artifact
-        if: steps.duplicate_push.outputs.skip != 'true'
+        if: needs.classify.outputs.docs == 'true'
         run: python scripts/check_user_guide_site.py site
+
+  windows:
+    name: ${{ github.event_name == 'push' && 'Push validation on windows-2022' || 'Validate on windows-2022' }}
+    needs: classify
+    if: needs.classify.outputs.skip_push != 'true' && needs.classify.outputs.windows_native == 'true'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: |
+            requirements/runtime.txt
+            pyproject.toml
+      - name: Install application and focused Windows validation tools
+        run: |
+          python -m pip install -e .
+          python -m pip install pytest==7.4.4 pytest-qt==4.2.0 mypy==1.8.0
+          python -m pip check
+      - name: Validate local and context Help UI
+        if: needs.classify.outputs.help_ui == 'true'
+        run: python -m pytest -q tests/ui/test_user_guide_help.py
+      - name: Run release-artifact regressions
+        if: needs.classify.outputs.release == 'true'
+        run: python -m pytest -q tests/unit/test_release_packaging.py tests/unit/test_release_candidate.py
+      - name: Run focused RAW contracts
+        if: needs.classify.outputs.raw == 'true'
+        run: >-
+          python -m pytest -q
+          tests/unit/test_packed_raw_stream.py
+          tests/unit/test_raw_reader.py
+          tests/unit/test_wp_b_raw_profile_compatibility.py
+          tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_separates_storage_format_container_and_bit_depth
+          tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_packed_stream_supports_variable_depth_and_bit_order
+          tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_packed_formats_hide_non_applicable_rows
+          tests/ui/test_wp_b_raw_binary_compatibility.py::test_raw_dialog_tracks_minimum_stride_until_manual_override
+      - name: Run focused YUV contracts
+        if: needs.classify.outputs.yuv == 'true'
+        run: >-
+          python -m pytest -q
+          tests/unit/test_yuv_runtime_contracts.py
+          tests/unit/test_yuv_semantics.py
+          tests/ui/test_wp_c1_yuv_semantics.py
+          tests/ui/test_wp_c2_yuv_difference.py
+      - name: Type-check entire src with mypy
+        if: needs.classify.outputs.src_changed == 'true'
+        run: python -m mypy src
