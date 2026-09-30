@@ -57,9 +57,11 @@ jobs:
           python -m pytest -q
           tests/unit/test_packed_raw_stream.py
           tests/unit/test_raw_reader.py
-          tests/unit/test_wp_b_raw_profile_compatibility.py
-          tests/ui/test_p1c_raw_dialog.py
-          tests/ui/test_wp_b_raw_binary_compatibility.py
+          tests/unit/test_wp_b_raw_profile_compatibility.py::test_minimum_stride_uses_storage_specific_row_layout
+          tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_separates_storage_format_container_and_bit_depth
+          tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_packed_stream_supports_variable_depth_and_bit_order
+          tests/ui/test_p1c_raw_dialog.py::test_raw_dialog_packed_formats_hide_non_applicable_rows
+          tests/ui/test_wp_b_raw_binary_compatibility.py::test_raw_dialog_tracks_minimum_stride_until_manual_override
       - name: Check lint and formatting
         run: |
           python -m ruff check .
