@@ -38,7 +38,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: focused-validation-${{ github.head_ref || github.ref_name }}
+  group: focused-validation-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -57,7 +57,9 @@ jobs:
       raw: ${{ steps.scope.outputs.raw }}
       yuv: ${{ steps.scope.outputs.yuv }}
       static: ${{ steps.scope.outputs.static }}
+      static_config_changed: ${{ steps.scope.outputs.static_config_changed }}
       src_changed: ${{ steps.scope.outputs.src_changed }}
+      typecheck: ${{ steps.scope.outputs.typecheck }}
       windows_native: ${{ steps.scope.outputs.windows_native }}
       any_validation: ${{ steps.scope.outputs.any_validation }}
     steps:
@@ -117,10 +119,10 @@ jobs:
           tests/unit/test_ci_test_groups.py
           tests/unit/test_validation_ci_dedupe.py
       - name: Install type-check environment
-        if: needs.classify.outputs.src_changed == 'true'
+        if: needs.classify.outputs.typecheck == 'true'
         run: python -m pip install -r requirements/runtime.txt mypy==1.8.0
       - name: Type-check source
-        if: needs.classify.outputs.src_changed == 'true'
+        if: needs.classify.outputs.typecheck == 'true'
         run: python -m mypy src
       - name: Install documentation validation dependencies
         if: needs.classify.outputs.docs == 'true'
