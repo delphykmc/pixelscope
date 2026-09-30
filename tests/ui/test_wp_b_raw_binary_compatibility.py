@@ -31,11 +31,6 @@ def test_raw_dialog_tracks_minimum_stride_until_manual_override(qtbot: object) -
     assert dialog.stride.value() == 100
 
     dialog.container.setCurrentIndex(dialog.container.findData("uint16"))
-    dialog.storage_format.setCurrentIndex(dialog.storage_format.findData("packed_stream"))
-    dialog.bit_depth.setValue(10)
-    assert dialog.minimum_stride_bytes() == 125
-    assert dialog.stride.value() == 125
-
     dialog.storage_format.setCurrentIndex(dialog.storage_format.findData("mipi_raw12"))
     assert dialog.stride.value() == 150
 

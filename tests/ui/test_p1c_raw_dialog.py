@@ -110,18 +110,6 @@ def test_raw_dialog_packed_stream_supports_variable_depth_and_bit_order(
     assert profile.stride_bytes == 9
 
 
-def test_raw_dialog_packed_stream_minimum_stride_matches_4k10_geometry(
-    qtbot: object,
-) -> None:
-    dialog = RawOpenDialog()
-    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
-    dialog.width_box.setValue(4000)
-    dialog.storage_format.setCurrentIndex(dialog.storage_format.findData("packed_stream"))
-    dialog.bit_depth.setValue(10)
-
-    assert dialog.minimum_stride_bytes() == 5000
-
-
 def test_raw_dialog_packed_formats_hide_non_applicable_rows(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]

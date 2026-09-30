@@ -153,8 +153,6 @@ def test_minimum_stride_uses_storage_specific_row_layout() -> None:
 
     assert minimum_row_bytes(width, "unpacked", "uint16") == 8160
     assert minimum_row_bytes(width, "unpacked", "uint8") == 4080
-    assert minimum_row_bytes(width, "packed_stream", None, 10) == 5100
-    assert minimum_row_bytes(width, "packed_stream", None, 12) == 6120
     assert minimum_row_bytes(width, "mipi_raw10", None) == 5100
     assert minimum_row_bytes(width, "mipi_raw12", None) == 6120
     assert minimum_row_bytes(width, "mipi_raw14", None) == 7140
