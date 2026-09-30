@@ -118,3 +118,13 @@ def test_documentation_test_files_select_their_owned_family() -> None:
     assert core["docs_core"] and not core["screenshots"] and not core["publication"]
     assert screenshot["screenshots"] and not screenshot["publication"]
     assert publication["publication"] and not publication["screenshots"]
+
+
+def test_pyproject_change_runs_static_and_typecheck_gates() -> None:
+    groups = classify("pyproject.toml")
+
+    assert groups["static_config_changed"]
+    assert groups["static"]
+    assert groups["typecheck"]
+    assert not groups["src_changed"]
+    assert groups["windows_native"]
