@@ -120,7 +120,6 @@ DOC_EXACT = (
     ".github/workflows/user-guide.yml",
     ".github/workflows/user-guide-publication.yml",
     ".github/workflows/ui-screenshot-diff.yml",
-    ".github/workflows/ui-screenshot-poc.yml",
     ".github/pull_request_template.md",
 )
 
