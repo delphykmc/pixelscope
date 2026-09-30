@@ -2,7 +2,7 @@ name: RAW input validation
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
     paths:
       - "src/pixelscope/io/raw_format.py"
       - "src/pixelscope/io/raw_profile.py"
@@ -50,12 +50,15 @@ jobs:
           architecture: x64
           cache: pip
           cache-dependency-path: |
-            requirements/dev.txt
             requirements/runtime.txt
-            requirements/docs.txt
             pyproject.toml
-      - name: Install canonical development environment
-        run: python -m pip install -r requirements/dev.txt -e .
+      - name: Install focused RAW validation environment
+        run: >-
+          python -m pip install
+          -r requirements/runtime.txt
+          -e . --no-deps
+          pytest==7.4.4 pytest-qt==4.2.0
+          ruff==0.1.15 mypy==1.8.0
       - name: Check installed environment
         run: python -m pip check
       - name: Run focused RAW contract slice
@@ -74,13 +77,11 @@ jobs:
           python -m ruff format --check .
       - name: Type-check source
         run: python -m mypy src
-      # Full pytest is intentionally not part of every RAW PR synchronization.
-      # For merge-ready evidence, add the temporary HTML marker below to the PR
-      # body. An edited-event run executes the full suite against the same HEAD.
+      # Full pytest is completion evidence, not per-commit RAW CI.
+      # Run it explicitly with workflow_dispatch on the merge-ready HEAD,
+      # or once in the owner's canonical local environment.
       - name: Run full repository suite
-        if: >-
-          github.event_name == 'workflow_dispatch' ||
-          contains(github.event.pull_request.body || '', '<!-- raw-full-validation -->')
+        if: github.event_name == 'workflow_dispatch'
         run: python -m pytest -q
       - name: Check diff whitespace
         if: github.event_name == 'pull_request'
