@@ -101,6 +101,9 @@ DOC_CORE_EXACT = (
     "scripts/build_user_guide.py",
     "scripts/search_user_guide.py",
     ".github/pull_request_template.md",
+    "tests/unit/test_docs_contract.py",
+    "tests/unit/test_user_guide_site_contract.py",
+    "tests/unit/test_user_guide_agent_search.py",
 )
 
 SCREENSHOT_EXACT = (
@@ -120,6 +123,14 @@ SCREENSHOT_EXACT = (
     "scripts/e8_profile.py",
     "scripts/preflight_ui_screenshot_diff.py",
     ".github/workflows/ui-screenshot-diff.yml",
+    "tests/unit/test_screenshot_manifest_contract.py",
+    "tests/unit/test_user_guide_screenshot_rendering.py",
+    "tests/unit/test_ui_screenshot_coverage_audit.py",
+    "tests/unit/test_ui_screenshot_impact.py",
+    "tests/unit/test_ui_screenshot_diff.py",
+    "tests/unit/test_ui_screenshot_preflight.py",
+    "tests/unit/test_ui_screenshot_capture_packet.py",
+    "tests/unit/test_ui_screenshot_git_history.py",
 )
 
 PUBLICATION_EXACT = (
@@ -128,6 +139,9 @@ PUBLICATION_EXACT = (
     ".github/workflows/user-guide-publication.yml",
     "scripts/build_release.py",
     "scripts/release_contract.py",
+    "tests/unit/test_user_guide_packaging.py",
+    "tests/unit/test_user_guide_publication.py",
+    "tests/unit/test_user_guide_publication_ref.py",
 )
 
 CI_POLICY_EXACT = (
