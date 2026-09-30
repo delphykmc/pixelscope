@@ -108,3 +108,13 @@ def test_examples_and_pr_template_stay_in_docs_contract() -> None:
 
     assert examples["docs"] and examples["any_validation"]
     assert template["docs"] and template["any_validation"]
+
+
+def test_documentation_test_files_select_their_owned_family() -> None:
+    core = classify("tests/unit/test_docs_contract.py")
+    screenshot = classify("tests/unit/test_ui_screenshot_impact.py")
+    publication = classify("tests/unit/test_user_guide_publication.py")
+
+    assert core["docs_core"] and not core["screenshots"] and not core["publication"]
+    assert screenshot["screenshots"] and not screenshot["publication"]
+    assert publication["publication"] and not publication["screenshots"]
