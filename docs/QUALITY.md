@@ -28,10 +28,9 @@ RAW input changes use `.github/workflows/raw-input.yml` as a path-scoped validat
 layer. Normal PR synchronization runs only the focused RAW decoder/profile/dialog
 slice plus lint, formatting, type checking, and environment checks. The full
 `python -m pytest -q` suite remains completion evidence, but should be executed
-once on the merge-ready HEAD rather than on every RAW PR synchronization. Trigger
-that merge gate either with `workflow_dispatch` or by temporarily placing
-`<!-- raw-full-validation -->` in the PR body; remove the marker after the
-same-HEAD full-suite result has been recorded.
+once on the merge-ready HEAD rather than on every RAW PR synchronization. Run that
+merge gate explicitly with `workflow_dispatch`, or once in the owner's canonical
+local development environment and record the exact result in the PR.
 
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
