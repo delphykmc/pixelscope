@@ -31,6 +31,8 @@ Automatic PR validation is change-scoped and feature-neutral through
 
 - Ruff/format and mypy are baseline static gates for Python source changes. Mypy runs
   on Ubuntu whenever `src/**` changes and does not require native Qt pytest to run.
+  `pyproject.toml` is also static/typecheck authority, so changing project Ruff/mypy
+  configuration runs both gates even when no `.py` file changed.
 - Documentation is split into core/prose, screenshot-lifecycle, and publication/
   packaging families. A prose edit does not automatically run screenshot provenance
   or publication contracts. The offline User Guide build remains a cheap docs-wide
@@ -52,6 +54,12 @@ owner-local full-suite runtime, review the slice before adding more permanent no
 Do not maintain a second hand-written "remaining tests" list. If complement execution
 becomes worthwhile, derive it from the same central registry so CI-covered and
 owner-local residual coverage cannot drift.
+
+Push and pull-request validation use separate concurrency identities for the same
+branch. Newer PR runs may cancel stale PR runs, and newer push runs may cancel stale
+push runs, but a standalone branch push must never cancel the synthetic PR merge-context
+validation (or vice versa). The push dedupe helper remains the only authority allowed
+to skip duplicate push validation after proving equivalent tested Git trees.
 
 E4 native screenshot capture is an expensive final-review check. A relevant ready PR
 gets one automatic pinned base/head capture when it is opened, reopened, or leaves
