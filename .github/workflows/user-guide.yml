@@ -87,7 +87,7 @@ jobs:
           python scripts/classify_ci_changes.py --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA" --output build/ci-classification.json --github-output "$GITHUB_OUTPUT"
 
   ubuntu:
-    name: ${{ github.event_name == 'push' && 'Push validation on ubuntu-latest' || 'Validate on ubuntu-latest' }}
+    name: Validate on ubuntu-latest
     needs: classify
     if: needs.classify.outputs.skip_push != 'true' && needs.classify.outputs.any_validation == 'true'
     runs-on: ubuntu-latest
@@ -167,7 +167,7 @@ jobs:
         run: python scripts/check_user_guide_site.py site
 
   windows:
-    name: ${{ github.event_name == 'push' && 'Push validation on windows-2022' || 'Validate on windows-2022' }}
+    name: Validate on windows-2022
     needs: classify
     if: needs.classify.outputs.skip_push != 'true' && needs.classify.outputs.windows_native == 'true'
     runs-on: windows-2022
