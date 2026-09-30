@@ -24,6 +24,43 @@ Use narrower tests during development. Before completion, run the full
 applicable suite. If a command cannot run, record the exact command, failure,
 reason, and unverified risk.
 
+### CI validation ownership
+
+Automatic PR validation is change-scoped. `.github/workflows/user-guide.yml` retains
+its historical filename/check names for branch-protection compatibility, but its
+internal responsibility is repository-wide classification and focused validation:
+
+- documentation/tooling changes run the documentation contract on Ubuntu without
+  installing the application or Qt;
+- Help, release, RAW, and YUV implementation changes opt into the relevant focused
+  Windows slice;
+- unrelated Python changes receive cheap static validation without starting a
+  Windows native-GUI runner;
+- a feature adds or updates a focused test group in this shared selector rather than
+  adding another permanent feature-named workflow; and
+- repository-wide `python -m pytest -q` is not a per-commit CI gate. Run it once on
+  the final merge-ready owner Windows environment and record the exact result.
+
+E4 native screenshot capture is an expensive final-review check. A relevant ready PR
+gets one automatic pinned base/head capture when it is opened, reopened, or leaves
+draft. It does not rerun on every synchronize event. If rendering-relevant commits
+land after that capture, rerun `WP-Help-E4 pinned Windows screenshot comparison`
+with `workflow_dispatch` against the final exact base/head SHAs before merge.
+
+Native Qt CI currently pins `windows-2022`. This is a compatibility mitigation for
+the pinned CPython 3.10 / PySide6 6.4.2 stack, not evidence that all Windows native
+lifecycle failures are runner regressions. PR #104 observed `windows-latest`
+Windows Server 2025 runs where Help assertions completed (`23 passed`) before the
+process exited with code 1, and a separate E4 native capture exited with code 1;
+the corresponding `windows-2022` runs completed successfully. Do not use this pin
+to dismiss Issue #81 or other reproducible Qt/Shiboken lifecycle failures.
+
+Revalidate the Windows runner pin whenever Python/PySide is upgraded, GitHub changes
+or deprecates the pinned image, and at least once per quarter. Advance the pin only
+through a dedicated CI-policy PR that records the candidate runner image and clean
+Help/E4 native results. Keep all native-GUI workflows on the same reviewed runner
+generation unless a documented exception requires otherwise.
+
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
 cleanup because `processEvents()` alone does not guarantee that deferred
