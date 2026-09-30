@@ -24,6 +24,15 @@ Use narrower tests during development. Before completion, run the full
 applicable suite. If a command cannot run, record the exact command, failure,
 reason, and unverified risk.
 
+RAW input changes use `.github/workflows/raw-input.yml` as a path-scoped validation
+layer. Normal PR synchronization runs only the focused RAW decoder/profile/dialog
+slice plus lint, formatting, type checking, and environment checks. The full
+`python -m pytest -q` suite remains completion evidence, but should be executed
+once on the merge-ready HEAD rather than on every RAW PR synchronization. Trigger
+that merge gate either with `workflow_dispatch` or by temporarily placing
+`<!-- raw-full-validation -->` in the PR body; remove the marker after the
+same-HEAD full-suite result has been recorded.
+
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
 cleanup because `processEvents()` alone does not guarantee that deferred
