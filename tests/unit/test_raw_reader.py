@@ -91,7 +91,9 @@ def _pack_stream(values: list[int], bit_depth: int, bit_order: str) -> bytes:
     for start in range(0, len(bits), 8):
         byte_bits = bits[start : start + 8]
         if bit_order == "msb":
-            packed.append(sum(bit << (7 - index) for index, bit in enumerate(byte_bits)))
+            packed.append(
+                sum(bit << (7 - index) for index, bit in enumerate(byte_bits))
+            )
         else:
             packed.append(sum(bit << index for index, bit in enumerate(byte_bits)))
     return bytes(packed)
