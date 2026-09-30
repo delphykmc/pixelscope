@@ -81,12 +81,7 @@ def test_packed_stream_known_vectors_skip_row_padding(
 ) -> None:
     profile = _profile(bit_order, stride_bytes=9)
     path = tmp_path / f"packed-{bit_order}.raw"
-    path.write_bytes(
-        bytes.fromhex(row0)
-        + b"\xaa\xbb"
-        + bytes.fromhex(row1)
-        + b"\xcc\xdd"
-    )
+    path.write_bytes(bytes.fromhex(row0) + b"\xaa\xbb" + bytes.fromhex(row1) + b"\xcc\xdd")
 
     assert read_raw(path, profile).tolist() == [
         [0, 1, 2, 511, 1023],
@@ -103,12 +98,7 @@ def test_packed_stream_decodes_supported_bit_depth_boundaries(
 ) -> None:
     maximum = (1 << bit_depth) - 1
     values = [0, 1 << (bit_depth - 1), maximum]
-    profile = _profile(
-        bit_order,
-        bit_depth=bit_depth,
-        width=len(values),
-        height=1,
-    )
+    profile = _profile(bit_order, bit_depth=bit_depth, width=len(values), height=1)
     row = _pack_row(values, bit_depth, bit_order)
     path = tmp_path / f"packed-{bit_depth}-{bit_order}.raw"
     path.write_bytes(row)
