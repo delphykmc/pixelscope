@@ -81,9 +81,7 @@ def _pack_stream(values: list[int], bit_depth: int, bit_order: str) -> bytes:
     bits: list[int] = []
     for value in values:
         shifts = (
-            range(bit_depth - 1, -1, -1)
-            if bit_order == "msb"
-            else range(bit_depth)
+            range(bit_depth - 1, -1, -1) if bit_order == "msb" else range(bit_depth)
         )
         bits.extend((value >> shift) & 1 for shift in shifts)
     bits.extend([0] * ((-len(bits)) % 8))
