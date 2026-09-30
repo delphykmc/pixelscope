@@ -58,8 +58,13 @@ to dismiss Issue #81 or other reproducible Qt/Shiboken lifecycle failures.
 Revalidate the Windows runner pin whenever Python/PySide is upgraded, GitHub changes
 or deprecates the pinned image, and at least once per quarter. Advance the pin only
 through a dedicated CI-policy PR that records the candidate runner image and clean
-Help/E4 native results. Keep all native-GUI workflows on the same reviewed runner
+Help/E4 native results. Keep active native-GUI validation on the same reviewed runner
 generation unless a documented exception requires otherwise.
+
+The historical E1 screenshot PoC remains a legacy feasibility workflow until its
+required-check status can be verified by a repository owner. The GitHub App cannot
+read legacy branch-protection settings, so Issue #105 does not delete or otherwise
+mutate that workflow merely to make the runner policy look uniform.
 
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
