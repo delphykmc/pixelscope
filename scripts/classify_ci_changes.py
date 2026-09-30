@@ -121,6 +121,7 @@ DOC_EXACT = (
     ".github/workflows/user-guide-publication.yml",
     ".github/workflows/ui-screenshot-diff.yml",
     ".github/workflows/ui-screenshot-poc.yml",
+    ".github/pull_request_template.md",
 )
 
 HELP_EXACT = (
@@ -182,7 +183,9 @@ SHARED_RUNTIME = ("requirements/runtime.txt", "pyproject.toml")
 
 def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     paths = {path for change in changes for path in change.paths}
-    docs = any(_matches(path, exact=DOC_EXACT, prefixes=("docs/",)) for path in paths)
+    docs = any(
+        _matches(path, exact=DOC_EXACT, prefixes=("docs/", "examples/")) for path in paths
+    )
     help_ui = any(path in HELP_EXACT for path in paths)
     release = any(
         _matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths
