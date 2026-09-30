@@ -35,7 +35,7 @@ def test_expensive_e4_capture_is_not_a_per_synchronize_gate() -> None:
     assert "types: [opened, reopened, ready_for_review]" in workflow
     assert "synchronize" not in workflow
     assert "workflow_dispatch:" in workflow
-    assert 'runs-on: windows-2022' in workflow
+    assert "runs-on: windows-2022" in workflow
 
 
 def test_active_native_gui_workflows_share_the_reviewed_runner_generation() -> None:
