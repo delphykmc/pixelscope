@@ -33,6 +33,7 @@ def test_raw_dialog_separates_storage_format_container_and_bit_depth(
     assert _form_label(dialog, dialog.bit_depth) == "Bit depth"
     assert _form_label(dialog, dialog.byte_order) == "Byte order"
     assert _form_label(dialog, dialog.bit_alignment) == "Bit alignment"
+    assert _form_label(dialog, dialog.packed_bit_order) == "Bit order"
     assert [dialog.container.itemText(index) for index in range(dialog.container.count())] == [
         "uint8",
         "uint16",
@@ -45,6 +46,7 @@ def test_raw_dialog_separates_storage_format_container_and_bit_depth(
         dialog.bit_alignment.itemText(index) for index in range(dialog.bit_alignment.count())
     ] == ["LSB aligned", "MSB aligned"]
     assert dialog.storage_format.currentData() == "unpacked"
+    assert dialog.packed_bit_order.isHidden()
     assert dialog.container.currentData() == "uint16"
     assert not dialog.container.isHidden()
     assert not dialog.byte_order.isHidden()
@@ -75,6 +77,51 @@ def test_raw_dialog_separates_storage_format_container_and_bit_depth(
     assert dialog.profile().bit_alignment is None
 
 
+def test_raw_dialog_packed_stream_supports_variable_depth_and_bit_order(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    raw_path = tmp_path / "packed.raw"
+    raw_path.write_bytes(bytes(18))
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.width_box.setValue(5)
+    dialog.height_box.setValue(2)
+    dialog.storage_format.setCurrentIndex(dialog.storage_format.findData("packed_stream"))
+    dialog.bit_depth.setValue(10)
+    dialog.set_source_path(raw_path)
+
+    assert dialog.bit_depth.isEnabled()
+    assert dialog.minimum_stride_bytes() == 7
+    assert dialog.stride.value() == 9
+    assert dialog.expected_file_size() == 18
+    assert dialog.file_size_state == "match"
+    assert dialog.container.isHidden()
+    assert dialog.byte_order.isHidden()
+    assert dialog.bit_alignment.isHidden()
+    assert not dialog.packed_bit_order.isHidden()
+    assert dialog.packed_bit_order.currentData() == "msb"
+
+    dialog.packed_bit_order.setCurrentIndex(dialog.packed_bit_order.findData("lsb"))
+    profile = dialog.profile()
+    assert profile.storage_format == "packed_stream"
+    assert profile.bit_depth == 10
+    assert profile.packed_bit_order == "lsb"
+    assert profile.stride_bytes == 9
+
+
+def test_raw_dialog_packed_stream_minimum_stride_matches_4k10_geometry(
+    qtbot: object,
+) -> None:
+    dialog = RawOpenDialog()
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    dialog.width_box.setValue(4000)
+    dialog.storage_format.setCurrentIndex(dialog.storage_format.findData("packed_stream"))
+    dialog.bit_depth.setValue(10)
+
+    assert dialog.minimum_stride_bytes() == 5000
+
+
 def test_raw_dialog_packed_formats_hide_non_applicable_rows(qtbot: object) -> None:
     dialog = RawOpenDialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
@@ -93,6 +140,7 @@ def test_raw_dialog_packed_formats_hide_non_applicable_rows(qtbot: object) -> No
         assert dialog.container.isHidden()
         assert dialog.byte_order.isHidden()
         assert dialog.bit_alignment.isHidden()
+        assert dialog.packed_bit_order.isHidden()
         assert dialog.minimum_stride_bytes() == minimum_stride
         dialog.stride.setValue(minimum_stride)
         profile = dialog.profile()
@@ -106,6 +154,7 @@ def test_raw_dialog_packed_formats_hide_non_applicable_rows(qtbot: object) -> No
     assert dialog.container.currentData() == "uint16"
     assert not dialog.byte_order.isHidden()
     assert not dialog.bit_alignment.isHidden()
+    assert dialog.packed_bit_order.isHidden()
 
 
 def test_raw_dialog_rejects_invalid_mipi_dimensions(qtbot: object) -> None:
@@ -245,6 +294,7 @@ def test_raw_dialog_uses_fixed_edges_with_an_adaptive_middle_gap(
         dialog.bit_depth,
         dialog.byte_order,
         dialog.bit_alignment,
+        dialog.packed_bit_order,
         dialog.layout_kind,
         dialog.bayer_pattern,
         dialog.expected_file_size_value,
