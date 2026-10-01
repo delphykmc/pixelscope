@@ -75,8 +75,6 @@ def test_direct_file_drop_extends_selection_and_keeps_catalog_deduplicated(
     window.close()
 
 
-
-
 def test_same_path_direct_drop_refreshes_existing_image_source(
     qtbot: object,
     tmp_path: Path,
