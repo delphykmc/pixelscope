@@ -3690,6 +3690,16 @@ class MainWindow(QMainWindow):
                         preserve_view=True,
                         reveal_document_id=additions[-1],
                     )
+                elif any(
+                    document_id in previous_set
+                    and (document := self.documents.get(document_id)) is not None
+                    and document.loading_state == "pending"
+                    for document_id in document_ids
+                ):
+                    # Reopening an already selected RAW can change its profile without
+                    # adding a document. Registration invalidates the resident source;
+                    # render again so the updated profile is decoded immediately.
+                    self._render_selection(preserve_view=True)
             else:
                 self._select_document_ids(document_ids)
 
