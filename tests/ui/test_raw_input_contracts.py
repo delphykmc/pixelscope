@@ -174,7 +174,17 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     first = window.documents[document_id]
     assert first.raw_profile.packed_bit_order == "lsb"
     assert first.source is not None
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: bool(window.comparison_analysis_panel.last_results),
+        timeout=3000,
+    )
     lsb_source = first.source.copy()
+    assert window.viewer.image_item.image is not None
+    lsb_preview = np.asarray(window.viewer.image_item.image).copy()
+    lsb_histogram = tuple(
+        counts.copy()
+        for counts in window.comparison_analysis_panel.last_results[0].histogram.counts
+    )
     first_generation = first.generation
 
     window._handle_dropped_paths([raw_path])
@@ -189,6 +199,18 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     assert reloaded.source is not None
     assert not np.array_equal(reloaded.source, lsb_source)
     assert window.viewer.document is reloaded
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: bool(window.comparison_analysis_panel.last_results)
+        and window.comparison_analysis_panel._documents == [reloaded],
+        timeout=3000,
+    )
+    assert window.viewer.image_item.image is not None
+    assert not np.array_equal(np.asarray(window.viewer.image_item.image), lsb_preview)
+    msb_histogram = window.comparison_analysis_panel.last_results[0].histogram.counts
+    assert any(
+        not np.array_equal(before, after)
+        for before, after in zip(lsb_histogram, msb_histogram, strict=True)
+    )
     value = reloaded.pixel_at(0, 0)
     assert value is not None
     window.viewer.cursor_moved.emit(0, 0, value)
