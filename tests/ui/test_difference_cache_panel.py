@@ -128,14 +128,8 @@ def test_same_document_id_new_generation_does_not_restore_stale_difference(
 ) -> None:
     panel = DifferencePanel(difference_cache_budget_bytes=4096)
     qtbot.addWidget(panel)  # type: ignore[attr-defined]
-    first = ImageDocument.from_array(
-        np.zeros((4, 4), dtype=np.uint8),
-        "first.png",
-    )
-    second = ImageDocument.from_array(
-        np.full((4, 4), 10, dtype=np.uint8),
-        "second.png",
-    )
+    first = ImageDocument.from_array(np.zeros((4, 4), dtype=np.uint8), "first.png")
+    second = ImageDocument.from_array(np.full((4, 4), 10, dtype=np.uint8), "second.png")
     pair = (first.document_id, second.document_id)
     panel.set_documents([first, second], pair)
     panel.calculate_difference()
@@ -147,10 +141,7 @@ def test_same_document_id_new_generation_does_not_restore_stale_difference(
     stale_key = panel._cache_key()
     assert stale_result is not None and stale_key is not None
 
-    refreshed = ImageDocument.from_array(
-        np.full((4, 4), 100, dtype=np.uint8),
-        "first.png",
-    )
+    refreshed = ImageDocument.from_array(np.full((4, 4), 100, dtype=np.uint8), "first.png")
     refreshed.document_id = first.document_id
     refreshed.generation = first.generation + 1
 
