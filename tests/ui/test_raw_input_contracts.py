@@ -243,6 +243,7 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     assert len(window.documents) == 1
     window.close()
 
+
 def test_production_dnd_paths_share_packed_raw_reopen_lifecycle(
     qtbot: object,
     tmp_path: Path,
@@ -253,9 +254,7 @@ def test_production_dnd_paths_share_packed_raw_reopen_lifecycle(
     height = 32
     payload_bytes = width * 10 // 8
     stride_bytes = payload_bytes + 8
-    raw_path.write_bytes(
-        bytes((index * 29 + 7) % 256 for index in range(height * stride_bytes))
-    )
+    raw_path.write_bytes(bytes((index * 29 + 7) % 256 for index in range(height * stride_bytes)))
 
     class ScriptedRawDialog(RawOpenDialog):
         bit_orders = iter(("lsb", "msb"))
