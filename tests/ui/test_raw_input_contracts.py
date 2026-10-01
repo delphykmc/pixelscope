@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from PySide6.QtWidgets import QDialog
 
+from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile
@@ -157,6 +158,7 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
             self.height_box.setValue(height)
             self.storage_format.setCurrentIndex(self.storage_format.findData("packed_stream"))
             self.bit_depth.setValue(10)
+            self.stride.setValue(stride_bytes)
             self.layout_kind.setCurrentText("BAYER")
             self.bayer_pattern.setCurrentText("RGGB")
             self.packed_bit_order.setCurrentIndex(
@@ -238,5 +240,89 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     assert value is not None
     window.viewer.cursor_moved.emit(0, 0, value)
     assert window.structured_status.pixel_value.text() != "—"
+    assert len(window.documents) == 1
+    window.close()
+
+
+
+def test_production_dnd_paths_share_packed_raw_reopen_lifecycle(
+    qtbot: object,
+    tmp_path: Path,
+    monkeypatch: object,
+) -> None:
+    raw_path = tmp_path / "production-packed.raw"
+    width = 64
+    height = 32
+    payload_bytes = width * 10 // 8
+    stride_bytes = payload_bytes + 8
+    raw_path.write_bytes(
+        bytes((index * 29 + 7) % 256 for index in range(height * stride_bytes))
+    )
+
+    class ScriptedRawDialog(RawOpenDialog):
+        bit_orders = iter(("lsb", "msb"))
+
+        def exec(self) -> QDialog.DialogCode:
+            self.width_box.setValue(width)
+            self.height_box.setValue(height)
+            self.storage_format.setCurrentIndex(self.storage_format.findData("packed_stream"))
+            self.bit_depth.setValue(10)
+            self.stride.setValue(stride_bytes)
+            self.layout_kind.setCurrentText("BAYER")
+            self.bayer_pattern.setCurrentText("RGGB")
+            self.packed_bit_order.setCurrentIndex(
+                self.packed_bit_order.findData(next(self.bit_orders))
+            )
+            self._accept_validated()
+            return QDialog.DialogCode(self.result())
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        "pixelscope.app.main_window.RawOpenDialog",
+        ScriptedRawDialog,
+    )
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    _compose_main_window_presentation(window)
+    registration = window.large_folder_registration_controller
+    quick_compare = window.quick_compare_controller
+    progress_events: list[str] = []
+    registration.progress_changed.connect(
+        lambda phase, _completed, _total: progress_events.append(phase)
+    )
+
+    # Files/MainWindow drop path: production RegistrationController owns discovery.
+    window._handle_dropped_paths([raw_path])
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+    document_id = next(iter(window.documents))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None,
+        timeout=3000,
+    )
+    first = window.documents[document_id]
+    assert first.raw_profile.packed_bit_order == "lsb"
+    assert first.source is not None
+    first_generation = first.generation
+    lsb_source = first.source.copy()
+    assert "scanning" in progress_events
+    progress_events.clear()
+
+    # Image surface path: Quick Compare must enqueue through the same controller.
+    assert quick_compare.handle_image_drop([raw_path])
+    assert registration.progress.phase == "scanning"
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None
+        and window.documents[document_id].generation > first_generation
+        and isinstance(window.documents[document_id].raw_profile, RawProfile)
+        and window.documents[document_id].raw_profile.packed_bit_order == "msb",
+        timeout=3000,
+    )
+
+    refreshed = window.documents[document_id]
+    assert refreshed.source is not None
+    assert not np.array_equal(refreshed.source, lsb_source)
+    assert window.viewer.document is refreshed
+    assert "scanning" in progress_events
+    assert registration.progress.phase == "idle"
     assert len(window.documents) == 1
     window.close()
