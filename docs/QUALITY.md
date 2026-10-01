@@ -44,6 +44,9 @@ Automatic PR validation is change-scoped and feature-neutral through
   under development, but those nodes must be removed before completion unless they
   are explicitly promoted as small durable core contracts. Tests remain in the
   repository test suite regardless of CI promotion.
+  Any change to `scripts/ci_test_groups.py` conservatively wakes all durable Windows
+  groups so registry node ids and environment-sensitive contracts are executed
+  end-to-end before the registry change can merge.
 - Do not let the durable registry become a historical phase archive. Prefer canonical
   contract modules or individual authoritative nodes over whole legacy phase modules.
 - Repository-wide `python -m pytest -q` is not a per-commit CI gate. Run it once on
