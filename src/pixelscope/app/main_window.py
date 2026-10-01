@@ -1352,6 +1352,41 @@ class MainWindow(QMainWindow):
         self._invalidate_channel_views(document_id)
         self._update_document_item(replacement)
 
+    def _refresh_reopened_selected_documents(
+        self,
+        document_ids: Sequence[str],
+    ) -> list[str]:
+        """Start fresh source reads for same-path documents that remain selected.
+
+        Registration owns catalog identity only. This method is the single bridge
+        from an explicit reopen into foreground source loading, regardless of which
+        D&D surface initiated the request.
+        """
+
+        selected_ids = {document.document_id for document in self.selected_documents}
+        refreshed: list[str] = []
+        pending: list[ImageDocument] = []
+        for document_id in dict.fromkeys(document_ids):
+            if document_id not in selected_ids:
+                continue
+            document = self.documents.get(document_id)
+            if document is None or document.loading_state not in ("pending", "loading"):
+                continue
+            refreshed.append(document_id)
+            if document.loading_state == "pending":
+                pending.append(document)
+
+        if not refreshed:
+            return []
+
+        self._allow_raw_profile_retry(refreshed)
+        for document in pending:
+            self._ensure_loaded(document)
+        # Keep the previously displayed frame while the replacement is pending,
+        # but bind the loading state/spinner through the normal presentation path.
+        self._render_selection(preserve_view=True)
+        return refreshed
+
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
             return
@@ -3700,29 +3735,15 @@ class MainWindow(QMainWindow):
                 additions = [
                     document_id for document_id in document_ids if document_id not in previous_set
                 ]
-                reloads = [
-                    document_id
-                    for document_id in document_ids
-                    if document_id in previous_set
-                    and (document := self.documents.get(document_id)) is not None
-                    and document.loading_state == "pending"
-                ]
                 if additions:
                     self._select_document_ids(
                         [*previous_ids, *additions],
                         preserve_view=True,
                         reveal_document_id=additions[-1],
                     )
-                elif reloads:
-                    # A selected/visible document already has presentation state, so
-                    # do not rely on a selection refresh to discover that its source
-                    # became pending. Start the replacement decode explicitly, then
-                    # run the normal selection lifecycle to bind the fresh source.
-                    for document_id in reloads:
-                        document = self.documents.get(document_id)
-                        if document is not None:
-                            self._ensure_loaded(document)
-                    self._select_document_ids(previous_ids, preserve_view=True)
+                reloads = self._refresh_reopened_selected_documents(
+                    [document_id for document_id in document_ids if document_id in previous_set]
+                )
             else:
                 self._select_document_ids(document_ids)
 
