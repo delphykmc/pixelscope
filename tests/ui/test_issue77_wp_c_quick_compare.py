@@ -299,6 +299,7 @@ def test_blink_is_safe_noop_for_three_sources_and_while_numeric_input_has_focus(
     assert controller._blink_snapshot is None
     window.close()
 
+
 def test_image_surface_reopen_uses_shared_registration_and_refresh(
     qtbot: object,
     tmp_path: Path,
