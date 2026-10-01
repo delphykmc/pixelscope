@@ -56,6 +56,7 @@ jobs:
       release: ${{ steps.scope.outputs.release }}
       raw: ${{ steps.scope.outputs.raw }}
       yuv: ${{ steps.scope.outputs.yuv }}
+      durable_registry_changed: ${{ steps.scope.outputs.durable_registry_changed }}
       static: ${{ steps.scope.outputs.static }}
       static_config_changed: ${{ steps.scope.outputs.static_config_changed }}
       src_changed: ${{ steps.scope.outputs.src_changed }}
