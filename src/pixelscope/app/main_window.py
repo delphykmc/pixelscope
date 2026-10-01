@@ -3704,9 +3704,14 @@ class MainWindow(QMainWindow):
                         reveal_document_id=additions[-1],
                     )
                 elif reloads:
-                    # Same-path RAW profile edits must follow the same selection
-                    # lifecycle as File > Open. That path owns preload invalidation,
-                    # retry suppression, visible-state reset, and the final render/load.
+                    # A selected/visible RAW already has presentation state, so do not
+                    # rely on a selection refresh to discover that its source became
+                    # pending. Start the replacement decode explicitly, then run the
+                    # normal selection lifecycle to bind loading/final presentation.
+                    for document_id in reloads:
+                        document = self.documents.get(document_id)
+                        if document is not None:
+                            self._ensure_loaded(document)
                     self._select_document_ids(previous_ids, preserve_view=True)
             else:
                 self._select_document_ids(document_ids)
