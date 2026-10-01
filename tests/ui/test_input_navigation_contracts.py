@@ -75,6 +75,62 @@ def test_direct_file_drop_extends_selection_and_keeps_catalog_deduplicated(
     window.close()
 
 
+
+
+def test_same_path_direct_drop_refreshes_existing_image_source(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "refresh.png"
+    assert cv2.imwrite(str(path), np.full((32, 48), 12, dtype=np.uint8))
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    window._handle_dropped_paths([path])
+    document_id = next(iter(window.documents))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None
+        and bool(window.comparison_analysis_panel.last_results),
+        timeout=3000,
+    )
+    first = window.documents[document_id]
+    assert first.source is not None
+    first_generation = first.generation
+    first_source = first.source.copy()
+    assert window.viewer.image_item.image is not None
+    first_preview = np.asarray(window.viewer.image_item.image).copy()
+    first_histogram = tuple(
+        counts.copy()
+        for counts in window.comparison_analysis_panel.last_results[0].histogram.counts
+    )
+
+    assert cv2.imwrite(str(path), np.full((32, 48), 220, dtype=np.uint8))
+    window._handle_dropped_paths([path])
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None
+        and window.documents[document_id].generation > first_generation
+        and window.viewer.document is window.documents[document_id],
+        timeout=3000,
+    )
+    refreshed = window.documents[document_id]
+    assert refreshed.source is not None
+    assert not np.array_equal(refreshed.source, first_source)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: bool(window.comparison_analysis_panel.last_results)
+        and window.comparison_analysis_panel._documents == [refreshed],
+        timeout=3000,
+    )
+    assert window.viewer.image_item.image is not None
+    assert not np.array_equal(np.asarray(window.viewer.image_item.image), first_preview)
+    refreshed_histogram = window.comparison_analysis_panel.last_results[0].histogram.counts
+    assert any(
+        not np.array_equal(before, after)
+        for before, after in zip(first_histogram, refreshed_histogram, strict=True)
+    )
+    assert len(window.documents) == 1
+    window.close()
+
+
 def test_folder_positions_are_naturally_sorted_and_loaded_lazily(
     qtbot: object, tmp_path: Path
 ) -> None:
