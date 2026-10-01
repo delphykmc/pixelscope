@@ -211,6 +211,7 @@ YUV_TEST_PREFIXES = (
 
 SHARED_RUNTIME = ("requirements/runtime.txt", "pyproject.toml")
 STATIC_CONFIG = ("pyproject.toml",)
+DURABLE_NATIVE_REGISTRY = ("scripts/ci_test_groups.py",)
 
 
 def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
@@ -232,7 +233,8 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     raw = any(path.startswith(RAW_PREFIXES + RAW_TEST_PREFIXES) for path in paths)
     yuv = any(path.startswith(YUV_PREFIXES + YUV_TEST_PREFIXES) for path in paths)
     shared_runtime = any(path in SHARED_RUNTIME for path in paths)
-    if shared_runtime:
+    durable_registry_changed = any(path in DURABLE_NATIVE_REGISTRY for path in paths)
+    if shared_runtime or durable_registry_changed:
         help_ui = release = raw = yuv = True
 
     static_config_changed = any(path in STATIC_CONFIG for path in paths)
@@ -252,6 +254,7 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
         "release": release,
         "raw": raw,
         "yuv": yuv,
+        "durable_registry_changed": durable_registry_changed,
         "static": static,
         "static_config_changed": static_config_changed,
         "src_changed": src_changed,
