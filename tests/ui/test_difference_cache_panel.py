@@ -121,3 +121,50 @@ def test_same_pair_rerender_does_not_relabel_fresh_metrics_as_restored(
 
     assert panel.last_result is result
     assert panel.status.text() == "Ready"
+
+
+
+def test_same_document_id_new_generation_does_not_restore_stale_difference(
+    qtbot: object,
+) -> None:
+    panel = DifferencePanel(difference_cache_budget_bytes=4096)
+    qtbot.addWidget(panel)  # type: ignore[attr-defined]
+    first = ImageDocument.from_array(
+        np.zeros((4, 4), dtype=np.uint8),
+        "first.png",
+    )
+    second = ImageDocument.from_array(
+        np.full((4, 4), 10, dtype=np.uint8),
+        "second.png",
+    )
+    pair = (first.document_id, second.document_id)
+    panel.set_documents([first, second], pair)
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None and panel.difference_cache.entry_count == 1,
+        timeout=3000,
+    )
+    stale_result = panel.last_result
+    stale_key = panel._cache_key()
+    assert stale_result is not None and stale_key is not None
+
+    refreshed = ImageDocument.from_array(
+        np.full((4, 4), 100, dtype=np.uint8),
+        "first.png",
+    )
+    refreshed.document_id = first.document_id
+    refreshed.generation = first.generation + 1
+
+    panel.set_documents([refreshed, second], pair)
+
+    assert panel._cache_key() != stale_key
+    assert panel.last_result is None
+    assert panel.cached_result_for_current() is None
+
+    panel.calculate_difference()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: panel.last_result is not None,
+        timeout=3000,
+    )
+    assert panel.last_result is not stale_result
+    assert panel.last_result.metrics.mae == 90.0
