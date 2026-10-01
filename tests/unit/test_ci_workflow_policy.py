@@ -93,3 +93,13 @@ def test_push_and_pr_runs_use_distinct_concurrency_identities() -> None:
         "focused-validation-${{ github.event_name }}-"
         "${{ github.head_ref || github.ref_name }}" in workflow
     )
+
+
+def test_durable_registry_changes_are_observable_in_shared_workflow() -> None:
+    workflow = _read(".github/workflows/validation.yml")
+
+    assert "durable_registry_changed:" in workflow
+    assert "Run durable Help contracts" in workflow
+    assert "Run durable release contracts" in workflow
+    assert "Run durable RAW contracts" in workflow
+    assert "Run durable YUV contracts" in workflow
