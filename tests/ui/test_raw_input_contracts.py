@@ -188,5 +188,10 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     reloaded = window.documents[document_id]
     assert reloaded.source is not None
     assert not np.array_equal(reloaded.source, lsb_source)
+    assert window.viewer.document is reloaded
+    value = reloaded.pixel_at(0, 0)
+    assert value is not None
+    window.viewer.cursor_moved.emit(0, 0, value)
+    assert window.structured_status.pixel_value.text() != "—"
     assert len(window.documents) == 1
     window.close()
