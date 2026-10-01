@@ -167,4 +167,4 @@ def test_same_document_id_new_generation_does_not_restore_stale_difference(
         timeout=3000,
     )
     assert panel.last_result is not stale_result
-    assert panel.last_result.metrics.mae == 90.0
+    assert panel.last_result.mae == 90.0
