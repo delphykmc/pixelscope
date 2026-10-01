@@ -274,6 +274,15 @@ class QuickCompareController(QObject):
         files = [path for path in paths if path.is_file()]
         if not files:
             return False
+
+        registration = getattr(self.window, "large_folder_registration_controller", None)
+        enqueue = getattr(registration, "enqueue", None)
+        if callable(enqueue):
+            enqueue(files, direct_completion=self._apply_registered_drop)
+            return True
+
+        # Standalone MainWindow/tests retain a synchronous fallback, but production
+        # image-surface D&D shares RegistrationController with the Files view.
         document_ids = self.window._register_inputs(
             discover_image_inputs(files),
             resolve_raw_profiles=True,
@@ -306,6 +315,9 @@ class QuickCompareController(QObject):
                 preserve_view=bool(previous_ids),
                 reveal_document_id=additions[-1] if previous_ids else None,
             )
+        reloads = self.window._refresh_reopened_selected_documents(
+            [document_id for document_id in unique_dropped if document_id in previous_set]
+        )
 
         added = len(additions)
         if pair is not None:
@@ -317,6 +329,11 @@ class QuickCompareController(QObject):
             self.window.statusBar().showMessage(
                 f"Quick Compare: added {added} image(s) · {len(merged)} selected",
                 4000,
+            )
+        elif reloads:
+            self.window.statusBar().showMessage(
+                f"Quick Compare: reloading {len(reloads)} image(s)",
+                3500,
             )
         else:
             self.window.statusBar().showMessage(
