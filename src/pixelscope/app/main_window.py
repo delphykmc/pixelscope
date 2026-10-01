@@ -1211,7 +1211,11 @@ class MainWindow(QMainWindow):
                 self._raw_profile_paths[existing] = image_input.raw_profile_path
             if raw_profile is not None:
                 self._raw_profiles[existing] = raw_profile
-                self._mark_raw_for_reload(existing, raw_profile)
+            if resolve_raw_profile:
+                # An explicit file reopen is a refresh request even when the path
+                # already exists in the catalog. Folder registration passes
+                # resolve_raw_profile=False and remains registration-only.
+                self._mark_document_for_reload(existing, raw_profile)
             return existing
         document = ImageDocument.pending_document(image_input.path)
         self.documents[document.document_id] = document
@@ -1317,7 +1321,13 @@ class MainWindow(QMainWindow):
             self._set_dont_show_raw_json_profiles(True)
         return profile
 
-    def _mark_raw_for_reload(self, document_id: str, profile: RawProfile) -> None:
+    def _mark_document_for_reload(
+        self,
+        document_id: str,
+        profile: RawProfile | None = None,
+    ) -> None:
+        """Invalidate one explicit same-path reopen without duplicating its catalog entry."""
+
         self._invalidate_preload_plan()
         current = self.documents.get(document_id)
         if current is None or current.source_path is None:
@@ -1328,9 +1338,9 @@ class MainWindow(QMainWindow):
             source_path=current.source_path,
             display_name=current.display_name,
             source=None,
-            channel_layout=profile.channel_layout,
-            bit_depth=profile.bit_depth,
-            raw_profile=profile,
+            channel_layout=profile.channel_layout if profile is not None else current.channel_layout,
+            bit_depth=profile.bit_depth if profile is not None else current.bit_depth,
+            raw_profile=profile if profile is not None else current.raw_profile,
             display_transform=current.display_transform,
             document_id=document_id,
             evaluation_results=current.evaluation_results,
@@ -3704,10 +3714,10 @@ class MainWindow(QMainWindow):
                         reveal_document_id=additions[-1],
                     )
                 elif reloads:
-                    # A selected/visible RAW already has presentation state, so do not
-                    # rely on a selection refresh to discover that its source became
-                    # pending. Start the replacement decode explicitly, then run the
-                    # normal selection lifecycle to bind loading/final presentation.
+                    # A selected/visible document already has presentation state, so
+                    # do not rely on a selection refresh to discover that its source
+                    # became pending. Start the replacement decode explicitly, then
+                    # run the normal selection lifecycle to bind the fresh source.
                     for document_id in reloads:
                         document = self.documents.get(document_id)
                         if document is not None:
