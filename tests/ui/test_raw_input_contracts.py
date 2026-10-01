@@ -142,16 +142,23 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     monkeypatch: object,
 ) -> None:
     raw_path = tmp_path / "packed.raw"
-    raw_path.write_bytes(bytes.fromhex("123456789a"))
+    width = 64
+    height = 32
+    payload_bytes = width * 10 // 8
+    stride_bytes = payload_bytes + 8
+    raw_bytes = bytes((index * 37 + 11) % 256 for index in range(height * stride_bytes))
+    raw_path.write_bytes(raw_bytes)
 
     class ScriptedRawDialog(RawOpenDialog):
         bit_orders = iter(("lsb", "msb"))
 
         def exec(self) -> QDialog.DialogCode:
-            self.width_box.setValue(4)
-            self.height_box.setValue(1)
+            self.width_box.setValue(width)
+            self.height_box.setValue(height)
             self.storage_format.setCurrentIndex(self.storage_format.findData("packed_stream"))
             self.bit_depth.setValue(10)
+            self.layout_kind.setCurrentText("BAYER")
+            self.bayer_pattern.setCurrentText("RGGB")
             self.packed_bit_order.setCurrentIndex(
                 self.packed_bit_order.findData(next(self.bit_orders))
             )
@@ -164,6 +171,20 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     )
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
+    started_bit_orders: list[str | None] = []
+    original_start_load = window._start_load
+
+    def record_start_load(
+        target_id: str,
+        path: Path,
+        raw_profile: RawProfile | None,
+    ) -> None:
+        started_bit_orders.append(
+            raw_profile.packed_bit_order if isinstance(raw_profile, RawProfile) else None
+        )
+        original_start_load(target_id, path, raw_profile)
+
+    monkeypatch.setattr(window, "_start_load", record_start_load)  # type: ignore[attr-defined]
 
     window._handle_dropped_paths([raw_path])
     document_id = next(iter(window.documents))
@@ -186,8 +207,10 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
         for counts in window.comparison_analysis_panel.last_results[0].histogram.counts
     )
     first_generation = first.generation
+    assert started_bit_orders == ["lsb"]
 
     window._handle_dropped_paths([raw_path])
+    assert started_bit_orders == ["lsb", "msb"]
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.documents[document_id].source is not None
         and window.documents[document_id].raw_profile is not None
