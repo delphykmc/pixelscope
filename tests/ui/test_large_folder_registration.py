@@ -260,6 +260,7 @@ def test_application_close_cancels_registration_without_late_catalog_mutation(
     assert controller.progress.phase == "idle"
     assert not window.documents
 
+
 def test_direct_drop_reopens_same_selected_source_through_registration_controller(
     qtbot: object,
     tmp_path: Path,
