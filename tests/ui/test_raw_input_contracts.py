@@ -150,9 +150,7 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
         def exec(self) -> QDialog.DialogCode:
             self.width_box.setValue(4)
             self.height_box.setValue(1)
-            self.storage_format.setCurrentIndex(
-                self.storage_format.findData("packed_stream")
-            )
+            self.storage_format.setCurrentIndex(self.storage_format.findData("packed_stream"))
             self.bit_depth.setValue(10)
             self.packed_bit_order.setCurrentIndex(
                 self.packed_bit_order.findData(next(self.bit_orders))
