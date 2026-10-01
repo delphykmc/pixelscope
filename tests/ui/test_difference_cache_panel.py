@@ -123,7 +123,6 @@ def test_same_pair_rerender_does_not_relabel_fresh_metrics_as_restored(
     assert panel.status.text() == "Ready"
 
 
-
 def test_same_document_id_new_generation_does_not_restore_stale_difference(
     qtbot: object,
 ) -> None:
