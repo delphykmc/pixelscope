@@ -1338,7 +1338,9 @@ class MainWindow(QMainWindow):
             source_path=current.source_path,
             display_name=current.display_name,
             source=None,
-            channel_layout=profile.channel_layout if profile is not None else current.channel_layout,
+            channel_layout=(
+                profile.channel_layout if profile is not None else current.channel_layout
+            ),
             bit_depth=profile.bit_depth if profile is not None else current.bit_depth,
             raw_profile=profile if profile is not None else current.raw_profile,
             display_transform=current.display_transform,
