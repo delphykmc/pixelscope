@@ -128,3 +128,14 @@ def test_pyproject_change_runs_static_and_typecheck_gates() -> None:
     assert groups["typecheck"]
     assert not groups["src_changed"]
     assert groups["windows_native"]
+
+
+def test_durable_native_registry_change_wakes_all_native_groups() -> None:
+    groups = classify("scripts/ci_test_groups.py")
+
+    assert groups["durable_registry_changed"]
+    assert groups["help_ui"]
+    assert groups["release"]
+    assert groups["raw"]
+    assert groups["yuv"]
+    assert groups["windows_native"]
