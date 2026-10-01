@@ -243,8 +243,6 @@ def test_same_path_drop_reloads_packed_raw_when_bit_order_changes(
     assert len(window.documents) == 1
     window.close()
 
-
-
 def test_production_dnd_paths_share_packed_raw_reopen_lifecycle(
     qtbot: object,
     tmp_path: Path,
