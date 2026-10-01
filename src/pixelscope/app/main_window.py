@@ -1319,23 +1319,28 @@ class MainWindow(QMainWindow):
 
     def _mark_raw_for_reload(self, document_id: str, profile: RawProfile) -> None:
         self._invalidate_preload_plan()
-        document = self.documents.get(document_id)
-        if document is None:
+        current = self.documents.get(document_id)
+        if current is None or current.source_path is None:
             return
         self._load_tokens[document_id] = self._load_tokens.get(document_id, 0) + 1
         self.residency_manager.remove(document_id)
-        document.source = None
-        document.preview = None
-        document.channel_layout = profile.channel_layout
-        document.bit_depth = profile.bit_depth
-        document.raw_profile = profile
-        document.loading_state = "pending"
-        document.error_state = None
-        document.generation += 1
-        document.statistics_cache.clear()
-        document.histogram_cache.clear()
+        replacement = ImageDocument(
+            source_path=current.source_path,
+            display_name=current.display_name,
+            source=None,
+            channel_layout=profile.channel_layout,
+            bit_depth=profile.bit_depth,
+            raw_profile=profile,
+            display_transform=current.display_transform,
+            document_id=document_id,
+            evaluation_results=current.evaluation_results,
+            loading_state="pending",
+            error_state=None,
+            generation=current.generation + 1,
+        )
+        self.documents[document_id] = replacement
         self._invalidate_channel_views(document_id)
-        self._update_document_item(document)
+        self._update_document_item(replacement)
 
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
