@@ -3684,10 +3684,18 @@ class MainWindow(QMainWindow):
             resolve_raw_profiles=True,
         )
         additions: list[str] = []
+        reloads: list[str] = []
         if document_ids:
             if previous_ids:
                 additions = [
                     document_id for document_id in document_ids if document_id not in previous_set
+                ]
+                reloads = [
+                    document_id
+                    for document_id in document_ids
+                    if document_id in previous_set
+                    and (document := self.documents.get(document_id)) is not None
+                    and document.loading_state == "pending"
                 ]
                 if additions:
                     self._select_document_ids(
@@ -3695,25 +3703,23 @@ class MainWindow(QMainWindow):
                         preserve_view=True,
                         reveal_document_id=additions[-1],
                     )
-                elif any(
-                    document_id in previous_set
-                    and (document := self.documents.get(document_id)) is not None
-                    and document.loading_state == "pending"
-                    for document_id in document_ids
-                ):
-                    # Reopening an already selected RAW can change its profile without
-                    # adding a document. Registration invalidates the resident source;
-                    # render again so the updated profile is decoded immediately.
-                    self._render_selection(preserve_view=True)
+                elif reloads:
+                    # Same-path RAW profile edits must follow the same selection
+                    # lifecycle as File > Open. That path owns preload invalidation,
+                    # retry suppression, visible-state reset, and the final render/load.
+                    self._select_document_ids(previous_ids, preserve_view=True)
             else:
                 self._select_document_ids(document_ids)
 
         messages: list[str] = []
         if document_ids:
             if previous_ids:
-                messages.append(
-                    f"Added {len(additions)} image(s)" if additions else "No new images added"
-                )
+                if additions:
+                    messages.append(f"Added {len(additions)} image(s)")
+                elif reloads:
+                    messages.append(f"Reloading {len(reloads)} image(s)")
+                else:
+                    messages.append("No new images added")
             else:
                 messages.append(f"Opened {len(document_ids)} image(s)")
         if folder_result is not None:
