@@ -440,8 +440,8 @@ def test_raw_profile_and_generation_change_rejects_old_preload_result(
 
     new_profile = old_profile.copy(update={"name": "new-profile", "white_level": 2047})
     window._raw_profiles[target.document_id] = new_profile
-    window._mark_raw_for_reload(target.document_id, new_profile)
-    changed_generation = target.generation
+    window._mark_document_for_reload(target.document_id, new_profile)
+    changed_generation = window.documents[target.document_id].generation
     window.next_folder_position()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: window.documents[target.document_id].source is not None

@@ -311,7 +311,7 @@ def test_yuv_profile_change_invalidates_generation_and_reloads_native_frame(
     generation = window.documents[document.document_id].generation
 
     window._raw_profiles[document.document_id] = second
-    window._mark_raw_for_reload(document.document_id, second)
+    window._mark_document_for_reload(document.document_id, second)
 
     pending = window.documents[document.document_id]
     assert pending.generation == generation + 1
