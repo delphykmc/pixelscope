@@ -24,6 +24,69 @@ Use narrower tests during development. Before completion, run the full
 applicable suite. If a command cannot run, record the exact command, failure,
 reason, and unverified risk.
 
+### CI validation ownership
+
+Automatic PR validation is change-scoped and feature-neutral through
+`.github/workflows/validation.yml`.
+
+- Ruff/format and mypy are baseline static gates for Python source changes. Mypy runs
+  on Ubuntu whenever `src/**` changes and does not require native Qt pytest to run.
+  `pyproject.toml` is also static/typecheck authority, so changing project Ruff/mypy
+  configuration runs both gates even when no `.py` file changed.
+- Documentation is split into core/prose, screenshot-lifecycle, and publication/
+  packaging families. A prose edit does not automatically run screenshot provenance
+  or publication contracts. The offline User Guide build remains a cheap docs-wide
+  gate.
+- Help, release, RAW, and YUV implementation changes opt into a deliberately small
+  durable Windows contract slice.
+- Durable CI pytest nodes live in `scripts/ci_test_groups.py` with explicit contract
+  rationales. A feature PR may temporarily run additional focused tests while it is
+  under development, but those nodes must be removed before completion unless they
+  are explicitly promoted as small durable core contracts. Tests remain in the
+  repository test suite regardless of CI promotion.
+  Any change to `scripts/ci_test_groups.py` conservatively wakes all durable Windows
+  groups so registry node ids and environment-sensitive contracts are executed
+  end-to-end before the registry change can merge.
+- Do not let the durable registry become a historical phase archive. Prefer canonical
+  contract modules or individual authoritative nodes over whole legacy phase modules.
+- Repository-wide `python -m pytest -q` is not a per-commit CI gate. Run it once on
+  the final merge-ready owner Windows environment and record the exact result.
+
+If a durable CI pytest slice grows beyond roughly two minutes or about 30% of the
+owner-local full-suite runtime, review the slice before adding more permanent nodes.
+Do not maintain a second hand-written "remaining tests" list. If complement execution
+becomes worthwhile, derive it from the same central registry so CI-covered and
+owner-local residual coverage cannot drift.
+
+Push and pull-request validation use separate concurrency identities for the same
+branch. Newer PR runs may cancel stale PR runs, and newer push runs may cancel stale
+push runs, but a standalone branch push must never cancel the synthetic PR merge-context
+validation (or vice versa). The push dedupe helper remains the only authority allowed
+to skip duplicate push validation after proving equivalent tested Git trees.
+
+E4 native screenshot capture is an expensive final-review check. A relevant ready PR
+gets one automatic pinned base/head capture when it is opened, reopened, or leaves
+draft. It does not rerun on every synchronize event. If rendering-relevant commits
+land after that capture, rerun `WP-Help-E4 pinned Windows screenshot comparison`
+with `workflow_dispatch` against the final exact base/head SHAs before merge.
+
+Native Qt CI currently pins `windows-2022`. This is a compatibility mitigation for
+the pinned CPython 3.10 / PySide6 6.4.2 stack, not evidence that all Windows native
+lifecycle failures are runner regressions. PR #104 observed `windows-latest`
+Windows Server 2025 runs where Help assertions completed (`23 passed`) before the
+process exited with code 1, and a separate E4 native capture exited with code 1;
+the corresponding `windows-2022` runs completed successfully. Do not use this pin
+to dismiss Issue #81 or other reproducible Qt/Shiboken lifecycle failures.
+
+Revalidate the Windows runner pin whenever Python/PySide is upgraded, GitHub changes
+or deprecates the pinned image, and at least once per quarter. Advance the pin only
+through a dedicated CI-policy PR that records the candidate runner image and clean
+Help/E4 native results.
+
+The historical E1 screenshot PoC workflow was removed after the repository owner
+confirmed there are no branch-protection required checks. E1-derived capture and
+validation modules remain shared implementation used by E4.
+
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
 cleanup because `processEvents()` alone does not guarantee that deferred
