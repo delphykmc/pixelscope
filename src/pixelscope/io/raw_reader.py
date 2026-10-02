@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -15,6 +15,8 @@ class RawReadError(ValueError):
 
 
 def required_file_size(profile: RawProfile) -> int:
+    if profile.storage_format == "packed_stream":
+        return profile.offset_bytes + profile.height * profile.stride_bytes
     return (
         profile.offset_bytes
         + (profile.height - 1) * profile.stride_bytes
@@ -90,6 +92,46 @@ def _packed_rows(
     return rows
 
 
+def _decode_packed_stream(
+    rows: NDArray[np.uint8],
+    profile: RawProfile,
+) -> NDArray[np.uint16]:
+    bit_order = profile.packed_bit_order
+    if bit_order not in ("msb", "lsb"):
+        raise RawReadError("Packed bitstream RAW profile has no bit order")
+
+    bit_depth = profile.bit_depth
+    valid_bit_count = profile.width * bit_depth
+    result = np.empty((profile.height, profile.width), dtype=np.uint16)
+    exponents = (
+        np.arange(bit_depth - 1, -1, -1, dtype=np.uint16)
+        if bit_order == "msb"
+        else np.arange(bit_depth, dtype=np.uint16)
+    )
+    weights = np.left_shift(np.uint16(1), exponents)
+    numpy_bit_order: Literal["big", "little"] = "big" if bit_order == "msb" else "little"
+
+    chunk_rows = 64
+    for start in range(0, profile.height, chunk_rows):
+        stop = min(start + chunk_rows, profile.height)
+        bits = np.unpackbits(
+            np.asarray(rows[start:stop]),
+            axis=1,
+            bitorder=numpy_bit_order,
+        )
+        sample_bits = bits[:, :valid_bit_count].reshape(
+            stop - start,
+            profile.width,
+            bit_depth,
+        )
+        result[start:stop] = np.sum(
+            sample_bits.astype(np.uint16) * weights,
+            axis=2,
+            dtype=np.uint16,
+        )
+    return result
+
+
 def _decode_mipi_raw10(rows: NDArray[np.uint8]) -> NDArray[np.uint16]:
     groups = rows.reshape(rows.shape[0], -1, 5).astype(np.uint16)
     result = np.empty((rows.shape[0], groups.shape[1] * 4), dtype=np.uint16)
@@ -133,7 +175,7 @@ def read_raw(
     *,
     require_exact_size: bool = False,
 ) -> NDArray[np.generic]:
-    """Decode one supported unpacked or MIPI-packed RAW file."""
+    """Decode one supported unpacked, generic packed, or MIPI-packed RAW file."""
 
     source_path = Path(path)
     mapped = _map_source(
@@ -144,6 +186,8 @@ def read_raw(
     if profile.storage_format == "unpacked":
         return _read_unpacked(mapped, profile)
     rows = _packed_rows(mapped, profile)
+    if profile.storage_format == "packed_stream":
+        return _decode_packed_stream(rows, profile)
     if profile.storage_format == "mipi_raw10":
         return _decode_mipi_raw10(rows)
     if profile.storage_format == "mipi_raw12":

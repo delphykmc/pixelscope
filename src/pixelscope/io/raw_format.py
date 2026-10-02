@@ -5,12 +5,14 @@ from typing import Literal
 
 StorageFormat = Literal[
     "unpacked",
+    "packed_stream",
     "mipi_raw10",
     "mipi_raw12",
     "mipi_raw14",
 ]
 ContainerDType = Literal["uint8", "uint16"]
 BitAlignment = Literal["lsb", "msb"]
+BitOrder = Literal["msb", "lsb"]
 Endianness = Literal["little", "big"]
 
 
@@ -40,6 +42,15 @@ STORAGE_FORMAT_SPECS: dict[StorageFormat, StorageFormatSpec] = {
         bytes_per_group=0,
         width_alignment=1,
         uses_container=True,
+    ),
+    "packed_stream": StorageFormatSpec(
+        key="packed_stream",
+        label="Packed bitstream",
+        fixed_bit_depth=None,
+        pixels_per_group=1,
+        bytes_per_group=0,
+        width_alignment=1,
+        uses_container=False,
     ),
     "mipi_raw10": StorageFormatSpec(
         key="mipi_raw10",
@@ -87,6 +98,7 @@ def minimum_row_bytes(
     width: int,
     storage_format: StorageFormat,
     container_dtype: ContainerDType | None,
+    bit_depth: int | None = None,
 ) -> int:
     """Return bytes occupied by valid pixels in one row, excluding padding."""
 
@@ -95,6 +107,10 @@ def minimum_row_bytes(
         if container_dtype is None:
             raise ValueError("Unpacked RAW requires a sample container")
         return width * container_byte_count(container_dtype)
+    if storage_format == "packed_stream":
+        if bit_depth is None or bit_depth <= 0:
+            raise ValueError("Packed bitstream RAW requires bit_depth")
+        return (width * bit_depth + 7) // 8
     if width % spec.width_alignment:
         raise ValueError(
             f"{spec.label} width must be a multiple of " f"{spec.width_alignment} pixels"

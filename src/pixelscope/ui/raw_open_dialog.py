@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from pixelscope.io.raw_format import (
     BitAlignment,
+    BitOrder,
     ContainerDType,
     Endianness,
     StorageFormat,
@@ -103,6 +104,8 @@ class RawOpenDialog(QDialog):
         self._unpacked_endianness: Endianness = "little"
         self._unpacked_alignment: BitAlignment = "lsb"
         self._unpacked_bit_depth = 12
+        self._packed_stream_bit_depth = 10
+        self._packed_stream_bit_order: BitOrder = "msb"
         self._stride_is_auto = True
         self._updating_stride = False
 
@@ -114,6 +117,7 @@ class RawOpenDialog(QDialog):
         self.storage_format = self._data_combo(
             [
                 ("Unpacked", "unpacked"),
+                ("Packed bitstream", "packed_stream"),
                 ("MIPI RAW10", "mipi_raw10"),
                 ("MIPI RAW12", "mipi_raw12"),
                 ("MIPI RAW14", "mipi_raw14"),
@@ -141,6 +145,13 @@ class RawOpenDialog(QDialog):
                 ("MSB aligned", "msb"),
             ],
             "lsb",
+        )
+        self.packed_bit_order = self._data_combo(
+            [
+                ("MSB first", "msb"),
+                ("LSB first", "lsb"),
+            ],
+            "msb",
         )
         self.layout_kind = self._combo(["GRAY", "BAYER"], "GRAY")
         self.bayer_pattern = self._combo(
@@ -190,6 +201,7 @@ class RawOpenDialog(QDialog):
         layout_form.add_field_row("Bit depth", self.bit_depth)
         layout_form.add_field_row("Byte order", self.byte_order)
         layout_form.add_field_row("Bit alignment", self.bit_alignment)
+        layout_form.add_field_row("Bit order", self.packed_bit_order)
         layout_form.add_field_row("Pixel layout", self.layout_kind)
         layout_form.add_field_row("Bayer pattern", self.bayer_pattern)
         self.form = layout_form
@@ -367,13 +379,16 @@ class RawOpenDialog(QDialog):
         self.bit_alignment.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._bit_alignment_changed
         )
+        self.packed_bit_order.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._packed_bit_order_changed
+        )
         self.layout_kind.currentTextChanged.connect(  # type: ignore[attr-defined]
             self._pixel_layout_changed
         )
         self.width_box.valueChanged.connect(self._width_changed)  # type: ignore[attr-defined]
-        self.height_box.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
+        self.height_box.valueChanged.connect(self._height_changed)  # type: ignore[attr-defined]
         self.stride.valueChanged.connect(self._stride_changed)  # type: ignore[attr-defined]
-        self.offset.valueChanged.connect(self._update_diagnostics)  # type: ignore[attr-defined]
+        self.offset.valueChanged.connect(self._offset_changed)  # type: ignore[attr-defined]
         self.bit_depth.valueChanged.connect(self._bit_depth_changed)  # type: ignore[attr-defined]
         for control in (
             self.black_gray,
@@ -473,6 +488,7 @@ class RawOpenDialog(QDialog):
                 self._actual_file_size = self._source_path.stat().st_size
             except OSError:
                 self._actual_file_size = None
+        self._sync_auto_stride()
         self._update_diagnostics()
 
     @property
@@ -501,9 +517,12 @@ class RawOpenDialog(QDialog):
             self.width_box.value(),
             self.storage_format_key,
             self.container_dtype,
+            self.bit_depth.value(),
         )
 
     def expected_file_size(self) -> int:
+        if self.storage_format_key == "packed_stream":
+            return self.offset.value() + self.height_box.value() * self.stride.value()
         return (
             self.offset.value()
             + (self.height_box.value() - 1) * self.stride.value()
@@ -529,10 +548,13 @@ class RawOpenDialog(QDialog):
         container = self.container_dtype if storage_format == "unpacked" else None
         endianness: Endianness | None = None
         alignment: BitAlignment | None = None
+        packed_bit_order: BitOrder | None = None
         if container == "uint16":
             endianness = cast(Endianness, self.byte_order.currentData())
         if container is not None and self.bit_depth.value() < container_bit_count(container):
             alignment = cast(BitAlignment, self.bit_alignment.currentData())
+        if storage_format == "packed_stream":
+            packed_bit_order = cast(BitOrder, self.packed_bit_order.currentData())
 
         return RawProfile(
             name=self._profile_name,
@@ -545,6 +567,7 @@ class RawOpenDialog(QDialog):
             endianness=endianness,
             bit_depth=self.bit_depth.value(),
             bit_alignment=alignment,
+            packed_bit_order=packed_bit_order,
             channel_layout=layout,
             bayer_pattern=(self.bayer_pattern.currentText() if layout == "BAYER" else None),
             black_level=black_level,
@@ -559,6 +582,11 @@ class RawOpenDialog(QDialog):
         self._stride_is_auto = stride_is_auto
         self.offset.setValue(profile.offset_bytes)
 
+        if profile.storage_format == "packed_stream":
+            self._packed_stream_bit_depth = profile.bit_depth
+            if profile.packed_bit_order is not None:
+                self._packed_stream_bit_order = profile.packed_bit_order
+                self._set_combo_data(self.packed_bit_order, profile.packed_bit_order)
         self._set_combo_data(self.storage_format, profile.storage_format)
         if profile.storage_format == "unpacked":
             if profile.container_dtype is not None:
@@ -603,8 +631,28 @@ class RawOpenDialog(QDialog):
         finally:
             self._updating_stride = False
 
+    def _inferred_packed_stream_stride(self) -> int | None:
+        if self.storage_format_key != "packed_stream" or self._actual_file_size is None:
+            return None
+        payload_bytes = self._actual_file_size - self.offset.value()
+        height = self.height_box.value()
+        if payload_bytes <= 0 or payload_bytes % height:
+            return None
+        inferred_stride = payload_bytes // height
+        try:
+            minimum_stride = self.minimum_stride_bytes()
+        except ValueError:
+            return None
+        if inferred_stride < minimum_stride:
+            return None
+        return inferred_stride
+
     def _sync_auto_stride(self) -> None:
         if not self._stride_is_auto:
+            return
+        inferred_stride = self._inferred_packed_stream_stride()
+        if inferred_stride is not None:
+            self._set_stride_value(inferred_stride)
             return
         try:
             minimum_stride = self.minimum_stride_bytes()
@@ -613,6 +661,14 @@ class RawOpenDialog(QDialog):
         self._set_stride_value(minimum_stride)
 
     def _width_changed(self, _value: int) -> None:
+        self._sync_auto_stride()
+        self._update_diagnostics()
+
+    def _height_changed(self, _value: int) -> None:
+        self._sync_auto_stride()
+        self._update_diagnostics()
+
+    def _offset_changed(self, _value: int) -> None:
         self._sync_auto_stride()
         self._update_diagnostics()
 
@@ -625,10 +681,20 @@ class RawOpenDialog(QDialog):
         storage_format = self.storage_format_key
         spec = storage_format_spec(storage_format)
         packed = spec.is_packed
+        fixed_depth = spec.fixed_bit_depth is not None
+        packed_stream = storage_format == "packed_stream"
 
         self._set_form_row_visible(self.container, not packed)
-        self.bit_depth.setEnabled(not packed)
-        if packed:
+        self._set_form_row_visible(self.packed_bit_order, packed_stream)
+        self.bit_depth.setEnabled(not fixed_depth)
+        if packed_stream:
+            self.bit_depth.setMaximum(16)
+            self.bit_depth.setValue(self._packed_stream_bit_depth)
+            self._set_combo_data(self.packed_bit_order, self._packed_stream_bit_order)
+            self._set_form_row_visible(self.byte_order, False)
+            self._set_form_row_visible(self.bit_alignment, False)
+        elif packed:
+            self.bit_depth.setMaximum(16)
             self.bit_depth.setValue(int(spec.fixed_bit_depth or 1))
             self._set_form_row_visible(self.byte_order, False)
             self._set_form_row_visible(self.bit_alignment, False)
@@ -668,6 +734,12 @@ class RawOpenDialog(QDialog):
             self._unpacked_alignment = cast(BitAlignment, value)
         self._update_diagnostics()
 
+    def _packed_bit_order_changed(self, _index: int | None = None) -> None:
+        value = self.packed_bit_order.currentData()
+        if self.storage_format_key == "packed_stream" and value in ("msb", "lsb"):
+            self._packed_stream_bit_order = cast(BitOrder, value)
+        self._update_diagnostics()
+
     def _update_unpacked_control_states(self) -> None:
         container = self.container_dtype or self._unpacked_container
         container_bits = container_bit_count(container)
@@ -690,6 +762,9 @@ class RawOpenDialog(QDialog):
         if self.storage_format_key == "unpacked":
             self._unpacked_bit_depth = depth
             self._update_unpacked_control_states()
+        elif self.storage_format_key == "packed_stream":
+            self._packed_stream_bit_depth = depth
+            self._sync_auto_stride()
         maximum = (1 << depth) - 1
         self.white.setMaximum(maximum)
         for control in (
@@ -770,7 +845,7 @@ class RawOpenDialog(QDialog):
 
     def _format_dimension_error(self) -> str | None:
         spec = storage_format_spec(self.storage_format_key)
-        if not spec.is_packed:
+        if not spec.is_packed or self.storage_format_key == "packed_stream":
             return None
         if self.width_box.value() % spec.width_alignment:
             return f"Width must align to {spec.width_alignment}-pixel " f"{spec.label} groups."

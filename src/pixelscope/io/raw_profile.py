@@ -10,6 +10,7 @@ from pydantic import BaseModel, root_validator, validator
 
 from pixelscope.io.raw_format import (
     BitAlignment,
+    BitOrder,
     ContainerDType,
     Endianness,
     StorageFormat,
@@ -42,6 +43,7 @@ class RawProfile(BaseModel):
     endianness: Endianness | None = "little"
     bit_depth: int
     bit_alignment: BitAlignment | None = "lsb"
+    packed_bit_order: BitOrder | None = None
     channel_layout: Literal["GRAY", "BAYER"] = "GRAY"
     bayer_pattern: Literal["RGGB", "GRBG", "GBRG", "BGGR"] | None = None
     black_level: int | tuple[int, int, int, int] = 0
@@ -78,7 +80,13 @@ class RawProfile(BaseModel):
             migrated.setdefault("container_dtype", None)
             migrated.setdefault("endianness", None)
             migrated.setdefault("bit_alignment", None)
-        elif "bit_alignment" not in migrated:
+            if storage_format == "packed_stream":
+                migrated.setdefault("packed_bit_order", "msb")
+            else:
+                migrated["packed_bit_order"] = None
+        else:
+            migrated["packed_bit_order"] = None
+        if storage_format == "unpacked" and "bit_alignment" not in migrated:
             container_dtype = migrated.get("container_dtype")
             bit_depth = migrated.get("bit_depth")
             if container_dtype in ("uint8", "uint16") and isinstance(bit_depth, int):
@@ -126,12 +134,21 @@ class RawProfile(BaseModel):
             return values
         spec = storage_format_spec(storage_format)
 
-        if spec.is_packed:
+        if storage_format == "packed_stream":
+            if isinstance(bit_depth, int) and bit_depth > 16:
+                raise ValueError("Packed bitstream bit_depth must not exceed 16")
+            values["container_dtype"] = None
+            values["endianness"] = None
+            values["bit_alignment"] = None
+            if values.get("packed_bit_order") not in ("msb", "lsb"):
+                values["packed_bit_order"] = "msb"
+        elif spec.is_packed:
             if bit_depth != spec.fixed_bit_depth:
                 raise ValueError(f"{spec.label} requires bit_depth={spec.fixed_bit_depth}")
             values["container_dtype"] = None
             values["endianness"] = None
             values["bit_alignment"] = None
+            values["packed_bit_order"] = None
             if isinstance(width, int) and width % spec.width_alignment:
                 raise ValueError(
                     f"{spec.label} width must be a multiple of " f"{spec.width_alignment} pixels"
@@ -139,6 +156,7 @@ class RawProfile(BaseModel):
             if isinstance(height, int) and height % 2:
                 raise ValueError(f"{spec.label} height must be even")
         else:
+            values["packed_bit_order"] = None
             if container_dtype not in ("uint8", "uint16"):
                 raise ValueError("Unpacked RAW requires container_dtype")
             container_bits = container_bit_count(container_dtype)
@@ -155,7 +173,12 @@ class RawProfile(BaseModel):
                 values["bit_alignment"] = None
 
         if isinstance(width, int) and isinstance(stride, int):
-            minimum = minimum_row_bytes(width, storage_format, values.get("container_dtype"))
+            minimum = minimum_row_bytes(
+                width,
+                storage_format,
+                values.get("container_dtype"),
+                bit_depth,
+            )
             if stride < minimum:
                 raise ValueError("stride_bytes is smaller than one image row")
             if storage_format == "unpacked" and values.get("container_dtype") is not None:
@@ -261,6 +284,7 @@ class RawProfile(BaseModel):
             self.width,
             self.storage_format,
             self.container_dtype,
+            self.bit_depth,
         )
 
     @property

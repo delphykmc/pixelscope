@@ -1211,7 +1211,11 @@ class MainWindow(QMainWindow):
                 self._raw_profile_paths[existing] = image_input.raw_profile_path
             if raw_profile is not None:
                 self._raw_profiles[existing] = raw_profile
-                self._mark_raw_for_reload(existing, raw_profile)
+            if resolve_raw_profile:
+                # An explicit file reopen is a refresh request even when the path
+                # already exists in the catalog. Folder registration passes
+                # resolve_raw_profile=False and remains registration-only.
+                self._mark_document_for_reload(existing, raw_profile)
             return existing
         document = ImageDocument.pending_document(image_input.path)
         self.documents[document.document_id] = document
@@ -1317,25 +1321,73 @@ class MainWindow(QMainWindow):
             self._set_dont_show_raw_json_profiles(True)
         return profile
 
-    def _mark_raw_for_reload(self, document_id: str, profile: RawProfile) -> None:
+    def _mark_document_for_reload(
+        self,
+        document_id: str,
+        profile: RawProfile | None = None,
+    ) -> None:
+        """Invalidate one explicit same-path reopen without duplicating its catalog entry."""
+
         self._invalidate_preload_plan()
-        document = self.documents.get(document_id)
-        if document is None:
+        current = self.documents.get(document_id)
+        if current is None or current.source_path is None:
             return
         self._load_tokens[document_id] = self._load_tokens.get(document_id, 0) + 1
         self.residency_manager.remove(document_id)
-        document.source = None
-        document.preview = None
-        document.channel_layout = profile.channel_layout
-        document.bit_depth = profile.bit_depth
-        document.raw_profile = profile
-        document.loading_state = "pending"
-        document.error_state = None
-        document.generation += 1
-        document.statistics_cache.clear()
-        document.histogram_cache.clear()
+        replacement = ImageDocument(
+            source_path=current.source_path,
+            display_name=current.display_name,
+            source=None,
+            channel_layout=(
+                profile.channel_layout if profile is not None else current.channel_layout
+            ),
+            bit_depth=profile.bit_depth if profile is not None else current.bit_depth,
+            raw_profile=profile if profile is not None else current.raw_profile,
+            display_transform=current.display_transform,
+            document_id=document_id,
+            evaluation_results=current.evaluation_results,
+            loading_state="pending",
+            error_state=None,
+            generation=current.generation + 1,
+        )
+        self.documents[document_id] = replacement
         self._invalidate_channel_views(document_id)
-        self._update_document_item(document)
+        self._update_document_item(replacement)
+
+    def _refresh_reopened_selected_documents(
+        self,
+        document_ids: Sequence[str],
+    ) -> list[str]:
+        """Start fresh source reads for same-path documents that remain selected.
+
+        Registration owns catalog identity only. This method is the single bridge
+        from an explicit reopen into foreground source loading, regardless of which
+        D&D surface initiated the request.
+        """
+
+        selected_ids = {document.document_id for document in self.selected_documents}
+        refreshed: list[str] = []
+        pending: list[ImageDocument] = []
+        for document_id in dict.fromkeys(document_ids):
+            if document_id not in selected_ids:
+                continue
+            document = self.documents.get(document_id)
+            if document is None or document.loading_state not in ("pending", "loading"):
+                continue
+            refreshed.append(document_id)
+            if document.loading_state == "pending":
+                pending.append(document)
+
+        if not refreshed:
+            return []
+
+        self._allow_raw_profile_retry(refreshed)
+        for document in pending:
+            self._ensure_loaded(document)
+        # Keep the previously displayed frame while the replacement is pending,
+        # but bind the loading state/spinner through the normal presentation path.
+        self._render_selection(preserve_view=True)
+        return refreshed
 
     def _ensure_loaded(self, document: ImageDocument) -> None:
         if document.loading_state != "pending" or document.source_path is None:
@@ -3679,6 +3731,7 @@ class MainWindow(QMainWindow):
             resolve_raw_profiles=True,
         )
         additions: list[str] = []
+        reloads: list[str] = []
         if document_ids:
             if previous_ids:
                 additions = [
@@ -3690,15 +3743,21 @@ class MainWindow(QMainWindow):
                         preserve_view=True,
                         reveal_document_id=additions[-1],
                     )
+                reloads = self._refresh_reopened_selected_documents(
+                    [document_id for document_id in document_ids if document_id in previous_set]
+                )
             else:
                 self._select_document_ids(document_ids)
 
         messages: list[str] = []
         if document_ids:
             if previous_ids:
-                messages.append(
-                    f"Added {len(additions)} image(s)" if additions else "No new images added"
-                )
+                if additions:
+                    messages.append(f"Added {len(additions)} image(s)")
+                elif reloads:
+                    messages.append(f"Reloading {len(reloads)} image(s)")
+                else:
+                    messages.append("No new images added")
             else:
                 messages.append(f"Opened {len(document_ids)} image(s)")
         if folder_result is not None:
