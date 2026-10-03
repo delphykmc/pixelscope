@@ -15,6 +15,7 @@ source and tests before changing behavior.
 - Durable engineering decisions: `docs/DECISIONS.md`
 - Phase-level scope: `docs/ROADMAP.md`
 - Validation and completion evidence: `docs/QUALITY.md`
+- Fresh-process test execution and Issue #81 canary split: `docs/TEST_EXECUTION.md`
 - Packaging constraints: `docs/PACKAGING_CONSTRAINTS.md`
 - Long or multi-session work: `docs/exec-plans/TEMPLATE.md`
 
