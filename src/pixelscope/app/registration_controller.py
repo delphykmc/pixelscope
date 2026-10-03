@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import weakref
 from bisect import bisect_right
 from collections import deque
 from collections.abc import Callable, Sequence
@@ -20,6 +21,7 @@ from pixelscope.io.path_discovery import (
     discover_registration_inputs,
     natural_sort_key,
 )
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 LOGGER = logging.getLogger(__name__)
@@ -72,7 +74,7 @@ class RegistrationController(QObject):
             raise ValueError("registration chunk size must be positive")
         if slice_budget_ms < 1:
             raise ValueError("registration slice budget must be positive")
-        self.window = window
+        self._window_ref = weakref.ref(window)
         self.chunk_size = chunk_size
         self.slice_budget_ms = slice_budget_ms
         self._discovery_function = discovery_function
@@ -95,9 +97,11 @@ class RegistrationController(QObject):
         self._folder_document_ids: dict[str, set[str]] = {}
         self._current_record: RegistrationInput | None = None
         self._type_column_resize_mode: QHeaderView.ResizeMode | None = None
-        self._original_path_key = window._path_key
-        self._original_add_document_to_folder = window._add_document_to_folder
-        self._original_remove_document_from_folder = window._remove_document_from_folder
+        self._original_path_key = OwnerCallback(window._path_key)
+        self._original_add_document_to_folder = OwnerCallback(window._add_document_to_folder)
+        self._original_remove_document_from_folder = OwnerCallback(
+            window._remove_document_from_folder
+        )
         self._initialize_folder_caches()
 
         progress_parent = window.document_list.parentWidget() or window
@@ -112,6 +116,13 @@ class RegistrationController(QObject):
         else:
             window.statusBar().addWidget(self._progress)
         self._progress_state = RegistrationProgress("idle", 0, None)
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Registration window was destroyed")
+        return window
 
     @property
     def progress(self) -> RegistrationProgress:

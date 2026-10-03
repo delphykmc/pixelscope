@@ -1,20 +1,38 @@
 from __future__ import annotations
 
+import weakref
 from typing import Any, cast
 
 from pixelscope.core.difference_cache import DifferenceCacheKey
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
 
 class NativeYuvDifferencePresentationLifecycle:
     """Bind native-YUV presentation to the exact Difference cache identity."""
 
     def __init__(self, window: Any) -> None:
-        self.window = window
-        self.panel = window.difference_panel
+        self._window_ref = weakref.ref(window)
+        self._panel_ref = weakref.ref(window.difference_panel)
         self._pending_visible_key: DifferenceCacheKey | None = None
-        self._original_store_difference_document = window._store_difference_document
-        self._original_result_matches_current = window._difference_result_matches_current_pair
-        self._original_set_documents = self.panel.set_documents
+        self._original_store_difference_document = OwnerCallback(window._store_difference_document)
+        self._original_result_matches_current = OwnerCallback(
+            window._difference_result_matches_current_pair
+        )
+        self._original_set_documents = OwnerCallback(window.difference_panel.set_documents)
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("YUV Difference window was destroyed")
+        return window
+
+    @property
+    def panel(self) -> Any:
+        panel = self._panel_ref()
+        if panel is None:
+            raise RuntimeError("YUV Difference panel was destroyed")
+        return panel
 
     def install(self) -> None:
         self.window.__dict__["_difference_result_key"] = None

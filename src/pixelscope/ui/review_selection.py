@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from collections.abc import Sequence
 from typing import Any
 
@@ -10,6 +11,7 @@ from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.review_selection import ReviewSelectionState
 from pixelscope.ui.design_tokens import TOKENS, tile_style
 from pixelscope.ui.image_viewer import ImageViewer
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
 
 def _selection_button_style() -> str:
@@ -40,15 +42,22 @@ class ReviewSelectionController(QObject):
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
-        self.window = window
+        self._window_ref = weakref.ref(window)
         self.state = ReviewSelectionState()
         self._applying = False
-        self._original_select_document_ids = window._select_document_ids
-        self._original_remove_document_ids = window._remove_document_ids
+        self._original_select_document_ids = OwnerCallback(window._select_document_ids)
+        self._original_remove_document_ids = OwnerCallback(window._remove_document_ids)
         self._build_controls()
         self._connect_viewers()
         self._install_selection_invalidation_boundary()
         self._sync_all()
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Review selection window was destroyed")
+        return window
 
     @property
     def active(self) -> bool:
