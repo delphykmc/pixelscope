@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from contextlib import suppress
+from functools import partial
+from typing import Any, cast
 
 import numpy as np
 import pyqtgraph as pg
@@ -48,6 +50,8 @@ class LineProfilePanel(QWidget):
         self._profile_series: list[
             list[tuple[int, str, NDArray[np.float64], NDArray[np.float64]]]
         ] = [[] for _index in range(6)]
+        self._plot_mouse_callbacks: list[Any] = []
+        self._plot_resources_disposed = False
         self._reference_document_id: str | None = None
         self._reference_priority_ids: tuple[str, ...] = ()
         self._semantics_delegate: Any | None = None
@@ -143,9 +147,9 @@ class LineProfilePanel(QWidget):
             )
             self.plots.append(plot)
             self.legends.append(plot.addLegend(offset=(-10, 10)))
-            plot.scene().sigMouseMoved.connect(
-                lambda position, index=plot_index: self._on_plot_mouse_moved(position, index)
-            )
+            callback = partial(self._on_plot_mouse_moved, plot_index=plot_index)
+            self._plot_mouse_callbacks.append(callback)
+            plot.scene().sigMouseMoved.connect(callback)
             plot.hide()
         self.plot = self.plots[0]
         self.legend = self.legends[0]
@@ -268,6 +272,8 @@ class LineProfilePanel(QWidget):
         self.refresh_default()
 
     def refresh_default(self) -> None:
+        if self._plot_resources_disposed:
+            return
         documents = self._documents
         selection = self._selection
         if not documents or selection is None:
@@ -360,7 +366,11 @@ class LineProfilePanel(QWidget):
         cache_keys: list[tuple[object, ...]],
         result: object,
     ) -> None:
-        if signature != self._request_signature or not isinstance(result, tuple):
+        if (
+            self._plot_resources_disposed
+            or signature != self._request_signature
+            or not isinstance(result, tuple)
+        ):
             return
         if len(result) != len(self._documents) or not all(
             isinstance(item, LineProfileResult) for item in result
@@ -378,6 +388,8 @@ class LineProfilePanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
+        if self._plot_resources_disposed:
+            return
         self._set_status(f"Error: {error.message}")
 
     def _on_finished(self, task_id: str) -> None:
@@ -763,3 +775,33 @@ class LineProfilePanel(QWidget):
     def shutdown(self) -> None:
         if self._worker is not None:
             self._worker.cancel()
+        self._request_signature = ()
+        if self._plot_resources_disposed:
+            return
+        self._plot_resources_disposed = True
+
+        for plot, callback in zip(
+            tuple(self.plots),
+            tuple(self._plot_mouse_callbacks),
+            strict=True,
+        ):
+            with suppress(RuntimeError, TypeError):
+                plot.scene().sigMouseMoved.disconnect(callback)
+            view_box = plot.getViewBox()
+            menu = getattr(view_box, "menu", None)
+            if menu is not None:
+                view_box.menu = None
+                menu.close()
+                menu.deleteLater()
+            plot.close()
+            plot.deleteLater()
+
+        self._plot_mouse_callbacks.clear()
+        self.plots.clear()
+        self.legends.clear()
+        self._hover_lines = [None] * 6
+        self._hover_texts = [None] * 6
+        self._plot_result_indices = [[] for _index in range(6)]
+        self._profile_series = [[] for _index in range(6)]
+        self.plot = cast(Any, None)
+        self.legend = cast(Any, None)
