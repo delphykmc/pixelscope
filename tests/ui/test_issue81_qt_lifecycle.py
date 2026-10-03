@@ -10,6 +10,7 @@ from weakref import ref
 import numpy as np
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QThreadPool
 from PySide6.QtWidgets import QApplication
+from shiboken6 import isValid
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
@@ -174,3 +175,31 @@ def test_comparison_analysis_shutdown_rejects_late_worker_result(
 
     panel.close()
     panel.deleteLater()
+
+
+def test_production_composition_disposes_image_viewer_graphics_before_deferred_delete(
+    qtbot: object,
+    isolated_qsettings_subdirectory: None,
+) -> None:
+    del qtbot
+    del isolated_qsettings_subdirectory
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+
+    window = MainWindow()
+    _compose_main_window_presentation(window)
+    viewers = (window.viewer, *window.multi_compare_view.viewers)
+    graphics = tuple(ref(viewer._graphics) for viewer in viewers)
+
+    window.close()
+
+    assert all(viewer._graphics_resources_disposed for viewer in viewers)
+
+    window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    assert all(
+        graphics_ref() is None or not isValid(graphics_ref()) for graphics_ref in graphics
+    )
+    del viewers
+    del window

@@ -3907,6 +3907,8 @@ class MainWindow(QMainWindow):
         self._closing = True
         self._save_ui_state()
         self._prepare_floating_workspaces_for_shutdown()
+        self.viewer.shutdown()
+        self.multi_compare_view.shutdown()
         self.comparison_analysis_panel.shutdown()
         self.line_profile_panel.shutdown()
         self.difference_panel.shutdown()

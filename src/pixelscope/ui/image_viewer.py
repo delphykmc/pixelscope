@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from math import ceil, cos, floor, radians, sin
 from typing import Any
 
@@ -202,6 +203,7 @@ class ImageViewer(QWidget):
         self._display_preview_worker: TaskWorker | None = None
         self._display_preview_request_serial = 0
         self._display_preview_request_identity: tuple[int, int, int, int, float] | None = None
+        self._graphics_resources_disposed = False
         self._display_gain_state = display_gain_state()
         self._display_gain_state.gain_changed.connect(self._display_gain_changed)
         self._slot = 1
@@ -597,6 +599,36 @@ class ImageViewer(QWidget):
         self._cancel_display_preview()
         self._release_derived_display_preview()
         super().hideEvent(event)
+
+    def shutdown(self) -> None:
+        """Release pyqtgraph resources at the owning-window lifecycle boundary."""
+
+        self._cancel_display_preview()
+        self._loading_timer.stop()
+        if self._graphics_resources_disposed:
+            return
+        self._graphics_resources_disposed = True
+
+        with suppress(RuntimeError, TypeError):
+            self._display_gain_state.gain_changed.disconnect(self._display_gain_changed)
+        viewport = self._graphics.viewport()
+        viewport.removeEventFilter(self)
+        with suppress(RuntimeError, TypeError):
+            self._graphics.scene().sigMouseMoved.disconnect(self._on_scene_mouse_moved)
+        signal_callbacks = (
+            (self.view_box.roi_dragged, self._on_roi_dragged),
+            (self.view_box.line_dragged, self._on_line_dragged),
+            (self.view_box.roi_reset_requested, self._reset_overlays),
+            (self.view_box.sigRangeChanged, self._update_zoom),
+            (self.view_box.sigRangeChanged, self._position_loading_item),
+        )
+        for signal, callback in signal_callbacks:
+            with suppress(RuntimeError, TypeError):
+                signal.disconnect(callback)
+        self.view_box.close()
+        self._graphics.removeItem(self.view_box)
+        self._graphics.close()
+        self._graphics.deleteLater()
 
     def _position_loading_item(self, *_args: object) -> None:
         x_range, y_range = self.view_box.viewRange()
