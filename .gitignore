@@ -16,3 +16,4 @@ release/
 test_data/generated/
 /site/
 /.cache/plugin/privacy/
+.test-results/
