@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from PySide6.QtCore import QObject, Qt
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from pixelscope.core.roi import RoiBounds
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.ui.quick_compare import QuickCompareController
 from pixelscope.ui.toolbar_icons import toolbar_icon
 
@@ -116,17 +118,24 @@ class Issue77UiDesignFollowup(QObject):
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
-        self.window = window
+        self._window_ref = weakref.ref(window)
         controller = getattr(window, "quick_compare_controller", None)
         if not isinstance(controller, QuickCompareController):
             raise RuntimeError("Issue #77 UI follow-up requires Quick Compare composition")
-        self.quick_compare = controller
+        self.quick_compare: Any = weakref.proxy(controller)
         self._active_roi_dialog: RoiEditorDialog | None = None
 
         self._install_roi_affordance()
         self._install_three_view_affordance()
         self._wrap_render_selection()
         self._sync_controls()
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Issue #77 window was destroyed")
+        return window
 
     def _install_roi_affordance(self) -> None:
         panel = self.window.comparison_analysis_panel
@@ -170,7 +179,7 @@ class Issue77UiDesignFollowup(QObject):
         panel.region_layout.setColumnStretch(1, 1)
         panel.region_layout.setColumnStretch(2, 0)
 
-        original_update_region_label = panel._update_region_label
+        original_update_region_label = OwnerCallback(panel._update_region_label)
 
         def update_region_label() -> None:
             original_update_region_label()
@@ -272,7 +281,7 @@ class Issue77UiDesignFollowup(QObject):
             controller.three_view_group.hide()
             self._sync_three_view_button()
 
-        controller._update_three_view_controls = update_three_view_controls  # type: ignore[method-assign]
+        controller._update_three_view_controls = update_three_view_controls
         # PR #68 owns Image View command-row allocation. The new button lives inside
         # the existing Layout group, so only refresh that established content-derived
         # minimum after adding the child; do not override top-level stretch weights.
@@ -310,7 +319,7 @@ class Issue77UiDesignFollowup(QObject):
         )
 
     def _wrap_render_selection(self) -> None:
-        original_render = self.window._render_selection
+        original_render = OwnerCallback(self.window._render_selection)
 
         def render_selection(preserve_view: bool = False) -> None:
             original_render(preserve_view)

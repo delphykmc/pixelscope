@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -36,6 +37,7 @@ from pixelscope.io.raw_profile import RawProfile
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.display_gain import display_gain_state, is_display_gain_capable
 from pixelscope.ui.image_viewer import ImageViewer, _display_preview_thread_pool
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskWorker
 
 _BlinkRenderIdentity = tuple[int, int, int, int, float]
@@ -55,8 +57,8 @@ class QuickCompareController(QObject):
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
-        self.window = window
-        self.view = window.multi_compare_view
+        self._window_ref = weakref.ref(window)
+        self.view: Any = weakref.proxy(window.multi_compare_view)
         self._three_view_context: tuple[frozenset[str], bool] | None = None
         self._three_view_override: str | None = None
         self._pending_difference_pair: tuple[str, str] | None = None
@@ -70,10 +72,13 @@ class QuickCompareController(QObject):
         self._protected_difference_pair: tuple[str, str] | None = None
         self._sequential_drop_anchor_id: str | None = None
         self._deferred_difference_pair: tuple[str, str] | None = None
+        self._app: QApplication | None = None
 
-        self._original_prepare = self.view._prepare_viewers_for_documents
-        self._original_fixed_geometry = self.view._fixed_geometry
-        self._original_render_selection = window._render_selection
+        self._original_prepare = OwnerCallback(
+            window.multi_compare_view._prepare_viewers_for_documents
+        )
+        self._original_fixed_geometry = OwnerCallback(window.multi_compare_view._fixed_geometry)
+        self._original_render_selection = OwnerCallback(window._render_selection)
         self._display_gain_state = display_gain_state()
         self._display_gain_state.gain_changed.connect(self._display_gain_changed_during_blink)
 
@@ -88,6 +93,13 @@ class QuickCompareController(QObject):
         self._install_three_view_geometry()
         self._install_render_hook()
         self._install_input_filter()
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Quick Compare window was destroyed")
+        return window
 
     def _build_three_view_controls(self) -> None:
         group = QWidget(self.window.presentation_controls)
@@ -229,11 +241,13 @@ class QuickCompareController(QObject):
             deferred = self._deferred_difference_pair
             if deferred is not None:
                 self._release_deferred_difference(deferred)
+            self._uninstall_input_filter()
 
         if event_type == QEvent.Type.KeyPress:
             key_event = cast(QKeyEvent, event)
             if (
-                self._app.activeWindow() is self.window
+                self._app is not None
+                and self._app.activeWindow() is self.window
                 and key_event.key() == Qt.Key.Key_B
                 and key_event.modifiers() == Qt.KeyboardModifier.NoModifier
                 and not key_event.isAutoRepeat()
@@ -256,6 +270,12 @@ class QuickCompareController(QObject):
         # an application-level filter. Calling QObject.eventFilter() with those Python
         # wrappers raises in PySide6; the default QObject implementation is a no-op.
         return False
+
+    def _uninstall_input_filter(self) -> None:
+        app = getattr(self, "_app", None)
+        if isinstance(app, QApplication):
+            app.removeEventFilter(self)
+        self._app = None
 
     def _is_image_surface(self, watched: QObject) -> bool:
         if not isinstance(watched, QWidget):
@@ -511,7 +531,7 @@ class QuickCompareController(QObject):
         self._sync_three_view_buttons(self._effective_three_view_variant())
 
     def _text_input_has_focus(self) -> bool:
-        focus = self._app.focusWidget()
+        focus = self._app.focusWidget() if self._app is not None else None
         return isinstance(
             focus,
             QLineEdit | QAbstractSpinBox | QComboBox | QTextEdit | QPlainTextEdit,

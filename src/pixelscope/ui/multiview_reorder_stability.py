@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 
@@ -7,9 +8,8 @@ class MultiViewReorderStabilityController:
     """Keep each source bound to its viewer while presentation order changes."""
 
     def __init__(self, window: Any) -> None:
-        self.window = window
-        self.view = window.multi_compare_view
-        self._original_prepare = self.view._prepare_viewers_for_documents
+        self.window: Any = weakref.proxy(window)
+        self.view: Any = weakref.proxy(window.multi_compare_view)
         self._install()
 
     def _install(self) -> None:
