@@ -15,6 +15,7 @@ source and tests before changing behavior.
 - Durable engineering decisions: `docs/DECISIONS.md`
 - Phase-level scope: `docs/ROADMAP.md`
 - Validation and completion evidence: `docs/QUALITY.md`
+- Fresh-process test execution and Issue #81 canary split: `docs/TEST_EXECUTION.md`
 - Packaging constraints: `docs/PACKAGING_CONSTRAINTS.md`
 - Long or multi-session work: `docs/exec-plans/TEMPLATE.md`
 
@@ -25,6 +26,12 @@ source and tests before changing behavior.
   packaging tools unless explicitly requested.
 - Keep numerical algorithms out of Qt widgets and expensive work off the UI
   thread.
+- Do not make Qt/PySide object lifetime depend on Python cyclic-GC timing.
+  Avoid runtime instance-method replacement that stores bound originals or
+  closures back into the same QObject/QWidget ownership graph; prefer explicit
+  hooks, delegates/strategies, stable signals, or owned helpers. If a runtime
+  install is unavoidable, provide deterministic idempotent teardown and cover
+  the lifetime contract with regression tests.
 - Preserve source dtype, channel meaning, strides, endianness, bit alignment,
   and image bounds explicitly.
 - Promote operands before difference, squared-error, or other overflow-prone
