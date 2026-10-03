@@ -2,7 +2,7 @@
 
 Status: Active  
 Owner: ChatGPT-assisted / repository owner  
-Branch/PR: `test/fresh-process-batched-pytest` / PR #107 diagnostic branch  
+Branch/PR: `fix/issue-81-qt-cycle-hardening` / production Draft PR pending
 Last updated: 2026-10-04
 
 ## Goal
@@ -28,7 +28,7 @@ Remove the application-owned Python reference cycles that keep large PySide/Qt o
 - `gc.disable()`, production-wide `gc.collect()`, arbitrary sleeps, timeout increases, or test-process isolation as the production fix.
 - Rewriting pyqtgraph internals solely to obtain a zero-cycle process.
 - Broad UI redesign or unrelated cleanup while changing ownership/lifecycle structure.
-- Treating PR #107 fresh-process batching as the root-cause fix; it remains diagnostic/fallback execution infrastructure until lifecycle stability is demonstrated.
+- Modifying PR #107 or treating its fresh-process batching as the root-cause fix; it remains a read-only diagnostic/validation carrier until lifecycle stability is demonstrated.
 
 ## Current state
 
