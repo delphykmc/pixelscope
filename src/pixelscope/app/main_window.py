@@ -1401,6 +1401,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Loading {path.name}...")
 
     def _load_succeeded(self, target_id: str, request_token: int, result: object) -> None:
+        if self._closing:
+            return
         if target_id not in self.documents or self._load_tokens.get(target_id) != request_token:
             self._normal_load_stale_drop_count += 1
             return
@@ -1426,6 +1428,8 @@ class MainWindow(QMainWindow):
         error: TaskError,
         request_token: int | None = None,
     ) -> None:
+        if self._closing:
+            return
         if request_token is not None and self._load_tokens.get(target_id) != request_token:
             self._normal_load_stale_drop_count += 1
             return
@@ -1453,6 +1457,8 @@ class MainWindow(QMainWindow):
     def _worker_finished(self, task_id: str) -> None:
         self._workers.pop(task_id, None)
         self._load_worker_targets.pop(task_id, None)
+        if self._closing:
+            return
         self._evict_resident_documents()
         if not self._workers and not self._promoted_preload_tokens:
             self.structured_status.task.setText("Ready")
@@ -1623,6 +1629,8 @@ class MainWindow(QMainWindow):
         )
 
     def _preload_succeeded(self, task_id: str, result: object) -> None:
+        if self._closing:
+            return
         request = self._preload_worker_requests.get(task_id)
         promoted_token = self._promoted_preload_tokens.get(task_id)
         if request is None:
@@ -1688,6 +1696,8 @@ class MainWindow(QMainWindow):
         )
 
     def _preload_failed(self, task_id: str, error: object) -> None:
+        if self._closing:
+            return
         request = self._preload_worker_requests.get(task_id)
         if request is None:
             return
@@ -1720,6 +1730,8 @@ class MainWindow(QMainWindow):
         request = self._preload_worker_requests.pop(task_id, None)
         self._preload_workers.pop(task_id, None)
         self._promoted_preload_tokens.pop(task_id, None)
+        if self._closing:
+            return
         if request is not None:
             self.preload_controller.finish_worker(request)
         if not self._workers and not self._promoted_preload_tokens:

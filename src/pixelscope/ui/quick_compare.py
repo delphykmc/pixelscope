@@ -58,7 +58,7 @@ class QuickCompareController(QObject):
     def __init__(self, window: Any) -> None:
         super().__init__(window)
         self._window_ref = weakref.ref(window)
-        self.view: Any = weakref.proxy(window.multi_compare_view)
+        self._view_ref = weakref.ref(window.multi_compare_view)
         self._three_view_context: tuple[frozenset[str], bool] | None = None
         self._three_view_override: str | None = None
         self._pending_difference_pair: tuple[str, str] | None = None
@@ -100,6 +100,13 @@ class QuickCompareController(QObject):
         if window is None:
             raise RuntimeError("Quick Compare window was destroyed")
         return window
+
+    @property
+    def view(self) -> Any:
+        view = self._view_ref()
+        if view is None:
+            raise RuntimeError("Quick Compare view was destroyed")
+        return view
 
     def _build_three_view_controls(self) -> None:
         group = QWidget(self.window.presentation_controls)

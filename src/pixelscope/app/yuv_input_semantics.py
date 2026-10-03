@@ -31,7 +31,7 @@ class NativeYuvSemanticsController:
     def __init__(self, window: Any) -> None:
         import weakref
 
-        self.window: Any = weakref.proxy(window)
+        self._window_ref = weakref.ref(window)
         self._confirm_profile_original = OwnerCallback(window._confirm_raw_profile)
         self._start_preload_original = OwnerCallback(window._start_preload)
         self._record_resident_original = OwnerCallback(window._record_resident_source)
@@ -51,6 +51,13 @@ class NativeYuvSemanticsController:
         self._difference_set_documents_original = OwnerCallback(difference.set_documents)
         self._difference_calculate_original = OwnerCallback(difference.calculate_difference)
         self._difference_yuv_blocked = False
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Native YUV window was destroyed")
+        return window
 
     def install(self) -> None:
         window = self.window

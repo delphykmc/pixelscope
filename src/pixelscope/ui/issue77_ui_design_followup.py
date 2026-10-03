@@ -122,7 +122,7 @@ class Issue77UiDesignFollowup(QObject):
         controller = getattr(window, "quick_compare_controller", None)
         if not isinstance(controller, QuickCompareController):
             raise RuntimeError("Issue #77 UI follow-up requires Quick Compare composition")
-        self.quick_compare: Any = weakref.proxy(controller)
+        self._quick_compare_ref = weakref.ref(controller)
         self._active_roi_dialog: RoiEditorDialog | None = None
 
         self._install_roi_affordance()
@@ -136,6 +136,13 @@ class Issue77UiDesignFollowup(QObject):
         if window is None:
             raise RuntimeError("Issue #77 window was destroyed")
         return window
+
+    @property
+    def quick_compare(self) -> Any:
+        controller = self._quick_compare_ref()
+        if controller is None:
+            raise RuntimeError("Quick Compare controller was destroyed")
+        return controller
 
     def _install_roi_affordance(self) -> None:
         panel = self.window.comparison_analysis_panel

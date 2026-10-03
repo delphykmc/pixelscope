@@ -8,9 +8,23 @@ class MultiViewReorderStabilityController:
     """Keep each source bound to its viewer while presentation order changes."""
 
     def __init__(self, window: Any) -> None:
-        self.window: Any = weakref.proxy(window)
-        self.view: Any = weakref.proxy(window.multi_compare_view)
+        self._window_ref = weakref.ref(window)
+        self._view_ref = weakref.ref(window.multi_compare_view)
         self._install()
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Multi-view window was destroyed")
+        return window
+
+    @property
+    def view(self) -> Any:
+        view = self._view_ref()
+        if view is None:
+            raise RuntimeError("Multi-view was destroyed")
+        return view
 
     def _install(self) -> None:
         view = self.view
