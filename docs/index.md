@@ -17,7 +17,7 @@ knowledge belongs in focused documents under `docs/`.
 | Branding/application identity | `BRANDING.md`, `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Product mark, canonical assets, resource loading, or release-icon use changes |
 | Packaging/dependency | `PACKAGING_CONSTRAINTS.md`, `BUILD_AND_RELEASE.md`, `DECISIONS.md` | Runtime, dependency, installer, release metadata, publication, or resource-loading constraints change |
 | Owner-local Beta build/release | `BUILD_AND_RELEASE.md`, `PACKAGING_CONSTRAINTS.md` | Human build flow, candidate handoff, validation sequence, or publication procedure changes |
-| Test/validation | `QUALITY.md` | Required checks, fixtures, smoke paths, or evidence standards change |
+| Test/validation | `QUALITY.md`, `TEST_EXECUTION.md` | Required checks, fixtures, smoke paths, evidence standards, process isolation, or native-canary policy changes |
 | Agent-assisted workflow | `AGENT_HARNESS_NOTES.md` | A durable harness lesson or guardrail changes |
 
 ## Document roles
@@ -61,6 +61,8 @@ knowledge belongs in focused documents under `docs/`.
 - `user-guide/`: canonical end-user Markdown source for the searchable/offline site;
   avoid developer phase names and internal implementation terminology here.
 - `QUALITY.md`: change-to-check matrix and completion evidence.
+- `TEST_EXECUTION.md`: fresh-process grouped functional lane, subprocess failure
+  accounting, and the separate monolithic Issue #81 native-lifecycle canary.
 - `AGENT_HARNESS_NOTES.md`: reusable harness lessons for humans and agents.
 - `ui/implementation_status.md`: detailed UI iteration audit.
 - `ui/beta_workspace_hardening.md`: Beta layout/floating-window contract, root causes,
