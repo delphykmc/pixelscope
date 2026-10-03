@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from types import MethodType
+import weakref
 from typing import Any
 
 from PySide6.QtCore import QObject
 
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_submission import JobState
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskWorker
 
 RESULT_MAPPING_REFRESH_MESSAGE = "storage mapping changed · resolving result path"
@@ -23,8 +24,8 @@ class RemoteIqaResultMappingGuard(QObject):
 
     def __init__(self, controller: Any, parent: QObject) -> None:
         super().__init__(parent)
-        self.controller = controller
-        self.workspace = controller.workspace
+        self._controller_ref = weakref.ref(controller)
+        self.workspace: Any = weakref.proxy(controller.workspace)
         self._revision = 0
         self._mapping_identity = _mapping_identity(
             controller.window.application_settings.remote_iqa
@@ -34,52 +35,26 @@ class RemoteIqaResultMappingGuard(QObject):
         self._task_jobs: dict[str, str] = {}
         self._starting_resolution: tuple[str, int] | None = None
 
-        self._original_settings_changed = controller.settings_changed
-        self._original_resolve_result_path = controller._resolve_result_path
-        self._original_result_path_ready = controller._result_path_ready
-        self._original_result_resolve_finished = controller._result_resolve_finished
-        self._original_track_worker = controller._track_worker
-
-        def guarded_settings_changed(_controller: Any) -> None:
-            self._settings_changed()
-
-        def guarded_resolve_result_path(_controller: Any, job: Any) -> None:
-            self._resolve_result_path(job)
-
-        def guarded_result_path_ready(
-            _controller: Any,
-            task_id: str,
-            document_id: object,
-            generation: int,
-            value: object,
-        ) -> None:
-            self._result_path_ready(
-                task_id,
-                document_id,
-                generation,
-                value,
-            )
-
-        def guarded_result_resolve_finished(_controller: Any, task_id: str) -> None:
-            self._result_resolve_finished(task_id)
-
-        def guarded_track_worker(_controller: Any, worker: TaskWorker) -> None:
-            self._track_worker(worker)
-
-        controller.settings_changed = MethodType(guarded_settings_changed, controller)
-        controller._resolve_result_path = MethodType(
-            guarded_resolve_result_path,
-            controller,
+        self._original_settings_changed = OwnerCallback(controller.settings_changed)
+        self._original_resolve_result_path = OwnerCallback(controller._resolve_result_path)
+        self._original_result_path_ready = OwnerCallback(controller._result_path_ready)
+        self._original_result_resolve_finished = OwnerCallback(
+            controller._result_resolve_finished
         )
-        controller._result_path_ready = MethodType(
-            guarded_result_path_ready,
-            controller,
-        )
-        controller._result_resolve_finished = MethodType(
-            guarded_result_resolve_finished,
-            controller,
-        )
-        controller._track_worker = MethodType(guarded_track_worker, controller)
+        self._original_track_worker = OwnerCallback(controller._track_worker)
+
+        controller.settings_changed = self._settings_changed
+        controller._resolve_result_path = self._resolve_result_path
+        controller._result_path_ready = self._result_path_ready
+        controller._result_resolve_finished = self._result_resolve_finished
+        controller._track_worker = self._track_worker
+
+    @property
+    def controller(self) -> Any:
+        controller = self._controller_ref()
+        if controller is None:
+            raise RuntimeError("Remote IQA controller was destroyed")
+        return controller
 
     @property
     def revision(self) -> int:

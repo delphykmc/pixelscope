@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from types import MethodType
+import weakref
 from typing import Any
 
 from PySide6.QtCore import QObject, Slot
@@ -15,6 +15,7 @@ from pixelscope.remote.iqa_scene_inspection import (
     VerifiedSceneSource,
 )
 from pixelscope.remote.iqa_v2_domain import ResultV2
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskWorker
 
 
@@ -23,110 +24,41 @@ class IqaSceneInspectionLifecycle(QObject):
 
     def __init__(self, controller: Any, parent: QObject) -> None:
         super().__init__(parent)
-        self.controller = controller
-        self.window = controller.window
+        self.controller: Any = weakref.proxy(controller)
+        self.window: Any = weakref.proxy(parent)
         self._settings_revision = 0
         self._inspect_settings_revision: int | None = None
         self._document_variant_aliases: dict[str, tuple[str, ...]] = {}
         self._variant_binding_targets: tuple[tuple[str, str], ...] = ()
 
-        self._original_return_to_local_workspace = controller.return_to_local_workspace
-        self._original_sync_controls = controller._sync_controls
-        self._original_cancel_inspect_worker = controller._cancel_inspect_worker
-        self._original_verification_succeeded = controller._verification_succeeded
-        self._original_verification_failed = controller._verification_failed
+        self._original_return_to_local_workspace = OwnerCallback(
+            controller.return_to_local_workspace
+        )
+        self._original_sync_controls = OwnerCallback(controller._sync_controls)
+        self._original_cancel_inspect_worker = OwnerCallback(controller._cancel_inspect_worker)
+        self._original_verification_succeeded = OwnerCallback(
+            controller._verification_succeeded
+        )
+        self._original_verification_failed = OwnerCallback(controller._verification_failed)
 
         remote_controller = getattr(self.window, "remote_iqa_controller", None)
         self._original_remote_settings_changed = (
-            remote_controller.settings_changed if remote_controller is not None else None
+            OwnerCallback(remote_controller.settings_changed)
+            if remote_controller is not None
+            else None
         )
-
-        def start_scene_verification(
-            _controller: Any,
-            result: ResultV2,
-            scene_id: str,
-        ) -> None:
-            self._start_scene_verification(result, scene_id)
-
-        def verification_succeeded(
-            _controller: Any,
-            task_id: str,
-            document_id: object,
-            generation: int,
-            value: object,
-        ) -> None:
-            self._verification_succeeded(
-                task_id,
-                document_id,
-                generation,
-                value,
-            )
-
-        def verification_failed(
-            _controller: Any,
-            task_id: str,
-            document_id: object,
-            generation: int,
-            error: object,
-        ) -> None:
-            self._verification_failed(
-                task_id,
-                document_id,
-                generation,
-                error,
-            )
-
-        def apply_verified_scene(
-            _controller: Any,
-            result: ResultV2,
-            outcome: SceneVerificationOutcome,
-        ) -> None:
-            self._apply_verified_scene(result, outcome)
-
-        def return_to_local_workspace(_controller: Any) -> None:
-            self._return_to_local_workspace()
-
-        def cancel_inspect_worker(_controller: Any) -> None:
-            self._cancel_inspect_worker()
-
-        def sync_controls(_controller: Any) -> None:
-            self._sync_controls()
-
-        def settings_changed(_controller: Any) -> None:
-            self.settings_changed()
-
-        controller._start_scene_verification = MethodType(
-            start_scene_verification,
-            controller,
-        )
-        controller._verification_succeeded = MethodType(
-            verification_succeeded,
-            controller,
-        )
-        controller._verification_failed = MethodType(
-            verification_failed,
-            controller,
-        )
-        controller._apply_verified_scene = MethodType(apply_verified_scene, controller)
-        controller.return_to_local_workspace = MethodType(
-            return_to_local_workspace,
-            controller,
-        )
-        controller._cancel_inspect_worker = MethodType(cancel_inspect_worker, controller)
-        controller._sync_controls = MethodType(sync_controls, controller)
-        controller.settings_changed = MethodType(settings_changed, controller)
+        controller._start_scene_verification = self._start_scene_verification
+        controller._verification_succeeded = self._verification_succeeded
+        controller._verification_failed = self._verification_failed
+        controller._apply_verified_scene = self._apply_verified_scene
+        controller.return_to_local_workspace = self._return_to_local_workspace
+        controller._cancel_inspect_worker = self._cancel_inspect_worker
+        controller._sync_controls = self._sync_controls
+        controller.settings_changed = self.settings_changed
 
         if remote_controller is not None and self._original_remote_settings_changed is not None:
 
-            def remote_settings_changed(_remote_controller: Any) -> None:
-                assert self._original_remote_settings_changed is not None
-                self._original_remote_settings_changed()
-                self.settings_changed()
-
-            remote_controller.settings_changed = MethodType(
-                remote_settings_changed,
-                remote_controller,
-            )
+            remote_controller.settings_changed = self._remote_settings_changed
 
         # The Return button was connected before this lifecycle wrapper was installed.
         # It is P5-D-owned, so reconnect it to the guarded method without touching any
@@ -142,6 +74,11 @@ class IqaSceneInspectionLifecycle(QObject):
             viewer.header.pick_requested.connect(self._review_pick_changed)
 
         self._sync_controls()
+
+    def _remote_settings_changed(self) -> None:
+        assert self._original_remote_settings_changed is not None
+        self._original_remote_settings_changed()
+        self.settings_changed()
 
     @property
     def settings_revision(self) -> int:

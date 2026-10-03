@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
-from types import MethodType
 from typing import Any, cast
 
 from pydantic import ValidationError
@@ -20,52 +18,28 @@ from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
 from pixelscope.ui.design_tokens import channel_button_style
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.ui.plot_colors import channel_color
 from pixelscope.ui.user_guide_help import install_dialog_context_help
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
 from pixelscope.workers.task_worker import TaskWorker
 
 
-class _OwnerCallback:
-    """Non-owning handle for a pre-composition owner method."""
-
-    def __init__(self, callback: Callable[..., Any]) -> None:
-        self._function: Callable[..., Any] | None = None
-        self._owner: weakref.ReferenceType[Any] | None = None
-        owner = getattr(callback, "__self__", None)
-        function = getattr(callback, "__func__", None)
-        if owner is None or function is None:
-            self._function = callback
-        else:
-            self._function = function
-            self._owner = weakref.ref(owner)
-
-    def resolve(self) -> Callable[..., Any]:
-        assert self._function is not None
-        if self._owner is None:
-            return self._function
-        owner = self._owner()
-        if owner is None:
-            raise RuntimeError("YUV owner was destroyed")
-        return MethodType(self._function, owner)
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        return self.resolve()(*args, **kwargs)
-
-
 class NativeYuvSemanticsController:
     """Compose WP-C1 YUV authority into the existing document/UI lifecycle."""
 
     def __init__(self, window: Any) -> None:
+        import weakref
+
         self.window: Any = weakref.proxy(window)
-        self._confirm_profile_original = _OwnerCallback(window._confirm_raw_profile)
-        self._start_preload_original = _OwnerCallback(window._start_preload)
-        self._record_resident_original = _OwnerCallback(window._record_resident_source)
-        self._evict_original = _OwnerCallback(window._evict_resident_documents)
-        self._mark_reload_original = _OwnerCallback(window._mark_raw_for_reload)
-        self._update_actions_original = _OwnerCallback(window._update_action_states)
-        self._inspect_pixel_original = _OwnerCallback(window._inspect_pixel)
-        self._pixel_status_original = _OwnerCallback(window._pixel_status_text)
+        self._confirm_profile_original = OwnerCallback(window._confirm_raw_profile)
+        self._start_preload_original = OwnerCallback(window._start_preload)
+        self._record_resident_original = OwnerCallback(window._record_resident_source)
+        self._evict_original = OwnerCallback(window._evict_resident_documents)
+        self._mark_reload_original = OwnerCallback(window._mark_raw_for_reload)
+        self._update_actions_original = OwnerCallback(window._update_action_states)
+        self._inspect_pixel_original = OwnerCallback(window._inspect_pixel)
+        self._pixel_status_original = OwnerCallback(window._pixel_status_text)
 
         analysis = window.comparison_analysis_panel
         self._analysis_buttons_original = dict(analysis.channel_buttons)
@@ -74,8 +48,8 @@ class NativeYuvSemanticsController:
         self._line_buttons_original = dict(line.channel_buttons)
 
         difference = window.difference_panel
-        self._difference_set_documents_original = _OwnerCallback(difference.set_documents)
-        self._difference_calculate_original = _OwnerCallback(difference.calculate_difference)
+        self._difference_set_documents_original = OwnerCallback(difference.set_documents)
+        self._difference_calculate_original = OwnerCallback(difference.calculate_difference)
         self._difference_yuv_blocked = False
 
     def install(self) -> None:

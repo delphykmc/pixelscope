@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import weakref
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +39,7 @@ from pixelscope.remote.iqa_submission import JobState
 from pixelscope.remote.iqa_v2_domain import ResultV2, VersionedResultLoadOutcome
 from pixelscope.remote.iqa_v2_partial import PartialResultV2
 from pixelscope.ui.design_tokens import TOKENS, menu_style
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -265,11 +267,11 @@ class HistoricalIqaResultsController(QObject):
         pool: QThreadPool | None = None,
     ) -> None:
         super().__init__(window)
-        self.window = window
+        self.window: Any = weakref.proxy(window)
         self.repository = repository
-        self.result_controller = window.iqa_controller
-        self.workspace = window.iqa_workspace
-        self.remote_controller = window.remote_iqa_controller
+        self.result_controller: Any = weakref.proxy(window.iqa_controller)
+        self.workspace: Any = weakref.proxy(window.iqa_workspace)
+        self.remote_controller: Any = weakref.proxy(window.remote_iqa_controller)
         self._pool = pool if pool is not None else analysis_thread_pool()
         self._active = True
         self._pending: dict[int, _PendingOpen] = {}
@@ -289,9 +291,9 @@ class HistoricalIqaResultsController(QObject):
         self.recent_menu.setStyleSheet(menu_style())
         self._install_menu()
 
-        self._original_present = self.result_controller._present_loaded_value
-        self._original_open = self.result_controller.open_result
-        self._original_shutdown = self.result_controller.shutdown
+        self._original_present = OwnerCallback(window.iqa_controller._present_loaded_value)
+        self._original_open = OwnerCallback(window.iqa_controller.open_result)
+        self._original_shutdown = OwnerCallback(window.iqa_controller.shutdown)
         self._install_open_guard()
         self._install_job_observer()
         self._install_inspect_observer()
@@ -356,7 +358,8 @@ class HistoricalIqaResultsController(QObject):
         self.result_controller.shutdown = MethodType(shutdown, self.result_controller)
 
     def _install_job_observer(self) -> None:
-        original = self.remote_controller.open_result
+        original = OwnerCallback(self.remote_controller.open_result)
+        remote_controller = self.window.remote_iqa_controller
 
         def open_job(_controller: Any, job_id: str) -> None:
             job = self.remote_controller._jobs.get(job_id)
@@ -379,19 +382,20 @@ class HistoricalIqaResultsController(QObject):
             finally:
                 self._job_open_context = None
 
-        signal = self.remote_controller.workspace.open_result_requested
+        signal = remote_controller.workspace.open_result_requested
         with suppress(RuntimeError, TypeError):
-            signal.disconnect(original)
-        self.remote_controller.open_result = MethodType(open_job, self.remote_controller)
-        signal.connect(self.remote_controller.open_result)
+            signal.disconnect(original.resolve())
+        remote_controller.open_result = MethodType(open_job, remote_controller)
+        signal.connect(remote_controller.open_result)
 
     def _install_inspect_observer(self) -> None:
         inspection = getattr(self.window, "iqa_scene_inspection_controller", None)
         if inspection is None:
             return
-        original = getattr(inspection, "_set_status", None)
-        if not callable(original):
+        original_method = getattr(inspection, "_set_status", None)
+        if not callable(original_method):
             return
+        original = OwnerCallback(original_method)
 
         def status(_inspection: Any, text: str) -> None:
             original(text)
