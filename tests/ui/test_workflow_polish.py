@@ -25,6 +25,17 @@ def _window(qtbot: object) -> tuple[MainWindow, object]:
     return window, window.review_selection_controller
 
 
+def test_plot_polish_uses_panel_native_hooks_without_method_replacement(qtbot: object) -> None:
+    window, _review = _window(qtbot)
+    analysis = window.comparison_analysis_panel
+    line = window.line_profile_panel
+
+    assert analysis.workflow_histogram_hint_controller is not None
+    assert line.workflow_empty_hint_controller is not None
+    assert {"clear", "set_documents", "_render"}.isdisjoint(analysis.__dict__)
+    assert {"_clear_plot", "set_documents", "_render"}.isdisjoint(line.__dict__)
+
+
 def test_shortcuts_page_reservations_and_initial_placeholders(qtbot: object) -> None:
     window, _review = _window(qtbot)
 

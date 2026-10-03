@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pyqtgraph as pg
 from numpy.typing import NDArray
@@ -48,6 +50,8 @@ class LineProfilePanel(QWidget):
         ] = [[] for _index in range(6)]
         self._reference_document_id: str | None = None
         self._reference_priority_ids: tuple[str, ...] = ()
+        self._semantics_delegate: Any | None = None
+        self.workflow_empty_hint_controller: Any | None = None
         self._reference_locked = False
 
         self.status = ElidingContextLabel()
@@ -169,7 +173,49 @@ class LineProfilePanel(QWidget):
 
         return self._hover_texts[0]
 
+    def set_semantics_delegate(self, delegate: Any | None) -> None:
+        """Select an optional profile strategy without replacing instance methods."""
+
+        self._semantics_delegate = delegate
+
+    def install_empty_hint(self, controller: Any) -> None:
+        self.workflow_empty_hint_controller = controller
+        self.workflow_empty_hint = controller.label
+        self._sync_empty_hint()
+
+    def _sync_empty_hint(self) -> None:
+        hint = self.workflow_empty_hint_controller
+        if hint is None:
+            return
+        if self._selection is not None:
+            hint.hide()
+        elif self._documents:
+            hint.show("Draw a line to view its profile\n\nShift + drag on an image")
+        else:
+            hint.show("Select an image to use Line Profile\n\nThen Shift + drag to draw a line")
+        self._set_status("")
+
     def set_documents(
+        self,
+        documents: list[ImageDocument],
+        selection: LineSelection | None,
+        *,
+        reference_priority_ids: tuple[str, ...] = (),
+    ) -> None:
+        if self._semantics_delegate is not None:
+            self._semantics_delegate.set_line_documents(
+                documents,
+                selection,
+                reference_priority_ids=reference_priority_ids,
+            )
+            return
+        self.set_documents_default(
+            documents,
+            selection,
+            reference_priority_ids=reference_priority_ids,
+        )
+
+    def set_documents_default(
         self,
         documents: list[ImageDocument],
         selection: LineSelection | None,
@@ -180,6 +226,7 @@ class LineProfilePanel(QWidget):
         self._selection = selection
         self._reference_priority_ids = reference_priority_ids
         self._sync_reference_selector()
+        self._sync_empty_hint()
         self.refresh()
 
     def set_reference_priority_ids(self, document_ids: tuple[str, ...]) -> None:
@@ -215,6 +262,12 @@ class LineProfilePanel(QWidget):
         self._clear_plot()
 
     def refresh(self) -> None:
+        if self._semantics_delegate is not None:
+            self._semantics_delegate.refresh_line_profile()
+            return
+        self.refresh_default()
+
+    def refresh_default(self) -> None:
         documents = self._documents
         selection = self._selection
         if not documents or selection is None:
@@ -399,6 +452,9 @@ class LineProfilePanel(QWidget):
         return None
 
     def _render(self, results: tuple[LineProfileResult, ...]) -> None:
+        hint = self.workflow_empty_hint_controller
+        if hint is not None:
+            hint.hide()
         for plot, legend in zip(self.plots, self.legends, strict=True):
             self.plot_layout.removeWidget(plot)
             plot.clear()
@@ -591,6 +647,7 @@ class LineProfilePanel(QWidget):
         self._profile_series = [[] for _index in range(6)]
         self._set_axes_visible(False)
         self._set_status("")
+        self._sync_empty_hint()
 
     def _set_status(self, text: str) -> None:
         self.status.setText(text)

@@ -468,38 +468,7 @@ def _install_histogram_polish(window: Any) -> None:
         "Select an image to view Histogram",
         "histogramEmptyHint",
     )
-    panel.workflow_histogram_hint = hint.label
-    panel.workflow_histogram_hint_controller = hint
-
-    original_clear = panel.clear
-    original_set_documents = panel.set_documents
-    original_render = panel._render
-
-    def clear(_panel: Any) -> None:
-        original_clear()
-        hint.show()
-
-    def set_documents(
-        _panel: Any,
-        documents: object,
-        bounds: object,
-        region_name: str | None = None,
-    ) -> None:
-        original_set_documents(documents, bounds, region_name)
-        if _panel._documents:
-            hint.hide()
-
-    def render(_panel: Any, results: object, histogram_specs: object) -> None:
-        hint.hide()
-        original_render(results, histogram_specs)
-
-    panel.clear = MethodType(clear, panel)
-    panel.set_documents = MethodType(set_documents, panel)
-    panel._render = MethodType(render, panel)
-    if panel.last_results:
-        hint.hide()
-    else:
-        hint.show()
+    panel.install_empty_hint(hint)
 
 
 def _install_line_profile_polish(window: Any) -> None:
@@ -513,49 +482,7 @@ def _install_line_profile_polish(window: Any) -> None:
         "Select an image to use Line Profile\n\nThen Shift + drag to draw a line",
         "lineProfileEmptyHint",
     )
-    panel.workflow_empty_hint = hint.label
-    panel.workflow_empty_hint_controller = hint
-
-    def sync_hint() -> None:
-        if panel._selection is not None:
-            hint.hide()
-            return
-        if panel._documents:
-            hint.show("Draw a line to view its profile\n\nShift + drag on an image")
-        else:
-            hint.show("Select an image to use Line Profile\n\nThen Shift + drag to draw a line")
-        panel._set_status("")
-
-    original_clear = panel._clear_plot
-    original_set_documents = panel.set_documents
-    original_render = panel._render
-
-    def clear_plot(_panel: Any) -> None:
-        original_clear()
-        sync_hint()
-
-    def set_documents(
-        _panel: Any,
-        documents: object,
-        selection: object,
-        *,
-        reference_priority_ids: tuple[str, ...] = (),
-    ) -> None:
-        original_set_documents(
-            documents,
-            selection,
-            reference_priority_ids=reference_priority_ids,
-        )
-        sync_hint()
-
-    def render(_panel: Any, results: object) -> None:
-        hint.hide()
-        original_render(results)
-
-    panel._clear_plot = MethodType(clear_plot, panel)
-    panel.set_documents = MethodType(set_documents, panel)
-    panel._render = MethodType(render, panel)
-    sync_hint()
+    panel.install_empty_hint(hint)
 
 
 def install_workflow_polish(window: Any, review_controller: Any) -> FilesContextMenuController:

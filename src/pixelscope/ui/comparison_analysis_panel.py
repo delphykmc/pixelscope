@@ -348,6 +348,8 @@ class ComparisonAnalysisPanel(QWidget):
         self._histogram_hover_texts: list[pg.TextItem | None] = [None] * 6
         self._histogram_mouse_callbacks: list[Any] = []
         self._histogram_resources_disposed = False
+        self._semantics_delegate: Any | None = None
+        self.workflow_histogram_hint_controller: Any | None = None
         for plot_index in range(6):
             plot = pg.PlotWidget(
                 parent=self.histogram_grid,
@@ -448,7 +450,37 @@ class ComparisonAnalysisPanel(QWidget):
             tuple(histogram_specs),
         )
 
+    def set_semantics_delegate(self, delegate: Any | None) -> None:
+        """Select an optional analysis strategy without replacing instance methods."""
+
+        self._semantics_delegate = delegate
+
+    def install_empty_hint(self, controller: Any) -> None:
+        self.workflow_histogram_hint_controller = controller
+        self.workflow_histogram_hint = controller.label
+        self._sync_empty_hint()
+
+    def _sync_empty_hint(self) -> None:
+        hint = self.workflow_histogram_hint_controller
+        if hint is None:
+            return
+        if self.last_results or self._documents:
+            hint.hide()
+        else:
+            hint.show()
+
     def set_documents(
+        self,
+        documents: list[ImageDocument],
+        bounds: RoiBounds | None,
+        region_name: str | None = None,
+    ) -> None:
+        if self._semantics_delegate is not None:
+            self._semantics_delegate.set_analysis_documents(documents, bounds, region_name)
+            return
+        self.set_documents_default(documents, bounds, region_name)
+
+    def set_documents_default(
         self,
         documents: list[ImageDocument],
         bounds: RoiBounds | None,
@@ -491,6 +523,7 @@ class ComparisonAnalysisPanel(QWidget):
         self._histogram_specs = histogram_specs
         self._invalidate_histogram_presentation()
         self._set_activity("Preparing analysis...", busy=True)
+        self._sync_empty_hint()
         self._refresh_timer.start()
 
     def clear(self) -> None:
@@ -514,8 +547,15 @@ class ComparisonAnalysisPanel(QWidget):
         self.histogram_context.clear()
         self.histogram_context.hide()
         self._set_activity("No images selected", busy=False)
+        self._sync_empty_hint()
 
     def refresh(self) -> None:
+        if self._semantics_delegate is not None:
+            self._semantics_delegate.refresh_analysis()
+            return
+        self.refresh_default()
+
+    def refresh_default(self) -> None:
         if self._histogram_resources_disposed:
             return
         documents = self._documents
@@ -808,6 +848,9 @@ class ComparisonAnalysisPanel(QWidget):
         results: tuple[RoiAnalysisResult, ...],
         histogram_specs: list[tuple[int, tuple[float, float] | None]],
     ) -> None:
+        hint = self.workflow_histogram_hint_controller
+        if hint is not None:
+            hint.hide()
         self._update_histogram_context(results)
         labels = comparison_labels(self._documents)
         self.image_summary.setRowCount(len(results))
