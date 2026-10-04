@@ -22,14 +22,31 @@ An `.imgprops` file can provide dimensions, sensor bit width, Bayer/Gray image t
 
 - **Width / Height**: decoded pixel dimensions.
 - **Bit depth**: meaningful source bits per pixel sample.
-- **Storage/container**: unpacked `uint8`, unpacked `uint16`, or packed MIPI RAW10/12/14.
+- **Storage/container**: unpacked `uint8`, unpacked `uint16`, generic packed bitstream, or packed MIPI RAW10/12/14.
 - **Byte order**: little- or big-endian for `uint16` storage.
 - **Bit alignment**: LSB/MSB alignment for sub-16-bit samples stored in `uint16`.
+- **Bit order**: MSB-first or LSB-first sample-bit order for generic packed bitstreams.
 - **Stride**: bytes from the start of one stored row to the next. It can be larger than the minimum packed row size because of row padding.
 - **Offset**: bytes before the first image row.
 - **Layout**: Gray or Bayer.
 - **Bayer pattern**: RGGB, GRBG, GBRG, or BGGR for Bayer input.
 - **Black/white level**: source interpretation levels used by applicable display/analysis contracts.
+
+## Generic packed bitstream
+
+**Packed bitstream** stores each row as consecutive fixed-width pixel codes without a `uint8`/`uint16` sample container. PixelScope supports 1-16 meaningful bits per sample and decodes the result into the normal native integer source domain.
+
+For one row, the valid payload is:
+
+`ceil(width × bit_depth / 8)` bytes.
+
+The bitstream restarts at the first byte of every row. **MSB first** means pixel 0's most-significant bit is the first stream bit; **LSB first** means pixel 0's least-significant bit is first. When a row does not end on a byte boundary, unused bits at the end of the final payload byte are ignored.
+
+The stored row may be larger than the valid payload. The remaining `stride - payload` bytes are row padding and are skipped during decode. When a source file is selected and `(file_size - offset)` is exactly divisible by height, the dialog can infer:
+
+`stride = (file_size - offset) / height`.
+
+For example, a 4000×2252, 10-bit file of 11,278,016 bytes has a 5008-byte row stride. The valid pixel payload is 5000 bytes, so PixelScope decodes 5000 bytes and skips 8 padding bytes on every row.
 
 ## MIPI RAW10/12/14
 
@@ -53,4 +70,4 @@ PixelScope validates that the file contains enough payload for the selected offs
 
 ## Troubleshooting keywords
 
-**RAW14**, **MIPI**, **stride**, **offset**, **LSB**, **MSB**, **little endian**, **big endian**, **Bayer pattern**, **file size**, **sidecar**, **imgprops**.
+**packed bitstream**, **bit order**, **RAW14**, **MIPI**, **stride**, **offset**, **LSB**, **MSB**, **little endian**, **big endian**, **Bayer pattern**, **file size**, **sidecar**, **imgprops**.

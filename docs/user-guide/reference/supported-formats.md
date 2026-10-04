@@ -15,7 +15,7 @@ Folder discovery and direct file input use the same supported extension set.
 
 ## RAW storage formats
 
-RAW supports unpacked `uint8`, unpacked `uint16`, and MIPI RAW10/12/14 with the validated dimension/stride/alignment rules described in the [RAW Guide](../formats/raw.md).
+RAW supports unpacked `uint8`, unpacked `uint16`, generic 1-16-bit packed streams with MSB/LSB-first bit order and per-row stride, and MIPI RAW10/12/14 with the validated layout rules described in the [RAW Guide](../formats/raw.md).
 
 ## Native YUV formats
 
