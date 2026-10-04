@@ -13,7 +13,6 @@ from numpy.typing import NDArray
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QApplication,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -34,6 +33,7 @@ from pixelscope.io.analysis_export import (
     write_histogram_csv,
     write_line_profile_csv,
 )
+from pixelscope.ui.clipboard_support import set_clipboard_text
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -576,7 +576,7 @@ class AnalysisExportController(QObject):
             self.refresh_actions()
             return
         table = self.window.comparison_analysis_panel.table
-        QApplication.clipboard().setText(_table_csv_text(table))
+        set_clipboard_text(_table_csv_text(table))
         self.window.statusBar().showMessage("Copied Channel statistics as CSV", 3000)
 
     def copy_difference_metrics_csv(self) -> None:
@@ -585,7 +585,7 @@ class AnalysisExportController(QObject):
             self.refresh_actions()
             return
         table = self.window.difference_panel.metrics
-        QApplication.clipboard().setText(_table_csv_text(table))
+        set_clipboard_text(_table_csv_text(table))
         self.window.statusBar().showMessage("Copied Difference metrics as CSV", 3000)
 
     def export_statistics_csv(self) -> None:
