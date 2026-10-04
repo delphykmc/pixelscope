@@ -27,7 +27,6 @@ from pixelscope.workers.task_worker import TaskError, TaskWorker
 LOGGER = logging.getLogger(__name__)
 REGISTRATION_CHUNK_SIZE = 16
 REGISTRATION_SLICE_BUDGET_MS = 8
-REGISTRATION_SHUTDOWN_GRACE_MS = 3000
 
 
 @dataclass(frozen=True)
@@ -137,6 +136,12 @@ class RegistrationController(QObject):
         return self._stale_result_count
 
     @property
+    def is_shutdown_drained(self) -> bool:
+        """Return whether shutdown has no physically running discovery worker."""
+
+        return self._closing and self._pool.activeThreadCount() == 0
+
+    @property
     def pool(self) -> QThreadPool:
         return self._pool
 
@@ -211,22 +216,22 @@ class RegistrationController(QObject):
         if not self._closing:
             self._start_next_request()
 
-    def shutdown(self, timeout_ms: int = REGISTRATION_SHUTDOWN_GRACE_MS) -> bool:
-        """Cancel registration ownership and wait only for the dedicated discovery pool."""
+    def shutdown(self) -> bool:
+        """Revoke registration authority without blocking the GUI thread.
 
-        if self._closing:
-            return self._pool.waitForDone(timeout_ms)
-        self._closing = True
-        self._queue.clear()
-        self._generation += 1
-        if self._worker is not None:
-            self._worker.cancel()
-        self._clear_active_state()
-        self._set_progress("idle", 0, None)
-        completed = self._pool.waitForDone(timeout_ms)
-        if not completed:
-            LOGGER.warning("Folder registration discovery did not finish within shutdown grace")
-        return completed
+        Cancellation is advisory.  The close filter owns the continuation that keeps
+        the window alive until this controller's dedicated pool is physically idle.
+        """
+
+        if not self._closing:
+            self._closing = True
+            self._queue.clear()
+            self._generation += 1
+            if self._worker is not None:
+                self._worker.cancel()
+            self._clear_active_state()
+            self._set_progress("idle", 0, None)
+        return self.is_shutdown_drained
 
     def _initialize_folder_caches(self) -> None:
         for folder_key, document_ids in self.window._folder_documents.items():
@@ -612,12 +617,51 @@ class RegistrationController(QObject):
 class _RegistrationCloseFilter(QObject):
     def __init__(self, controller: RegistrationController, parent: QObject) -> None:
         super().__init__(parent)
-        self._controller = controller
+        self._controller_ref = weakref.ref(controller)
+        self._close_state = "open"
+        self._drain_timer = QTimer(self)
+        self._drain_timer.setSingleShot(True)
+        self._drain_timer.timeout.connect(self._continue_close)  # type: ignore[attr-defined]
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() is QEvent.Type.Close:
-            self._controller.shutdown()
-        return super().eventFilter(watched, event)
+        if event.type() is not QEvent.Type.Close:
+            return super().eventFilter(watched, event)
+
+        if self._close_state == "safe":
+            self._close_state = "closed"
+            return super().eventFilter(watched, event)
+        if self._close_state == "closed":
+            return super().eventFilter(watched, event)
+
+        controller = self._controller_ref()
+        if controller is None:
+            return super().eventFilter(watched, event)
+        if self._close_state == "open" and controller.shutdown():
+            self._close_state = "closed"
+            return super().eventFilter(watched, event)
+
+        self._close_state = "draining"
+        event.ignore()
+        if not self._drain_timer.isActive():
+            self._drain_timer.start(0)
+        return True
+
+    def _continue_close(self) -> None:
+        if self._close_state != "draining":
+            return
+        controller = self._controller_ref()
+        if controller is None:
+            return
+        if not controller.is_shutdown_drained:
+            self._drain_timer.start(0)
+            return
+        window = self.parent()
+        if window is None:
+            return
+        self._close_state = "safe"
+        close = getattr(window, "close", None)
+        if callable(close):
+            close()
 
 
 def install_large_folder_registration(
