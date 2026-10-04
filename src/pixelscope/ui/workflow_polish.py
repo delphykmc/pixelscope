@@ -19,11 +19,25 @@ class FilesContextMenuController(QObject):
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
-        self.window = window
-        self.tree = window.document_list
+        self._window_ref = weakref.ref(window)
+        self._tree_ref = weakref.ref(window.document_list)
         with suppress(RuntimeError, TypeError):
             self.tree.customContextMenuRequested.disconnect(self.tree._show_context_menu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Files context menu owner was destroyed")
+        return window
+
+    @property
+    def tree(self) -> Any:
+        tree = self._tree_ref()
+        if tree is None:
+            raise RuntimeError("Files context menu tree was destroyed")
+        return tree
 
     def build_menu_for_item(self, item: Any | None) -> QMenu:
         menu = QMenu(self.tree)

@@ -14,6 +14,8 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/app/yuv_runtime_contracts.py",
     "src/pixelscope/app/raw_input_compatibility.py",
     "src/pixelscope/ui/workflow_polish.py",
+    "src/pixelscope/ui/recent_entries.py",
+    "src/pixelscope/ui/display_gain.py",
     "src/pixelscope/ui/iqa_submission_lifecycle.py",
     "src/pixelscope/ui/iqa_result_mapping.py",
     "src/pixelscope/ui/iqa_historical_results.py",
@@ -36,9 +38,30 @@ RANK4_OWNER_ASSIGNMENTS = {
     "src/pixelscope/ui/iqa_result_retry.py": {("remote_controller", "remote_controller")},
     "src/pixelscope/ui/iqa_preview_lifecycle.py": {
         ("controller", "controller"),
-        ("workspace", "workspace"),
+        ("workspace", "controller"),
+    },
+    "src/pixelscope/ui/workflow_polish.py": {
+        ("window", "window"),
+        ("tree", "window"),
+    },
+    "src/pixelscope/ui/recent_entries.py": {
+        ("window", "window"),
+        ("session_controller", "session"),
+        ("comparison_set_controller", "session"),
+        ("file_menu", "file_menu"),
+    },
+    "src/pixelscope/ui/display_gain.py": {
+        ("window", "window"),
+        ("combo", "combo"),
     },
 }
+
+
+def _root_name(node: ast.expr) -> str | None:
+    current: ast.expr = node
+    while isinstance(current, ast.Attribute):
+        current = current.value
+    return current.id if isinstance(current, ast.Name) else None
 
 
 def test_cycle_hardened_modules_do_not_install_bound_methodtype_or_weak_proxy() -> None:
@@ -53,15 +76,12 @@ def test_cycle_hardened_modules_do_not_install_bound_methodtype_or_weak_proxy() 
                 and node.func.id == "MethodType"
             ):
                 violations.append(f"{relative_path}:{node.lineno}: MethodType")
-            if (
-                isinstance(node, ast.Assign)
-                and isinstance(node.value, ast.Attribute)
-                and any(
-                    isinstance(target, ast.Attribute) and target.attr.startswith("_original")
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Attribute):
+                if any(
+                    isinstance(target, ast.Attribute) and "_original" in target.attr
                     for target in node.targets
-                )
-            ):
-                violations.append(f"{relative_path}:{node.lineno}: strong original bound method")
+                ):
+                    violations.append(f"{relative_path}:{node.lineno}: strong original bound method")
     assert violations == []
 
 
@@ -71,17 +91,20 @@ def test_rank4_helpers_do_not_store_direct_owner_backreferences() -> None:
         source = (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
         tree = ast.parse(source, filename=relative_path)
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Name):
+            if not isinstance(node, ast.Assign):
+                continue
+            root = _root_name(node.value)
+            if root is None:
                 continue
             for target in node.targets:
                 if (
                     isinstance(target, ast.Attribute)
                     and isinstance(target.value, ast.Name)
                     and target.value.id == "self"
-                    and (target.attr, node.value.id) in forbidden
+                    and (target.attr, root) in forbidden
                 ):
                     violations.append(
-                        f"{relative_path}:{node.lineno}: self.{target.attr} = {node.value.id}"
+                        f"{relative_path}:{node.lineno}: self.{target.attr} retains {root}"
                     )
     assert violations == []
 

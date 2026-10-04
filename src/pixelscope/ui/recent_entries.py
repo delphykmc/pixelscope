@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import stat
-from collections.abc import Callable, Sequence
+import weakref
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from pixelscope.core.recent_entries import RecentEntryKind
 from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
 from pixelscope.ui.comparison_set import SessionControllerBase
 from pixelscope.ui.design_tokens import menu_style
+from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 
 LOGGER = logging.getLogger(__name__)
 
@@ -29,19 +31,20 @@ class RecentEntriesController:
         window: Any,
         repository: RecentEntriesRepository | None = None,
     ) -> None:
-        self.window = window
+        self._window_ref = weakref.ref(window)
         self.repository = repository or RecentEntriesRepository(QSettingsAdapter(self._settings()))
         session = getattr(window, "session_controller", None)
         if not isinstance(session, SessionControllerBase):
             raise RuntimeError("Recent Entries requires the Session controller")
-        self.session_controller = session
-        self.comparison_set_controller = session
-        self.session_controller.set_recent_entry_callback(self._record_session)
+        self._session_controller_ref = weakref.ref(session)
+        self.session_controller.set_recent_entry_callback(
+            WeakOwnerHook(self, lambda current, path: current._record_session(path))
+        )
 
         file_menu = getattr(session, "_file_menu_ref", None)
         if not isinstance(file_menu, QMenu):
             raise RuntimeError("Recent Entries requires the retained File menu")
-        self.file_menu = file_menu
+        self._file_menu_ref = weakref.ref(file_menu)
 
         self.images_menu = QMenu("Open Recent Images", self.file_menu)
         self.folders_menu = QMenu("Open Recent Folders", self.file_menu)
@@ -54,6 +57,31 @@ class RecentEntriesController:
         self._install_recent_menus()
         self.refresh_menu()
 
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Recent Entries owner was destroyed")
+        return window
+
+    @property
+    def session_controller(self) -> SessionControllerBase:
+        controller = self._session_controller_ref()
+        if controller is None:
+            raise RuntimeError("Recent Entries Session controller was destroyed")
+        return controller
+
+    @property
+    def comparison_set_controller(self) -> SessionControllerBase:
+        return self.session_controller
+
+    @property
+    def file_menu(self) -> QMenu:
+        menu = self._file_menu_ref()
+        if menu is None:
+            raise RuntimeError("Recent Entries File menu was destroyed")
+        return menu
+
     def _settings(self) -> QSettings:
         settings = getattr(self.window, "settings", None)
         return settings if isinstance(settings, QSettings) else QSettings()
@@ -64,8 +92,8 @@ class RecentEntriesController:
         if not callable(register_inputs) or not callable(register_folders):
             raise RuntimeError("Recent Entries requires the P3 registration APIs")
 
-        self._register_inputs_original: Callable[..., list[str]] = register_inputs
-        self._register_folders_original: Callable[..., Any] = register_folders
+        self._register_inputs_original = OwnerCallback(register_inputs)
+        self._register_folders_original = OwnerCallback(register_folders)
 
         def observed_register_inputs(
             inputs: tuple[ImageInput, ...],
