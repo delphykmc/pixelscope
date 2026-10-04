@@ -16,6 +16,7 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/ui/workflow_polish.py",
     "src/pixelscope/ui/recent_entries.py",
     "src/pixelscope/ui/display_gain.py",
+    "src/pixelscope/ui/composition_lifetime.py",
     "src/pixelscope/ui/iqa_submission_lifecycle.py",
     "src/pixelscope/ui/iqa_result_mapping.py",
     "src/pixelscope/ui/iqa_historical_results.py",
@@ -53,6 +54,10 @@ RANK4_OWNER_ASSIGNMENTS = {
     "src/pixelscope/ui/display_gain.py": {
         ("window", "window"),
         ("combo", "combo"),
+    },
+    "src/pixelscope/ui/composition_lifetime.py": {
+        ("window", "window"),
+        ("controller", "controller"),
     },
 }
 
@@ -107,6 +112,48 @@ def test_rank4_helpers_do_not_store_direct_owner_backreferences() -> None:
                         f"{relative_path}:{node.lineno}: self.{target.attr} retains {root}"
                     )
     assert violations == []
+
+
+def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
+    relative_path = "src/pixelscope/app/application.py"
+    source = (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=relative_path)
+
+    hardened_imports: set[str] = set()
+    legacy_imports: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        imported = {alias.name for alias in node.names}
+        if node.module == "pixelscope.ui.composition_lifetime":
+            hardened_imports.update(imported)
+        if node.module in {
+            "pixelscope.ui.analysis_export",
+            "pixelscope.ui.iqa_submission",
+            "pixelscope.ui.session",
+        }:
+            legacy_imports.extend(
+                name
+                for name in imported
+                if name in {"install_analysis_export", "install_remote_iqa", "install_session"}
+            )
+
+    assert {
+        "install_analysis_export",
+        "install_remote_iqa",
+        "install_session",
+        "release_command_row_metric_window",
+    } <= hardened_imports
+    assert legacy_imports == []
+
+    release_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "release_command_row_metric_window"
+    ]
+    assert len(release_calls) == 1
 
 
 def test_non_owning_hooks_do_not_retain_their_owner() -> None:

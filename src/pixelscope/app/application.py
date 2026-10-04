@@ -21,8 +21,13 @@ from pixelscope.app.yuv_input_semantics import install_native_yuv_semantics
 from pixelscope.app.yuv_runtime_contracts import install_native_yuv_runtime_contracts
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
-from pixelscope.ui.analysis_export import install_analysis_export
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
+from pixelscope.ui.composition_lifetime import (
+    install_analysis_export,
+    install_remote_iqa,
+    install_session,
+    release_command_row_metric_window,
+)
 from pixelscope.ui.design_tokens import apply_engineering_palette
 from pixelscope.ui.difference_curation_lifecycle import install_difference_curation_lifecycle
 from pixelscope.ui.display_gain import install_display_gain_control
@@ -42,7 +47,6 @@ from pixelscope.ui.iqa_result_retry import install_remote_iqa_result_retry
 from pixelscope.ui.iqa_scene_inspection import install_iqa_scene_inspection
 from pixelscope.ui.iqa_scene_inspection_lifecycle import install_iqa_scene_inspection_lifecycle
 from pixelscope.ui.iqa_setup_presentation import polish_remote_iqa_setup
-from pixelscope.ui.iqa_submission import install_remote_iqa
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
 from pixelscope.ui.issue77_ui_design_followup import install_issue77_ui_design_followup
 from pixelscope.ui.multiview_reorder_stability import install_multiview_reorder_stability
@@ -50,7 +54,6 @@ from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.quick_compare import install_quick_compare_workflow
 from pixelscope.ui.recent_entries import install_recent_entries
 from pixelscope.ui.review_selection import install_review_selection
-from pixelscope.ui.session import install_session
 from pixelscope.ui.user_guide_help import install_user_guide_help
 from pixelscope.ui.workflow_polish import install_workflow_polish
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
@@ -134,6 +137,7 @@ def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
         transport_pool=transport_pool,
     )
     polish_presentation_controls(window)
+    release_command_row_metric_window(window)
     install_workflow_polish(window, review_controller)
     install_multiview_reorder_stability(window)
     # WP-B broadens the canonical registration hook before display-tag composition.
