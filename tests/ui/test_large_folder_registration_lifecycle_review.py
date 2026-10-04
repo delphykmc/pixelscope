@@ -42,7 +42,11 @@ def test_close_after_first_registration_chunk_rejects_later_callbacks(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    controller = install_large_folder_registration(window, chunk_size=2)
+    controller = install_large_folder_registration(
+        window,
+        chunk_size=2,
+        slice_budget_ms=10_000,
+    )
     close_counts: list[int] = []
 
     def close_after_first_chunk(phase: str, completed: int, total: object) -> None:
@@ -146,7 +150,11 @@ def test_cancel_during_registration_chunk_makes_scheduled_chunk_stale(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    controller = install_large_folder_registration(window, chunk_size=2)
+    controller = install_large_folder_registration(
+        window,
+        chunk_size=2,
+        slice_budget_ms=10_000,
+    )
     cancel_counts: list[int] = []
 
     def cancel_after_first_chunk(phase: str, completed: int, total: object) -> None:
