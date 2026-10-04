@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import stat
 import weakref
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -92,8 +92,8 @@ class RecentEntriesController:
         if not callable(register_inputs) or not callable(register_folders):
             raise RuntimeError("Recent Entries requires the P3 registration APIs")
 
-        self._register_inputs_original = OwnerCallback(register_inputs)
-        self._register_folders_original = OwnerCallback(register_folders)
+        self._register_inputs_original: Callable[..., list[str]] = OwnerCallback(register_inputs)
+        self._register_folders_original: Callable[..., Any] = OwnerCallback(register_folders)
 
         def observed_register_inputs(
             inputs: tuple[ImageInput, ...],
