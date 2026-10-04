@@ -42,7 +42,8 @@ on:
       - "tests/unit/test_release_candidate.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
-      - "tests/unit/test_user_guide_screenshot_rendering.py"
+      - "tests/unit/test_user_guide_screenshot_hook.py"
+      - "tests/integration/test_user_guide_screenshot_rendering.py"
       - "tests/unit/test_ui_screenshot_coverage_audit.py"
       - "tests/unit/test_ui_screenshot_capture_packet.py"
       - "tests/unit/test_ui_screenshot_git_history.py"
@@ -98,7 +99,8 @@ on:
       - "tests/unit/test_release_candidate.py"
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
-      - "tests/unit/test_user_guide_screenshot_rendering.py"
+      - "tests/unit/test_user_guide_screenshot_hook.py"
+      - "tests/integration/test_user_guide_screenshot_rendering.py"
       - "tests/unit/test_ui_screenshot_coverage_audit.py"
       - "tests/unit/test_ui_screenshot_capture_packet.py"
       - "tests/unit/test_ui_screenshot_git_history.py"
@@ -177,7 +179,8 @@ jobs:
           python -m pytest -q
           tests/unit/test_docs_contract.py
           tests/unit/test_screenshot_manifest_contract.py
-          tests/unit/test_user_guide_screenshot_rendering.py
+          tests/unit/test_user_guide_screenshot_hook.py
+          tests/integration/test_user_guide_screenshot_rendering.py
           tests/unit/test_ui_screenshot_coverage_audit.py
           tests/unit/test_ui_screenshot_impact.py
           tests/unit/test_ui_screenshot_diff.py
