@@ -75,7 +75,8 @@ class RawInputCompatibilityController:
                 self.window._raw_profile_paths[existing] = image_input.raw_profile_path
             if raw_profile is not None:
                 self.window._raw_profiles[existing] = raw_profile
-                self.window._mark_raw_for_reload(existing, raw_profile)
+            if resolve_raw_profile:
+                self.window._mark_document_for_reload(existing, raw_profile)
             return existing
 
         document = ImageDocument.pending_document(image_input.path)

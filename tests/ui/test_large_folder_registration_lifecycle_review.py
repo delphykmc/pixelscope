@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import gc
+import weakref
 from pathlib import Path
 from threading import Event
 
@@ -30,6 +32,51 @@ class _CloseCountingMainWindow(MainWindow):
 def _flush_zero_timer_callbacks() -> None:
     for _index in range(4):
         QCoreApplication.processEvents()
+
+
+def test_direct_completion_does_not_retain_presentation_owner(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    started = Event()
+    release = Event()
+
+    def blocking_discovery(_paths: object, *, checkpoint: object) -> RegistrationDiscovery:
+        del checkpoint
+        started.set()
+        release.wait(timeout=3.0)
+        return RegistrationDiscovery((), 1, 1, ())
+
+    class PresentationOwner:
+        def complete(self, _document_ids: list[str]) -> None:
+            raise AssertionError("destroyed presentation owner must not receive completion")
+
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    controller = install_large_folder_registration(
+        window,
+        discovery_function=blocking_discovery,
+    )
+
+    owner = PresentationOwner()
+    owner_ref = weakref.ref(owner)
+
+    controller.enqueue(
+        (tmp_path,),
+        direct_completion=owner.complete,
+    )
+    assert started.wait(timeout=1.0)
+    assert controller._active_direct_completion is not None
+
+    del owner
+    for _index in range(3):
+        gc.collect()
+
+    assert owner_ref() is None
+
+    release.set()
+    qtbot.waitUntil(lambda: controller.is_idle, timeout=3000)  # type: ignore[attr-defined]
+    window.close()
 
 
 def test_close_after_first_registration_chunk_rejects_later_callbacks(

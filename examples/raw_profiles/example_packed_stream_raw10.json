@@ -1,0 +1,17 @@
+{
+  "name": "example_packed_stream_raw10",
+  "width": 4000,
+  "height": 2252,
+  "stride_bytes": 5008,
+  "offset_bytes": 0,
+  "storage_format": "packed_stream",
+  "container_dtype": null,
+  "endianness": null,
+  "bit_depth": 10,
+  "bit_alignment": null,
+  "packed_bit_order": "msb",
+  "channel_layout": "BAYER",
+  "bayer_pattern": "RGGB",
+  "black_level": 0,
+  "white_level": 1023
+}

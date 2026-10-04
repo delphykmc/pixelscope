@@ -5,7 +5,7 @@
   "seed": 20260804,
   "bayer_chart_version": 3,
   "generator": "scripts/generate_raw_chart_bayer_fixtures.py",
-  "description": "Naturally sorted GRAY fixtures followed by one true-RGB-derived RGGB chart serialized as unpacked uint16 and MIPI RAW10/12/14. The Bayer variants share the same sampled scene and use a CFA-neutral 256x256 native-code coverage patch in the bottom-right corner.",
+  "description": "Naturally sorted GRAY fixtures followed by one true-RGB-derived RGGB chart serialized as unpacked uint16, generic packed stream, and MIPI RAW10/12/14. The Bayer variants share the same sampled scene and use a CFA-neutral 256x256 native-code coverage patch in the bottom-right corner.",
   "references": {
     "source_rgb": "references/bayer_reference_rgb.png",
     "mosaic_gray": "references/bayer_reference_mosaic.png",
@@ -124,6 +124,23 @@
       "expected_auto_bins": 1024,
       "comparison_group": "shared_rggb_chart_v3",
       "sha256": "2a666acaa7d0c3146c975d55dfad1359cba45389df51523b850ce77fd595be1d"
+    },
+    {
+      "raw": "02_bayer_10bit_03_rggb_packed_stream_msb.raw",
+      "profile": "02_bayer_10bit_03_rggb_packed_stream_msb.json",
+      "storage_format": "packed_stream",
+      "container_dtype": null,
+      "bit_depth": 10,
+      "bit_alignment": null,
+      "stride_bytes": 2408,
+      "channel_layout": "BAYER",
+      "bayer_pattern": "RGGB",
+      "minimum": 0,
+      "maximum": 1023,
+      "expected_auto_bins": 1024,
+      "comparison_group": "shared_rggb_chart_v3",
+      "sha256": "3f1d585befb837ff6acd06ec71294d88b70491b4b183d896e159cabbcde2a527",
+      "packed_bit_order": "msb"
     },
     {
       "raw": "02_bayer_12bit_01_rggb_u16le_msb.raw",

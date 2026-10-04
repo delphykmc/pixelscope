@@ -262,3 +262,44 @@ def test_application_close_cancels_registration_without_late_catalog_mutation(
     )
     assert controller.progress.phase == "idle"
     assert not window.documents
+
+
+def test_direct_drop_reopens_same_selected_source_through_registration_controller(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "refresh.png"
+    assert cv2.imwrite(str(path), np.full((24, 32), 15, dtype=np.uint8))
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    controller = install_large_folder_registration(window)
+
+    controller.handle_dropped_paths([path])
+    _wait_idle(qtbot, controller)
+    document_id = next(iter(window.documents))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None,
+        timeout=3000,
+    )
+    first = window.documents[document_id]
+    assert first.source is not None
+    first_generation = first.generation
+    first_source = first.source.copy()
+
+    assert cv2.imwrite(str(path), np.full((24, 32), 231, dtype=np.uint8))
+    controller.handle_dropped_paths([path])
+    assert controller.progress.phase == "scanning"
+    _wait_idle(qtbot, controller)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None
+        and window.documents[document_id].generation > first_generation,
+        timeout=3000,
+    )
+
+    refreshed = window.documents[document_id]
+    assert refreshed.source is not None
+    assert not np.array_equal(refreshed.source, first_source)
+    assert np.all(refreshed.source == 231)
+    assert window.viewer.document is refreshed
+    assert len(window.documents) == 1
+    window.close()

@@ -99,11 +99,24 @@ Unsupported extensions are ignored and never interpreted as RAW. A `.json`
 sidecar is attached only to an exact same-basename `.raw` `ImageInput`; JSON never
 becomes a standalone image document.
 
-`MainWindow._register_input()` creates or reuses pending catalog documents.
-`_register_inputs()` is registration-only; callers own subsequent selection.
-This separation prevents registration from implicitly resetting presentation.
-The obsolete exactly-two-folder `pair_folders()` abstraction is not part of the
-P3-D input architecture.
+`MainWindow._register_input()` creates or reuses catalog documents.
+`_register_inputs()` remains registration-only; callers own subsequent selection
+and presentation. Folder discovery is catalog/lazy registration and must not force
+resident sources to reread merely because a folder was rediscovered.
+
+An explicit direct-file reopen has a different contract. Reopening the same canonical
+path preserves the existing document id but creates a new source generation and
+invalidates residency/derived presentation. If that document remains selected,
+`MainWindow._refresh_reopened_selected_documents()` is the single bridge that starts
+the foreground reread. Production filesystem D&D surfaces must go through
+`RegistrationController` for discovery/registration/progress. Presentation-specific
+controllers such as Quick Compare consume registration completion; they must not
+create a parallel registration path.
+
+This separation keeps catalog identity, source lifetime, and presentation ownership
+distinct while making Files-tree, Main/empty-surface, and Image-view D&D obey the same
+same-path refresh semantics. The obsolete exactly-two-folder `pair_folders()`
+abstraction is not part of the P3-D input architecture.
 
 ### Selection-oriented image input
 
@@ -122,13 +135,16 @@ derive Current Comparison Page from image 1
 Direct image-file D&D is context-sensitive without creating another selection
 authority. When Selected is empty, the dropped batch establishes the initial
 Selected set and starts on its first Comparison Page. When Selected already contains
-images, newly dropped direct files are appended in drop order, already-selected
-duplicates are ignored, and the Comparison Page containing the final newly added
-source is revealed. Existing Selected order is preserved.
+images, newly dropped direct files are appended in drop order and the Comparison Page
+containing the final newly added source is revealed. A same-path file that is already
+Selected is not duplicated or reordered; it is treated as an explicit source refresh
+and advances that document's generation.
 
-Image View Quick Compare follows the same initial-versus-additive page rule while
-retaining its separate explicit two-source Difference intent. A first batch starts
-on Page 1; later additive batches reveal their final newly added source.
+Image View Quick Compare follows the same registration and same-path refresh contract
+through `RegistrationController` while retaining its separate explicit two-source
+Difference presentation intent. A first batch starts on Page 1; later additive
+batches reveal their final newly added source. Quick Compare may choose presentation
+after registration completes, but it does not own filesystem registration.
 
 More than six supplied images remain registered and Selected. Initial population
 starts with images 1–6; later additive D&D may move the Current Comparison Page

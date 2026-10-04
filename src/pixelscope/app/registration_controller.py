@@ -47,6 +47,13 @@ class _FolderRegistrationSummary:
 
 
 DiscoveryFunction = Callable[..., RegistrationDiscovery]
+DirectRegistrationCompletion = Callable[[list[str]], None]
+
+
+@dataclass(frozen=True)
+class _RegistrationRequest:
+    paths: tuple[Path, ...]
+    direct_completion: OwnerCallback | None = None
 
 
 class RegistrationController(QObject):
@@ -79,7 +86,7 @@ class RegistrationController(QObject):
         self._discovery_function = discovery_function
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(1)
-        self._queue: deque[tuple[Path, ...]] = deque()
+        self._queue: deque[_RegistrationRequest] = deque()
         self._worker: TaskWorker | None = None
         self._discovery_task_id: str | None = None
         self._generation = 0
@@ -95,6 +102,7 @@ class RegistrationController(QObject):
         self._folder_sort_keys: dict[str, list[tuple[object, ...]]] = {}
         self._folder_document_ids: dict[str, set[str]] = {}
         self._current_record: RegistrationInput | None = None
+        self._active_direct_completion: OwnerCallback | None = None
         self._type_column_resize_mode: QHeaderView.ResizeMode | None = None
         self._original_path_key = OwnerCallback(window._path_key)
         self._original_add_document_to_folder = OwnerCallback(window._add_document_to_folder)
@@ -191,15 +199,23 @@ class RegistrationController(QObject):
             return
         self.enqueue(paths)
 
-    def enqueue(self, paths: Sequence[Path]) -> None:
+    def enqueue(
+        self,
+        paths: Sequence[Path],
+        *,
+        direct_completion: DirectRegistrationCompletion | None = None,
+    ) -> None:
         """Queue one logical input request without performing filesystem work on the GUI thread."""
 
         if self._closing:
             return
-        request = tuple(Path(path) for path in paths)
-        if not request:
+        normalized = tuple(Path(path) for path in paths)
+        if not normalized:
             return
-        self._queue.append(request)
+        completion_hook = (
+            OwnerCallback(direct_completion) if direct_completion is not None else None
+        )
+        self._queue.append(_RegistrationRequest(normalized, completion_hook))
         self._start_next_request()
 
     def cancel_active(self) -> None:
@@ -273,7 +289,9 @@ class RegistrationController(QObject):
     def _start_next_request(self) -> None:
         if self._closing or self._active_generation is not None or not self._queue:
             return
-        paths = self._queue.popleft()
+        request = self._queue.popleft()
+        paths = request.paths
+        self._active_direct_completion = request.direct_completion
         self._generation += 1
         generation = self._generation
         self._active_generation = generation
@@ -445,7 +463,15 @@ class RegistrationController(QObject):
         current_ids = [document.document_id for document in self.window.selected_documents]
         current_set = set(current_ids)
         additions = [document_id for document_id in direct_ids if document_id not in current_set]
-        if direct_ids:
+        completion = self._active_direct_completion
+        reloads: list[str] = []
+        if completion is not None and direct_ids:
+            # Registration may outlive the presentation owner during teardown.
+            # The request retains only a weak owner edge and a vanished owner
+            # simply makes the presentation continuation stale.
+            with suppress(RuntimeError):
+                completion(direct_ids)
+        elif direct_ids:
             if current_ids:
                 if additions:
                     self.window._select_document_ids(
@@ -453,17 +479,23 @@ class RegistrationController(QObject):
                         preserve_view=True,
                         reveal_document_id=additions[-1],
                     )
+                reloads = self.window._refresh_reopened_selected_documents(
+                    [document_id for document_id in direct_ids if document_id in current_set]
+                )
             else:
                 self.window._select_document_ids(direct_ids)
         else:
             self.window._update_empty_workspace_state()
 
         messages: list[str] = []
-        if direct_ids:
+        if completion is None and direct_ids:
             if current_ids:
-                messages.append(
-                    f"Added {len(additions)} image(s)" if additions else "No new images added"
-                )
+                if additions:
+                    messages.append(f"Added {len(additions)} image(s)")
+                elif reloads:
+                    messages.append(f"Reloading {len(reloads)} image(s)")
+                else:
+                    messages.append("No new images added")
             else:
                 messages.append(f"Opened {len(direct_ids)} image(s)")
         if summary.folder_count:
@@ -508,6 +540,7 @@ class RegistrationController(QObject):
         self._direct_document_id_set.clear()
         self._direct_paths.clear()
         self._current_record = None
+        self._active_direct_completion = None
 
     def _set_progress(self, phase: str, completed: int, total: int | None) -> None:
         self._progress_state = RegistrationProgress(phase, completed, total)
