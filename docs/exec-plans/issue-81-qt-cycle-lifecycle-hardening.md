@@ -1,8 +1,8 @@
 # Execution plan: Issue #81 Qt lifecycle cycle hardening
 
-Status: Active
+Status: Validation complete; final review pending
 Owner: ChatGPT-assisted / repository owner
-Branch/PR: `fix/issue-81-qt-cycle-hardening` / production Draft PR pending
+Branch/PR: `fix/issue-81-qt-cycle-hardening` / PR #108
 Last updated: 2026-10-04
 
 ## Goal
@@ -171,38 +171,20 @@ After Rank 1/2/3, measure again before changing the remaining SCCs. Small `ViewB
 - 2026-10-04: G13 Rank-1 cycle cut made the prior three-file normal-GC reproducer pass repeatedly; treated as causal evidence, not completion, because GC timing changed.
 - 2026-10-04: G14 staged cuts confirmed independent dominant roots. Rank 1 only left 2580 garbage / 233 cyclic objects with 2132- and 938-object roots. Rank 1+2 left 1394 / 107 with the 938-object root. Rank 1+2+3 left 498 / 89; largest residual application SCC retained 79 objects and bounded pyqtgraph cycles retained ~52 each.
 - 2026-10-04: Owner chose long-term architecture repair over retaining a composition pattern that will become more fragile as features accumulate.
-- 2026-10-04: Production Rank 1, Rank 2, and Rank 3 commits were implemented and
-  overlaid onto the PR #107-derived validation branch. A first canonical five-run
-  attempt still reproduced native access violations. Deterministic final disposal
-  for ImageViewer and Line Profile pyqtgraph graphs, plus late-result authority
-  barriers, then produced five consecutive canonical fresh-process passes
-  (`44 passed` each, exit 0).
-- 2026-10-04: The first full grouped run exposed two native-crash groups, late worker
-  callbacks into disposed viewers, and one weak-proxy QWidget incompatibility. The
-  authority/proxy fixes made the previously failing feature groups pass individually.
-  Residual owner-bound hooks were converted to non-owning callables, and an AST
-  architecture guard now rejects new `MethodType` installs and direct strong
-  `_original_*` bound-method storage in the hardened modules.
-- 2026-10-04: Independent cross-validation passed focused lifecycle/canonical coverage
-  (`49 passed`), broader Rank 1/2/3 coverage (`65 passed`), three additional canonical
-  fresh-process runs (`44 passed` each), Ruff, mypy (138 files), and docs checks.
-  Independent review correctly rejected the earlier HEAD for remaining bound hook
-  cycles, missing guard/evidence, and formatting; those hook/guard/format findings were
-  addressed in later commits.
-- 2026-10-04: Validation remains incomplete. The latest PR #107-derived overlay still
-  reproduces `0xC0000005` in the `ui-012` eight-file accumulation group under normal
-  automatic GC, despite every file passing in isolation. The remaining repository-wide
-  direct `controller.window -> MainWindow` audit expands beyond the original three
-  ranked roots and is the next implementation slice. Grouped and monolithic acceptance,
-  a final SCC census, and manual Windows checks therefore remain pending.
+- 2026-10-04: Production Rank 1, Rank 2, and Rank 3 commits were implemented and overlaid onto the PR #107-derived validation branch. A first canonical five-run attempt still reproduced native access violations. Deterministic final disposal for ImageViewer and Line Profile pyqtgraph graphs, plus late-result authority barriers, then produced five consecutive canonical fresh-process passes (`44 passed` each, exit 0).
+- 2026-10-04: The first full grouped run exposed two native-crash groups, late worker callbacks into disposed viewers, and one weak-proxy QWidget incompatibility. The authority/proxy fixes made the previously failing feature groups pass individually. Residual owner-bound hooks were converted to non-owning callables, and an AST architecture guard now rejects new `MethodType` installs and direct strong `_original_*` bound-method storage in the hardened modules.
+- 2026-10-04: Independent cross-validation passed focused lifecycle/canonical coverage (`49 passed`), broader Rank 1/2/3 coverage (`65 passed`), three additional canonical fresh-process runs (`44 passed` each), Ruff, mypy (138 files), and docs checks. Independent review correctly rejected the earlier HEAD for remaining bound hook cycles, missing guard/evidence, and formatting; those hook/guard/format findings were addressed in later commits.
+- 2026-10-04: A 64-test P5 accumulation census exposed a repeated `MainWindow` composition SCC. Source-level Rank4 tranches reduced the measured structure from `scc=47 / mainwindows=49` to `scc=32`, then `scc=14`, then `mainwindows=5`, then `mainwindows=2`.
+- 2026-10-04: The final two MainWindow SCCs were traced to two test-only instance monkeypatches of `_export_dialog_directory`; class-level monkeypatching removed the fixture-created self-bound cycles without changing production behavior.
+- 2026-10-04: Final GC-off census completed `64 passed`, both relevant thread pools idle, and `mainwindows=0`. Remaining non-MainWindow SCCs are bounded/classified separately and are not evidence of a live Issue #81 blocker.
+- 2026-10-04: The same 64-test accumulation set then passed three consecutive runs under normal automatic GC with `exit=0`.
+- 2026-10-04: Monolithic UI normal-GC acceptance passed `715 passed, 3 deselected` in 382.98s with `exit=0`; the three exclusions are the separately established #109 registration-close reproducer and two #110 clipboard/OLE teardown reproductions. No Issue #81 heap corruption, access violation, hang, or faulthandler timeout occurred.
 
 ## Completion summary
 
-Fill in at completion:
-
-- Delivered behavior:
-- Changed files:
-- Validation results:
-- Remaining limitations:
-- Follow-up issues:
-- Durable docs updated:
+- Delivered behavior: removed measured PixelScope-owned Qt/Python return cycles that made native teardown depend on automatic cyclic-GC timing; added deterministic graphics shutdown, late-result authority barriers, non-owning owner callbacks/references, and mechanical lifecycle guards while preserving existing feature behavior.
+- Changed files: lifecycle/composition code across MainWindow, YUV/RAW, workflow polish, IQA, Quick Compare/MultiCompareView, display/session/export helpers; focused lifecycle tests; repository harness guidance; this execution plan.
+- Validation results: canonical fresh-process reproducer repeated cleanly; grouped UI batches repeated native-clean; final SCC census `mainwindows=0`; 64-test accumulation normal-GC 3/3 `exit=0`; monolithic UI `715 passed, 3 deselected`, `exit=0`; screenshot comparison PASS. Final CI/static recheck remains required after documentation closeout.
+- Remaining limitations: bounded non-MainWindow SCCs remain in IQA workspace/history/scene-inspection and DifferencePanel/pyqtgraph graphs; they are not treated as defects without evidence that they cause unsafe teardown. Production does not disable automatic GC or force collection.
+- Follow-up issues: #109 for non-blocking registration shutdown; #110 for deterministic Windows clipboard/OLE `0x80010108` teardown.
+- Durable docs updated: `AGENTS.md`, `docs/AGENT_HARNESS_NOTES.md`, and this execution plan.
