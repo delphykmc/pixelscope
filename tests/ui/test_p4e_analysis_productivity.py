@@ -157,9 +157,9 @@ def test_default_export_path_is_timestamped_and_custom_name_is_respected(
         lambda: "20260814-221500-123",
     )
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        window,
+        MainWindow,
         "_export_dialog_directory",
-        lambda: str(tmp_path),
+        lambda _self: str(tmp_path),
     )
     observed: list[str] = []
 
@@ -253,9 +253,9 @@ def test_difference_postfix_and_metrics_export_preserve_current_context(
     ]
 
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        window,
+        MainWindow,
         "_export_dialog_directory",
-        lambda: str(tmp_path),
+        lambda _self: str(tmp_path),
     )
     observed_initial: list[str] = []
 
