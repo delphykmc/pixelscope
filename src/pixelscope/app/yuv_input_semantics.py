@@ -36,7 +36,7 @@ class NativeYuvSemanticsController:
         self._start_preload_original = OwnerCallback(window._start_preload)
         self._record_resident_original = OwnerCallback(window._record_resident_source)
         self._evict_original = OwnerCallback(window._evict_resident_documents)
-        self._mark_reload_original = OwnerCallback(window._mark_raw_for_reload)
+        self._mark_reload_original = OwnerCallback(window._mark_document_for_reload)
         self._update_actions_original = OwnerCallback(window._update_action_states)
         self._inspect_pixel_original = OwnerCallback(window._inspect_pixel)
         self._pixel_status_original = OwnerCallback(window._pixel_status_text)
@@ -65,7 +65,7 @@ class NativeYuvSemanticsController:
         window._start_preload = self.start_preload
         window._record_resident_source = self.record_resident_source
         window._evict_resident_documents = self.evict_resident_documents
-        window._mark_raw_for_reload = self.mark_for_reload
+        window._mark_document_for_reload = self.mark_for_reload
         window._update_action_states = self.update_action_states
         window._pixel_status_text = self.pixel_status_text
 
@@ -176,7 +176,7 @@ class NativeYuvSemanticsController:
             ):
                 document.yuv_frame = None
 
-    def mark_for_reload(self, document_id: str, profile: object) -> None:
+    def mark_for_reload(self, document_id: str, profile: object | None = None) -> None:
         self._mark_reload_original(document_id, profile)
         document = self.window.documents.get(document_id)
         if document is not None:

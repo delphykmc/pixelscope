@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
@@ -296,4 +297,45 @@ def test_blink_is_safe_noop_for_three_sources_and_while_numeric_input_has_focus(
     window._select_document_ids([document.document_id for document in documents])
     assert not controller._begin_blink()
     assert controller._blink_snapshot is None
+    window.close()
+
+
+def test_image_surface_reopen_uses_shared_registration_and_refresh(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "surface-refresh.png"
+    assert cv2.imwrite(str(path), np.full((24, 32), 17, dtype=np.uint8))
+    window, controller = _window(qtbot)
+    registration = window.large_folder_registration_controller
+
+    assert controller.handle_image_drop([path])
+    assert registration.progress.phase == "scanning"
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+    document_id = next(iter(window.documents))
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None,
+        timeout=3000,
+    )
+    first = window.documents[document_id]
+    assert first.source is not None
+    first_generation = first.generation
+    first_source = first.source.copy()
+
+    assert cv2.imwrite(str(path), np.full((24, 32), 219, dtype=np.uint8))
+    assert controller.handle_image_drop([path])
+    assert registration.progress.phase == "scanning"
+    qtbot.waitUntil(lambda: registration.is_idle, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: window.documents[document_id].source is not None
+        and window.documents[document_id].generation > first_generation,
+        timeout=3000,
+    )
+
+    refreshed = window.documents[document_id]
+    assert refreshed.source is not None
+    assert not np.array_equal(refreshed.source, first_source)
+    assert np.all(refreshed.source == 219)
+    assert window.viewer.document is refreshed
+    assert len(window.documents) == 1
     window.close()
