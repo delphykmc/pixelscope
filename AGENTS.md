@@ -25,6 +25,12 @@ source and tests before changing behavior.
   packaging tools unless explicitly requested.
 - Keep numerical algorithms out of Qt widgets and expensive work off the UI
   thread.
+- Do not make Qt/PySide object lifetime depend on Python cyclic-GC timing.
+  Avoid runtime instance-method replacement that stores bound originals or
+  closures back into the same QObject/QWidget ownership graph; prefer explicit
+  hooks, delegates/strategies, stable signals, or owned helpers. If a runtime
+  install is unavoidable, provide deterministic idempotent teardown and cover
+  the lifetime contract with regression tests.
 - Preserve source dtype, channel meaning, strides, endianness, bit alignment,
   and image bounds explicitly.
 - Promote operands before difference, squared-error, or other overflow-prone

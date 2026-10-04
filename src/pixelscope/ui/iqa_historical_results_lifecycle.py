@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import weakref
 from pathlib import Path
-from types import MethodType
 from typing import Any
 
 from PySide6.QtCore import QObject
@@ -11,6 +11,7 @@ from PySide6.QtGui import QAction
 
 from pixelscope.remote.iqa_history import IqaResultIdentity, IqaResultLocator
 from pixelscope.ui.iqa_historical_results import HistoricalIqaResultsController
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
 
 class HistoricalIqaResultsLifecycle(QObject):
@@ -18,15 +19,16 @@ class HistoricalIqaResultsLifecycle(QObject):
 
     def __init__(self, controller: HistoricalIqaResultsController, parent: QObject) -> None:
         super().__init__(parent)
-        self.controller = controller
-        self.window = controller.window
+        self.controller: Any = weakref.proxy(controller)
+        self.window: Any = weakref.proxy(parent)
         dynamic_controller: Any = controller
-        self.remote_controller = dynamic_controller.remote_controller
-        self._original_start_open = dynamic_controller._start_open
-        self._original_remote_settings_changed = self.remote_controller.settings_changed
+        self.remote_controller: Any = weakref.proxy(self.window.remote_iqa_controller)
+        self._original_start_open = OwnerCallback(dynamic_controller._start_open)
+        self._original_remote_settings_changed = OwnerCallback(
+            self.window.remote_iqa_controller.settings_changed
+        )
 
         def start_open(
-            _controller: Any,
             root: Path,
             *,
             locator: IqaResultLocator | None = None,
@@ -45,18 +47,15 @@ class HistoricalIqaResultsLifecycle(QObject):
                 )
             )
 
-        def remote_settings_changed(_remote_controller: Any) -> None:
+        def remote_settings_changed() -> None:
             self._original_remote_settings_changed()
             if self.controller._active:
                 self.controller.provenance.refresh_settings(
                     self.window.application_settings.remote_iqa
                 )
 
-        dynamic_controller._start_open = MethodType(start_open, dynamic_controller)
-        self.remote_controller.settings_changed = MethodType(
-            remote_settings_changed,
-            self.remote_controller,
-        )
+        dynamic_controller._start_open = start_open
+        self.window.remote_iqa_controller.settings_changed = remote_settings_changed
         self._reorder_file_open_group()
 
     def _invalidate_resolver(self) -> None:

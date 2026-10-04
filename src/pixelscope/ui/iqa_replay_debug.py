@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -27,10 +28,17 @@ class RemoteIqaReplayDebugController(QObject):
         status: QLabel,
     ) -> None:
         super().__init__(window)
-        self.window = window
+        self._window_ref = weakref.ref(window)
         self.button = button
         self.status = status
         button.clicked.connect(self.choose_replay)  # type: ignore[attr-defined]
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Remote IQA replay window was destroyed")
+        return window
 
     @Slot()
     def choose_replay(self) -> None:

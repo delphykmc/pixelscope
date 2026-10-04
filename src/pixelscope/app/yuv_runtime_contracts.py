@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from pixelscope.core.image_document import ImageDocument
@@ -14,7 +15,14 @@ class NativeYuvRuntimeContracts:
     """Widen legacy preload-result guards to resolved native YUV profiles."""
 
     def __init__(self, window: Any) -> None:
-        self.window = window
+        self._window_ref = weakref.ref(window)
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("native YUV runtime owner was destroyed")
+        return window
 
     def install(self) -> None:
         # NativeYuvSemanticsController forwards resolved profiles into the established

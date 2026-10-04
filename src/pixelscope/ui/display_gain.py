@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from contextlib import suppress
 from typing import Any
 
@@ -7,6 +8,7 @@ from PySide6.QtCore import QEvent, QObject, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QHBoxLayout, QLabel, QWidget
 
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.lifecycle_hooks import WeakOwnerHook
 
 DISPLAY_GAIN_OPTIONS = (1.0, 2.0, 4.0, 8.0, 16.0)
 
@@ -81,11 +83,25 @@ class _DisplayGainWindowLifetime(QObject):
 
     def __init__(self, window: Any, state: DisplayGainState, combo: _DisplayGainComboBox) -> None:
         super().__init__(window)
-        self.window = window
+        self._window_ref = weakref.ref(window)
         self.state = state
-        self.combo = combo
+        self._combo_ref = weakref.ref(combo)
         self._shutting_down = False
         window.installEventFilter(self)
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Display Gain window was destroyed")
+        return window
+
+    @property
+    def combo(self) -> _DisplayGainComboBox:
+        combo = self._combo_ref()
+        if combo is None:
+            raise RuntimeError("Display Gain control was destroyed")
+        return combo
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if watched is self.window and event.type() == QEvent.Type.Close:
@@ -172,23 +188,31 @@ def install_display_gain_control(window: Any) -> QComboBox:
     layout.addWidget(label)
     layout.addWidget(combo)
 
-    def update_enabled(*_args: object) -> None:
-        current = window.central_stack.currentWidget()
+    label_ref = weakref.ref(label)
+    combo_ref = weakref.ref(combo)
+
+    def update_enabled(owner: Any, *_args: object) -> None:
+        current_label = label_ref()
+        current_combo = combo_ref()
+        if current_label is None or current_combo is None:
+            return
+        current = owner.central_stack.currentWidget()
         documents: list[object] = []
-        if current is window.viewer:
-            documents = [window.viewer.presented_document]
-        elif current is window.multi_compare_view:
+        if current is owner.viewer:
+            documents = [owner.viewer.presented_document]
+        elif current is owner.multi_compare_view:
             documents = [
-                viewer.presented_document for viewer in window.multi_compare_view.visible_viewers
+                viewer.presented_document for viewer in owner.multi_compare_view.visible_viewers
             ]
         enabled = any(is_display_gain_capable(document) for document in documents)
-        label.setEnabled(enabled)
-        combo.setEnabled(enabled)
+        current_label.setEnabled(enabled)
+        current_combo.setEnabled(enabled)
 
-    window.central_stack.currentChanged.connect(update_enabled)
-    window.document_list.itemSelectionChanged.connect(update_enabled)
+    update_enabled_hook = WeakOwnerHook(window, update_enabled)
+    window.central_stack.currentChanged.connect(update_enabled_hook)
+    window.document_list.itemSelectionChanged.connect(update_enabled_hook)
     for viewer in [window.viewer, *window.multi_compare_view.viewers]:
-        viewer.document_changed.connect(update_enabled)
+        viewer.document_changed.connect(update_enabled_hook)
 
     presentation_layout = getattr(window, "presentation_controls_layout", None)
     if isinstance(presentation_host, QWidget) and isinstance(presentation_layout, QHBoxLayout):
@@ -205,5 +229,5 @@ def install_display_gain_control(window: Any) -> QComboBox:
         window.main_toolbar.addWidget(host)
     window._display_gain_control = combo
     window._display_gain_window_lifetime = _DisplayGainWindowLifetime(window, state, combo)
-    update_enabled()
+    update_enabled_hook()
     return combo

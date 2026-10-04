@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from types import MethodType
+import weakref
 from typing import Any, cast
 
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer
@@ -22,6 +22,7 @@ from pixelscope.ui.design_tokens import (
     WORKSPACE_CHROME_HEIGHT,
     panel_heading_style,
 )
+from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 _DISABLED_ICON_COLOR = "#737980"
@@ -179,11 +180,18 @@ class BetaWorkspaceHardeningController(QObject):
 
     def __init__(self, window: QMainWindow) -> None:
         super().__init__(window)
-        self.window = window
+        self._window_ref = weakref.ref(window)
         self._dock_controllers: list[_WorkspaceDockTopLevelController] = []
         self._install_layout_policy()
         self._install_workspace_windows()
         self._install_iqa_toolbar_action()
+
+    @property
+    def window(self) -> QMainWindow:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Beta workspace window was destroyed")
+        return window
 
     def _install_layout_policy(self) -> None:
         window = self.window
@@ -372,15 +380,15 @@ class BetaWorkspaceHardeningController(QObject):
             and not bool(page_group.property("betaFullTextAccessibility"))
         ):
             page_group.setProperty("betaFullTextAccessibility", True)
+            original_update = OwnerCallback(update_page_controls)
 
             def update_with_accessibility(_window: Any) -> None:
-                update_page_controls()
+                original_update()
                 sync_page_labels()
 
             dynamic_window = cast(Any, window)
-            dynamic_window._update_comparison_page_controls = MethodType(
-                update_with_accessibility,
-                window,
+            dynamic_window._update_comparison_page_controls = WeakOwnerHook(
+                window, update_with_accessibility
             )
         sync_page_labels()
 
@@ -399,12 +407,13 @@ class BetaWorkspaceHardeningController(QObject):
             and not bool(count_label.property("betaFullTextAccessibility"))
         ):
             count_label.setProperty("betaFullTextAccessibility", True)
+            original_sync = OwnerCallback(sync_review_controls)
 
             def sync_with_accessibility(_controller: Any) -> None:
-                sync_review_controls()
+                original_sync()
                 sync_review_label()
 
-            review._sync_controls = MethodType(sync_with_accessibility, review)
+            review._sync_controls = WeakOwnerHook(review, sync_with_accessibility)
         sync_review_label()
 
     def _relax_composed_iqa_shell(self) -> None:

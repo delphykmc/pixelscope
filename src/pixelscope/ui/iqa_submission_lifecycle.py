@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from types import MethodType
+import weakref
 from typing import Any
 
 from PySide6.QtCore import QObject, Slot
 
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 
 AMBIGUOUS_CREATE_MESSAGE = (
@@ -22,41 +23,40 @@ class RemoteIqaSubmissionLifecycle(QObject):
 
     def __init__(self, controller: Any, parent: QObject) -> None:
         super().__init__(parent)
-        self.controller = controller
-        self.workspace = controller.workspace
+        self._controller_ref = weakref.ref(controller)
+        self.workspace: Any = weakref.proxy(controller.workspace)
         self._submission_worker_id: str | None = None
         self._starting_submission = False
         self._ambiguous_create = False
 
-        self._original_start_submission = controller._start_submission
-        self._original_track_worker = controller._track_worker
-        self._original_set_configuration_state = self.workspace.set_configuration_state
-        self._original_set_current_pair_state = self.workspace.set_current_pair_state
-
-        def guarded_start(_controller: Any, *args: Any, **kwargs: Any) -> None:
-            self._guarded_start_submission(*args, **kwargs)
-
-        def guarded_track(_controller: Any, worker: TaskWorker) -> None:
-            self._guarded_track_worker(worker)
-
-        def guarded_configuration(_workspace: Any, *args: Any, **kwargs: Any) -> None:
-            self._original_set_configuration_state(*args, **kwargs)
-            self._apply_submit_gate()
-
-        def guarded_current_pair(_workspace: Any, *args: Any, **kwargs: Any) -> None:
-            self._original_set_current_pair_state(*args, **kwargs)
-            self._apply_submit_gate()
-
-        controller._start_submission = MethodType(guarded_start, controller)
-        controller._track_worker = MethodType(guarded_track, controller)
-        self.workspace.set_configuration_state = MethodType(
-            guarded_configuration,
-            self.workspace,
+        self._original_start_submission = OwnerCallback(controller._start_submission)
+        self._original_track_worker = OwnerCallback(controller._track_worker)
+        self._original_set_configuration_state = OwnerCallback(
+            controller.workspace.set_configuration_state
         )
-        self.workspace.set_current_pair_state = MethodType(
-            guarded_current_pair,
-            self.workspace,
+        self._original_set_current_pair_state = OwnerCallback(
+            controller.workspace.set_current_pair_state
         )
+
+        controller._start_submission = self._guarded_start_submission
+        controller._track_worker = self._guarded_track_worker
+        controller.workspace.set_configuration_state = self._guarded_configuration
+        controller.workspace.set_current_pair_state = self._guarded_current_pair
+
+    @property
+    def controller(self) -> Any:
+        controller = self._controller_ref()
+        if controller is None:
+            raise RuntimeError("Remote IQA controller was destroyed")
+        return controller
+
+    def _guarded_configuration(self, *args: Any, **kwargs: Any) -> None:
+        self._original_set_configuration_state(*args, **kwargs)
+        self._apply_submit_gate()
+
+    def _guarded_current_pair(self, *args: Any, **kwargs: Any) -> None:
+        self._original_set_current_pair_state(*args, **kwargs)
+        self._apply_submit_gate()
 
     @property
     def submission_in_flight(self) -> bool:

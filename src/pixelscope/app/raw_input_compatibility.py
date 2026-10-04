@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from collections.abc import Callable
 from typing import Any, cast
 
@@ -8,6 +9,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.path_discovery import ImageInput, is_raw_like_path
 from pixelscope.io.raw_profile import RawProfile
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.user_guide_help import install_dialog_context_help
 
@@ -22,12 +24,23 @@ class RawInputCompatibilityController:
     """
 
     def __init__(self, window: Any) -> None:
-        self.window = window
-        self._register_input_original: Callable[..., str | None] = window._register_input
+        self._window_ref = weakref.ref(window)
+        self._register_input_original: Callable[..., str | None] = OwnerCallback(
+            window._register_input
+        )
         self._confirm_raw_profile_original: Callable[
             [ImageInput, str | None], RawProfile | None
-        ] = window._confirm_raw_profile
-        self._ensure_loaded_original: Callable[[ImageDocument], None] = window._ensure_loaded
+        ] = OwnerCallback(window._confirm_raw_profile)
+        self._ensure_loaded_original: Callable[[ImageDocument], None] = OwnerCallback(
+            window._ensure_loaded
+        )
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("RAW input compatibility owner was destroyed")
+        return window
 
     def install(self) -> None:
         self.window._register_input = self.register_input

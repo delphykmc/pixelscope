@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -40,6 +41,7 @@ from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.remote.iqa_v2_reader import load_grid_scene
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.image_viewer import ImageViewer
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.workers.task_worker import TaskError, TaskWorker
 from pixelscope.workers.thread_pools import analysis_thread_pool
 
@@ -173,9 +175,9 @@ class IqaSceneInspectionController(QObject):
 
     def __init__(self, window: Any, *, pool: QThreadPool | None = None) -> None:
         super().__init__(window)
-        self.window = window
-        self.workspace = window.iqa_workspace
-        self.result_controller = window.iqa_controller
+        self.window: Any = weakref.proxy(window)
+        self.workspace: Any = weakref.proxy(window.iqa_workspace)
+        self.result_controller: Any = weakref.proxy(window.iqa_controller)
         self._pool = pool if pool is not None else analysis_thread_pool()
         self._active = True
         self._result_opening = False
@@ -195,12 +197,12 @@ class IqaSceneInspectionController(QObject):
         self._field: SpatialSceneField | None = None
         self._spatial_request: _SpatialRequest | None = None
         self._overlay_items: dict[ImageViewer, _SpatialOverlayItem] = {}
-        self._original_select_document_ids = window._select_document_ids
-        self._original_remove_document_ids = window._remove_document_ids
-        self._original_set_layout_mode = window.set_layout_mode
-        self._original_set_focus_document = window._set_focus_document
-        self._original_open_result = self.result_controller.open_result
-        self._original_shutdown = self.result_controller.shutdown
+        self._original_select_document_ids = OwnerCallback(window._select_document_ids)
+        self._original_remove_document_ids = OwnerCallback(window._remove_document_ids)
+        self._original_set_layout_mode = OwnerCallback(window.set_layout_mode)
+        self._original_set_focus_document = OwnerCallback(window._set_focus_document)
+        self._original_open_result = OwnerCallback(window.iqa_controller.open_result)
+        self._original_shutdown = OwnerCallback(window.iqa_controller.shutdown)
         self._build_controls()
         self._install_mutation_boundaries()
         self._connect_workspace()

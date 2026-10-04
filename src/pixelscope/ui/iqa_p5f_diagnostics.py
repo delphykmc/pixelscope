@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
-from types import MethodType
 from typing import Any
 
 from pixelscope.core.diagnostics import (
@@ -13,6 +12,7 @@ from pixelscope.core.diagnostics import (
     WorkerPoolDiagnostics,
 )
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
+from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
 
 
@@ -24,7 +24,9 @@ def install_remote_iqa_diagnostics(
 
     if getattr(window, "_p5f_original_runtime_diagnostics_snapshot", None) is not None:
         return
-    original: Callable[[], RuntimeDiagnosticsSnapshot] = window.runtime_diagnostics_snapshot
+    original: Callable[[], RuntimeDiagnosticsSnapshot] = OwnerCallback(
+        window.runtime_diagnostics_snapshot
+    )
     window._p5f_original_runtime_diagnostics_snapshot = original
 
     def snapshot(_window: Any) -> RuntimeDiagnosticsSnapshot:
@@ -46,4 +48,4 @@ def install_remote_iqa_diagnostics(
         )
         return replace(base, remote_iqa=remote)
 
-    window.runtime_diagnostics_snapshot = MethodType(snapshot, window)
+    window.runtime_diagnostics_snapshot = WeakOwnerHook(window, snapshot)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -8,6 +9,8 @@ from typing import Any, cast
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QInputDialog
+
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
 
 class FolderDisplayTagController:
@@ -17,17 +20,31 @@ class FolderDisplayTagController:
     MAX_TAG_LENGTH = 64
 
     def __init__(self, window: Any) -> None:
-        self.window = window
-        self.tree = window.document_list
+        self._window_ref = weakref.ref(window)
+        self._tree_ref = weakref.ref(window.document_list)
         self._tags = self._load_tags()
-        self._original_update_document_item = window._update_document_item
-        self._original_register_input = window._register_input
-        self._original_add_document = window.add_document
+        self._original_update_document_item = OwnerCallback(window._update_document_item)
+        self._original_register_input = OwnerCallback(window._register_input)
+        self._original_add_document = OwnerCallback(window.add_document)
         self._bulk_registration_depth = 0
         self._pending_folder_rows: dict[str, Path] = {}
         self._install_document_hooks()
         self._install_context_menu_hook()
         self._refresh_existing_documents()
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Folder display-tag window was destroyed")
+        return window
+
+    @property
+    def tree(self) -> Any:
+        tree = self._tree_ref()
+        if tree is None:
+            raise RuntimeError("Folder display-tag tree was destroyed")
+        return tree
 
     @staticmethod
     def _folder_key(folder: Path) -> str:

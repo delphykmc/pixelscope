@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import weakref
 from collections import Counter
 from contextlib import suppress
-from types import MethodType
 from typing import Any, cast
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt
@@ -10,6 +10,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout, QWidget
 
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 
@@ -18,11 +19,25 @@ class FilesContextMenuController(QObject):
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
-        self.window = window
-        self.tree = window.document_list
+        self._window_ref = weakref.ref(window)
+        self._tree_ref = weakref.ref(window.document_list)
         with suppress(RuntimeError, TypeError):
             self.tree.customContextMenuRequested.disconnect(self.tree._show_context_menu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Files context menu owner was destroyed")
+        return window
+
+    @property
+    def tree(self) -> Any:
+        tree = self._tree_ref()
+        if tree is None:
+            raise RuntimeError("Files context menu tree was destroyed")
+        return tree
 
     def build_menu_for_item(self, item: Any | None) -> QMenu:
         menu = QMenu(self.tree)
@@ -233,7 +248,7 @@ def _install_page_polish(window: Any) -> None:
     if bool(window.comparison_page_group.property("workflowPolished")):
         return
     window.comparison_page_group.setProperty("workflowPolished", True)
-    original_update = window._update_comparison_page_controls
+    original_update = OwnerCallback(window._update_comparison_page_controls)
 
     def update_controls(_window: Any) -> None:
         original_update()
@@ -270,7 +285,7 @@ def _install_page_polish(window: Any) -> None:
             button.setVisible(True)
             button.setEnabled(False)
 
-    window._update_comparison_page_controls = MethodType(update_controls, window)
+    window._update_comparison_page_controls = WeakOwnerHook(window, update_controls)
     window._comparison_page_controls_state = None
     window._update_comparison_page_controls()
 
@@ -295,7 +310,8 @@ def _install_header_polish(window: Any) -> None:
     layout.insertWidget(navigation_index + 1, separator)
     header.workflow_navigation_separator = separator
 
-    original_navigation = header.set_navigation_items
+    original_navigation = OwnerCallback(header.set_navigation_items)
+    separator_ref = weakref.ref(separator)
 
     def set_navigation_items(
         _header: Any,
@@ -303,12 +319,13 @@ def _install_header_polish(window: Any) -> None:
         current_key: str,
         *,
         _original: Any = original_navigation,
-        _separator: QFrame = separator,
     ) -> None:
         _original(items, current_key)
-        _separator.setVisible(len(items) > 1)
+        current_separator = separator_ref()
+        if current_separator is not None:
+            current_separator.setVisible(len(items) > 1)
 
-    header.set_navigation_items = MethodType(set_navigation_items, header)
+    header.set_navigation_items = WeakOwnerHook(header, set_navigation_items)
 
     reference_style = (
         f"QLabel {{ background: {TOKENS.workspace_background}; "
@@ -322,7 +339,7 @@ def _install_header_polish(window: Any) -> None:
     header.difference_vs.setText("↔")
     header.difference_vs.setStyleSheet(f"QLabel {{ color: {TOKENS.text_secondary}; }}")
 
-    original_difference = header.set_difference_reference
+    original_difference = OwnerCallback(header.set_difference_reference)
 
     def set_difference_reference(
         _header: Any,
@@ -343,7 +360,7 @@ def _install_header_polish(window: Any) -> None:
         if b_slot is not None:
             _header.difference_b_badge.setText(f"B {b_slot}")
 
-    header.set_difference_reference = MethodType(set_difference_reference, header)
+    header.set_difference_reference = WeakOwnerHook(header, set_difference_reference)
 
 
 def _primary_analysis_action_style() -> str:
@@ -394,11 +411,15 @@ def _install_difference_polish(window: Any) -> None:
     if bool(panel.property("workflowPolished")):
         return
     panel.setProperty("workflowPolished", True)
-    original_validate = panel._validate
-    original_calculate = panel.calculate_difference
+    original_validate = OwnerCallback(panel._validate)
+    original_calculate = OwnerCallback(panel.calculate_difference)
+    hint_ref = weakref.ref(hint)
 
     def validate(_panel: Any) -> str | None:
         reason = cast(str | None, original_validate())
+        current_hint = hint_ref()
+        if current_hint is None:
+            return reason
         calculated_result = _panel.last_result is not None
         in_flight = _panel._worker is not None or _panel._preview_worker is not None
         pending = (
@@ -407,14 +428,14 @@ def _install_difference_polish(window: Any) -> None:
             and not calculated_result
             and not in_flight
         )
-        hint.setVisible(pending)
+        current_hint.setVisible(pending)
         if pending:
             _panel.status.setText("Not calculated")
         elif reason is None and calculated_result and _panel.status.text() == "Ready":
             _panel.status.setText("Calculated")
         return reason
 
-    panel._validate = MethodType(validate, panel)
+    panel._validate = WeakOwnerHook(panel, validate)
 
     def calculate_difference(
         _panel: Any,
@@ -422,18 +443,31 @@ def _install_difference_polish(window: Any) -> None:
         *,
         publish_result: bool = True,
     ) -> None:
-        hint.hide()
+        current_hint = hint_ref()
+        if current_hint is not None:
+            current_hint.hide()
         original_calculate(_checked, publish_result=publish_result)
-        if _panel._worker is not None or _panel._preview_worker is not None:
-            hint.hide()
+        if current_hint is not None and (
+            _panel._worker is not None or _panel._preview_worker is not None
+        ):
+            current_hint.hide()
 
-    panel.calculate_difference = MethodType(calculate_difference, panel)
+    panel.calculate_difference = WeakOwnerHook(panel, calculate_difference)
     panel.calculate.pressed.connect(hint.hide)
 
+    panel_ref = weakref.ref(panel)
+
     def calculated(*_args: object) -> None:
-        hint.hide()
-        if panel.last_result is not None and panel.status.text() == "Ready":
-            panel.status.setText("Calculated")
+        current_hint = hint_ref()
+        current_panel = panel_ref()
+        if current_hint is not None:
+            current_hint.hide()
+        if (
+            current_panel is not None
+            and current_panel.last_result is not None
+            and current_panel.status.text() == "Ready"
+        ):
+            current_panel.status.setText("Calculated")
 
     panel.result_ready.connect(calculated)
     panel.preview_updated.connect(calculated)
@@ -444,7 +478,7 @@ def _install_review_polish(review_controller: Any) -> None:
     if bool(review_controller.count_label.property("workflowPolished")):
         return
     review_controller.count_label.setProperty("workflowPolished", True)
-    original_sync = review_controller._sync_controls
+    original_sync = OwnerCallback(review_controller._sync_controls)
 
     def sync_controls(_controller: Any) -> None:
         original_sync()
@@ -453,7 +487,7 @@ def _install_review_polish(review_controller: Any) -> None:
         color = TOKENS.selection if count > 0 else TOKENS.text_secondary
         _controller.count_label.setStyleSheet(f"QLabel {{ color: {color}; font-weight: 600; }}")
 
-    review_controller._sync_controls = MethodType(sync_controls, review_controller)
+    review_controller._sync_controls = WeakOwnerHook(review_controller, sync_controls)
     review_controller._sync_controls()
 
 
@@ -468,38 +502,7 @@ def _install_histogram_polish(window: Any) -> None:
         "Select an image to view Histogram",
         "histogramEmptyHint",
     )
-    panel.workflow_histogram_hint = hint.label
-    panel.workflow_histogram_hint_controller = hint
-
-    original_clear = panel.clear
-    original_set_documents = panel.set_documents
-    original_render = panel._render
-
-    def clear(_panel: Any) -> None:
-        original_clear()
-        hint.show()
-
-    def set_documents(
-        _panel: Any,
-        documents: object,
-        bounds: object,
-        region_name: str | None = None,
-    ) -> None:
-        original_set_documents(documents, bounds, region_name)
-        if _panel._documents:
-            hint.hide()
-
-    def render(_panel: Any, results: object, histogram_specs: object) -> None:
-        hint.hide()
-        original_render(results, histogram_specs)
-
-    panel.clear = MethodType(clear, panel)
-    panel.set_documents = MethodType(set_documents, panel)
-    panel._render = MethodType(render, panel)
-    if panel.last_results:
-        hint.hide()
-    else:
-        hint.show()
+    panel.install_empty_hint(hint)
 
 
 def _install_line_profile_polish(window: Any) -> None:
@@ -513,49 +516,7 @@ def _install_line_profile_polish(window: Any) -> None:
         "Select an image to use Line Profile\n\nThen Shift + drag to draw a line",
         "lineProfileEmptyHint",
     )
-    panel.workflow_empty_hint = hint.label
-    panel.workflow_empty_hint_controller = hint
-
-    def sync_hint() -> None:
-        if panel._selection is not None:
-            hint.hide()
-            return
-        if panel._documents:
-            hint.show("Draw a line to view its profile\n\nShift + drag on an image")
-        else:
-            hint.show("Select an image to use Line Profile\n\nThen Shift + drag to draw a line")
-        panel._set_status("")
-
-    original_clear = panel._clear_plot
-    original_set_documents = panel.set_documents
-    original_render = panel._render
-
-    def clear_plot(_panel: Any) -> None:
-        original_clear()
-        sync_hint()
-
-    def set_documents(
-        _panel: Any,
-        documents: object,
-        selection: object,
-        *,
-        reference_priority_ids: tuple[str, ...] = (),
-    ) -> None:
-        original_set_documents(
-            documents,
-            selection,
-            reference_priority_ids=reference_priority_ids,
-        )
-        sync_hint()
-
-    def render(_panel: Any, results: object) -> None:
-        hint.hide()
-        original_render(results)
-
-    panel._clear_plot = MethodType(clear_plot, panel)
-    panel.set_documents = MethodType(set_documents, panel)
-    panel._render = MethodType(render, panel)
-    sync_hint()
+    panel.install_empty_hint(hint)
 
 
 def install_workflow_polish(window: Any, review_controller: Any) -> FilesContextMenuController:

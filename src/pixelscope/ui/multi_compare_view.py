@@ -381,6 +381,12 @@ class MultiCompareView(QWidget):
         self._sync_primary_control_visibility(False)
         super().hideEvent(event)
 
+    def shutdown(self) -> None:
+        """Release each owned ImageViewer's third-party graphics graph."""
+
+        for viewer in self.viewers:
+            viewer.shutdown()
+
     def _sync_primary_control_visibility(self, workspace_visible: bool) -> None:
         for viewer in self.viewers:
             viewer.set_focus_control_visible(

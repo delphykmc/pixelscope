@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from contextlib import suppress
+from functools import partial
+from typing import Any, cast
+
 import numpy as np
 import pyqtgraph as pg
 from numpy.typing import NDArray
@@ -46,8 +50,12 @@ class LineProfilePanel(QWidget):
         self._profile_series: list[
             list[tuple[int, str, NDArray[np.float64], NDArray[np.float64]]]
         ] = [[] for _index in range(6)]
+        self._plot_mouse_callbacks: list[Any] = []
+        self._plot_resources_disposed = False
         self._reference_document_id: str | None = None
         self._reference_priority_ids: tuple[str, ...] = ()
+        self._semantics_delegate: Any | None = None
+        self.workflow_empty_hint_controller: Any | None = None
         self._reference_locked = False
 
         self.status = ElidingContextLabel()
@@ -139,9 +147,9 @@ class LineProfilePanel(QWidget):
             )
             self.plots.append(plot)
             self.legends.append(plot.addLegend(offset=(-10, 10)))
-            plot.scene().sigMouseMoved.connect(
-                lambda position, index=plot_index: self._on_plot_mouse_moved(position, index)
-            )
+            callback = partial(self._on_plot_mouse_moved, plot_index=plot_index)
+            self._plot_mouse_callbacks.append(callback)
+            plot.scene().sigMouseMoved.connect(callback)
             plot.hide()
         self.plot = self.plots[0]
         self.legend = self.legends[0]
@@ -169,7 +177,49 @@ class LineProfilePanel(QWidget):
 
         return self._hover_texts[0]
 
+    def set_semantics_delegate(self, delegate: Any | None) -> None:
+        """Select an optional profile strategy without replacing instance methods."""
+
+        self._semantics_delegate = delegate
+
+    def install_empty_hint(self, controller: Any) -> None:
+        self.workflow_empty_hint_controller = controller
+        self.workflow_empty_hint = controller.label
+        self._sync_empty_hint()
+
+    def _sync_empty_hint(self) -> None:
+        hint = self.workflow_empty_hint_controller
+        if hint is None:
+            return
+        if self._selection is not None:
+            hint.hide()
+        elif self._documents:
+            hint.show("Draw a line to view its profile\n\nShift + drag on an image")
+        else:
+            hint.show("Select an image to use Line Profile\n\nThen Shift + drag to draw a line")
+        self._set_status("")
+
     def set_documents(
+        self,
+        documents: list[ImageDocument],
+        selection: LineSelection | None,
+        *,
+        reference_priority_ids: tuple[str, ...] = (),
+    ) -> None:
+        if self._semantics_delegate is not None:
+            self._semantics_delegate.set_line_documents(
+                documents,
+                selection,
+                reference_priority_ids=reference_priority_ids,
+            )
+            return
+        self.set_documents_default(
+            documents,
+            selection,
+            reference_priority_ids=reference_priority_ids,
+        )
+
+    def set_documents_default(
         self,
         documents: list[ImageDocument],
         selection: LineSelection | None,
@@ -180,6 +230,7 @@ class LineProfilePanel(QWidget):
         self._selection = selection
         self._reference_priority_ids = reference_priority_ids
         self._sync_reference_selector()
+        self._sync_empty_hint()
         self.refresh()
 
     def set_reference_priority_ids(self, document_ids: tuple[str, ...]) -> None:
@@ -215,6 +266,14 @@ class LineProfilePanel(QWidget):
         self._clear_plot()
 
     def refresh(self) -> None:
+        if self._semantics_delegate is not None:
+            self._semantics_delegate.refresh_line_profile()
+            return
+        self.refresh_default()
+
+    def refresh_default(self) -> None:
+        if self._plot_resources_disposed:
+            return
         documents = self._documents
         selection = self._selection
         if not documents or selection is None:
@@ -307,7 +366,11 @@ class LineProfilePanel(QWidget):
         cache_keys: list[tuple[object, ...]],
         result: object,
     ) -> None:
-        if signature != self._request_signature or not isinstance(result, tuple):
+        if (
+            self._plot_resources_disposed
+            or signature != self._request_signature
+            or not isinstance(result, tuple)
+        ):
             return
         if len(result) != len(self._documents) or not all(
             isinstance(item, LineProfileResult) for item in result
@@ -325,6 +388,8 @@ class LineProfilePanel(QWidget):
         _generation: int,
         error: TaskError,
     ) -> None:
+        if self._plot_resources_disposed:
+            return
         self._set_status(f"Error: {error.message}")
 
     def _on_finished(self, task_id: str) -> None:
@@ -399,6 +464,9 @@ class LineProfilePanel(QWidget):
         return None
 
     def _render(self, results: tuple[LineProfileResult, ...]) -> None:
+        hint = self.workflow_empty_hint_controller
+        if hint is not None:
+            hint.hide()
         for plot, legend in zip(self.plots, self.legends, strict=True):
             self.plot_layout.removeWidget(plot)
             plot.clear()
@@ -591,6 +659,7 @@ class LineProfilePanel(QWidget):
         self._profile_series = [[] for _index in range(6)]
         self._set_axes_visible(False)
         self._set_status("")
+        self._sync_empty_hint()
 
     def _set_status(self, text: str) -> None:
         self.status.setText(text)
@@ -706,3 +775,33 @@ class LineProfilePanel(QWidget):
     def shutdown(self) -> None:
         if self._worker is not None:
             self._worker.cancel()
+        self._request_signature = ()
+        if self._plot_resources_disposed:
+            return
+        self._plot_resources_disposed = True
+
+        for plot, callback in zip(
+            tuple(self.plots),
+            tuple(self._plot_mouse_callbacks),
+            strict=True,
+        ):
+            with suppress(RuntimeError, TypeError):
+                plot.scene().sigMouseMoved.disconnect(callback)
+            view_box = plot.getViewBox()
+            menu = getattr(view_box, "menu", None)
+            if menu is not None:
+                view_box.menu = None
+                menu.close()
+                menu.deleteLater()
+            plot.close()
+            plot.deleteLater()
+
+        self._plot_mouse_callbacks.clear()
+        self.plots.clear()
+        self.legends.clear()
+        self._hover_lines = [None] * 6
+        self._hover_texts = [None] * 6
+        self._plot_result_indices = [[] for _index in range(6)]
+        self._profile_series = [[] for _index in range(6)]
+        self.plot = cast(Any, None)
+        self.legend = cast(Any, None)

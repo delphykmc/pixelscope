@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pytest
 
@@ -31,6 +33,27 @@ def make_window(qtbot: object) -> MainWindow:
     install_raw_input_compatibility(window)
     install_native_yuv_semantics(window)
     return window
+
+
+def test_yuv_analysis_composition_uses_stable_panel_delegates(qtbot: object) -> None:
+    window = make_window(qtbot)
+    controller = window.native_yuv_semantics_controller
+    analysis = window.comparison_analysis_panel
+    line = window.line_profile_panel
+
+    assert "set_documents" not in analysis.__dict__
+    assert "refresh" not in analysis.__dict__
+    assert "set_documents" not in line.__dict__
+    assert "refresh" not in line.__dict__
+    assert analysis._semantics_delegate is controller
+    assert line._semantics_delegate is controller
+    assert not any(
+        inspect.ismethod(value)
+        for name, value in controller.__dict__.items()
+        if name.endswith("_original")
+    )
+
+    window.close()
 
 
 def test_yuv_statistics_histogram_and_line_controls_use_y_u_v(

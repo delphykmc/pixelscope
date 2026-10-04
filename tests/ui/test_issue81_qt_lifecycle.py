@@ -10,11 +10,13 @@ from weakref import ref
 import numpy as np
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QThreadPool
 from PySide6.QtWidgets import QApplication
+from shiboken6 import isValid
 
 from pixelscope.app.application import _compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.roi import RoiBounds, analyze_roi
 from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
+from pixelscope.ui.line_profile_panel import LineProfilePanel
 
 
 def _blocked_loader(started: Event, release: Event) -> Callable[[Path | str], object]:
@@ -174,3 +176,63 @@ def test_comparison_analysis_shutdown_rejects_late_worker_result(
 
     panel.close()
     panel.deleteLater()
+
+
+def test_line_profile_shutdown_releases_pyqtgraph_resources(qtbot: object) -> None:
+    del qtbot
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+
+    panel = LineProfilePanel()
+    panel_ref = ref(panel)
+    scenes = tuple(plot.scene() for plot in panel.plots)
+    view_boxes = tuple(plot.getViewBox() for plot in panel.plots)
+
+    panel.shutdown()
+    panel.shutdown()
+
+    assert panel._plot_resources_disposed
+    assert panel._plot_mouse_callbacks == []
+    assert panel.plots == []
+    assert panel.legends == []
+    assert panel.plot is None
+    assert panel.legend is None
+    assert all(getattr(view_box, "menu", None) is None for view_box in view_boxes)
+
+    panel.close()
+    panel.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    del panel
+
+    assert panel_ref() is None
+
+    del scenes
+    del view_boxes
+    gc.collect()
+
+
+def test_production_composition_disposes_image_viewer_graphics_before_deferred_delete(
+    qtbot: object,
+    isolated_qsettings_subdirectory: None,
+) -> None:
+    del qtbot
+    del isolated_qsettings_subdirectory
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+
+    window = MainWindow()
+    _compose_main_window_presentation(window)
+    viewers = (window.viewer, *window.multi_compare_view.viewers)
+    graphics = tuple(ref(viewer._graphics) for viewer in viewers)
+
+    window.close()
+
+    assert all(viewer._graphics_resources_disposed for viewer in viewers)
+
+    window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    assert all(graphics_ref() is None or not isValid(graphics_ref()) for graphics_ref in graphics)
+    del viewers
+    del window

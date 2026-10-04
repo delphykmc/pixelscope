@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from pydantic import ValidationError
 from PySide6.QtCore import QThreadPool
@@ -18,6 +18,7 @@ from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.yuv_profile import YuvProfile
 from pixelscope.ui.comparison_analysis_panel import automatic_histogram_spec
 from pixelscope.ui.design_tokens import channel_button_style
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.ui.plot_colors import channel_color
 from pixelscope.ui.user_guide_help import install_dialog_context_help
 from pixelscope.ui.yuv_open_dialog import YuvOpenDialog
@@ -28,32 +29,35 @@ class NativeYuvSemanticsController:
     """Compose WP-C1 YUV authority into the existing document/UI lifecycle."""
 
     def __init__(self, window: Any) -> None:
-        self.window = window
-        self._confirm_profile_original: Callable[..., object | None] = window._confirm_raw_profile
-        self._start_preload_original: Callable[..., None] = window._start_preload
-        self._record_resident_original: Callable[
-            [ImageDocument], None
-        ] = window._record_resident_source
-        self._evict_original: Callable[[], None] = window._evict_resident_documents
-        self._mark_reload_original: Callable[..., None] = window._mark_raw_for_reload
-        self._update_actions_original: Callable[[], None] = window._update_action_states
-        self._inspect_pixel_original: Callable[[int, int, object], None] = window._inspect_pixel
-        self._pixel_status_original: Callable[..., str] = window._pixel_status_text
+        import weakref
+
+        self._window_ref = weakref.ref(window)
+        self._confirm_profile_original = OwnerCallback(window._confirm_raw_profile)
+        self._start_preload_original = OwnerCallback(window._start_preload)
+        self._record_resident_original = OwnerCallback(window._record_resident_source)
+        self._evict_original = OwnerCallback(window._evict_resident_documents)
+        self._mark_reload_original = OwnerCallback(window._mark_raw_for_reload)
+        self._update_actions_original = OwnerCallback(window._update_action_states)
+        self._inspect_pixel_original = OwnerCallback(window._inspect_pixel)
+        self._pixel_status_original = OwnerCallback(window._pixel_status_text)
 
         analysis = window.comparison_analysis_panel
-        self._analysis_set_documents_original = analysis.set_documents
-        self._analysis_refresh_original = analysis.refresh
         self._analysis_buttons_original = dict(analysis.channel_buttons)
 
         line = window.line_profile_panel
-        self._line_set_documents_original = line.set_documents
-        self._line_refresh_original = line.refresh
         self._line_buttons_original = dict(line.channel_buttons)
 
         difference = window.difference_panel
-        self._difference_set_documents_original = difference.set_documents
-        self._difference_calculate_original = difference.calculate_difference
+        self._difference_set_documents_original = OwnerCallback(difference.set_documents)
+        self._difference_calculate_original = OwnerCallback(difference.calculate_difference)
         self._difference_yuv_blocked = False
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Native YUV window was destroyed")
+        return window
 
     def install(self) -> None:
         window = self.window
@@ -66,18 +70,14 @@ class NativeYuvSemanticsController:
         window._pixel_status_text = self.pixel_status_text
 
         with suppress(RuntimeError, TypeError):
-            window.viewer.cursor_moved.disconnect(self._inspect_pixel_original)
+            window.viewer.cursor_moved.disconnect(self._inspect_pixel_original.resolve())
         window.viewer.cursor_moved.connect(self.inspect_pixel)
 
         analysis = window.comparison_analysis_panel
-        analysis.set_documents = self.set_analysis_documents
-        with suppress(RuntimeError, TypeError):
-            analysis._refresh_timer.timeout.disconnect(self._analysis_refresh_original)
-        analysis._refresh_timer.timeout.connect(self.refresh_analysis)
+        analysis.set_semantics_delegate(self)
 
         line = window.line_profile_panel
-        line.set_documents = self.set_line_documents
-        line.refresh = self.refresh_line_profile
+        line.set_semantics_delegate(self)
 
         difference = window.difference_panel
         difference.set_documents = self.set_difference_documents
@@ -93,7 +93,7 @@ class NativeYuvSemanticsController:
         """Use native YUV only when explicitly selected or described by a YUV JSON."""
 
         if image_input.path.suffix.casefold() != ".yuv":
-            return self._confirm_profile_original(image_input, existing_id)
+            return cast(object | None, self._confirm_profile_original(image_input, existing_id))
 
         sidecar = image_input.raw_profile_path
         if sidecar is not None and sidecar.suffix.casefold() == ".json":
@@ -113,11 +113,11 @@ class NativeYuvSemanticsController:
                     )
                     return self._show_yuv_dialog(image_input.path, existing_id, None)
             # A valid legacy RAW JSON remains authoritative for `.yuv` under WP-B.
-            return self._confirm_profile_original(image_input, existing_id)
+            return cast(object | None, self._confirm_profile_original(image_input, existing_id))
 
         # `.imgprops` is a WP-B RAW/Bayer contract. Do not reinterpret it as YUV.
         if sidecar is not None and sidecar.suffix.casefold() == ".imgprops":
-            return self._confirm_profile_original(image_input, existing_id)
+            return cast(object | None, self._confirm_profile_original(image_input, existing_id))
 
         initial = None
         if existing_id is not None:
@@ -144,7 +144,10 @@ class NativeYuvSemanticsController:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         if dialog.uses_generic_raw():
-            return self._confirm_profile_original(ImageInput(path, None), existing_id)
+            return cast(
+                object | None,
+                self._confirm_profile_original(ImageInput(path, None), existing_id),
+            )
         return dialog.profile()
 
     def start_preload(
@@ -227,7 +230,7 @@ class NativeYuvSemanticsController:
             for index in range(len(values))
         )
         if not has_yuv:
-            return self._pixel_status_original(x, y, values, documents)
+            return cast(str, self._pixel_status_original(x, y, values, documents))
 
         entries: list[str] = []
         yuv_values: list[tuple[int, int, int]] = []
@@ -298,13 +301,13 @@ class NativeYuvSemanticsController:
             )
             return
         self._configure_analysis_channels(self._has_yuv(documents))
-        self._analysis_set_documents_original(documents, bounds, region_name)
+        panel.set_documents_default(documents, bounds, region_name)
 
     def refresh_analysis(self) -> None:
         panel = self.window.comparison_analysis_panel
         documents = panel._documents
         if not documents or not all(document.yuv_frame is not None for document in documents):
-            self._analysis_refresh_original()
+            panel.refresh_default()
             return
 
         bounds = panel._bounds
@@ -470,7 +473,7 @@ class NativeYuvSemanticsController:
             panel._set_status("Mixed YUV/non-YUV Line Profile is disabled to preserve semantics.")
             return
         self._configure_line_channels(self._has_yuv(documents))
-        self._line_set_documents_original(
+        panel.set_documents_default(
             documents,
             selection,
             reference_priority_ids=reference_priority_ids,
@@ -481,7 +484,7 @@ class NativeYuvSemanticsController:
         documents = panel._documents
         selection = panel._selection
         if not documents or not all(document.yuv_frame is not None for document in documents):
-            self._line_refresh_original()
+            panel.refresh_default()
             return
         if selection is None:
             panel.last_results = ()

@@ -1,23 +1,39 @@
 from __future__ import annotations
 
+import weakref
 from contextlib import suppress
 from typing import Any
 
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
 
 class DifferenceCurationLifecycle:
     """Apply the owner-final Keep/Calculate/toolbar contract around Diff owners."""
 
     def __init__(self, window: Any, review_controller: Any) -> None:
-        self.window = window
-        self.review_controller = review_controller
+        self._window_ref = weakref.ref(window)
+        self._review_controller_ref = weakref.ref(review_controller)
         self._syncing_action = False
         self._resetting_difference = False
-        self._original_render_selection = window._render_selection
-        self._original_set_difference_visible = window._set_difference_visible
-        self._original_update_action_states = window._update_action_states
+        self._original_render_selection = OwnerCallback(window._render_selection)
+        self._original_set_difference_visible = OwnerCallback(window._set_difference_visible)
+        self._original_update_action_states = OwnerCallback(window._update_action_states)
         self._install()
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Difference curation window was destroyed")
+        return window
+
+    @property
+    def review_controller(self) -> Any:
+        controller = self._review_controller_ref()
+        if controller is None:
+            raise RuntimeError("Review selection controller was destroyed")
+        return controller
 
     def _install(self) -> None:
         self.review_controller.keep_picked = self.keep_picked
