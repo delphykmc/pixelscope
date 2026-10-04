@@ -17,7 +17,7 @@ Remove the application-owned Python reference cycles that keep large PySide/Qt o
 - Refactor the three measured retention roots in descending impact order:
   1. workflow polish + analysis/line-profile + native YUV semantics;
   2. remote/historical IQA controller and lifecycle wrappers;
-  3. MultiCompareView + QuickCompare + Issue #77 follow-up wrappers.
+  3. MultiCompareView + Quick Compare + Issue #77 follow-up wrappers.
 - Add explicit extension points, delegation, signals, strategy objects, or native class methods where needed so behavior can be extended without wrapper-to-original cycles.
 - Add deterministic `dispose()` / `uninstall()` only where runtime-installed signal/filter/timer ownership remains necessary; teardown must be idempotent and must not rely on automatic GC.
 - Add repository-level harness guidance and mechanical/lifecycle regression coverage so future agents do not reintroduce the same pattern.
