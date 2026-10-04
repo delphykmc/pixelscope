@@ -26,6 +26,7 @@ EXPECTED_RAW_ORDER = [
     "01_gray_16bit_u16le.raw",
     "02_bayer_10bit_01_rggb_u16le_lsb.raw",
     "02_bayer_10bit_02_rggb_mipi_raw10.raw",
+    "02_bayer_10bit_03_rggb_packed_stream_msb.raw",
     "02_bayer_12bit_01_rggb_u16le_msb.raw",
     "02_bayer_12bit_02_rggb_mipi_raw12.raw",
     "02_bayer_14bit_01_rggb_mipi_raw14.raw",
@@ -69,7 +70,7 @@ def test_raw_chart_set_natural_sort_keeps_gray_before_bayer() -> None:
 def test_raw_chart_set_manifest_profiles_and_pixels_are_consistent() -> None:
     manifest = _manifest()
     entries = manifest["files"]
-    assert len(entries) == 10
+    assert len(entries) == 11
     assert [entry["raw"] for entry in entries] == EXPECTED_RAW_ORDER
     _require_binaries(entries)
     assert manifest["bayer_chart_version"] == 3
@@ -82,6 +83,7 @@ def test_raw_chart_set_manifest_profiles_and_pixels_are_consistent() -> None:
         ("unpacked", 10, "BAYER"),
         ("unpacked", 12, "BAYER"),
         ("mipi_raw10", 10, "BAYER"),
+        ("packed_stream", 10, "BAYER"),
         ("mipi_raw12", 12, "BAYER"),
         ("mipi_raw14", 14, "BAYER"),
     }
@@ -98,10 +100,11 @@ def test_raw_chart_set_manifest_profiles_and_pixels_are_consistent() -> None:
         assert image.shape == (1080, 1920)
         assert int(image.min()) == entry["minimum"]
         assert int(image.max()) == entry["maximum"]
-        assert profile.minimum_row_bytes == entry["stride_bytes"]
+        assert profile.minimum_row_bytes <= entry["stride_bytes"]
+        assert profile.stride_bytes == entry["stride_bytes"]
 
 
-def test_unpacked_and_mipi_variants_decode_to_identical_bayer_mosaics() -> None:
+def test_storage_variants_decode_to_identical_bayer_mosaics() -> None:
     manifest = _manifest()
     raw10_unpacked_entry = _entry_by_raw(
         manifest,
@@ -110,6 +113,10 @@ def test_unpacked_and_mipi_variants_decode_to_identical_bayer_mosaics() -> None:
     raw10_mipi_entry = _entry_by_raw(
         manifest,
         "02_bayer_10bit_02_rggb_mipi_raw10.raw",
+    )
+    raw10_packed_entry = _entry_by_raw(
+        manifest,
+        "02_bayer_10bit_03_rggb_packed_stream_msb.raw",
     )
     raw12_unpacked_entry = _entry_by_raw(
         manifest,
@@ -122,6 +129,7 @@ def test_unpacked_and_mipi_variants_decode_to_identical_bayer_mosaics() -> None:
     entries = [
         raw10_unpacked_entry,
         raw10_mipi_entry,
+        raw10_packed_entry,
         raw12_unpacked_entry,
         raw12_mipi_entry,
     ]
@@ -131,6 +139,18 @@ def test_unpacked_and_mipi_variants_decode_to_identical_bayer_mosaics() -> None:
         _load_entry(raw10_unpacked_entry),
         _load_entry(raw10_mipi_entry),
     )
+    np.testing.assert_array_equal(
+        _load_entry(raw10_unpacked_entry),
+        _load_entry(raw10_packed_entry),
+    )
+
+    packed_profile = RawProfile.load_json(DATASET / raw10_packed_entry["profile"])
+    assert packed_profile.storage_format == "packed_stream"
+    assert packed_profile.packed_bit_order == "msb"
+    assert packed_profile.minimum_row_bytes == 2400
+    assert packed_profile.stride_bytes == 2408
+    assert (DATASET / raw10_packed_entry["raw"]).stat().st_size == 1080 * 2408
+
     np.testing.assert_array_equal(
         _load_entry(raw12_unpacked_entry),
         _load_entry(raw12_mipi_entry),
@@ -198,7 +218,7 @@ def test_bayer_code_coverage_patch_is_complete_and_cfa_neutral() -> None:
         entry
         for entry in manifest["files"]
         if entry["channel_layout"] == "BAYER"
-        and entry["storage_format"] in {"mipi_raw10", "mipi_raw12", "mipi_raw14"}
+        and entry["storage_format"] in {"packed_stream", "mipi_raw10", "mipi_raw12", "mipi_raw14"}
     ]
     _require_binaries(entries)
 

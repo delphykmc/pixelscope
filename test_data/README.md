@@ -18,7 +18,7 @@ comparison. The matching filename at each natural-sort index forms a pair.
 ## `manual/raw_chart_set/`
 
 FHD GRAY and RGGB RAW fixtures covering unpacked `uint8`/`uint16`, LSB/MSB
-alignment, and MIPI RAW10/12/14 storage. Filenames are prefixed so natural
+alignment, generic packed-stream storage, and MIPI RAW10/12/14 storage. Filenames are prefixed so natural
 sorting shows all GRAY fixtures first and then the Bayer variants grouped by
 bit depth and storage format.
 

@@ -1,0 +1,22 @@
+{
+  "name": "02_bayer_10bit_03_rggb_packed_stream_msb",
+  "width": 1920,
+  "height": 1080,
+  "stride_bytes": 2408,
+  "offset_bytes": 0,
+  "storage_format": "packed_stream",
+  "container_dtype": null,
+  "endianness": null,
+  "bit_depth": 10,
+  "bit_alignment": null,
+  "channel_layout": "BAYER",
+  "bayer_pattern": "RGGB",
+  "black_level": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "white_level": 1023,
+  "packed_bit_order": "msb"
+}

@@ -258,6 +258,33 @@ def _pack_raw14(values: NDArray[np.uint16]) -> bytes:
     return packed.tobytes()
 
 
+def _pack_stream_msb(
+    values: NDArray[np.uint16],
+    *,
+    bit_depth: int,
+    stride_bytes: int,
+) -> bytes:
+    """Serialize samples as one continuous MSB-first bitstream per stored row."""
+
+    minimum_row_bytes = (WIDTH * bit_depth + 7) // 8
+    if stride_bytes < minimum_row_bytes:
+        raise ValueError("packed-stream stride is smaller than the payload row")
+
+    shifts = np.arange(bit_depth - 1, -1, -1, dtype=np.uint16)
+    bits = ((values[..., None] >> shifts) & 1).astype(np.uint8)
+    packed = np.packbits(
+        bits.reshape(HEIGHT, WIDTH * bit_depth),
+        axis=1,
+        bitorder="big",
+    )
+    if packed.shape != (HEIGHT, minimum_row_bytes):
+        raise AssertionError(f"unexpected packed-stream shape: {packed.shape}")
+
+    rows = np.zeros((HEIGHT, stride_bytes), dtype=np.uint8)
+    rows[:, :minimum_row_bytes] = packed
+    return rows.tobytes()
+
+
 def _profile(
     *,
     name: str,
@@ -267,8 +294,9 @@ def _profile(
     container_dtype: str | None = None,
     endianness: str | None = None,
     bit_alignment: str | None = None,
+    packed_bit_order: str | None = None,
 ) -> dict[str, object]:
-    return {
+    profile: dict[str, object] = {
         "name": name,
         "width": WIDTH,
         "height": HEIGHT,
@@ -284,6 +312,9 @@ def _profile(
         "black_level": [0, 0, 0, 0],
         "white_level": (1 << bit_depth) - 1,
     }
+    if packed_bit_order is not None:
+        profile["packed_bit_order"] = packed_bit_order
+    return profile
 
 
 def generate(output_dir: Path) -> list[dict[str, object]]:
@@ -298,6 +329,7 @@ def generate(output_dir: Path) -> list[dict[str, object]]:
             "uint16",
             "little",
             "lsb",
+            None,
         ),
         (
             "02_bayer_10bit_02_rggb_mipi_raw10",
@@ -307,6 +339,17 @@ def generate(output_dir: Path) -> list[dict[str, object]]:
             None,
             None,
             None,
+            None,
+        ),
+        (
+            "02_bayer_10bit_03_rggb_packed_stream_msb",
+            10,
+            "packed_stream",
+            (WIDTH * 10 + 7) // 8 + 8,
+            None,
+            None,
+            None,
+            "msb",
         ),
         (
             "02_bayer_12bit_01_rggb_u16le_msb",
@@ -316,6 +359,7 @@ def generate(output_dir: Path) -> list[dict[str, object]]:
             "uint16",
             "little",
             "msb",
+            None,
         ),
         (
             "02_bayer_12bit_02_rggb_mipi_raw12",
@@ -325,12 +369,14 @@ def generate(output_dir: Path) -> list[dict[str, object]]:
             None,
             None,
             None,
+            None,
         ),
         (
             "02_bayer_14bit_01_rggb_mipi_raw14",
             14,
             "mipi_raw14",
             WIDTH * 7 // 4,
+            None,
             None,
             None,
             None,
@@ -345,6 +391,7 @@ def generate(output_dir: Path) -> list[dict[str, object]]:
         container_dtype,
         endianness,
         alignment,
+        packed_bit_order,
     ) in definitions:
         values = _quantized_chart(bit_depth)
         if storage_format == "unpacked":
@@ -354,6 +401,12 @@ def generate(output_dir: Path) -> list[dict[str, object]]:
             payload = stored.astype("<u2").tobytes()
         elif storage_format == "mipi_raw10":
             payload = _pack_raw10(values)
+        elif storage_format == "packed_stream":
+            payload = _pack_stream_msb(
+                values,
+                bit_depth=bit_depth,
+                stride_bytes=stride,
+            )
         elif storage_format == "mipi_raw12":
             payload = _pack_raw12(values)
         else:
@@ -370,29 +423,31 @@ def generate(output_dir: Path) -> list[dict[str, object]]:
             container_dtype=container_dtype,
             endianness=endianness,
             bit_alignment=alignment,
+            packed_bit_order=packed_bit_order,
         )
         (output_dir / profile_name).write_text(
             json.dumps(profile, indent=2) + "\n",
             encoding="utf-8",
         )
-        entries.append(
-            {
-                "raw": raw_name,
-                "profile": profile_name,
-                "storage_format": storage_format,
-                "container_dtype": container_dtype,
-                "bit_depth": bit_depth,
-                "bit_alignment": alignment,
-                "stride_bytes": stride,
-                "channel_layout": "BAYER",
-                "bayer_pattern": BAYER_PATTERN,
-                "minimum": 0,
-                "maximum": (1 << bit_depth) - 1,
-                "expected_auto_bins": min(1 << bit_depth, 4096),
-                "comparison_group": "shared_rggb_chart_v3",
-                "sha256": hashlib.sha256(payload).hexdigest(),
-            }
-        )
+        entry: dict[str, object] = {
+            "raw": raw_name,
+            "profile": profile_name,
+            "storage_format": storage_format,
+            "container_dtype": container_dtype,
+            "bit_depth": bit_depth,
+            "bit_alignment": alignment,
+            "stride_bytes": stride,
+            "channel_layout": "BAYER",
+            "bayer_pattern": BAYER_PATTERN,
+            "minimum": 0,
+            "maximum": (1 << bit_depth) - 1,
+            "expected_auto_bins": min(1 << bit_depth, 4096),
+            "comparison_group": "shared_rggb_chart_v3",
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+        if packed_bit_order is not None:
+            entry["packed_bit_order"] = packed_bit_order
+        entries.append(entry)
     return entries
 
 
@@ -430,7 +485,8 @@ def _update_manifest(
         "generator": "scripts/generate_raw_chart_bayer_fixtures.py",
         "description": (
             "Naturally sorted GRAY fixtures followed by one true-RGB-derived RGGB chart "
-            "serialized as unpacked uint16 and MIPI RAW10/12/14. The Bayer variants "
+            "serialized as unpacked uint16, generic packed stream, and MIPI RAW10/12/14. "
+            "The Bayer variants "
             "share the same sampled scene and use a CFA-neutral 256x256 native-code "
             "coverage patch in the bottom-right corner."
         ),

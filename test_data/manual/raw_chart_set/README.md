@@ -31,6 +31,7 @@ The set contains:
 
 - 10-bit unpacked `uint16`, little-endian, LSB aligned
 - MIPI RAW10: 4 pixels / 5 bytes
+- Generic 10-bit MSB-first packed stream with 8 bytes of row padding
 - 12-bit unpacked `uint16`, little-endian, MSB aligned
 - MIPI RAW12: 2 pixels / 3 bytes
 - MIPI RAW14: 4 pixels / 7 bytes
@@ -54,8 +55,9 @@ code is written to a complete 2×2 RGGB block, keeping that patch CFA-neutral.
 It covers every native code at least once in the 10, 12, and 14-bit fixtures.
 This patch is for bit-exact decoding checks rather than color-scene fidelity.
 
-Packed profiles have no sample container, byte order, or bit-alignment fields;
-those byte-layout rules are defined by the selected MIPI storage format.
+Packed profiles have no sample container, byte order, or bit-alignment fields.
+MIPI layouts define bit placement by format; generic `packed_stream` profiles
+declare `packed_bit_order` explicitly.
 
 ## Regeneration
 
@@ -63,7 +65,7 @@ Run from the repository root:
 
     python scripts/generate_raw_chart_bayer_fixtures.py
 
-The generator replaces the five Bayer RAW files, their profiles, the reference
+The generator replaces the six Bayer RAW files, their profiles, the reference
 PNGs, and the Bayer section of `manifest.json`. Existing GRAY metadata is
 preserved.
 
@@ -73,7 +75,8 @@ The integration test checks:
 
 - natural sorting with GRAY before Bayer
 - manifest, SHA-256, profile, stride, shape, and value-range consistency
-- exact RAW10 equality between unpacked and MIPI storage
+- exact RAW10 equality across unpacked, MIPI, and generic packed-stream storage
+- generic packed-stream row-padding and MSB-first profile validation
 - exact RAW12 equality between MSB-aligned unpacked and MIPI storage
 - normalized scene agreement across 10, 12, and 14-bit variants
 - RGGB sampling against the true RGB source reference
