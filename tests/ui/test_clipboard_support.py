@@ -22,10 +22,14 @@ def test_set_clipboard_text_flushes_windows_ole_ownership(
         lambda: calls.append("flush") or 0,
     )
 
-    clipboard_support.set_clipboard_text("pixelscope clipboard")
+    clipboard = QApplication.clipboard()
+    try:
+        clipboard_support.set_clipboard_text("pixelscope clipboard")
 
-    assert QApplication.clipboard().text() == "pixelscope clipboard"
-    assert calls == ["flush"]
+        assert clipboard.text() == "pixelscope clipboard"
+        assert calls == ["flush"]
+    finally:
+        clipboard.clear()
 
 
 def test_set_clipboard_text_skips_native_flush_off_windows(
@@ -45,7 +49,11 @@ def test_set_clipboard_text_skips_native_flush_off_windows(
         lambda: calls.append("flush") or 0,
     )
 
-    clipboard_support.set_clipboard_text("portable clipboard")
+    clipboard = QApplication.clipboard()
+    try:
+        clipboard_support.set_clipboard_text("portable clipboard")
 
-    assert QApplication.clipboard().text() == "portable clipboard"
-    assert calls == []
+        assert clipboard.text() == "portable clipboard"
+        assert calls == []
+    finally:
+        clipboard.clear()
