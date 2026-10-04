@@ -89,12 +89,17 @@ def test_cycle_hardened_modules_do_not_install_bound_methodtype_or_weak_proxy() 
                 and node.func.id == "MethodType"
             ):
                 violations.append(f"{relative_path}:{node.lineno}: MethodType")
-            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Attribute):
-                if any(
+            if (
+                isinstance(node, ast.Assign)
+                and isinstance(node.value, ast.Attribute)
+                and any(
                     isinstance(target, ast.Attribute) and "_original" in target.attr
                     for target in node.targets
-                ):
-                    violations.append(f"{relative_path}:{node.lineno}: strong original bound method")
+                )
+            ):
+                violations.append(
+                    f"{relative_path}:{node.lineno}: strong original bound method"
+                )
     assert violations == []
 
 
