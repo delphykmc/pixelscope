@@ -21,6 +21,9 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/ui/quick_compare.py",
     "src/pixelscope/ui/issue77_ui_design_followup.py",
     "src/pixelscope/ui/multiview_reorder_stability.py",
+    "src/pixelscope/ui/beta_workspace_hardening.py",
+    "src/pixelscope/ui/iqa_p5f_diagnostics.py",
+    "src/pixelscope/ui/iqa_remote_settings.py",
 )
 
 

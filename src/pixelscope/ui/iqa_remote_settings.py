@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from types import MethodType
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -27,6 +26,7 @@ from PySide6.QtWidgets import (
 from pixelscope.app.settings import ApplicationSettings, SettingsRepository
 from pixelscope.core.performance_settings import PerformanceSettings
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
+from pixelscope.ui.lifecycle_hooks import WeakOwnerHook
 from pixelscope.ui.settings_dialog import SettingsDialog
 
 
@@ -253,4 +253,4 @@ def install_remote_iqa_settings_dialog(window: Any) -> None:
         dialog.settings_saved.connect(remote_settings_saved)
         return dialog
 
-    window.create_settings_dialog = MethodType(create_settings_dialog, window)
+    window.create_settings_dialog = WeakOwnerHook(window, create_settings_dialog)
