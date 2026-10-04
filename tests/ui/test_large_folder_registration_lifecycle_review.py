@@ -1,18 +1,30 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Event
 
 import cv2
 import numpy as np
 import pytest
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication, QTimer
+from PySide6.QtGui import QCloseEvent
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.registration_controller import install_large_folder_registration
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.io.path_discovery import ImageInput
+from pixelscope.io.path_discovery import ImageInput, RegistrationDiscovery
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
+
+
+class _CloseCountingMainWindow(MainWindow):
+    def __init__(self) -> None:
+        self.close_event_count = 0
+        super().__init__()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.close_event_count += 1
+        super().closeEvent(event)
 
 
 def _flush_zero_timer_callbacks() -> None:
@@ -30,7 +42,11 @@ def test_close_after_first_registration_chunk_rejects_later_callbacks(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    controller = install_large_folder_registration(window, chunk_size=2)
+    controller = install_large_folder_registration(
+        window,
+        chunk_size=2,
+        slice_budget_ms=10_000,
+    )
     close_counts: list[int] = []
 
     def close_after_first_chunk(phase: str, completed: int, total: object) -> None:
@@ -50,6 +66,80 @@ def test_close_after_first_registration_chunk_rejects_later_callbacks(
     assert controller.pool.activeThreadCount() == 0
 
 
+def test_active_discovery_close_defers_without_blocking_until_pool_is_idle(
+    qtbot: object, tmp_path: Path
+) -> None:
+    started = Event()
+    release = Event()
+
+    def blocking_discovery(_paths: object, *, checkpoint: object) -> RegistrationDiscovery:
+        del checkpoint
+        started.set()
+        release.wait(timeout=3.0)
+        return RegistrationDiscovery((), 1, 1, ())
+
+    window = _CloseCountingMainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    controller = install_large_folder_registration(
+        window,
+        discovery_function=blocking_discovery,
+    )
+    close_filter = window._large_folder_registration_close_filter
+    controller.enqueue((tmp_path,))
+    assert started.wait(timeout=1.0)
+    task_id = controller._discovery_task_id
+    generation = controller._active_generation
+    assert task_id is not None
+    assert generation is not None
+
+    gui_continued = Event()
+    QTimer.singleShot(0, gui_continued.set)
+    window.close()
+
+    assert window.close_event_count == 0
+    assert controller.pool.activeThreadCount() == 1
+    assert close_filter._close_state == "draining"
+    controller.enqueue((tmp_path / "rejected",))
+    assert not controller._queue
+
+    # Repeated close requests remain one drain operation and do not recurse.
+    window.close()
+    window.close()
+    assert window.close_event_count == 0
+    assert close_filter._close_state == "draining"
+    qtbot.waitUntil(gui_continued.is_set, timeout=1000)  # type: ignore[attr-defined]
+
+    controller._discovery_succeeded(
+        task_id,
+        None,
+        generation,
+        RegistrationDiscovery((), 1, 1, ()),
+    )
+    assert controller.stale_result_count == 1
+    assert not window.documents
+
+    release.set()
+    qtbot.waitUntil(lambda: window.close_event_count == 1, timeout=3000)  # type: ignore[attr-defined]
+
+    assert controller.pool.activeThreadCount() == 0
+    assert close_filter._close_state == "closed"
+    assert window._closing
+
+
+def test_idle_registration_close_reaches_main_window_immediately(qtbot: object) -> None:
+    window = _CloseCountingMainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    controller = install_large_folder_registration(window)
+    close_filter = window._large_folder_registration_close_filter
+
+    window.close()
+
+    assert window.close_event_count == 1
+    assert controller.is_shutdown_drained
+    assert close_filter._close_state == "closed"
+    assert not close_filter._drain_timer.isActive()
+
+
 def test_cancel_during_registration_chunk_makes_scheduled_chunk_stale(
     qtbot: object, tmp_path: Path
 ) -> None:
@@ -60,7 +150,11 @@ def test_cancel_during_registration_chunk_makes_scheduled_chunk_stale(
 
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    controller = install_large_folder_registration(window, chunk_size=2)
+    controller = install_large_folder_registration(
+        window,
+        chunk_size=2,
+        slice_budget_ms=10_000,
+    )
     cancel_counts: list[int] = []
 
     def cancel_after_first_chunk(phase: str, completed: int, total: object) -> None:

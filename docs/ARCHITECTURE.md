@@ -588,6 +588,18 @@ Foreground image loading uses a dedicated max-two pool. Preload uses a separate
 max-one pool. Numerical analysis/display work uses the bounded shared numerical
 pool.
 
+Folder registration owns a dedicated max-one discovery pool and uses a two-phase
+window-close protocol. The first close request atomically revokes registration
+authority, clears queued requests, advances the generation, and cancels the active
+worker without joining it on the GUI thread. If discovery is still physically
+running, the registration close filter consumes repeated close requests and lets the
+Qt event loop continue until that dedicated pool is idle. It then reissues exactly
+one final close so ordinary `MainWindow.closeEvent()` teardown runs only after the
+registration worker can no longer use the window. An already-idle pool proceeds
+directly to the ordinary close path. Cancellation remains advisory; generation and
+closing-state checks reject late discovery and registration callbacks throughout the
+drain.
+
 Registered documents begin as lightweight pending documents. Foreground load
 correctness depends on document ID, load token, generation/input identity, worker
 registry, and stale-result rejection. Cancellation is advisory; result acceptance

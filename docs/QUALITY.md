@@ -48,6 +48,10 @@ Issue #81 establishes the durable ownership boundary for asynchronous Qt work:
   owner and must not render into released widgets or mutate disposed-owner state;
 - application/shared worker-pool quiescence belongs to the actual pool-owner boundary;
   one feature/window must not indiscriminately join or cancel unrelated live work;
+- a GUI close path must not synchronously join a worker whose completion or queued
+  callbacks require event-loop progress; defer final close until the feature-owned
+  pool is physically idle, reject repeated close recursion, and keep late callbacks
+  stale after shutdown begins;
 - third-party Qt wrapper graphs owned by PixelScope, including pyqtgraph callbacks,
   parentless menus, and plots, require deterministic final disposal when their owner
   is destroyed; ordinary hide/show, floating, or redocking is not a disposal event;

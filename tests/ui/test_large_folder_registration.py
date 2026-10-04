@@ -256,6 +256,9 @@ def test_application_close_cancels_registration_without_late_catalog_mutation(
 
     window.close()
 
-    assert controller.pool.activeThreadCount() == 0
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: controller.pool.activeThreadCount() == 0 and window._closing,
+        timeout=3000,
+    )
     assert controller.progress.phase == "idle"
     assert not window.documents
