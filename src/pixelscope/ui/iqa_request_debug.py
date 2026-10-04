@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import weakref
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -118,11 +119,11 @@ class RemoteIqaRequestInspectorController(QObject):
         folder_button: QPushButton,
     ) -> None:
         super().__init__(window)
-        self.window = window
+        self._window_ref = weakref.ref(window)
         self.panel = panel
         self.current_button = current_button
         self.folder_button = folder_button
-        self.workspace = window.remote_iqa_workspace
+        self._workspace_ref = weakref.ref(window.remote_iqa_workspace)
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(REQUEST_DEBUG_WORKER_LIMIT)
         self._workers: dict[str, TaskWorker] = {}
@@ -131,6 +132,20 @@ class RemoteIqaRequestInspectorController(QObject):
 
         current_button.clicked.connect(self.prepare_current)  # type: ignore[attr-defined]
         folder_button.clicked.connect(self.prepare_folder)  # type: ignore[attr-defined]
+
+    @property
+    def window(self) -> Any:
+        window = self._window_ref()
+        if window is None:
+            raise RuntimeError("Remote IQA request-inspector window was destroyed")
+        return window
+
+    @property
+    def workspace(self) -> Any:
+        workspace = self._workspace_ref()
+        if workspace is None:
+            raise RuntimeError("Remote IQA request-inspector workspace was destroyed")
+        return workspace
 
     @Slot()
     def prepare_current(self) -> None:
@@ -249,11 +264,13 @@ class _RequestInspectorCloseFilter(QObject):
         parent: QObject,
     ) -> None:
         super().__init__(parent)
-        self.controller = controller
+        self._controller_ref = weakref.ref(controller)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() is QEvent.Type.Close:
-            self.controller.shutdown()
+            controller = self._controller_ref()
+            if controller is not None:
+                controller.shutdown()
         return super().eventFilter(watched, event)
 
 

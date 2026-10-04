@@ -25,6 +25,8 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/ui/iqa_scene_inspection_lifecycle.py",
     "src/pixelscope/ui/iqa_result_retry.py",
     "src/pixelscope/ui/iqa_preview_lifecycle.py",
+    "src/pixelscope/ui/iqa_replay_debug.py",
+    "src/pixelscope/ui/iqa_request_debug.py",
     "src/pixelscope/ui/quick_compare.py",
     "src/pixelscope/ui/issue77_ui_design_followup.py",
     "src/pixelscope/ui/multiview_reorder_stability.py",
@@ -40,6 +42,12 @@ RANK4_OWNER_ASSIGNMENTS = {
     "src/pixelscope/ui/iqa_preview_lifecycle.py": {
         ("controller", "controller"),
         ("workspace", "controller"),
+    },
+    "src/pixelscope/ui/iqa_replay_debug.py": {("window", "window")},
+    "src/pixelscope/ui/iqa_request_debug.py": {
+        ("window", "window"),
+        ("workspace", "window"),
+        ("controller", "controller"),
     },
     "src/pixelscope/ui/workflow_polish.py": {
         ("window", "window"),
