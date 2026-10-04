@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from collections import Counter
 from contextlib import suppress
 from types import MethodType
@@ -10,6 +11,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout, QWidget
 
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.lifecycle_hooks import OwnerCallback
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 
@@ -233,7 +235,7 @@ def _install_page_polish(window: Any) -> None:
     if bool(window.comparison_page_group.property("workflowPolished")):
         return
     window.comparison_page_group.setProperty("workflowPolished", True)
-    original_update = window._update_comparison_page_controls
+    original_update = OwnerCallback(window._update_comparison_page_controls)
 
     def update_controls(_window: Any) -> None:
         original_update()
@@ -295,7 +297,8 @@ def _install_header_polish(window: Any) -> None:
     layout.insertWidget(navigation_index + 1, separator)
     header.workflow_navigation_separator = separator
 
-    original_navigation = header.set_navigation_items
+    original_navigation = OwnerCallback(header.set_navigation_items)
+    separator_ref = weakref.ref(separator)
 
     def set_navigation_items(
         _header: Any,
@@ -303,10 +306,11 @@ def _install_header_polish(window: Any) -> None:
         current_key: str,
         *,
         _original: Any = original_navigation,
-        _separator: QFrame = separator,
     ) -> None:
         _original(items, current_key)
-        _separator.setVisible(len(items) > 1)
+        current_separator = separator_ref()
+        if current_separator is not None:
+            current_separator.setVisible(len(items) > 1)
 
     header.set_navigation_items = MethodType(set_navigation_items, header)
 
@@ -322,7 +326,7 @@ def _install_header_polish(window: Any) -> None:
     header.difference_vs.setText("↔")
     header.difference_vs.setStyleSheet(f"QLabel {{ color: {TOKENS.text_secondary}; }}")
 
-    original_difference = header.set_difference_reference
+    original_difference = OwnerCallback(header.set_difference_reference)
 
     def set_difference_reference(
         _header: Any,
@@ -394,11 +398,15 @@ def _install_difference_polish(window: Any) -> None:
     if bool(panel.property("workflowPolished")):
         return
     panel.setProperty("workflowPolished", True)
-    original_validate = panel._validate
-    original_calculate = panel.calculate_difference
+    original_validate = OwnerCallback(panel._validate)
+    original_calculate = OwnerCallback(panel.calculate_difference)
+    hint_ref = weakref.ref(hint)
 
     def validate(_panel: Any) -> str | None:
         reason = cast(str | None, original_validate())
+        current_hint = hint_ref()
+        if current_hint is None:
+            return reason
         calculated_result = _panel.last_result is not None
         in_flight = _panel._worker is not None or _panel._preview_worker is not None
         pending = (
@@ -407,7 +415,7 @@ def _install_difference_polish(window: Any) -> None:
             and not calculated_result
             and not in_flight
         )
-        hint.setVisible(pending)
+        current_hint.setVisible(pending)
         if pending:
             _panel.status.setText("Not calculated")
         elif reason is None and calculated_result and _panel.status.text() == "Ready":
@@ -422,18 +430,32 @@ def _install_difference_polish(window: Any) -> None:
         *,
         publish_result: bool = True,
     ) -> None:
-        hint.hide()
+        current_hint = hint_ref()
+        if current_hint is not None:
+            current_hint.hide()
         original_calculate(_checked, publish_result=publish_result)
-        if _panel._worker is not None or _panel._preview_worker is not None:
-            hint.hide()
+        if (
+            current_hint is not None
+            and (_panel._worker is not None or _panel._preview_worker is not None)
+        ):
+            current_hint.hide()
 
     panel.calculate_difference = MethodType(calculate_difference, panel)
     panel.calculate.pressed.connect(hint.hide)
 
+    panel_ref = weakref.ref(panel)
+
     def calculated(*_args: object) -> None:
-        hint.hide()
-        if panel.last_result is not None and panel.status.text() == "Ready":
-            panel.status.setText("Calculated")
+        current_hint = hint_ref()
+        current_panel = panel_ref()
+        if current_hint is not None:
+            current_hint.hide()
+        if (
+            current_panel is not None
+            and current_panel.last_result is not None
+            and current_panel.status.text() == "Ready"
+        ):
+            current_panel.status.setText("Calculated")
 
     panel.result_ready.connect(calculated)
     panel.preview_updated.connect(calculated)
@@ -444,7 +466,7 @@ def _install_review_polish(review_controller: Any) -> None:
     if bool(review_controller.count_label.property("workflowPolished")):
         return
     review_controller.count_label.setProperty("workflowPolished", True)
-    original_sync = review_controller._sync_controls
+    original_sync = OwnerCallback(review_controller._sync_controls)
 
     def sync_controls(_controller: Any) -> None:
         original_sync()
