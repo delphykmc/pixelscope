@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import weakref
+from collections.abc import Callable
 from typing import Any, cast
 
 from PySide6.QtWidgets import QDialog, QMessageBox
@@ -24,9 +25,15 @@ class RawInputCompatibilityController:
 
     def __init__(self, window: Any) -> None:
         self._window_ref = weakref.ref(window)
-        self._register_input_original = OwnerCallback(window._register_input)
-        self._confirm_raw_profile_original = OwnerCallback(window._confirm_raw_profile)
-        self._ensure_loaded_original = OwnerCallback(window._ensure_loaded)
+        self._register_input_original: Callable[..., str | None] = OwnerCallback(
+            window._register_input
+        )
+        self._confirm_raw_profile_original: Callable[
+            [ImageInput, str | None], RawProfile | None
+        ] = OwnerCallback(window._confirm_raw_profile)
+        self._ensure_loaded_original: Callable[[ImageDocument], None] = OwnerCallback(
+            window._ensure_loaded
+        )
 
     @property
     def window(self) -> Any:
