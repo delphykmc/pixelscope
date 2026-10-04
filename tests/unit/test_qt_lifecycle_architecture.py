@@ -6,19 +6,7 @@ from weakref import ref
 
 import pytest
 
-from pixelscope.ui.lifecycle_hooks import (
-    OwnerCallback,
-    OwnerCallbackAttribute,
-    WeakOwnerAttribute,
-    WeakOwnerHook,
-    WeakOwnerTupleAttribute,
-)
-from pixelscope.ui.residual_owner_hardening import (
-    _OWNER_CALLBACK_FIELDS,
-    _WEAK_OWNER_FIELDS,
-    _WEAK_OWNER_TUPLE_FIELDS,
-    install_residual_owner_hardening,
-)
+from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 LIFECYCLE_MODULES = (
@@ -36,7 +24,6 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/ui/beta_workspace_hardening.py",
     "src/pixelscope/ui/iqa_p5f_diagnostics.py",
     "src/pixelscope/ui/iqa_remote_settings.py",
-    "src/pixelscope/ui/residual_owner_hardening.py",
 )
 
 
@@ -84,47 +71,3 @@ def test_non_owning_hooks_do_not_retain_their_owner() -> None:
         original()
     with pytest.raises(RuntimeError, match="owner was destroyed"):
         hook()
-
-
-def test_non_owning_descriptors_return_real_objects_without_retaining_them() -> None:
-    class Owner:
-        def original(self) -> str:
-            return "original"
-
-    class Holder:
-        owner = WeakOwnerAttribute("owner")
-        owners = WeakOwnerTupleAttribute("owners")
-        original = OwnerCallbackAttribute("original")
-
-    owner = Owner()
-    owner_ref = ref(owner)
-    holder = Holder()
-    holder.owner = owner
-    holder.owners = (owner, None)
-    holder.original = owner.original
-
-    assert holder.owner is owner
-    assert holder.owners == (owner, None)
-    assert holder.original() == "original"
-
-    del owner
-
-    assert owner_ref() is None
-    with pytest.raises(RuntimeError, match="owner was destroyed"):
-        _ = holder.owner
-    with pytest.raises(RuntimeError, match="dependency was destroyed"):
-        _ = holder.owners
-    with pytest.raises(RuntimeError, match="owner was destroyed"):
-        holder.original()
-
-
-def test_rank4_measured_owner_edges_install_non_owning_descriptors() -> None:
-    install_residual_owner_hardening()
-    install_residual_owner_hardening()
-
-    for owner_type, attribute_name in _WEAK_OWNER_FIELDS:
-        assert isinstance(owner_type.__dict__[attribute_name], WeakOwnerAttribute)
-    for owner_type, attribute_name in _WEAK_OWNER_TUPLE_FIELDS:
-        assert isinstance(owner_type.__dict__[attribute_name], WeakOwnerTupleAttribute)
-    for owner_type, attribute_name in _OWNER_CALLBACK_FIELDS:
-        assert isinstance(owner_type.__dict__[attribute_name], OwnerCallbackAttribute)
