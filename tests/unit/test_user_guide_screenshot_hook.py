@@ -34,7 +34,10 @@ def test_page_markdown_expands_present_declared_screenshot(tmp_path: Path) -> No
     docs_root = tmp_path / "docs/user-guide"
     _write_manifest(docs_root)
     (docs_root / "assets/screenshots/raw-profile-dialog.png").write_bytes(b"png")
-    source = "# RAW\n\n<!-- pixelscope:screenshot raw-profile-dialog -->\n\nKeep this explanation.\n"
+    source = (
+        "# RAW\n\n<!-- pixelscope:screenshot raw-profile-dialog -->\n\n"
+        "Keep this explanation.\n"
+    )
 
     rendered = on_page_markdown(
         source,
