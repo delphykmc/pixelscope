@@ -97,9 +97,7 @@ def test_cycle_hardened_modules_do_not_install_bound_methodtype_or_weak_proxy() 
                     for target in node.targets
                 )
             ):
-                violations.append(
-                    f"{relative_path}:{node.lineno}: strong original bound method"
-                )
+                violations.append(f"{relative_path}:{node.lineno}: strong original bound method")
     assert violations == []
 
 
