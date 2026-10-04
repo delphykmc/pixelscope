@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import weakref
 from typing import Any
 
 from PySide6.QtCore import QObject, QTimer, Slot
@@ -18,7 +19,7 @@ class RemoteIqaResultRetryController(QObject):
 
     def __init__(self, remote_controller: Any, parent: QObject) -> None:
         super().__init__(parent)
-        self.remote_controller = remote_controller
+        self._remote_controller_ref = weakref.ref(remote_controller)
         self._retry_count: dict[str, int] = {}
         self._next_due: dict[str, float] = {}
         self._was_fetching: set[str] = set()
@@ -27,6 +28,13 @@ class RemoteIqaResultRetryController(QObject):
         self._timer.setInterval(RESULT_REFERENCE_RETRY_TICK_MS)
         self._timer.timeout.connect(self._tick)  # type: ignore[attr-defined]
         self._timer.start()
+
+    @property
+    def remote_controller(self) -> Any:
+        controller = self._remote_controller_ref()
+        if controller is None:
+            raise RuntimeError("Remote IQA retry owner was destroyed")
+        return controller
 
     @Slot()
     def _tick(self) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from PySide6.QtCore import QObject, Slot
@@ -16,14 +17,28 @@ class RemoteIqaPreviewLifecycle(QObject):
 
     def __init__(self, controller: Any, parent: QObject) -> None:
         super().__init__(parent)
-        self.controller = controller
-        self.workspace = controller.workspace
+        self._controller_ref = weakref.ref(controller)
+        self._workspace_ref = weakref.ref(controller.workspace)
         self._revision = 0
         self._active_revision: int | None = None
         self._workers: dict[str, tuple[int, str, str]] = {}
 
         self.workspace.preview_requested.disconnect(controller.preview_folders)
         self.workspace.preview_requested.connect(self.preview_folders)
+
+    @property
+    def controller(self) -> Any:
+        controller = self._controller_ref()
+        if controller is None:
+            raise RuntimeError("Remote IQA preview owner was destroyed")
+        return controller
+
+    @property
+    def workspace(self) -> Any:
+        workspace = self._workspace_ref()
+        if workspace is None:
+            raise RuntimeError("Remote IQA preview workspace was destroyed")
+        return workspace
 
     @property
     def active_revision(self) -> int | None:
