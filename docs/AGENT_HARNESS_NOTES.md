@@ -244,6 +244,32 @@ inspect the smallest runtime predicates, then change code only at the layer the
 evidence identifies. This reduces the chance that a harness defect turns into a
 production regression.
 
+### Qt cyclic-lifetime hardening from Issue #81
+
+Issue #81 proved that a small Python strongly-connected component can retain an
+entire downstream QObject/QWidget/pyqtgraph graph until automatic generation-2
+collection. The dangerous pattern is not limited to an explicit
+`controller.window = window` backreference: assigning `MethodType(wrapper, owner)`
+onto `owner` is itself an `owner -> bound method -> owner` cycle, and a closure
+installed on an owner is equally unsafe when it captures the owner, a controller
+that owns it, or an original bound method.
+
+Production-safe composition uses class-native hooks where practical. When a staged
+runtime hook is still required, store original methods through `OwnerCallback` and
+install `OwnerCallback` or `WeakOwnerHook` so the installed callable has no strong
+return edge to its owner. Non-owning references passed into Qt APIs must resolve to
+the real QWidget/QObject first; a `weakref.proxy` is not a valid substitute for a
+real Qt wrapper argument. Event filters and third-party graphics resources still
+need idempotent owner-driven teardown, and callbacks arriving after shutdown must
+lose UI authority before accessing disposed native objects.
+
+The mechanical contract test in
+`tests/unit/test_qt_lifecycle_architecture.py` guards the hardened composition
+modules against new `MethodType` installation and direct `_original_* = owner.method`
+storage. It deliberately does not ban all closures or all runtime composition.
+Reviewers must still inspect dependency direction and require repeated normal-GC Qt
+validation; a focused pass alone can mean only that the allocation threshold moved.
+
 ### Durable-document preservation lessons from P4-B
 
 P4-B also exposed a documentation failure mode with a much larger review cost than

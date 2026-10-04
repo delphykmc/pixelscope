@@ -38,9 +38,7 @@ class RemoteIqaResultMappingGuard(QObject):
         self._original_settings_changed = OwnerCallback(controller.settings_changed)
         self._original_resolve_result_path = OwnerCallback(controller._resolve_result_path)
         self._original_result_path_ready = OwnerCallback(controller._result_path_ready)
-        self._original_result_resolve_finished = OwnerCallback(
-            controller._result_resolve_finished
-        )
+        self._original_result_resolve_finished = OwnerCallback(controller._result_resolve_finished)
         self._original_track_worker = OwnerCallback(controller._track_worker)
 
         controller.settings_changed = self._settings_changed

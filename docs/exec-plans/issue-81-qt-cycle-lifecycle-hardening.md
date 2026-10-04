@@ -1,7 +1,7 @@
 # Execution plan: Issue #81 Qt lifecycle cycle hardening
 
-Status: Active  
-Owner: ChatGPT-assisted / repository owner  
+Status: Active
+Owner: ChatGPT-assisted / repository owner
 Branch/PR: `fix/issue-81-qt-cycle-hardening` / production Draft PR pending
 Last updated: 2026-10-04
 

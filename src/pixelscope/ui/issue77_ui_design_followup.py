@@ -326,13 +326,12 @@ class Issue77UiDesignFollowup(QObject):
         )
 
     def _wrap_render_selection(self) -> None:
-        original_render = OwnerCallback(self.window._render_selection)
+        self._original_render_selection = OwnerCallback(self.window._render_selection)
+        self.window._render_selection = OwnerCallback(self._render_selection)
 
-        def render_selection(preserve_view: bool = False) -> None:
-            original_render(preserve_view)
-            self._sync_controls()
-
-        self.window._render_selection = render_selection
+    def _render_selection(self, preserve_view: bool = False) -> None:
+        self._original_render_selection(preserve_view)
+        self._sync_controls()
 
     def _sync_controls(self) -> None:
         panel = self.window.comparison_analysis_panel

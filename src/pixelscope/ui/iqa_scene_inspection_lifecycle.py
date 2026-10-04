@@ -36,9 +36,7 @@ class IqaSceneInspectionLifecycle(QObject):
         )
         self._original_sync_controls = OwnerCallback(controller._sync_controls)
         self._original_cancel_inspect_worker = OwnerCallback(controller._cancel_inspect_worker)
-        self._original_verification_succeeded = OwnerCallback(
-            controller._verification_succeeded
-        )
+        self._original_verification_succeeded = OwnerCallback(controller._verification_succeeded)
         self._original_verification_failed = OwnerCallback(controller._verification_failed)
 
         remote_controller = getattr(self.window, "remote_iqa_controller", None)
@@ -57,7 +55,6 @@ class IqaSceneInspectionLifecycle(QObject):
         controller.settings_changed = self.settings_changed
 
         if remote_controller is not None and self._original_remote_settings_changed is not None:
-
             remote_controller.settings_changed = self._remote_settings_changed
 
         # The Return button was connected before this lifecycle wrapper was installed.

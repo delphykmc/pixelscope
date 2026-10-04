@@ -3,7 +3,6 @@ from __future__ import annotations
 import weakref
 from collections import Counter
 from contextlib import suppress
-from types import MethodType
 from typing import Any, cast
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt
@@ -11,7 +10,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout, QWidget
 
 from pixelscope.ui.design_tokens import TOKENS
-from pixelscope.ui.lifecycle_hooks import OwnerCallback
+from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 
@@ -272,7 +271,7 @@ def _install_page_polish(window: Any) -> None:
             button.setVisible(True)
             button.setEnabled(False)
 
-    window._update_comparison_page_controls = MethodType(update_controls, window)
+    window._update_comparison_page_controls = WeakOwnerHook(window, update_controls)
     window._comparison_page_controls_state = None
     window._update_comparison_page_controls()
 
@@ -312,7 +311,7 @@ def _install_header_polish(window: Any) -> None:
         if current_separator is not None:
             current_separator.setVisible(len(items) > 1)
 
-    header.set_navigation_items = MethodType(set_navigation_items, header)
+    header.set_navigation_items = WeakOwnerHook(header, set_navigation_items)
 
     reference_style = (
         f"QLabel {{ background: {TOKENS.workspace_background}; "
@@ -347,7 +346,7 @@ def _install_header_polish(window: Any) -> None:
         if b_slot is not None:
             _header.difference_b_badge.setText(f"B {b_slot}")
 
-    header.set_difference_reference = MethodType(set_difference_reference, header)
+    header.set_difference_reference = WeakOwnerHook(header, set_difference_reference)
 
 
 def _primary_analysis_action_style() -> str:
@@ -422,7 +421,7 @@ def _install_difference_polish(window: Any) -> None:
             _panel.status.setText("Calculated")
         return reason
 
-    panel._validate = MethodType(validate, panel)
+    panel._validate = WeakOwnerHook(panel, validate)
 
     def calculate_difference(
         _panel: Any,
@@ -434,13 +433,12 @@ def _install_difference_polish(window: Any) -> None:
         if current_hint is not None:
             current_hint.hide()
         original_calculate(_checked, publish_result=publish_result)
-        if (
-            current_hint is not None
-            and (_panel._worker is not None or _panel._preview_worker is not None)
+        if current_hint is not None and (
+            _panel._worker is not None or _panel._preview_worker is not None
         ):
             current_hint.hide()
 
-    panel.calculate_difference = MethodType(calculate_difference, panel)
+    panel.calculate_difference = WeakOwnerHook(panel, calculate_difference)
     panel.calculate.pressed.connect(hint.hide)
 
     panel_ref = weakref.ref(panel)
@@ -475,7 +473,7 @@ def _install_review_polish(review_controller: Any) -> None:
         color = TOKENS.selection if count > 0 else TOKENS.text_secondary
         _controller.count_label.setStyleSheet(f"QLabel {{ color: {color}; font-weight: 600; }}")
 
-    review_controller._sync_controls = MethodType(sync_controls, review_controller)
+    review_controller._sync_controls = WeakOwnerHook(review_controller, sync_controls)
     review_controller._sync_controls()
 
 

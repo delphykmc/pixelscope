@@ -233,8 +233,6 @@ def test_production_composition_disposes_image_viewer_graphics_before_deferred_d
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     app.processEvents()
-    assert all(
-        graphics_ref() is None or not isValid(graphics_ref()) for graphics_ref in graphics
-    )
+    assert all(graphics_ref() is None or not isValid(graphics_ref()) for graphics_ref in graphics)
     del viewers
     del window

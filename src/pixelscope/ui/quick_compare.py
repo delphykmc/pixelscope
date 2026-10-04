@@ -157,43 +157,45 @@ class QuickCompareController(QObject):
         self._sync_three_view_buttons("Equal")
 
     def _install_three_view_geometry(self) -> None:
-        def prepare_viewers_for_documents(documents: list[Any]) -> None:
-            self._original_prepare(documents)
-            target = documents[: self.view.capacity]
-            context = (
-                frozenset(str(document.document_id) for document in target),
-                any(document.channel_layout == "DIFFERENCE" for document in target),
+        self.view._prepare_viewers_for_documents = OwnerCallback(
+            self._prepare_viewers_for_documents
+        )
+        self.view._fixed_geometry = OwnerCallback(self._fixed_geometry)
+
+    def _prepare_viewers_for_documents(self, documents: list[Any]) -> None:
+        self._original_prepare(documents)
+        target = documents[: self.view.capacity]
+        context = (
+            frozenset(str(document.document_id) for document in target),
+            any(document.channel_layout == "DIFFERENCE" for document in target),
+        )
+        if context != self._three_view_context:
+            self._three_view_context = context
+            self._three_view_override = None
+        self._sync_three_view_buttons(self._effective_three_view_variant())
+
+    def _fixed_geometry(self, count: int) -> Any:
+        if count == 3 and self._effective_three_view_variant() == "Equal":
+            return (
+                ((0, 0, 1, 1), (0, 1, 1, 1), (0, 2, 1, 1)),
+                (1,),
+                (1, 1, 1),
             )
-            if context != self._three_view_context:
-                self._three_view_context = context
-                self._three_view_override = None
-            self._sync_three_view_buttons(self._effective_three_view_variant())
-
-        def fixed_geometry(count: int) -> Any:
-            if count == 3 and self._effective_three_view_variant() == "Equal":
-                return (
-                    ((0, 0, 1, 1), (0, 1, 1, 1), (0, 2, 1, 1)),
-                    (1,),
-                    (1, 1, 1),
-                )
-            return self._original_fixed_geometry(count)
-
-        self.view._prepare_viewers_for_documents = prepare_viewers_for_documents
-        self.view._fixed_geometry = fixed_geometry
+        return self._original_fixed_geometry(count)
 
     def _install_render_hook(self) -> None:
-        def render_selection(preserve_view: bool = False) -> None:
-            deferred = self._deferred_difference_pair
-            if deferred is not None:
-                selected_ids = {document.document_id for document in self.window.selected_documents}
-                if not set(deferred).issubset(selected_ids):
-                    self._release_deferred_difference(deferred)
-            self._end_blink()
-            self._clear_blink_cache()
-            self._original_render_selection(preserve_view)
-            self._update_three_view_controls()
+        self.window._render_selection = OwnerCallback(self._render_selection)
 
-        self.window._render_selection = render_selection
+    def _render_selection(self, preserve_view: bool = False) -> None:
+        deferred = self._deferred_difference_pair
+        if deferred is not None:
+            selected_ids = {document.document_id for document in self.window.selected_documents}
+            if not set(deferred).issubset(selected_ids):
+                self._release_deferred_difference(deferred)
+        self._end_blink()
+        self._clear_blink_cache()
+        self._original_render_selection(preserve_view)
+        self._update_three_view_controls()
 
     def _install_input_filter(self) -> None:
         app = QApplication.instance()

@@ -42,3 +42,17 @@ class OwnerCallback:
         owner = self._owner() if self._owner is not None else None
         other_owner = other._owner() if other._owner is not None else None
         return self._function == other._function and owner is other_owner
+
+
+class WeakOwnerHook:
+    """Instance-installed callable whose owner edge remains non-owning."""
+
+    def __init__(self, owner: Any, function: Callable[..., Any]) -> None:
+        self._owner = weakref.ref(owner)
+        self._function = function
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        owner = self._owner()
+        if owner is None:
+            raise RuntimeError("lifecycle hook owner was destroyed")
+        return self._function(owner, *args, **kwargs)

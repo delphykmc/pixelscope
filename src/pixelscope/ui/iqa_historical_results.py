@@ -7,7 +7,6 @@ import weakref
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from types import MethodType
 from typing import Any, cast
 
 from PySide6.QtCore import QObject, QSettings, QThreadPool, Slot
@@ -307,86 +306,80 @@ class HistoricalIqaResultsController(QObject):
         return self._pool
 
     def _install_open_guard(self) -> None:
-        def present(_controller: Any, value: object) -> VersionedResultLoadOutcome:
-            generation = int(getattr(self.result_controller, "_generation", -1))
-            pending = self._pending.get(generation)
-            result = _loaded_result(value)
-            if pending is not None and result is not None:
-                observed = IqaResultIdentity(
-                    str(result.result_id),
-                    int(result.schema_version),
+        self.result_controller._present_loaded_value = OwnerCallback(self._present_loaded_value)
+        self.result_controller.open_result = OwnerCallback(self._open_result)
+        self.result_controller.shutdown = OwnerCallback(self._shutdown_result_controller)
+
+    def _present_loaded_value(self, value: object) -> VersionedResultLoadOutcome:
+        generation = int(getattr(self.result_controller, "_generation", -1))
+        pending = self._pending.get(generation)
+        result = _loaded_result(value)
+        if pending is not None and result is not None:
+            observed = IqaResultIdentity(
+                str(result.result_id),
+                int(result.schema_version),
+            )
+            if pending.expected is not None and observed != pending.expected:
+                return VersionedResultLoadOutcome(
+                    LoadStatus.INVALID,
+                    reason=(
+                        "historical identity mismatch: expected "
+                        f"{pending.expected.result_id}/"
+                        f"schema-v{pending.expected.schema_version}, "
+                        f"found {observed.result_id}/schema-v{observed.schema_version}"
+                    ),
                 )
-                if pending.expected is not None and observed != pending.expected:
-                    return VersionedResultLoadOutcome(
-                        LoadStatus.INVALID,
-                        reason=(
-                            "historical identity mismatch: expected "
-                            f"{pending.expected.result_id}/"
-                            f"schema-v{pending.expected.schema_version}, "
-                            f"found {observed.result_id}/schema-v{observed.schema_version}"
-                        ),
-                    )
-                if (
-                    pending.mapping_revision is not None
-                    and pending.mapping_revision != self._mapping_revision()
-                ):
-                    return VersionedResultLoadOutcome(
-                        LoadStatus.INVALID,
-                        reason=f"{_MAPPING_CHANGED}; reopen uses current mapping",
-                    )
-            return cast(VersionedResultLoadOutcome, self._original_present(value))
+            if (
+                pending.mapping_revision is not None
+                and pending.mapping_revision != self._mapping_revision()
+            ):
+                return VersionedResultLoadOutcome(
+                    LoadStatus.INVALID,
+                    reason=f"{_MAPPING_CHANGED}; reopen uses current mapping",
+                )
+        return cast(VersionedResultLoadOutcome, self._original_present(value))
 
-        def open_result(_controller: Any, root: Path | str) -> int:
-            root_path = Path(root)
-            job_context = self._job_open_context
-            if job_context is not None and job_context[0] == root_path:
-                return self._start_open(root_path, locator=job_context[1])
-            return self._start_open(root_path)
+    def _open_result(self, root: Path | str) -> int:
+        root_path = Path(root)
+        job_context = self._job_open_context
+        if job_context is not None and job_context[0] == root_path:
+            return self._start_open(root_path, locator=job_context[1])
+        return self._start_open(root_path)
 
-        def shutdown(_controller: Any) -> None:
-            self.shutdown()
-            self._original_shutdown()
-
-        self.result_controller._present_loaded_value = MethodType(
-            present,
-            self.result_controller,
-        )
-        self.result_controller.open_result = MethodType(
-            open_result,
-            self.result_controller,
-        )
-        self.result_controller.shutdown = MethodType(shutdown, self.result_controller)
+    def _shutdown_result_controller(self) -> None:
+        self.shutdown()
+        self._original_shutdown()
 
     def _install_job_observer(self) -> None:
-        original = OwnerCallback(self.remote_controller.open_result)
+        self._original_remote_open = OwnerCallback(self.remote_controller.open_result)
         remote_controller = self.window.remote_iqa_controller
-
-        def open_job(_controller: Any, job_id: str) -> None:
-            job = self.remote_controller._jobs.get(job_id)
-            if (
-                job is None
-                or job.state not in {JobState.SUCCEEDED, JobState.PARTIAL}
-                or job.result_path is None
-                or job.result_reference is None
-            ):
-                original(job_id)
-                return
-            reference = job.result_reference
-            locator = LogicalIqaResultLocator(
-                reference.storage_root_id,
-                reference.relative_path,
-            )
-            self._job_open_context = (job.result_path, locator)
-            try:
-                original(job_id)
-            finally:
-                self._job_open_context = None
 
         signal = remote_controller.workspace.open_result_requested
         with suppress(RuntimeError, TypeError):
-            signal.disconnect(original.resolve())
-        remote_controller.open_result = MethodType(open_job, remote_controller)
+            signal.disconnect(self._original_remote_open.resolve())
+        remote_controller.open_result = OwnerCallback(self._open_job)
         signal.connect(remote_controller.open_result)
+
+    def _open_job(self, job_id: str) -> None:
+        job = self.remote_controller._jobs.get(job_id)
+        if (
+            job is None
+            or job.state not in {JobState.SUCCEEDED, JobState.PARTIAL}
+            or job.result_path is None
+            or job.result_reference is None
+        ):
+            self._original_remote_open(job_id)
+            return
+        reference = job.result_reference
+        locator = LogicalIqaResultLocator(
+            reference.storage_root_id,
+            reference.relative_path,
+        )
+        self._job_open_context = (job.result_path, locator)
+        try:
+            self._original_remote_open(job_id)
+        finally:
+            self._job_open_context = None
 
     def _install_inspect_observer(self) -> None:
         inspection = getattr(self.window, "iqa_scene_inspection_controller", None)
@@ -395,13 +388,12 @@ class HistoricalIqaResultsController(QObject):
         original_method = getattr(inspection, "_set_status", None)
         if not callable(original_method):
             return
-        original = OwnerCallback(original_method)
+        self._original_inspection_status = OwnerCallback(original_method)
+        inspection._set_status = OwnerCallback(self._set_inspection_status)
 
-        def status(_inspection: Any, text: str) -> None:
-            original(text)
-            self.provenance.set_native_status(text)
-
-        inspection._set_status = MethodType(status, inspection)
+    def _set_inspection_status(self, text: str) -> None:
+        self._original_inspection_status(text)
+        self.provenance.set_native_status(text)
 
     def _install_menu(self) -> None:
         actions = self.file_menu.actions()
