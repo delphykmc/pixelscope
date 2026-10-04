@@ -49,6 +49,7 @@ from pixelscope.ui.multiview_reorder_stability import install_multiview_reorder_
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 from pixelscope.ui.quick_compare import install_quick_compare_workflow
 from pixelscope.ui.recent_entries import install_recent_entries
+from pixelscope.ui.residual_owner_hardening import install_residual_owner_hardening
 from pixelscope.ui.review_selection import install_review_selection
 from pixelscope.ui.session import install_session
 from pixelscope.ui.user_guide_help import install_user_guide_help
@@ -115,6 +116,10 @@ def load_startup_settings() -> tuple[SettingsRepository, ApplicationSettings, Pe
 
 def _compose_main_window_presentation(window: MainWindow) -> QComboBox:
     """Install the production presentation control composition in one authoritative order."""
+
+    # Install class-level non-owning storage before any composition helper is created.
+    # Accessors still return concrete Qt/Python objects; only the retained owner edge changes.
+    install_residual_owner_hardening()
 
     gain_control = install_display_gain_control(window)
     review_controller = install_review_selection(window)
