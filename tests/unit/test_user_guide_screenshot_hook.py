@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from scripts.user_guide_screenshot_hook import on_page_markdown
 
 
