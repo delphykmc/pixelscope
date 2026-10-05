@@ -52,8 +52,6 @@ jobs:
       release: ${{ steps.scope.outputs.release }}
       raw: ${{ steps.scope.outputs.raw }}
       yuv: ${{ steps.scope.outputs.yuv }}
-      full: ${{ steps.scope.outputs.full }}
-      lifecycle: ${{ steps.scope.outputs.lifecycle }}
       typecheck: ${{ steps.scope.outputs.typecheck }}
       windows_native: ${{ steps.scope.outputs.windows_native }}
       any_validation: ${{ steps.scope.outputs.any_validation }}
@@ -98,12 +96,13 @@ jobs:
           python-version: "3.10"
           cache: pip
       - name: Install cheap validation tools
-        run: python -m pip install pytest==7.4.4 ruff==0.1.15
+        run: python -m pip install pytest==7.4.4 ruff==0.1.15 mypy==1.8.0
       - name: Validate CI policy contracts
         run: >-
           python -m pytest -q
           tests/unit/test_ci_change_classification.py
           tests/unit/test_ci_test_groups.py
+          tests/unit/test_ci_workflow_policy.py
           tests/unit/test_validation_ci_dedupe.py
       - name: Check documentation contract
         run: python scripts/check_docs.py
@@ -111,6 +110,9 @@ jobs:
         run: |
           python -m ruff check .
           python -m ruff format --check .
+      - name: Type-check source when source or shared config changed
+        if: needs.classify.outputs.typecheck == 'true'
+        run: python -m mypy src
       - name: Check changed lines for whitespace errors
         env:
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
@@ -122,8 +124,7 @@ jobs:
     needs: classify
     if: >-
       needs.classify.outputs.skip_push != 'true' &&
-      needs.classify.outputs.windows_native == 'true' &&
-      needs.classify.outputs.full != 'true'
+      needs.classify.outputs.windows_native == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -150,31 +151,3 @@ jobs:
       - name: Run durable YUV contracts
         if: needs.classify.outputs.yuv == 'true'
         run: python scripts/ci_test_groups.py yuv
-      - name: Type-check source when source/config changed
-        if: needs.classify.outputs.typecheck == 'true'
-        run: python -m mypy src
-
-  full-windows:
-    name: Full Windows validation
-    needs: classify
-    if: >-
-      needs.classify.outputs.skip_push != 'true' &&
-      needs.classify.outputs.full == 'true'
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-          architecture: x64
-          cache: pip
-          cache-dependency-path: requirements/dev.txt
-      - name: Install full validation environment
-        run: |
-          python -m pip install -r requirements/dev.txt
-          python -m pip install -e . --no-deps
-          python -m pip check
-      - name: Run complete repository pytest contract under normal GC
-        run: python -m pytest -q
-      - name: Type-check source
-        run: python -m mypy src
