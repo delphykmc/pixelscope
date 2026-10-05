@@ -1,0 +1,57 @@
+name: Issue 121 Slice 3 review patch
+
+on:
+  push:
+    branches:
+      - feat/issue-121-slice-3-synthetic-iqa
+
+permissions:
+  contents: write
+
+jobs:
+  patch-workspace-boundary:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-121-slice-3-synthetic-iqa
+      - name: Apply narrow normalized-result presentation patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pixelscope/ui/iqa_workspace.py')
+          text = path.read_text(encoding='utf-8')
+          old_import = (
+              'from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID, IqaExplorerModel\n'
+              'from pixelscope.remote.iqa_result_reader import load_result\n'
+          )
+          new_import = (
+              'from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID, IqaExplorerModel\n'
+              'from pixelscope.remote.iqa_public_contract import IqaResult\n'
+              'from pixelscope.remote.iqa_result_reader import load_result\n'
+          )
+          old_return = '        return VersionedResultLoadOutcome(LoadStatus.SUCCESS, result=result)\n'
+          new_return = (
+              '        if isinstance(result, IqaResult):\n'
+              '            return VersionedResultLoadOutcome(LoadStatus.SUCCESS)\n'
+              '        return VersionedResultLoadOutcome(LoadStatus.SUCCESS, result=result)\n'
+          )
+          if old_import not in text:
+              raise SystemExit('workspace import anchor not found')
+          if old_return not in text:
+              raise SystemExit('workspace return anchor not found')
+          text = text.replace(old_import, new_import, 1).replace(old_return, new_return, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit narrow patch
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pixelscope/ui/iqa_workspace.py
+          git diff --cached --check
+          git commit -m "[ChatGPT-assisted] Separate normalized workspace presentation outcome" -m "Co-authored-by: ChatGPT <noreply@openai.com>"
+          git push origin HEAD:feat/issue-121-slice-3-synthetic-iqa
