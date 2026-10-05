@@ -203,7 +203,8 @@ def build_fixture_result(
 
     attributes = tuple(_attribute(index) for index in range(attribute_count))
     variants = tuple(
-        IqaVariant(f"variant_{index:03d}", f"Variant {index:02d}") for index in range(variant_count)
+        IqaVariant(f"variant_{index:03d}", f"Variant {index:02d}")
+        for index in range(variant_count)
     )
     scene_ids = tuple(f"scene_{index:04d}" for index in range(scene_count))
     attribute_ids = tuple(item.attribute_id for item in attributes)
@@ -261,8 +262,8 @@ def build_fixture_result(
             scene_source_ids.append(source_id)
             summaries: dict[str, IqaMeasurementSummary] = {}
             for attribute_index, attribute in enumerate(attributes):
-                key = (scene_id, variant.variant_id, attribute.attribute_id)
-                if key in missing_measurements:
+                measurement_key = (scene_id, variant.variant_id, attribute.attribute_id)
+                if measurement_key in missing_measurements:
                     summaries[attribute.attribute_id] = IqaMeasurementSummary.missing(
                         "fixture_metric_not_published"
                     )
@@ -294,8 +295,8 @@ def build_fixture_result(
     dataset_summaries: dict[tuple[str, str], IqaDatasetSummary] = {}
     for variant in variants:
         for attribute in attributes:
-            key = (variant.variant_id, attribute.attribute_id)
-            values = dataset_values[key]
+            dataset_key = (variant.variant_id, attribute.attribute_id)
+            values = dataset_values[dataset_key]
             if not values:
                 pooled = IqaMeasurementSummary.missing("fixture_metric_not_published")
                 scene_mean = ScalarStatistic.invalid("missing_data")
@@ -311,7 +312,7 @@ def build_fixture_result(
                 scene_mean = ScalarStatistic(mean, True)
                 variance = sum((value - mean) ** 2 for value in values) / len(values)
                 scene_std = ScalarStatistic(float(variance**0.5), True)
-            dataset_summaries[key] = IqaDatasetSummary(
+            dataset_summaries[dataset_key] = IqaDatasetSummary(
                 pooled=pooled,
                 scene_mean=scene_mean,
                 scene_std=scene_std,
@@ -422,10 +423,16 @@ class FixtureIqaProvider:
                     reference,
                     state,
                     IqaJobProgress(2, 2),
-                    ("Synthetic IQA job failed." if failed else "Synthetic IQA job completed."),
+                    (
+                        "Synthetic IQA job failed."
+                        if failed
+                        else "Synthetic IQA job completed."
+                    ),
                 )
                 if not failed:
-                    self._result_references[reference.job_id] = f"fixture-result:{reference.job_id}"
+                    self._result_references[reference.job_id] = (
+                        f"fixture-result:{reference.job_id}"
+                    )
             else:
                 return current
             self._jobs[reference.job_id] = next_snapshot
