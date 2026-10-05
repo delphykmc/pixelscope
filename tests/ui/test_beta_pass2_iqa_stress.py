@@ -7,42 +7,12 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
 
-from pixelscope.remote.iqa_domain import (
-    AttributeSpec,
-    ComparisonOperator,
-    GridGeometry,
-    LoadStatus,
-    QualityDirection,
-    ScalarStatistic,
-    SceneGeometry,
-    Source,
-    ValueKind,
-)
+from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_explorer import IqaExplorerModel
-from pixelscope.remote.iqa_v2_domain import (
-    DatasetSummaryV2,
-    MeasurementContextProvenance,
-    MeasurementSummary,
-    ResultV2,
-    SceneV2,
-    SourceMeasurementV2,
-    Variant,
-)
+from pixelscope.remote.iqa_public_fixture import build_fixture_result
 from pixelscope.ui.iqa_workspace import IqaWorkspaceWidget, _scene_ticks
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
-
-
-def _summary(value: float) -> MeasurementSummary:
-    return MeasurementSummary(
-        weight_sum=1.0,
-        weighted_sum=value,
-        weighted_square_sum=value * value,
-        valid_count=1,
-        valid=True,
-        weighted_mean=value,
-        weighted_std=0.0,
-    )
 
 
 def _synthetic_model(
@@ -52,112 +22,14 @@ def _synthetic_model(
     variant_count: int,
     scene_count: int,
 ) -> IqaExplorerModel:
-    attributes = tuple(
-        AttributeSpec(
-            attribute_id=f"attribute_{index:03d}",
-            name=f"Attribute {index:02d}",
-            value_kind=ValueKind.POWER,
-            comparison_operator=ComparisonOperator.POWER_RATIO_TARGET_OVER_REFERENCE_DB,
-            quality_direction=QualityDirection.HIGHER_IS_BETTER,
-            unit="linear-power",
-            stabilization_epsilon=1e-9,
-            weighting_provenance="synthetic-unit-weight",
+    return IqaExplorerModel(
+        build_fixture_result(
+            root,
+            attribute_count=attribute_count,
+            variant_count=variant_count,
+            scene_count=scene_count,
         )
-        for index in range(attribute_count)
     )
-    variants = tuple(
-        Variant(f"variant_{index:03d}", f"Variant {index:02d}") for index in range(variant_count)
-    )
-    geometry = SceneGeometry(
-        analysis_width=64,
-        analysis_height=64,
-        source_to_analysis=(
-            (1.0, 0.0, 0.0),
-            (0.0, 1.0, 0.0),
-            (0.0, 0.0, 1.0),
-        ),
-        valid_rect=(0.0, 0.0, 64.0, 64.0),
-    )
-    grid = GridGeometry(
-        rows=1,
-        columns=1,
-        block_width=64.0,
-        block_height=64.0,
-        origin_x=0.0,
-        origin_y=0.0,
-        discarded_right=0.0,
-        discarded_bottom=0.0,
-    )
-    grids = {attribute.attribute_id: grid for attribute in attributes}
-    provenance = MeasurementContextProvenance(
-        representative_id="synthetic-representative",
-        preprocessing_id="synthetic-preprocessing",
-        model_id="synthetic-model",
-        weighting_id="synthetic-weighting",
-        geometry_id="synthetic-geometry",
-    )
-    scenes: list[SceneV2] = []
-    dataset_values: dict[tuple[str, str], list[float]] = {
-        (variant.variant_id, attribute.attribute_id): []
-        for variant in variants
-        for attribute in attributes
-    }
-    for scene_index in range(scene_count):
-        scene_id = f"scene_{scene_index:04d}"
-        measurements: list[SourceMeasurementV2] = []
-        for variant_index, variant in enumerate(variants):
-            summaries: dict[str, MeasurementSummary] = {}
-            for attribute_index, attribute in enumerate(attributes):
-                value = float(attribute_index + 1) + 0.1 * variant_index
-                value += 0.001 * scene_index
-                summaries[attribute.attribute_id] = _summary(value)
-                dataset_values[(variant.variant_id, attribute.attribute_id)].append(value)
-            measurements.append(
-                SourceMeasurementV2(
-                    variant_id=variant.variant_id,
-                    source=Source(
-                        source_id=f"source_{scene_index:04d}_{variant_index:03d}",
-                        relative_path=(f"dataset/{variant.variant_id}/{scene_index:04d}.png"),
-                        sha256=f"{scene_index * variant_count + variant_index:064x}",
-                        width=64,
-                        height=64,
-                    ),
-                    geometry=geometry,
-                    grids=grids,
-                    summaries=summaries,
-                )
-            )
-        scenes.append(
-            SceneV2(
-                scene_id=scene_id,
-                measurement_context_id=f"mc2:{scene_index:064x}",
-                context_provenance=provenance,
-                sources=tuple(measurements),
-                grid_artifact=f"scenes/{scene_id}.npz",
-                grid_uncompressed_size=1,
-                detail_artifacts=(),
-            )
-        )
-    dataset_summaries = {}
-    for key, values in dataset_values.items():
-        mean = sum(values) / len(values)
-        dataset_summaries[key] = DatasetSummaryV2(
-            pooled=_summary(mean),
-            scene_mean=ScalarStatistic(mean, True),
-            scene_std=ScalarStatistic(0.0, True),
-            scene_count=len(values),
-        )
-    result = ResultV2(
-        root=root,
-        result_id=f"synthetic-{attribute_count}-{variant_count}-{scene_count}",
-        schema_version=2,
-        variants=variants,
-        attributes=attributes,
-        scenes=tuple(scenes),
-        dataset_summaries=dataset_summaries,
-        summary_artifact="summary.npz",
-    )
-    return IqaExplorerModel(result)
 
 
 def _curve_count(widget: IqaWorkspaceWidget) -> int:
@@ -190,6 +62,7 @@ def test_small_and_normal_results_keep_all_initial_series_and_selected_detail(
         scene_count=scene_count,
     )
 
+    assert model.normalized_result is not None
     assert widget.set_model(model).status is LoadStatus.SUCCESS
 
     assert len(widget.enabled_attribute_ids) == attribute_count
@@ -281,6 +154,7 @@ def test_stress_result_bounds_initial_curves_hover_ticks_and_lazy_scene_rows(
         scene_count=128,
     )
 
+    assert model.normalized_result is not None
     assert widget.set_model(model).status is LoadStatus.SUCCESS
 
     assert widget.hierarchy.topLevelItemCount() == 32
