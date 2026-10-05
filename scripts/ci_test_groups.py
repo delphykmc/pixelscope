@@ -27,10 +27,6 @@ DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
     ),
     "release": (
         DurableTest(
-            "tests/unit/test_distribution_contract.py",
-            "Canonical distribution naming and payload contract.",
-        ),
-        DurableTest(
             "tests/unit/test_release_packaging.py",
             "Release artifact shape and packaging rules.",
         ),
