@@ -52,6 +52,7 @@ jobs:
       release: ${{ steps.scope.outputs.release }}
       raw: ${{ steps.scope.outputs.raw }}
       yuv: ${{ steps.scope.outputs.yuv }}
+      ci_policy: ${{ steps.scope.outputs.ci_policy }}
       local_full_required: ${{ steps.scope.outputs.local_full_required }}
       typecheck: ${{ steps.scope.outputs.typecheck }}
       windows_native: ${{ steps.scope.outputs.windows_native }}
@@ -79,9 +80,10 @@ jobs:
         env:
           CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          CI_DIFF_MODE: ${{ github.event_name == 'pull_request' && 'merge-base' || 'direct' }}
         run: |
           git fetch origin main:refs/remotes/origin/main
-          python scripts/classify_ci_changes.py --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA" --output build/ci-classification.json --github-output "$GITHUB_OUTPUT"
+          python scripts/classify_ci_changes.py --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA" --diff-mode "$CI_DIFF_MODE" --output build/ci-classification.json --github-output "$GITHUB_OUTPUT"
 
   cheap:
     name: Cheap repository validation
@@ -97,7 +99,7 @@ jobs:
           python-version: "3.10"
           cache: pip
       - name: Install cheap validation tools
-        run: python -m pip install pytest==7.4.4 ruff==0.1.15 mypy==1.8.0
+        run: python -m pip install pytest==7.4.4 ruff==0.1.15
       - name: Validate CI policy contracts
         run: >-
           python -m pytest -q
@@ -111,9 +113,6 @@ jobs:
         run: |
           python -m ruff check .
           python -m ruff format --check .
-      - name: Type-check source when source or shared config changed
-        if: needs.classify.outputs.typecheck == 'true'
-        run: python -m mypy src
       - name: Check changed lines for whitespace errors
         env:
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
@@ -123,6 +122,25 @@ jobs:
         if: needs.classify.outputs.local_full_required == 'true'
         run: >-
           echo "Owner/local full validation is required before repository-wide PASS is claimed. GitHub CI intentionally does not run the complete pytest suite."
+
+  typecheck:
+    name: Source typecheck
+    needs: classify
+    if: >-
+      needs.classify.outputs.skip_push != 'true' &&
+      (needs.classify.outputs.typecheck == 'true' || needs.classify.outputs.ci_policy == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements/runtime.txt
+      - name: Install runtime-compatible typecheck environment
+        run: python -m pip install -r requirements/runtime.txt mypy==1.8.0
+      - name: Type-check entire source tree
+        run: python -m mypy src
 
   focused-windows:
     name: Focused Windows validation
