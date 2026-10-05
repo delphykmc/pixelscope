@@ -29,7 +29,7 @@ REQUIRED_PATHS = (
     "scripts/verify_ui_screenshot_capture_packet.py",
     "scripts/audit_ui_screenshot_git_history.py",
     "tests/unit/test_ui_screenshot_capture_packet.py",
-    "tests/unit/test_ui_screenshot_git_history.py",
+    "tests/integration/test_ui_screenshot_git_history.py",
     "docs/exec-plans/active/wp-help-e6-approved-image-hashes.md",
     "tests/unit/test_ui_screenshot_coverage_audit.py",
     "docs/exec-plans/active/wp-help-e6-coverage-decisions.json",
