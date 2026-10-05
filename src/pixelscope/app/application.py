@@ -4,7 +4,7 @@ import logging
 import sys
 from collections.abc import Sequence
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QThreadPool
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from pixelscope.app.main_window import MainWindow
@@ -97,6 +97,19 @@ def load_startup_settings() -> tuple[SettingsRepository, ApplicationSettings, Pe
     repository = SettingsRepository(QSettingsAdapter(QSettings()))
     application_settings = repository.load()
     return repository, application_settings, application_settings.performance_settings()
+
+
+def remote_iqa_thread_pool() -> QThreadPool:
+    """Temporary Stage-1 tooling shim for the pre-Slice-4 application import path.
+
+    Production composition owns this pool through ``IqaClientInstaller.production()``.
+    The lazy import keeps legacy capture/test tooling working without restoring a
+    top-level Base dependency on the concrete Remote-IQA pool implementation.
+    """
+
+    from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool as create_pool
+
+    return create_pool()
 
 
 def _resolve_iqa_client(
