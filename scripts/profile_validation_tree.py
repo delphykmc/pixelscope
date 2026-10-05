@@ -99,7 +99,10 @@ def tracked_paths_hidden_by_copy_policy(tracked: Iterable[str]) -> list[str]:
     hidden = []
     for path in tracked:
         relative = PurePosixPath(path.replace("\\", "/"))
-        prefixes = [PurePosixPath(*relative.parts[:index]) for index in range(1, len(relative.parts) + 1)]
+        prefixes = [
+            PurePosixPath(*relative.parts[:index])
+            for index in range(1, len(relative.parts) + 1)
+        ]
         if any(copy_policy_ignores(prefix) for prefix in prefixes):
             hidden.append(path)
     return sorted(hidden)
