@@ -1,6 +1,6 @@
 """Deterministic company-neutral IQA fixtures for public Client development.
 
-These fixtures exercise the Slice 2 public IQA contract directly.  They intentionally
+These fixtures exercise the Slice 2 public IQA contract directly. They intentionally
 contain no transport, server, storage-root, authentication, or proprietary payload
 semantics and do not create Qt objects or thread pools.
 """
@@ -119,7 +119,11 @@ class _SyntheticSpatialAccess(IqaSpatialAccess):
             return IqaSpatialLoadOutcome(
                 IqaAvailability.MISSING,
                 diagnostics=(
-                    IqaDiagnostic("synthetic_scene_missing", "Synthetic Scene is not available.", scene_id),
+                    IqaDiagnostic(
+                        "synthetic_scene_missing",
+                        "Synthetic Scene is not available.",
+                        scene_id,
+                    ),
                 ),
             )
         variant_ids = tuple(item.variant_id for item in self._variants)
@@ -217,7 +221,11 @@ def build_synthetic_iqa_result(
     geometry = SceneGeometry(
         analysis_width=64,
         analysis_height=64,
-        source_to_analysis=((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
+        source_to_analysis=(
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+        ),
         valid_rect=(0.0, 0.0, 64.0, 64.0),
     )
     grids = {
@@ -250,7 +258,11 @@ def build_synthetic_iqa_result(
             source_path.write_bytes(source_id.encode("ascii"))
             summaries: dict[str, IqaMeasurementSummary] = {}
             for attribute_index, attribute in enumerate(attributes):
-                value = float(attribute_index + 1) + 0.1 * variant_index + 0.001 * scene_index
+                value = (
+                    float(attribute_index + 1)
+                    + 0.1 * variant_index
+                    + 0.001 * scene_index
+                )
                 missing = (
                     spec.missing_measurement
                     and scene_index == spec.scene_count - 1
@@ -297,13 +309,19 @@ def build_synthetic_iqa_result(
             ),
         )
     spatial = _SyntheticSpatialAccess(
-        tuple(scene.scene_id for scene in scenes), variants, attributes, grids
+        tuple(scene.scene_id for scene in scenes),
+        variants,
+        attributes,
+        grids,
     )
     return IqaResult(
         root=root,
         result_id=f"synthetic-{selected.value}",
         schema_version=2,
-        dataset=IqaDatasetMetadata(f"synthetic-{selected.value}", f"Synthetic {selected.value}"),
+        dataset=IqaDatasetMetadata(
+            f"synthetic-{selected.value}",
+            f"Synthetic {selected.value}",
+        ),
         variants=variants,
         attributes=attributes,
         scenes=tuple(scenes),
@@ -331,7 +349,9 @@ class FixtureIqaProvider(IqaExecutionPort, IqaResultAccessPort):
             for scene in self._result.scenes:
                 for item in scene.sources:
                     locator = item.source.locator
-                    self._sources[locator.locator_id] = root / "sources" / str(locator.display_name)
+                    self._sources[locator.locator_id] = (
+                        root / "sources" / str(locator.display_name)
+                    )
 
     @property
     def capabilities(self) -> IqaExecutionCapabilities:
@@ -347,25 +367,42 @@ class FixtureIqaProvider(IqaExecutionPort, IqaResultAccessPort):
 
     def _require_job(self, reference: IqaJobReference) -> None:
         if self._job != reference:
-            raise IqaProviderError(IqaProviderErrorKind.INVALID, "Unknown synthetic IQA job.")
+            raise IqaProviderError(
+                IqaProviderErrorKind.INVALID,
+                "Unknown synthetic IQA job.",
+            )
 
     def get_status(self, reference: IqaJobReference) -> IqaJobSnapshot:
         with self._lock:
             self._require_job(reference)
             if self._cancelled:
-                return IqaJobSnapshot(reference, IqaJobState.CANCELLED, message="IQA job was cancelled.")
+                return IqaJobSnapshot(
+                    reference,
+                    IqaJobState.CANCELLED,
+                    message="IQA job was cancelled.",
+                )
             if self._poll_count == 0:
                 self._poll_count += 1
-                return IqaJobSnapshot(reference, IqaJobState.QUEUED, IqaJobProgress(0, 1))
+                return IqaJobSnapshot(
+                    reference,
+                    IqaJobState.QUEUED,
+                    IqaJobProgress(0, 1),
+                )
             if self._poll_count == 1:
                 self._poll_count += 1
-                return IqaJobSnapshot(reference, IqaJobState.RUNNING, IqaJobProgress(0, 1))
+                return IqaJobSnapshot(
+                    reference,
+                    IqaJobState.RUNNING,
+                    IqaJobProgress(0, 1),
+                )
             state = self.spec.terminal_state
             return IqaJobSnapshot(
                 reference,
                 state,
                 IqaJobProgress(1, 1),
-                "IQA job completed." if state is IqaJobState.COMPLETED else "IQA job failed.",
+                "IQA job completed."
+                if state is IqaJobState.COMPLETED
+                else "IQA job failed.",
             )
 
     def get_result_reference(self, reference: IqaJobReference) -> IqaResultReference:
@@ -382,14 +419,28 @@ class FixtureIqaProvider(IqaExecutionPort, IqaResultAccessPort):
         with self._lock:
             self._require_job(reference)
             self._cancelled = True
-            return IqaJobSnapshot(reference, IqaJobState.CANCELLED, message="IQA job was cancelled.")
+            return IqaJobSnapshot(
+                reference,
+                IqaJobState.CANCELLED,
+                message="IQA job was cancelled.",
+            )
 
     def materialize(self, reference: IqaResultReference) -> IqaResultSourceOutcome:
         with self._lock:
-            if self._result is None or self._job is None or reference.reference_id != self._job.job_id:
+            unavailable = (
+                self._result is None
+                or self._job is None
+                or reference.reference_id != self._job.job_id
+            )
+            if unavailable:
                 return IqaResultSourceOutcome(
                     IqaAvailability.MISSING,
-                    diagnostics=(IqaDiagnostic("synthetic_result_missing", "Synthetic result is not available."),),
+                    diagnostics=(
+                        IqaDiagnostic(
+                            "synthetic_result_missing",
+                            "Synthetic result is not available.",
+                        ),
+                    ),
                 )
             availability = (
                 IqaAvailability.PARTIAL
@@ -406,14 +457,23 @@ class FixtureIqaProvider(IqaExecutionPort, IqaResultAccessPort):
             if self._result is None or source.root != self._root:
                 return IqaResultOpenOutcome(
                     IqaAvailability.MISSING,
-                    diagnostics=(IqaDiagnostic("synthetic_result_missing", "Synthetic result is not available."),),
+                    diagnostics=(
+                        IqaDiagnostic(
+                            "synthetic_result_missing",
+                            "Synthetic result is not available.",
+                        ),
+                    ),
                 )
             availability = (
                 IqaAvailability.PARTIAL
                 if self._result.completeness is IqaResultCompleteness.PARTIAL
                 else IqaAvailability.AVAILABLE
             )
-            return IqaResultOpenOutcome(availability, self._result, self._result.diagnostics)
+            return IqaResultOpenOutcome(
+                availability,
+                self._result,
+                self._result.diagnostics,
+            )
 
     def resolve_source(self, locator: IqaSourceLocator) -> IqaSourceResolutionOutcome:
         with self._lock:
@@ -421,6 +481,14 @@ class FixtureIqaProvider(IqaExecutionPort, IqaResultAccessPort):
         if path is None or not path.exists():
             return IqaSourceResolutionOutcome(
                 IqaAvailability.MISSING,
-                diagnostics=(IqaDiagnostic("synthetic_source_missing", "Synthetic source is not available."),),
+                diagnostics=(
+                    IqaDiagnostic(
+                        "synthetic_source_missing",
+                        "Synthetic source is not available.",
+                    ),
+                ),
             )
-        return IqaSourceResolutionOutcome(IqaAvailability.AVAILABLE, IqaResolvedSource(path))
+        return IqaSourceResolutionOutcome(
+            IqaAvailability.AVAILABLE,
+            IqaResolvedSource(path),
+        )
