@@ -20,9 +20,7 @@ def test_base_window_can_construct_without_iqa_client(qtbot: object) -> None:
     assert not hasattr(window, "iqa_controller")
     assert not hasattr(window, "iqa_dock")
     assert not hasattr(window, "iqa_workspace_action")
-    assert all(
-        dock.objectName() != "iqaWorkspaceDock" for dock in window.findChildren(QDockWidget)
-    )
+    assert all(dock.objectName() != "iqaWorkspaceDock" for dock in window.findChildren(QDockWidget))
 
     window.close()
 
@@ -41,9 +39,7 @@ def test_explicit_iqa_client_owns_compatibility_surface(qtbot: object) -> None:
     assert installer.dock is not None
     assert installer.dock.widget() is installer.workspace
     iqa_docks = [
-        dock
-        for dock in window.findChildren(QDockWidget)
-        if dock.objectName() == "iqaWorkspaceDock"
+        dock for dock in window.findChildren(QDockWidget) if dock.objectName() == "iqaWorkspaceDock"
     ]
     assert iqa_docks == [installer.dock]
 
@@ -71,9 +67,7 @@ def test_iqa_runtime_installer_preserves_characterized_p5_order(
     monkeypatch.setattr(
         client_install,
         "install_remote_iqa",
-        lambda _window, *, client_factory: (
-            calls.append("remote_iqa") or remote_controller
-        ),
+        lambda _window, *, client_factory: (calls.append("remote_iqa") or remote_controller),
     )
 
     def record(name: str):
