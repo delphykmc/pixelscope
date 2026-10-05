@@ -104,7 +104,8 @@ def remote_iqa_thread_pool() -> QThreadPool:
 
     Production composition owns this pool through ``IqaClientInstaller.production()``.
     The lazy import keeps legacy capture/test tooling working without restoring a
-    top-level Base dependency on the concrete Remote-IQA pool implementation.
+    top-level Base dependency on the concrete Remote-IQA pool implementation. Remove
+    this shim with the Stage-1 tooling compatibility layer after the first SUB handoff.
     """
 
     from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool as create_pool
