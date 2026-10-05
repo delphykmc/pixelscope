@@ -20,7 +20,7 @@ from types import SimpleNamespace
 import pytest
 from scripts.check_docs import find_problems
 from scripts.e8_profile import measure_phase
-from scripts.profile_validation_tree import COPY_IGNORE_NAMES
+from scripts.profile_validation_tree import copytree_ignore
 from scripts.user_guide_screenshot_hook import on_page_markdown, on_pre_build
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,7 +39,7 @@ def _clone_repo(tmp_path: Path) -> Path:
         shutil.copytree(
             ROOT,
             clone,
-            ignore=shutil.ignore_patterns(*COPY_IGNORE_NAMES),
+            ignore=copytree_ignore(ROOT),
         )
     if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
         with measure_phase("repository-copied-file-inventory"):
