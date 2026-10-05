@@ -284,8 +284,11 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     # complete repository pytest suite in GitHub CI. Owner/local validation is
     # authoritative for Qt/UI timing and lifecycle behavior.
     local_full_required = ci_policy or shared_config or bool(unknown)
-    local_ui_required = help_ui or raw_ui or yuv_ui or any(
-        path.startswith(("src/pixelscope/ui/", "tests/ui/")) for path in paths
+    local_ui_required = (
+        help_ui
+        or raw_ui
+        or yuv_ui
+        or any(path.startswith(("src/pixelscope/ui/", "tests/ui/")) for path in paths)
     )
     lifecycle = local_full_required and any(
         path.startswith(("src/pixelscope/workers/", "tests/ui/")) or "lifecycle" in path.lower()
