@@ -48,10 +48,7 @@ def test_fixture_catalog_covers_checkpoint_b_profiles() -> None:
     assert FIXTURE_SPECS[IqaFixtureProfile.MINIMAL].attribute_count == 2
     assert FIXTURE_SPECS[IqaFixtureProfile.NORMAL].variant_count == 3
     assert FIXTURE_SPECS[IqaFixtureProfile.LARGE].scene_count == 128
-    assert (
-        FIXTURE_SPECS[IqaFixtureProfile.PARTIAL].completeness
-        is IqaResultCompleteness.PARTIAL
-    )
+    assert FIXTURE_SPECS[IqaFixtureProfile.PARTIAL].completeness is IqaResultCompleteness.PARTIAL
 
 
 def test_public_fixture_keeps_spatial_data_lazy_and_deterministic(tmp_path: Path) -> None:
