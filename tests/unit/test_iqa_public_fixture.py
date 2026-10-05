@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -81,6 +82,72 @@ def test_public_fixture_keeps_spatial_data_lazy_and_deterministic(tmp_path: Path
     assert float(np.asarray(weighted_sum).item()) == 1.1
 
 
+@pytest.mark.parametrize(
+    "profile",
+    [IqaFixtureProfile.NORMAL, IqaFixtureProfile.PARTIAL],
+)
+def test_dataset_pooled_moments_match_scene_and_spatial_truth(
+    tmp_path: Path,
+    profile: IqaFixtureProfile,
+) -> None:
+    result = build_profile_result(tmp_path / profile.value, profile)
+    variant = result.variants[-1]
+    attribute = result.attributes[-1]
+
+    weight_sum = 0.0
+    weighted_sum = 0.0
+    weighted_square_sum = 0.0
+    valid_count = 0
+    for scene in result.scenes:
+        scene_summary = scene.source_for_variant(variant.variant_id).summary(attribute.attribute_id)
+        spatial = result.load_spatial(scene.scene_id)
+        assert spatial.data is not None
+        cell = spatial.data.attribute_for_variant(variant.variant_id, attribute.attribute_id)
+        cell_valid = bool(np.asarray(cell.valid_mask).item())
+
+        if not scene_summary.valid:
+            assert scene_summary.availability is IqaAvailability.MISSING
+            assert not cell_valid
+            assert int(np.asarray(cell.valid_count).item()) == 0
+            continue
+
+        assert cell_valid
+        cell_weight = float(np.asarray(cell.weight_sum).item())
+        cell_sum = float(np.asarray(cell.weighted_sum).item())
+        cell_square_sum = float(np.asarray(cell.weighted_square_sum).item())
+        cell_count = int(np.asarray(cell.valid_count).item())
+        assert scene_summary.weight_sum == pytest.approx(cell_weight)
+        assert scene_summary.weighted_sum == pytest.approx(cell_sum)
+        assert scene_summary.weighted_square_sum == pytest.approx(cell_square_sum)
+        assert scene_summary.valid_count == cell_count
+        weight_sum += cell_weight
+        weighted_sum += cell_sum
+        weighted_square_sum += cell_square_sum
+        valid_count += cell_count
+
+    dataset = result.dataset_summary(variant.variant_id, attribute.attribute_id)
+    pooled = dataset.pooled
+    expected_mean = weighted_sum / weight_sum
+    expected_variance = max(0.0, weighted_square_sum / weight_sum - expected_mean**2)
+    expected_std = expected_variance**0.5
+
+    assert pooled.weight_sum == pytest.approx(weight_sum)
+    assert pooled.weighted_sum == pytest.approx(weighted_sum)
+    assert pooled.weighted_square_sum == pytest.approx(weighted_square_sum)
+    assert pooled.valid_count == valid_count
+    assert pooled.weighted_mean == pytest.approx(expected_mean)
+    assert pooled.weighted_std == pytest.approx(expected_std)
+    assert dataset.scene_count == valid_count
+    assert dataset.scene_mean.value == pytest.approx(expected_mean)
+    assert dataset.scene_std.value == pytest.approx(expected_std)
+    expected_availability = (
+        IqaAvailability.PARTIAL
+        if profile is IqaFixtureProfile.PARTIAL
+        else IqaAvailability.AVAILABLE
+    )
+    assert pooled.availability is expected_availability
+
+
 def test_partial_profile_exposes_missing_measurement_without_fabricated_zero(
     tmp_path: Path,
 ) -> None:
@@ -129,6 +196,48 @@ def test_fixture_provider_exercises_public_execution_and_result_ports(tmp_path: 
     assert opened.result is not None
     assert opened.result.result_id == "fixture-normal"
     assert len(opened.result.variants) == 3
+
+
+def test_fixture_provider_same_instance_overlap_is_deterministic(tmp_path: Path) -> None:
+    provider = FixtureIqaProvider(tmp_path / "normal", IqaFixtureProfile.NORMAL)
+    jobs = tuple(provider.submit(_intent()) for _ in range(4))
+    for job in jobs:
+        assert provider.advance(job).state is IqaJobState.RUNNING
+        assert provider.advance(job).state is IqaJobState.COMPLETED
+
+    def inspect(index: int) -> tuple[str, str, float, str]:
+        job = jobs[index % len(jobs)]
+        snapshot = provider.get_status(job)
+        assert snapshot.state is IqaJobState.COMPLETED
+        reference = provider.get_result_reference(job)
+        materialized = provider.materialize(reference)
+        assert materialized.source is not None
+        opened = provider.open_result(materialized.source)
+        assert opened.result is not None
+        scene = opened.result.scenes[index % len(opened.result.scenes)]
+        spatial = opened.result.load_spatial(scene.scene_id)
+        assert spatial.data is not None
+        weighted_sum = spatial.data.attribute_for_variant(
+            "variant_000",
+            "attribute_000",
+        ).weighted_sum
+        locator = scene.sources[0].source.locator
+        resolution = provider.resolve_source(locator)
+        assert resolution.availability is IqaAvailability.MISSING
+        return (
+            job.job_id,
+            reference.reference_id,
+            float(np.asarray(weighted_sum).item()),
+            resolution.diagnostics[0].code,
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        observations = list(executor.map(inspect, range(32)))
+
+    for index, (job_id, reference_id, value, diagnostic_code) in enumerate(observations):
+        assert reference_id == f"fixture-result:{job_id}"
+        assert value == pytest.approx(1.0 + 0.001 * (index % len(FIXTURE_SPECS[IqaFixtureProfile.NORMAL].__dict__) if False else index % 12))
+        assert diagnostic_code == "fixture_source_not_materialized"
 
 
 def test_fixture_provider_partial_result_and_cancel_are_explicit(tmp_path: Path) -> None:
