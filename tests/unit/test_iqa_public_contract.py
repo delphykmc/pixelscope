@@ -65,10 +65,7 @@ class _FakeJobClient(IqaJobClient):
 
 def _png(path: Path, width: int = 8, height: int = 6) -> None:
     path.write_bytes(
-        b"\x89PNG\r\n\x1a\n"
-        + struct.pack(">I", 13)
-        + b"IHDR"
-        + struct.pack(">II", width, height)
+        b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", width, height)
     )
 
 
@@ -221,8 +218,7 @@ def test_partial_and_missing_states_are_explicit_in_public_domain(tmp_path: Path
     manifest = _manifest(root)
     manifest["publication_state"] = "partial"
     manifest["scene_outcomes"] = [
-        {"scene_id": scene["scene_id"], "status": "succeeded"}
-        for scene in manifest["scenes"]
+        {"scene_id": scene["scene_id"], "status": "succeeded"} for scene in manifest["scenes"]
     ] + [
         {
             "scene_id": "scene_000004",
