@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from PySide6.QtWidgets import QDockWidget
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.remote.iqa_public_contract import (
+    IqaSubmissionIntent,
+    IqaSubmissionScene,
+    IqaSubmissionSource,
+    IqaVariant,
+)
+from pixelscope.remote.iqa_public_fixture import (
+    FixtureIqaProvider,
+    IqaFixtureProfile,
+)
 from pixelscope.ui import iqa_client_install as client_install
 from pixelscope.ui.iqa_client_install import IqaClientInstaller
 
@@ -42,6 +53,50 @@ def test_explicit_iqa_client_owns_compatibility_surface(qtbot: object) -> None:
         dock for dock in window.findChildren(QDockWidget) if dock.objectName() == "iqaWorkspaceDock"
     ]
     assert iqa_docks == [installer.dock]
+
+    window.close()
+
+
+def test_public_provider_injection_drives_client_workspace(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    provider = FixtureIqaProvider(tmp_path, IqaFixtureProfile.MINIMAL)
+    installer = IqaClientInstaller.from_ports(provider, provider)
+    window = MainWindow(window_contributions=(installer,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    variants = (IqaVariant("a", "A"), IqaVariant("b", "B"))
+    intent = IqaSubmissionIntent(
+        "comparison",
+        variants,
+        (
+            IqaSubmissionScene(
+                "scene-1",
+                (
+                    IqaSubmissionSource("a", tmp_path / "a.png"),
+                    IqaSubmissionSource("b", tmp_path / "b.png"),
+                ),
+            ),
+        ),
+    )
+    job = installer.execution_port.submit(intent)
+    provider.advance(job)
+    provider.advance(job)
+    result_reference = installer.execution_port.get_result_reference(job)
+
+    installer.open_published_result(result_reference)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: installer.workspace is not None and installer.workspace.model is not None,
+        timeout=5000,
+    )
+
+    assert installer.execution_port is provider
+    assert installer.result_access_port is provider
+    assert installer.workspace is not None
+    assert installer.workspace.model is not None
+    assert installer.workspace.model.result.result_id == "fixture-minimal"
+    assert not hasattr(window, "remote_iqa_controller")
 
     window.close()
 

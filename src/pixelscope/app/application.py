@@ -180,7 +180,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     # Preserve the pre-R2 aboutToQuit order: local background pools register before
     # the Remote IQA result/file pool, even though both now precede MainWindow.
     analysis_thread_pool()
-    iqa_client = IqaClientInstaller.production()
+    iqa_client = IqaClientInstaller.production(application_settings.remote_iqa)
     window = MainWindow(
         application_settings,
         performance_settings,
