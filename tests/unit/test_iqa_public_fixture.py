@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -69,24 +70,28 @@ def test_public_fixture_profiles_are_deterministic_and_company_neutral(
     assert "auth" not in repr(result).lower()
 
 
-def test_large_fixture_keeps_spatial_data_lazy_until_reference_is_requested(tmp_path: Path) -> None:
+def test_large_fixture_keeps_spatial_data_lazy_until_reference_is_requested(
+    tmp_path: Path,
+) -> None:
     result = build_synthetic_iqa_result(tmp_path / "large", SyntheticIqaProfile.LARGE)
     assert result is not None
-    spatial = result.spatial_access
-    assert getattr(spatial, "load_count") == 0
+    spatial = cast(Any, result.spatial_access)
+    assert spatial.load_count == 0
 
     model = IqaExplorerModel(result)
     first_variant = result.variants[0].variant_id
     first_attribute = result.attributes[0].attribute_id
     assert model.absolute_dataset_stat(first_variant, first_attribute).valid
-    assert getattr(spatial, "load_count") == 0
+    assert spatial.load_count == 0
 
     prepared = model.prepare_reference(first_variant)
     assert prepared.reference_ready(first_variant)
-    assert getattr(spatial, "load_count") == len(result.scenes)
+    assert spatial.load_count == len(result.scenes)
 
 
-def test_partial_fixture_exposes_missing_measurement_and_public_diagnostic(tmp_path: Path) -> None:
+def test_partial_fixture_exposes_missing_measurement_and_public_diagnostic(
+    tmp_path: Path,
+) -> None:
     result = build_synthetic_iqa_result(tmp_path / "partial", SyntheticIqaProfile.PARTIAL)
     assert result is not None
     assert result.completeness is IqaResultCompleteness.PARTIAL
@@ -129,11 +134,22 @@ def test_fixture_provider_exercises_public_execution_result_and_resolver_ports(
     assert resolved.source.local_path.exists()
 
 
-def test_failure_profile_has_terminal_failure_and_never_publishes_result(tmp_path: Path) -> None:
-    assert SYNTHETIC_IQA_PROFILES[SyntheticIqaProfile.FAILURE].terminal_state is IqaJobState.FAILED
-    assert build_synthetic_iqa_result(tmp_path / "failure", SyntheticIqaProfile.FAILURE) is None
+def test_failure_profile_has_terminal_failure_and_never_publishes_result(
+    tmp_path: Path,
+) -> None:
+    assert (
+        SYNTHETIC_IQA_PROFILES[SyntheticIqaProfile.FAILURE].terminal_state
+        is IqaJobState.FAILED
+    )
+    assert (
+        build_synthetic_iqa_result(tmp_path / "failure", SyntheticIqaProfile.FAILURE)
+        is None
+    )
 
-    provider = FixtureIqaProvider(tmp_path / "provider-failure", SyntheticIqaProfile.FAILURE)
+    provider = FixtureIqaProvider(
+        tmp_path / "provider-failure",
+        SyntheticIqaProfile.FAILURE,
+    )
     job = provider.submit(_intent(tmp_path))
     assert provider.get_status(job).state is IqaJobState.QUEUED
     assert provider.get_status(job).state is IqaJobState.RUNNING
@@ -142,7 +158,9 @@ def test_failure_profile_has_terminal_failure_and_never_publishes_result(tmp_pat
         provider.get_result_reference(job)
 
 
-def test_fixture_provider_cancel_is_explicit_and_does_not_publish_result(tmp_path: Path) -> None:
+def test_fixture_provider_cancel_is_explicit_and_does_not_publish_result(
+    tmp_path: Path,
+) -> None:
     provider = FixtureIqaProvider(tmp_path / "cancel", SyntheticIqaProfile.MINIMAL)
     job = provider.submit(_intent(tmp_path))
 
