@@ -1,0 +1,45 @@
+name: Issue 121 Slice 2 temporary contract validation
+
+on:
+  push:
+    branches:
+      - feat/issue-121-slice-2-public-iqa-seam
+
+permissions:
+  contents: read
+
+jobs:
+  contract-canaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements/runtime.txt
+      - name: Install focused validation dependencies
+        run: >-
+          python -m pip install -r requirements/runtime.txt
+          pytest==7.4.4 pytest-qt==4.2.0 ruff==0.1.15
+      - name: Show formatter delta for Slice 2 files
+        shell: bash
+        run: |
+          python -m ruff format src/pixelscope/remote/iqa_public_contract.py tests/unit/test_iqa_public_contract.py
+          git diff -- src/pixelscope/remote/iqa_public_contract.py tests/unit/test_iqa_public_contract.py
+      - name: Run Slice 2 contract and characterization canaries
+        run: >-
+          python -m pytest -q
+          tests/unit/test_iqa_public_contract.py
+          tests/unit/test_iqa_explorer.py
+          tests/unit/test_remote_iqa_v2.py
+          tests/unit/test_remote_iqa_v2_limits.py
+          tests/unit/test_remote_iqa_v2_review_regressions.py
+          tests/unit/test_p5c_partial_v2.py
+          tests/unit/test_p5d_scene_inspection.py
+          tests/unit/test_p5d_source_locator_identity.py
+          tests/unit/test_p5e_iqa_history.py
+          tests/unit/test_settings_schema_v5.py
+          tests/unit/test_p5d_review_closeout_unit.py
+          tests/unit/test_application_composition.py
+          tests/unit/test_qt_lifecycle_architecture.py
