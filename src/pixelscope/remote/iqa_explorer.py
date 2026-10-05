@@ -63,6 +63,7 @@ class IqaExplorerModel:
         self._relative_cache = dict(relative_cache or {})
         self._dataset_cache: dict[tuple[str, ComparisonMode, str, str], ScalarStatistic] = {}
         self._prepared_references = prepared_references or frozenset()
+        self._variants: tuple[ExplorerVariant, ...]
         if isinstance(result, Result):
             self._variants = (
                 ExplorerVariant("A", "A — first source"),
