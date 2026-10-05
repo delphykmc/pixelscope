@@ -183,7 +183,7 @@ class VersionedResultLoadOutcome:
         reason: str | None = None,
     ) -> None:
         object.__setattr__(self, "status", status)
-        legacy_result = result if isinstance(result, (Result, ResultV2)) else None
+        legacy_result = result if isinstance(result, Result | ResultV2) else None
         object.__setattr__(self, "result", legacy_result)
         object.__setattr__(self, "reason", reason)
 
