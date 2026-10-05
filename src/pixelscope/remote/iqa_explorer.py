@@ -16,7 +16,8 @@ from pixelscope.remote.iqa_domain import (
     Source,
     ValueKind,
 )
-from pixelscope.remote.iqa_v2_domain import ResultV2
+from pixelscope.remote.iqa_public_contract import IqaResult, IqaSource, IqaSpatialSceneData
+from pixelscope.remote.iqa_v2_domain import GridSceneDataV2, ResultV2
 from pixelscope.remote.iqa_v2_math import compare_v2_sources, reduce_relative_scene_values
 from pixelscope.remote.iqa_v2_reader import load_grid_scene
 
@@ -47,35 +48,54 @@ class UnsupportedIqaExplorerResult(ValueError):
 
 
 class IqaExplorerModel:
-    """Feature-local projection over schema-v2 or legacy schema-v1 results."""
+    """Feature-local projection over public/schema-v2 or legacy schema-v1 results."""
 
     def __init__(
         self,
-        result: Result | ResultV2,
+        result: Result | ResultV2 | IqaResult,
         *,
         relative_cache: dict[tuple[str, ComparisonMode, str, str], tuple[RelativeTrendPoint, ...]]
         | None = None,
         prepared_references: frozenset[str] | None = None,
     ) -> None:
-        self.result = result
+        self._result: Result | ResultV2 | IqaResult = result
         self._legacy_comparisons: dict[tuple[str, str], Comparison] = {}
         self._relative_cache = dict(relative_cache or {})
         self._dataset_cache: dict[tuple[str, ComparisonMode, str, str], ScalarStatistic] = {}
         self._prepared_references = prepared_references or frozenset()
-        if isinstance(result, ResultV2):
-            self._variants = tuple(
-                ExplorerVariant(item.variant_id, item.label) for item in result.variants
-            )
-        else:
+        self._variants: tuple[ExplorerVariant, ...]
+        if isinstance(result, Result):
             self._variants = (
                 ExplorerVariant("A", "A — first source"),
                 ExplorerVariant("B", "B — second source"),
             )
             self._legacy_comparisons = _canonical_v1_comparisons(result)
+        else:
+            self._variants = tuple(
+                ExplorerVariant(item.variant_id, item.label) for item in result.variants
+            )
+
+    @property
+    def result(self) -> Result | ResultV2:
+        """Legacy/schema-v2 result used by the existing P5 presentation layer.
+
+        Normalized public results intentionally do not pass through this legacy-only typed
+        surface; Slice 4/UI composition can opt into ``normalized_result`` explicitly.
+        """
+
+        if isinstance(self._result, IqaResult):
+            raise TypeError("normalized IQA result is available through normalized_result")
+        return self._result
+
+    @property
+    def normalized_result(self) -> IqaResult | None:
+        """Return the normalized public result when this model was built from one."""
+
+        return self._result if isinstance(self._result, IqaResult) else None
 
     @property
     def is_v2(self) -> bool:
-        return isinstance(self.result, ResultV2)
+        return not isinstance(self._result, Result)
 
     @property
     def variants(self) -> tuple[ExplorerVariant, ...]:
@@ -84,13 +104,13 @@ class IqaExplorerModel:
     @property
     def scene_ids(self) -> tuple[str, ...]:
         """Return schema-independent ordered Scene identities."""
-        if isinstance(self.result, ResultV2):
-            return tuple(scene.scene_id for scene in self.result.scenes)
-        return tuple(scene.scene_id for scene in self.result.scenes)
+
+        return tuple(scene.scene_id for scene in self._result.scenes)
 
     @property
     def relative_ready(self) -> bool:
-        """Compatibility shorthand: any v2 Reference has been prepared."""
+        """Compatibility shorthand: any modern Reference has been prepared."""
+
         return not self.is_v2 or bool(self._prepared_references)
 
     def reference_ready(self, reference_variant_id: str) -> bool:
@@ -100,9 +120,10 @@ class IqaExplorerModel:
 
     def prepare_reference(self, reference_variant_id: str) -> IqaExplorerModel:
         """Compute one Reference lazily while holding at most one Scene grid artifact."""
-        if not isinstance(self.result, ResultV2):
+
+        result = self._result
+        if isinstance(result, Result):
             return self
-        result = self.result
         variant_ids = {item.variant_id for item in result.variants}
         if reference_variant_id not in variant_ids:
             raise ValueError(f"unknown Reference variant {reference_variant_id}")
@@ -126,11 +147,23 @@ class IqaExplorerModel:
                     ] = []
 
         for scene in result.scenes:
-            outcome = load_grid_scene(result, scene.scene_id)
-            if not outcome.succeeded or outcome.data is None:
-                reason = outcome.reason or "unable to load Scene grid artifact"
-                raise ValueError(f"{scene.scene_id}: {reason}")
-            grid = outcome.data
+            grid: GridSceneDataV2 | IqaSpatialSceneData
+            if isinstance(result, IqaResult):
+                public_outcome = result.load_spatial(scene.scene_id)
+                if not public_outcome.succeeded or public_outcome.data is None:
+                    reason = (
+                        public_outcome.diagnostics[0].message
+                        if public_outcome.diagnostics
+                        else "unable to load Scene spatial data"
+                    )
+                    raise ValueError(f"{scene.scene_id}: {reason}")
+                grid = public_outcome.data
+            else:
+                legacy_outcome = load_grid_scene(result, scene.scene_id)
+                if not legacy_outcome.succeeded or legacy_outcome.data is None:
+                    reason = legacy_outcome.reason or "unable to load Scene grid artifact"
+                    raise ValueError(f"{scene.scene_id}: {reason}")
+                grid = legacy_outcome.data
             for attribute in result.attributes:
                 reference = grid.attribute_for_variant(
                     reference_variant_id,
@@ -177,9 +210,11 @@ class IqaExplorerModel:
 
     def absolute_dataset_stat(self, variant_id: str, attribute_id: str) -> ScalarStatistic:
         """Return the canonical absolute Dataset Overview statistic."""
-        if not isinstance(self.result, ResultV2):
+
+        result = self._result
+        if isinstance(result, Result):
             return ScalarStatistic.invalid("legacy_v1_has_no_absolute_measurement")
-        summary = self.result.dataset_summary(variant_id, attribute_id).pooled
+        summary = result.dataset_summary(variant_id, attribute_id).pooled
         return _measurement_mean(summary.valid, summary.weighted_mean)
 
     def absolute_scene_stat(
@@ -188,9 +223,10 @@ class IqaExplorerModel:
         variant_id: str,
         attribute_id: str,
     ) -> ScalarStatistic:
-        if not isinstance(self.result, ResultV2):
+        result = self._result
+        if isinstance(result, Result):
             return ScalarStatistic.invalid("legacy_v1_has_no_absolute_measurement")
-        summary = self.result.scene(scene_id).source_for_variant(variant_id).summary(attribute_id)
+        summary = result.scene(scene_id).source_for_variant(variant_id).summary(attribute_id)
         return _measurement_mean(summary.valid, summary.weighted_mean)
 
     def relative_trend(
@@ -203,7 +239,7 @@ class IqaExplorerModel:
         if reference_variant_id == target_variant_id:
             raise ValueError("reference and target variant must differ")
         selected_mode = _applicable_mode(
-            self.result.attribute(attribute_id).value_kind,
+            self._result.attribute(attribute_id).value_kind,
             mode,
         )
         key = (
@@ -215,7 +251,7 @@ class IqaExplorerModel:
         cached = self._relative_cache.get(key)
         if cached is not None:
             return cached
-        if isinstance(self.result, ResultV2):
+        if not isinstance(self._result, Result):
             if not self.reference_ready(reference_variant_id):
                 raise RuntimeError(f"Reference {reference_variant_id} has not been prepared")
             raise KeyError(key)
@@ -236,7 +272,7 @@ class IqaExplorerModel:
         target_variant_id: str,
     ) -> ScalarStatistic:
         selected_mode = _applicable_mode(
-            self.result.attribute(attribute_id).value_kind,
+            self._result.attribute(attribute_id).value_kind,
             mode,
         )
         key = (
@@ -268,6 +304,7 @@ class IqaExplorerModel:
         target_variant_id: str,
     ) -> tuple[str, ...]:
         """Return conservative quality-oriented visual hints, never logical selection."""
+
         points = self.relative_trend(
             attribute_id,
             mode,
@@ -303,31 +340,31 @@ class IqaExplorerModel:
         )
 
     def display_unit(self, attribute_id: str, *, relative: bool) -> str:
-        spec = self.result.attribute(attribute_id)
+        spec = self._result.attribute(attribute_id)
         if relative and spec.value_kind is ValueKind.POWER:
             return "dB"
         return spec.unit
 
-    def scene_sources(self, scene_id: str) -> tuple[tuple[str, str, Source], ...]:
-        if isinstance(self.result, ResultV2):
-            v2_scene = self.result.scene(scene_id)
-            return tuple(
-                (
-                    measurement.variant_id,
-                    self.result.variant(measurement.variant_id).label,
-                    measurement.source,
+    def scene_sources(self, scene_id: str) -> tuple[tuple[str, str, Source | IqaSource], ...]:
+        result = self._result
+        if isinstance(result, Result):
+            legacy_scene = result.scene(scene_id)
+            if len(legacy_scene.sources) < 2:
+                raise UnsupportedIqaExplorerResult(
+                    f"Scene {legacy_scene.scene_id} has fewer than two ordered sources"
                 )
-                for measurement in v2_scene.sources
+            return (
+                ("A", "A — first source", legacy_scene.sources[0]),
+                ("B", "B — second source", legacy_scene.sources[1]),
             )
-        legacy = self.result
-        legacy_scene = legacy.scene(scene_id)
-        if len(legacy_scene.sources) < 2:
-            raise UnsupportedIqaExplorerResult(
-                f"Scene {legacy_scene.scene_id} has fewer than two ordered sources"
+        modern_scene = result.scene(scene_id)
+        return tuple(
+            (
+                measurement.variant_id,
+                result.variant(measurement.variant_id).label,
+                measurement.source,
             )
-        return (
-            ("A", "A — first source", legacy_scene.sources[0]),
-            ("B", "B — second source", legacy_scene.sources[1]),
+            for measurement in modern_scene.sources
         )
 
     def _legacy_relative_trend(
@@ -339,7 +376,7 @@ class IqaExplorerModel:
     ) -> tuple[RelativeTrendPoint, ...]:
         if {reference_variant_id, target_variant_id} != {"A", "B"}:
             raise ValueError("legacy v1 supports only A/B Reference slots")
-        legacy = cast(Result, self.result)
+        legacy = cast(Result, self._result)
         spec = legacy.attribute(attribute_id)
         points: list[RelativeTrendPoint] = []
         for scene in legacy.scenes:
