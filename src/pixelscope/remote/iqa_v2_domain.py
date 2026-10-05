@@ -7,6 +7,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -20,6 +21,9 @@ from pixelscope.remote.iqa_domain import (
     SceneGeometry,
     Source,
 )
+
+if TYPE_CHECKING:
+    from pixelscope.remote.iqa_public_contract import IqaResult
 
 MEASUREMENT_CONTEXT_PREFIX = "mc2:"
 
@@ -161,7 +165,7 @@ class GridLoadOutcomeV2:
 @dataclass(frozen=True)
 class VersionedResultLoadOutcome:
     status: LoadStatus
-    result: Result | ResultV2 | None = None
+    result: Result | ResultV2 | IqaResult | None = None
     reason: str | None = None
 
     @property
