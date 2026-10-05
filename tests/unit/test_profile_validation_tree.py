@@ -10,10 +10,18 @@ def test_summarize_tree_separates_tracked_and_local_copy_candidates(tmp_path: Pa
     (tmp_path / "src/tracked.py").write_bytes(b"abc")
     (tmp_path / "local").mkdir()
     (tmp_path / "local/cache.bin").write_bytes(b"12345")
-    (tmp_path / ".venv").mkdir()
-    (tmp_path / ".venv/ignored.bin").write_bytes(b"ignored")
-    (tmp_path / "temp").mkdir()
-    (tmp_path / "temp/ignored.txt").write_text("ignored", encoding="utf-8")
+
+    ignored = {
+        ".venv": "ignored",
+        ".venv-release": "release-env",
+        ".codex": "agent-state",
+        ".test-results": "test-state",
+        "release": "release-artifact",
+        "temp": "temp-state",
+    }
+    for directory, payload in ignored.items():
+        (tmp_path / directory).mkdir()
+        (tmp_path / directory / "ignored.bin").write_text(payload, encoding="utf-8")
 
     summary = summarize_tree(tmp_path, tracked={"src/tracked.py"})
 
@@ -30,5 +38,4 @@ def test_summarize_tree_separates_tracked_and_local_copy_candidates(tmp_path: Pa
     assert rows["src"]["non_tracked_files"] == 0
     assert rows["local"]["tracked_files"] == 0
     assert rows["local"]["non_tracked_files"] == 1
-    assert ".venv" not in rows
-    assert "temp" not in rows
+    assert ignored.keys().isdisjoint(rows)
