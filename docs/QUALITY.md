@@ -3,9 +3,72 @@
 A change is complete only when observable behavior is specified, mechanically
 checked where practical, and reported with evidence that was actually observed.
 
-## Standard validation
+## Validation model
 
-Run from the repository root with the pinned CPython 3.10 environment:
+PixelScope uses three validation levels. They are complementary, not interchangeable:
+a focused PASS proves only the selected contract, while a full-validation PASS is the
+only evidence that may be described as a repository-wide clean result.
+
+### 1. Fast development validation
+
+Use this level repeatedly while implementing a change. Keep the loop deterministic and
+cheap enough to rerun after each meaningful edit:
+
+- run Ruff lint/format checks while editing source/tests/scripts;
+- run the relevant `tests/unit` coverage;
+- add the smallest changed-area integration/UI regression needed to reproduce the
+  behavior under active development; and
+- run `scripts/check_docs.py` when durable documentation or harness references change.
+
+A representative loop is:
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+.\.venv\Scripts\python.exe -m pytest -q tests\unit
+```
+
+Narrower file/module selections are allowed during the inner loop. Fast development
+validation is never completion-equivalent and must not be reported as a full-suite
+PASS.
+
+### 2. Applicable PR validation
+
+Before review/merge, run the broad cheap repository gates plus every integration/UI/
+native slice required by the changed contract. The change-to-check matrix below is the
+selection authority; directory responsibility is the primary test-layer signal:
+
+| Directory | Responsibility |
+|---|---|
+| `tests/unit` | Pure/deterministic logic and contract checks. No production QWidget/event-loop dependency, full-repository copy, MkDocs/offline build, packaging build, or external subprocess requirement. |
+| `tests/integration` | Cross-component/repository/system contracts such as repository copies, Git-history behavior, MkDocs/offline-site generation, packaging, or subprocess-backed validation. |
+| `tests/ui` | QWidget/QObject composition, Qt events/signals, interaction, teardown, worker/UI ownership, and native-lifecycle regressions. |
+| `tests/performance` | Observational performance/resource characterization. Timing may be reported, but elapsed-time thresholds are not correctness gates. |
+
+For applicable PR validation:
+
+- keep Ruff lint/format, mypy, and whitespace/diff checks broad where practical;
+- add `pip check` when dependency/runtime packaging state is in scope;
+- add documentation/harness checks when docs, workflows, or their source-of-truth
+  contracts change;
+- select integration/UI/native tests by changed path and contract, not by PR number;
+- treat shared/unknown infrastructure changes conservatively: widen validation rather
+  than optimistically skipping a potentially affected expensive slice; and
+- record the exact commands and observed results in the PR. Do not summarize unrun
+  checks as PASS.
+
+Focused CI is supporting evidence, not a substitute for owner/local applicable
+validation. CI may use durable change-driven selection to avoid unrelated expensive
+jobs, but the PR must still identify which focused suites establish the changed
+contract.
+
+### 3. Full validation
+
+Full validation is the repository-wide completion gate. Run it for merge-ready or
+milestone checkpoints where repository-wide cleanliness is being claimed, and for
+high-risk/shared-infrastructure/native-lifecycle work whose failure can accumulate
+outside the focused change area. Run from the repository root with the pinned CPython
+3.10 environment:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_docs.py
@@ -17,12 +80,25 @@ Run from the repository root with the pinned CPython 3.10 environment:
 git diff --check
 ```
 
+The full `pytest -q` run uses normal automatic Python GC. Native Qt/Shiboken lifecycle
+canaries remain part of that contract and must not be split, skipped, or masked merely
+to reduce accumulated runtime. When Windows/native behavior is part of the risk, the
+owner/local Windows result is authoritative.
+
+A bounded low-risk PR may close with applicable PR evidence when the project workflow
+explicitly accepts that scope, but it must say that full validation was not run and
+must not imply a repository-wide PASS. Conversely, a focused CI PASS never overrides a
+known full-validation failure.
+
+Use markers only for truly orthogonal semantics that materially improve durable
+selection (for example a native-lifecycle canary). Do not create marker bureaucracy
+when the `unit` / `integration` / `ui` / `performance` directory contract is sufficient.
+
 Ruff excludes the repository-local `temp/` diagnostic workspace. Temporary forensic
 probes are not production source, tests, or scripts and must not be committed.
 
-Use narrower tests during development. Before completion, run the full
-applicable suite. If a command cannot run, record the exact command, failure,
-reason, and unverified risk.
+If a required command cannot run, record the exact command, failure, reason, and
+unverified risk.
 
 Qt UI tests must not leak deferred QObject destruction into later tests.
 `tests/ui/conftest.py` drains `QEvent.DeferredDelete` after pytest-qt widget
