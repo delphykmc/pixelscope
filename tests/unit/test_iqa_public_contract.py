@@ -238,6 +238,17 @@ def test_partial_and_missing_states_are_explicit_in_public_domain(tmp_path: Path
     assert public.completeness is IqaResultCompleteness.PARTIAL
     assert public.diagnostics[0].scene_id == "scene_000004"
     assert public.diagnostics[0].code == "provider.scene_failed"
+
+    unpublished = public.load_spatial("scene_000004")
+    assert unpublished.availability is IqaAvailability.MISSING
+    assert unpublished.diagnostics[0].code == "spatial_scene_not_published"
+
+    first_grid = root / manifest["scenes"][0]["grid_artifact"]["path"]
+    first_grid.unlink()
+    damaged = public.load_spatial(outcome.result.scenes[0].scene_id)
+    assert damaged.availability is IqaAvailability.FAILED
+    assert damaged.diagnostics[0].code == "spatial_data_failed"
+
     missing = IqaMeasurementSummary.missing("metric_not_published")
     assert missing.availability is IqaAvailability.MISSING
     assert not missing.valid
