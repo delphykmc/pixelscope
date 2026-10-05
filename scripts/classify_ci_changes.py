@@ -1,8 +1,9 @@
 """Classify changed paths into durable CI validation responsibilities.
 
-The selector is stdlib-only and does not execute tests. Narrow validation is allowed
-only for paths with an explicit owner. Unknown or shared validation-relevant paths
-fall back to full repository validation.
+The selector is stdlib-only and does not execute tests. GitHub CI is intentionally a
+pre-integration guard: broad cheap static checks plus small durable focused groups.
+Repository-wide pytest remains owner/local merge validation and is never selected as a
+routine CI job by this module.
 """
 
 from __future__ import annotations
@@ -160,10 +161,11 @@ RELEASE_EXACT = (
     "scripts/smoke_portable_release.py",
     "scripts/release_candidate_contract.py",
     "scripts/distribution_contract.py",
-    "tests/unit/test_distribution_contract.py",
     "tests/unit/test_release_packaging.py",
-    "tests/unit/test_release_bundle.py",
     "tests/unit/test_release_candidate.py",
+    "tests/unit/test_release_candidate_provenance.py",
+    "tests/unit/test_release_distribution.py",
+    "tests/unit/test_release_publication.py",
 )
 
 RAW_PREFIXES = (
@@ -197,6 +199,7 @@ CI_POLICY_EXACT = (
     "scripts/skip_duplicate_validation_push.py",
     "tests/unit/test_ci_change_classification.py",
     "tests/unit/test_ci_test_groups.py",
+    "tests/unit/test_ci_workflow_policy.py",
     "tests/unit/test_validation_ci_dedupe.py",
 )
 
@@ -245,10 +248,10 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     }
     unknown = validation_relevant - recognized
 
-    # Shared configuration, CI-policy changes, and every unknown validation-relevant
-    # path widen to the full repository contract. This is deliberately fail-wide.
-    full = ci_policy or shared_config or bool(unknown)
-    lifecycle = full and any(
+    # This flag is merge-validation guidance only. It MUST NOT schedule the full
+    # repository pytest suite in GitHub CI. Owner/local validation is authoritative.
+    local_full_required = ci_policy or shared_config or bool(unknown)
+    lifecycle = local_full_required and any(
         path.startswith(("src/pixelscope/workers/", "tests/ui/"))
         or "lifecycle" in path.lower()
         for path in paths
@@ -269,7 +272,7 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
         "ci_policy": ci_policy,
         "shared_config": shared_config,
         "unknown": bool(unknown),
-        "full": full,
+        "local_full_required": local_full_required,
         "lifecycle": lifecycle,
         "typecheck": typecheck,
         "windows_native": windows_native,
