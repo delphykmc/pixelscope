@@ -11,6 +11,7 @@ on:
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
       - "scripts/user_guide_screenshot_hook.py"
+      - "scripts/profile_validation_tree.py"
       - "scripts/audit_ui_screenshot_coverage.py"
       - "scripts/verify_ui_screenshot_capture_packet.py"
       - "scripts/audit_ui_screenshot_git_history.py"
@@ -43,6 +44,7 @@ on:
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_user_guide_screenshot_hook.py"
+      - "tests/unit/test_profile_validation_tree.py"
       - "tests/integration/test_user_guide_screenshot_rendering.py"
       - "tests/unit/test_ui_screenshot_coverage_audit.py"
       - "tests/unit/test_ui_screenshot_capture_packet.py"
@@ -68,6 +70,7 @@ on:
       - "scripts/check_docs.py"
       - "scripts/check_screenshot_manifest.py"
       - "scripts/user_guide_screenshot_hook.py"
+      - "scripts/profile_validation_tree.py"
       - "scripts/audit_ui_screenshot_coverage.py"
       - "scripts/verify_ui_screenshot_capture_packet.py"
       - "scripts/audit_ui_screenshot_git_history.py"
@@ -100,6 +103,7 @@ on:
       - "tests/unit/test_docs_contract.py"
       - "tests/unit/test_screenshot_manifest_contract.py"
       - "tests/unit/test_user_guide_screenshot_hook.py"
+      - "tests/unit/test_profile_validation_tree.py"
       - "tests/integration/test_user_guide_screenshot_rendering.py"
       - "tests/unit/test_ui_screenshot_coverage_audit.py"
       - "tests/unit/test_ui_screenshot_capture_packet.py"
@@ -180,6 +184,7 @@ jobs:
           tests/unit/test_docs_contract.py
           tests/unit/test_screenshot_manifest_contract.py
           tests/unit/test_user_guide_screenshot_hook.py
+          tests/unit/test_profile_validation_tree.py
           tests/integration/test_user_guide_screenshot_rendering.py
           tests/unit/test_ui_screenshot_coverage_audit.py
           tests/unit/test_ui_screenshot_impact.py
