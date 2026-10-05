@@ -99,9 +99,23 @@ def load_startup_settings() -> tuple[SettingsRepository, ApplicationSettings, Pe
     return repository, application_settings, application_settings.performance_settings()
 
 
+def _resolve_iqa_client(
+    window: MainWindow,
+    explicit: IqaClientInstaller | None,
+) -> IqaClientInstaller:
+    """Resolve the explicit production client or the temporary direct-window shim."""
+
+    if explicit is not None:
+        return explicit
+    for contribution in window._window_contributions:
+        if isinstance(contribution, IqaClientInstaller):
+            return contribution
+    raise RuntimeError("Production presentation composition requires an IQA Client contribution")
+
+
 def _compose_main_window_presentation(
     window: MainWindow,
-    iqa_client: IqaClientInstaller,
+    iqa_client: IqaClientInstaller | None = None,
 ) -> QComboBox:
     """Install the production presentation control composition in one authoritative order."""
 
@@ -113,7 +127,7 @@ def _compose_main_window_presentation(
     install_analysis_export(window)
     install_user_guide_help(window)
 
-    iqa_client.install_runtime(window)
+    _resolve_iqa_client(window, iqa_client).install_runtime(window)
     polish_presentation_controls(window)
     release_command_row_metric_window(window)
     install_workflow_polish(window, review_controller)
@@ -140,7 +154,6 @@ def _compose_main_window_presentation(
     # replacing their dense command surfaces with compact, context-aware controls.
     install_issue77_ui_design_followup(window)
     return gain_control
-
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
