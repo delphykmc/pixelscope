@@ -41,7 +41,9 @@ def test_explicit_iqa_client_owns_compatibility_surface(qtbot: object) -> None:
     assert installer.dock is not None
     assert installer.dock.widget() is installer.workspace
     iqa_docks = [
-        dock for dock in window.findChildren(QDockWidget) if dock.objectName() == "iqaWorkspaceDock"
+        dock
+        for dock in window.findChildren(QDockWidget)
+        if dock.objectName() == "iqaWorkspaceDock"
     ]
     assert iqa_docks == [installer.dock]
 
