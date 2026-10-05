@@ -1,64 +1,88 @@
 # Execution plan: Issue #121 Slice 5 downstream transfer contract
 
-Status: Draft — awaiting merged Slice 2 reconciliation
+Status: Complete — contract reconciled with merged Slice 2; transfer qualification remains downstream
 Owner: Slice 5 downstream/SUB integration contract agent
-Branch: `codex/issue-121-slice5`
+Branch/PR: `codex/issue-121-slice5` / PR #124
 Last updated: 2026-10-05
 
 ## Goal and scope
 
 Define how SUB supplies Enterprise IQA to unchanged MAIN Base/IQA Client through the
 Client-owned public seam. Deliver a reviewable semantic contract, upstream pin/sync
-and path policy, conformance/smoke plans, and explicit Slice 2 gap candidates.
+and path policy, conformance/smoke plans, and explicit downstream prerequisites.
 
 No runtime code, confidential implementation, parallel public API, settings migration,
-package move, packaging run or production integration is included. Slice 2 proceeds
-separately; dependent production work waits for its merge and reconciliation.
+package move, packaging run or production integration is included. Slice 2 is now
+merged and reconciled. Actual provider injection waits for Slice 4/Checkpoint C and
+real Enterprise qualification belongs to Slice 6.
 
 ## Current state and authority
 
-Baseline `main@4aa1915ff78eefea24458e15837a40a45fcb4670` contains merged Slice 0/1.
+Reconciliation baseline `main@bc4090e8e6594089ee47b6dd181700d7ce301482`
+contains merged Slice 0/1/2, including PR #125's Qt-free public IQA Client seam.
 The confirmed [Checkpoint A](https://github.com/delphykmc/pixelscope/issues/121#issuecomment-5993880778)
 defines the enterprise execution/shared-storage/local-reopen workflow.
-[Ownership](../../IQA_OWNERSHIP.md) and
-[characterization](../../IQA_BOUNDARY_CHARACTERIZATION.md) remain authoritative.
-Current canonical result reader/domain, history and scene inspection were inspected;
-their existing transport/settings coupling does not freeze the public seam.
+[Ownership](../../IQA_OWNERSHIP.md),
+[characterization](../../IQA_BOUNDARY_CHARACTERIZATION.md), and the focused
+[downstream contract](../../IQA_DOWNSTREAM_CONTRACT.md) remain authoritative.
+
+Merged Slice 2 provides `IqaExecutionPort`, `IqaResultAccessPort`, normalized
+`IqaResult`, lazy `IqaSpatialAccess`, provider-neutral errors, explicit source outcomes,
+and same-instance concurrency requirements. Existing P5 adapters prove compatibility
+without changing production composition/lifecycle. Slice 4 still owns the approved
+injection seam.
 
 ## Design and invariants
 
-The focused [downstream contract](../../IQA_DOWNSTREAM_CONTRACT.md) owns this design.
 Enterprise owns control/data/auth/config/normalization/cleanup. Client owns IQA
 presentation/domain and stale publication authority. Base owns generic host services.
 Preserve dependency direction, pool ownership/order, durable remote jobs, CPython
 3.10 x64 and existing numerical/result/Qt lifetime contracts.
 
+Public-provider calls may overlap on the same instance. SUB implementations must be
+thread-safe/reentrant or internally serialize their own non-Qt resources; Client
+composition does not promise per-instance serialization. No new worker pool or Qt
+ownership is introduced by this contract.
+
 ## Work and acceptance gates
 
 1. Read Issue #121 in full, latest Checkpoint A, merged #122/#123 and relevant docs.
 2. Draft downstream responsibilities, transaction/failure flows, pin/path/sync policy,
-   conformance matrix and real smoke plan; enumerate G1-G8 semantic gap candidates.
-3. Validate docs and diff preservation, create a ChatGPT-assisted draft PR, report
-   observed local/hosted results. Draft delivery does not close Issue #121.
-4. Wait for merged Slice 2. Map G1-G8 to actual symbols/tests; resolve gaps upstream
-   or record blockers before any dependent implementation or transfer sign-off.
-5. Finalize Slice 5 after Slice 4/Checkpoint C; Slice 6 executes real SUB validation.
+   conformance matrix and real smoke plan; enumerate G1-G8 reconciliation candidates.
+3. Validate docs and diff preservation, create PR #124, collect hosted review/CI and
+   resolve validation/concurrency/publication review findings.
+4. **Completed:** reconcile G1-G8 against merged Slice 2 / PR #125 actual symbols and
+   tests. Record which semantics are resolved and which are intentionally deferred to
+   Slice 4/Checkpoint C or real SUB qualification.
+5. Merge this documentation contract once the reconciliation diff and applicable CI
+   pass. Slice 4/Checkpoint C then establishes transfer-ready composition; Slice 6
+   executes real SUB validation. Merging Slice 5 is not production qualification.
 
 ## Validation plan
 
-Run `scripts/check_docs.py`, `tests/unit/test_docs_contract.py`, broad Ruff lint/format,
-mypy and `git diff --check` under applicable documentation-only PR scope. Inspect
-baseline-to-head diff/deletion counts and semantic coverage. Hosted CI follows existing
-change-driven policy; no full pytest or Qt suite is added. No runtime/manual production
-or GPU/SMB PASS is claimed. Full local suite is not required for this bounded draft.
+For this bounded documentation PR run `scripts/check_docs.py`,
+`tests/unit/test_docs_contract.py`, broad Ruff lint/format, mypy and `git diff --check`
+under the current change-driven policy. Inspect baseline-to-head diff and semantic
+coverage. No full pytest or Qt suite is added to hosted CI.
+
+Slice 2 itself has separate focused/public-contract validation and owner-reported full
+suite PASS. That evidence supports the merged seam but is not re-run merely because
+Slice 5 documentation maps to it. Future runtime/composition changes follow
+`docs/QUALITY.md`: applicable focused owner-local canaries are required, and full local
+validation is used when the policy requires milestone/high-risk/shared-infrastructure/
+native-lifecycle or repository-wide-clean evidence.
+
+No documentation validation or MAIN full suite constitutes real GPU/storage/auth/SUB
+integration PASS.
 
 ## Risks and mitigations
 
 | Risk | Detection / mitigation |
 |---|---|
-| Unmerged API assumed final | Semantic requirements only; mandatory merged-Slice-2 reconciliation table. |
-| Missing metric falsely normalized | G4 requires faithful completeness and canonical v2 rules; block unsupported conversion. |
-| Close/cleanup loses durable work | Separate UI abort, remote cancel and retention; test owned resources and late results. |
+| Downstream doc drifts from public API | Reconciled table names merged Slice 2 symbols and baseline SHA; review at every upstream pin. |
+| Missing metric falsely normalized | Public in-memory missing/failure semantics exist, but current v2 durable-format limitation remains explicit; block unsupported conversion pending narrow MAIN decision. |
+| Close/cleanup loses durable work | Separate UI abort, remote cancel and retention; preserve existing lifecycle and test owned resources/late results at Checkpoint C/Slice 6. |
+| Same provider instance races | Public ports require overlap safety; SUB conformance exercises status/result/cancel, materialize/open/resolve/spatial and release races. |
 | Permanent SUB patch drift | Owned-path allowlist and exact upstream-tree comparison at every pin. |
 | Confidential information leak | Company-neutral MAIN requirements/fixtures; private implementation/evidence stays SUB. |
 
@@ -66,26 +90,34 @@ or GPU/SMB PASS is claimed. Full local suite is not required for this bounded dr
 
 - 2026-10-05: Authoritative sources read; isolated in-repository worktree created for
   Slice 5 to avoid interfering with parallel Slice 2. Semantic draft and G1-G7 recorded.
-- 2026-10-05: Local `scripts/check_docs.py`: `Documentation contract passed.`;
-  `pytest -q tests/unit/test_docs_contract.py`: `2 passed in 0.31s`; Ruff lint
-  succeeded, Ruff format: `408 files already formatted`; mypy: `Success: no issues
-  found in 140 source files`; `git diff --check`: exit 0. Existing durable-doc
-  changes are additive routing links only. Hosted PR CI on `7ef1a52` subsequently
-  passed Change-scoped validation and Ubuntu/Windows User Guide validation; evidence
-  is recorded in PR #124.
-- 2026-10-05: PR #124 review follow-up aligns validation with QUALITY's applicable
-  PR/full-validation conditions, adds G8 provider call concurrency reconciliation and
-  overlap/cancel/shutdown conformance, and makes durable publication format-neutral.
-  No concurrency model or new public API is selected; runtime remains unchanged.
-- 2026-10-05: Review-fix local checks: documentation contract passed;
-  `pytest -q tests/unit/test_docs_contract.py`: `2 passed in 0.45s`; Ruff lint exit 0;
-  Ruff format: `408 files already formatted`; mypy: `Success: no issues found in
-  140 source files`; diff check exit 0. Latest-head hosted CI will be reported in PR #124.
+- 2026-10-05: Initial local docs checks passed; hosted Change-scoped validation and
+  Ubuntu/Windows User Guide validation passed on the draft.
+- 2026-10-05: PR #124 review follow-up aligned validation with `QUALITY.md`, added G8
+  concurrency reconciliation/overlap-release conformance, and made durable publication
+  format-neutral. Re-review found no architecture/runtime blocker while awaiting Slice 2.
+- 2026-10-05: Slice 2 / PR #125 reached merge-ready after resolving public error
+  semantics, explicit source outcomes, same-instance concurrency and explorer typing.
+  Owner additionally reported repository full-suite PASS. PR #125 was squash-merged as
+  `bc4090e8e6594089ee47b6dd181700d7ce301482`.
+- 2026-10-05: Slice 5 reconciled against merged public symbols/tests. G1/G6 and the
+  public portions of G3/G8 are resolved; G2/G4/G5 retain explicit downstream/runtime
+  evidence requirements; G7 remains intentionally owned by Slice 4/Checkpoint C. No
+  Slice 2 semantic mismatch remains that blocks merging this documentation contract.
 
-## Completion / deferred work
+## Completion summary
 
-Draft files: `docs/IQA_DOWNSTREAM_CONTRACT.md`, this execution plan, and narrow routing
-links in `docs/index.md` and `docs/IQA_OWNERSHIP.md`. Runtime behavior is unchanged.
-Final contract reconciliation, Slice 4 injection evidence, production smoke and
-internal pin qualification remain unverified. Keep this plan Draft until reconciliation;
-no automatic production work is authorized by its publication.
+- Delivered behavior: no runtime change; established the downstream Enterprise
+  ownership/transfer/conformance contract and reconciled it to the actual merged
+  Client-owned public seam.
+- Changed files: `docs/IQA_DOWNSTREAM_CONTRACT.md`, this execution plan, and narrow
+  routing links in `docs/index.md` / `docs/IQA_OWNERSHIP.md`.
+- Validation: documentation/static checks and hosted docs workflows are required for
+  the final reconciliation head before merge.
+- Remaining limitations: Slice 4 injection/Checkpoint C, real Enterprise adapter,
+  durable materialization/cleanup/auth/storage conformance, production smoke, and any
+  real metric-level missing-data durable encoding case remain unqualified.
+- Follow-up: Slice 6 supplies real SUB evidence; Slice 7 owns settings migration;
+  Slice 8 remains optional Stage 2/package cleanup.
+
+The plan is complete as a **documentation/contract slice**. Its remaining prerequisites
+belong to later Issue #121 slices and must not be interpreted as production PASS.
