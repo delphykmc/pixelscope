@@ -1,7 +1,8 @@
-"""Small durable pytest groups used by change-driven CI.
+"""Small durable pytest groups with explicit executor ownership.
 
-Feature PRs may run additional focused tests locally. Promotion into this registry is
-explicit so a path classifier cannot silently grow an expensive catch-all suite.
+Hosted CI groups are deterministic and avoid Qt/widget lifecycle or geometry timing.
+Owner/local UI groups remain executable from the same registry, but Windows owner/local
+validation is authoritative for those contracts.
 """
 
 from __future__ import annotations
@@ -18,13 +19,7 @@ class DurableTest:
     rationale: str
 
 
-DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
-    "help": (
-        DurableTest(
-            "tests/ui/test_user_guide_help.py",
-            "Installed local/context Help availability and lifecycle.",
-        ),
-    ),
+CI_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
     "release": (
         DurableTest(
             "tests/unit/test_release_packaging.py",
@@ -47,7 +42,7 @@ DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
             "Release publication staging, metadata and tag contract.",
         ),
     ),
-    "raw": (
+    "raw-core": (
         DurableTest(
             "tests/unit/test_raw_reader.py",
             "Canonical unpacked and MIPI RAW decode/file-size behavior.",
@@ -60,6 +55,28 @@ DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
             "tests/unit/test_wp_b_raw_profile_compatibility.py",
             "RAW profile storage geometry and compatibility.",
         ),
+    ),
+    "yuv-core": (
+        DurableTest(
+            "tests/unit/test_yuv_runtime_contracts.py",
+            "Native YUV geometry and runtime boundaries.",
+        ),
+        DurableTest(
+            "tests/unit/test_yuv_semantics.py",
+            "Native plane, preview and analysis semantics.",
+        ),
+    ),
+}
+
+
+OWNER_LOCAL_UI_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
+    "help-ui": (
+        DurableTest(
+            "tests/ui/test_user_guide_help.py",
+            "Installed local/context Help availability and Qt lifecycle.",
+        ),
+    ),
+    "raw-ui": (
         DurableTest(
             "tests/ui/test_p1c_raw_dialog.py",
             "User-visible RAW profile and packed-stream controls.",
@@ -69,24 +86,22 @@ DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
             "RAW binary/profile UI compatibility and stride ownership.",
         ),
     ),
-    "yuv": (
-        DurableTest(
-            "tests/unit/test_yuv_runtime_contracts.py",
-            "Native YUV geometry and runtime boundaries.",
-        ),
-        DurableTest(
-            "tests/unit/test_yuv_semantics.py",
-            "Native plane, preview and analysis semantics.",
-        ),
+    "yuv-ui": (
         DurableTest(
             "tests/ui/test_wp_c1_yuv_semantics.py",
             "User-visible native Y/U/V analysis semantics.",
         ),
         DurableTest(
             "tests/ui/test_wp_c2_yuv_difference.py",
-            "Native YUV Difference and legacy-family compatibility.",
+            "Native YUV Difference and legacy-family UI compatibility.",
         ),
     ),
+}
+
+
+DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
+    **CI_TEST_GROUPS,
+    **OWNER_LOCAL_UI_TEST_GROUPS,
 }
 
 
@@ -94,7 +109,7 @@ def nodes(group: str) -> list[str]:
     try:
         return [test.node for test in DURABLE_TEST_GROUPS[group]]
     except KeyError as exc:
-        raise ValueError(f"unknown durable CI test group: {group}") from exc
+        raise ValueError(f"unknown durable test group: {group}") from exc
 
 
 def run_group(group: str) -> int:
