@@ -3,7 +3,8 @@
 Root-local generated environments and artifacts are excluded without hiding
 tracked repository content in similarly named nested directories. Cache names
 that are inherently generated remain excluded at any depth. The same policy is
-used by the profiler and screenshot-rendering integration fixture.
+used by the profiler and screenshot-rendering integration fixture, while a
+repository-level regression asserts that no tracked path is hidden.
 """
 
 from __future__ import annotations
