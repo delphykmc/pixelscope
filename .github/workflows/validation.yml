@@ -145,9 +145,12 @@ jobs:
   focused-windows:
     name: Focused Windows validation
     needs: classify
+    # Temporary Issue #113 self-check: CI-policy edits exercise every durable
+    # focused group once. This clause and the matching step clauses are removed
+    # after the focused gate is observed green.
     if: >-
       needs.classify.outputs.skip_push != 'true' &&
-      needs.classify.outputs.windows_native == 'true'
+      (needs.classify.outputs.windows_native == 'true' || needs.classify.outputs.ci_policy == 'true')
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -163,14 +166,14 @@ jobs:
           python -m pip install -e . --no-deps
           python -m pip check
       - name: Run durable Help contracts
-        if: needs.classify.outputs.help_ui == 'true'
+        if: needs.classify.outputs.help_ui == 'true' || needs.classify.outputs.ci_policy == 'true'
         run: python scripts/ci_test_groups.py help
       - name: Run durable release contracts
-        if: needs.classify.outputs.release == 'true'
+        if: needs.classify.outputs.release == 'true' || needs.classify.outputs.ci_policy == 'true'
         run: python scripts/ci_test_groups.py release
       - name: Run durable RAW contracts
-        if: needs.classify.outputs.raw == 'true'
+        if: needs.classify.outputs.raw == 'true' || needs.classify.outputs.ci_policy == 'true'
         run: python scripts/ci_test_groups.py raw
       - name: Run durable YUV contracts
-        if: needs.classify.outputs.yuv == 'true'
+        if: needs.classify.outputs.yuv == 'true' || needs.classify.outputs.ci_policy == 'true'
         run: python scripts/ci_test_groups.py yuv
