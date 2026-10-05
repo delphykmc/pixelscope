@@ -1,9 +1,8 @@
 """Profile the repository tree that full-copy validation fixtures can see.
 
-This is diagnostic tooling for Issue #113. It does not change validation
-behavior. The explicit ignore names mirror the screenshot-rendering fixture's
-``shutil.copytree`` exclusions so owner-local measurements can distinguish
-tracked repository content from extra local files that are still copied.
+This is diagnostic tooling for Issue #113. The explicit ignore names are shared
+with the screenshot-rendering fixture so owner-local measurements describe the
+same copy contract that the integration test uses.
 """
 
 from __future__ import annotations
@@ -20,7 +19,10 @@ COPY_IGNORE_NAMES = frozenset(
     {
         ".git",
         ".venv",
+        ".venv-release",
         ".tox",
+        ".codex",
+        ".test-results",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
@@ -28,6 +30,7 @@ COPY_IGNORE_NAMES = frozenset(
         ".cache",
         "build",
         "dist",
+        "release",
         "site",
         "temp",
     }
