@@ -112,7 +112,6 @@ jobs:
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
-          python -m ruff format --diff tests/unit/test_ci_change_classification.py tests/unit/test_ci_workflow_policy.py
           python -m ruff format --check .
       - name: Check changed lines for whitespace errors
         env:
