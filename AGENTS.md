@@ -38,6 +38,13 @@ source and tests before changing behavior.
 - Inspect related source, call sites, tests, product behavior, and architecture
   notes before changing public behavior.
 - Add or update tests with every functional change.
+- **Do not run or add the complete repository pytest suite in CI.** Full `pytest`
+  validation is an owner/local merge-readiness gate. CI exists for fast pre-merge
+  feedback: broad cheap static checks plus small durable tests selected for the
+  changed contract. Temporary PR-specific focused tests may be added while a
+  feature is active and removed after that coverage is no longer needed in CI.
+  Unknown/shared changes may require broader **local** validation, but must not
+  automatically promote CI to the full pytest suite.
 - Do not preserve temporary integration scripts, compatibility bridges, or
   workarounds as permanent architecture without a recorded decision.
 - Durable documents are cumulative system-of-record contracts. Do not replace or
