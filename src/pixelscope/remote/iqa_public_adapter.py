@@ -50,11 +50,11 @@ from pixelscope.remote.iqa_submission import (
     FolderPairEntry,
     IqaJobRequest,
     IqaJobStatus,
-    IqaResultReference as P5ResultReference,
     JobState,
     build_request,
     probe_image,
 )
+from pixelscope.remote.iqa_submission import IqaResultReference as P5ResultReference
 from pixelscope.remote.iqa_v2_domain import MeasurementSummary, ResultV2
 from pixelscope.remote.iqa_v2_partial import PartialResultV2
 from pixelscope.remote.iqa_v2_reader import load_grid_scene
