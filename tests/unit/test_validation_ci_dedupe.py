@@ -59,9 +59,7 @@ def _fetch(*, merge_tree: str = TREE):
 
 
 def test_matching_pr_run_must_be_same_repo_branch_sha_and_open_pr() -> None:
-    assert has_matching_pr_run(
-        [_run()], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={12}
-    )
+    assert has_matching_pr_run([_run()], repo=REPO, branch=BRANCH, sha=SHA, open_pr_numbers={12})
     assert not has_matching_pr_run(
         [_run()], repo=REPO, branch="other", sha=SHA, open_pr_numbers={12}
     )
