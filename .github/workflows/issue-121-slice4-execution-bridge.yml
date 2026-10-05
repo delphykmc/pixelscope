@@ -31,6 +31,7 @@ jobs:
           python -m pip check
       - name: Format and lint changed Python
         run: |
+          python -m ruff check --fix src/pixelscope/ui/iqa_submission.py src/pixelscope/ui/iqa_client_install.py tests/ui/test_issue121_iqa_composition_seam.py
           python -m ruff format src/pixelscope/ui/iqa_submission.py src/pixelscope/ui/iqa_client_install.py tests/ui/test_issue121_iqa_composition_seam.py
           python -m ruff check src/pixelscope/ui/iqa_submission.py src/pixelscope/ui/iqa_client_install.py tests/ui/test_issue121_iqa_composition_seam.py
       - name: Run focused execution bridge validation
