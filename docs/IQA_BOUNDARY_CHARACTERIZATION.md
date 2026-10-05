@@ -162,6 +162,16 @@ asserts local analysis clear/wait before Remote IQA result/file clear/wait.
 `tests/unit/test_application_composition.py` is an executable canary for this order and
 for the shared result-pool identity.
 
+For Slice 1, the compatibility-critical order is the pre-`MainWindow` pool
+construction/registration order above and the internal dependency order inside
+`_compose_remote_iqa(...)`, including the shared result-pool identity and explicit
+prerequisites consumed by those installers. The current placement of
+`_compose_remote_iqa(...)` among otherwise unrelated local presentation installers
+(currently after `install_user_guide_help()` and before `polish_presentation_controls()`)
+is observed composition, but is not independently frozen as an architectural contract.
+A later composition seam may move that call only if its prerequisites, observable
+behavior, pool identities, teardown semantics, and existing canaries remain unchanged.
+
 ## Current worker and shutdown compatibility contract
 
 Ownership separation must not silently change any of these lifetime properties.
@@ -234,11 +244,15 @@ provider/handoff path has been proven.
 ## Existing IQA validation inventory
 
 The repository already has broad IQA coverage. Slice 1 does not rename, relocate, or
-rewrite these tests.
+rewrite these tests. The lists below are **characterization canaries selected for
+ownership-sensitive boundaries**, not an exhaustive index of every test whose name or
+contents mention IQA. Settings, composition, lifecycle, result, storage, and transport
+canaries are called out where later slices must preserve the behavior or consciously
+update the corresponding contract.
 
 ### Public result/domain and synthetic semantic tests
 
-Representative unit coverage includes:
+Characterization canaries include:
 
 - `tests/unit/test_iqa_explorer.py`;
 - `tests/unit/test_iqa_current_pair_contract.py`;
@@ -253,6 +267,20 @@ Representative unit coverage includes:
 
 These exercise local/synthetic data shapes, schemas, explorer semantics, partial
 states, source identity, and history behavior without a confidential backend.
+
+### Ownership-split settings/inspection canaries
+
+Two cross-boundary unit tests are especially important for later ownership work:
+
+- `tests/unit/test_settings_schema_v5.py` freezes the current schema-v6 defaults,
+  schema-v5 -> v6 migration, `RemoteIqaSettings` round-trip, and the current common
+  reset behavior that also resets Remote IQA settings. Slice 7 must preserve or
+  intentionally replace this coupling rather than dropping it accidentally.
+- `tests/unit/test_p5d_review_closeout_unit.py` uses synthetic `ResultV2` data together
+  with `RemoteIqaSettings` to exercise P5-D native source inspection, source/path
+  identity aliasing rules, and image-dimension probing. It is therefore a canary at
+  the Client public-result/inspection boundary and the current storage/settings
+  coupling.
 
 ### Transport/storage/provider-adjacent deterministic tests
 
