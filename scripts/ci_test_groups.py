@@ -31,12 +31,8 @@ DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
             "Release artifact shape and packaging rules.",
         ),
         DurableTest(
-            "tests/unit/test_release_bundle.py",
-            "Release bundle completeness and integrity.",
-        ),
-        DurableTest(
             "tests/unit/test_release_candidate.py",
-            "Release-candidate provenance and staging rules.",
+            "Release bundle integrity, candidate provenance and staging rules.",
         ),
     ),
     "raw": (
