@@ -77,9 +77,21 @@ class IqaExplorerModel:
 
     @property
     def result(self) -> Result | ResultV2:
-        """Compatibility view used by the existing P5 UI presentation layer."""
+        """Legacy/schema-v2 result used by the existing P5 presentation layer.
 
-        return cast(Result | ResultV2, self._result)
+        Normalized public results intentionally do not pass through this legacy-only typed
+        surface; Slice 4/UI composition can opt into ``normalized_result`` explicitly.
+        """
+
+        if isinstance(self._result, IqaResult):
+            raise TypeError("normalized IQA result is available through normalized_result")
+        return self._result
+
+    @property
+    def normalized_result(self) -> IqaResult | None:
+        """Return the normalized public result when this model was built from one."""
+
+        return self._result if isinstance(self._result, IqaResult) else None
 
     @property
     def is_v2(self) -> bool:
