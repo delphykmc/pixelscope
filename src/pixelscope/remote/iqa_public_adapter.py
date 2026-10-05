@@ -158,6 +158,12 @@ class P5IqaResultAccessAdapter:
         )
 
     def open_result(self, source: IqaResultSource) -> IqaResultOpenOutcome:
+        if not source.root.exists():
+            diagnostic = IqaDiagnostic(
+                "result_source_missing",
+                "Result source is not available locally.",
+            )
+            return IqaResultOpenOutcome(IqaAvailability.MISSING, diagnostics=(diagnostic,))
         outcome = load_result(source.root)
         if outcome.status is not LoadStatus.SUCCESS or outcome.result is None:
             diagnostic = IqaDiagnostic(
@@ -222,19 +228,31 @@ class _P5SpatialAccess:
         self._completeness = completeness
 
     def load_scene(self, scene_id: str) -> IqaSpatialLoadOutcome:
-        outcome = load_grid_scene(self._result, scene_id)
-        if not outcome.succeeded or outcome.data is None:
+        if scene_id not in {scene.scene_id for scene in self._result.scenes}:
             availability = (
                 IqaAvailability.MISSING
                 if self._completeness is IqaResultCompleteness.PARTIAL
                 else IqaAvailability.FAILED
             )
             diagnostic = IqaDiagnostic(
-                "spatial_data_unavailable",
-                outcome.reason or "Scene spatial data is unavailable.",
+                "spatial_scene_not_published"
+                if availability is IqaAvailability.MISSING
+                else "spatial_scene_unknown",
+                "Scene spatial data was not published."
+                if availability is IqaAvailability.MISSING
+                else "Scene is not part of this result.",
                 scene_id=scene_id,
             )
             return IqaSpatialLoadOutcome(availability, diagnostics=(diagnostic,))
+
+        outcome = load_grid_scene(self._result, scene_id)
+        if not outcome.succeeded or outcome.data is None:
+            diagnostic = IqaDiagnostic(
+                "spatial_data_failed",
+                outcome.reason or "Scene spatial data could not be loaded.",
+                scene_id=scene_id,
+            )
+            return IqaSpatialLoadOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
         data = outcome.data
         return IqaSpatialLoadOutcome(
             IqaAvailability.AVAILABLE,
