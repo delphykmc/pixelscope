@@ -140,9 +140,7 @@ def test_pr_merge_base_excludes_unrelated_changes_added_to_base(tmp_path: Path) 
     )
 
     direct_groups = classify_paths(git_changed_paths(tmp_path, base, head))
-    pr_groups = classify_paths(
-        git_changed_paths(tmp_path, base, head, use_merge_base=True)
-    )
+    pr_groups = classify_paths(git_changed_paths(tmp_path, base, head, use_merge_base=True))
 
     assert direct_groups["release"]
     assert pr_groups["docs"]
