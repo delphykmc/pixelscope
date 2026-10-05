@@ -110,6 +110,7 @@ jobs:
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
+          python -m ruff format --diff scripts/classify_ci_changes.py
           python -m ruff format --check .
       - name: Type-check source when source or shared config changed
         if: needs.classify.outputs.typecheck == 'true'
