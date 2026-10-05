@@ -38,6 +38,19 @@ source and tests before changing behavior.
 - Inspect related source, call sites, tests, product behavior, and architecture
   notes before changing public behavior.
 - Add or update tests with every functional change.
+- **Do not run or add the complete repository pytest suite in CI.** Full `pytest`
+  validation is an owner/local merge-readiness gate. CI exists for fast pre-merge
+  feedback: broad cheap static checks plus small durable tests selected for the
+  changed contract. Hosted durable pytest groups must remain deterministic and
+  must not depend on Qt widget timing, geometry, event-loop teardown, or native
+  UI lifecycle behavior. Applicable Qt/UI tests remain required, with owner/local
+  Windows validation authoritative; keep those tests and fix their contracts
+  rather than weakening assertions, suppressing lifecycle errors, or inflating
+  arbitrary timeouts merely to make a hosted runner green. Temporary PR-specific
+  focused tests may be added while a feature is active and removed after that
+  coverage is no longer needed in CI. Unknown/shared changes may require broader
+  **local** validation, but must not automatically promote CI to the full pytest
+  suite.
 - Do not preserve temporary integration scripts, compatibility bridges, or
   workarounds as permanent architecture without a recorded decision.
 - Durable documents are cumulative system-of-record contracts. Do not replace or
@@ -69,7 +82,7 @@ source and tests before changing behavior.
 7. Update durable docs in the same PR when behavior, architecture, constraints,
    decisions, or backlog state changes. For durable-doc edits, preserve the current
    merged baseline, inspect semantic diff scope and deletion counts, and stop on
-   unexplained broad contractions before committing.
+   unexplained broad contractions before committing or merge review.
 8. Report only validation output that was actually observed.
 
 Final reports must list changed files, observable behavior, validation commands
