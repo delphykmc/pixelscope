@@ -49,9 +49,8 @@ def test_issue_113_profile_policy_is_documentation_owned() -> None:
     assert not groups["local_full_required"]
 
 
-def test_help_raw_yuv_and_release_paths_select_focused_windows_groups() -> None:
+def test_release_and_raw_yuv_core_paths_select_focused_windows_groups() -> None:
     groups = _groups(
-        "src/pixelscope/ui/user_guide_help.py",
         "src/pixelscope/io/raw_reader.py",
         "src/pixelscope/core/yuv.py",
         "scripts/release_contract.py",
@@ -60,12 +59,36 @@ def test_help_raw_yuv_and_release_paths_select_focused_windows_groups() -> None:
         "requirements/release.txt",
     )
 
-    assert groups["help_ui"]
     assert groups["raw"]
+    assert groups["raw_core"]
+    assert not groups["raw_ui"]
     assert groups["yuv"]
+    assert groups["yuv_core"]
+    assert not groups["yuv_ui"]
     assert groups["release"]
     assert groups["windows_native"]
     assert groups["typecheck"]
+    assert not groups["local_ui_required"]
+    assert not groups["unknown"]
+
+
+def test_help_raw_and_yuv_ui_paths_require_owner_local_ui_without_hosted_pytest() -> None:
+    groups = _groups(
+        "src/pixelscope/ui/user_guide_help.py",
+        "tests/ui/test_p1c_raw_dialog.py",
+        "tests/ui/test_wp_c2_yuv_difference.py",
+    )
+
+    assert groups["help_ui"]
+    assert groups["raw"]
+    assert groups["raw_ui"]
+    assert not groups["raw_core"]
+    assert groups["yuv"]
+    assert groups["yuv_ui"]
+    assert not groups["yuv_core"]
+    assert groups["local_ui_required"]
+    assert not groups["windows_native"]
+    assert not groups["local_full_required"]
     assert not groups["unknown"]
 
 
@@ -93,6 +116,10 @@ def test_unknown_changes_require_broader_owner_local_validation_only() -> None:
         assert groups["unknown"], path
         assert groups["local_full_required"], path
 
+    ui_groups = _groups("tests/ui/test_something_new.py")
+    assert ui_groups["local_ui_required"]
+    assert not ui_groups["windows_native"]
+
 
 def test_shared_runtime_and_ci_policy_changes_require_local_full_validation() -> None:
     for path in (
@@ -110,7 +137,9 @@ def test_lifecycle_change_requires_local_full_and_is_explicitly_identified() -> 
     groups = _groups("tests/ui/test_issue81_qt_lifecycle.py")
 
     assert groups["local_full_required"]
+    assert groups["local_ui_required"]
     assert groups["lifecycle"]
+    assert not groups["windows_native"]
 
 
 def test_rename_considers_both_old_and_new_ownership() -> None:
@@ -119,6 +148,7 @@ def test_rename_considers_both_old_and_new_ownership() -> None:
     )
 
     assert groups["raw"]
+    assert groups["raw_core"]
     assert groups["local_full_required"]  # unknown destination widens owner/local validation
 
 
@@ -152,4 +182,5 @@ def test_no_change_produces_no_validation_scope() -> None:
     groups = classify_paths([])
 
     assert not groups["any_validation"]
+    assert not groups["local_ui_required"]
     assert not groups["local_full_required"]
