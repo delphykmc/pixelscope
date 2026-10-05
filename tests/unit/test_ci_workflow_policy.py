@@ -41,6 +41,7 @@ def test_validation_workflow_keeps_full_pytest_out_of_ci() -> None:
     assert "Run complete repository pytest contract under normal GC" not in text
     assert "needs.classify.outputs.full" not in text
     assert "local_full_required" in text
+    assert "local_ui_required" in text
     assert "GitHub CI intentionally does not run the complete pytest suite" in text
     assert "python -m pip install -r requirements/runtime.txt mypy==1.8.0" in text
     assert "python -m mypy src" in text
@@ -50,6 +51,30 @@ def test_validation_workflow_keeps_full_pytest_out_of_ci() -> None:
     assert "scripts/skip_duplicate_validation_push.py" in text
 
 
+def test_hosted_focused_pytest_excludes_qt_ui_groups() -> None:
+    text = (WORKFLOWS / "validation.yml").read_text(encoding="utf-8")
+
+    assert "python scripts/ci_test_groups.py release" in text
+    assert "python scripts/ci_test_groups.py raw-core" in text
+    assert "python scripts/ci_test_groups.py yuv-core" in text
+    assert "python scripts/ci_test_groups.py help-ui" not in text
+    assert "python scripts/ci_test_groups.py raw-ui" not in text
+    assert "python scripts/ci_test_groups.py yuv-ui" not in text
+    assert "Run durable Help contracts" not in text
+    assert "Run durable RAW core contracts" in text
+    assert "Run durable YUV core contracts" in text
+
+
+def test_temporary_focused_self_check_is_removed_before_merge() -> None:
+    text = (WORKFLOWS / "validation.yml").read_text(encoding="utf-8")
+
+    assert "release_self_check" not in text
+    assert "raw_self_check" not in text
+    assert "yuv_self_check" not in text
+    assert "Fail temporary focused self-check" not in text
+    assert "continue-on-error" not in text
+
+
 def test_all_workflow_pytest_invocations_are_explicitly_scoped() -> None:
     for path in sorted(WORKFLOWS.glob("*.y*ml")):
         for block in _run_blocks(path):
@@ -57,11 +82,12 @@ def test_all_workflow_pytest_invocations_are_explicitly_scoped() -> None:
                 assert "tests/" in block, f"unscoped pytest invocation in {path}: {block}"
 
 
-def test_focused_native_validation_is_not_suppressed_by_local_full_signal() -> None:
+def test_focused_windows_validation_runs_only_for_hosted_native_scope() -> None:
     text = (WORKFLOWS / "validation.yml").read_text(encoding="utf-8")
 
     assert "needs.classify.outputs.windows_native == 'true'" in text
     assert "needs.classify.outputs.local_full_required != 'true'" not in text
+    assert "needs.classify.outputs.local_ui_required == 'true'" in text
 
 
 def test_user_guide_workflow_no_longer_owns_unrelated_native_validation() -> None:
