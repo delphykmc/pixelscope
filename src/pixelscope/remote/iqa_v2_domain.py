@@ -162,11 +162,30 @@ class GridLoadOutcomeV2:
         return self.status is LoadStatus.SUCCESS
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class VersionedResultLoadOutcome:
+    """Load outcome for durable legacy/schema-v2 artifacts.
+
+    The existing workspace also uses this object as a presentation status. A normalized
+    public ``IqaResult`` may therefore be accepted by the constructor for that status-only
+    path, but it is deliberately not stored in ``result``: normalized Client-domain data
+    is not a legacy/versioned artifact and is available from ``IqaExplorerModel`` instead.
+    """
+
     status: LoadStatus
-    result: Result | ResultV2 | IqaResult | None = None
+    result: Result | ResultV2 | None = None
     reason: str | None = None
+
+    def __init__(
+        self,
+        status: LoadStatus,
+        result: Result | ResultV2 | IqaResult | None = None,
+        reason: str | None = None,
+    ) -> None:
+        object.__setattr__(self, "status", status)
+        legacy_result = result if isinstance(result, (Result, ResultV2)) else None
+        object.__setattr__(self, "result", legacy_result)
+        object.__setattr__(self, "reason", reason)
 
     @property
     def succeeded(self) -> bool:
