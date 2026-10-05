@@ -87,7 +87,12 @@ def git_changed_paths(root: Path, base: str, head: str) -> list[ChangedPath]:
     return changes
 
 
-def _matches(path: str, *, exact: tuple[str, ...] = (), prefixes: tuple[str, ...] = ()) -> bool:
+def _matches(
+    path: str,
+    *,
+    exact: tuple[str, ...] = (),
+    prefixes: tuple[str, ...] = (),
+) -> bool:
     return path in exact or any(path.startswith(prefix) for prefix in prefixes)
 
 
