@@ -301,13 +301,13 @@ def build_fixture_result(
                 scene_mean = ScalarStatistic.invalid("missing_data")
                 scene_std = ScalarStatistic.invalid("missing_data")
             else:
-                mean = float(sum(values) / len(values))
                 availability = (
                     IqaAvailability.PARTIAL
                     if len(values) != scene_count
                     else IqaAvailability.AVAILABLE
                 )
-                pooled = _summary(mean, availability=availability, valid_count=len(values))
+                pooled = _pooled_summary(values, availability=availability)
+                mean = float(sum(values) / len(values))
                 scene_mean = ScalarStatistic(mean, True)
                 variance = sum((value - mean) ** 2 for value in values) / len(values)
                 scene_std = ScalarStatistic(float(variance**0.5), True)
@@ -563,6 +563,28 @@ def _summary(
         valid_count=valid_count,
         weighted_mean=value,
         weighted_std=0.0,
+    )
+
+
+def _pooled_summary(
+    values: list[float],
+    *,
+    availability: IqaAvailability,
+) -> IqaMeasurementSummary:
+    valid_count = len(values)
+    weight_sum = float(valid_count)
+    weighted_sum = float(sum(values))
+    weighted_square_sum = float(sum(value * value for value in values))
+    weighted_mean = weighted_sum / weight_sum
+    variance = max(0.0, weighted_square_sum / weight_sum - weighted_mean * weighted_mean)
+    return IqaMeasurementSummary(
+        availability=availability,
+        weight_sum=weight_sum,
+        weighted_sum=weighted_sum,
+        weighted_square_sum=weighted_square_sum,
+        valid_count=valid_count,
+        weighted_mean=weighted_mean,
+        weighted_std=float(variance**0.5),
     )
 
 
