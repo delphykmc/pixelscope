@@ -1,0 +1,180 @@
+name: Change-scoped validation
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "docs/**"
+      - "examples/**"
+      - "packaging/**"
+      - "requirements/**"
+      - ".github/**"
+      - "pyproject.toml"
+      - "mkdocs.yml"
+      - "AGENTS.md"
+      - "README.md"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "docs/**"
+      - "examples/**"
+      - "packaging/**"
+      - "requirements/**"
+      - ".github/**"
+      - "pyproject.toml"
+      - "mkdocs.yml"
+      - "AGENTS.md"
+      - "README.md"
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: change-scoped-validation-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    name: Classify validation scope
+    runs-on: ubuntu-latest
+    outputs:
+      skip_push: ${{ steps.duplicate_push.outputs.skip }}
+      base_sha: ${{ steps.scope.outputs.base_sha }}
+      head_sha: ${{ steps.scope.outputs.head_sha }}
+      docs: ${{ steps.scope.outputs.docs }}
+      help_ui: ${{ steps.scope.outputs.help_ui }}
+      release: ${{ steps.scope.outputs.release }}
+      raw: ${{ steps.scope.outputs.raw }}
+      yuv: ${{ steps.scope.outputs.yuv }}
+      full: ${{ steps.scope.outputs.full }}
+      lifecycle: ${{ steps.scope.outputs.lifecycle }}
+      typecheck: ${{ steps.scope.outputs.typecheck }}
+      windows_native: ${{ steps.scope.outputs.windows_native }}
+      any_validation: ${{ steps.scope.outputs.any_validation }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Check PR run and merge-tree identity before duplicate push validation
+        id: duplicate_push
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python scripts/skip_duplicate_validation_push.py
+          --repo "${{ github.repository }}"
+          --branch "${{ github.ref_name }}"
+          --sha "${{ github.sha }}"
+      - name: Classify changed paths
+        id: scope
+        if: steps.duplicate_push.outputs.skip != 'true'
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          git fetch origin main:refs/remotes/origin/main
+          python scripts/classify_ci_changes.py --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA" --output build/ci-classification.json --github-output "$GITHUB_OUTPUT"
+
+  cheap:
+    name: Cheap repository validation
+    needs: classify
+    if: needs.classify.outputs.skip_push != 'true' && needs.classify.outputs.any_validation == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - name: Install cheap validation tools
+        run: python -m pip install pytest==7.4.4 ruff==0.1.15
+      - name: Validate CI policy contracts
+        run: >-
+          python -m pytest -q
+          tests/unit/test_ci_change_classification.py
+          tests/unit/test_ci_test_groups.py
+          tests/unit/test_validation_ci_dedupe.py
+      - name: Check documentation contract
+        run: python scripts/check_docs.py
+      - name: Check whole-repository Ruff lint and formatting
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+      - name: Check changed lines for whitespace errors
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: git diff --check "$BASE_SHA...$HEAD_SHA"
+
+  focused-windows:
+    name: Focused Windows validation
+    needs: classify
+    if: >-
+      needs.classify.outputs.skip_push != 'true' &&
+      needs.classify.outputs.windows_native == 'true' &&
+      needs.classify.outputs.full != 'true'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - name: Install application and focused validation environment
+        run: |
+          python -m pip install -r requirements/dev.txt
+          python -m pip install -e . --no-deps
+          python -m pip check
+      - name: Run durable Help contracts
+        if: needs.classify.outputs.help_ui == 'true'
+        run: python scripts/ci_test_groups.py help
+      - name: Run durable release contracts
+        if: needs.classify.outputs.release == 'true'
+        run: python scripts/ci_test_groups.py release
+      - name: Run durable RAW contracts
+        if: needs.classify.outputs.raw == 'true'
+        run: python scripts/ci_test_groups.py raw
+      - name: Run durable YUV contracts
+        if: needs.classify.outputs.yuv == 'true'
+        run: python scripts/ci_test_groups.py yuv
+      - name: Type-check source when source/config changed
+        if: needs.classify.outputs.typecheck == 'true'
+        run: python -m mypy src
+
+  full-windows:
+    name: Full Windows validation
+    needs: classify
+    if: >-
+      needs.classify.outputs.skip_push != 'true' &&
+      needs.classify.outputs.full == 'true'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - name: Install full validation environment
+        run: |
+          python -m pip install -r requirements/dev.txt
+          python -m pip install -e . --no-deps
+          python -m pip check
+      - name: Run complete repository pytest contract under normal GC
+        run: python -m pytest -q
+      - name: Type-check source
+        run: python -m mypy src
