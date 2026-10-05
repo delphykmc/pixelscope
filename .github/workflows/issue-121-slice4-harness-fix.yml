@@ -1,0 +1,47 @@
+name: Issue 121 Slice 4 capture harness patch
+
+on:
+  push:
+    branches:
+      - feat/issue-121-slice-4-iqa-composition-seam
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-121-slice-4-iqa-composition-seam
+      - name: Align screenshot capture with explicit IQA Client composition
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/capture_ui_scene.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '''from pixelscope.app.application import (\n    _compose_main_window_presentation,\n    analysis_thread_pool,\n    create_application,\n    load_startup_settings,\n    remote_iqa_thread_pool,\n)\nfrom pixelscope.app.main_window import MainWindow\n''',
+              '''from pixelscope.app.application import (\n    _compose_main_window_presentation,\n    analysis_thread_pool,\n    create_application,\n    load_startup_settings,\n)\nfrom pixelscope.app.main_window import MainWindow\nfrom pixelscope.ui.iqa_client_install import IqaClientInstaller\n''',
+          )
+          legacy = '''    analysis_thread_pool()\n    result_pool = remote_iqa_thread_pool()\n    window = MainWindow(settings, performance, repository, iqa_result_pool=result_pool)\n    _compose_main_window_presentation(window)\n'''
+          explicit = '''    analysis_thread_pool()\n    iqa_client = IqaClientInstaller.production()\n    window = MainWindow(\n        settings,\n        performance,\n        repository,\n        window_contributions=(iqa_client,),\n    )\n    _compose_main_window_presentation(window, iqa_client)\n'''
+          count = text.count(legacy)
+          if count != 2:
+              raise SystemExit(f'expected 2 legacy capture composition blocks, found {count}')
+          text = text.replace(legacy, explicit)
+          path.write_text(text, encoding='utf-8')
+          PY
+          python -m pip install ruff==0.1.15
+          python -m ruff check scripts/capture_ui_scene.py
+          python -m ruff format scripts/capture_ui_scene.py
+      - name: Commit capture harness fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/capture_ui_scene.py
+          git commit -m "[ChatGPT-assisted] Align screenshot capture with Slice 4 composition" -m "Co-authored-by: ChatGPT <noreply@openai.com>"
+          git push origin HEAD:feat/issue-121-slice-4-iqa-composition-seam
