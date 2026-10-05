@@ -66,7 +66,9 @@ def tracked_paths_hidden_by_copy_policy(tracked: Iterable[str]) -> list[str]:
     """Return tracked paths that the copy policy would prune by name."""
     hidden = []
     for path in tracked:
-        if any(part in COPY_IGNORE_NAMES for part in path.replace("\\", "/").split("/")):
+        if any(
+            part in COPY_IGNORE_NAMES for part in path.replace("\\", "/").split("/")
+        ):
             hidden.append(path)
     return sorted(hidden)
 
