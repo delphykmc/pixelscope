@@ -23,6 +23,7 @@ def test_summarize_tree_separates_tracked_and_local_copy_candidates(tmp_path: Pa
     assert summary["tracked_bytes"] == 3
     assert summary["non_tracked_files"] == 1
     assert summary["non_tracked_bytes"] == 5
+    assert summary["largest_non_tracked"] == [{"path": "local/cache.bin", "bytes": 5}]
 
     rows = {row["path"]: row for row in summary["top_level"]}
     assert rows["src"]["tracked_files"] == 1
