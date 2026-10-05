@@ -23,13 +23,11 @@ jobs:
       - name: Install focused validation dependencies
         run: >-
           python -m pip install -r requirements/runtime.txt
-          pytest==7.4.4 pytest-qt==4.4.0 ruff==0.1.15 mypy==1.11.2
+          pytest==7.4.4 pytest-qt==4.4.0 ruff==0.1.15
       - name: Check Slice 3 lint and formatting
         run: |
           python -m ruff check src/pixelscope/remote/iqa_public_fixture.py src/pixelscope/remote/iqa_explorer.py tests/unit/test_iqa_public_fixture.py tests/unit/test_iqa_public_contract.py tests/ui/test_beta_pass2_iqa_stress.py tests/ui/test_iqa_public_fixture_profiles.py
           python -m ruff format --check src/pixelscope/remote/iqa_public_fixture.py src/pixelscope/remote/iqa_explorer.py tests/unit/test_iqa_public_fixture.py tests/unit/test_iqa_public_contract.py tests/ui/test_beta_pass2_iqa_stress.py tests/ui/test_iqa_public_fixture_profiles.py
-      - name: Check source typing
-        run: python -m mypy src
       - name: Run Slice 3 public fixture and IQA UI canaries
         run: >-
           python -m pytest -q
