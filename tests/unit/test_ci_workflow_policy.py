@@ -45,7 +45,7 @@ def test_validation_workflow_keeps_full_pytest_out_of_ci() -> None:
     assert "python -m pip install -r requirements/runtime.txt mypy==1.8.0" in text
     assert "python -m mypy src" in text
     assert "needs.classify.outputs.ci_policy == 'true'" in text
-    assert "--diff-mode \"$CI_DIFF_MODE\"" in text
+    assert '--diff-mode "$CI_DIFF_MODE"' in text
     assert "scripts/classify_ci_changes.py" in text
     assert "scripts/skip_duplicate_validation_push.py" in text
 
