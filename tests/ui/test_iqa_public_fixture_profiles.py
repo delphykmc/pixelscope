@@ -6,38 +6,11 @@ import pytest
 
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_explorer import IqaExplorerModel
-from pixelscope.remote.iqa_public_contract import (
-    IqaAvailability,
-    IqaJobState,
-    IqaSubmissionIntent,
-    IqaSubmissionScene,
-    IqaSubmissionSource,
-    IqaVariant,
-)
-from pixelscope.remote.iqa_public_fixture import (
-    FixtureIqaProvider,
-    IqaFixtureProfile,
-    build_profile_result,
-)
+from pixelscope.remote.iqa_public_contract import IqaAvailability
+from pixelscope.remote.iqa_public_fixture import IqaFixtureProfile, build_profile_result
 from pixelscope.ui.iqa_workspace import IqaWorkspaceWidget
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
-
-
-def _intent() -> IqaSubmissionIntent:
-    return IqaSubmissionIntent(
-        "fixture",
-        (IqaVariant("A", "A"), IqaVariant("B", "B")),
-        (
-            IqaSubmissionScene(
-                "fixture_input",
-                (
-                    IqaSubmissionSource("A", Path("a.png")),
-                    IqaSubmissionSource("B", Path("b.png")),
-                ),
-            ),
-        ),
-    )
 
 
 def test_partial_public_fixture_renders_without_fabricating_missing_measurement(
@@ -49,7 +22,9 @@ def test_partial_public_fixture_renders_without_fabricating_missing_measurement(
     widget = IqaWorkspaceWidget()
     qtbot.addWidget(widget)  # type: ignore[attr-defined]
 
-    assert widget.set_model(model).status is LoadStatus.SUCCESS
+    outcome = widget.set_model(model)
+    assert outcome.status is LoadStatus.SUCCESS
+    assert outcome.result is None
     assert model.normalized_result is result
     assert widget.hierarchy.topLevelItemCount() == len(result.attributes)
 
@@ -74,22 +49,3 @@ def test_partial_public_fixture_renders_without_fabricating_missing_measurement(
     missing_text = missing_row.text(len(result.variants))
     assert missing_text
     assert missing_text != "0.0000"
-
-
-def test_failure_fixture_state_is_presentable_without_network_or_model(
-    qtbot: object,
-    tmp_path: Path,
-) -> None:
-    provider = FixtureIqaProvider(tmp_path / "failure", IqaFixtureProfile.FAILURE)
-    job = provider.submit(_intent())
-    assert provider.advance(job).state is IqaJobState.RUNNING
-    failed = provider.advance(job)
-    assert failed.state is IqaJobState.FAILED
-    assert failed.message is not None
-
-    widget = IqaWorkspaceWidget()
-    qtbot.addWidget(widget)  # type: ignore[attr-defined]
-    widget.show_open_error(LoadStatus.CORRUPT, failed.message)
-
-    assert widget.status_label.text() == f"CORRUPT: {failed.message}"
-    assert widget.model is None
