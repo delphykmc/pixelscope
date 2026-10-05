@@ -2,7 +2,8 @@
 
 This is intentionally not a plugin framework. Production chooses concrete contributors
 explicitly and passes them to :class:`MainWindow`; no discovery, version negotiation, or
-hot loading is performed here.
+hot loading is performed here. The phase order mirrors the existing window construction
+and shutdown points so separation does not create a new lifecycle model.
 """
 
 from __future__ import annotations
