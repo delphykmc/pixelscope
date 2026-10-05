@@ -8,8 +8,14 @@ It does not alter current production composition or lifecycle ownership.
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
+from threading import RLock
 
-from pixelscope.remote.iqa_client import IqaJobClient
+from pixelscope.remote.iqa_client import (
+    IqaClientError,
+    IqaClientErrorKind,
+    IqaCreateOutcomeUnknown,
+    IqaJobClient,
+)
 from pixelscope.remote.iqa_domain import LoadStatus, Source
 from pixelscope.remote.iqa_public_contract import (
     IqaAvailability,
@@ -22,6 +28,8 @@ from pixelscope.remote.iqa_public_contract import (
     IqaJobSnapshot,
     IqaJobState,
     IqaMeasurementSummary,
+    IqaProviderError,
+    IqaProviderErrorKind,
     IqaResolvedSource,
     IqaResult,
     IqaResultCompleteness,
@@ -33,6 +41,7 @@ from pixelscope.remote.iqa_public_contract import (
     IqaSceneSource,
     IqaSource,
     IqaSourceLocator,
+    IqaSourceResolutionOutcome,
     IqaSpatialLoadOutcome,
     IqaSpatialSceneData,
     IqaSubmissionIntent,
@@ -51,6 +60,7 @@ from pixelscope.remote.iqa_submission import (
     IqaJobRequest,
     IqaJobStatus,
     JobState,
+    PreflightError,
     build_request,
     probe_image,
 )
@@ -66,23 +76,28 @@ class P5IqaReferenceRegistry:
     def __init__(self) -> None:
         self._results: dict[str, P5ResultReference] = {}
         self._sources: dict[str, Source] = {}
+        self._lock = RLock()
 
     def register_result(self, reference: P5ResultReference) -> IqaResultReference:
-        self._results[reference.job_id] = reference
+        with self._lock:
+            self._results[reference.job_id] = reference
         return IqaResultReference(reference.job_id)
 
     def result(self, reference: IqaResultReference) -> P5ResultReference | None:
-        return self._results.get(reference.reference_id)
+        with self._lock:
+            return self._results.get(reference.reference_id)
 
     def register_source(self, locator: IqaSourceLocator, source: Source) -> None:
-        self._sources[locator.locator_id] = source
+        with self._lock:
+            self._sources[locator.locator_id] = source
 
     def source(self, locator: IqaSourceLocator) -> Source | None:
-        return self._sources.get(locator.locator_id)
+        with self._lock:
+            return self._sources.get(locator.locator_id)
 
 
 class P5IqaExecutionAdapter:
-    """Expose current P5 job execution through the company-neutral control plane."""
+    """Expose current P5 execution while serializing its legacy client instance safely."""
 
     def __init__(
         self,
@@ -93,25 +108,52 @@ class P5IqaExecutionAdapter:
         self._client = client
         self._settings = settings
         self._registry = registry
+        self._client_lock = RLock()
 
     @property
     def capabilities(self) -> IqaExecutionCapabilities:
         return IqaExecutionCapabilities(can_cancel=True)
 
     def submit(self, intent: IqaSubmissionIntent) -> IqaJobReference:
-        request = _legacy_request(intent, self._settings)
-        created = self._client.create_job(request)
+        try:
+            request = _legacy_request(intent, self._settings)
+        except (PreflightError, ValueError) as exc:
+            raise IqaProviderError(
+                IqaProviderErrorKind.INVALID,
+                "IQA submission is invalid or cannot be prepared with the current provider setup.",
+            ) from exc
+        try:
+            with self._client_lock:
+                created = self._client.create_job(request)
+        except IqaCreateOutcomeUnknown as exc:
+            raise _public_provider_error(exc, ambiguous_submit=True) from exc
+        except IqaClientError as exc:
+            raise _public_provider_error(exc) from exc
         return IqaJobReference(created.job_id)
 
     def get_status(self, reference: IqaJobReference) -> IqaJobSnapshot:
-        return _public_job_snapshot(self._client.get_status(reference.job_id))
+        try:
+            with self._client_lock:
+                status = self._client.get_status(reference.job_id)
+        except IqaClientError as exc:
+            raise _public_provider_error(exc) from exc
+        return _public_job_snapshot(status)
 
     def get_result_reference(self, reference: IqaJobReference) -> IqaResultReference:
-        legacy = self._client.get_result(reference.job_id)
+        try:
+            with self._client_lock:
+                legacy = self._client.get_result(reference.job_id)
+        except IqaClientError as exc:
+            raise _public_provider_error(exc) from exc
         return self._registry.register_result(legacy)
 
     def cancel(self, reference: IqaJobReference) -> IqaJobSnapshot:
-        return _public_job_snapshot(self._client.cancel_job(reference.job_id))
+        try:
+            with self._client_lock:
+                status = self._client.cancel_job(reference.job_id)
+        except IqaClientError as exc:
+            raise _public_provider_error(exc) from exc
+        return _public_job_snapshot(status)
 
 
 class P5IqaResultAccessAdapter:
@@ -139,8 +181,11 @@ class P5IqaResultAccessAdapter:
                 legacy.relative_path,
                 self._settings,
             )
-        except (StorageResolutionError, OSError, ValueError) as exc:
-            diagnostic = IqaDiagnostic("result_materialization_failed", str(exc))
+        except (StorageResolutionError, OSError, ValueError):
+            diagnostic = IqaDiagnostic(
+                "result_materialization_failed",
+                "Result materialization is unavailable with the current provider setup.",
+            )
             return IqaResultSourceOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
         completeness = (
             IqaResultCompleteness.PARTIAL
@@ -168,7 +213,7 @@ class P5IqaResultAccessAdapter:
         if outcome.status is not LoadStatus.SUCCESS or outcome.result is None:
             diagnostic = IqaDiagnostic(
                 "result_open_failed",
-                outcome.reason or f"unable to open IQA result ({outcome.status.value})",
+                "Result source could not be opened as a supported IQA result.",
             )
             return IqaResultOpenOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
         if not isinstance(outcome.result, ResultV2):
@@ -193,27 +238,57 @@ class P5IqaResultAccessAdapter:
             diagnostics=normalized.diagnostics,
         )
 
-    def resolve_source(self, locator: IqaSourceLocator) -> IqaResolvedSource | None:
+    def resolve_source(self, locator: IqaSourceLocator) -> IqaSourceResolutionOutcome:
         source = self._registry.source(locator)
         if source is None or source.storage_root_id is None:
-            return None
+            diagnostic = IqaDiagnostic(
+                "source_not_available",
+                "Source is not available for this result.",
+            )
+            return IqaSourceResolutionOutcome(IqaAvailability.MISSING, diagnostics=(diagnostic,))
         root = self._settings.root(source.storage_root_id)
         if root is None:
-            return None
+            diagnostic = IqaDiagnostic(
+                "source_access_unavailable",
+                "Source access is not configured for this provider.",
+            )
+            return IqaSourceResolutionOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
         try:
             validate_relative_path(source.relative_path)
             candidate = Path(root.client_path).joinpath(*PurePosixPath(source.relative_path).parts)
+        except (StorageResolutionError, OSError, ValueError):
+            diagnostic = IqaDiagnostic(
+                "source_resolution_failed",
+                "Source locator could not be resolved safely.",
+            )
+            return IqaSourceResolutionOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
+        if not candidate.is_file():
+            diagnostic = IqaDiagnostic(
+                "source_not_available",
+                "Source is not available locally.",
+            )
+            return IqaSourceResolutionOutcome(IqaAvailability.MISSING, diagnostics=(diagnostic,))
+        try:
             resolved = resolve_existing_source(candidate, self._settings)
         except (StorageResolutionError, OSError, ValueError):
-            return None
-        if resolved is None:
-            return None
-        if (
+            diagnostic = IqaDiagnostic(
+                "source_resolution_failed",
+                "Source locator could not be resolved safely.",
+            )
+            return IqaSourceResolutionOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
+        if resolved is None or (
             resolved.logical_path.storage_root_id != source.storage_root_id
             or resolved.logical_path.relative_path != source.relative_path
         ):
-            return None
-        return IqaResolvedSource(resolved.local_path)
+            diagnostic = IqaDiagnostic(
+                "source_resolution_failed",
+                "Source locator could not be resolved safely.",
+            )
+            return IqaSourceResolutionOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
+        return IqaSourceResolutionOutcome(
+            IqaAvailability.AVAILABLE,
+            source=IqaResolvedSource(resolved.local_path),
+        )
 
 
 class _P5SpatialAccess:
@@ -249,7 +324,7 @@ class _P5SpatialAccess:
         if not outcome.succeeded or outcome.data is None:
             diagnostic = IqaDiagnostic(
                 "spatial_data_failed",
-                outcome.reason or "Scene spatial data could not be loaded.",
+                "Scene spatial data could not be loaded.",
                 scene_id=scene_id,
             )
             return IqaSpatialLoadOutcome(IqaAvailability.FAILED, diagnostics=(diagnostic,))
@@ -362,11 +437,12 @@ def _legacy_request(
 
 
 def _public_job_snapshot(status: IqaJobStatus) -> IqaJobSnapshot:
+    public_state = _public_job_state(status.state)
     return IqaJobSnapshot(
         reference=IqaJobReference(status.job_id),
-        state=_public_job_state(status.state),
+        state=public_state,
         progress=IqaJobProgress(status.completed_scenes, status.total_scenes),
-        message=status.message,
+        message=_public_job_message(public_state) if status.message else None,
     )
 
 
@@ -385,6 +461,63 @@ def _public_job_state(state: JobState) -> IqaJobState:
     if state is JobState.CANCELLED:
         return IqaJobState.CANCELLED
     return IqaJobState.FAILED
+
+
+def _public_job_message(state: IqaJobState) -> str:
+    return {
+        IqaJobState.QUEUED: "IQA job is queued.",
+        IqaJobState.RUNNING: "IQA job is running.",
+        IqaJobState.COMPLETED: "IQA job completed.",
+        IqaJobState.FAILED: "IQA job failed.",
+        IqaJobState.CANCELLED: "IQA job was cancelled.",
+    }[state]
+
+
+def _public_provider_error(
+    error: IqaClientError,
+    *,
+    ambiguous_submit: bool = False,
+) -> IqaProviderError:
+    if ambiguous_submit:
+        return IqaProviderError(
+            IqaProviderErrorKind.AMBIGUOUS_SUBMIT,
+            "IQA submission outcome is unknown; the job may already have been accepted. "
+            "Do not resubmit automatically.",
+        )
+    if error.kind is IqaClientErrorKind.CONFIG:
+        return IqaProviderError(
+            IqaProviderErrorKind.INVALID,
+            "IQA provider configuration is invalid.",
+        )
+    if error.kind in {IqaClientErrorKind.CONNECT, IqaClientErrorKind.TIMEOUT}:
+        return IqaProviderError(
+            IqaProviderErrorKind.UNAVAILABLE,
+            "IQA provider is temporarily unavailable.",
+            retryable=True,
+        )
+    if error.kind is IqaClientErrorKind.HTTP:
+        if error.status_code in {401, 403}:
+            return IqaProviderError(
+                IqaProviderErrorKind.ACCESS_REQUIRED,
+                "IQA provider access is required.",
+            )
+        if error.status_code in {408, 429} or (
+            error.status_code is not None and error.status_code >= 500
+        ):
+            return IqaProviderError(
+                IqaProviderErrorKind.UNAVAILABLE,
+                "IQA provider is temporarily unavailable.",
+                retryable=True,
+            )
+    if error.kind is IqaClientErrorKind.STORAGE:
+        return IqaProviderError(
+            IqaProviderErrorKind.UNAVAILABLE,
+            "IQA provider storage is unavailable.",
+        )
+    return IqaProviderError(
+        IqaProviderErrorKind.OPERATION_FAILED,
+        "IQA provider operation failed.",
+    )
 
 
 def _public_measurement(summary: MeasurementSummary) -> IqaMeasurementSummary:
@@ -408,8 +541,8 @@ def _partial_diagnostics(result: ResultV2) -> tuple[IqaDiagnostic, ...]:
     for outcome in result.unsuccessful_scene_outcomes:
         diagnostics.append(
             IqaDiagnostic(
-                code=outcome.error_code or f"scene_{outcome.status}",
-                message=outcome.error_message or f"Scene {outcome.status}",
+                code=f"scene_{outcome.status}",
+                message="Scene was not published successfully.",
                 scene_id=outcome.scene_id,
             )
         )
