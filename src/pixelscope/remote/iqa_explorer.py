@@ -76,15 +76,14 @@ class IqaExplorerModel:
             )
 
     @property
-    def result(self) -> Result | ResultV2:
-        """Legacy/schema-v2 result used by the existing P5 presentation layer.
+    def result(self) -> Result | ResultV2 | IqaResult:
+        """Return the underlying legacy, schema-v2, or normalized public result.
 
-        Normalized public results intentionally do not pass through this legacy-only typed
-        surface; Slice 4/UI composition can opt into ``normalized_result`` explicitly.
+        The explicit union keeps existing presentation callers source-compatible while
+        allowing Slice 3 synthetic/public results to drive the same workspace without a
+        cast or a parallel UI model.
         """
 
-        if isinstance(self._result, IqaResult):
-            raise TypeError("normalized IQA result is available through normalized_result")
         return self._result
 
     @property

@@ -39,6 +39,7 @@ from pixelscope.remote.iqa_domain import (
     ValueKind,
 )
 from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID, IqaExplorerModel
+from pixelscope.remote.iqa_public_contract import IqaResult
 from pixelscope.remote.iqa_result_reader import load_result
 from pixelscope.remote.iqa_v2_domain import VersionedResultLoadOutcome
 from pixelscope.ui.design_tokens import TOKENS
@@ -455,6 +456,8 @@ class IqaWorkspaceWidget(QWidget):
         self.status_label.setText(f"Opened {result.root.name}")
         self._presented_reference_variant_id = self.reference_variant_id
         self._set_controls_enabled(True)
+        if isinstance(result, IqaResult):
+            return VersionedResultLoadOutcome(LoadStatus.SUCCESS)
         return VersionedResultLoadOutcome(LoadStatus.SUCCESS, result=result)
 
     def set_relative_model(
