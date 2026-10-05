@@ -12,6 +12,8 @@ def test_validation_workflow_keeps_full_pytest_out_of_ci() -> None:
     assert "Run complete repository pytest contract under normal GC" not in text
     assert "run: python -m pytest -q\n" not in text
     assert "needs.classify.outputs.full" not in text
+    assert "local_full_required" in text
+    assert "GitHub CI intentionally does not run the complete pytest suite" in text
     assert "python -m mypy src" in text
     assert "scripts/classify_ci_changes.py" in text
     assert "scripts/skip_duplicate_validation_push.py" in text
@@ -21,7 +23,7 @@ def test_focused_native_validation_is_not_suppressed_by_local_full_signal() -> N
     text = (ROOT / ".github/workflows/validation.yml").read_text(encoding="utf-8")
 
     assert "needs.classify.outputs.windows_native == 'true'" in text
-    assert "needs.classify.outputs.full != 'true'" not in text
+    assert "needs.classify.outputs.local_full_required != 'true'" not in text
 
 
 def test_user_guide_workflow_no_longer_owns_unrelated_native_validation() -> None:
