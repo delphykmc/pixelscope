@@ -1,9 +1,9 @@
 """Classify changed paths into durable CI validation responsibilities.
 
 The selector is stdlib-only and does not execute tests. GitHub CI is intentionally a
-pre-integration guard: broad cheap static checks plus small durable focused groups.
-Repository-wide pytest remains owner/local merge validation and is never selected as a
-routine CI job by this module.
+pre-integration guard: broad cheap static checks plus small deterministic focused
+groups. Qt/UI lifecycle validation and repository-wide pytest remain owner/local merge
+validation and are never selected as routine hosted CI jobs by this module.
 """
 
 from __future__ import annotations
@@ -187,13 +187,16 @@ RELEASE_EXACT = (
     "tests/unit/test_release_publication.py",
 )
 
-RAW_PREFIXES = (
+RAW_CORE_PREFIXES = (
     "src/pixelscope/io/raw",
     "src/pixelscope/app/raw",
-    "src/pixelscope/ui/raw",
     "tests/unit/test_raw",
     "tests/unit/test_packed_raw",
     "tests/unit/test_wp_b_raw",
+)
+
+RAW_UI_PREFIXES = (
+    "src/pixelscope/ui/raw",
     "tests/ui/test_raw",
     "tests/ui/test_p1c_raw",
     "tests/ui/test_p3b_raw",
@@ -201,16 +204,21 @@ RAW_PREFIXES = (
     "tests/integration/test_p3b_raw",
     "tests/integration/test_raw",
 )
+RAW_PREFIXES = RAW_CORE_PREFIXES + RAW_UI_PREFIXES
 
-YUV_PREFIXES = (
+YUV_CORE_PREFIXES = (
     "src/pixelscope/core/yuv.py",
     "src/pixelscope/io/yuv",
     "src/pixelscope/app/yuv",
-    "src/pixelscope/ui/yuv",
     "tests/unit/test_yuv",
+)
+
+YUV_UI_PREFIXES = (
+    "src/pixelscope/ui/yuv",
     "tests/ui/test_wp_c1_yuv",
     "tests/ui/test_wp_c2_yuv",
 )
+YUV_PREFIXES = YUV_CORE_PREFIXES + YUV_UI_PREFIXES
 
 CI_POLICY_EXACT = (
     ".github/workflows/validation.yml",
@@ -247,8 +255,12 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     docs = any(_matches(path, exact=DOC_EXACT, prefixes=DOC_PREFIXES) for path in paths)
     help_ui = any(path in HELP_EXACT for path in paths)
     release = any(_matches(path, exact=RELEASE_EXACT, prefixes=RELEASE_PREFIXES) for path in paths)
-    raw = any(path.startswith(RAW_PREFIXES) for path in paths)
-    yuv = any(path.startswith(YUV_PREFIXES) for path in paths)
+    raw_core = any(path.startswith(RAW_CORE_PREFIXES) for path in paths)
+    raw_ui = any(path.startswith(RAW_UI_PREFIXES) for path in paths)
+    raw = raw_core or raw_ui
+    yuv_core = any(path.startswith(YUV_CORE_PREFIXES) for path in paths)
+    yuv_ui = any(path.startswith(YUV_UI_PREFIXES) for path in paths)
+    yuv = yuv_core or yuv_ui
     ci_policy = any(path in CI_POLICY_EXACT for path in paths)
     shared_config = any(path in SHARED_CONFIG for path in paths)
 
@@ -268,9 +280,13 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     }
     unknown = validation_relevant - recognized
 
-    # This flag is merge-validation guidance only. It MUST NOT schedule the full
-    # repository pytest suite in GitHub CI. Owner/local validation is authoritative.
+    # These flags are merge-validation guidance only. They MUST NOT schedule the
+    # complete repository pytest suite in GitHub CI. Owner/local validation is
+    # authoritative for Qt/UI timing and lifecycle behavior.
     local_full_required = ci_policy or shared_config or bool(unknown)
+    local_ui_required = help_ui or raw_ui or yuv_ui or any(
+        path.startswith(("src/pixelscope/ui/", "tests/ui/")) for path in paths
+    )
     lifecycle = local_full_required and any(
         path.startswith(("src/pixelscope/workers/", "tests/ui/")) or "lifecycle" in path.lower()
         for path in paths
@@ -279,7 +295,7 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
         (path.startswith("src/") and path.endswith(".py")) or path in SHARED_CONFIG
         for path in paths
     )
-    windows_native = help_ui or release or raw or yuv
+    windows_native = release or raw_core or yuv_core
     any_validation = bool(validation_relevant)
 
     return {
@@ -287,11 +303,16 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
         "help_ui": help_ui,
         "release": release,
         "raw": raw,
+        "raw_core": raw_core,
+        "raw_ui": raw_ui,
         "yuv": yuv,
+        "yuv_core": yuv_core,
+        "yuv_ui": yuv_ui,
         "ci_policy": ci_policy,
         "shared_config": shared_config,
         "unknown": bool(unknown),
         "local_full_required": local_full_required,
+        "local_ui_required": local_ui_required,
         "lifecycle": lifecycle,
         "typecheck": typecheck,
         "windows_native": windows_native,
