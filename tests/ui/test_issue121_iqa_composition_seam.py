@@ -7,12 +7,7 @@ import pytest
 from PySide6.QtWidgets import QDockWidget
 
 from pixelscope.app.main_window import MainWindow
-from pixelscope.remote.iqa_public_contract import (
-    IqaSubmissionIntent,
-    IqaSubmissionScene,
-    IqaSubmissionSource,
-    IqaVariant,
-)
+from pixelscope.remote.iqa_public_contract import IqaJobReference
 from pixelscope.remote.iqa_public_fixture import (
     FixtureIqaProvider,
     IqaFixtureProfile,
@@ -57,46 +52,100 @@ def test_explicit_iqa_client_owns_compatibility_surface(qtbot: object) -> None:
     window.close()
 
 
-def test_public_provider_injection_drives_client_workspace(
+def test_public_provider_injection_drives_client_execution_workflow(
     qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     provider = FixtureIqaProvider(tmp_path, IqaFixtureProfile.MINIMAL)
     installer = IqaClientInstaller.from_ports(provider, provider)
     window = MainWindow(window_contributions=(installer,))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-
-    variants = (IqaVariant("a", "A"), IqaVariant("b", "B"))
-    intent = IqaSubmissionIntent(
-        "comparison",
-        variants,
-        (
-            IqaSubmissionScene(
-                "scene-1",
-                (
-                    IqaSubmissionSource("a", tmp_path / "a.png"),
-                    IqaSubmissionSource("b", tmp_path / "b.png"),
-                ),
-            ),
-        ),
+    path_a = tmp_path / "a.png"
+    path_b = tmp_path / "b.png"
+    path_a.write_bytes(b"fixture-a")
+    path_b.write_bytes(b"fixture-b")
+    documents = (
+        SimpleNamespace(source_path=path_a, document_id="a", generation=1),
+        SimpleNamespace(source_path=path_b, document_id="b", generation=1),
     )
-    job = installer.execution_port.submit(intent)
-    provider.advance(job)
-    provider.advance(job)
-    result_reference = installer.execution_port.get_result_reference(job)
+    monkeypatch.setattr(window, "current_comparison_documents", lambda: list(documents))
 
-    installer.open_published_result(result_reference)
+    installer.install_runtime(window)
+    shell = window.remote_iqa_workspace
+    execution_controller = window.remote_iqa_controller
+
+    assert installer.execution_controller is execution_controller
+    assert installer.execution_port is provider
+    assert installer.result_access_port is provider
+    assert shell.current_submit.isEnabled()
+
+    shell.current_submit.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: shell.jobs_tree.topLevelItemCount() == 1,
+        timeout=5000,
+    )
+    item = shell.jobs_tree.topLevelItem(0)
+    assert item.text(2) == "queued"
+
+    job_reference = IqaJobReference("fixture-job-0001")
+    provider.advance(job_reference)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: item.text(2) == "running",
+        timeout=5000,
+    )
+    provider.advance(job_reference)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: item.text(2) == "completed" and shell.open_button.isEnabled(),
+        timeout=5000,
+    )
+
+    shell.open_button.click()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: installer.workspace is not None and installer.workspace.model is not None,
         timeout=5000,
     )
 
-    assert installer.execution_port is provider
-    assert installer.result_access_port is provider
     assert installer.workspace is not None
     assert installer.workspace.model is not None
     assert installer.workspace.model.result.result_id == "fixture-minimal"
-    assert not hasattr(window, "remote_iqa_controller")
+
+    window.close()
+
+
+def test_public_provider_injection_uses_client_cancel_action(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = FixtureIqaProvider(tmp_path, IqaFixtureProfile.MINIMAL)
+    installer = IqaClientInstaller.from_ports(provider, provider)
+    window = MainWindow(window_contributions=(installer,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    path_a = tmp_path / "a.png"
+    path_b = tmp_path / "b.png"
+    documents = (
+        SimpleNamespace(source_path=path_a, document_id="a", generation=1),
+        SimpleNamespace(source_path=path_b, document_id="b", generation=1),
+    )
+    monkeypatch.setattr(window, "current_comparison_documents", lambda: list(documents))
+
+    installer.install_runtime(window)
+    shell = window.remote_iqa_workspace
+    shell.current_submit.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: shell.jobs_tree.topLevelItemCount() == 1 and shell.cancel_button.isEnabled(),
+        timeout=5000,
+    )
+
+    item = shell.jobs_tree.topLevelItem(0)
+    shell.cancel_button.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: item.text(2) == "cancelled",
+        timeout=5000,
+    )
+    assert not shell.cancel_button.isEnabled()
+    assert not shell.open_button.isEnabled()
 
     window.close()
 

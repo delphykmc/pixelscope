@@ -50,6 +50,10 @@ from pixelscope.ui.iqa_result_retry import install_remote_iqa_result_retry
 from pixelscope.ui.iqa_scene_inspection import install_iqa_scene_inspection
 from pixelscope.ui.iqa_scene_inspection_lifecycle import install_iqa_scene_inspection_lifecycle
 from pixelscope.ui.iqa_setup_presentation import polish_remote_iqa_setup
+from pixelscope.ui.iqa_submission import (
+    PublicIqaExecutionController,
+    install_public_iqa,
+)
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
 from pixelscope.ui.iqa_workspace import IqaWorkspaceController, IqaWorkspaceWidget
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
@@ -113,6 +117,7 @@ class IqaClientInstaller:
         self._window_ref: ReferenceType[QMainWindow] | None = None
         self.workspace: IqaWorkspaceWidget | None = None
         self.controller: IqaWorkspaceController | None = None
+        self.execution_controller: PublicIqaExecutionController | None = None
         self.dock: QDockWidget | None = None
         self.action: QAction | None = None
 
@@ -259,6 +264,11 @@ class IqaClientInstaller:
         """Install the characterized P5 compatibility chain when selected by composition."""
 
         if not self._install_legacy_runtime:
+            self.execution_controller = install_public_iqa(
+                window,
+                execution_port=self.execution_port,
+                result_access_port=self.result_access_port,
+            )
             return
         result_pool = self.result_pool
         transport_pool = self._transport_pool
@@ -287,6 +297,8 @@ class IqaClientInstaller:
         install_historical_iqa_results_lifecycle(window, historical_iqa)
 
     def shutdown(self) -> None:
+        if self.execution_controller is not None:
+            self.execution_controller.shutdown()
         if self.controller is not None:
             self.controller.shutdown()
         self._window_ref = None
