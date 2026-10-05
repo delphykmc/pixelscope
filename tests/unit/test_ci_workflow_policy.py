@@ -3,18 +3,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_validation_workflow_separates_cheap_focused_and_full_gates() -> None:
+def test_validation_workflow_keeps_full_pytest_out_of_ci() -> None:
     text = (ROOT / ".github/workflows/validation.yml").read_text(encoding="utf-8")
 
     assert "Cheap repository validation" in text
     assert "Focused Windows validation" in text
-    assert "Full Windows validation" in text
-    assert "needs.classify.outputs.full != 'true'" in text
-    assert "needs.classify.outputs.full == 'true'" in text
-    assert "python -m pytest -q\n" in text
-    assert "normal GC" in text
+    assert "Full Windows validation" not in text
+    assert "Run complete repository pytest contract under normal GC" not in text
+    assert "run: python -m pytest -q\n" not in text
+    assert "needs.classify.outputs.full" not in text
+    assert "python -m mypy src" in text
     assert "scripts/classify_ci_changes.py" in text
     assert "scripts/skip_duplicate_validation_push.py" in text
+
+
+def test_focused_native_validation_is_not_suppressed_by_local_full_signal() -> None:
+    text = (ROOT / ".github/workflows/validation.yml").read_text(encoding="utf-8")
+
+    assert "needs.classify.outputs.windows_native == 'true'" in text
+    assert "needs.classify.outputs.full != 'true'" not in text
 
 
 def test_user_guide_workflow_no_longer_owns_unrelated_native_validation() -> None:
