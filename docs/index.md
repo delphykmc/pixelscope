@@ -11,7 +11,7 @@ knowledge belongs in focused documents under `docs/`.
 | User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `user-guide/` topic and `ui/` note | Behavior, terminology, shortcut, format semantics, or workflow changes |
 | Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
 | Remote IQA result/schema/submission work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, current/deferred execution plan as applicable | Measurement/comparison ownership, storage/request/job identity, result schema, summaries/grids, loading boundaries, or P5 sequencing change |
-| Base / IQA Client / Enterprise ownership or SUB handoff | `IQA_OWNERSHIP.md`, then the relevant `ARCHITECTURE.md` / `DECISIONS.md` sections | Repository/source ownership, allowed dependency direction, public provider boundary, synthetic-vs-confidential data rules, or Stage 1/Stage 2 handoff assumptions change |
+| Base / IQA Client / Enterprise ownership or SUB handoff | `IQA_OWNERSHIP.md`, `IQA_BOUNDARY_CHARACTERIZATION.md`, then the relevant `ARCHITECTURE.md` / `DECISIONS.md` sections | Repository/source ownership, current concrete coupling, allowed dependency direction, public provider boundary, synthetic-vs-confidential data rules, lifecycle compatibility, or Stage 1/Stage 2 handoff assumptions change |
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures, `user-guide/formats/raw.md` | Storage schema, validation, decoder, Bayer behavior, or user-facing RAW interpretation changes |
@@ -31,6 +31,9 @@ knowledge belongs in focused documents under `docs/`.
 - `IQA_OWNERSHIP.md`: authoritative staged MAIN/SUB source-ownership and dependency
   contract for PixelScope Base, public IQA Client, and Enterprise IQA, including the
   no-confidential-runtime rule and future Stage 2 ownership target.
+- `IQA_BOUNDARY_CHARACTERIZATION.md`: Issue #121 Slice 1 inventory of current concrete
+  Base/IQA coupling, production install/shutdown order, settings ownership, IQA test
+  classes, and the minimum public provider/result semantics that Slice 2 must preserve.
 - `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
 - `REMOTE_IQA_CONTRACT.md`: broad P5 Remote IQA product/architecture/transport
