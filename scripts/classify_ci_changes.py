@@ -254,8 +254,7 @@ def classify_paths(changes: list[ChangedPath]) -> dict[str, bool]:
     # repository pytest suite in GitHub CI. Owner/local validation is authoritative.
     local_full_required = ci_policy or shared_config or bool(unknown)
     lifecycle = local_full_required and any(
-        path.startswith(("src/pixelscope/workers/", "tests/ui/"))
-        or "lifecycle" in path.lower()
+        path.startswith(("src/pixelscope/workers/", "tests/ui/")) or "lifecycle" in path.lower()
         for path in paths
     )
     typecheck = any(
