@@ -56,9 +56,17 @@ def _yuv_pair(
 def _wait_for_result(panel: DifferencePanel, qtbot: object) -> CachedDifferenceMap:
     panel.calculate_difference()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: panel.last_result is not None and panel.cached_result_for_current() is not None,
+        lambda: (
+            panel.last_result is not None
+            and panel.cached_result_for_current() is not None
+            and panel._worker is None
+            and panel._preview_worker is None
+        ),
         timeout=3000,
     )
+    # Numerical completion can precede the asynchronous preview callback. Waiting
+    # for both worker lifecycles prevents pytest-qt from deleting the direct-widget
+    # fixture while a queued preview success callback can still touch its controls.
     result = panel.cached_result_for_current()
     assert result is not None
     return result
