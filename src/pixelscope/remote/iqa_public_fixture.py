@@ -1,6 +1,6 @@
 """Company-neutral synthetic IQA fixtures for Client development and validation.
 
-The fixture catalog targets the Client-owned public contract directly.  It intentionally
+The fixture catalog targets the Client-owned public contract directly. It intentionally
 contains no Remote-IQA transport, storage-root, authentication, or proprietary payload
 knowledge and creates no Qt objects or thread pools.
 """
@@ -37,7 +37,6 @@ from pixelscope.remote.iqa_public_contract import (
     IqaMeasurementSummary,
     IqaProviderError,
     IqaProviderErrorKind,
-    IqaResolvedSource,
     IqaResult,
     IqaResultCompleteness,
     IqaResultOpenOutcome,
@@ -194,7 +193,7 @@ def build_fixture_result(
 ) -> IqaResult:
     """Build a normalized public result with deterministic, lazily generated grids.
 
-    ``PARTIAL`` deliberately omits one Scene/variant/attribute measurement.  This models
+    ``PARTIAL`` deliberately omits one Scene/variant/attribute measurement. This models
     the public Client semantics without claiming that today's durable schema-v2 encoding
     can serialize every arbitrary per-metric absence.
     """
@@ -365,11 +364,15 @@ class FixtureIqaProvider:
     """Deterministic in-process implementation of the public IQA ports.
 
     ``advance`` is an explicit test/development clock: reads never advance execution on
-    their own, so callers can deterministically hold queued/running states.  All mutable
+    their own, so callers can deterministically hold queued/running states. All mutable
     provider state is guarded so one instance is safe for overlapping public calls.
     """
 
-    def __init__(self, root: Path, profile: IqaFixtureProfile = IqaFixtureProfile.NORMAL) -> None:
+    def __init__(
+        self,
+        root: Path,
+        profile: IqaFixtureProfile = IqaFixtureProfile.NORMAL,
+    ) -> None:
         self._root = root
         self._profile = profile
         self._lock = RLock()
@@ -462,7 +465,10 @@ class FixtureIqaProvider:
 
     def materialize(self, reference: IqaResultReference) -> IqaResultSourceOutcome:
         with self._lock:
-            if reference.reference_id not in self._result_references.values() or self._result is None:
+            if (
+                reference.reference_id not in self._result_references.values()
+                or self._result is None
+            ):
                 return IqaResultSourceOutcome(
                     IqaAvailability.MISSING,
                     diagnostics=(
