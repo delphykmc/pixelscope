@@ -16,8 +16,8 @@ import numpy as np
 
 from pixelscope.remote.iqa_domain import (
     AttributeSpec,
-    ComparisonOperator,
     CompactAttributeData,
+    ComparisonOperator,
     GridGeometry,
     QualityDirection,
     ScalarStatistic,
@@ -203,8 +203,7 @@ def build_fixture_result(
 
     attributes = tuple(_attribute(index) for index in range(attribute_count))
     variants = tuple(
-        IqaVariant(f"variant_{index:03d}", f"Variant {index:02d}")
-        for index in range(variant_count)
+        IqaVariant(f"variant_{index:03d}", f"Variant {index:02d}") for index in range(variant_count)
     )
     scene_ids = tuple(f"scene_{index:04d}" for index in range(scene_count))
     attribute_ids = tuple(item.attribute_id for item in attributes)
@@ -423,16 +422,10 @@ class FixtureIqaProvider:
                     reference,
                     state,
                     IqaJobProgress(2, 2),
-                    (
-                        "Synthetic IQA job failed."
-                        if failed
-                        else "Synthetic IQA job completed."
-                    ),
+                    ("Synthetic IQA job failed." if failed else "Synthetic IQA job completed."),
                 )
                 if not failed:
-                    self._result_references[reference.job_id] = (
-                        f"fixture-result:{reference.job_id}"
-                    )
+                    self._result_references[reference.job_id] = f"fixture-result:{reference.job_id}"
             else:
                 return current
             self._jobs[reference.job_id] = next_snapshot
