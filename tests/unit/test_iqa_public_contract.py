@@ -36,9 +36,9 @@ from pixelscope.remote.iqa_submission import (
     IqaJobCreated,
     IqaJobRequest,
     IqaJobStatus,
-    IqaResultReference as P5ResultReference,
     JobState,
 )
+from pixelscope.remote.iqa_submission import IqaResultReference as P5ResultReference
 from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_partial import PartialResultV2
