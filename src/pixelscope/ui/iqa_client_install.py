@@ -16,7 +16,6 @@ from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow
 
 from pixelscope.app.window_contribution import MenuActionFactory
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
-from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
 from pixelscope.ui.composition_lifetime import install_remote_iqa
 from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_historical_results_lifecycle import (
@@ -34,6 +33,7 @@ from pixelscope.ui.iqa_scene_inspection_lifecycle import install_iqa_scene_inspe
 from pixelscope.ui.iqa_setup_presentation import polish_remote_iqa_setup
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
 from pixelscope.ui.iqa_workspace import IqaWorkspaceController, IqaWorkspaceWidget
+from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
 
 
 class IqaClientInstaller:
