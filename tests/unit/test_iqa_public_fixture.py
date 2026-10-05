@@ -77,7 +77,11 @@ def test_public_fixture_keeps_spatial_data_lazy_and_deterministic(tmp_path: Path
         first.data.attributes["attribute_000"].weighted_sum,
         second.data.attributes["attribute_000"].weighted_sum,
     )
-    assert first.data.attribute_for_variant("variant_001", "attribute_000").weighted_sum == 0.1
+    weighted_sum = first.data.attribute_for_variant(
+        "variant_001",
+        "attribute_000",
+    ).weighted_sum
+    assert float(np.asarray(weighted_sum).item()) == 0.1
 
 
 def test_partial_profile_exposes_missing_measurement_without_fabricated_zero(
