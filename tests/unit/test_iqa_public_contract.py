@@ -2,14 +2,22 @@ from __future__ import annotations
 
 import json
 import struct
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import fields
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 import pytest
 
-from pixelscope.remote.iqa_client import IqaJobClient
-from pixelscope.remote.iqa_domain import ComparisonMode, LoadStatus
+from pixelscope.remote.iqa_client import (
+    IqaClientError,
+    IqaClientErrorKind,
+    IqaCreateOutcomeUnknown,
+    IqaJobClient,
+)
+from pixelscope.remote.iqa_domain import ComparisonMode, LoadStatus, Source
 from pixelscope.remote.iqa_explorer import IqaExplorerModel
 from pixelscope.remote.iqa_public_adapter import (
     P5IqaExecutionAdapter,
@@ -23,9 +31,12 @@ from pixelscope.remote.iqa_public_contract import (
     IqaJobReference,
     IqaJobState,
     IqaMeasurementSummary,
+    IqaProviderError,
+    IqaProviderErrorKind,
     IqaResultAccessPort,
     IqaResultCompleteness,
     IqaResultReference,
+    IqaSourceLocator,
     IqaSubmissionIntent,
     IqaSubmissionScene,
     IqaSubmissionSource,
@@ -54,13 +65,56 @@ class _FakeJobClient(IqaJobClient):
         return IqaJobCreated("job-public", JobState.QUEUED)
 
     def get_status(self, job_id: str) -> IqaJobStatus:
-        return IqaJobStatus(job_id, JobState.EXTRACTING, 1, 3, "running")
+        return IqaJobStatus(
+            job_id,
+            JobState.EXTRACTING,
+            1,
+            3,
+            "internal status from https://private-provider.invalid/secret",
+        )
 
     def get_result(self, job_id: str) -> P5ResultReference:
         return P5ResultReference(job_id, "shared", "results/job-public", 2, "complete")
 
     def cancel_job(self, job_id: str) -> IqaJobStatus:
         return IqaJobStatus(job_id, JobState.CANCELLED, 1, 3, "cancelled")
+
+
+class _FailingSubmitClient(_FakeJobClient):
+    def __init__(self, error: IqaClientError) -> None:
+        super().__init__()
+        self._error = error
+
+    def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
+        raise self._error
+
+
+class _FailingStatusClient(_FakeJobClient):
+    def __init__(self, error: IqaClientError) -> None:
+        super().__init__()
+        self._error = error
+
+    def get_status(self, job_id: str) -> IqaJobStatus:
+        raise self._error
+
+
+class _ConcurrentGuardJobClient(_FakeJobClient):
+    """Legacy client fake that fails if the adapter invokes it concurrently."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._guard = Lock()
+        self.overlap_detected = False
+
+    def get_status(self, job_id: str) -> IqaJobStatus:
+        if not self._guard.acquire(blocking=False):
+            self.overlap_detected = True
+            raise AssertionError("legacy job client received overlapping calls")
+        try:
+            time.sleep(0.01)
+            return super().get_status(job_id)
+        finally:
+            self._guard.release()
 
 
 def _png(path: Path, width: int = 8, height: int = 6) -> None:
@@ -131,10 +185,109 @@ def test_public_ports_expose_semantics_without_transport_or_storage_topology(
     job = adapter.submit(_intent(a, b))
     assert job == IqaJobReference("job-public")
     assert client.created_request is not None
-    assert adapter.get_status(job).state is IqaJobState.RUNNING
-    assert adapter.get_status(job).progress.completed == 1
+    status = adapter.get_status(job)
+    assert status.state is IqaJobState.RUNNING
+    assert status.progress.completed == 1
+    assert status.message == "IQA job is running."
+    assert "private-provider" not in status.message
     assert adapter.get_result_reference(job) == IqaResultReference("job-public")
     assert adapter.cancel(job).state is IqaJobState.CANCELLED
+
+
+def test_execution_adapter_translates_ambiguous_submit_without_leaking_provider_detail(
+    tmp_path: Path,
+) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    a = shared / "a.png"
+    b = shared / "b.png"
+    _png(a)
+    _png(b)
+    error = IqaCreateOutcomeUnknown(
+        IqaClientErrorKind.TIMEOUT,
+        "timeout contacting https://private-provider.invalid/internal/job/create",
+    )
+    adapter = P5IqaExecutionAdapter(
+        _FailingSubmitClient(error),
+        _settings(shared),
+        P5IqaReferenceRegistry(),
+    )
+
+    with pytest.raises(IqaProviderError) as captured:
+        adapter.submit(_intent(a, b))
+    public = captured.value
+    assert public.kind is IqaProviderErrorKind.AMBIGUOUS_SUBMIT
+    assert public.submission_outcome_unknown
+    assert not public.retryable
+    assert "private-provider" not in public.display_message
+    assert "Do not resubmit automatically" in public.display_message
+
+
+@pytest.mark.parametrize(
+    ("legacy_error", "public_kind", "retryable"),
+    [
+        (
+            IqaClientError(
+                IqaClientErrorKind.HTTP,
+                "HTTP 403 at https://private-provider.invalid/internal",
+                status_code=403,
+            ),
+            IqaProviderErrorKind.ACCESS_REQUIRED,
+            False,
+        ),
+        (
+            IqaClientError(
+                IqaClientErrorKind.TIMEOUT,
+                "timeout at https://private-provider.invalid/internal",
+            ),
+            IqaProviderErrorKind.UNAVAILABLE,
+            True,
+        ),
+        (
+            IqaClientError(
+                IqaClientErrorKind.PROTOCOL,
+                "proprietary payload key internal_model_name was missing",
+            ),
+            IqaProviderErrorKind.OPERATION_FAILED,
+            False,
+        ),
+    ],
+)
+def test_execution_adapter_maps_operational_failures_to_public_error_taxonomy(
+    tmp_path: Path,
+    legacy_error: IqaClientError,
+    public_kind: IqaProviderErrorKind,
+    retryable: bool,
+) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    adapter = P5IqaExecutionAdapter(
+        _FailingStatusClient(legacy_error),
+        _settings(shared),
+        P5IqaReferenceRegistry(),
+    )
+
+    with pytest.raises(IqaProviderError) as captured:
+        adapter.get_status(IqaJobReference("job-public"))
+    public = captured.value
+    assert public.kind is public_kind
+    assert public.retryable is retryable
+    assert "private-provider" not in public.display_message
+    assert "internal_model_name" not in public.display_message
+
+
+def test_execution_adapter_is_safe_for_same_instance_concurrent_calls(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    client = _ConcurrentGuardJobClient()
+    adapter = P5IqaExecutionAdapter(client, _settings(shared), P5IqaReferenceRegistry())
+    reference = IqaJobReference("job-public")
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        snapshots = tuple(pool.map(adapter.get_status, (reference,) * 8))
+
+    assert all(item.state is IqaJobState.RUNNING for item in snapshots)
+    assert not client.overlap_detected
 
 
 def test_p5_result_adapter_materializes_and_normalizes_for_existing_client_model(
@@ -165,6 +318,12 @@ def test_p5_result_adapter_materializes_and_normalizes_for_existing_client_model
 
     legacy_model = IqaExplorerModel(legacy)
     public_model = IqaExplorerModel(public)
+    assert legacy_model.result is legacy
+    assert legacy_model.normalized_result is None
+    assert public_model.normalized_result is public
+    with pytest.raises(TypeError, match="normalized_result"):
+        _ = public_model.result
+
     attribute_id = legacy.attributes[0].attribute_id
     variant_id = legacy.variants[0].variant_id
     assert public_model.absolute_dataset_stat(
@@ -187,6 +346,58 @@ def test_p5_result_adapter_materializes_and_normalizes_for_existing_client_model
         reference_id,
         target_id,
     )
+
+
+def test_source_resolution_distinguishes_available_missing_and_failure(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    existing = shared / "source.png"
+    _png(existing)
+    registry = P5IqaReferenceRegistry()
+    adapter = P5IqaResultAccessAdapter(_settings(shared), registry)
+
+    available_locator = IqaSourceLocator("available", "source.png")
+    registry.register_source(
+        available_locator,
+        Source("source-available", "source.png", "0" * 64, 8, 6, storage_root_id="shared"),
+    )
+    available = adapter.resolve_source(available_locator)
+    assert available.availability is IqaAvailability.AVAILABLE
+    assert available.succeeded
+    assert available.source is not None
+    assert available.source.local_path == existing
+
+    missing_locator = IqaSourceLocator("missing", "gone.png")
+    registry.register_source(
+        missing_locator,
+        Source("source-missing", "gone.png", "0" * 64, 8, 6, storage_root_id="shared"),
+    )
+    missing = adapter.resolve_source(missing_locator)
+    assert missing.availability is IqaAvailability.MISSING
+    assert not missing.succeeded
+    assert missing.diagnostics[0].code == "source_not_available"
+
+    failed_locator = IqaSourceLocator("failed", "source.png")
+    registry.register_source(
+        failed_locator,
+        Source(
+            "source-failed",
+            "source.png",
+            "0" * 64,
+            8,
+            6,
+            storage_root_id="provider-private-root",
+        ),
+    )
+    failed = adapter.resolve_source(failed_locator)
+    assert failed.availability is IqaAvailability.FAILED
+    assert not failed.succeeded
+    assert failed.diagnostics[0].code == "source_access_unavailable"
+    assert "provider-private-root" not in failed.diagnostics[0].message
+
+    unknown = adapter.resolve_source(IqaSourceLocator("unknown"))
+    assert unknown.availability is IqaAvailability.MISSING
+    assert unknown.diagnostics[0].code == "source_not_available"
 
 
 def test_normalized_result_keeps_spatial_access_lazy_and_failure_explicit(
@@ -225,7 +436,7 @@ def test_partial_and_missing_states_are_explicit_in_public_domain(tmp_path: Path
             "status": "failed",
             "error": {
                 "code": "provider.scene_failed",
-                "message": "Scene was not published",
+                "message": "internal model path \\private\\model\\v7 failed",
                 "retryable": True,
             },
         }
@@ -237,7 +448,8 @@ def test_partial_and_missing_states_are_explicit_in_public_domain(tmp_path: Path
     public = normalize_result_v2(outcome.result)
     assert public.completeness is IqaResultCompleteness.PARTIAL
     assert public.diagnostics[0].scene_id == "scene_000004"
-    assert public.diagnostics[0].code == "provider.scene_failed"
+    assert public.diagnostics[0].code == "scene_failed"
+    assert "private" not in public.diagnostics[0].message
 
     unpublished = public.load_spatial("scene_000004")
     assert unpublished.availability is IqaAvailability.MISSING
