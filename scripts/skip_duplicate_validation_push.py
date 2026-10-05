@@ -33,8 +33,7 @@ def has_matching_pr_run(
         and (
             (run.get("status") in ("queued", "in_progress") and run.get("conclusion") is None)
             or (
-                run.get("status") == "completed"
-                and run.get("conclusion") in ("success", "failure")
+                run.get("status") == "completed" and run.get("conclusion") in ("success", "failure")
             )
         )
         and any(
@@ -166,10 +165,7 @@ def main() -> int:
     parser.add_argument("--sha", required=True)
     args = parser.parse_args()
     skip = should_skip_push(
-        repo=args.repo,
-        branch=args.branch,
-        sha=args.sha,
-        token=os.environ.get("GH_TOKEN", ""),
+        repo=args.repo, branch=args.branch, sha=args.sha, token=os.environ.get("GH_TOKEN", "")
     )
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
