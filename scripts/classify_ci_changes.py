@@ -52,7 +52,19 @@ def _safe_path(raw: bytes) -> str:
     return value
 
 
-def git_changed_paths(root: Path, base: str, head: str) -> list[ChangedPath]:
+def git_changed_paths(
+    root: Path,
+    base: str,
+    head: str,
+    *,
+    use_merge_base: bool = False,
+) -> list[ChangedPath]:
+    diff_base = base
+    if use_merge_base:
+        diff_base = _git(root, "merge-base", base, head).decode("ascii").strip()
+        if SHA.fullmatch(diff_base) is None:
+            raise ValueError("Git merge-base did not return a full commit SHA")
+
     raw = _git(
         root,
         "diff",
@@ -60,7 +72,7 @@ def git_changed_paths(root: Path, base: str, head: str) -> list[ChangedPath]:
         "-z",
         "--find-renames",
         "--no-ext-diff",
-        base,
+        diff_base,
         head,
     )
     if not raw:
@@ -151,18 +163,23 @@ HELP_EXACT = (
 
 RELEASE_PREFIXES = ("packaging/",)
 RELEASE_EXACT = (
+    "requirements/release.txt",
     "scripts/build_release_candidate.py",
     "scripts/build_release.py",
     "scripts/build_portable_release.py",
     "scripts/build_installer_release.py",
+    "scripts/build_third_party_notices.py",
     "scripts/validate_release_artifact.py",
     "scripts/validate_release_bundle.py",
+    "scripts/validate_release_publication.py",
     "scripts/prepare_release_publication.py",
     "scripts/smoke_installer_release.py",
     "scripts/smoke_packaged_release.py",
     "scripts/smoke_portable_release.py",
+    "scripts/release_contract.py",
     "scripts/release_candidate_contract.py",
     "scripts/distribution_contract.py",
+    "scripts/publication_contract.py",
     "tests/unit/test_release_packaging.py",
     "tests/unit/test_release_candidate.py",
     "tests/unit/test_release_candidate_provenance.py",
@@ -186,6 +203,7 @@ RAW_PREFIXES = (
 )
 
 YUV_PREFIXES = (
+    "src/pixelscope/core/yuv.py",
     "src/pixelscope/io/yuv",
     "src/pixelscope/app/yuv",
     "src/pixelscope/ui/yuv",
@@ -304,12 +322,18 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--github-output", type=Path)
+    parser.add_argument("--diff-mode", choices=("direct", "merge-base"), default="direct")
     args = parser.parse_args()
     try:
         root = args.root.resolve()
         head = _resolve(root, args.head)
         base = _resolve_base(root, args.base, head)
-        changes = git_changed_paths(root, base, head)
+        changes = git_changed_paths(
+            root,
+            base,
+            head,
+            use_merge_base=args.diff_mode == "merge-base",
+        )
         groups = classify_paths(changes)
     except (OSError, UnicodeError, ValueError, subprocess.SubprocessError) as exc:
         print(f"CI change classification failed: {exc}", file=sys.stderr)
