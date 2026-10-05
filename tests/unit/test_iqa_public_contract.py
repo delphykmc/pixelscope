@@ -320,9 +320,8 @@ def test_p5_result_adapter_materializes_and_normalizes_for_existing_client_model
     public_model = IqaExplorerModel(public)
     assert legacy_model.result is legacy
     assert legacy_model.normalized_result is None
+    assert public_model.result is public
     assert public_model.normalized_result is public
-    with pytest.raises(TypeError, match="normalized_result"):
-        _ = public_model.result
 
     attribute_id = legacy.attributes[0].attribute_id
     variant_id = legacy.variants[0].variant_id
