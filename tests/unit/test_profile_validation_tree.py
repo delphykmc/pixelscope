@@ -54,10 +54,11 @@ def test_copytree_ignore_scopes_local_artifacts_to_repository_root(tmp_path: Pat
     (tmp_path / "docs").mkdir()
     ignore = copytree_ignore(tmp_path)
 
-    assert set(ignore(str(tmp_path), ["temp", "release", "docs"])) == {"temp", "release"}
-    assert ignore(str(tmp_path / "docs"), ["temp", "release", "__pycache__"]) == [
-        "__pycache__"
-    ]
+    root_ignored = set(ignore(str(tmp_path), ["temp", "release", "docs"]))
+    assert root_ignored == {"temp", "release"}
+
+    nested_ignored = ignore(str(tmp_path / "docs"), ["temp", "release", "__pycache__"])
+    assert nested_ignored == ["__pycache__"]
 
 
 def test_hidden_tracked_path_detection_matches_copy_policy() -> None:
