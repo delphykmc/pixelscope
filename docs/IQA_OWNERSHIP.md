@@ -265,10 +265,18 @@ This contract intentionally precedes runtime changes:
 - **Slice 0:** ownership/dependency contract only; no runtime changes.
 - **Slice 1:** characterize and freeze current concrete IQA imports, settings, tests,
   provider surface, and production install/shutdown order.
-- **Slice 2+:** introduce the minimum Client-owned IQA provider/result seam and the
-  generic Base composition seam while preserving current behavior and lifecycle
-  contracts.
+- **Slice 2:** merged Client-owned Qt-free execution/result seam and normalized IQA
+  domain; existing P5 production composition remains unchanged.
+- **Slice 3+:** formalize synthetic coverage, introduce the Base/Client composition
+  seam, qualify downstream transfer, and continue the staged handoff while preserving
+  current behavior and lifecycle contracts.
 
 Later slices may refine implementation detail, but they must preserve the ownership
 and one-way dependency rules here unless the owner explicitly records a superseding
 architecture decision.
+
+The [downstream consumer and transfer contract](IQA_DOWNSTREAM_CONTRACT.md) records
+the reconciled Slice 5 SUB responsibilities, path/pin/sync policy and conformance/smoke
+plans against merged Slice 2. The contract is complete as documentation; actual
+transfer readiness still requires Slice 4 / Checkpoint C and Slice 6 Enterprise
+evidence.
