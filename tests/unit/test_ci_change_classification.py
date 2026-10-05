@@ -5,12 +5,12 @@ def _groups(*paths: str) -> dict[str, bool]:
     return classify_paths([ChangedPath(path) for path in paths])
 
 
-def test_docs_only_change_stays_out_of_native_and_full_validation() -> None:
+def test_docs_only_change_stays_out_of_native_and_local_full_validation() -> None:
     groups = _groups("docs/QUALITY.md", "tests/integration/test_ui_screenshot_git_history.py")
 
     assert groups["docs"]
     assert not groups["windows_native"]
-    assert not groups["full"]
+    assert not groups["local_full_required"]
     assert not groups["unknown"]
 
 
@@ -22,7 +22,7 @@ def test_issue_113_profile_policy_is_documentation_owned() -> None:
     )
 
     assert groups["docs"]
-    assert not groups["full"]
+    assert not groups["local_full_required"]
 
 
 def test_help_raw_yuv_and_release_paths_select_focused_windows_groups() -> None:
@@ -39,10 +39,10 @@ def test_help_raw_yuv_and_release_paths_select_focused_windows_groups() -> None:
     assert groups["release"]
     assert groups["windows_native"]
     assert groups["typecheck"]
-    assert not groups["full"]
+    assert not groups["local_full_required"]
 
 
-def test_unknown_source_test_script_and_workflow_changes_fail_wide() -> None:
+def test_unknown_changes_require_broader_owner_local_validation_only() -> None:
     for path in (
         "src/pixelscope/core/image_document.py",
         "tests/ui/test_something_new.py",
@@ -51,10 +51,10 @@ def test_unknown_source_test_script_and_workflow_changes_fail_wide() -> None:
     ):
         groups = _groups(path)
         assert groups["unknown"], path
-        assert groups["full"], path
+        assert groups["local_full_required"], path
 
 
-def test_shared_runtime_and_ci_policy_changes_require_full_validation() -> None:
+def test_shared_runtime_and_ci_policy_changes_require_local_full_validation() -> None:
     for path in (
         "pyproject.toml",
         "requirements/runtime.txt",
@@ -63,13 +63,13 @@ def test_shared_runtime_and_ci_policy_changes_require_full_validation() -> None:
         "scripts/ci_test_groups.py",
     ):
         groups = _groups(path)
-        assert groups["full"], path
+        assert groups["local_full_required"], path
 
 
-def test_lifecycle_change_is_full_and_explicitly_identified() -> None:
+def test_lifecycle_change_requires_local_full_and_is_explicitly_identified() -> None:
     groups = _groups("tests/ui/test_issue81_qt_lifecycle.py")
 
-    assert groups["full"]
+    assert groups["local_full_required"]
     assert groups["lifecycle"]
 
 
@@ -79,11 +79,11 @@ def test_rename_considers_both_old_and_new_ownership() -> None:
     )
 
     assert groups["raw"]
-    assert groups["full"]  # the new unknown destination conservatively widens scope
+    assert groups["local_full_required"]  # unknown destination widens owner/local validation
 
 
 def test_no_change_produces_no_validation_scope() -> None:
     groups = classify_paths([])
 
     assert not groups["any_validation"]
-    assert not groups["full"]
+    assert not groups["local_full_required"]
