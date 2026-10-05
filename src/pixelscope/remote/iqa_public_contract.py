@@ -46,6 +46,45 @@ class IqaAvailability(str, Enum):
     FAILED = "failed"
 
 
+class IqaProviderErrorKind(str, Enum):
+    """Small provider-neutral failure taxonomy visible to the IQA Client."""
+
+    INVALID = "invalid"
+    UNAVAILABLE = "unavailable"
+    ACCESS_REQUIRED = "access_required"
+    OPERATION_FAILED = "operation_failed"
+    AMBIGUOUS_SUBMIT = "ambiguous_submit"
+
+
+class IqaProviderError(RuntimeError):
+    """Sanitized provider failure safe for Client presentation and retry decisions.
+
+    ``message`` is part of the public UI-facing contract. Provider implementations must
+    never place credentials, physical storage topology, internal endpoints, proprietary
+    payloads, or other Enterprise-only detail in it. ``AMBIGUOUS_SUBMIT`` means a submit
+    may already have been accepted and therefore must not be blindly retried.
+    """
+
+    def __init__(
+        self,
+        kind: IqaProviderErrorKind,
+        message: str,
+        *,
+        retryable: bool = False,
+    ) -> None:
+        clean = " ".join(message.split())[:256]
+        if not clean:
+            clean = "IQA provider operation failed."
+        self.kind = kind
+        self.display_message = clean
+        self.retryable = retryable
+        super().__init__(clean)
+
+    @property
+    def submission_outcome_unknown(self) -> bool:
+        return self.kind is IqaProviderErrorKind.AMBIGUOUS_SUBMIT
+
+
 class IqaResultCompleteness(str, Enum):
     COMPLETE = "complete"
     PARTIAL = "partial"
@@ -146,7 +185,15 @@ class IqaResultReference:
 
 @runtime_checkable
 class IqaExecutionPort(Protocol):
-    """Synchronous Qt-free control plane scheduled by the Client's existing workers."""
+    """Synchronous Qt-free control plane scheduled by existing Client workers.
+
+    The Client may call one port instance concurrently from multiple workers. Provider
+    implementations must therefore be safe for overlapping calls, either through actual
+    thread-safe/reentrant execution or internal serialization; the Client does not promise
+    per-instance serialization. Provider operation failures cross this boundary only as
+    ``IqaProviderError``. In particular, a submit whose acceptance is unknown must use
+    ``IqaProviderErrorKind.AMBIGUOUS_SUBMIT`` so the Client does not blindly resubmit it.
+    """
 
     @property
     def capabilities(self) -> IqaExecutionCapabilities:
@@ -298,6 +345,8 @@ class IqaSpatialLoadOutcome:
 
 @runtime_checkable
 class IqaSpatialAccess(Protocol):
+    """Lazy spatial access that is safe for concurrent same-instance calls."""
+
     def load_scene(self, scene_id: str) -> IqaSpatialLoadOutcome:
         ...
 
@@ -373,9 +422,28 @@ class IqaResolvedSource:
     local_path: Path
 
 
+@dataclass(frozen=True)
+class IqaSourceResolutionOutcome:
+    """Explicit local-source availability without exposing provider storage topology."""
+
+    availability: IqaAvailability
+    source: IqaResolvedSource | None = None
+    diagnostics: tuple[IqaDiagnostic, ...] = ()
+
+    @property
+    def succeeded(self) -> bool:
+        return self.availability is IqaAvailability.AVAILABLE and self.source is not None
+
+
 @runtime_checkable
 class IqaResultAccessPort(Protocol):
-    """Qt-free artifact/result/source access, independent of the execution lifetime."""
+    """Qt-free artifact/result/source access independent of execution lifetime.
+
+    The Client may call one instance concurrently from result/file workers. Implementations
+    must be safe for overlapping materialize/open/resolve calls, either natively or through
+    internal serialization. Provider-only storage/auth/transport details must remain behind
+    this boundary, including diagnostic text.
+    """
 
     def materialize(self, reference: IqaResultReference) -> IqaResultSourceOutcome:
         ...
@@ -383,5 +451,5 @@ class IqaResultAccessPort(Protocol):
     def open_result(self, source: IqaResultSource) -> IqaResultOpenOutcome:
         ...
 
-    def resolve_source(self, locator: IqaSourceLocator) -> IqaResolvedSource | None:
+    def resolve_source(self, locator: IqaSourceLocator) -> IqaSourceResolutionOutcome:
         ...
