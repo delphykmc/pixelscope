@@ -8,7 +8,7 @@ P5/UI tests and installers can keep their current access paths during the first 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from PySide6.QtCore import Qt, QThreadPool
 from PySide6.QtGui import QAction
@@ -48,7 +48,7 @@ class IqaClientInstaller:
         self._window: Any | None = None
 
     @classmethod
-    def production(cls) -> "IqaClientInstaller":
+    def production(cls) -> IqaClientInstaller:
         """Create the production client after Base local-pool initialization."""
 
         return cls(remote_iqa_thread_pool())
@@ -89,8 +89,7 @@ class IqaClientInstaller:
         dock.hide()
         self.dock = dock
         window.__dict__["iqa_dock"] = dock
-        register = getattr(window, "register_contributed_dock")
-        register(dock)
+        cast(Any, window).register_contributed_dock(dock)
 
     def install_actions(
         self,
