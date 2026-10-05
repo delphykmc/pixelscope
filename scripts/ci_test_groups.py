@@ -34,6 +34,18 @@ DURABLE_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
             "tests/unit/test_release_candidate.py",
             "Release bundle integrity, candidate provenance and staging rules.",
         ),
+        DurableTest(
+            "tests/unit/test_release_candidate_provenance.py",
+            "Release candidate source identity and provenance contract.",
+        ),
+        DurableTest(
+            "tests/unit/test_release_distribution.py",
+            "Portable/installer distribution and third-party notice contract.",
+        ),
+        DurableTest(
+            "tests/unit/test_release_publication.py",
+            "Release publication staging, metadata and tag contract.",
+        ),
     ),
     "raw": (
         DurableTest(
