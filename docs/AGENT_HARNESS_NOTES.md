@@ -92,6 +92,14 @@ More autonomy is justified only when the repository can answer quickly:
 
 Longer prompts do not compensate for slow, flaky, or missing feedback.
 
+PixelScope's authoritative validation levels live in
+[`QUALITY.md`](QUALITY.md#validation-model). Agents must distinguish **fast development**,
+**applicable PR**, and **full validation** evidence instead of treating them as
+interchangeable PASS states. Directory responsibility (`unit`, `integration`, `ui`,
+`performance`) is the primary selector, shared/unknown infrastructure widens scope
+conservatively, and focused CI must never be reported as an unobserved repository-wide
+full-validation result.
+
 ### Qt UI harness lessons from P3-E
 
 Production-like Qt interaction tests need to reproduce **event ownership and
