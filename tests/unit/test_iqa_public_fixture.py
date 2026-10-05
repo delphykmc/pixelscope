@@ -200,6 +200,7 @@ def test_fixture_provider_exercises_public_execution_and_result_ports(tmp_path: 
 
 def test_fixture_provider_same_instance_overlap_is_deterministic(tmp_path: Path) -> None:
     provider = FixtureIqaProvider(tmp_path / "normal", IqaFixtureProfile.NORMAL)
+    scene_count = FIXTURE_SPECS[IqaFixtureProfile.NORMAL].scene_count
     jobs = tuple(provider.submit(_intent()) for _ in range(4))
     for job in jobs:
         assert provider.advance(job).state is IqaJobState.RUNNING
@@ -236,7 +237,7 @@ def test_fixture_provider_same_instance_overlap_is_deterministic(tmp_path: Path)
 
     for index, (job_id, reference_id, value, diagnostic_code) in enumerate(observations):
         assert reference_id == f"fixture-result:{job_id}"
-        assert value == pytest.approx(1.0 + 0.001 * (index % len(FIXTURE_SPECS[IqaFixtureProfile.NORMAL].__dict__) if False else index % 12))
+        assert value == pytest.approx(1.0 + 0.001 * (index % scene_count))
         assert diagnostic_code == "fixture_source_not_materialized"
 
 
