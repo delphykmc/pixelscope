@@ -1,9 +1,9 @@
 """Define and profile the full-copy validation fixture policy.
 
-The explicit ignore names are shared with the screenshot-rendering fixture so
-owner-local measurements describe the same copy contract that the integration
-test uses. Git-tracked paths must never be hidden by this generated/local-state
-exclusion policy.
+Root-local generated environments and artifacts are excluded without hiding
+tracked repository content in similarly named nested directories. Cache names
+that are inherently generated remain excluded at any depth. The same policy is
+used by the profiler and screenshot-rendering integration fixture.
 """
 
 from __future__ import annotations
@@ -13,10 +13,10 @@ import json
 import os
 import subprocess
 from collections import defaultdict
-from collections.abc import Iterable
-from pathlib import Path
+from collections.abc import Callable, Iterable
+from pathlib import Path, PurePosixPath
 
-COPY_IGNORE_NAMES = frozenset(
+ROOT_COPY_IGNORE_NAMES = frozenset(
     {
         ".git",
         ".venv",
@@ -24,11 +24,6 @@ COPY_IGNORE_NAMES = frozenset(
         ".tox",
         ".codex",
         ".test-results",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        "__pycache__",
-        ".cache",
         "build",
         "dist",
         "release",
@@ -36,19 +31,56 @@ COPY_IGNORE_NAMES = frozenset(
         "temp",
     }
 )
+TREE_COPY_IGNORE_NAMES = frozenset(
+    {
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "__pycache__",
+        ".cache",
+    }
+)
+
+
+def copy_policy_ignores(relative: PurePosixPath) -> bool:
+    """Return whether a repository-relative entry is excluded from the copy."""
+    return relative.name in TREE_COPY_IGNORE_NAMES or (
+        len(relative.parts) == 1 and relative.name in ROOT_COPY_IGNORE_NAMES
+    )
+
+
+def copytree_ignore(root: Path) -> Callable[[str, list[str]], list[str]]:
+    """Build a ``shutil.copytree`` ignore callback for the shared copy policy."""
+    root = root.resolve()
+
+    def ignore(directory: str, names: list[str]) -> list[str]:
+        relative_dir = Path(directory).resolve().relative_to(root)
+        ignored = []
+        for name in names:
+            relative = PurePosixPath((relative_dir / name).as_posix())
+            if copy_policy_ignores(relative):
+                ignored.append(name)
+        return ignored
+
+    return ignore
 
 
 def iter_copy_candidates(root: Path) -> Iterable[Path]:
     """Yield relative files that match the screenshot fixture copy contract."""
     root = root.resolve()
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [name for name in dirnames if name not in COPY_IGNORE_NAMES]
         directory = Path(dirpath)
         relative_dir = directory.relative_to(root)
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if not copy_policy_ignores(PurePosixPath((relative_dir / name).as_posix()))
+        ]
         for filename in filenames:
-            if filename in COPY_IGNORE_NAMES:
+            relative = relative_dir / filename
+            if copy_policy_ignores(PurePosixPath(relative.as_posix())):
                 continue
-            yield relative_dir / filename
+            yield relative
 
 
 def tracked_paths(root: Path) -> set[str]:
@@ -63,12 +95,12 @@ def tracked_paths(root: Path) -> set[str]:
 
 
 def tracked_paths_hidden_by_copy_policy(tracked: Iterable[str]) -> list[str]:
-    """Return tracked paths that the copy policy would prune by name."""
+    """Return tracked paths hidden by an excluded ancestor or filename."""
     hidden = []
     for path in tracked:
-        if any(
-            part in COPY_IGNORE_NAMES for part in path.replace("\\", "/").split("/")
-        ):
+        relative = PurePosixPath(path.replace("\\", "/"))
+        prefixes = [PurePosixPath(*relative.parts[:index]) for index in range(1, len(relative.parts) + 1)]
+        if any(copy_policy_ignores(prefix) for prefix in prefixes):
             hidden.append(path)
     return sorted(hidden)
 
