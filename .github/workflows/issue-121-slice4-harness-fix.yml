@@ -1,4 +1,5 @@
 name: Issue 121 Slice 4 capture harness patch
+# Temporary one-shot branch tool; removed after it patches the capture harness.
 
 on:
   push:
