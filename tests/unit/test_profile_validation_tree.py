@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.profile_validation_tree import summarize_tree
+from scripts.profile_validation_tree import (
+    summarize_tree,
+    tracked_paths,
+    tracked_paths_hidden_by_copy_policy,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_summarize_tree_separates_tracked_and_local_copy_candidates(tmp_path: Path) -> None:
@@ -39,3 +45,22 @@ def test_summarize_tree_separates_tracked_and_local_copy_candidates(tmp_path: Pa
     assert rows["local"]["tracked_files"] == 0
     assert rows["local"]["non_tracked_files"] == 1
     assert ignored.keys().isdisjoint(rows)
+
+
+def test_hidden_tracked_path_detection_matches_copy_policy() -> None:
+    tracked = {
+        "src/visible.py",
+        "docs/release/hidden.md",
+        "build/tracked.txt",
+        "nested/.codex/state.md",
+    }
+
+    assert tracked_paths_hidden_by_copy_policy(tracked) == [
+        "build/tracked.txt",
+        "docs/release/hidden.md",
+        "nested/.codex/state.md",
+    ]
+
+
+def test_repository_copy_policy_does_not_hide_tracked_paths() -> None:
+    assert tracked_paths_hidden_by_copy_policy(tracked_paths(ROOT)) == []
