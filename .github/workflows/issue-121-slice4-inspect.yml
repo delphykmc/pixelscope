@@ -1,0 +1,51 @@
+name: Issue 121 Slice 4 inspection
+
+on:
+  push:
+    branches:
+      - feat/issue-121-slice-4-iqa-composition-seam
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect IQA composition points
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def show(path, needles, radius=12):
+              lines = Path(path).read_text(encoding='utf-8').splitlines()
+              print(f'===== {path} =====')
+              shown = set()
+              for needle in needles:
+                  for i, line in enumerate(lines):
+                      if needle in line:
+                          lo=max(0,i-radius); hi=min(len(lines),i+radius+1)
+                          key=(lo,hi)
+                          if key in shown: continue
+                          shown.add(key)
+                          print(f'--- {needle} @ {i+1} ---')
+                          for j in range(lo,hi): print(f'{j+1:04d}: {lines[j]}')
+          show('src/pixelscope/app/main_window.py', [
+              'def __init__(', 'self.iqa_workspace =', 'self.iqa_dock =',
+              'self.iqa_workspace_action =', 'Toggle IQA Workspace',
+              'def open_iqa_result', 'def _toggle_iqa_workspace',
+              'def _reset_workspace_layout', 'def _prepare_floating_workspaces_for_shutdown',
+              'self.iqa_controller.shutdown()', 'def closeEvent',
+          ], radius=16)
+          show('src/pixelscope/app/application.py', [
+              'def _compose_main_window_presentation', 'install_remote_iqa_pool(window.iqa_controller.pool',
+              'def _compose_remote_iqa', 'remote_iqa', 'window = MainWindow(',
+          ], radius=20)
+          PY
+      - name: Inspect IQA references in tests and installers
+        shell: bash
+        run: |
+          git grep -n -E 'iqa_result_pool|\.iqa_(workspace|controller|interaction|dock)|MainWindow\(' -- tests src/pixelscope/remote | head -n 400 || true
