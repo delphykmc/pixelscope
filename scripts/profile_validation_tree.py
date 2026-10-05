@@ -71,11 +71,13 @@ def iter_copy_candidates(root: Path) -> Iterable[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
         directory = Path(dirpath)
         relative_dir = directory.relative_to(root)
-        dirnames[:] = [
-            name
-            for name in dirnames
-            if not copy_policy_ignores(PurePosixPath((relative_dir / name).as_posix()))
-        ]
+        kept_dirnames = []
+        for name in dirnames:
+            relative = PurePosixPath((relative_dir / name).as_posix())
+            if not copy_policy_ignores(relative):
+                kept_dirnames.append(name)
+        dirnames[:] = kept_dirnames
+
         for filename in filenames:
             relative = relative_dir / filename
             if copy_policy_ignores(PurePosixPath(relative.as_posix())):
@@ -99,12 +101,11 @@ def tracked_paths_hidden_by_copy_policy(tracked: Iterable[str]) -> list[str]:
     hidden = []
     for path in tracked:
         relative = PurePosixPath(path.replace("\\", "/"))
-        prefixes = [
-            PurePosixPath(*relative.parts[:index])
-            for index in range(1, len(relative.parts) + 1)
-        ]
-        if any(copy_policy_ignores(prefix) for prefix in prefixes):
-            hidden.append(path)
+        for index in range(1, len(relative.parts) + 1):
+            prefix = PurePosixPath(*relative.parts[:index])
+            if copy_policy_ignores(prefix):
+                hidden.append(path)
+                break
     return sorted(hidden)
 
 
