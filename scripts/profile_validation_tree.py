@@ -1,8 +1,9 @@
-"""Profile the repository tree that full-copy validation fixtures can see.
+"""Define and profile the full-copy validation fixture policy.
 
-This is diagnostic tooling for Issue #113. The explicit ignore names are shared
-with the screenshot-rendering fixture so owner-local measurements describe the
-same copy contract that the integration test uses.
+The explicit ignore names are shared with the screenshot-rendering fixture so
+owner-local measurements describe the same copy contract that the integration
+test uses. Git-tracked paths must never be hidden by this generated/local-state
+exclusion policy.
 """
 
 from __future__ import annotations
@@ -59,6 +60,15 @@ def tracked_paths(root: Path) -> set[str]:
         check=True,
     )
     return {name for name in process.stdout.split("\0") if name}
+
+
+def tracked_paths_hidden_by_copy_policy(tracked: Iterable[str]) -> list[str]:
+    """Return tracked paths that the copy policy would prune by name."""
+    hidden = []
+    for path in tracked:
+        if any(part in COPY_IGNORE_NAMES for part in path.replace("\\", "/").split("/")):
+            hidden.append(path)
+    return sorted(hidden)
 
 
 def summarize_tree(root: Path, tracked: set[str] | None = None) -> dict[str, object]:
