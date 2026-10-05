@@ -46,6 +46,22 @@ Existing startup/install order, pool identities/cardinality, and close semantics
 the characterization remain protected. Missing injection capability is an upstream
 gap, not permission to patch a window/controller downstream.
 
+### Provider call concurrency — pending reconciliation
+
+Existing Client-owned result/file and job-operation pools can execute overlapping
+work; concurrent-user storage isolation alone does not define in-process safety.
+Slice 2/4 reconciliation must record which execution, result/artifact and resolver
+operations can overlap on the same provider/port instance, including status/result/
+cancel and result/resolver work, and which non-Qt backend resources are shared.
+
+If one instance receives concurrent calls, SUB must provide the documented thread-safe,
+reentrant behavior, including races with cancellation and backend release. If public
+composition guarantees separate port instances or explicit serialization instead,
+record that guarantee and its owner in MAIN, and identify any resources still shared
+between instances. Neither model is selected by this draft; G8 blocks reliance on an
+unverified serial-call assumption. Preserve existing pool ownership/cardinality and
+off-thread work; no new pool, UI-thread serialization, or lifecycle redesign is implied.
+
 ## Control plane flow
 
 1. Client captures a public submit intent from the underlying current pair or the
@@ -147,8 +163,11 @@ Materialization must satisfy this transaction:
    spatial grids needed for Reference/spatial exploration. Validate transfer integrity
    before publication. Summary-first Client loading remains lazy; durable local grid
    availability does not require eager array decoding or retention in RAM.
-3. Publish the immutable local bundle with the canonical publication marker last;
-   expose its reference only after it is safely readable. Never overwrite a different
+3. Atomically commit the Client-supported durable format's completeness/publication
+   mechanism only after its required local artifacts are safely readable. The current
+   v2 format writes its manifest marker last; that is an existing format rule, not a
+   required mechanism for every format reconciled with Slice 2. Expose the local
+   reference only after committed publication. Never overwrite a different
    result under a remembered identity. Interrupted acquisition leaves no apparently
    complete bundle. Repeated acquisition of the same identity verifies existing data.
 4. Explicit Open Result uses the normal Client path. History captures the local
@@ -274,6 +293,7 @@ MAIN. Names of new tests are deferred until reconciliation.
 | Materialization | Atomic local publication; full promised offline artifact availability; independent restart/reopen; mismatch rejected; no auth/network required to browse local summaries/Reference/grids. |
 | Resolver | Available/unavailable/error, identity/dimensions/alias checks, changed-mapping stale resolution, optional source absence with result-only browsing. |
 | Lifecycle | Qt-free supply; existing pools/order; revoke stale authority; idempotent backend release; close does not remote-cancel jobs or delete live inputs. |
+| In-process concurrency | Overlapping status/result/cancel and result/resolver operations under the reconciled same-instance, separate-instance or serialized model; shared backend resources remain safe. Exercise operation/cancel/shutdown-release races with deterministic synchronization; verify no cross-job/result identity mix-up, use-after-release, deadlock or stale UI publication. If serialization/isolation is promised, prove composition enforces it rather than testing only serial calls. |
 | Auth/config | Enterprise defaults/overrides private; expiry/access-required sanitized; SSO substitution does not alter Client contract; local reopen does not initiate auth. |
 | Cleanup/sync | Owned-resource-only repeated cleanup, failure recovery, active job preservation; exact MAIN pin and no unapproved upstream-owned diffs. |
 
@@ -283,8 +303,13 @@ Reuse the characterization's domain/partial/source/history tests and
 `tests/ui/test_issue81_qt_lifecycle.py` when implementation touches those contracts.
 Hosted CI runs small deterministic contract groups and broad cheap static checks;
 Qt timing/geometry/native teardown remains owner-local Windows authority. Do not add
-the complete pytest suite to CI. Full local validation remains the applicable
-[quality](QUALITY.md) merge-readiness gate, not proof of enterprise infrastructure.
+the complete pytest suite to CI. Applicable PR validation, including focused owner-local
+canaries required by the changed contract, is the default merge evidence for bounded,
+low-risk changes accepted under [QUALITY.md](QUALITY.md). Run full local validation
+when that policy requires it for milestone/high-risk/shared-infrastructure/native-
+lifecycle work or a repository-wide clean claim; do not require it for every handoff
+PR. Focused hosted CI does not replace applicable owner/local lifecycle evidence, and
+neither focused nor full repository validation proves enterprise infrastructure.
 
 ## Minimum production smoke plan (SUB, not yet executed)
 
@@ -335,6 +360,7 @@ upstream follow-up with an owner and block the affected handoff flow.
 | G5 | Cancellation/release semantics distinguish local abort, durable remote job cancellation and retention; late callbacks cannot mutate disposed UI. | Await Slice 2 tests against frozen lifecycle. |
 | G6 | Provider-owned access/config failure conveyed without exposing auth objects/endpoints; SSO swap leaves public consumers unchanged. | Await Slice 2 public outcome mapping; enterprise implementation stays in SUB. |
 | G7 | Explicit composition can supply execution, artifact and resolver responsibilities without modifying/shadowing MAIN-owned source or creating provider Qt ownership. | Slice 2 seam plus Slice 4 injection/Checkpoint C; draft cannot sign off early. |
+| G8 | Define overlapping calls per provider/port instance and shared resources: SUB thread-safe/reentrant implementation, or MAIN-owned separate-instance/explicit-serialization guarantees. Prove overlapping operation/cancel/shutdown-release race safety under existing pools. | Await Slice 2/4 concurrency model and conformance mapping; no serial-call assumption permitted before reconciliation. |
 
 Reconciliation updates this document with the merged Slice 2 SHA, exact public symbols
 and focused test references, supported limitations, and each gap's resolution or

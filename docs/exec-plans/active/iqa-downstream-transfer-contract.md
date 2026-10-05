@@ -37,10 +37,10 @@ Preserve dependency direction, pool ownership/order, durable remote jobs, CPytho
 
 1. Read Issue #121 in full, latest Checkpoint A, merged #122/#123 and relevant docs.
 2. Draft downstream responsibilities, transaction/failure flows, pin/path/sync policy,
-   conformance matrix and real smoke plan; enumerate G1-G7 semantic gap candidates.
+   conformance matrix and real smoke plan; enumerate G1-G8 semantic gap candidates.
 3. Validate docs and diff preservation, create a ChatGPT-assisted draft PR, report
    observed local/hosted results. Draft delivery does not close Issue #121.
-4. Wait for merged Slice 2. Map G1-G7 to actual symbols/tests; resolve gaps upstream
+4. Wait for merged Slice 2. Map G1-G8 to actual symbols/tests; resolve gaps upstream
    or record blockers before any dependent implementation or transfer sign-off.
 5. Finalize Slice 5 after Slice 4/Checkpoint C; Slice 6 executes real SUB validation.
 
@@ -70,7 +70,17 @@ or GPU/SMB PASS is claimed. Full local suite is not required for this bounded dr
   `pytest -q tests/unit/test_docs_contract.py`: `2 passed in 0.31s`; Ruff lint
   succeeded, Ruff format: `408 files already formatted`; mypy: `Success: no issues
   found in 140 source files`; `git diff --check`: exit 0. Existing durable-doc
-  changes are additive routing links only. Hosted PR CI remains pending publication.
+  changes are additive routing links only. Hosted PR CI on `7ef1a52` subsequently
+  passed Change-scoped validation and Ubuntu/Windows User Guide validation; evidence
+  is recorded in PR #124.
+- 2026-10-05: PR #124 review follow-up aligns validation with QUALITY's applicable
+  PR/full-validation conditions, adds G8 provider call concurrency reconciliation and
+  overlap/cancel/shutdown conformance, and makes durable publication format-neutral.
+  No concurrency model or new public API is selected; runtime remains unchanged.
+- 2026-10-05: Review-fix local checks: documentation contract passed;
+  `pytest -q tests/unit/test_docs_contract.py`: `2 passed in 0.45s`; Ruff lint exit 0;
+  Ruff format: `408 files already formatted`; mypy: `Success: no issues found in
+  140 source files`; diff check exit 0. Latest-head hosted CI will be reported in PR #124.
 
 ## Completion / deferred work
 
