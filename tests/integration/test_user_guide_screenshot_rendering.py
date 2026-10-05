@@ -95,7 +95,7 @@ def _assert_clean_repo(clone: Path) -> None:
 
 @pytest.fixture
 def _clean_repo(_shared_omission_repo: Path) -> Iterator[Path]:
-    """Before/after isolation for sequential shared-clone unit/integration tests."""
+    """Before/after isolation for sequential shared-clone integration tests."""
     _assert_clean_repo(_shared_omission_repo)
     yield _shared_omission_repo
     _assert_clean_repo(_shared_omission_repo)
@@ -130,7 +130,7 @@ def _clear_generated_site(clone: Path) -> None:
 def test_missing_each_declared_png_keeps_full_repo_links_and_hook_valid(
     _clean_repo: Path, screenshot: dict
 ) -> None:
-    """Fast per-ID contract; expensive strict/offline integration is shared below."""
+    """Per-ID repository contract; strict/offline builds are shared below."""
     clone = _clean_repo
     image = clone / ASSETS / screenshot["filename"]
     with measure_phase("per-id-png-remove", screenshot_id=screenshot["id"]):
@@ -162,7 +162,7 @@ def test_missing_each_declared_png_keeps_full_repo_links_and_hook_valid(
 
 
 def test_all_declared_pngs_absent_keeps_real_offline_site_valid(_clean_repo: Path) -> None:
-    """One cold-cache build; restore each of the 14 approved PNGs on any failure."""
+    """One cold-cache build; restore each approved PNG on any failure."""
     clone = _clean_repo
     try:
         with ExitStack() as missing:
@@ -230,8 +230,7 @@ def test_all_present_declared_topic_images_render_with_relative_paths(
 def test_hook_keeps_source_markers_and_omits_only_absent_declared_png(
     _clean_repo: Path,
 ) -> None:
-    # Pure rendering coverage can reuse the full validated clone; do not
-    # weaken pre-build's authoritative whole-manifest validation.
+    # Integration coverage keeps authoritative full-manifest pre-build validation.
     clone = _clean_repo
     page = SimpleNamespace(file=SimpleNamespace(src_path="formats/raw.md"))
     config = {"docs_dir": str(clone / GUIDE)}
@@ -244,7 +243,7 @@ def test_hook_keeps_source_markers_and_omits_only_absent_declared_png(
     assert marker not in present
     assert "![RAW profile dialog](../assets/screenshots/raw-profile-dialog.png)" in present
     assert "Keep this explanation." in present
-    assert original.endswith("Keep this explanation.\n")  # source never rewritten
+    assert original.endswith("Keep this explanation.\n")
 
     with _without_png(clone / ASSETS / "raw-profile-dialog.png"):
         with measure_phase("hook-only-pre-build-absent"):
