@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow
 
 from pixelscope.app.window_contribution import MenuActionFactory
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
+from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
 from pixelscope.ui.composition_lifetime import install_remote_iqa
 from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_historical_results_lifecycle import (
@@ -45,6 +46,12 @@ class IqaClientInstaller:
         self.dock: QDockWidget | None = None
         self.action: QAction | None = None
         self._window: Any | None = None
+
+    @classmethod
+    def production(cls) -> "IqaClientInstaller":
+        """Create the production client after Base local-pool initialization."""
+
+        return cls(remote_iqa_thread_pool())
 
     @property
     def result_pool(self) -> QThreadPool:
