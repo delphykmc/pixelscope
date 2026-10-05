@@ -1,8 +1,32 @@
-from scripts.classify_ci_changes import ChangedPath, classify_paths
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+from scripts.classify_ci_changes import ChangedPath, classify_paths, git_changed_paths
 
 
 def _groups(*paths: str) -> dict[str, bool]:
     return classify_paths([ChangedPath(path) for path in paths])
+
+
+def _git(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(root), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _commit(root: Path, relative: str, content: str, message: str) -> str:
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    _git(root, "add", relative)
+    _git(root, "commit", "-m", message)
+    return _git(root, "rev-parse", "HEAD")
 
 
 def test_docs_only_change_stays_out_of_native_and_local_full_validation() -> None:
@@ -29,8 +53,11 @@ def test_help_raw_yuv_and_release_paths_select_focused_windows_groups() -> None:
     groups = _groups(
         "src/pixelscope/ui/user_guide_help.py",
         "src/pixelscope/io/raw_reader.py",
-        "tests/unit/test_yuv_semantics.py",
-        "scripts/build_release_candidate.py",
+        "src/pixelscope/core/yuv.py",
+        "scripts/release_contract.py",
+        "scripts/publication_contract.py",
+        "scripts/build_third_party_notices.py",
+        "requirements/release.txt",
     )
 
     assert groups["help_ui"]
@@ -39,7 +66,20 @@ def test_help_raw_yuv_and_release_paths_select_focused_windows_groups() -> None:
     assert groups["release"]
     assert groups["windows_native"]
     assert groups["typecheck"]
-    assert not groups["local_full_required"]
+    assert not groups["unknown"]
+
+
+def test_release_contract_tests_are_owned_by_release_group() -> None:
+    for path in (
+        "tests/unit/test_release_candidate_provenance.py",
+        "tests/unit/test_release_distribution.py",
+        "tests/unit/test_release_publication.py",
+        "scripts/validate_release_publication.py",
+    ):
+        groups = _groups(path)
+        assert groups["release"], path
+        assert groups["windows_native"], path
+        assert not groups["unknown"], path
 
 
 def test_unknown_changes_require_broader_owner_local_validation_only() -> None:
@@ -80,6 +120,34 @@ def test_rename_considers_both_old_and_new_ownership() -> None:
 
     assert groups["raw"]
     assert groups["local_full_required"]  # unknown destination widens owner/local validation
+
+
+def test_pr_merge_base_excludes_unrelated_changes_added_to_base(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-b", "main")
+    _git(tmp_path, "config", "user.email", "ci@example.invalid")
+    _git(tmp_path, "config", "user.name", "CI Test")
+    _commit(tmp_path, "README.md", "base\n", "base")
+
+    _git(tmp_path, "switch", "-c", "feature")
+    head = _commit(tmp_path, "docs/QUALITY.md", "feature docs\n", "feature docs")
+
+    _git(tmp_path, "switch", "main")
+    base = _commit(
+        tmp_path,
+        "scripts/release_contract.py",
+        "base-only release change\n",
+        "advance main release contract",
+    )
+
+    direct_groups = classify_paths(git_changed_paths(tmp_path, base, head))
+    pr_groups = classify_paths(
+        git_changed_paths(tmp_path, base, head, use_merge_base=True)
+    )
+
+    assert direct_groups["release"]
+    assert pr_groups["docs"]
+    assert not pr_groups["release"]
+    assert not pr_groups["windows_native"]
 
 
 def test_no_change_produces_no_validation_scope() -> None:
