@@ -272,3 +272,7 @@ This contract intentionally precedes runtime changes:
 Later slices may refine implementation detail, but they must preserve the ownership
 and one-way dependency rules here unless the owner explicitly records a superseding
 architecture decision.
+
+The [downstream consumer and transfer contract](IQA_DOWNSTREAM_CONTRACT.md) records
+the Slice 5 semantic draft, SUB path/pin/sync policy and conformance/smoke plans.
+It awaits merged Slice 2 reconciliation and does not certify transfer readiness.

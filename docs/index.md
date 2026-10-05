@@ -34,6 +34,12 @@ knowledge belongs in focused documents under `docs/`.
 - `IQA_BOUNDARY_CHARACTERIZATION.md`: Issue #121 Slice 1 inventory of current concrete
   Base/IQA coupling, production install/shutdown order, settings ownership, IQA test
   classes, and the minimum public provider/result semantics that Slice 2 must preserve.
+- `IQA_DOWNSTREAM_CONTRACT.md`: Issue #121 Slice 5 semantic downstream draft for
+  Enterprise control/data planes, normalization/local reopen, source/auth/config
+  ownership, SUB paths/upstream pin/sync, conformance/smoke plans and Slice 2 gaps.
+  Final transfer sign-off awaits merged Slice 2 reconciliation and Checkpoint C.
+- [`exec-plans/active/iqa-downstream-transfer-contract.md`](exec-plans/active/iqa-downstream-transfer-contract.md):
+  Slice 5 draft-delivery and reconciliation gates; no dependent production implementation.
 - `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
 - `REMOTE_IQA_CONTRACT.md`: broad P5 Remote IQA product/architecture/transport
