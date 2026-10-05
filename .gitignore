@@ -1,6 +1,7 @@
 .venv/
 .venv-release/
 .codex/
+.test-results/
 temp/
 __pycache__/
 *.py[cod]

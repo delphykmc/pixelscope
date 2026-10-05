@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import pytest
 from scripts.check_docs import find_problems
 from scripts.e8_profile import measure_phase
+from scripts.profile_validation_tree import copytree_ignore
 from scripts.user_guide_screenshot_hook import on_page_markdown, on_pre_build
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,27 +32,14 @@ _REFERENCED = [row for row in _REGISTERED if row["placement"] == "required"]
 
 
 def _clone_repo(tmp_path: Path) -> Path:
-    # Full repository, not a narrowed MkDocs-only tree: check_docs can still
-    # enforce unrelated Markdown local links and durable harness references.
+    # Full repository source/worktree semantics are preserved, while local
+    # environment/build/test-result directories are excluded from the copy.
     clone = tmp_path / "pixelscope"
     with measure_phase("repository-copytree"):
         shutil.copytree(
             ROOT,
             clone,
-            ignore=shutil.ignore_patterns(
-                ".git",
-                ".venv",
-                ".tox",
-                ".mypy_cache",
-                ".pytest_cache",
-                ".ruff_cache",
-                "__pycache__",
-                ".cache",
-                "build",
-                "dist",
-                "site",
-                "temp",
-            ),
+            ignore=copytree_ignore(ROOT),
         )
     if os.environ.get("PIXELSCOPE_E8_PROFILE") == "1":
         with measure_phase("repository-copied-file-inventory"):
