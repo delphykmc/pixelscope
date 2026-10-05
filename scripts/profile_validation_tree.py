@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from collections import defaultdict
 from collections.abc import Iterable
@@ -35,13 +36,15 @@ COPY_IGNORE_NAMES = frozenset(
 
 def iter_copy_candidates(root: Path) -> Iterable[Path]:
     """Yield relative files that match the screenshot fixture copy contract."""
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(root)
-        if any(part in COPY_IGNORE_NAMES for part in relative.parts):
-            continue
-        yield relative
+    root = root.resolve()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [name for name in dirnames if name not in COPY_IGNORE_NAMES]
+        directory = Path(dirpath)
+        relative_dir = directory.relative_to(root)
+        for filename in filenames:
+            if filename in COPY_IGNORE_NAMES:
+                continue
+            yield relative_dir / filename
 
 
 def tracked_paths(root: Path) -> set[str]:
@@ -60,6 +63,7 @@ def summarize_tree(root: Path, tracked: set[str] | None = None) -> dict[str, obj
     root = root.resolve()
     tracked = tracked_paths(root) if tracked is None else tracked
     totals: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
+    non_tracked_rows: list[dict[str, object]] = []
     file_count = 0
     byte_count = 0
     tracked_count = 0
@@ -78,6 +82,8 @@ def summarize_tree(root: Path, tracked: set[str] | None = None) -> dict[str, obj
             bucket[3] += size
             tracked_count += 1
             tracked_bytes += size
+        else:
+            non_tracked_rows.append({"path": normalized, "bytes": size})
         file_count += 1
         byte_count += size
 
@@ -96,6 +102,7 @@ def summarize_tree(root: Path, tracked: set[str] | None = None) -> dict[str, obj
             }
         )
     rows.sort(key=lambda row: (-int(row["bytes"]), str(row["path"])))
+    non_tracked_rows.sort(key=lambda row: (-int(row["bytes"]), str(row["path"])))
 
     return {
         "root": str(root),
@@ -106,6 +113,7 @@ def summarize_tree(root: Path, tracked: set[str] | None = None) -> dict[str, obj
         "non_tracked_files": file_count - tracked_count,
         "non_tracked_bytes": byte_count - tracked_bytes,
         "top_level": rows,
+        "largest_non_tracked": non_tracked_rows[:20],
     }
 
 
