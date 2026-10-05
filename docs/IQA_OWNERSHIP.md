@@ -35,7 +35,7 @@ payloads, model internals, or internal-only infrastructure details.
 
 ## Logical layers and dependency direction
 
-The staged dependency rule is:
+The **target dependency rule for new work** is:
 
 ```text
 Enterprise IQA -> IQA Client -> PixelScope Base
@@ -43,10 +43,11 @@ Enterprise IQA -> IQA Client -> PixelScope Base
 
 The arrow means **depends on**. Therefore:
 
-- Base must not depend on IQA Client or Enterprise IQA.
-- IQA Client may depend on public Base host/lifecycle contracts.
-- Enterprise IQA may depend on the public IQA Client/provider/result contract and
-  public Base contracts exposed for that purpose.
+- Base must not acquire a new dependency on IQA Client or Enterprise IQA.
+- IQA Client may depend on public Base host/composition/contribution/lifecycle
+  contracts.
+- Enterprise IQA may depend on the public IQA Client provider/result/domain contract
+  and on public Base contracts exposed through the Client/host integration boundary.
 - MAIN must not import, instantiate, configure, or otherwise require Enterprise-only
   implementation.
 
@@ -54,6 +55,26 @@ Current production code still contains concrete Base/IQA coupling documented in
 Issue #121. Slice 0 does not claim that the target direction is already mechanically
 enforced. Later slices must characterize and reduce that coupling without increasing
 reverse dependencies in the meantime.
+
+## Contract ownership rule
+
+The interface is owned by the layer that consumes its semantics, not by the layer that
+implements it.
+
+For Issue #121 this means:
+
+- **Base** owns only generic application host/composition/contribution/lifecycle
+  contracts. Base does not own an IQA-specific provider or IQA result/domain API.
+- **IQA Client** owns the IQA-specific provider/result/domain contract it consumes.
+  The planned `IqaProvider` / result-source protocol therefore belongs to the IQA
+  Client boundary.
+- **Enterprise IQA** implements or adapts that Client-owned contract using internal
+  infrastructure.
+
+This is deliberate dependency inversion. The Client defines what IQA capability it
+needs; synthetic and Enterprise implementations satisfy the same Client-owned port.
+Keeping `IqaProvider` out of Base also allows the future Stage 2 move of IQA Client to
+SUB without forcing an IQA-specific API to remain in Base.
 
 ## Stage 1 — current target
 
@@ -67,7 +88,7 @@ PixelScope Base
   - MainWindow / Viewer / Core / IO
   - common menu, dock, settings host
   - worker/lifecycle primitives
-  - public host/provider contracts
+  - generic host/composition/contribution contracts
            ^
            | depends on
 IQA Client
@@ -76,10 +97,10 @@ IQA Client
   - generic IQA controller/state machine
   - result/reference/scene/history presentation
   - client-side async/lifecycle behavior using Base primitives
-  - public IQA provider/result contracts
+  - public IqaProvider / IQA result/domain contracts
   - synthetic/fixture provider for deterministic development
            ^
-           | depends on public client/provider/result contracts
+           | implements/adapts Client-owned IQA contracts
 SUB repository
 
 Enterprise IQA
@@ -101,12 +122,17 @@ confidential IQA backend:
 - core numerics;
 - Files / Selection / Viewer / Statistics / Histogram / Difference;
 - `MainWindow` shell and common layout;
-- menu taxonomy, ordering, styling, and contribution points;
+- menu taxonomy, ordering, styling, and generic contribution points;
 - generic dock hosting and workspace persistence;
 - common settings shell;
 - worker and lifecycle primitives;
 - public packaging/release and documentation build;
-- stable public host/provider contracts intended for clients/extensions.
+- stable public host/composition/contribution/lifecycle contracts intended for
+  clients/extensions.
+
+Base must not define an IQA-specific `IqaProvider`, IQA result schema/domain API, or
+Enterprise adapter merely because those types are public. Public visibility does not
+make an IQA-specific contract Base-owned.
 
 ### IQA Client-owned during Stage 1
 
@@ -118,8 +144,14 @@ public contracts and synthetic data:
 - generic IQA controller/state machine;
 - result exploration, reference selection, scene navigation, and history presentation;
 - client-side async/lifecycle behavior built on Base primitives;
-- stable public IQA result/provider contracts;
-- deterministic synthetic fixtures/providers used for development and validation.
+- the IQA-specific `IqaProvider` / result-source protocol consumed by the Client;
+- stable public IQA result/domain types used by Client presentation and state;
+- deterministic synthetic fixtures/providers implementing those same contracts for
+  development and validation.
+
+The Client contract should expose only capability and data semantics required by the
+Client. It should remain Qt-free where practical so a provider implementation does not
+need to create or manage QWidget/QObject/QThreadPool objects merely to supply IQA data.
 
 ### Enterprise-owned
 
@@ -131,9 +163,15 @@ confidential infrastructure or internal knowledge:
 - internal storage and path conventions;
 - authentication, secrets, and security integration;
 - proprietary response/schema details;
-- mapping from enterprise responses into the public IQA Client contract;
+- an `EnterpriseIqaProvider` or equivalent adapter that implements the Client-owned
+  `IqaProvider` contract;
+- mapping from proprietary enterprise responses into public Client-owned IQA
+  result/domain types;
 - enterprise configuration;
 - internal packaging, deployment, and internal-only documentation.
+
+Enterprise may depend on the Client contract; the Client must not depend on the
+Enterprise implementation.
 
 ## No-confidential-runtime requirement for MAIN
 
@@ -169,6 +207,11 @@ MAIN: PixelScope Base + stable extension/host API
 SUB:  IQA Client + Enterprise IQA as an extension
 ```
 
+Because `IqaProvider` and the public IQA result/domain types are Client-owned, they move
+with IQA Client in Stage 2. Base retains only its generic host/composition/contribution
+contracts and therefore does not require an IQA-specific compatibility surface after
+the ownership transfer.
+
 Stage 1 must therefore avoid decisions that force another application-architecture
 rewrite when IQA Client ownership moves. The intended Stage 2 transition is primarily
 an ownership/package relocation across a stable Base host contract.
@@ -198,15 +241,19 @@ current behavior and reduce lifecycle churn.
 Before changing Base/IQA/Enterprise-adjacent code, answer these questions:
 
 1. Can the capability be implemented and validated using only public contracts and
-   synthetic/public data? If yes, MAIN may own it; otherwise it belongs in SUB.
-2. Does the change add a Base dependency on concrete IQA Client code or an IQA Client
+   synthetic/public data? If yes, MAIN may own it during Stage 1; otherwise it belongs
+   in SUB.
+2. Is the contract generic application-host behavior, or is it semantically IQA?
+   Generic host/composition/contribution/lifecycle contracts belong to Base;
+   `IqaProvider` and IQA result/domain contracts belong to IQA Client.
+3. Does the change add a Base dependency on concrete IQA Client code or an IQA Client
    dependency on Enterprise implementation? If yes, stop and redesign the boundary.
-3. Would MAIN fail to build, start, test, or exercise the public Client without SUB,
+4. Would MAIN fail to build, start, test, or exercise the public Client without SUB,
    internal network access, credentials, private models, or proprietary payloads? If
    yes, the change violates the boundary.
-4. Does a fixture reproduce confidential raw payload structure when a smaller public
+5. Does a fixture reproduce confidential raw payload structure when a smaller public
    semantic contract would suffice? If yes, replace it with a company-neutral fixture.
-5. Does the proposed separation alter Qt ownership, shutdown order, worker pools,
+6. Does the proposed separation alter Qt ownership, shutdown order, worker pools,
    cancellation/quiescence, or stale-callback behavior? If yes, treat it as a separate
    lifecycle-sensitive change and validate against the existing authoritative
    contracts rather than folding it into ownership cleanup.
@@ -218,8 +265,9 @@ This contract intentionally precedes runtime changes:
 - **Slice 0:** ownership/dependency contract only; no runtime changes.
 - **Slice 1:** characterize and freeze current concrete IQA imports, settings, tests,
   provider surface, and production install/shutdown order.
-- **Slice 2+:** introduce the minimum provider/result and composition seams while
-  preserving current behavior and lifecycle contracts.
+- **Slice 2+:** introduce the minimum Client-owned IQA provider/result seam and the
+  generic Base composition seam while preserving current behavior and lifecycle
+  contracts.
 
 Later slices may refine implementation detail, but they must preserve the ownership
 and one-way dependency rules here unless the owner explicitly records a superseding
