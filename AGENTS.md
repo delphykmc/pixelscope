@@ -38,12 +38,13 @@ source and tests before changing behavior.
   arithmetic.
 - Inspect related source, call sites, tests, product behavior, and architecture
   notes before changing public behavior.
-- For staged Base/IQA/Enterprise work, dependency flows only
-  `Enterprise IQA -> IQA Client -> Base` (`->` means depends on). MAIN must remain
-  runnable and deterministically testable using public/synthetic inputs; do not make
-  it depend on SUB-only source, services, credentials, models, datasets, proprietary
-  payloads, or internal infrastructure. Read `docs/IQA_OWNERSHIP.md` before changing
-  this boundary.
+- For staged Base/IQA/Enterprise work, **new dependencies must follow the target
+  direction** `Enterprise IQA -> IQA Client -> Base` (`->` means depends on).
+  Current production coupling is not evidence that the target boundary is already
+  mechanically enforced. MAIN must remain runnable and deterministically testable
+  using public/synthetic inputs; do not make it depend on SUB-only source, services,
+  credentials, models, datasets, proprietary payloads, or internal infrastructure.
+  Read `docs/IQA_OWNERSHIP.md` before changing this boundary.
 - Add or update tests with every functional change.
 - **Do not run or add the complete repository pytest suite in CI.** Full `pytest`
   validation is an owner/local merge-readiness gate. CI exists for fast pre-merge
