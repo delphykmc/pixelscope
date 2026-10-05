@@ -7,8 +7,6 @@ explicit so a path classifier cannot silently grow an expensive catch-all suite.
 from __future__ import annotations
 
 import argparse
-import subprocess
-import sys
 from dataclasses import dataclass
 
 
@@ -98,10 +96,12 @@ def nodes(group: str) -> list[str]:
 
 
 def run_group(group: str) -> int:
-    return subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", *nodes(group)],
-        check=False,
-    ).returncode
+    # Keep the focused test invocation in this interpreter. The previous nested
+    # subprocess boundary could return a native Qt teardown failure after pytest
+    # had already completed all Help assertions successfully on Windows.
+    import pytest
+
+    return int(pytest.main(["-q", *nodes(group)]))
 
 
 def main() -> int:
