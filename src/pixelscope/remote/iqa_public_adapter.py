@@ -48,6 +48,7 @@ from pixelscope.remote.iqa_storage import (
 )
 from pixelscope.remote.iqa_submission import (
     FolderPairEntry,
+    IqaJobRequest,
     IqaJobStatus,
     IqaResultReference as P5ResultReference,
     JobState,
@@ -320,10 +321,15 @@ def normalize_result_v2(
     )
 
 
-def _legacy_request(intent: IqaSubmissionIntent, settings: RemoteIqaSettings) -> object:
+def _legacy_request(
+    intent: IqaSubmissionIntent,
+    settings: RemoteIqaSettings,
+) -> IqaJobRequest:
     variant_ids = tuple(item.variant_id for item in intent.variants)
     if variant_ids != ("A", "B"):
-        raise ValueError("the transitional P5 adapter supports the existing ordered A/B inputs only")
+        raise ValueError(
+            "the transitional P5 adapter supports the existing ordered A/B inputs only"
+        )
     entries: list[FolderPairEntry] = []
     for scene in intent.scenes:
         paths = {item.variant_id: item.local_path for item in scene.sources}
