@@ -11,18 +11,16 @@ from scripts.user_guide_screenshot_hook import on_page_markdown
 def _write_manifest(docs_root: Path) -> None:
     assets = docs_root / "assets/screenshots"
     assets.mkdir(parents=True)
-    manifest = {
-        "screenshots": [
-            {
-                "id": "raw-profile-dialog",
-                "placement": "required",
-                "pages": ["formats/raw.md"],
-                "filename": "raw-profile-dialog.png",
-                "alt": "RAW profile dialog",
-            },
-        ],
+    screenshot = {
+        "id": "raw-profile-dialog",
+        "placement": "required",
+        "pages": ["formats/raw.md"],
+        "filename": "raw-profile-dialog.png",
+        "alt": "RAW profile dialog",
     }
-    (assets / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    manifest = {"screenshots": [screenshot]}
+    payload = json.dumps(manifest)
+    (assets / "manifest.json").write_text(payload, encoding="utf-8")
 
 
 def _page(path: str = "formats/raw.md") -> object:
@@ -32,11 +30,10 @@ def _page(path: str = "formats/raw.md") -> object:
 def test_page_markdown_expands_present_declared_screenshot(tmp_path: Path) -> None:
     docs_root = tmp_path / "docs/user-guide"
     _write_manifest(docs_root)
-    (docs_root / "assets/screenshots/raw-profile-dialog.png").write_bytes(b"png")
-    source = (
-        "# RAW\n\n<!-- pixelscope:screenshot raw-profile-dialog -->\n\n"
-        "Keep this explanation.\n"
-    )
+    image = docs_root / "assets/screenshots/raw-profile-dialog.png"
+    image.write_bytes(b"png")
+    marker = "<!-- pixelscope:screenshot raw-profile-dialog -->"
+    source = f"# RAW\n\n{marker}\n\nKeep this explanation.\n"
 
     rendered = on_page_markdown(
         source,
@@ -45,8 +42,9 @@ def test_page_markdown_expands_present_declared_screenshot(tmp_path: Path) -> No
         files=None,
     )
 
-    assert "<!-- pixelscope:screenshot raw-profile-dialog -->" not in rendered
-    assert "![RAW profile dialog](../assets/screenshots/raw-profile-dialog.png)" in rendered
+    expected = "![RAW profile dialog](../assets/screenshots/raw-profile-dialog.png)"
+    assert marker not in rendered
+    assert expected in rendered
     assert "Keep this explanation." in rendered
     assert source.endswith("Keep this explanation.\n")
 
@@ -54,7 +52,8 @@ def test_page_markdown_expands_present_declared_screenshot(tmp_path: Path) -> No
 def test_page_markdown_omits_missing_declared_screenshot(tmp_path: Path) -> None:
     docs_root = tmp_path / "docs/user-guide"
     _write_manifest(docs_root)
-    source = "Before\n\n<!-- pixelscope:screenshot raw-profile-dialog -->\n\nAfter\n"
+    marker = "<!-- pixelscope:screenshot raw-profile-dialog -->"
+    source = f"Before\n\n{marker}\n\nAfter\n"
 
     rendered = on_page_markdown(
         source,
@@ -71,10 +70,12 @@ def test_page_markdown_omits_missing_declared_screenshot(tmp_path: Path) -> None
 def test_page_markdown_rejects_marker_on_wrong_page(tmp_path: Path) -> None:
     docs_root = tmp_path / "docs/user-guide"
     _write_manifest(docs_root)
+    marker = "<!-- pixelscope:screenshot raw-profile-dialog -->"
+    error = "invalid screenshot marker: raw-profile-dialog"
 
-    with pytest.raises(ValueError, match="invalid screenshot marker: raw-profile-dialog"):
+    with pytest.raises(ValueError, match=error):
         on_page_markdown(
-            "<!-- pixelscope:screenshot raw-profile-dialog -->",
+            marker,
             page=_page("features/image-view.md"),
             config={"docs_dir": str(docs_root)},
             files=None,
