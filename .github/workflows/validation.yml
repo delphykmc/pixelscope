@@ -52,6 +52,7 @@ jobs:
       release: ${{ steps.scope.outputs.release }}
       raw: ${{ steps.scope.outputs.raw }}
       yuv: ${{ steps.scope.outputs.yuv }}
+      local_full_required: ${{ steps.scope.outputs.local_full_required }}
       typecheck: ${{ steps.scope.outputs.typecheck }}
       windows_native: ${{ steps.scope.outputs.windows_native }}
       any_validation: ${{ steps.scope.outputs.any_validation }}
@@ -118,6 +119,10 @@ jobs:
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
           HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
         run: git diff --check "$BASE_SHA...$HEAD_SHA"
+      - name: Report owner/local full-validation requirement
+        if: needs.classify.outputs.local_full_required == 'true'
+        run: >-
+          echo "Owner/local full validation is required before repository-wide PASS is claimed. GitHub CI intentionally does not run the complete pytest suite."
 
   focused-windows:
     name: Focused Windows validation
