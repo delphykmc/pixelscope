@@ -19,8 +19,8 @@ def _write_manifest(docs_root: Path) -> None:
                 "pages": ["formats/raw.md"],
                 "filename": "raw-profile-dialog.png",
                 "alt": "RAW profile dialog",
-            }
-        ]
+            },
+        ],
     }
     (assets / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
