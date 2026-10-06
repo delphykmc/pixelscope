@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import cast
 from weakref import ReferenceType, ref
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QComboBox,
@@ -220,7 +220,7 @@ class ReferenceIqaExtension:
         dock = QDockWidget("IQA Reference", window)
         dock.setObjectName("referenceIqaWorkspaceDock")
         dock.setWidget(self.widget)
-        window.addDockWidget(0x2, dock)  # RightDockWidgetArea; avoids an IQA-specific Base helper.
+        window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         dock.hide()
         cast(WindowHostAccess, window).register_contributed_dock(dock)
         self.dock = dock
@@ -304,6 +304,8 @@ class ReferenceIqaExtension:
             self.dock.raise_()
 
     def shutdown(self) -> None:
+        if not self._active:
+            return
         self._active = False
         if self.widget is not None:
             self.widget.submit_requested.disconnect(self.submit_mock)
