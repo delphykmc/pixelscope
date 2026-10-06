@@ -23,9 +23,10 @@ window = MainWindow(window_contributions=(extension,))
 compose_main_window_presentation(window)
 ```
 
-The reference launcher can also be exercised from source with:
+Both compositions can also be exercised from source:
 
 ```powershell
+.\.venv\Scripts\python.exe -m pixelscope.app.core_application
 .\.venv\Scripts\python.exe -m pixelscope_iqa_reference
 ```
 
