@@ -11,7 +11,7 @@ knowledge belongs in focused documents under `docs/`.
 | User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `user-guide/` topic and `ui/` note | Behavior, terminology, shortcut, format semantics, or workflow changes |
 | Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
 | Remote IQA result/schema/submission work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, current/deferred execution plan as applicable | Measurement/comparison ownership, storage/request/job identity, result schema, summaries/grids, loading boundaries, or P5 sequencing change |
-| Base / IQA Client / Enterprise ownership or SUB handoff | `IQA_OWNERSHIP.md`, `IQA_BOUNDARY_CHARACTERIZATION.md`, `IQA_DOWNSTREAM_CONTRACT.md`, then the relevant `ARCHITECTURE.md` / `DECISIONS.md` sections | Repository/source ownership, current concrete coupling, allowed dependency direction, public provider boundary, downstream conformance/transfer assumptions, synthetic-vs-confidential data rules, lifecycle compatibility, or Stage 1/Stage 2 handoff assumptions change |
+| Base / IQA reference / Enterprise ownership or SUB handoff | `IQA_OWNERSHIP.md`, `IQA_BOUNDARY_CHARACTERIZATION.md`, `IQA_DOWNSTREAM_CONTRACT.md`, `iqa_reference/README.md`, then relevant `ARCHITECTURE.md` / `DECISIONS.md` sections | Repository/source ownership, current concrete coupling, peer-extension dependency direction, public provider/host boundary, reference extraction, downstream conformance assumptions, synthetic-vs-confidential data rules, or lifecycle compatibility change |
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures, `user-guide/formats/raw.md` | Storage schema, validation, decoder, Bayer behavior, or user-facing RAW interpretation changes |
@@ -28,17 +28,20 @@ knowledge belongs in focused documents under `docs/`.
 - `PRODUCT_SPEC.md`: stable user-visible contracts.
 - `ARCHITECTURE.md`: current component boundaries, state ownership, data flow,
   and lifecycle invariants; planned components are explicitly marked.
-- `IQA_OWNERSHIP.md`: authoritative staged MAIN/SUB source-ownership and dependency
-  contract for PixelScope Base, public IQA Client, and Enterprise IQA, including the
-  no-confidential-runtime rule and future Stage 2 ownership target.
+- `IQA_OWNERSHIP.md`: authoritative post-Checkpoint-C MAIN/SUB source-ownership and
+  dependency contract for PixelScope Base/Core, MAIN Reference/Mock IQA, and SUB
+  Enterprise IQA peer extensions, including reserved paths and the
+  no-confidential-runtime rule.
 - `IQA_BOUNDARY_CHARACTERIZATION.md`: Issue #121 Slice 1 inventory of current concrete
   Base/IQA coupling, production install/shutdown order, settings ownership, IQA test
   classes, and the minimum public provider/result semantics that Slice 2 preserves.
-- `IQA_DOWNSTREAM_CONTRACT.md`: Issue #121 Slice 5 reconciled downstream contract for
-  Enterprise control/data planes, normalization/local reopen, source/auth/config
-  ownership, SUB paths/upstream pin/sync, and conformance/smoke plans. It is mapped to
-  merged Slice 2 public symbols; actual transfer qualification still requires Slice 4 /
-  Checkpoint C and Slice 6 evidence.
+- `IQA_DOWNSTREAM_CONTRACT.md`: revised downstream consumer contract preserving the
+  useful Slice 5 public-port/concurrency/pinning rules while making the SUB Enterprise
+  extension a peer consumer of MAIN host/contracts. Real Enterprise smoke is a
+  downstream release responsibility, not a prerequisite for MAIN Slice 6-8.
+- `iqa_reference/README.md`: Revised Slice 6 physical-extraction inventory, generic
+  host additions, reference/mock composition/behavior, immutable baseline snapshot,
+  dependency rules, and Slice 7 cleanup boundary.
 - [`exec-plans/completed/iqa-downstream-transfer-contract.md`](exec-plans/completed/iqa-downstream-transfer-contract.md):
   retained Slice 5 draft/review/reconciliation record; completion is documentation-
   contract completion, not production Enterprise qualification.
