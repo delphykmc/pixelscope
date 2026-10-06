@@ -3,6 +3,14 @@
 Status: Issue #121 Slice 1 characterization contract.
 Baseline: `main@cb48f64059c19b8bbcccc248d06c6519ea650bb0` (merged Slice 0 / PR #122).
 
+> **Revised-target note (2026-10-07):** this document intentionally preserves the
+> Slice 1 physical characterization and terminology as historical evidence. The latest
+> Issue #121 post-Checkpoint-C plan supersedes earlier target statements such as
+> `Enterprise IQA -> IQA Client -> Base`, permanent MAIN ownership of the final IQA
+> Client UI, and real-SUB proof as a prerequisite for MAIN cleanup. The current target
+> is peer Reference/Mock and Enterprise extensions consuming MAIN public host/contracts.
+> See `IQA_OWNERSHIP.md` and `iqa_reference/README.md` for the current authority.
+
 This document records the **current physical IQA integration boundary** that later
 Issue #121 slices must preserve while introducing the staged Base + IQA Client +
 Enterprise ownership model from `IQA_OWNERSHIP.md`.
@@ -238,8 +246,9 @@ The table separates **current storage location** from **target semantic owner**.
 | storage-root ID -> local/UNC client-path mapping | `ApplicationSettings.remote_iqa` | Enterprise | Real internal storage/path convention belongs behind the Enterprise adapter. |
 | staging root ID | `ApplicationSettings.remote_iqa` | Enterprise | Submission/storage deployment configuration, not a Base setting. |
 
-No setting is moved in Slice 1. Slice 7 may change physical storage after the
-provider/handoff path has been proven.
+No setting was moved in Slice 1. Under the revised plan, Slice 7 may clean the
+transitional concrete settings/coupling after the public Slice 6 reference proof; real
+Enterprise integration is not a prerequisite for that MAIN cleanup.
 
 ## Existing IQA validation inventory
 
