@@ -107,9 +107,15 @@ class ReferenceIqaWidget(QWidget):
 
         self.reference_combo.setEnabled(False)
         self.scene_combo.setEnabled(False)
-        self.submit_button.clicked.connect(self.submit_requested.emit)  # type: ignore[attr-defined]
-        self.advance_button.clicked.connect(self.advance_requested.emit)  # type: ignore[attr-defined]
-        self.open_button.clicked.connect(self.open_result_requested.emit)  # type: ignore[attr-defined]
+        self.submit_button.clicked.connect(  # type: ignore[attr-defined]
+            self.submit_requested.emit
+        )
+        self.advance_button.clicked.connect(  # type: ignore[attr-defined]
+            self.advance_requested.emit
+        )
+        self.open_button.clicked.connect(  # type: ignore[attr-defined]
+            self.open_result_requested.emit
+        )
         self.reference_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._selection_changed
         )
@@ -324,11 +330,11 @@ class ReferenceIqaExtension:
             raise RuntimeError("Reference IQA contribution is not prepared")
         selected = cast(WindowHostAccess, window).current_comparison_source_paths()
         synthetic = len(selected) < 2
-        paths = (
-            (selected[0], selected[1])
-            if not synthetic
-            else (Path("reference-a.synthetic"), Path("reference-b.synthetic"))
-        )
+        paths: tuple[Path, Path]
+        if synthetic:
+            paths = (Path("reference-a.synthetic"), Path("reference-b.synthetic"))
+        else:
+            paths = (selected[0], selected[1])
         variants = (IqaVariant("reference", "Reference"), IqaVariant("candidate", "Candidate"))
         scene = IqaSubmissionScene(
             "reference_scene_0001",
