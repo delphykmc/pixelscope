@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from contextlib import suppress
 import weakref
+from contextlib import suppress
 from typing import Any, cast
 
 import numpy as np
