@@ -186,7 +186,10 @@ def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
             if not isinstance(node, ast.ImportFrom):
                 continue
             imported = {alias.name for alias in node.names}
-            if node.module == "pixelscope.ui.composition_lifetime":
+            if node.module in {
+                "pixelscope.ui.composition_lifetime",
+                "pixelscope.ui.iqa_composition_lifetime",
+            }:
                 hardened.update(imported)
             if node.module in {
                 "pixelscope.ui.analysis_export",
