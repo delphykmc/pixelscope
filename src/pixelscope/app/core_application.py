@@ -32,3 +32,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     window.setWindowIcon(app.windowIcon())
     window.show()
     return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
