@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from functools import partial
+import weakref
 from typing import Any, cast
 
 import numpy as np
@@ -134,6 +134,16 @@ class LineProfilePanel(QWidget):
         self.plot_layout.setContentsMargins(0, 0, 0, 0)
         self.plots: list[pg.PlotWidget] = []
         self.legends: list[pg.LegendItem] = []
+        owner_ref = weakref.ref(self)
+
+        def callback_for(plot_index: int) -> Any:
+            def callback(position: object) -> None:
+                owner = owner_ref()
+                if owner is not None:
+                    owner._on_plot_mouse_moved(position, plot_index=plot_index)
+
+            return callback
+
         for plot_index in range(6):
             plot = pg.PlotWidget(parent=self.plot_grid)
             plot.setLabel("left", "Pixel value")
@@ -147,7 +157,7 @@ class LineProfilePanel(QWidget):
             )
             self.plots.append(plot)
             self.legends.append(plot.addLegend(offset=(-10, 10)))
-            callback = partial(self._on_plot_mouse_moved, plot_index=plot_index)
+            callback = callback_for(plot_index)
             self._plot_mouse_callbacks.append(callback)
             plot.scene().sigMouseMoved.connect(callback)
             plot.hide()
