@@ -4,12 +4,10 @@ import argparse
 import faulthandler
 import gc
 import heapq
-import os
-import sys
 import time
 from collections import defaultdict
+from contextlib import suppress
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -127,7 +125,7 @@ class PassiveGCProbe:
     def pytest_sessionfinish(self, session: pytest.Session, exitstatus: int) -> None:
         del session
         if self.registered:
-            with suppress_value_error():
+            with suppress(ValueError):
                 gc.callbacks.remove(self._gc_callback)
             self.registered = False
         self.current_state = "session_finish"
@@ -169,22 +167,13 @@ class PassiveGCProbe:
 
     def close(self) -> None:
         if self.registered:
-            with suppress_value_error():
+            with suppress(ValueError):
                 gc.callbacks.remove(self._gc_callback)
             self.registered = False
         self.log_file.flush()
         self.log_file.close()
         self.fatal_file.flush()
         self.fatal_file.close()
-
-
-class suppress_value_error:
-    def __enter__(self) -> None:
-        return None
-
-    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
-        del exc, tb
-        return exc_type is ValueError
 
 
 def parse_args() -> tuple[argparse.Namespace, list[str]]:
