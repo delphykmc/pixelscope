@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import suppress
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 import pyqtgraph as pg
 from PySide6.QtWidgets import QGraphicsWidget
@@ -103,4 +104,4 @@ def install_pyqtgraph_lifecycle_hardening() -> None:
             _release_plot_widget_forwarders(plot_widget)
 
     setattr(hardened_close, _PATCH_ATTRIBUTE, True)
-    pg.PlotWidget.close = hardened_close  # type: ignore[method-assign]
+    pg.PlotWidget.close = hardened_close
