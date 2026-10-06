@@ -67,6 +67,13 @@ no IQA implementation. Concrete launchers select extensions explicitly.
 No discovery registry, entry points, marketplace, hot loading or version negotiation
 framework is introduced.
 
+The legacy Remote-IQA settings path is **not** treated as a completed generic host seam.
+It still extends/overrides the concrete Settings dialog and persists
+`ApplicationSettings.remote_iqa`. The reference extension needs no configuration, so
+Slice 6 does not invent a settings abstraction solely for future Enterprise use. A
+product-generic settings contribution seam and removal/migration of the legacy
+Remote-IQA settings ownership remain explicit Slice 7 work.
+
 ## Reference behavior
 
 `ReferenceIqaExtension` uses `FixtureIqaProvider` and the public IQA contract to
