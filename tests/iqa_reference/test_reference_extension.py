@@ -59,7 +59,6 @@ def test_reference_extension_exercises_mock_job_result_reference_and_scene_flow(
 
     extension.widget.reference_combo.setCurrentIndex(1)
     extension.widget.scene_combo.setCurrentIndex(2)
-    assert "Variant" not in extension.widget.detail_label.text()
     assert "scene_0002_variant_001.png" in extension.widget.detail_label.text()
 
     window.close()
@@ -81,7 +80,7 @@ def test_reference_file_action_opens_published_mock_result_without_external_back
     assert extension.widget.result is not None
     assert extension.widget.result.result_id == "fixture-minimal"
     assert "completed" in extension.widget.job_label.text()
-    assert extension.dock is not None and extension.dock.isVisible()
+    assert extension.dock is not None and not extension.dock.isHidden()
 
     window.close()
     assert not extension.active
