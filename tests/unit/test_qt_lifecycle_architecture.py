@@ -159,22 +159,22 @@ def test_public_iqa_execution_controller_does_not_retain_main_window() -> None:
 
 
 def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
-    application_path = "src/pixelscope/app/application.py"
+    bootstrap_path = "src/pixelscope/app/bootstrap.py"
     client_path = "src/pixelscope/ui/iqa_client_install.py"
-    application_tree = ast.parse(
-        (REPOSITORY_ROOT / application_path).read_text(encoding="utf-8"),
-        filename=application_path,
+    bootstrap_tree = ast.parse(
+        (REPOSITORY_ROOT / bootstrap_path).read_text(encoding="utf-8"),
+        filename=bootstrap_path,
     )
     client_tree = ast.parse(
         (REPOSITORY_ROOT / client_path).read_text(encoding="utf-8"),
         filename=client_path,
     )
 
-    application_hardened: set[str] = set()
+    bootstrap_hardened: set[str] = set()
     client_hardened: set[str] = set()
     legacy_imports: list[str] = []
     for tree, hardened in (
-        (application_tree, application_hardened),
+        (bootstrap_tree, bootstrap_hardened),
         (client_tree, client_hardened),
     ):
         for node in ast.walk(tree):
@@ -203,19 +203,18 @@ def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
         "install_analysis_export",
         "install_session",
         "release_command_row_metric_window",
-    } <= application_hardened
+    } <= bootstrap_hardened
     assert "install_remote_iqa" in client_hardened
     assert legacy_imports == []
 
     release_calls = [
         node
-        for node in ast.walk(application_tree)
+        for node in ast.walk(bootstrap_tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
         and node.func.id == "release_command_row_metric_window"
     ]
     assert len(release_calls) == 1
-
 
 def test_non_owning_hooks_do_not_retain_their_owner() -> None:
     class Owner:
