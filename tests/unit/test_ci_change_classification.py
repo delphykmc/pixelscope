@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import difflib
 import subprocess
-import sys
 from pathlib import Path
 
 from scripts.classify_ci_changes import ChangedPath, classify_paths, git_changed_paths
@@ -186,25 +184,3 @@ def test_no_change_produces_no_validation_scope() -> None:
     assert not groups["any_validation"]
     assert not groups["local_ui_required"]
     assert not groups["local_full_required"]
-
-
-def test_debug_ruff_formatter_diff() -> None:
-    target = Path("scripts/diagnose_gc_passive.py")
-    original = target.read_text(encoding="utf-8")
-    subprocess.run(
-        [sys.executable, "-m", "ruff", "format", str(target)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    formatted = target.read_text(encoding="utf-8")
-    target.write_text(original, encoding="utf-8")
-    diff = "".join(
-        difflib.unified_diff(
-            original.splitlines(keepends=True),
-            formatted.splitlines(keepends=True),
-            fromfile="before",
-            tofile="after",
-        )
-    )
-    assert formatted == original, f"Ruff formatter diff:\n{diff}"
