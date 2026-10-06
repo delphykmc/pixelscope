@@ -215,9 +215,9 @@ class ReferenceIqaExtension:
         self._window_ref = ref(window)
         self._active = True
         widget = ReferenceIqaWidget()
-        widget.submit_requested.connect(self.submit_mock)  # type: ignore[attr-defined]
-        widget.advance_requested.connect(self.advance_mock)  # type: ignore[attr-defined]
-        widget.open_result_requested.connect(self.open_current_result)  # type: ignore[attr-defined]
+        widget.submit_requested.connect(self.submit_mock)
+        widget.advance_requested.connect(self.advance_mock)
+        widget.open_result_requested.connect(self.open_current_result)
         self.widget = widget
 
     def install_dock(self, window: QMainWindow) -> None:
