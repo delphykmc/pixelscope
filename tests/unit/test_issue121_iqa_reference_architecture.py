@@ -18,28 +18,36 @@ def _imports(path: Path) -> set[str]:
     return modules
 
 
+def _is_reserved_implementation(module: str) -> bool:
+    return module.startswith(("pixelscope_iqa_reference", "pixelscope_enterprise"))
+
+
+def _contains_iqa_implementation(modules: set[str]) -> bool:
+    return any(".iqa_" in module or "remote_iqa" in module for module in modules)
+
+
+def _is_allowed_main_import(module: str, allowed: tuple[str, ...]) -> bool:
+    for prefix in allowed:
+        if module == prefix or module.startswith(f"{prefix}."):
+            return True
+    return False
+
+
 def test_base_core_does_not_import_reference_or_enterprise_namespaces() -> None:
     violations: list[str] = []
     for relative_root in ("app", "core", "io", "workers"):
         root = SOURCE_ROOT / "pixelscope" / relative_root
         for path in root.rglob("*.py"):
             for module in _imports(path):
-                if module == "pixelscope_iqa_reference" or module.startswith(
-                    "pixelscope_iqa_reference."
-                ):
-                    violations.append(f"{path.relative_to(REPOSITORY_ROOT)} -> {module}")
-                if module == "pixelscope_enterprise" or module.startswith(
-                    "pixelscope_enterprise."
-                ):
-                    violations.append(f"{path.relative_to(REPOSITORY_ROOT)} -> {module}")
+                if _is_reserved_implementation(module):
+                    relative = path.relative_to(REPOSITORY_ROOT)
+                    violations.append(f"{relative} -> {module}")
     assert violations == []
 
 
 def test_generic_bootstrap_contains_no_iqa_implementation_imports() -> None:
     modules = _imports(SOURCE_ROOT / "pixelscope" / "app" / "bootstrap.py")
-    assert all(
-        ".iqa_" not in module and "remote_iqa" not in module for module in modules
-    )
+    assert not _contains_iqa_implementation(modules)
 
 
 def test_reference_extension_uses_only_allowed_main_surfaces() -> None:
@@ -55,12 +63,9 @@ def test_reference_extension_uses_only_allowed_main_surfaces() -> None:
     violations: list[str] = []
     for path in root.rglob("*.py"):
         for module in _imports(path):
-            if not module.startswith("pixelscope."):
-                continue
-            if not any(
-                module == prefix or module.startswith(f"{prefix}.") for prefix in allowed
-            ):
-                violations.append(f"{path.relative_to(REPOSITORY_ROOT)} -> {module}")
+            if module.startswith("pixelscope.") and not _is_allowed_main_import(module, allowed):
+                relative = path.relative_to(REPOSITORY_ROOT)
+                violations.append(f"{relative} -> {module}")
     assert violations == []
 
 
@@ -71,7 +76,8 @@ def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
         "docs/enterprise",
         "enterprise",
     )
-    assert [path for path in reserved if (REPOSITORY_ROOT / path).exists()] == []
+    existing = [path for path in reserved if (REPOSITORY_ROOT / path).exists()]
+    assert existing == []
 
 
 def test_generic_composition_lifetime_does_not_eager_load_iqa_implementation() -> None:
@@ -83,9 +89,7 @@ def test_generic_composition_lifetime_does_not_eager_load_iqa_implementation() -
             eager_modules.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             eager_modules.add(node.module)
-    assert all(
-        ".iqa_" not in module and "remote_iqa" not in module for module in eager_modules
-    )
+    assert not _contains_iqa_implementation(eager_modules)
 
     install = next(
         node
