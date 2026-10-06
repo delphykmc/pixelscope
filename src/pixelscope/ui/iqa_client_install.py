@@ -35,7 +35,7 @@ from pixelscope.remote.iqa_submission import (
 )
 from pixelscope.remote.iqa_submission import IqaResultReference as P5IqaResultReference
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
-from pixelscope.ui.composition_lifetime import install_remote_iqa
+from pixelscope.ui.iqa_composition_lifetime import install_remote_iqa
 from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_historical_results_lifecycle import (
     install_historical_iqa_results_lifecycle,
