@@ -108,7 +108,9 @@ class PassiveGCProbe:
         gc.callbacks.append(self._gc_callback)
         self.registered = True
 
-    def pytest_runtest_logstart(self, nodeid: str, location: tuple[str, int | None, str]) -> None:
+    def pytest_runtest_logstart(
+        self, nodeid: str, location: tuple[str, int | None, str]
+    ) -> None:
         del location
         self.started += 1
         self.current_index = self.started
@@ -153,7 +155,9 @@ class PassiveGCProbe:
             fp.write("tests       events  collected\n")
             for bucket in sorted(self.gen2_bins):
                 events, collected = self.gen2_bins[bucket]
-                fp.write(f"{bucket:04d}-{bucket + 99:04d}  {events:>6}  {collected:>9}\n")
+                fp.write(
+                    f"{bucket:04d}-{bucket + 99:04d}  {events:>6}  {collected:>9}\n"
+                )
 
             fp.write("\nLargest natural GC events\n")
             fp.write("collected  gen  index  state          nodeid\n")
