@@ -65,8 +65,9 @@ def _detach_legend(plot_widget: object) -> None:
     # Break both the Python reference and native QGraphicsItem parentage first so
     # cyclic GC cannot later re-enter a partially destroyed ViewBox hierarchy.
     plot_item.legend = None
+    set_parent_item = cast(Callable[[object, object | None], None], QGraphicsWidget.setParentItem)
     with suppress(RuntimeError, TypeError):
-        QGraphicsWidget.setParentItem(legend, None)
+        set_parent_item(legend, None)
     with suppress(RuntimeError, TypeError):
         scene = legend.scene()
         if scene is not None:
