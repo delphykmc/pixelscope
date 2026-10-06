@@ -9,12 +9,23 @@ and shutdown points so separation does not create a new lifecycle model.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Protocol
 
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QDockWidget, QMainWindow
 
 MenuActionFactory = Callable[[str, str, Any, str | None], QAction]
+
+
+class WindowHostAccess(Protocol):
+    """Bounded Base surface available to external window contributions."""
+
+    def current_comparison_source_paths(self) -> tuple[Path, ...]:
+        """Return local source paths in the current comparison page."""
+
+    def register_contributed_dock(self, dock: QDockWidget) -> None:
+        """Register a contribution-owned dock for Base persistence/shutdown handling."""
 
 
 class WindowContribution(Protocol):
@@ -36,3 +47,10 @@ class WindowContribution(Protocol):
 
     def shutdown(self) -> None:
         """Stop contribution-owned client work at the existing MainWindow shutdown point."""
+
+
+class RuntimeWindowContribution(Protocol):
+    """Optional post-window runtime phase owned by explicit composition roots."""
+
+    def install_runtime(self, window: QMainWindow) -> None:
+        """Install runtime/controller behavior after common presentation composition starts."""
