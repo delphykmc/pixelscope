@@ -17,6 +17,7 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/ui/recent_entries.py",
     "src/pixelscope/ui/display_gain.py",
     "src/pixelscope/ui/composition_lifetime.py",
+    "src/pixelscope/ui/iqa_composition_lifetime.py",
     "src/pixelscope/ui/iqa_client_install.py",
     "src/pixelscope/ui/iqa_submission.py",
     "src/pixelscope/ui/iqa_submission_lifecycle.py",
@@ -66,6 +67,10 @@ RANK4_OWNER_ASSIGNMENTS = {
         ("combo", "combo"),
     },
     "src/pixelscope/ui/composition_lifetime.py": {
+        ("window", "window"),
+        ("controller", "controller"),
+    },
+    "src/pixelscope/ui/iqa_composition_lifetime.py": {
         ("window", "window"),
         ("controller", "controller"),
     },
@@ -215,6 +220,7 @@ def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
         and node.func.id == "release_command_row_metric_window"
     ]
     assert len(release_calls) == 1
+
 
 def test_non_owning_hooks_do_not_retain_their_owner() -> None:
     class Owner:
