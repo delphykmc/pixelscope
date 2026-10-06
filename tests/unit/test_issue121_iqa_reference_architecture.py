@@ -68,3 +68,27 @@ def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
         "enterprise",
     )
     assert [path for path in reserved if (REPOSITORY_ROOT / path).exists()] == []
+
+
+def test_generic_composition_lifetime_does_not_eager_load_iqa_implementation() -> None:
+    path = SOURCE_ROOT / "pixelscope" / "ui" / "composition_lifetime.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    eager_modules: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            eager_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            eager_modules.add(node.module)
+    assert all(".iqa_" not in module and "remote_iqa" not in module for module in eager_modules)
+
+    install = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "install_remote_iqa"
+    )
+    lazy_modules = {
+        node.module
+        for node in ast.walk(install)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    }
+    assert "pixelscope.ui.iqa_composition_lifetime" in lazy_modules
