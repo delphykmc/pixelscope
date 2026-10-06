@@ -8,6 +8,7 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication, QDockWidget
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.ui.plots_dock_title import _CONTROLLER_ATTRIBUTE, PlotsDockTitleBar
 
 
@@ -18,6 +19,24 @@ def _drain_deferred_delete(app: QApplication) -> None:
 
 def _legend_anchor_parent(legend: object) -> object | None:
     return getattr(legend, "_GraphicsWidgetAnchor__parent", None)
+
+
+def test_line_profile_mouse_callbacks_hold_only_weak_owner_refs(qtbot: object) -> None:
+    del qtbot
+    panel = LineProfilePanel()
+
+    assert len(panel._plot_mouse_callbacks) == 6
+    for callback in panel._plot_mouse_callbacks:
+        closure = callback.__closure__
+        assert closure is not None
+        contents = tuple(cell.cell_contents for cell in closure)
+        assert panel not in contents
+        owner_refs = [item for item in contents if isinstance(item, ReferenceType)]
+        assert len(owner_refs) == 1
+        assert owner_refs[0]() is panel
+
+    panel.shutdown()
+    panel.deleteLater()
 
 
 def test_plot_widget_close_breaks_legend_viewbox_cycle_before_native_teardown(
