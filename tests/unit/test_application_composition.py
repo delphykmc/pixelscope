@@ -72,12 +72,13 @@ def test_fresh_pool_registration_preserves_shutdown_clear_wait_order(
     ]
 
 
-def test_main_injects_result_pool_before_composition(monkeypatch: Any) -> None:
+def test_main_injects_iqa_client_after_local_pool_initialization(monkeypatch: Any) -> None:
     events: list[str] = []
-    result_pool = object()
     repository = object()
-    application_settings = object()
+    remote_settings = object()
+    application_settings = SimpleNamespace(remote_iqa=remote_settings)
     performance_settings = object()
+    installer = object()
     icon = object()
     window = SimpleNamespace(
         setWindowIcon=lambda value: events.append(f"icon:{value is icon}"),
@@ -85,22 +86,28 @@ def test_main_injects_result_pool_before_composition(monkeypatch: Any) -> None:
     )
     app = SimpleNamespace(windowIcon=lambda: icon, exec=lambda: 17)
 
+    def build_installer(settings_arg: object) -> object:
+        assert settings_arg is remote_settings
+        events.append("iqa_client")
+        return installer
+
     def build_window(
         application_settings_arg: object,
         performance_settings_arg: object,
         repository_arg: object,
         *,
-        iqa_result_pool: object,
+        window_contributions: tuple[object, ...],
     ) -> object:
         assert application_settings_arg is application_settings
         assert performance_settings_arg is performance_settings
         assert repository_arg is repository
-        assert iqa_result_pool is result_pool
+        assert window_contributions == (installer,)
         events.append("window")
         return window
 
-    def compose(window_arg: object) -> None:
+    def compose(window_arg: object, installer_arg: object) -> None:
         assert window_arg is window
+        assert installer_arg is installer
         events.append("compose")
 
     monkeypatch.setattr(application_module, "create_application", lambda _args: app)
@@ -114,19 +121,18 @@ def test_main_injects_result_pool_before_composition(monkeypatch: Any) -> None:
         "analysis_thread_pool",
         lambda: events.append("analysis_pool"),
     )
-
-    def build_result_pool() -> object:
-        events.append("result_pool")
-        return result_pool
-
-    monkeypatch.setattr(application_module, "remote_iqa_thread_pool", build_result_pool)
+    monkeypatch.setattr(
+        application_module,
+        "IqaClientInstaller",
+        SimpleNamespace(production=build_installer),
+    )
     monkeypatch.setattr(application_module, "MainWindow", build_window)
     monkeypatch.setattr(application_module, "_compose_main_window_presentation", compose)
 
     assert application_module.main([]) == 17
     assert events == [
         "analysis_pool",
-        "result_pool",
+        "iqa_client",
         "window",
         "compose",
         "icon:True",
@@ -137,10 +143,14 @@ def test_main_injects_result_pool_before_composition(monkeypatch: Any) -> None:
 def test_remote_iqa_composition_preserves_explicit_dependency_order(
     monkeypatch: Any,
 ) -> None:
+    import pixelscope.ui.iqa_client_install as client_install_module
+
     events: list[str] = []
     result_pool = object()
     result_controller = SimpleNamespace(pool=result_pool)
     window = SimpleNamespace(iqa_controller=result_controller)
+    installer = client_install_module.IqaClientInstaller(result_pool)  # type: ignore[arg-type]
+    installer.controller = result_controller  # type: ignore[assignment]
 
     def client_factory(_base_url: str) -> object:
         return object()
@@ -191,24 +201,20 @@ def test_remote_iqa_composition_preserves_explicit_dependency_order(
         events.append("historical")
         return historical_controller
 
-    def install_historical_lifecycle(
-        window_arg: object,
-        controller_arg: object,
-    ) -> None:
+    def install_historical_lifecycle(window_arg: object, controller_arg: object) -> None:
         assert window_arg is window
         assert controller_arg is historical_controller
         events.append("historical_lifecycle")
 
-    monkeypatch.setattr(application_module, "install_remote_iqa", install_remote_iqa)
+    monkeypatch.setattr(client_install_module, "ReusableIqaClientPool", lambda: transport_pool)
+    monkeypatch.setattr(client_install_module, "install_remote_iqa", install_remote_iqa)
     monkeypatch.setattr(
-        application_module,
+        client_install_module,
         "install_remote_iqa_transport_lifecycle",
         install_transport_lifecycle,
     )
     monkeypatch.setattr(
-        application_module,
-        "install_remote_iqa_diagnostics",
-        install_diagnostics,
+        client_install_module, "install_remote_iqa_diagnostics", install_diagnostics
     )
     window_steps = {
         "install_remote_iqa_preview_lifecycle": "preview_lifecycle",
@@ -221,32 +227,24 @@ def test_remote_iqa_composition_preserves_explicit_dependency_order(
     }
     for attribute_name, event_name in window_steps.items():
         monkeypatch.setattr(
-            application_module,
+            client_install_module,
             attribute_name,
             install_window_step(event_name),
         )
-    monkeypatch.setattr(application_module, "polish_remote_iqa_setup", polish_setup)
+    monkeypatch.setattr(client_install_module, "polish_remote_iqa_setup", polish_setup)
+    monkeypatch.setattr(client_install_module, "install_iqa_scene_inspection", install_inspection)
     monkeypatch.setattr(
-        application_module,
-        "install_iqa_scene_inspection",
-        install_inspection,
-    )
-    monkeypatch.setattr(
-        application_module,
+        client_install_module,
         "install_historical_iqa_results",
         install_historical,
     )
     monkeypatch.setattr(
-        application_module,
+        client_install_module,
         "install_historical_iqa_results_lifecycle",
         install_historical_lifecycle,
     )
 
-    application_module._compose_remote_iqa(
-        window,  # type: ignore[arg-type]
-        result_pool=result_pool,  # type: ignore[arg-type]
-        transport_pool=transport_pool,  # type: ignore[arg-type]
-    )
+    installer.install_runtime(window)  # type: ignore[arg-type]
 
     assert events == [
         "remote",

@@ -39,7 +39,11 @@ from pixelscope.remote.iqa_domain import (
     ValueKind,
 )
 from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID, IqaExplorerModel
-from pixelscope.remote.iqa_public_contract import IqaResult
+from pixelscope.remote.iqa_public_contract import (
+    IqaResult,
+    IqaResultAccessPort,
+    IqaResultReference,
+)
 from pixelscope.remote.iqa_result_reader import load_result
 from pixelscope.remote.iqa_v2_domain import VersionedResultLoadOutcome
 from pixelscope.ui.design_tokens import TOKENS
@@ -1227,6 +1231,30 @@ class IqaWorkspaceController(QObject):
         self._pool.start(worker)
         return generation
 
+    def open_result_reference(
+        self,
+        access: IqaResultAccessPort,
+        reference: IqaResultReference,
+    ) -> int:
+        """Materialize and open a public provider result on the existing Client pool."""
+
+        self._generation += 1
+        generation = self._generation
+        self._cancel_workers()
+        self.workspace.status_label.setText("Opening published IQA result...")
+        worker = TaskWorker(
+            _load_public_result_reference,
+            access,
+            reference,
+            generation=generation,
+        )
+        worker.signals.succeeded.connect(self._result_loaded)
+        worker.signals.failed.connect(self._load_failed)
+        worker.signals.finished.connect(self._worker_finished)
+        self._worker = worker
+        self._pool.start(worker)
+        return generation
+
     @Slot(str)
     def prepare_relative(self, reference_variant_id: str) -> None:
         model = self.workspace.model
@@ -1287,6 +1315,8 @@ class IqaWorkspaceController(QObject):
         self,
         value: object,
     ) -> VersionedResultLoadOutcome:
+        if isinstance(value, IqaResult):
+            return self.workspace.set_model(IqaExplorerModel(value))
         if isinstance(value, _WorkspaceLoadPayload):
             if value.outcome.status is LoadStatus.SUCCESS and value.model is not None:
                 return self.workspace.set_model(value.model)
@@ -1374,6 +1404,19 @@ class IqaWorkspaceController(QObject):
     def _relative_worker_finished(self, task_id: str) -> None:
         if self._relative_worker is not None and self._relative_worker.task_id == task_id:
             self._relative_worker = None
+
+
+def _load_public_result_reference(
+    access: IqaResultAccessPort,
+    reference: IqaResultReference,
+) -> IqaResult:
+    source_outcome = access.materialize(reference)
+    if not source_outcome.succeeded or source_outcome.source is None:
+        raise RuntimeError("published IQA result is not available")
+    open_outcome = access.open_result(source_outcome.source)
+    if not open_outcome.succeeded or open_outcome.result is None:
+        raise RuntimeError("published IQA result could not be opened")
+    return open_outcome.result
 
 
 def _load_workspace_result(root: Path | str) -> _WorkspaceLoadPayload:
