@@ -18,6 +18,7 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/ui/display_gain.py",
     "src/pixelscope/ui/composition_lifetime.py",
     "src/pixelscope/ui/iqa_client_install.py",
+    "src/pixelscope/ui/iqa_submission.py",
     "src/pixelscope/ui/iqa_submission_lifecycle.py",
     "src/pixelscope/ui/iqa_result_mapping.py",
     "src/pixelscope/ui/iqa_historical_results.py",
@@ -127,6 +128,33 @@ def test_rank4_helpers_do_not_store_direct_owner_backreferences() -> None:
                     violations.append(
                         f"{relative_path}:{node.lineno}: self.{target.attr} retains {root}"
                     )
+    assert violations == []
+
+
+def test_public_iqa_execution_controller_does_not_retain_main_window() -> None:
+    relative_path = "src/pixelscope/ui/iqa_submission.py"
+    tree = ast.parse(
+        (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8"),
+        filename=relative_path,
+    )
+    controller = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "PublicIqaExecutionController"
+    )
+    violations: list[str] = []
+    for node in ast.walk(controller):
+        if not isinstance(node, ast.Assign) or _root_name(node.value) != "window":
+            continue
+        for target in node.targets:
+            if (
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "self"
+            ):
+                violations.append(
+                    f"{relative_path}:{node.lineno}: self.{target.attr} retains window"
+                )
     assert violations == []
 
 

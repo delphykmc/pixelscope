@@ -1299,7 +1299,9 @@ class PublicIqaExecutionController(QObject):
         ):
             return
         job = self._jobs.get(document_id)
-        if job is None or value.reference.job_id != document_id:
+        # Match the characterized P5 lifecycle: the first terminal state is
+        # sticky. A late poll/cancel callback must never reopen a terminal job.
+        if job is None or job.state.terminal or value.reference.job_id != document_id:
             return
         job.state = value.state
         job.completed_scenes = value.progress.completed

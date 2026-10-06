@@ -57,6 +57,7 @@ from pixelscope.ui.iqa_submission import (
 from pixelscope.ui.iqa_submission_lifecycle import install_remote_iqa_submission_lifecycle
 from pixelscope.ui.iqa_workspace import IqaWorkspaceController, IqaWorkspaceWidget
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
+from pixelscope.workers.thread_pools import analysis_thread_pool
 
 
 class _PooledIqaJobClient(IqaJobClient):
@@ -158,6 +159,18 @@ class IqaClientInstaller:
             install_legacy_runtime=False,
         )
 
+    def _resolve_result_pool(self) -> QThreadPool | None:
+        """Preserve the characterized result/file resource domain for public providers."""
+
+        if self._result_pool is not None or self._install_legacy_runtime:
+            return self._result_pool
+        # Slice 1 froze local analysis registration before the application-owned
+        # Remote IQA result/file pool. Keep that ordering even for a SUB launcher
+        # that composes the Client directly through ``from_ports()``.
+        analysis_thread_pool()
+        self._result_pool = remote_iqa_thread_pool()
+        return self._result_pool
+
     @property
     def execution_port(self) -> IqaExecutionPort:
         if self._execution_port is None:
@@ -178,7 +191,8 @@ class IqaClientInstaller:
 
     def prepare(self, window: QMainWindow) -> None:
         workspace = IqaWorkspaceWidget()
-        controller = IqaWorkspaceController(workspace, window, pool=self._result_pool)
+        result_pool = self._resolve_result_pool()
+        controller = IqaWorkspaceController(workspace, window, pool=result_pool)
         self.workspace = workspace
         self.controller = controller
         self._window_ref = ref(window)
