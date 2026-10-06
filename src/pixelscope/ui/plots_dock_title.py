@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from weakref import ReferenceType, ref
+
 from PySide6.QtCore import (
     QByteArray,
     QEvent,
@@ -104,6 +106,8 @@ class PlotsDockTitleBar(QWidget):
         if isinstance(title_bar, cls):
             return title_bar
         retained = dock.__dict__.get(_CONTROLLER_ATTRIBUTE)
+        if isinstance(retained, ReferenceType):
+            retained = retained()
         if isinstance(retained, cls):
             return retained
         child = dock.findChild(cls)
@@ -121,7 +125,7 @@ class PlotsDockTitleBar(QWidget):
         self._panel_title = title
         self._geometry_setting = geometry_setting
         self.register_geometry_setting(geometry_setting)
-        dock.__dict__[_CONTROLLER_ATTRIBUTE] = self
+        dock.__dict__[_CONTROLLER_ATTRIBUTE] = ref(self)
         self._restore_to_docked = False
         self._restore_area = Qt.DockWidgetArea.BottomDockWidgetArea
         self._settings = QSettings()

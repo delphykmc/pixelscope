@@ -3,6 +3,10 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPen
 
+from pixelscope.ui.pyqtgraph_lifecycle import install_pyqtgraph_lifecycle_hardening
+
+install_pyqtgraph_lifecycle_hardening()
+
 _CHANNEL_COLORS = {
     "R": "#ff3b30",
     "G": "#24b34b",
