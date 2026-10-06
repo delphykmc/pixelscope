@@ -37,7 +37,9 @@ def test_base_core_does_not_import_reference_or_enterprise_namespaces() -> None:
 
 def test_generic_bootstrap_contains_no_iqa_implementation_imports() -> None:
     modules = _imports(SOURCE_ROOT / "pixelscope" / "app" / "bootstrap.py")
-    assert all(".iqa_" not in module and "remote_iqa" not in module for module in modules)
+    assert all(
+        ".iqa_" not in module and "remote_iqa" not in module for module in modules
+    )
 
 
 def test_reference_extension_uses_only_allowed_main_surfaces() -> None:
@@ -79,7 +81,9 @@ def test_generic_composition_lifetime_does_not_eager_load_iqa_implementation() -
             eager_modules.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             eager_modules.add(node.module)
-    assert all(".iqa_" not in module and "remote_iqa" not in module for module in eager_modules)
+    assert all(
+        ".iqa_" not in module and "remote_iqa" not in module for module in eager_modules
+    )
 
     install = next(
         node
