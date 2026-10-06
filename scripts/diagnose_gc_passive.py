@@ -161,8 +161,7 @@ class PassiveGCProbe:
                 self.top_events, reverse=True
             ):
                 fp.write(
-                    f"{collected:>9}  {generation:>3}  {index:>5}  "
-                    f"{state:<13}  {nodeid}\n"
+                    f"{collected:>9}  {generation:>3}  {index:>5}  " f"{state:<13}  {nodeid}\n"
                 )
 
     def close(self) -> None:
