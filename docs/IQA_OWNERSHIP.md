@@ -1,282 +1,227 @@
 # IQA repository and ownership boundary
 
-Status: accepted staged ownership contract for Issue #121 Slice 0.
-Baseline: `main@6958e2fa3770137f80de3599532cd0141c99b868`.
+Status: revised post-Checkpoint-C ownership contract for Issue #121.
+Current authority: latest Issue #121 revised Slice 6–8 plan.
+Checkpoint C baseline: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
-This document is the repository authority for the staged **Base + IQA Client +
-Enterprise IQA** ownership model. It defines repository/source ownership and allowed
-dependency direction. It does **not** replace the existing runtime, numerical, result,
-transport, settings, or Qt lifecycle contracts in `ARCHITECTURE.md`,
-`REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, or `DECISIONS.md`.
+This document defines durable source ownership and dependency direction for PixelScope
+Base/Core, the public reference/mock IQA extension, and the internal Enterprise IQA
+extension. Earlier Slice 0 wording that described MAIN as the permanent owner of the
+final IQA Client UI, or described a later Stage 2 move of that Client to SUB, is retained
+only in Git history. The revised Issue #121 architecture below supersedes it.
 
-Slice 0 is documentation/harness only. Existing production composition remains
-unchanged until later Issue #121 slices characterize and introduce the required seams.
+## Product shapes
 
-## Repository roles
-
-### MAIN
-
-The public/external PixelScope repository is the authoritative upstream for common
-application behavior and, during Stage 1, the public IQA Client. MAIN must remain
-implementable, runnable, and deterministically testable without confidential
-infrastructure or source.
-
-### SUB
-
-The internal enterprise repository consumes MAIN and owns confidential/company-only
-IQA implementation and deployment. SUB may adapt internal systems to public MAIN
-contracts, but MAIN must never require SUB-only knowledge to build, test, or run its
-public/synthetic paths.
-
-Information flow is effectively one-way from MAIN to SUB at source level. Internal
-findings may be reported back as public requirements, data-shape constraints, or
-behavioral semantics, but not as confidential source, credentials, proprietary raw
-payloads, model internals, or internal-only infrastructure details.
-
-## Logical layers and dependency direction
-
-The **target dependency rule for new work** is:
+The same MAIN Base/Core must support three compositions:
 
 ```text
-Enterprise IQA -> IQA Client -> PixelScope Base
+Public Core
+PixelScope Base/Core
++ generic extension host
+- IQA implementation
 ```
-
-The arrow means **depends on**. Therefore:
-
-- Base must not acquire a new dependency on IQA Client or Enterprise IQA.
-- IQA Client may depend on public Base host/composition/contribution/lifecycle
-  contracts.
-- Enterprise IQA may depend on the public IQA Client provider/result/domain contract
-  and on public Base contracts exposed through the Client/host integration boundary.
-- MAIN must not import, instantiate, configure, or otherwise require Enterprise-only
-  implementation.
-
-Current production code still contains concrete Base/IQA coupling documented in
-Issue #121. Slice 0 does not claim that the target direction is already mechanically
-enforced. Later slices must characterize and reduce that coupling without increasing
-reverse dependencies in the meantime.
-
-## Contract ownership rule
-
-The interface is owned by the layer that consumes its semantics, not by the layer that
-implements it.
-
-For Issue #121 this means:
-
-- **Base** owns only generic application host/composition/contribution/lifecycle
-  contracts. Base does not own an IQA-specific provider or IQA result/domain API.
-- **IQA Client** owns the IQA-specific provider/result/domain contract it consumes.
-  The planned `IqaProvider` / result-source protocol therefore belongs to the IQA
-  Client boundary.
-- **Enterprise IQA** implements or adapts that Client-owned contract using internal
-  infrastructure.
-
-This is deliberate dependency inversion. The Client defines what IQA capability it
-needs; synthetic and Enterprise implementations satisfy the same Client-owned port.
-Keeping `IqaProvider` out of Base also allows the future Stage 2 move of IQA Client to
-SUB without forcing an IQA-specific API to remain in Base.
-
-## Stage 1 — current target
-
-Stage 1 deliberately keeps Base and IQA Client in MAIN while making their ownership
-and dependency boundary explicit.
 
 ```text
-MAIN repository
-
-PixelScope Base
-  - MainWindow / Viewer / Core / IO
-  - common menu, dock, settings host
-  - worker/lifecycle primitives
-  - generic host/composition/contribution contracts
-           ^
-           | depends on
-IQA Client
-  - IQA workspace UI and visualization
-  - IQA-specific menu/dock contribution
-  - generic IQA controller/state machine
-  - result/reference/scene/history presentation
-  - client-side async/lifecycle behavior using Base primitives
-  - public IqaProvider / IQA result/domain contracts
-  - synthetic/fixture provider for deterministic development
-           ^
-           | implements/adapts Client-owned IQA contracts
-SUB repository
-
-Enterprise IQA
-  - real inference/model implementation
-  - real internal server and transport details
-  - internal storage/path conventions
-  - authentication/secrets/security integration
-  - proprietary response/schema adapter
-  - enterprise configuration
-  - internal packaging/deployment
+Public Reference / Mock IQA
+PixelScope Base/Core
++ MAIN-owned pixelscope_iqa_reference extension
 ```
 
-### Base-owned
+```text
+Internal Full
+same MAIN Base/Core
++ SUB-owned Enterprise IQA extension
+```
 
-Base owns common application behavior that is useful and testable independently of a
-confidential IQA backend:
+The public reference extension demonstrates integration and representative interaction.
+It is not the normative Enterprise UI contract.
 
-- image loading and RAW/YUV semantics;
-- core numerics;
-- Files / Selection / Viewer / Statistics / Histogram / Difference;
-- `MainWindow` shell and common layout;
-- menu taxonomy, ordering, styling, and generic contribution points;
-- generic dock hosting and workspace persistence;
-- common settings shell;
+## Ownership
+
+### MAIN / Base-Core
+
+Base/Core owns product-generic behavior:
+
+- MainWindow, Viewer, Files, Selection, RAW/YUV and common numerics;
+- generic menu/dock/settings hosting;
 - worker and lifecycle primitives;
-- public packaging/release and documentation build;
-- stable public host/composition/contribution/lifecycle contracts intended for
-  clients/extensions.
+- explicit extension composition/contribution contracts;
+- bounded public host access required by extensions;
+- stable public IQA boundary/result/provider types shared by peer extensions;
+- reusable product-generic UI primitives;
+- public packaging, documentation and lifecycle validation.
 
-Base must not define an IQA-specific `IqaProvider`, IQA result schema/domain API, or
-Enterprise adapter merely because those types are public. Public visibility does not
-make an IQA-specific contract Base-owned.
+Base must not import or instantiate `pixelscope_iqa_reference` or
+`pixelscope_enterprise`.
 
-### IQA Client-owned during Stage 1
+### MAIN / Reference IQA
 
-The public Client owns presentation and client behavior that can be developed against
-public contracts and synthetic data:
+The reference package is MAIN-owned and company-neutral. It may:
 
-- IQA workspace UI and visualization;
-- IQA-specific menu/dock contributions;
-- generic IQA controller/state machine;
-- result exploration, reference selection, scene navigation, and history presentation;
-- client-side async/lifecycle behavior built on Base primitives;
-- the IQA-specific `IqaProvider` / result-source protocol consumed by the Client;
-- stable public IQA result/domain types used by Client presentation and state;
-- deterministic synthetic fixtures/providers implementing those same contracts for
-  development and validation.
+- contribute its own IQA menu actions and dock/widget;
+- exercise mock submission/job/result flows;
+- use public/synthetic fixtures such as `FixtureIqaProvider`;
+- demonstrate saved/mock result opening and Reference/Scene/result interaction;
+- participate in the same Base shutdown lifecycle as any other contribution.
 
-The Client contract should expose only capability and data semantics required by the
-Client. It should remain Qt-free where practical so a provider implementation does not
-need to create or manage QWidget/QObject/QThreadPool objects merely to supply IQA data.
+Reference-specific presentation, mock controls and fixture-driving behavior stay inside
+the reference namespace. They are examples, not stable APIs for SUB.
 
-### Enterprise-owned
+### SUB / Enterprise IQA
 
-SUB owns implementation that cannot be correctly implemented or validated without
-confidential infrastructure or internal knowledge:
+SUB owns the real IQA feature:
 
-- real model/inference implementation;
-- internal server and transport implementation details;
-- internal storage and path conventions;
-- authentication, secrets, and security integration;
-- proprietary response/schema details;
-- an `EnterpriseIqaProvider` or equivalent adapter that implements the Client-owned
-  `IqaProvider` contract;
-- mapping from proprietary enterprise responses into public Client-owned IQA
-  result/domain types;
-- enterprise configuration;
-- internal packaging, deployment, and internal-only documentation.
+- detailed IQA-specific UI/UX and workflow/controller;
+- model/server execution;
+- authentication/SSO;
+- storage, staging, path mapping and cleanup;
+- proprietary request/response schema and result adapter;
+- enterprise configuration and diagnostics;
+- internal packaging/deployment.
 
-Enterprise may depend on the Client contract; the Client must not depend on the
-Enterprise implementation.
+SUB consumes stable MAIN host/contracts. It does not require MAIN to inspect or import
+internal source.
 
-## No-confidential-runtime requirement for MAIN
+## Path ownership
 
-MAIN is not allowed to require confidential runtime inputs for its supported public
-and synthetic development path. In particular, MAIN must not require:
+MAIN reference paths and SUB production paths are permanently disjoint.
 
-- SUB source code or private packages;
-- internal-only servers or network routes;
-- credentials, tokens, secrets, or security configuration;
-- proprietary models or datasets;
-- private storage conventions or mount topology;
-- confidential raw server payloads or schemas;
-- company-specific fixture values that disclose internal implementation details.
-
-Public contracts may describe only the semantics needed by the Client. Synthetic
-fixtures may encode public characteristics such as cardinality, scalar/per-scene/grid
-shape, range/direction semantics, missing/partial values, lifecycle states, and large
-stress shapes. They must remain company-neutral and must not copy a confidential raw
-payload merely to make an external test pass.
-
-A capability belongs in MAIN only when it can be implemented and deterministically
-validated using public PixelScope contracts and public/synthetic data. If correct
-implementation or validation requires confidential infrastructure, APIs, models,
-datasets, credentials, or internal-only knowledge, ownership belongs in SUB.
-
-## Stage 2 — future ownership target
-
-When SUB has sufficiently capable development/review/agent access, ownership may move
-to:
+MAIN reference namespace:
 
 ```text
-MAIN: PixelScope Base + stable extension/host API
-SUB:  IQA Client + Enterprise IQA as an extension
+src/pixelscope_iqa_reference/**
+tests/iqa_reference/**
+docs/iqa_reference/**
 ```
 
-Because `IqaProvider` and the public IQA result/domain types are Client-owned, they move
-with IQA Client in Stage 2. Base retains only its generic host/composition/contribution
-contracts and therefore does not require an IQA-specific compatibility surface after
-the ownership transfer.
+Reserved SUB namespaces:
 
-Stage 1 must therefore avoid decisions that force another application-architecture
-rewrite when IQA Client ownership moves. The intended Stage 2 transition is primarily
-an ownership/package relocation across a stable Base host contract.
+```text
+src/pixelscope_enterprise/**
+tests/enterprise/**
+docs/enterprise/**
+enterprise/**
+```
 
-A useful exit criterion is that removing IQA Client from production composition does
-not require redesigning Base behavior.
+MAIN must not create, migrate through, or delete files under the reserved SUB
+namespaces. In particular, existing public P5 code must not be temporarily moved into a
+SUB-owned path and later removed; that would create downstream modify/delete conflicts.
 
-## Compatibility and lifecycle guardrail
+## Dependency direction
 
-Issue #121 does not authorize lifecycle redesign. Existing P5/R composition and Issue
-#81 Qt/worker lifetime contracts remain authoritative until a later slice proves a
-specific change is necessary.
+The durable dependency graph is:
 
-In particular, ownership separation must not by itself introduce:
+```text
+                 MAIN public host/contracts
+                     ^               ^
+                     |               |
+       Reference / Mock IQA     SUB Enterprise IQA
+              MAIN                 internal
+```
 
-- a new thread pool;
-- a new QObject/QWidget ownership model;
-- dynamic plugin discovery, hot loading, entry points, or version negotiation;
-- broad import/path moves before the first enterprise handoff;
-- broad rewrites of existing synthetic IQA or lifecycle tests.
+Allowed:
 
-Adapters, explicit seams, and compatibility shims are preferred when they preserve
-current behavior and reduce lifecycle churn.
+- Base/Core -> generic Base modules only;
+- reference -> stable Base host + public IQA contracts/fixtures;
+- Enterprise -> stable Base host + public IQA contracts.
 
-## Agent and review decision checklist
+Forbidden:
 
-Before changing Base/IQA/Enterprise-adjacent code, answer these questions:
+- Base/Core -> reference implementation;
+- Base/Core -> Enterprise implementation;
+- Enterprise -> private reference helpers;
+- public host contracts -> server/storage/auth-specific semantics.
 
-1. Can the capability be implemented and validated using only public contracts and
-   synthetic/public data? If yes, MAIN may own it during Stage 1; otherwise it belongs
-   in SUB.
-2. Is the contract generic application-host behavior, or is it semantically IQA?
-   Generic host/composition/contribution/lifecycle contracts belong to Base;
-   `IqaProvider` and IQA result/domain contracts belong to IQA Client.
-3. Does the change add a Base dependency on concrete IQA Client code or an IQA Client
-   dependency on Enterprise implementation? If yes, stop and redesign the boundary.
-4. Would MAIN fail to build, start, test, or exercise the public Client without SUB,
-   internal network access, credentials, private models, or proprietary payloads? If
-   yes, the change violates the boundary.
-5. Does a fixture reproduce confidential raw payload structure when a smaller public
-   semantic contract would suffice? If yes, replace it with a company-neutral fixture.
-6. Does the proposed separation alter Qt ownership, shutdown order, worker pools,
-   cancellation/quiescence, or stale-callback behavior? If yes, treat it as a separate
-   lifecycle-sensitive change and validate against the existing authoritative
-   contracts rather than folding it into ownership cleanup.
+Public visibility is not sufficient reason to move a concrete IQA implementation into
+Base. Host APIs must remain product-generic.
 
-## Issue #121 slice sequencing
+## Public contract ownership
 
-This contract intentionally precedes runtime changes:
+The stable Qt-free boundary currently includes `IqaExecutionPort`,
+`IqaResultAccessPort`, normalized `IqaResult`, submission/job/reference/result
+types, source locators/resolution, availability/failure semantics and lazy spatial
+access. These remain in MAIN because both public reference/conformance code and future
+SUB implementations need a common boundary.
 
-- **Slice 0:** ownership/dependency contract only; no runtime changes.
-- **Slice 1:** characterize and freeze current concrete IQA imports, settings, tests,
-  provider surface, and production install/shutdown order.
-- **Slice 2:** merged Client-owned Qt-free execution/result seam and normalized IQA
-  domain; existing P5 production composition remains unchanged.
-- **Slice 3+:** formalize synthetic coverage, introduce the Base/Client composition
-  seam, qualify downstream transfer, and continue the staged handoff while preserving
-  current behavior and lifecycle contracts.
+Providers do not acquire QWidget/QObject/QThreadPool ownership merely to implement
+these ports. Existing concurrency requirements remain authoritative: one provider
+instance may receive overlapping calls and must be safe through reentrancy,
+thread-safety or internal serialization.
 
-Later slices may refine implementation detail, but they must preserve the ownership
-and one-way dependency rules here unless the owner explicitly records a superseding
-architecture decision.
+The public boundary describes Client-visible semantics only. It must not contain
+Enterprise URLs, storage roots, SSO objects, credentials, proprietary payloads or model
+configuration.
 
-The [downstream consumer and transfer contract](IQA_DOWNSTREAM_CONTRACT.md) records
-the reconciled Slice 5 SUB responsibilities, path/pin/sync policy and conformance/smoke
-plans against merged Slice 2. The contract is complete as documentation; actual
-transfer readiness still requires Slice 4 / Checkpoint C and Slice 6 Enterprise
+## Generic host contract
+
+`WindowContribution` is the explicit window-composition seam. It supports phased
+prepare/dock/action/shutdown composition without dynamic discovery. Optional runtime
+composition is represented by the generic `RuntimeWindowContribution` phase at the
+application composition root.
+
+`WindowHostAccess` is intentionally bounded. An external extension may obtain the
+current comparison source paths and register a contributed dock without learning
+IQA-specific MainWindow methods.
+
+This is not a marketplace/plugin framework. There is no hot loading, entry-point
+discovery or runtime version negotiation.
+
+## Current transitional P5 code
+
+Checkpoint C left the existing public P5/Remote-IQA implementation in
+`src/pixelscope/**` as a compatibility path. Slice 6 preserves it deliberately while
+proving the new peer-extension direction with `pixelscope_iqa_reference`.
+
+Physical location of that legacy code does not redefine target ownership. Concrete P5
+transport/storage/settings/detailed IQA presentation remain transitional and are
+candidates for Slice 7 cleanup after equivalent reference behavior and architecture
+proof exist.
+
+The exact pre-extraction implementation snapshot is
+`main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`. No ad-hoc release tag is required
+for Slice 6; exact Git history plus the Slice 6 PR/HEAD provides immutable reference
 evidence.
+
+## Configuration boundary
+
+MAIN must not require confidential runtime configuration. Real endpoint defaults,
+storage topology, credentials, SSO, model configuration and internal environment keys
+are SUB-owned.
+
+The reference extension uses only synthetic company-neutral configuration and fixture
+data. SUB may define its own untracked environment/config files and tracked examples
+inside SUB-owned paths.
+
+## Lifecycle guardrail
+
+Issue #121 does not authorize a new lifecycle model. Issue #81 and
+`NATIVE_LIFECYCLE_DIAGNOSTICS.md` remain authoritative.
+
+Ownership separation must not be made to pass by disabling cyclic GC, adding arbitrary
+sleeps, inflating timeouts or suppressing exceptions. Contribution shutdown stays
+explicit and idempotent; Qt-native ownership and existing worker/thread-pool domains
+remain intact unless separately justified and validated.
+
+## MAIN-to-SUB synchronization
+
+SUB consumes exact merged MAIN SHAs. It owns its files under reserved paths and should
+not retain permanent patches to MAIN-owned Base files.
+
+When SUB discovers a generic gap, only a company-neutral requirement crosses upstream.
+MAIN implements and validates the generic host/contract change using public/synthetic
+evidence, merges it, and SUB consumes the newer exact MAIN SHA.
+
+## Revised Slice 6–8 sequencing
+
+Slice 6 proves physical separation in PUBLIC MAIN using the existing public
+implementation knowledge and a MAIN-owned reference extension. Real Enterprise
+implementation is not a prerequisite.
+
+Slice 7 removes remaining concrete IQA/settings coupling from Base and makes Core-only
+and Reference package modes first-class.
+
+Slice 8 completes the public handoff/conformance/packaging guidance and decides which
+legacy/reference runtime material remains supported.
+
+Real Enterprise integration and internal Full packaging are downstream work. They may
+validate the shared contracts, but they do not block MAIN architecture completion.
