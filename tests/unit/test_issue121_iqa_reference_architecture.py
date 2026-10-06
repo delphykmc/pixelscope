@@ -57,7 +57,9 @@ def test_reference_extension_uses_only_allowed_main_surfaces() -> None:
         for module in _imports(path):
             if not module.startswith("pixelscope."):
                 continue
-            if not any(module == prefix or module.startswith(f"{prefix}.") for prefix in allowed):
+            if not any(
+                module == prefix or module.startswith(f"{prefix}.") for prefix in allowed
+            ):
                 violations.append(f"{path.relative_to(REPOSITORY_ROOT)} -> {module}")
     assert violations == []
 
