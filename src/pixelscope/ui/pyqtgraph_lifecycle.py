@@ -7,6 +7,26 @@ import pyqtgraph as pg
 from PySide6.QtWidgets import QGraphicsWidget
 
 _PATCH_ATTRIBUTE = "_pixelscope_qt_lifecycle_hardened"
+_PLOT_WIDGET_FORWARDERS = (
+    "addItem",
+    "removeItem",
+    "autoRange",
+    "clear",
+    "setAxisItems",
+    "setXRange",
+    "setYRange",
+    "setRange",
+    "setAspectLocked",
+    "setMouseEnabled",
+    "setXLink",
+    "setYLink",
+    "enableAutoRange",
+    "disableAutoRange",
+    "setLimits",
+    "register",
+    "unregister",
+    "viewRect",
+)
 
 
 def _disconnect_graphics_widget_anchor(item: object) -> None:
@@ -56,6 +76,16 @@ def _detach_legend(plot_widget: object) -> None:
         legend.deleteLater()
 
 
+def _release_plot_widget_forwarders(plot_widget: object) -> None:
+    """Drop pyqtgraph's instance-bound PlotItem method wrappers after final close."""
+
+    namespace = getattr(plot_widget, "__dict__", None)
+    if not isinstance(namespace, dict):
+        return
+    for name in _PLOT_WIDGET_FORWARDERS:
+        namespace.pop(name, None)
+
+
 def install_pyqtgraph_lifecycle_hardening() -> None:
     """Install one process-wide PlotWidget.close guard for PixelScope UI teardown."""
 
@@ -67,7 +97,10 @@ def install_pyqtgraph_lifecycle_hardening() -> None:
 
     def hardened_close(plot_widget: object) -> Any:
         _detach_legend(plot_widget)
-        return original_close(plot_widget)
+        try:
+            return original_close(plot_widget)
+        finally:
+            _release_plot_widget_forwarders(plot_widget)
 
     setattr(hardened_close, _PATCH_ATTRIBUTE, True)
     pg.PlotWidget.close = hardened_close  # type: ignore[method-assign]
