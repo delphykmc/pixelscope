@@ -76,8 +76,9 @@ Slice 6 also adds a product-generic settings contribution seam:
 page semantics and persistence behind those hooks; Base does not gain an Enterprise
 schema or IQA-specific setting.
 
-Base schema v7 contains no Remote-IQA configuration. Historical P5 settings, when
-exercised by legacy tooling, use an extension-owned repository outside `pixelscope.app`.
+Base schema v7 contains no Remote-IQA configuration. Existing public P5 keys are
+ignored and preserved by Base; historical P5 tooling uses an extension-owned repository
+outside `pixelscope.app` when it needs to interpret or update them.
 
 ## Reference behavior
 
