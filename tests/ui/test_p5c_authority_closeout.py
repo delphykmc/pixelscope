@@ -8,20 +8,20 @@ from typing import Any
 import numpy as np
 import pytest
 
-import pixelscope.ui.iqa_preview_lifecycle as preview_lifecycle_module
-import pixelscope.ui.iqa_submission as iqa_submission_module
-from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
-    compose_legacy_p5_presentation as _compose_main_window_presentation,
-)
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.remote.iqa_submission import (
     FolderPairEntry,
     ImageProbe,
     pair_folders,
 )
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.ui.iqa_preview_lifecycle import RemoteIqaPreviewLifecycle
+import pixelscope.ui.iqa_preview_lifecycle as preview_lifecycle_module
 from pixelscope.ui.iqa_submission import _FolderPreviewPayload
+import pixelscope.ui.iqa_submission as iqa_submission_module
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
