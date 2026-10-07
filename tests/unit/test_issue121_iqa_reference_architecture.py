@@ -27,10 +27,7 @@ def _contains_iqa_implementation(modules: set[str]) -> bool:
 
 
 def _is_allowed_main_import(module: str, allowed: tuple[str, ...]) -> bool:
-    for prefix in allowed:
-        if module == prefix or module.startswith(f"{prefix}."):
-            return True
-    return False
+    return any(module == prefix or module.startswith(f"{prefix}.") for prefix in allowed)
 
 
 def test_base_core_does_not_import_reference_or_enterprise_namespaces() -> None:
