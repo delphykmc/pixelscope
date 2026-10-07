@@ -8,11 +8,6 @@ import cv2
 import numpy as np
 import pytest
 
-import pixelscope.ui.iqa_scene_inspection as inspection_module
-from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
-    compose_legacy_p5_presentation as _compose_main_window_presentation,
-)
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.image_reader import read_image
 from pixelscope.io.path_discovery import ImageInput
@@ -25,6 +20,11 @@ from pixelscope.remote.iqa_scene_inspection import (
 from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_reader import load_result_v2
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
+import pixelscope.ui.iqa_scene_inspection as inspection_module
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
