@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 
 from pixelscope.remote.iqa_debug_replay import parse_replay_record
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.iqa_legacy_composition import (
     compose_legacy_p5_presentation as _compose_main_window_presentation,
-    LegacyP5MainWindow as MainWindow,
 )
 from pixelscope.ui.iqa_replay_debug import register_replay_record
 
