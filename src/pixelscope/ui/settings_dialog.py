@@ -373,10 +373,8 @@ class SettingsDialog(QDialog):
         normalized = label.strip()
         if not normalized:
             raise ValueError("contributed settings page label must not be blank")
-        existing = {
-            self.category_list.item(index).text()
-            for index in range(self.category_list.count())
-        }
+        categories = self.category_list
+        existing = {categories.item(index).text() for index in range(categories.count())}
         if normalized in existing:
             raise ValueError(f"settings page already exists: {normalized}")
         self.category_list.addItem(normalized)
