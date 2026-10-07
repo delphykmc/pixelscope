@@ -183,11 +183,14 @@ def test_generic_base_ui_contains_no_legacy_p5_attribute_contract() -> None:
         "iqa_workspace",
         "iqa_workspace_action",
         "remote_iqa_workspace",
+        "iqaWorkspaceDock",
+        "ui/iqa_floating_geometry",
     }
     paths = (
         SOURCE_ROOT / "pixelscope" / "ui" / "beta_workspace_hardening.py",
         SOURCE_ROOT / "pixelscope" / "ui" / "workflow_polish.py",
         SOURCE_ROOT / "pixelscope" / "ui" / "user_guide_help.py",
+        SOURCE_ROOT / "pixelscope" / "ui" / "plots_dock_title.py",
     )
     violations = {
         str(path.relative_to(REPOSITORY_ROOT)): sorted(
