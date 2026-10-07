@@ -6,11 +6,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
-from pixelscope.core.diagnostics import (
-    RemoteIqaDiagnostics,
-    RuntimeDiagnosticsSnapshot,
-    WorkerPoolDiagnostics,
-)
+from pixelscope.core.diagnostics import ExtensionDiagnosticsSection, RuntimeDiagnosticsSnapshot
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.workers.iqa_thread_pool import remote_iqa_thread_pool
@@ -33,19 +29,19 @@ def install_remote_iqa_diagnostics(
         base = original()
         transport = transport_pool.diagnostics
         pool = remote_iqa_thread_pool()
-        remote = RemoteIqaDiagnostics(
-            worker_pool=WorkerPoolDiagnostics(
-                active_count=pool.activeThreadCount(),
-                max_count=pool.maxThreadCount(),
+        section = ExtensionDiagnosticsSection(
+            "Remote IQA",
+            (
+                f"Workers: active {pool.activeThreadCount()} / max {pool.maxThreadCount()}",
+                f"HTTP clients created: {transport.clients_created}",
+                f"HTTP leases reused: {transport.leases_reused}",
+                f"HTTP active leases: {transport.active_leases}",
+                f"HTTP max active leases: {transport.max_active_leases}",
+                f"HTTP idle clients: {transport.idle_clients}",
+                f"HTTP discarded clients: {transport.discarded_clients}",
+                f"Transport closed: {'yes' if transport.closed else 'no'}",
             ),
-            http_clients_created=transport.clients_created,
-            http_leases_reused=transport.leases_reused,
-            http_active_leases=transport.active_leases,
-            http_max_active_leases=transport.max_active_leases,
-            http_idle_clients=transport.idle_clients,
-            http_discarded_clients=transport.discarded_clients,
-            transport_closed=transport.closed,
         )
-        return replace(base, remote_iqa=remote)
+        return replace(base, extension_sections=base.extension_sections + (section,))
 
     window.runtime_diagnostics_snapshot = WeakOwnerHook(window, snapshot)
