@@ -117,10 +117,7 @@ def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
         imported = {alias.name for alias in node.names}
         if node.module == "pixelscope.ui.composition_lifetime":
             hardened.update(imported)
-        if node.module in {
-            "pixelscope.ui.analysis_export",
-            "pixelscope.ui.session",
-        }:
+        if node.module in {"pixelscope.ui.analysis_export", "pixelscope.ui.session"}:
             legacy_imports.extend(
                 name
                 for name in imported

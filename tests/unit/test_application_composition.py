@@ -118,5 +118,3 @@ def test_main_runs_core_only_after_local_pool_initialization(monkeypatch: Any) -
         "icon:True",
         "show",
     ]
-
-

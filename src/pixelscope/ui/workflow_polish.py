@@ -194,6 +194,7 @@ def _install_shortcuts(window: Any) -> None:
     if isinstance(split_action, QAction):
         split_action.setShortcut("S")
 
+
 def _install_toolbar_spacing(window: Any) -> None:
     toolbar = window.main_toolbar
     if bool(toolbar.property("workflowPolished")):

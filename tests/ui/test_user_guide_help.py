@@ -392,7 +392,8 @@ def test_f1_real_key_dispatch_main_workspaces_and_presentation_controls(
 
 
 def test_f1_real_key_dispatch_docked_and_floating_plots(
-    qtbot: Any, monkeypatch: Any
+    qtbot: Any,
+    monkeypatch: Any,
 ) -> None:
     window = MainWindow()
     qtbot.addWidget(window)
