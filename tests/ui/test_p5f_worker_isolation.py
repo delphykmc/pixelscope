@@ -17,8 +17,8 @@ from pixelscope.remote.iqa_submission import (
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
 from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
 from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
     compose_legacy_p5_presentation as _compose_main_window_presentation,
+    LegacyP5MainWindow as MainWindow,
 )
 from pixelscope.ui.iqa_scene_inspection import install_iqa_scene_inspection
 from pixelscope.ui.iqa_submission import RemoteJobRecord
