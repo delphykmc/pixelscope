@@ -68,7 +68,8 @@ def build_public_target(target: str = "core") -> Path:
     _spec_path, app_dir, executable_name = _target_paths(target)
     site = build_user_guide(python=documentation_python())
     write_windows_version_info()
-    subprocess.run(pyinstaller_command(target), cwd=REPO_ROOT, check=True)
+    command = pyinstaller_command() if target == "core" else pyinstaller_command(target)
+    subprocess.run(command, cwd=REPO_ROOT, check=True)
 
     # The frozen Help lookup is executable-relative, not a PyInstaller _MEIPASS
     # resource. Copy after COLLECT and before artifact/manifest validation.
