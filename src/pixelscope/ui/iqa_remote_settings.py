@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QTableWidget,
@@ -50,9 +49,14 @@ class RemoteIqaSettingsDialog(SettingsDialog):
             parent,
             physical_memory_bytes,
         )
-        self.category_list.addItem("Remote IQA")
         self.remote_page = self._build_remote_page()
-        self.page_stack.addWidget(self.remote_page)
+        self.add_contributed_page(
+            "Remote IQA",
+            self.remote_page,
+            validate=self._validate_remote_iqa_settings,
+            save=self._save_remote_iqa_settings,
+            reset=self._reset_remote_iqa_settings,
+        )
         self._set_remote_iqa(self._remote_repository.load())
         if repository.is_read_only_compatibility_mode:
             self.remote_page.setEnabled(False)
@@ -157,18 +161,14 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         if hasattr(self, "remote_server_url"):
             self._set_remote_iqa(self._remote_repository.load())
 
-    def _save(self) -> None:
-        try:
-            remote_settings = self._remote_iqa_from_controls()
-        except (TypeError, ValueError) as exc:
-            QMessageBox.warning(self, "Invalid Remote IQA settings", str(exc))
-            return
-        self._remote_repository.save(remote_settings)
-        super()._save()
+    def _validate_remote_iqa_settings(self) -> None:
+        self._remote_iqa_from_controls()
 
-    def _reset(self) -> None:
+    def _save_remote_iqa_settings(self) -> None:
+        self._remote_repository.save(self._remote_iqa_from_controls())
+
+    def _reset_remote_iqa_settings(self) -> None:
         self._remote_repository.reset()
-        super()._reset()
         self._set_remote_iqa(self._remote_repository.load())
 
     def _set_remote_iqa(self, settings: RemoteIqaSettings) -> None:

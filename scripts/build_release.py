@@ -69,7 +69,7 @@ def build_public_target(target: str = "core") -> Path:
     validate_release_host()
     _spec_path, app_dir, executable_name = _target_paths(target)
     site = build_user_guide(python=documentation_python())
-    write_windows_version_info()
+    write_windows_version_info(target=target)
     command = pyinstaller_command() if target == "core" else pyinstaller_command(target)
     subprocess.run(command, cwd=REPO_ROOT, check=True)
 

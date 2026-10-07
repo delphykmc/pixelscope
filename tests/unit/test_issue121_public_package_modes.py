@@ -7,7 +7,9 @@ from scripts.release_contract import (
     APP_DIR,
     REFERENCE_APP_DIR,
     REFERENCE_SPEC_PATH,
+    REFERENCE_VERSION_INFO_PATH,
     SPEC_PATH,
+    render_windows_version_info,
 )
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +32,7 @@ def test_pyinstaller_specs_keep_public_package_modes_explicit() -> None:
 
     assert 'source_root / "pixelscope_iqa_reference" / "__main__.py"' in reference
     assert 'name="PixelScopeReference"' in reference
+    assert REFERENCE_VERSION_INFO_PATH.name in reference
     assert '"pixelscope_enterprise"' in reference
 
 
@@ -46,3 +49,11 @@ def test_release_builder_selects_core_by_default_and_reference_explicitly() -> N
     assert reference_dir == REFERENCE_APP_DIR
     assert reference_executable == "PixelScopeReference.exe"
     assert str(REFERENCE_SPEC_PATH) == build_release.pyinstaller_command("reference")[-1]
+
+
+def test_reference_windows_version_resource_has_reference_identity() -> None:
+    rendered = render_windows_version_info("1.2.3", target="reference")
+
+    assert 'StringStruct("FileDescription", "PixelScope Reference")' in rendered
+    assert 'StringStruct("InternalName", "PixelScopeReference")' in rendered
+    assert 'StringStruct("OriginalFilename", "PixelScopeReference.exe")' in rendered

@@ -14,6 +14,7 @@ REFERENCE_SPEC_PATH: Final = REPO_ROOT / "packaging" / "pixelscope-reference.spe
 BUILD_ROOT: Final = REPO_ROOT / "build" / "pyinstaller"
 GENERATED_ROOT: Final = REPO_ROOT / "build" / "release"
 VERSION_INFO_PATH: Final = GENERATED_ROOT / "PixelScope.version.txt"
+REFERENCE_VERSION_INFO_PATH: Final = GENERATED_ROOT / "PixelScopeReference.version.txt"
 DIST_ROOT: Final = REPO_ROOT / "dist"
 APP_DIR: Final = DIST_ROOT / "PixelScope"
 EXECUTABLE_PATH: Final = APP_DIR / "PixelScope.exe"
@@ -88,12 +89,32 @@ def windows_version_tuple(version: str | None = None) -> tuple[int, int, int, in
     return parts[0], parts[1], parts[2], 0
 
 
-def render_windows_version_info(version: str | None = None) -> str:
-    """Render a PyInstaller Windows version-resource file from the canonical version."""
+def _windows_version_identity(target: str) -> tuple[Path, str, str, str]:
+    if target == "core":
+        return VERSION_INFO_PATH, "PixelScope", "PixelScope.exe", "PixelScope"
+    if target == "reference":
+        return (
+            REFERENCE_VERSION_INFO_PATH,
+            "PixelScopeReference",
+            "PixelScopeReference.exe",
+            "PixelScope Reference",
+        )
+    raise ValueError(f"Unknown public package target: {target}")
+
+
+def render_windows_version_info(
+    version: str | None = None,
+    *,
+    target: str = "core",
+) -> str:
+    """Render target-aware PyInstaller Windows executable metadata."""
 
     value = version or release_version()
     file_version = windows_version_tuple(value)
     tuple_text = ", ".join(str(part) for part in file_version)
+    _path, internal_name, original_filename, file_description = _windows_version_identity(
+        target
+    )
     return f"""# UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
@@ -111,10 +132,10 @@ VSVersionInfo(
       StringTable(
         "040904B0",
         [
-          StringStruct("FileDescription", "PixelScope"),
+          StringStruct("FileDescription", "{file_description}"),
           StringStruct("FileVersion", "{value}"),
-          StringStruct("InternalName", "PixelScope"),
-          StringStruct("OriginalFilename", "PixelScope.exe"),
+          StringStruct("InternalName", "{internal_name}"),
+          StringStruct("OriginalFilename", "{original_filename}"),
           StringStruct("ProductName", "PixelScope"),
           StringStruct("ProductVersion", "{value}")
         ]
@@ -126,12 +147,22 @@ VSVersionInfo(
 """
 
 
-def write_windows_version_info(version: str | None = None) -> Path:
-    """Write generated executable metadata outside the source tree."""
+def write_windows_version_info(
+    version: str | None = None,
+    *,
+    target: str = "core",
+) -> Path:
+    """Write generated executable metadata for one public package target."""
 
+    path, _internal_name, _original_filename, _file_description = _windows_version_identity(
+        target
+    )
     GENERATED_ROOT.mkdir(parents=True, exist_ok=True)
-    VERSION_INFO_PATH.write_text(render_windows_version_info(version), encoding="utf-8")
-    return VERSION_INFO_PATH
+    path.write_text(
+        render_windows_version_info(version, target=target),
+        encoding="utf-8",
+    )
+    return path
 
 
 def pyinstaller_version() -> str:
