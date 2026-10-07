@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
+import pixelscope.ui.iqa_scene_inspection as inspection_module
 from pixelscope.io.image_reader import read_image
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_explorer import IqaExplorerModel
