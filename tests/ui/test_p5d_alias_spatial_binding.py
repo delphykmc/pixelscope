@@ -27,7 +27,6 @@ from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindo
 from pixelscope.ui.iqa_legacy_composition import (
     compose_legacy_p5_presentation as _compose_main_window_presentation,
 )
-import pixelscope.ui.iqa_scene_inspection as inspection_module
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
