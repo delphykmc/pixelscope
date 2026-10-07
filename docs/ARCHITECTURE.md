@@ -1023,7 +1023,10 @@ shutdown. No raw-grid cache, speculative preload, adaptive polling, generalized 
 or concurrency-policy change was introduced. R may make injection/composition explicit
 but must not change these lifetime policies.
 
-## R1 application composition seam
+## Historical R1 application composition seam — retired in Issue #121 Slice 8
+
+This section records the pre-extraction P5 composition for implementation archaeology. Current production composition authority is the Core/Reference split documented in `IQA_HANDOFF.md` and `iqa_reference/README.md`; the concrete Remote-IQA chain described below is no longer present in MAIN source.
+
 
 `src/pixelscope/app/application.py` remains the production composition root. Its local
 presentation/workflow installation stays in `_compose_main_window_presentation`, while
@@ -1051,7 +1054,10 @@ P5-E historical open + Provenance observer
 This seam does not replace `MethodType` wrappers, reconnect signals, change any
 controller method, or alter settings/open/shutdown order.
 
-## R2 explicit Remote IQA result-pool ownership
+## Historical R2 Remote IQA result-pool ownership — retired in Issue #121 Slice 8
+
+The ownership notes below describe the retired P5 runtime and are preserved only as historical lifecycle evidence. Current MAIN owns only generic application pools plus the public/reference contract surfaces.
+
 
 Production creates the fixed max-two Remote IQA result/file pool before `MainWindow`.
 `MainWindow` passes that pool into the P5-B Result controller constructor, and the R1
