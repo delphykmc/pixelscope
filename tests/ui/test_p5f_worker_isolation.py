@@ -6,8 +6,10 @@ from threading import Event, Lock
 import pytest
 from PySide6.QtCore import QThreadPool
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.remote.iqa_client import IqaJobClient
 from pixelscope.remote.iqa_submission import (
     IqaJobCreated,
