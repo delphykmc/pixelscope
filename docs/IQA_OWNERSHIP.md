@@ -163,6 +163,11 @@ application composition root.
 current comparison source paths and register a contributed dock without learning
 IQA-specific MainWindow methods.
 
+`SettingsWindowContribution` / `SettingsPageHost` provide the corresponding
+product-generic settings seam. An extension may add its own page and validation/save/
+reset hooks while keeping its configuration schema and persistence ownership outside
+Base.
+
 This is not a marketplace/plugin framework. There is no hot loading, entry-point
 discovery or runtime version negotiation.
 
