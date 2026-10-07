@@ -47,6 +47,7 @@ from pixelscope.remote.iqa_public_contract import (
 from pixelscope.remote.iqa_public_contract import (
     IqaResultReference as PublicIqaResultReference,
 )
+from pixelscope.remote.iqa_legacy_settings import LegacyRemoteIqaSettingsRepository
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_storage import StorageResolutionError, resolve_result_reference
 from pixelscope.remote.iqa_submission import (
@@ -566,12 +567,14 @@ class RemoteIqaController(QObject):
         result_controller: IqaWorkspaceController,
         *,
         client_factory: Callable[[str], IqaJobClient] | None = None,
+        settings_repository: LegacyRemoteIqaSettingsRepository | None = None,
     ) -> None:
         super().__init__(window)
         self.window = window
         self.workspace = workspace
         self.result_controller = result_controller
         self._client_factory = client_factory or (lambda url: HttpIqaJobClient(url))
+        self._settings_repository = settings_repository or LegacyRemoteIqaSettingsRepository()
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(REMOTE_WORKER_LIMIT)
         self._workers: dict[str, TaskWorker] = {}
@@ -619,7 +622,7 @@ class RemoteIqaController(QObject):
     def refresh_setup_state(self) -> None:
         if not self._active:
             return
-        settings = self.window.application_settings.remote_iqa
+        settings = self._settings_repository.load()
         self.workspace.set_configuration_state(settings)
         documents = list(self.window.current_comparison_documents())
         identity = tuple(
@@ -696,7 +699,7 @@ class RemoteIqaController(QObject):
     def submit_current_pair(self) -> None:
         if not self._active:
             return
-        settings = self.window.application_settings.remote_iqa
+        settings = self._settings_repository.load()
         documents = list(self.window.current_comparison_documents())
         if len(documents) != 2:
             self.workspace.show_submission_error(
@@ -744,7 +747,7 @@ class RemoteIqaController(QObject):
         if preview_identity != (folder_a, folder_b) or not preview:
             self.workspace.show_submission_error("validate the full Folder Pair before submit")
             return
-        settings = self.window.application_settings.remote_iqa
+        settings = self._settings_repository.load()
 
         def entries() -> tuple[FolderPairEntry, ...]:
             current = pair_folders(folder_a, folder_b)
@@ -848,7 +851,7 @@ class RemoteIqaController(QObject):
         if current_identity != (value.folder_a, value.folder_b):
             return
         self.workspace.set_folder_preview(value)
-        self.workspace.set_configuration_state(self.window.application_settings.remote_iqa)
+        self.workspace.set_configuration_state(self._settings_repository.load())
 
     @Slot(str, object, int, object)
     def _preview_failed(
@@ -996,7 +999,7 @@ class RemoteIqaController(QObject):
         if reference is None or job.job_id in self._result_resolve_jobs:
             return
         self._result_resolve_jobs.add(job.job_id)
-        settings = self.window.application_settings.remote_iqa
+        settings = self._settings_repository.load()
 
         def resolve() -> _ResultResolutionPayload:
             try:
@@ -1520,7 +1523,8 @@ def install_remote_iqa(
 ) -> RemoteIqaController:
     """Extend the one IQA dock; never create a second result parser/controller path."""
 
-    install_remote_iqa_settings_dialog(window)
+    settings_repository = LegacyRemoteIqaSettingsRepository()
+    install_remote_iqa_settings_dialog(window, settings_repository)
     existing_results = window.iqa_workspace
     shell = RemoteIqaWorkspace(existing_results)
     window.iqa_dock.setWidget(shell)
@@ -1529,6 +1533,7 @@ def install_remote_iqa(
         shell,
         window.iqa_controller,
         client_factory=client_factory,
+        settings_repository=settings_repository,
     )
     window.remote_iqa_workspace = shell
     window.remote_iqa_controller = controller
