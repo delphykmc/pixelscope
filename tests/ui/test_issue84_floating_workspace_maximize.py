@@ -4,11 +4,11 @@ import pytest
 from PySide6.QtCore import QByteArray, QRect, QSettings, Qt
 from PySide6.QtWidgets import QDockWidget
 
+from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.beta_workspace_hardening import (
     BetaWorkspaceHardeningController,
     install_beta_workspace_hardening,
 )
-from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.plots_dock_title import (
     PLOTS_FLOATING_GEOMETRY_SETTING,
     PlotsDockTitleBar,
@@ -161,7 +161,7 @@ def test_reset_workspace_clears_custom_maximized_state(qtbot: object) -> None:
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     install_beta_workspace_hardening(window)
     window.show()
-    dock, title = _prepare_floating_workspace(window, workspace, qtbot)
+    dock, title = _prepare_floating_workspace(window, qtbot)
 
     title._remember_floating_geometry()
     assert not title._floating_geometry.isEmpty()

@@ -5,10 +5,10 @@ import pytest
 from PySide6.QtCore import QByteArray, QSettings, Qt
 from PySide6.QtWidgets import QSizePolicy
 
+from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope.ui.design_tokens import TOKENS
-from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.plots_dock_title import (
     PLOTS_FLOATING_GEOMETRY_SETTING,
     PlotsDockTitleBar,
@@ -201,7 +201,7 @@ def test_close_orders_persistence_and_native_dock_teardown_before_workers(
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     install_beta_workspace_hardening(window)
     window.show()
-    dock = _prepare_styled_floating(window, "plots", qtbot)
+    dock = _prepare_styled_floating(window, qtbot)
     calls: list[str] = []
 
     save_ui_state = window._save_ui_state
