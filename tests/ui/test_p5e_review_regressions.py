@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import threading
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -228,16 +227,13 @@ def test_provenance_tracks_live_remote_root_mapping_changes(
     configured = RemoteIqaSettings(
         storage_roots=(RemoteIqaStorageRoot("native-root", str(native_root)),)
     )
-    window.application_settings = replace(window.application_settings, remote_iqa=configured)
+    window.remote_iqa_controller._settings_repository.save(configured)
     window.remote_iqa_controller.settings_changed()
 
     assert inspection.inspect_button.isEnabled()
     assert "Inspect performs existence/dimension/SHA verification" in _provenance_text(window)
 
-    window.application_settings = replace(
-        window.application_settings,
-        remote_iqa=RemoteIqaSettings(),
-    )
+    window.remote_iqa_controller._settings_repository.save(RemoteIqaSettings())
     window.remote_iqa_controller.settings_changed()
 
     assert not inspection.inspect_button.isEnabled()
