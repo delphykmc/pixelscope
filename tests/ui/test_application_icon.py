@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from PySide6.QtWidgets import QApplication
 from pytest import MonkeyPatch
 
-import pixelscope.app.application as application_module
-from pixelscope.app.application import create_application
+import pixelscope.app.bootstrap as bootstrap_module
+from pixelscope.app.bootstrap import create_application
 
 
 def test_create_application_sets_canonical_icon() -> None:
@@ -35,11 +35,11 @@ def test_windows_app_user_model_id_is_configured(monkeypatch: MonkeyPatch) -> No
     shell32 = SimpleNamespace(SetCurrentProcessExplicitAppUserModelID=setter)
     windll = SimpleNamespace(shell32=shell32)
 
-    monkeypatch.setattr(application_module.sys, "platform", "win32")
+    monkeypatch.setattr(bootstrap_module.sys, "platform", "win32")
     monkeypatch.setattr(ctypes, "windll", windll, raising=False)
 
-    application_module._set_windows_app_user_model_id()
+    bootstrap_module._set_windows_app_user_model_id()
 
-    assert calls == [application_module.WINDOWS_APP_USER_MODEL_ID]
+    assert calls == [bootstrap_module.WINDOWS_APP_USER_MODEL_ID]
     assert setter.argtypes == [ctypes.c_wchar_p]
     assert setter.restype is ctypes.c_long
