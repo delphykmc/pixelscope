@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from PySide6.QtCore import QSettings
+import pytest
 
 from pixelscope.app.settings import (
     ApplicationSettings,
