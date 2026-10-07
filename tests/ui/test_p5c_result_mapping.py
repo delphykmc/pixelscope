@@ -126,10 +126,12 @@ def test_mapping_change_ignores_stale_result_and_reresolves_latest() -> None:
     first_task_id = next(iter(controller._workers))
     assert controller._result_resolve_jobs == {job.job_id}
 
-    controller._settings_repository.save(_settings(
-        "https://iqa.example.test",
-        "D:/shared-new",
-    ))
+    controller._settings_repository.save(
+        _settings(
+            "https://iqa.example.test",
+            "D:/shared-new",
+        )
+    )
     controller.settings_changed()
 
     assert guard.revision == 1
@@ -172,10 +174,12 @@ def test_server_url_only_change_does_not_invalidate_result_mapping() -> None:
     parent = QObject()
     guard = RemoteIqaResultMappingGuard(controller, parent)
 
-    controller._settings_repository.save(_settings(
-        "https://iqa-new.example.test",
-        "C:/shared",
-    ))
+    controller._settings_repository.save(
+        _settings(
+            "https://iqa-new.example.test",
+            "C:/shared",
+        )
+    )
     controller.settings_changed()
 
     assert guard.revision == 0
