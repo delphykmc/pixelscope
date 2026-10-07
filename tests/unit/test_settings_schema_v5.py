@@ -20,7 +20,11 @@ from pixelscope.app.settings import (
     QSettingsAdapter,
     SettingsRepository,
 )
-from pixelscope.remote.iqa_legacy_settings import LEGACY_REMOTE_IQA_KEYS
+LEGACY_REMOTE_IQA_KEYS = (
+    "settings/remote_iqa/server_base_url",
+    "settings/remote_iqa/storage_roots_json",
+    "settings/remote_iqa/staging_root_id",
+)
 
 
 @pytest.fixture(autouse=True)
