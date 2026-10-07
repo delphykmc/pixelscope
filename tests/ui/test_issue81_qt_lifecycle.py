@@ -10,16 +10,16 @@ from weakref import ref
 import numpy as np
 from PySide6.QtCore import QCoreApplication, QEvent, Qt, QThreadPool
 from PySide6.QtWidgets import QApplication
-from scripts.e8_profile import measure_phase
 from shiboken6 import isValid
 
 from pixelscope.core.roi import RoiBounds, analyze_roi
+from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
     compose_legacy_p5_presentation as _compose_main_window_presentation,
 )
-from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
 from pixelscope.ui.line_profile_panel import LineProfilePanel
+from scripts.e8_profile import measure_phase
 
 
 def _blocked_loader(started: Event, release: Event) -> Callable[[Path | str], object]:

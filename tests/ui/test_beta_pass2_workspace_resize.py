@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.core.image_document import ImageDocument
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
     compose_legacy_p5_presentation as _compose_main_window_presentation,
 )
 from pixelscope.ui.presentation_controls import polish_presentation_controls
