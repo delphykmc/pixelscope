@@ -56,8 +56,9 @@ and review risk without improving the target dependency direction.
 `WindowContribution` remains the window phase contract. Slice 6 adds two small generic
 surfaces:
 
-- `WindowHostAccess.current_comparison_source_paths()` for bounded source-selection
-  access without IQA-specific MainWindow methods;
+- `WindowHostAccess.current_comparison_source_paths()` for bounded, slot-preserving
+  source-selection access without IQA-specific MainWindow methods; each comparison-page
+  member contributes one slot and derived/non-native members are represented by `None`;
 - `RuntimeWindowContribution.install_runtime()` for explicit post-window runtime
   composition at the same lifecycle point previously occupied by concrete IQA setup.
 
