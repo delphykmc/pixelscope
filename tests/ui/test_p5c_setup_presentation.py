@@ -4,8 +4,8 @@ import pytest
 from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
 
 from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
     compose_legacy_p5_presentation as _compose_main_window_presentation,
+    LegacyP5MainWindow as MainWindow,
 )
 
 
