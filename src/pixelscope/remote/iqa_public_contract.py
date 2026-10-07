@@ -14,10 +14,6 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
-IQA_PUBLIC_CONTRACT_REVISION = 1
-# Breaking public contract changes increment this value.
-
-
 from pixelscope.remote.iqa_domain import (
     AttributeSpec,
     CompactAttributeData,
@@ -25,6 +21,9 @@ from pixelscope.remote.iqa_domain import (
     ScalarStatistic,
     SceneGeometry,
 )
+
+IQA_PUBLIC_CONTRACT_REVISION = 1
+# Breaking public contract changes increment this value.
 
 
 class IqaJobState(str, Enum):
