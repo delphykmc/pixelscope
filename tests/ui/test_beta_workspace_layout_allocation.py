@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QSizePolicy, QSplitter, QWidget
+from PySide6.QtWidgets import QSizePolicy
 
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.app.main_window import MainWindow
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
-def test_bottom_plots_can_take_height_while_iqa_is_docked(qtbot: object) -> None:
+def test_bottom_plots_owns_both_lower_corners(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
@@ -18,33 +18,10 @@ def test_bottom_plots_can_take_height_while_iqa_is_docked(qtbot: object) -> None
 
     assert window.corner(Qt.Corner.BottomLeftCorner) == Qt.DockWidgetArea.BottomDockWidgetArea
     assert window.corner(Qt.Corner.BottomRightCorner) == Qt.DockWidgetArea.BottomDockWidgetArea
-
-    workspace = window.iqa_workspace
-    assert workspace.minimumHeight() == 0
-    assert workspace.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Ignored
-
-    for widget_name in (
-        "overview_page",
-        "scene_page",
-        "overview_chart_panel",
-        "overview_detail_panel",
-        "overview_plot",
-        "hierarchy",
-        "scene_trend_plot",
-        "preview_scroll",
-    ):
-        widget = getattr(workspace, widget_name)
-        assert isinstance(widget, QWidget)
-        assert widget.minimumHeight() == 0
-        assert widget.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Ignored
-
-    for splitter_name in ("overview_splitter", "scene_splitter"):
-        splitter = getattr(workspace, splitter_name)
-        assert isinstance(splitter, QSplitter)
-        assert all(splitter.isCollapsible(index) for index in range(splitter.count()))
+    assert window.bottom_tabs.minimumHeight() == 0
+    assert window.bottom_tabs.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Expanding
 
     window.close()
-
 
 def test_horizontal_workspace_uses_qt_native_collapse_policy(qtbot: object) -> None:
     window = MainWindow()
@@ -53,7 +30,7 @@ def test_horizontal_workspace_uses_qt_native_collapse_policy(qtbot: object) -> N
     controller = install_beta_workspace_hardening(window)
 
     # No custom resize/allocation controller: QSplitter owns Files/Image and
-    # QMainWindow/QDockWidget owns central-area/IQA sizing.
+    # QMainWindow/QDockWidget owns the Base Plots workspace.
     assert not hasattr(controller, "_horizontal_allocation_controller")
 
     # Files is secondary and may collapse; Image is the primary workspace and
@@ -62,7 +39,5 @@ def test_horizontal_workspace_uses_qt_native_collapse_policy(qtbot: object) -> N
     assert not window.main_splitter.isCollapsible(1)
     assert window.main_splitter.widget(0).minimumWidth() == 0
     assert window.presentation_panel.minimumWidth() == 0
-    assert window.iqa_dock.minimumWidth() == 0
-    assert window.iqa_workspace.attribute_filter.maximumWidth() == window.maximumWidth()
 
     window.close()

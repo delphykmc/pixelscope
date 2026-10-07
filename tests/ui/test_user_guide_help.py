@@ -16,7 +16,6 @@ from pixelscope.app.raw_input_compatibility import RawInputCompatibilityControll
 from pixelscope.app.yuv_input_semantics import NativeYuvSemanticsController
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.ui import user_guide_help
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.user_guide_help import (
     context_help_page,
@@ -319,8 +318,8 @@ def test_dialog_f1_installer_preserves_non_qwidget_profile_test_doubles() -> Non
     assert install_dialog_context_help(object(), "formats/raw.html") is None
 
 
-def test_floating_docks_own_separate_f1_routes(qtbot: Any, monkeypatch: Any) -> None:
-    window = LegacyP5MainWindow()
+def test_floating_plots_owns_f1_route(qtbot: Any, monkeypatch: Any) -> None:
+    window = MainWindow()
     qtbot.addWidget(window)
     install_user_guide_help(window)
     seen: list[str | None] = []
@@ -331,12 +330,10 @@ def test_floating_docks_own_separate_f1_routes(qtbot: Any, monkeypatch: Any) -> 
 
     monkeypatch.setattr(user_guide_help, "open_local_user_guide", fake_open)
     plots = window.bottom_dock.findChild(QShortcut, "floatingContextHelpShortcut")
-    iqa = window.iqa_dock.findChild(QShortcut, "floatingContextHelpShortcut")
-    assert plots is not None and iqa is not None
+    assert plots is not None
     window.bottom_tabs.setCurrentIndex(1)
     plots.activated.emit()
-    iqa.activated.emit()
-    assert seen == ["features/line-profile.html", "features/iqa-workspace.html"]
+    assert seen == ["features/line-profile.html"]
     window.close()
 
 
@@ -394,8 +391,10 @@ def test_f1_real_key_dispatch_main_workspaces_and_presentation_controls(
     window.close()
 
 
-def test_f1_real_key_dispatch_docked_and_floating_analyses(qtbot: Any, monkeypatch: Any) -> None:
-    window = LegacyP5MainWindow()
+def test_f1_real_key_dispatch_docked_and_floating_plots(
+    qtbot: Any, monkeypatch: Any
+) -> None:
+    window = MainWindow()
     qtbot.addWidget(window)
     install_user_guide_help(window)
     seen: list[tuple[object, str | None]] = []
@@ -415,12 +414,6 @@ def test_f1_real_key_dispatch_docked_and_floating_analyses(qtbot: Any, monkeypat
         window.bottom_tabs.setCurrentIndex(index)
         _key_f1_on_actual_focus(qtbot, window.bottom_tabs.tabBar(), seen, window, topic)
 
-    window.iqa_dock.show()
-    window.iqa_workspace.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-    _key_f1_on_actual_focus(
-        qtbot, window.iqa_workspace, seen, window, "features/iqa-workspace.html"
-    )
-
     window.bottom_dock.setFloating(True)
     window.bottom_dock.show()
     window.bottom_dock.activateWindow()
@@ -430,13 +423,6 @@ def test_f1_real_key_dispatch_docked_and_floating_analyses(qtbot: Any, monkeypat
     ):
         window.bottom_tabs.setCurrentIndex(index)
         _key_f1_on_actual_focus(qtbot, window.bottom_tabs.tabBar(), seen, window, topic)
-
-    window.iqa_dock.setFloating(True)
-    window.iqa_dock.show()
-    window.iqa_dock.activateWindow()
-    _key_f1_on_actual_focus(
-        qtbot, window.iqa_workspace, seen, window, "features/iqa-workspace.html"
-    )
     window.close()
 
 
