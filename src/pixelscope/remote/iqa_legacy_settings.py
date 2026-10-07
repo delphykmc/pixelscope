@@ -49,3 +49,12 @@ class LegacyRemoteIqaSettingsRepository:
             self._settings.remove(key)
         self._settings.sync()
         return RemoteIqaSettings()
+
+
+def load_legacy_remote_iqa_settings(owner: object) -> RemoteIqaSettings:
+    """Load historical P5 settings from the explicit extension-owned repository."""
+
+    repository = getattr(owner, "remote_iqa_settings_repository", None)
+    if isinstance(repository, LegacyRemoteIqaSettingsRepository):
+        return repository.load()
+    return LegacyRemoteIqaSettingsRepository().load()
