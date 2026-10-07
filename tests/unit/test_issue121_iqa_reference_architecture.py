@@ -18,6 +18,40 @@ def _imports(path: Path) -> set[str]:
     return modules
 
 
+def _module_name(path: Path) -> str:
+    relative = path.relative_to(SOURCE_ROOT).with_suffix("")
+    parts = list(relative.parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def _source_import_graph() -> dict[str, set[str]]:
+    graph: dict[str, set[str]] = {}
+    for path in SOURCE_ROOT.rglob("*.py"):
+        graph[_module_name(path)] = {
+            module for module in _imports(path) if module.startswith("pixelscope")
+        }
+    return graph
+
+
+def _reachable_modules(entrypoint: str) -> set[str]:
+    graph = _source_import_graph()
+    pending = [entrypoint]
+    reachable: set[str] = set()
+    while pending:
+        module = pending.pop()
+        if module in reachable:
+            continue
+        reachable.add(module)
+        pending.extend(
+            dependency
+            for dependency in graph.get(module, ())
+            if dependency in graph and dependency not in reachable
+        )
+    return reachable
+
+
 def _is_reserved_implementation(module: str) -> bool:
     return module.startswith(("pixelscope_iqa_reference", "pixelscope_enterprise"))
 
@@ -80,6 +114,43 @@ def test_reference_extension_uses_only_allowed_main_surfaces() -> None:
             if module.startswith("pixelscope.") and not _is_allowed_main_import(module, allowed):
                 relative = path.relative_to(REPOSITORY_ROOT)
                 violations.append(f"{relative} -> {module}")
+    assert violations == []
+
+
+def test_core_entrypoint_transitive_imports_reach_no_iqa_implementation() -> None:
+    reachable = _reachable_modules("pixelscope.__main__")
+    violations = sorted(
+        module
+        for module in reachable
+        if module.startswith("pixelscope.ui.iqa_")
+        or (
+            module.startswith("pixelscope.remote.iqa_")
+            and module not in {
+                "pixelscope.remote.iqa_domain",
+                "pixelscope.remote.iqa_public_contract",
+                "pixelscope.remote.iqa_public_fixture",
+            }
+        )
+    )
+    assert violations == []
+
+
+def test_reference_entrypoint_transitive_iqa_imports_are_public_only() -> None:
+    reachable = _reachable_modules("pixelscope_iqa_reference.__main__")
+    allowed_iqa_modules = {
+        "pixelscope.remote.iqa_domain",
+        "pixelscope.remote.iqa_public_contract",
+        "pixelscope.remote.iqa_public_fixture",
+    }
+    violations = sorted(
+        module
+        for module in reachable
+        if (
+            module.startswith("pixelscope.ui.iqa_")
+            or module.startswith("pixelscope.remote.iqa_")
+        )
+        and module not in allowed_iqa_modules
+    )
     assert violations == []
 
 
