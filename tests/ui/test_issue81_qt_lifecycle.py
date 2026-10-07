@@ -29,7 +29,7 @@ def _blocked_task(started: Event, release: Event) -> Callable[[], object]:
     return run
 
 
-def test_running_task_worker_can_finish_after_window_destruction_without_cross_thread_qobject_delete(
+def test_task_worker_finishes_after_window_destruction_on_gui_thread(
     qtbot: object,
     isolated_qsettings_subdirectory: None,
 ) -> None:
