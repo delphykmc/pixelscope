@@ -32,13 +32,12 @@ def _is_allowed_main_import(module: str, allowed: tuple[str, ...]) -> bool:
 
 def test_base_core_does_not_import_reference_or_enterprise_namespaces() -> None:
     violations: list[str] = []
-    for relative_root in ("app", "core", "io", "workers"):
-        root = SOURCE_ROOT / "pixelscope" / relative_root
-        for path in root.rglob("*.py"):
-            for module in _imports(path):
-                if _is_reserved_implementation(module):
-                    relative = path.relative_to(REPOSITORY_ROOT)
-                    violations.append(f"{relative} -> {module}")
+    root = SOURCE_ROOT / "pixelscope"
+    for path in root.rglob("*.py"):
+        for module in _imports(path):
+            if _is_reserved_implementation(module):
+                relative = path.relative_to(REPOSITORY_ROOT)
+                violations.append(f"{relative} -> {module}")
     assert violations == []
 
 
