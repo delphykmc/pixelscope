@@ -353,10 +353,12 @@ not acquire independent Pick identity; pan, Ctrl+drag ROI, and Shift+drag Line
 Profile gestures do not toggle Pick; and Keep Selection leaves the Files tree on
 exactly the resulting subset with the first result Active.
 
-Workflow-polish coverage must send actual `S` and `Ctrl+Shift+I` key events through an
-active production window, preserve complete Page/range text beyond the compact
-reservation, disable page-inapplicable Files Primary actions, and transition Histogram
-and Line Profile guidance immediately when their prerequisites become available.
+Workflow-polish coverage must send the actual `S` key event through an active Core
+production window, preserve complete Page/range text beyond the compact reservation,
+disable page-inapplicable Files Primary actions, and transition Histogram and Line
+Profile guidance immediately when their prerequisites become available. Optional
+extension action/dock behavior is covered by the public Reference/contribution tests
+rather than by a legacy IQA-specific Core shortcut.
 
 Runtime regression must prove that Pick membership itself is inert with respect to
 native source ownership. On representative large pending selections, only the
