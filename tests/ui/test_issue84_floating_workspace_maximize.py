@@ -4,7 +4,7 @@ import pytest
 from PySide6.QtCore import QByteArray, QRect, QSettings, Qt
 from PySide6.QtWidgets import QDockWidget
 
-from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.beta_workspace_hardening import (
     BetaWorkspaceHardeningController,
     install_beta_workspace_hardening,
