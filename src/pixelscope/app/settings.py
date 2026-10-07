@@ -11,13 +11,7 @@ from pixelscope.core.performance_settings import (
     MIB,
     PerformanceSettings,
 )
-from pixelscope.remote.iqa_settings import (
-    RemoteIqaSettings,
-    parse_storage_roots,
-    serialize_storage_roots,
-)
-
-CURRENT_SETTINGS_SCHEMA_VERSION: Final = 6
+CURRENT_SETTINGS_SCHEMA_VERSION: Final = 7
 DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
 MAX_DIFFERENCE_CACHE_MIB: Final = 1280
@@ -45,10 +39,16 @@ DIFFERENCE_GAIN_KEY: Final = "settings/analysis/difference_gain"
 DIFFERENCE_CACHE_MIB_KEY: Final = "settings/performance/difference_cache_mib"
 SOURCE_RESIDENCY_MIB_KEY: Final = "settings/performance/source_residency_mib"
 PRELOAD_ENABLED_KEY: Final = "settings/performance/preload_enabled"
-REMOTE_IQA_SERVER_URL_KEY: Final = "settings/remote_iqa/server_base_url"
-REMOTE_IQA_STORAGE_ROOTS_KEY: Final = "settings/remote_iqa/storage_roots_json"
-REMOTE_IQA_STAGING_ROOT_ID_KEY: Final = "settings/remote_iqa/staging_root_id"
 LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = "raw/dont_show_json_profiles"
+
+# Slice 7 retires the public P5 configuration namespace from Base ownership. These
+# literal keys are retained only so schema-v6 migration/reset can remove stale
+# machine-local configuration safely; no Base runtime reads or interprets them.
+RETIRED_EXTENSION_SETTINGS_KEYS: Final = (
+    "settings/remote_iqa/server_base_url",
+    "settings/remote_iqa/storage_roots_json",
+    "settings/remote_iqa/staging_root_id",
+)
 
 OWNED_SETTINGS_KEYS: Final = (
     SCHEMA_VERSION_KEY,
@@ -61,9 +61,6 @@ OWNED_SETTINGS_KEYS: Final = (
     DIFFERENCE_CACHE_MIB_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
     PRELOAD_ENABLED_KEY,
-    REMOTE_IQA_SERVER_URL_KEY,
-    REMOTE_IQA_STORAGE_ROOTS_KEY,
-    REMOTE_IQA_STAGING_ROOT_ID_KEY,
 )
 
 _TRUE_STRINGS = frozenset({"true", "1", "yes", "on"})
@@ -83,7 +80,6 @@ class ApplicationSettings:
     difference_gain: int = DEFAULT_DIFFERENCE_GAIN
     source_residency_mib: int = DEFAULT_SOURCE_RESIDENCY_MIB
     preload_enabled: bool = True
-    remote_iqa: RemoteIqaSettings = RemoteIqaSettings()
 
     def __post_init__(self) -> None:
         if not isinstance(self.dont_show_raw_json_profiles, bool):
@@ -92,8 +88,6 @@ class ApplicationSettings:
             raise TypeError("require_exact_raw_file_size must be bool")
         if not isinstance(self.preload_enabled, bool):
             raise TypeError("preload_enabled must be bool")
-        if not isinstance(self.remote_iqa, RemoteIqaSettings):
-            raise TypeError("remote_iqa must be RemoteIqaSettings")
         self._validate_int_range(
             "difference_cache_mib",
             self.difference_cache_mib,
@@ -197,9 +191,12 @@ class SettingsRepository:
             settings, normalized = self._load_current_values()
             if normalized:
                 self._write_current(settings)
+            self._remove_retired_extension_settings()
             return settings
 
-        if schema_version == 5:
+        if schema_version == 6:
+            settings = self._load_schema_v6_values()
+        elif schema_version == 5:
             settings = self._load_schema_v5_values()
         elif schema_version == 4:
             settings = self._load_schema_v4_values()
@@ -213,6 +210,7 @@ class SettingsRepository:
             settings = self._load_legacy_or_unversioned()
         self._write_current(settings)
         self._adapter.remove(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
+        self._remove_retired_extension_settings()
         self._adapter.sync()
         return settings
 
@@ -220,6 +218,7 @@ class SettingsRepository:
         self._guard_writable_schema()
         self._write_current(settings)
         self._adapter.remove(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
+        self._remove_retired_extension_settings()
         self._adapter.sync()
         return settings
 
@@ -228,6 +227,7 @@ class SettingsRepository:
         for key in OWNED_SETTINGS_KEYS:
             self._adapter.remove(key)
         self._adapter.remove(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
+        self._remove_retired_extension_settings()
         defaults = ApplicationSettings()
         self._write_current(defaults)
         self._adapter.sync()
@@ -271,7 +271,6 @@ class SettingsRepository:
         export_directory, export_valid = self._parse_directory(
             self._adapter.value(DEFAULT_EXPORT_DIRECTORY_KEY)
         )
-        remote, remote_valid = self._load_remote_iqa()
         settings = ApplicationSettings(
             dont_show_raw_json_profiles=dont_show,
             difference_cache_mib=cache_mib,
@@ -282,7 +281,6 @@ class SettingsRepository:
             require_exact_raw_file_size=exact_size,
             difference_threshold=threshold,
             difference_gain=gain,
-            remote_iqa=remote,
         )
         valid = (
             dont_show_valid
@@ -294,29 +292,13 @@ class SettingsRepository:
             and gain_valid
             and open_valid
             and export_valid
-            and remote_valid
         )
         return settings, not valid
 
-    def _load_remote_iqa(self) -> tuple[RemoteIqaSettings, bool]:
-        raw_url = self._adapter.value(REMOTE_IQA_SERVER_URL_KEY, "")
-        url_valid = isinstance(raw_url, str)
-        url = raw_url.strip() if isinstance(raw_url, str) else ""
-        roots, roots_valid = parse_storage_roots(
-            self._adapter.value(REMOTE_IQA_STORAGE_ROOTS_KEY, "")
-        )
-        raw_staging = self._adapter.value(REMOTE_IQA_STAGING_ROOT_ID_KEY, "")
-        staging_valid = isinstance(raw_staging, str)
-        staging = raw_staging.strip() if isinstance(raw_staging, str) else ""
-        try:
-            settings = RemoteIqaSettings(
-                server_base_url=url,
-                storage_roots=roots,
-                staging_root_id=staging or None,
-            )
-        except ValueError:
-            return RemoteIqaSettings(), False
-        return settings, url_valid and roots_valid and staging_valid
+    def _load_schema_v6_values(self) -> ApplicationSettings:
+        """Migrate the final public P5 settings schema into generic Base settings."""
+
+        return self._load_pre_remote_values(include_preload=True)
 
     def _load_schema_v5_values(self) -> ApplicationSettings:
         """Preserve schema-v5 values and add empty Remote IQA configuration."""
@@ -496,19 +478,11 @@ class SettingsRepository:
             settings.source_residency_mib,
         )
         self._adapter.set_value(PRELOAD_ENABLED_KEY, settings.preload_enabled)
-        self._adapter.set_value(
-            REMOTE_IQA_SERVER_URL_KEY,
-            settings.remote_iqa.server_base_url,
-        )
-        self._adapter.set_value(
-            REMOTE_IQA_STORAGE_ROOTS_KEY,
-            serialize_storage_roots(settings.remote_iqa.storage_roots),
-        )
-        self._adapter.set_value(
-            REMOTE_IQA_STAGING_ROOT_ID_KEY,
-            settings.remote_iqa.staging_root_id or "",
-        )
         self._adapter.sync()
+
+    def _remove_retired_extension_settings(self) -> None:
+        for key in RETIRED_EXTENSION_SETTINGS_KEYS:
+            self._adapter.remove(key)
 
     def _guard_writable_schema(self) -> None:
         schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
