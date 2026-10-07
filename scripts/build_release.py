@@ -12,10 +12,8 @@ if __package__ in (None, ""):
 
 from scripts.build_user_guide import build_user_guide  # noqa: E402
 from scripts.release_contract import (  # noqa: E402
-    APP_DIR,
     BUILD_ROOT,
     DIST_ROOT,
-    REFERENCE_APP_DIR,
     REFERENCE_EXECUTABLE_PATH,
     REFERENCE_SPEC_PATH,
     REPO_ROOT,
@@ -28,9 +26,13 @@ from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 def _target_paths(target: str) -> tuple[Path, Path, str]:
     if target == "core":
-        return SPEC_PATH, APP_DIR, "PixelScope.exe"
+        return SPEC_PATH, DIST_ROOT / "PixelScope", "PixelScope.exe"
     if target == "reference":
-        return REFERENCE_SPEC_PATH, REFERENCE_APP_DIR, REFERENCE_EXECUTABLE_PATH.name
+        return (
+            REFERENCE_SPEC_PATH,
+            DIST_ROOT / "PixelScopeReference",
+            REFERENCE_EXECUTABLE_PATH.name,
+        )
     raise ValueError(f"Unknown public package target: {target}")
 
 
@@ -80,7 +82,10 @@ def build_public_target(target: str = "core") -> Path:
     # MkDocs' generated 404.html is hosting-only and contains absolute /assets
     # references that cannot resolve when opened from file://.
     (help_root / "404.html").unlink(missing_ok=True)
-    validate_artifact(app_dir, executable_name=executable_name)
+    if target == "core":
+        validate_artifact()
+    else:
+        validate_artifact(app_dir, executable_name=executable_name)
     return app_dir
 
 
