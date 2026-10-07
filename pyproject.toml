@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 pixelscope = "pixelscope.app.application:main"
+pixelscope-reference = "pixelscope_iqa_reference.application:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
