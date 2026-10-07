@@ -21,7 +21,6 @@ This reference lists shortcuts and interaction keys confirmed by the current app
 | `Esc` | Clear/cancel ROI interaction when the ROI context owns the key |
 | `Shift+Esc` | Clear Line while the Line Profile tab is current |
 | `S` | Split Channels when applicable |
-| `Ctrl+Shift+I` | Show/hide IQA workspace |
 | `[` / `]` | Decrease/increase all visible display gains by 0.5 EV |
 | `\` | Reset display gains |
 | `Alt+[` / `Alt+]` | Single: selected Before; Multi: active slot, ±0.5 EV |
