@@ -22,7 +22,7 @@ If a workflow uses unfamiliar terms such as **Registered**, **Selected**, **Curr
 - [Calculate Difference](workflows/use-difference.md)
 - [Export current analysis](workflows/export-analysis.md)
 - [Save and restore a Session](workflows/save-and-restore-work.md)
-- [Use configured Remote IQA](workflows/use-remote-iqa.md)
+- [Use IQA Reference mode](workflows/use-remote-iqa.md)
 - [Open RAW](formats/raw.md) or [YUV](formats/yuv.md) data
 
 ## Feature reference
@@ -35,4 +35,4 @@ This site is generated from the Markdown in `docs/user-guide/`. The same source 
 
 ## Need help with an error?
 
-See [Troubleshooting](troubleshooting/index.md). Useful search terms include **Difference unavailable**, **RAW stride**, **RAW14**, **YUV size mismatch**, **ROI cleared**, **line profile reset**, **Primary**, **PageUp**, **Pick**, and **Remote IQA**.
+See [Troubleshooting](troubleshooting/index.md). Useful search terms include **Difference unavailable**, **RAW stride**, **RAW14**, **YUV size mismatch**, **ROI cleared**, **line profile reset**, **Primary**, **PageUp**, **Pick**, and **IQA Reference**.
