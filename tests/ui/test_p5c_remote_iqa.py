@@ -17,9 +17,9 @@ from pixelscope.remote.iqa_result_reader import load_result
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.remote.iqa_submission import JobState
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.iqa_legacy_composition import (
     compose_legacy_p5_presentation as _compose_main_window_presentation,
-    LegacyP5MainWindow as MainWindow,
 )
 from pixelscope.ui.iqa_remote_settings import RemoteIqaSettingsDialog
 from pixelscope.ui.iqa_submission import RemoteIqaWorkspace, RemoteJobRecord
