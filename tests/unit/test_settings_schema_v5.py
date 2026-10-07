@@ -14,13 +14,13 @@ from pixelscope.app.settings import (
     DONT_SHOW_RAW_JSON_PROFILES_KEY,
     PRELOAD_ENABLED_KEY,
     REQUIRE_EXACT_RAW_FILE_SIZE_KEY,
-    RETIRED_EXTENSION_SETTINGS_KEYS,
     SCHEMA_VERSION_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
     ApplicationSettings,
     QSettingsAdapter,
     SettingsRepository,
 )
+from pixelscope.remote.iqa_legacy_settings import LEGACY_REMOTE_IQA_KEYS
 
 
 @pytest.fixture(autouse=True)
@@ -51,7 +51,7 @@ def test_schema_v7_fresh_defaults_are_generic_only() -> None:
     assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
     assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is True
-    assert all(not settings.contains(key) for key in RETIRED_EXTENSION_SETTINGS_KEYS)
+    assert all(not settings.contains(key) for key in LEGACY_REMOTE_IQA_KEYS)
 
 
 def test_schema_v5_migration_preserves_generic_values() -> None:
@@ -168,14 +168,14 @@ def test_schema_v3_invalid_cache_budget_uses_new_default(legacy_cache_mib: objec
     assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 128
 
 
-def test_schema_v6_migration_retires_remote_iqa_keys_without_touching_unrelated_state() -> None:
+def test_schema_v6_migration_preserves_extension_owned_iqa_keys() -> None:
     repository, settings = _repository()
     settings.setValue(SCHEMA_VERSION_KEY, 6)
     settings.setValue(SOURCE_RESIDENCY_MIB_KEY, 2048)
     settings.setValue(PRELOAD_ENABLED_KEY, False)
-    settings.setValue(RETIRED_EXTENSION_SETTINGS_KEYS[0], "https://iqa.example.test")
-    settings.setValue(RETIRED_EXTENSION_SETTINGS_KEYS[1], '[{"storage_root_id":"shared"}]')
-    settings.setValue(RETIRED_EXTENSION_SETTINGS_KEYS[2], "shared")
+    settings.setValue(LEGACY_REMOTE_IQA_KEYS[0], "https://iqa.example.test")
+    settings.setValue(LEGACY_REMOTE_IQA_KEYS[1], '[{"storage_root_id":"shared"}]')
+    settings.setValue(LEGACY_REMOTE_IQA_KEYS[2], "shared")
     settings.setValue("unrelated/workspace", "keep")
 
     loaded = repository.load()
@@ -183,11 +183,15 @@ def test_schema_v6_migration_retires_remote_iqa_keys_without_touching_unrelated_
     assert loaded.source_residency_mib == 2048
     assert loaded.preload_enabled is False
     assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
-    assert all(not settings.contains(key) for key in RETIRED_EXTENSION_SETTINGS_KEYS)
+    assert settings.value(LEGACY_REMOTE_IQA_KEYS[0]) == "https://iqa.example.test"
+    assert settings.value(LEGACY_REMOTE_IQA_KEYS[1]) == '[{"storage_root_id":"shared"}]'
+    assert settings.value(LEGACY_REMOTE_IQA_KEYS[2]) == "shared"
     assert settings.value("unrelated/workspace") == "keep"
 
     repository.reset()
-    assert all(not settings.contains(key) for key in RETIRED_EXTENSION_SETTINGS_KEYS)
+    assert settings.value(LEGACY_REMOTE_IQA_KEYS[0]) == "https://iqa.example.test"
+    assert settings.value(LEGACY_REMOTE_IQA_KEYS[1]) == '[{"storage_root_id":"shared"}]'
+    assert settings.value(LEGACY_REMOTE_IQA_KEYS[2]) == "shared"
     assert settings.value("unrelated/workspace") == "keep"
 
 
