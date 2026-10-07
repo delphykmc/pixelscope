@@ -10,6 +10,7 @@ from PySide6.QtCore import QObject
 from PySide6.QtGui import QAction
 
 from pixelscope.remote.iqa_history import IqaResultIdentity, IqaResultLocator
+from pixelscope.remote.iqa_legacy_settings import load_legacy_remote_iqa_settings
 from pixelscope.ui.iqa_historical_results import HistoricalIqaResultsController
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
 
@@ -51,7 +52,7 @@ class HistoricalIqaResultsLifecycle(QObject):
             self._original_remote_settings_changed()
             if self.controller._active:
                 self.controller.provenance.refresh_settings(
-                    self.window.application_settings.remote_iqa
+                    load_legacy_remote_iqa_settings(self.window)
                 )
 
         dynamic_controller._start_open = start_open
