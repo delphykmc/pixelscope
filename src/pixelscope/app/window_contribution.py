@@ -45,8 +45,8 @@ class SettingsWindowContribution(Protocol):
 class WindowHostAccess(Protocol):
     """Bounded Base surface available to external window contributions."""
 
-    def current_comparison_source_paths(self) -> tuple[Path, ...]:
-        """Return local source paths in the current comparison page."""
+    def current_comparison_source_paths(self) -> tuple[Path | None, ...]:
+        """Return one native source path or None for every comparison-page slot."""
 
     def register_contributed_dock(self, dock: QDockWidget) -> None:
         """Register a contribution-owned dock for Base persistence/shutdown handling."""
