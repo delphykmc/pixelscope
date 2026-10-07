@@ -4,9 +4,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QSettings
 import pytest
+from PySide6.QtCore import QSettings
 
 from pixelscope.app.settings import (
-    ApplicationSettings,
     CURRENT_SETTINGS_SCHEMA_VERSION,
     DEFAULT_SOURCE_RESIDENCY_MIB,
     DIFFERENCE_CACHE_MIB_KEY,
@@ -14,10 +14,11 @@ from pixelscope.app.settings import (
     DIFFERENCE_THRESHOLD_KEY,
     DONT_SHOW_RAW_JSON_PROFILES_KEY,
     PRELOAD_ENABLED_KEY,
-    QSettingsAdapter,
     REQUIRE_EXACT_RAW_FILE_SIZE_KEY,
     SCHEMA_VERSION_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
+    ApplicationSettings,
+    QSettingsAdapter,
     SettingsRepository,
 )
 
