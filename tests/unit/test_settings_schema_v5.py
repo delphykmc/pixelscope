@@ -22,6 +22,7 @@ from pixelscope.app.settings import (
     SettingsRepository,
 )
 
+
 @pytest.fixture(autouse=True)
 def isolated_settings(tmp_path: Path) -> None:
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
