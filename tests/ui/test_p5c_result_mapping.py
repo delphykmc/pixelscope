@@ -6,8 +6,10 @@ from typing import Any
 
 from PySide6.QtCore import QObject
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.remote.iqa_submission import IqaResultReference, JobState
 from pixelscope.ui.iqa_result_mapping import RemoteIqaResultMappingGuard
