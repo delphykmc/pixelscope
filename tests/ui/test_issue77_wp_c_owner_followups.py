@@ -10,7 +10,9 @@ from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
 from PySide6.QtGui import QDragLeaveEvent, QDragMoveEvent
 
 import pixelscope.ui.difference_panel as difference_panel_module
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.quick_compare import QuickCompareController
