@@ -89,8 +89,9 @@ MAIN owns only generic host behavior and public contracts. The MAIN reference IQ
 extension is an executable example of menu/dock/lifecycle composition, not a final UI
 specification.
 
-An explicit SUB launcher/composition root is sufficient. Dynamic plugin discovery,
-hot loading and version negotiation are not required by Issue #121.
+An explicit SUB launcher/composition root is sufficient. The public default launcher is
+Core-only; the MAIN Reference launcher is a separate explicit composition. Dynamic
+plugin discovery, hot loading and version negotiation are not required by Issue #121.
 
 ## Enterprise configuration
 
@@ -98,9 +99,10 @@ Real Enterprise configuration remains entirely downstream-owned, including serve
 URLs, storage roots, credentials, SSO/security objects, model configuration, retention
 policy and internal path mapping.
 
-MAIN must not gain environment keys or settings schemas merely to support SUB. If a
-generic settings contribution point is missing, request that generic host capability
-upstream.
+MAIN Base schema v7 contains only product-generic settings. Legacy public P5 keys are
+retired during migration and are not interpreted by Base. MAIN must not gain environment
+keys or settings schemas merely to support SUB. If a generic settings contribution point
+is missing, request that generic host capability upstream.
 
 ## Exact MAIN pin and provenance
 
