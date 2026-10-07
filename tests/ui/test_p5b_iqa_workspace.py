@@ -8,10 +8,6 @@ import pytest
 from PySide6.QtCore import QRect, Qt, QThreadPool
 from PySide6.QtWidgets import QFileDialog, QLabel
 
-from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
-    compose_legacy_p5_presentation as _compose_main_window_presentation,
-)
 from pixelscope.remote.iqa_domain import ComparisonMode, LoadStatus
 from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID, IqaExplorerModel
 from pixelscope.remote.iqa_result_reader import load_result
@@ -21,6 +17,10 @@ from pixelscope.remote.iqa_v2_domain import (
     build_measurement_context_id,
 )
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.ui.iqa_workspace import (
     IQA_FLOATING_GEOMETRY_SETTING,
     IqaWorkspaceController,
