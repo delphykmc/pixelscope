@@ -42,14 +42,6 @@ SOURCE_RESIDENCY_MIB_KEY: Final = "settings/performance/source_residency_mib"
 PRELOAD_ENABLED_KEY: Final = "settings/performance/preload_enabled"
 LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY: Final = "raw/dont_show_json_profiles"
 
-# Slice 7 retires the public P5 configuration namespace from Base ownership. These
-# literal keys are retained only so schema-v6 migration/reset can remove stale
-# machine-local configuration safely; no Base runtime reads or interprets them.
-RETIRED_EXTENSION_SETTINGS_KEYS: Final = (
-    "settings/remote_iqa/server_base_url",
-    "settings/remote_iqa/storage_roots_json",
-    "settings/remote_iqa/staging_root_id",
-)
 
 OWNED_SETTINGS_KEYS: Final = (
     SCHEMA_VERSION_KEY,
@@ -192,7 +184,6 @@ class SettingsRepository:
             settings, normalized = self._load_current_values()
             if normalized:
                 self._write_current(settings)
-            self._remove_retired_extension_settings()
             return settings
 
         if schema_version == 6:
@@ -211,7 +202,6 @@ class SettingsRepository:
             settings = self._load_legacy_or_unversioned()
         self._write_current(settings)
         self._adapter.remove(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        self._remove_retired_extension_settings()
         self._adapter.sync()
         return settings
 
@@ -219,7 +209,6 @@ class SettingsRepository:
         self._guard_writable_schema()
         self._write_current(settings)
         self._adapter.remove(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        self._remove_retired_extension_settings()
         self._adapter.sync()
         return settings
 
@@ -228,7 +217,6 @@ class SettingsRepository:
         for key in OWNED_SETTINGS_KEYS:
             self._adapter.remove(key)
         self._adapter.remove(LEGACY_DONT_SHOW_RAW_JSON_PROFILES_KEY)
-        self._remove_retired_extension_settings()
         defaults = ApplicationSettings()
         self._write_current(defaults)
         self._adapter.sync()
@@ -480,10 +468,6 @@ class SettingsRepository:
         )
         self._adapter.set_value(PRELOAD_ENABLED_KEY, settings.preload_enabled)
         self._adapter.sync()
-
-    def _remove_retired_extension_settings(self) -> None:
-        for key in RETIRED_EXTENSION_SETTINGS_KEYS:
-            self._adapter.remove(key)
 
     def _guard_writable_schema(self) -> None:
         schema_version = self._parse_schema_version(self._adapter.value(SCHEMA_VERSION_KEY))
