@@ -7,11 +7,11 @@ that contract.
 
 ## Beta qualification boundary
 
-The current Beta qualifies the local PixelScope desktop application and the existing
-P7 executable/portable/installer/candidate/publication tooling. Production Remote IQA
-server/GPU integration, full external result-writer/SMB qualification, and production
-SSO/authentication are **not** Beta qualification gates. Repository tooling must not
-invent or implement those external contracts as part of a Beta build.
+The current Beta qualifies the public PixelScope Core desktop application and the
+existing P7 executable/portable/installer/candidate/publication tooling. The optional
+MAIN-owned IQA Reference package is validated separately as a public mock/reference
+target. Real Enterprise IQA provider/model/server/storage/auth integration is
+downstream-owned and is **not** a public Beta qualification gate.
 
 ## 1. Prepare the two Python environments
 
@@ -110,9 +110,11 @@ Extract the candidate `*-portable.zip` into a new directory and start the packag
 `PixelScope.exe` from that extracted payload. Do not mix files from another build into
 the extracted directory.
 
-For this Beta UI hardening release, also execute the PR's Windows UI/manual checklist on
-the packaged build, especially Two Image + IQA resizing and floating Plots/IQA on the
-available monitor configuration.
+For UI-affecting releases, also execute the PR's Windows UI/manual checklist on the
+packaged Core build, including comparison resizing and floating Plots behavior. When the
+Reference target changes, separately build/smoke `PixelScopeReference.exe` and verify
+its contributed dock/job/result flow and clean shutdown. Do not use retired historical
+P5/Remote-IQA UI behavior as a public release criterion.
 
 ## 5. Prepare provider-neutral publication staging
 
