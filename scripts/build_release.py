@@ -83,7 +83,7 @@ def build_public_target(target: str = "core") -> Path:
     return app_dir
 
 
-def main() -> int:
+def main(arguments: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build a public PixelScope package target")
     parser.add_argument(
         "--target",
@@ -91,11 +91,11 @@ def main() -> int:
         default="core",
         help="public package mode to build (default: core)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args([] if arguments is None else arguments)
     output = build_public_target(args.target)
     print(f"Built PixelScope {args.target} package: {output.resolve()}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
