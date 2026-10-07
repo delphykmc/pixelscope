@@ -187,7 +187,7 @@ MAIN provides company-neutral conformance evidence at:
 tests/conformance/test_iqa_provider_handoff.py
 tests/iqa_reference/test_reference_extension.py
 tests/ui/test_issue121_extension_settings.py
-tests/unit/test_iqa_current_pair_contract.py
+tests/unit/test_issue121_iqa_reference_architecture.py
 tests/unit/test_iqa_public_contract.py
 tests/unit/test_issue121_public_package_modes.py
 ```
