@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pixelscope.core.diagnostics import (
     DifferenceCacheDiagnostics,
-    RemoteIqaDiagnostics,
+    ExtensionDiagnosticsSection,
     RuntimeDiagnosticsSnapshot,
     SourceResidencyDiagnostics,
     WorkerDiagnostics,
@@ -31,15 +31,20 @@ def test_remote_iqa_diagnostics_extend_existing_copy_surface() -> None:
             failure_count=0,
         ),
         normal_load_stale_drop_count=0,
-        remote_iqa=RemoteIqaDiagnostics(
-            worker_pool=WorkerPoolDiagnostics(1, 2),
-            http_clients_created=2,
-            http_leases_reused=5,
-            http_active_leases=1,
-            http_max_active_leases=2,
-            http_idle_clients=1,
-            http_discarded_clients=0,
-            transport_closed=False,
+        extension_sections=(
+            ExtensionDiagnosticsSection(
+                "Remote IQA",
+                (
+                    "Workers: active 1 / max 2",
+                    "HTTP clients created: 2",
+                    "HTTP leases reused: 5",
+                    "HTTP active leases: 1",
+                    "HTTP max active leases: 2",
+                    "HTTP idle clients: 1",
+                    "HTTP discarded clients: 0",
+                    "Transport closed: no",
+                ),
+            ),
         ),
     )
 
