@@ -6,10 +6,6 @@ from typing import Any
 import numpy as np
 from PySide6.QtCore import QSettings
 
-from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
-    compose_legacy_p5_presentation as _compose_main_window_presentation,
-)
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_explorer import IqaExplorerModel
@@ -20,6 +16,10 @@ from pixelscope.remote.iqa_scene_inspection import (
 from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_reader import load_result_v2
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 
 
 def _result(tmp_path: Path) -> ResultV2:
