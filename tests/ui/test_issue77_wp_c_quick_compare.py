@@ -9,7 +9,9 @@ from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QApplication
 
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
