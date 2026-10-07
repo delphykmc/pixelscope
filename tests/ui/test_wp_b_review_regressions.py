@@ -11,7 +11,9 @@ from PySide6.QtWidgets import QDialog
 
 import pixelscope.app.main_window as main_window_module
 import pixelscope.app.raw_input_compatibility as raw_compatibility_module
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.raw_input_compatibility import install_raw_input_compatibility
 from pixelscope.app.settings import ApplicationSettings

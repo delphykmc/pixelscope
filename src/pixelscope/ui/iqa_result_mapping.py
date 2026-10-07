@@ -7,6 +7,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject
 
+from pixelscope.remote.iqa_legacy_settings import load_legacy_remote_iqa_settings
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_submission import JobState
 from pixelscope.ui.lifecycle_hooks import OwnerCallback
@@ -28,7 +29,7 @@ class RemoteIqaResultMappingGuard(QObject):
         self.workspace: Any = weakref.proxy(controller.workspace)
         self._revision = 0
         self._mapping_identity = _mapping_identity(
-            controller.window.application_settings.remote_iqa
+            load_legacy_remote_iqa_settings(controller.window)
         )
         self._pending_jobs: set[str] = set()
         self._task_revisions: dict[str, int] = {}
@@ -63,7 +64,9 @@ class RemoteIqaResultMappingGuard(QObject):
         return frozenset(self._pending_jobs)
 
     def _settings_changed(self) -> None:
-        current_identity = _mapping_identity(self.controller.window.application_settings.remote_iqa)
+        current_identity = _mapping_identity(
+            load_legacy_remote_iqa_settings(self.controller.window)
+        )
         if current_identity != self._mapping_identity:
             self._mapping_identity = current_identity
             self._revision += 1

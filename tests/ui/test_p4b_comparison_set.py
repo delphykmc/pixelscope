@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QSettings
 
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
 from pixelscope.core.comparison_set import (
     ComparisonSet,

@@ -9,8 +9,6 @@ import numpy as np
 import pytest
 
 import pixelscope.ui.iqa_scene_inspection as inspection_module
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
 from pixelscope.io.image_reader import read_image
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_explorer import IqaExplorerModel
@@ -25,6 +23,10 @@ from pixelscope.remote.iqa_v2_domain import (
 )
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_reader import load_grid_scene, load_result_v2
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 

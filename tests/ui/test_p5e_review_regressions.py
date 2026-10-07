@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import threading
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +9,6 @@ import pytest
 from PySide6.QtWidgets import QTreeWidgetItem
 
 import pixelscope.ui.iqa_historical_results as history_module
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
 from pixelscope.remote.iqa_history import (
     IqaResultIdentity,
     LogicalIqaResultLocator,
@@ -23,6 +20,10 @@ from pixelscope.remote.iqa_settings import (
 )
 from pixelscope.remote.iqa_submission import IqaResultReference, JobState
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings_subdirectory")
@@ -226,16 +227,13 @@ def test_provenance_tracks_live_remote_root_mapping_changes(
     configured = RemoteIqaSettings(
         storage_roots=(RemoteIqaStorageRoot("native-root", str(native_root)),)
     )
-    window.application_settings = replace(window.application_settings, remote_iqa=configured)
+    window.remote_iqa_controller._settings_repository.save(configured)
     window.remote_iqa_controller.settings_changed()
 
     assert inspection.inspect_button.isEnabled()
     assert "Inspect performs existence/dimension/SHA verification" in _provenance_text(window)
 
-    window.application_settings = replace(
-        window.application_settings,
-        remote_iqa=RemoteIqaSettings(),
-    )
+    window.remote_iqa_controller._settings_repository.save(RemoteIqaSettings())
     window.remote_iqa_controller.settings_changed()
 
     assert not inspection.inspect_button.isEnabled()

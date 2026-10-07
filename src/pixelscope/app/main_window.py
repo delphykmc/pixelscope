@@ -144,7 +144,6 @@ class MainWindow(QMainWindow):
         performance_settings: PerformanceSettings | None = None,
         settings_repository: SettingsRepository | None = None,
         *,
-        iqa_result_pool: QThreadPool | None = None,
         window_contributions: Sequence[WindowContribution] | None = None,
     ) -> None:
         super().__init__()
@@ -244,9 +243,7 @@ class MainWindow(QMainWindow):
         self.analysis_tabs.addTab(self.difference_panel, "Difference")
         self._contributed_docks: list[QDockWidget] = []
         self._window_contributions = (
-            tuple(window_contributions)
-            if window_contributions is not None
-            else self._legacy_window_contributions(iqa_result_pool)
+            tuple(window_contributions) if window_contributions is not None else ()
         )
         for contribution in self._window_contributions:
             contribution.prepare(self)
@@ -365,21 +362,6 @@ class MainWindow(QMainWindow):
 
         if dock not in self._contributed_docks:
             self._contributed_docks.append(dock)
-
-    @staticmethod
-    def _legacy_window_contributions(
-        iqa_result_pool: QThreadPool | None,
-    ) -> tuple[WindowContribution, ...]:
-        """Temporary Stage-1 shim preserving direct MainWindow() IQA test setup.
-
-        Production injects the IQA Client explicitly from application.py. This
-        compatibility path is intentionally local and can disappear after the first
-        SUB handoff without changing the generic contribution seam.
-        """
-
-        from pixelscope.ui.iqa_client_install import IqaClientInstaller
-
-        return (IqaClientInstaller(iqa_result_pool),)
 
     def _create_actions(self) -> None:
         self.action_map: dict[str, QAction] = {}

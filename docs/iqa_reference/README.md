@@ -1,6 +1,6 @@
 # IQA reference extension
 
-Status: Issue #121 Revised Slice 6 implementation guide.
+Status: Issue #121 Slice 7 public package-mode guide.
 Baseline before extraction: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
 This directory documents the MAIN-owned reference/mock IQA extension. It is an
@@ -23,16 +23,18 @@ window = MainWindow(window_contributions=(extension,))
 compose_main_window_presentation(window)
 ```
 
-Both compositions can also be exercised from source:
+Both compositions are first-class source entry points:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pixelscope.app.core_application
+.\.venv\Scripts\pixelscope.exe
+.\.venv\Scripts\pixelscope-reference.exe
+# equivalent module forms:
+.\.venv\Scripts\python.exe -m pixelscope
 .\.venv\Scripts\python.exe -m pixelscope_iqa_reference
 ```
 
-The default `pixelscope` entry point intentionally retains the characterized legacy
-P5 production composition during Slice 6. Removing that compatibility path belongs to
-Slice 7.
+The default `pixelscope` entry point is Core-only. Historical P5 composition is never
+selected implicitly.
 
 ## Slice 6 ownership classification
 
@@ -74,10 +76,9 @@ Slice 6 also adds a product-generic settings contribution seam:
 page semantics and persistence behind those hooks; Base does not gain an Enterprise
 schema or IQA-specific setting.
 
-The legacy Remote-IQA path still persists `ApplicationSettings.remote_iqa` and
-temporarily subclasses the concrete Settings dialog. That transitional storage/schema
-ownership remains Slice 7 cleanup, but the legacy override now preserves any generic
-settings contributions instead of replacing the host seam.
+Base schema v7 contains no Remote-IQA configuration. Existing public P5 keys are
+ignored and preserved by Base; historical P5 tooling uses an extension-owned repository
+outside `pixelscope.app` when it needs to interpret or update them.
 
 ## Reference behavior
 
@@ -141,11 +142,21 @@ The Slice 6 PR records the extracted reference implementation and its exact HEAD
 release tag is created solely for this refactor; tag creation remains subject to the
 normal release/tag policy.
 
-## Deferred to Slice 7
+## Public package targets
 
-Slice 7 owns the removal of remaining concrete IQA coupling from the default Base
-application path, Enterprise-specific settings cleanup/migration, and first-class
-Core-only vs Reference packaging targets. It may move genuinely reusable generic
-helpers back into Base only with independent justification.
+The canonical Windows release remains the Core target:
 
-Slice 7 must not start by moving public legacy code through SUB-reserved namespaces.
+```powershell
+.\.venv-release\Scripts\python.exe scripts\build_release.py --target core
+```
+
+The public mock/reference target is built explicitly:
+
+```powershell
+.\.venv-release\Scripts\python.exe scripts\build_release.py --target reference
+```
+
+Core excludes the reference and Enterprise namespaces. Reference uses the same Base
+and public contracts plus `pixelscope_iqa_reference`; neither target requires
+confidential configuration. Legacy P5 retirement decisions beyond this isolation are
+Slice 8 work.

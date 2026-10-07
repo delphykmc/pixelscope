@@ -6,7 +6,9 @@ import numpy as np
 import pytest
 from PySide6.QtWidgets import QDialog
 
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.io.raw_profile import RawProfile

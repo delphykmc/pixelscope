@@ -8,7 +8,9 @@ import numpy as np
 import pytest
 from PySide6.QtWidgets import QFileDialog
 
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.registration_controller import RegistrationController
 from pixelscope.core.image_document import ImageDocument

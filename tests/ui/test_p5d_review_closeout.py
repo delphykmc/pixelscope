@@ -10,8 +10,6 @@ import numpy as np
 import pytest
 
 import pixelscope.ui.iqa_scene_inspection as inspection_module
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.image_reader import read_image
 from pixelscope.remote.iqa_domain import LoadStatus
@@ -24,6 +22,10 @@ from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRo
 from pixelscope.remote.iqa_v2_domain import ResultV2
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_reader import load_result_v2
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
@@ -323,19 +325,15 @@ def test_storage_mapping_change_refreshes_inspect_availability(
     controller = window.iqa_scene_inspection_controller
     assert not controller.inspect_button.isEnabled()
 
-    window.application_settings = replace(
-        window.application_settings,
-        remote_iqa=RemoteIqaSettings(
+    window.remote_iqa_controller._settings_repository.save(
+        RemoteIqaSettings(
             storage_roots=(RemoteIqaStorageRoot("shared", r"C:\iqa"),),
-        ),
+        )
     )
     window.remote_iqa_controller.settings_changed()
     assert controller.inspect_button.isEnabled()
 
-    window.application_settings = replace(
-        window.application_settings,
-        remote_iqa=RemoteIqaSettings(),
-    )
+    window.remote_iqa_controller._settings_repository.save(RemoteIqaSettings())
     window.remote_iqa_controller.settings_changed()
     assert not controller.inspect_button.isEnabled()
     window.close()

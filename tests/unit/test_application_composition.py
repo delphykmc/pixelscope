@@ -72,24 +72,17 @@ def test_fresh_pool_registration_preserves_shutdown_clear_wait_order(
     ]
 
 
-def test_main_injects_iqa_client_after_local_pool_initialization(monkeypatch: Any) -> None:
+def test_main_runs_core_only_after_local_pool_initialization(monkeypatch: Any) -> None:
     events: list[str] = []
     repository = object()
-    remote_settings = object()
-    application_settings = SimpleNamespace(remote_iqa=remote_settings)
+    application_settings = object()
     performance_settings = object()
-    installer = object()
     icon = object()
     window = SimpleNamespace(
         setWindowIcon=lambda value: events.append(f"icon:{value is icon}"),
         show=lambda: events.append("show"),
     )
     app = SimpleNamespace(windowIcon=lambda: icon, exec=lambda: 17)
-
-    def build_installer(settings_arg: object) -> object:
-        assert settings_arg is remote_settings
-        events.append("iqa_client")
-        return installer
 
     def build_window(
         application_settings_arg: object,
@@ -101,13 +94,12 @@ def test_main_injects_iqa_client_after_local_pool_initialization(monkeypatch: An
         assert application_settings_arg is application_settings
         assert performance_settings_arg is performance_settings
         assert repository_arg is repository
-        assert window_contributions == (installer,)
+        assert window_contributions == ()
         events.append("window")
         return window
 
-    def compose(window_arg: object, installer_arg: object) -> None:
+    def compose(window_arg: object) -> None:
         assert window_arg is window
-        assert installer_arg is installer
         events.append("compose")
 
     monkeypatch.setattr(application_module, "create_application", lambda _args: app)
@@ -121,18 +113,12 @@ def test_main_injects_iqa_client_after_local_pool_initialization(monkeypatch: An
         "analysis_thread_pool",
         lambda: events.append("analysis_pool"),
     )
-    monkeypatch.setattr(
-        application_module,
-        "IqaClientInstaller",
-        SimpleNamespace(production=build_installer),
-    )
     monkeypatch.setattr(application_module, "MainWindow", build_window)
-    monkeypatch.setattr(application_module, "_compose_main_window_presentation", compose)
+    monkeypatch.setattr(application_module, "compose_main_window_presentation", compose)
 
     assert application_module.main([]) == 17
     assert events == [
         "analysis_pool",
-        "iqa_client",
         "window",
         "compose",
         "icon:True",

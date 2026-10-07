@@ -1,7 +1,7 @@
 # IQA repository and ownership boundary
 
-Status: revised post-Checkpoint-C ownership contract for Issue #121.
-Current authority: latest Issue #121 revised Slice 6–8 plan.
+Status: Slice 7 public ownership/package contract for Issue #121.
+Current authority: latest Issue #121 revised Slice 7–8 plan.
 Checkpoint C baseline: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
 This document defines durable source ownership and dependency direction for PixelScope
@@ -173,16 +173,19 @@ Base.
 This is not a marketplace/plugin framework. There is no hot loading, entry-point
 discovery or runtime version negotiation.
 
-## Current transitional P5 code
+## Legacy P5 code after Slice 7
 
-Checkpoint C left the existing public P5/Remote-IQA implementation in
-`src/pixelscope/**` as a compatibility path. Slice 6 preserves it deliberately while
-proving the new peer-extension direction with `pixelscope_iqa_reference`.
+The existing public P5/Remote-IQA implementation remains in `src/pixelscope/**` as
+historical/diagnostic implementation knowledge, but it is no longer part of the Base
+production composition. The default `pixelscope` launcher and `MainWindow()` are
+Core-only. Historical P5 UI tests/tools opt into `ui/iqa_legacy_composition.py`
+explicitly.
 
-Physical location of that legacy code does not redefine target ownership. Concrete P5
-transport/storage/settings/detailed IQA presentation remain transitional and are
-candidates for Slice 7 cleanup after equivalent reference behavior and architecture
-proof exist.
+Base `ApplicationSettings` is schema v7 and contains no Remote-IQA field or concrete
+IQA settings type. Existing schema-v6 `settings/remote_iqa/*` keys are ignored and
+preserved across Base migration/reset so Base does not take ownership of extension data.
+Any legacy P5 settings migration or persistence is owned under `pixelscope.remote`,
+not `pixelscope.app`.
 
 The exact pre-extraction implementation snapshot is
 `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`. No ad-hoc release tag is required
@@ -225,7 +228,9 @@ implementation knowledge and a MAIN-owned reference extension. Real Enterprise
 implementation is not a prerequisite.
 
 Slice 7 removes remaining concrete IQA/settings coupling from Base and makes Core-only
-and Reference package modes first-class.
+and Reference package modes first-class. The default source/package target is Core;
+Reference is selected explicitly through `pixelscope-reference`,
+`python -m pixelscope_iqa_reference`, or the reference PyInstaller target.
 
 Slice 8 completes the public handoff/conformance/packaging guidance and decides which
 legacy/reference runtime material remains supported.

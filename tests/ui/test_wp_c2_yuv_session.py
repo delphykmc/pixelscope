@@ -7,7 +7,9 @@ import pytest
 from PySide6.QtWidgets import QDialog
 
 import pixelscope.app.yuv_input_semantics as yuv_semantics_module
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.comparison_set import Session, SessionDifference, SessionSource
 from pixelscope.io.comparison_set_repository import ComparisonSetRepository

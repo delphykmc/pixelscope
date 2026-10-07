@@ -19,9 +19,15 @@ Controls the Recent-entry limit and related file-history behavior. Recent entrie
 
 Performance settings are independent budgets/controls. Larger values can increase memory use; smaller values can increase reload/recompute frequency.
 
-## Remote IQA
+## Extension settings
 
-The production composition can add Remote IQA settings used by the service integration. Their correct values are deployment-specific; obtain endpoint/storage details from the environment owner rather than guessing them.
+Base/Core settings contain only product-generic preferences. Optional extensions may add
+their own Settings pages through the generic contribution seam and own their persistence
+independently.
+
+The public IQA Reference mode currently requires no server/storage/auth configuration.
+Real Enterprise IQA configuration is downstream-owned and is not stored in Base
+`ApplicationSettings`.
 
 ## Reset and restart
 

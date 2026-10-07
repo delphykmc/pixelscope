@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.remote.iqa_domain import LoadStatus
 from pixelscope.remote.iqa_explorer import ABSOLUTE_REFERENCE_ID
+from pixelscope.remote.iqa_legacy_settings import load_legacy_remote_iqa_settings
 from pixelscope.remote.iqa_scene_inspection import (
     SceneVerificationOutcome,
     inspect_unavailable_reason,
@@ -241,7 +242,7 @@ class IqaSceneInspectionController(QObject):
         reason = inspect_unavailable_reason(
             result,
             scene_id,
-            self.window.application_settings.remote_iqa,
+            load_legacy_remote_iqa_settings(self.window),
         )
         if reason is not None:
             self._set_status(reason)
@@ -515,7 +516,7 @@ class IqaSceneInspectionController(QObject):
             verify_scene_sources,
             result,
             scene_id,
-            self.window.application_settings.remote_iqa,
+            load_legacy_remote_iqa_settings(self.window),
             generation=generation,
         )
         worker.signals.succeeded.connect(self._verification_succeeded)
@@ -917,7 +918,7 @@ class IqaSceneInspectionController(QObject):
             reason = inspect_unavailable_reason(
                 result,
                 scene_id,
-                self.window.application_settings.remote_iqa,
+                load_legacy_remote_iqa_settings(self.window),
             )
         elif result is not None and scene_id is not None:
             reason = "Native Inspect requires a schema-v2 result"

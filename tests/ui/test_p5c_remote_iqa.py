@@ -5,20 +5,23 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDockWidget, QTableWidgetItem
+from PySide6.QtWidgets import QDockWidget, QMessageBox, QTableWidgetItem, QWidget
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
 from pixelscope.app.settings import (
     ApplicationSettings,
     QSettingsAdapter,
     SettingsRepository,
 )
 from pixelscope.remote.iqa_domain import LoadStatus
+from pixelscope.remote.iqa_legacy_settings import LegacyRemoteIqaSettingsRepository
 from pixelscope.remote.iqa_result_reader import load_result
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.remote.iqa_submission import JobState
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.ui.iqa_remote_settings import RemoteIqaSettingsDialog
 from pixelscope.ui.iqa_submission import RemoteIqaWorkspace, RemoteJobRecord
 
@@ -70,14 +73,72 @@ def test_remote_settings_dialog_round_trips_machine_local_mapping(
     dialog.remote_roots.setItem(0, 1, QTableWidgetItem("C:/shared"))
     dialog._refresh_staging_choices("shared")
 
-    settings = dialog.settings()
+    settings = dialog.remote_settings()
 
-    assert settings.remote_iqa == RemoteIqaSettings(
+    assert settings == RemoteIqaSettings(
         "https://iqa.example.test",
         (RemoteIqaStorageRoot("shared", "C:/shared"),),
         "shared",
     )
     assert "restart" not in dialog.remote_page.toolTip().casefold()
+
+
+def test_remote_settings_are_not_persisted_when_base_save_rejects(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote_repository = LegacyRemoteIqaSettingsRepository()
+    original = RemoteIqaSettings(
+        "https://original.example.test",
+        (RemoteIqaStorageRoot("shared", "C:/shared"),),
+        "shared",
+    )
+    remote_repository.save(original)
+    dialog = RemoteIqaSettingsDialog(
+        _repository(),
+        ApplicationSettings(),
+        ApplicationSettings().performance_settings(),
+        physical_memory_bytes=1,
+        remote_repository=remote_repository,
+    )
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    monkeypatch.setattr(QMessageBox, "warning", lambda *_args, **_kwargs: None)
+
+    dialog.remote_server_url.setText("https://changed.example.test")
+    dialog._save()
+
+    assert remote_repository.load() == original
+
+
+def test_remote_settings_are_not_persisted_when_contributed_validation_rejects(
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote_repository = LegacyRemoteIqaSettingsRepository()
+    original = RemoteIqaSettings(
+        "https://original.example.test",
+        (RemoteIqaStorageRoot("shared", "C:/shared"),),
+        "shared",
+    )
+    remote_repository.save(original)
+    dialog = RemoteIqaSettingsDialog(
+        _repository(),
+        ApplicationSettings(),
+        ApplicationSettings().performance_settings(),
+        physical_memory_bytes=16 * 1024**3,
+        remote_repository=remote_repository,
+    )
+    qtbot.addWidget(dialog)  # type: ignore[attr-defined]
+    monkeypatch.setattr(QMessageBox, "warning", lambda *_args, **_kwargs: None)
+
+    def reject() -> None:
+        raise ValueError("reject contributed settings")
+
+    dialog.add_contributed_page("Rejecting", QWidget(), validate=reject)
+    dialog.remote_server_url.setText("https://changed.example.test")
+    dialog._save()
+
+    assert remote_repository.load() == original
 
 
 def test_production_composition_extends_exactly_one_existing_iqa_dock(

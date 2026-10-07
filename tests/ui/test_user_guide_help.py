@@ -16,6 +16,7 @@ from pixelscope.app.raw_input_compatibility import RawInputCompatibilityControll
 from pixelscope.app.yuv_input_semantics import NativeYuvSemanticsController
 from pixelscope.io.path_discovery import ImageInput
 from pixelscope.ui import user_guide_help
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow
 from pixelscope.ui.raw_open_dialog import RawOpenDialog
 from pixelscope.ui.user_guide_help import (
     context_help_page,
@@ -69,8 +70,8 @@ def test_install_user_guide_help_places_action_before_diagnostics(qtbot: Any) ->
     context = next(a for a in _help_menu(window).actions() if a.text() == "Context Help")
     assert context.shortcut().toString() == "F1"
     assert len([a for a in _help_menu(window).actions() if a.text() == "Context Help"]) == 1
-    for dock in (window.bottom_dock, window.iqa_dock):
-        assert len(dock.findChildren(QShortcut, "floatingContextHelpShortcut")) == 1
+    assert len(window.bottom_dock.findChildren(QShortcut, "floatingContextHelpShortcut")) == 1
+    assert not hasattr(window, "iqa_dock")
     assert [item.text() for item in _help_menu(window).actions()] == [
         "User Guide",
         "Context Help",
@@ -319,7 +320,7 @@ def test_dialog_f1_installer_preserves_non_qwidget_profile_test_doubles() -> Non
 
 
 def test_floating_docks_own_separate_f1_routes(qtbot: Any, monkeypatch: Any) -> None:
-    window = MainWindow()
+    window = LegacyP5MainWindow()
     qtbot.addWidget(window)
     install_user_guide_help(window)
     seen: list[str | None] = []
@@ -394,7 +395,7 @@ def test_f1_real_key_dispatch_main_workspaces_and_presentation_controls(
 
 
 def test_f1_real_key_dispatch_docked_and_floating_analyses(qtbot: Any, monkeypatch: Any) -> None:
-    window = MainWindow()
+    window = LegacyP5MainWindow()
     qtbot.addWidget(window)
     install_user_guide_help(window)
     seen: list[tuple[object, str | None]] = []

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.remote.iqa_legacy_settings import load_legacy_remote_iqa_settings
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_submission import (
     FolderPairEntry,
@@ -194,7 +195,7 @@ class RemoteIqaRequestInspectorController(QObject):
         submission_kind: str,
         entries_factory: Callable[[], tuple[FolderPairEntry, ...]],
     ) -> None:
-        settings = self.window.application_settings.remote_iqa
+        settings = load_legacy_remote_iqa_settings(self.window)
         if not settings.submission_configured:
             self.panel.show_error("Remote IQA server URL and storage roots must be configured")
             return

@@ -18,7 +18,6 @@ class ArtifactValidationError(RuntimeError):
 
 
 _REQUIRED_FILES = (
-    Path("PixelScope.exe"),
     Path("help/index.html"),
     Path("help/llms.txt"),
     Path("help/search/search_index.js"),
@@ -57,13 +56,17 @@ def _matches_any(root: Path, patterns: tuple[str, ...]) -> bool:
     return any(any(root.rglob(pattern)) for pattern in patterns)
 
 
-def validate_artifact(root: Path = APP_DIR) -> None:
-    """Validate the structural contract of one canonical PixelScope onedir tree."""
+def validate_artifact(root: Path = APP_DIR, *, executable_name: str = "PixelScope.exe") -> None:
+    """Validate the structural contract shared by both public onedir targets."""
 
     root = root.resolve()
     errors: list[str] = []
     if not root.is_dir():
         raise ArtifactValidationError(f"Artifact directory does not exist: {root}")
+
+    executable = root / executable_name
+    if not executable.is_file() or executable.stat().st_size == 0:
+        errors.append(f"missing required file: {executable_name}")
 
     for relative_path in _REQUIRED_FILES:
         path = root / relative_path

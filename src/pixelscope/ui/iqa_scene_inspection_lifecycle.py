@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidg
 
 import pixelscope.ui.iqa_scene_inspection as inspection_module
 from pixelscope.io.path_discovery import ImageInput
+from pixelscope.remote.iqa_legacy_settings import load_legacy_remote_iqa_settings
 from pixelscope.remote.iqa_scene_inspection import (
     SceneVerificationOutcome,
     VerifiedSceneSource,
@@ -188,7 +189,7 @@ class IqaSceneInspectionLifecycle(QObject):
             verify_scene_sources,
             result,
             scene_id,
-            self.window.application_settings.remote_iqa,
+            load_legacy_remote_iqa_settings(self.window),
             generation=generation,
         )
         worker.signals.succeeded.connect(self.controller._verification_succeeded)

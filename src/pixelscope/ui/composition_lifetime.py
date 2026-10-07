@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import weakref
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pixelscope.ui.analysis_export import AnalysisExportController
 from pixelscope.ui.presentation_controls import _CommandRowMetricRefresh
 from pixelscope.ui.session import SessionController, _LegacyComparisonSetControllerFacade
-
-if TYPE_CHECKING:
-    from pixelscope.remote.iqa_client import IqaJobClient
-    from pixelscope.ui.iqa_submission import RemoteIqaController
 
 
 class NonOwningSessionController(SessionController):
@@ -64,20 +59,6 @@ def install_analysis_export(window: Any) -> AnalysisExportController:
     controller = NonOwningAnalysisExportController(window)
     window.analysis_export_controller = controller
     return controller
-
-
-def install_remote_iqa(
-    window: Any,
-    *,
-    client_factory: Callable[[str], IqaJobClient] | None = None,
-) -> RemoteIqaController:
-    """Compatibility shim that lazily loads the legacy IQA composition implementation."""
-
-    from pixelscope.ui.iqa_composition_lifetime import (
-        install_remote_iqa as install_legacy_remote_iqa,
-    )
-
-    return install_legacy_remote_iqa(window, client_factory=client_factory)
 
 
 def release_command_row_metric_window(window: Any) -> None:

@@ -6,8 +6,6 @@ from threading import Event, Lock
 import pytest
 from PySide6.QtCore import QThreadPool
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
 from pixelscope.remote.iqa_client import IqaJobClient
 from pixelscope.remote.iqa_submission import (
     IqaJobCreated,
@@ -18,6 +16,10 @@ from pixelscope.remote.iqa_submission import (
 )
 from pixelscope.remote.iqa_transport_pool import ReusableIqaClientPool
 from pixelscope.ui.iqa_historical_results import install_historical_iqa_results
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.ui.iqa_scene_inspection import install_iqa_scene_inspection
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 from pixelscope.workers.iqa_thread_pool import REMOTE_IQA_MAX_THREADS, remote_iqa_thread_pool

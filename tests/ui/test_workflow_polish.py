@@ -7,12 +7,14 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
 from pixelscope.core.difference_cache import DifferenceMapCache
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")

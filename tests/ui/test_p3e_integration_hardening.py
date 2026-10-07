@@ -7,7 +7,9 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QItemSelectionModel, QSettings, Qt
 from PySide6.QtWidgets import QApplication, QComboBox, QToolButton
 
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import COMPARISON_PAGE_SIZE, MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.design_tokens import TOKENS

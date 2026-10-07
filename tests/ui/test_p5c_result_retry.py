@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
 from pixelscope.remote.iqa_submission import IqaResultReference, JobState
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.ui.iqa_result_retry import RESULT_REFERENCE_RETRY_DELAYS_SECONDS
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 
