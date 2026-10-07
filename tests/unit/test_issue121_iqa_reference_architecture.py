@@ -177,6 +177,27 @@ def test_base_settings_has_no_concrete_iqa_type_or_runtime_dependency() -> None:
     assert "remote_iqa:" not in source
 
 
+def test_generic_base_ui_contains_no_legacy_p5_attribute_contract() -> None:
+    legacy_names = {
+        "iqa_dock",
+        "iqa_workspace",
+        "iqa_workspace_action",
+        "remote_iqa_workspace",
+    }
+    paths = (
+        SOURCE_ROOT / "pixelscope" / "ui" / "beta_workspace_hardening.py",
+        SOURCE_ROOT / "pixelscope" / "ui" / "workflow_polish.py",
+        SOURCE_ROOT / "pixelscope" / "ui" / "user_guide_help.py",
+    )
+    violations = {
+        str(path.relative_to(REPOSITORY_ROOT)): sorted(
+            name for name in legacy_names if name in path.read_text(encoding="utf-8")
+        )
+        for path in paths
+    }
+    assert {path: names for path, names in violations.items() if names} == {}
+
+
 def test_core_diagnostics_exposes_only_generic_extension_sections() -> None:
     path = SOURCE_ROOT / "pixelscope" / "core" / "diagnostics.py"
     source = path.read_text(encoding="utf-8")

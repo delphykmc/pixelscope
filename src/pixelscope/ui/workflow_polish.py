@@ -11,7 +11,6 @@ from PySide6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout, QWidget
 
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
-from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 
 class FilesContextMenuController(QObject):
@@ -194,25 +193,6 @@ def _install_shortcuts(window: Any) -> None:
     split_action = getattr(window, "split_channels_action", None)
     if isinstance(split_action, QAction):
         split_action.setShortcut("S")
-
-    iqa_action = getattr(window, "iqa_workspace_action", None)
-    if isinstance(iqa_action, QAction):
-        iqa_action.setShortcut("Ctrl+Shift+I")
-        iqa_action.setToolTip("Show or hide the IQA Workspace (Ctrl+Shift+I)")
-        iqa_action.setStatusTip(iqa_action.toolTip())
-
-
-def _install_iqa_dock_chrome(window: Any) -> None:
-    workspace = getattr(window, "iqa_workspace", None)
-    dock = getattr(window, "iqa_dock", None)
-    if workspace is None or dock is None:
-        return
-    workspace._install_dock_title()
-    title_bar = dock.titleBarWidget()
-    if isinstance(title_bar, PlotsDockTitleBar):
-        title_bar.sync(dock.isFloating())
-        window.iqa_dock_title = title_bar
-
 
 def _install_toolbar_spacing(window: Any) -> None:
     toolbar = window.main_toolbar
@@ -524,7 +504,6 @@ def install_workflow_polish(window: Any, review_controller: Any) -> FilesContext
 
     controller = _install_files_context_menu(window)
     _install_shortcuts(window)
-    _install_iqa_dock_chrome(window)
     _install_toolbar_spacing(window)
     _install_page_polish(window)
     _install_header_polish(window)
