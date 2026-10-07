@@ -11,8 +11,8 @@ from PySide6.QtWidgets import QLabel, QPushButton, QWidget
 from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.remote.iqa_client import IqaClientErrorKind, IqaCreateOutcomeUnknown
 from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
     compose_legacy_p5_presentation as _compose_main_window_presentation,
+    LegacyP5MainWindow as MainWindow,
 )
 from pixelscope.ui.iqa_submission_lifecycle import (
     AMBIGUOUS_CREATE_MESSAGE,
