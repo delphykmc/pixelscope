@@ -325,19 +325,15 @@ def test_storage_mapping_change_refreshes_inspect_availability(
     controller = window.iqa_scene_inspection_controller
     assert not controller.inspect_button.isEnabled()
 
-    window.application_settings = replace(
-        window.application_settings,
-        remote_iqa=RemoteIqaSettings(
+    window.remote_iqa_controller._settings_repository.save(
+        RemoteIqaSettings(
             storage_roots=(RemoteIqaStorageRoot("shared", r"C:\iqa"),),
-        ),
+        )
     )
     window.remote_iqa_controller.settings_changed()
     assert controller.inspect_button.isEnabled()
 
-    window.application_settings = replace(
-        window.application_settings,
-        remote_iqa=RemoteIqaSettings(),
-    )
+    window.remote_iqa_controller._settings_repository.save(RemoteIqaSettings())
     window.remote_iqa_controller.settings_changed()
     assert not controller.inspect_button.isEnabled()
     window.close()
