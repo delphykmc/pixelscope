@@ -4,8 +4,10 @@ from typing import Any
 
 import pytest
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings_subdirectory")
 
