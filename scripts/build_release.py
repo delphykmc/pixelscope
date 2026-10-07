@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import shutil
 import subprocess
@@ -11,8 +12,12 @@ if __package__ in (None, ""):
 
 from scripts.build_user_guide import build_user_guide  # noqa: E402
 from scripts.release_contract import (  # noqa: E402
+    APP_DIR,
     BUILD_ROOT,
     DIST_ROOT,
+    REFERENCE_APP_DIR,
+    REFERENCE_EXECUTABLE_PATH,
+    REFERENCE_SPEC_PATH,
     REPO_ROOT,
     SPEC_PATH,
     validate_release_host,
@@ -21,9 +26,18 @@ from scripts.release_contract import (  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 
-def pyinstaller_command() -> list[str]:
-    """Return the canonical PyInstaller invocation as an argument list."""
+def _target_paths(target: str) -> tuple[Path, Path, str]:
+    if target == "core":
+        return SPEC_PATH, APP_DIR, "PixelScope.exe"
+    if target == "reference":
+        return REFERENCE_SPEC_PATH, REFERENCE_APP_DIR, REFERENCE_EXECUTABLE_PATH.name
+    raise ValueError(f"Unknown public package target: {target}")
 
+
+def pyinstaller_command(target: str = "core") -> list[str]:
+    """Return the PyInstaller invocation for one explicit public package target."""
+
+    spec_path, _app_dir, _executable_name = _target_paths(target)
     return [
         sys.executable,
         "-m",
@@ -34,7 +48,7 @@ def pyinstaller_command() -> list[str]:
         str(DIST_ROOT),
         "--workpath",
         str(BUILD_ROOT),
-        str(SPEC_PATH),
+        str(spec_path),
     ]
 
 
@@ -47,22 +61,39 @@ def documentation_python() -> Path:
     return dev_python if dev_python.is_file() else Path(sys.executable)
 
 
-def main() -> int:
+def build_public_target(target: str = "core") -> Path:
+    """Build and validate one of the two public PixelScope package modes."""
+
     validate_release_host()
+    spec_path, app_dir, executable_name = _target_paths(target)
     site = build_user_guide(python=documentation_python())
     write_windows_version_info()
-    subprocess.run(pyinstaller_command(), cwd=REPO_ROOT, check=True)
+    subprocess.run(pyinstaller_command(target), cwd=REPO_ROOT, check=True)
 
     # The frozen Help lookup is executable-relative, not a PyInstaller _MEIPASS
     # resource. Copy after COLLECT and before artifact/manifest validation.
-    help_root = DIST_ROOT / "PixelScope" / "help"
+    help_root = app_dir / "help"
     if help_root.exists():
         shutil.rmtree(help_root)
     shutil.copytree(site, help_root)
     # MkDocs' generated 404.html is hosting-only and contains absolute /assets
     # references that cannot resolve when opened from file://.
     (help_root / "404.html").unlink(missing_ok=True)
-    validate_artifact()
+    validate_artifact(app_dir, executable_name=executable_name)
+    return app_dir
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Build a public PixelScope package target")
+    parser.add_argument(
+        "--target",
+        choices=("core", "reference"),
+        default="core",
+        help="public package mode to build (default: core)",
+    )
+    args = parser.parse_args()
+    output = build_public_target(args.target)
+    print(f"Built PixelScope {args.target} package: {output.resolve()}")
     return 0
 
 
