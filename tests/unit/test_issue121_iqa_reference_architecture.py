@@ -41,9 +41,27 @@ def test_base_core_does_not_import_reference_or_enterprise_namespaces() -> None:
     assert violations == []
 
 
-def test_generic_bootstrap_contains_no_iqa_implementation_imports() -> None:
-    modules = _imports(SOURCE_ROOT / "pixelscope" / "app" / "bootstrap.py")
-    assert not _contains_iqa_implementation(modules)
+def test_default_core_modules_contain_no_iqa_implementation_imports() -> None:
+    paths = (
+        SOURCE_ROOT / "pixelscope" / "app" / "application.py",
+        SOURCE_ROOT / "pixelscope" / "app" / "core_application.py",
+        SOURCE_ROOT / "pixelscope" / "app" / "bootstrap.py",
+        SOURCE_ROOT / "pixelscope" / "app" / "main_window.py",
+        SOURCE_ROOT / "pixelscope" / "app" / "settings.py",
+    )
+    violations = {
+        str(path.relative_to(REPOSITORY_ROOT)): sorted(
+            module for module in _imports(path) if _contains_iqa_implementation({module})
+        )
+        for path in paths
+    }
+    assert {path: modules for path, modules in violations.items() if modules} == {}
+
+
+def test_main_window_has_no_legacy_iqa_constructor_or_auto_composition_seam() -> None:
+    source = (SOURCE_ROOT / "pixelscope" / "app" / "main_window.py").read_text(encoding="utf-8")
+    assert "iqa_result_pool" not in source
+    assert "_legacy_window_contributions" not in source
 
 
 def test_reference_extension_uses_only_allowed_main_surfaces() -> None:
@@ -76,25 +94,9 @@ def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
     assert existing == []
 
 
-def test_generic_composition_lifetime_does_not_eager_load_iqa_implementation() -> None:
+def test_generic_composition_lifetime_contains_no_iqa_compatibility_shim() -> None:
     path = SOURCE_ROOT / "pixelscope" / "ui" / "composition_lifetime.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    eager_modules: set[str] = set()
-    for node in tree.body:
-        if isinstance(node, ast.Import):
-            eager_modules.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module is not None:
-            eager_modules.add(node.module)
-    assert not _contains_iqa_implementation(eager_modules)
+    source = path.read_text(encoding="utf-8")
+    assert not _contains_iqa_implementation(_imports(path))
+    assert "install_remote_iqa" not in source
 
-    install = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name == "install_remote_iqa"
-    )
-    lazy_modules = {
-        node.module
-        for node in ast.walk(install)
-        if isinstance(node, ast.ImportFrom) and node.module is not None
-    }
-    assert "pixelscope.ui.iqa_composition_lifetime" in lazy_modules
