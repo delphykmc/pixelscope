@@ -120,7 +120,9 @@ class ExtensionDiagnosticsSection:
 
     def __post_init__(self) -> None:
         title = _sanitize_label(self.title, fallback="Extension")
-        lines = tuple(str(line).replace("\r", " ").replace("\n", " ").strip() for line in self.lines)
+        lines = tuple(
+            str(line).replace("\r", " ").replace("\n", " ").strip() for line in self.lines
+        )
         object.__setattr__(self, "title", title)
         object.__setattr__(self, "lines", tuple(line for line in lines if line))
 
