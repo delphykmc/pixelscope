@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
 
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.iqa_legacy_composition import (
     compose_legacy_p5_presentation as _compose_main_window_presentation,
-    LegacyP5MainWindow as MainWindow,
 )
 
 
