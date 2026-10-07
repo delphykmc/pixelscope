@@ -1,25 +1,45 @@
-# IQA Workspace
+# IQA Reference Workspace
 
 <!-- pixelscope:screenshot iqa-neutral -->
 
-The IQA workspace is the optional Image Quality Assessment surface for configured submission, job tracking, and published-result inspection. Local image comparison does not require a remote IQA service.
+The standard PixelScope **Core** package does not include an IQA implementation. Local
+Files, Image View, Statistics, Histogram, Line Profile, Difference, RAW, and YUV
+workflows remain available without IQA.
 
-## Workspace areas
+The separate **PixelScope Reference** package demonstrates the public extension
+integration with synthetic/mock IQA data. It is intended for architecture evaluation,
+UI integration checks, and downstream conformance work; it is not a real remote model
+or Enterprise service.
 
-The IQA workspace provides **Setup**, **Jobs**, and **Results** surfaces. Setup prepares eligible Current Pair or Folder Pair submissions. Jobs tracks remote lifecycle/progress. Results opens published measurements and optional Scene inspection.
+## Open the reference workspace
 
-The **IQA Reference** belongs to result analysis and is independent from Image View **Primary**.
+Launch the Reference package or source entry point:
 
-## Open the workspace
+```powershell
+.\.venv\Scripts\pixelscope-reference.exe
+# or
+.\.venv\Scripts\python.exe -m pixelscope_iqa_reference
+```
 
-Use the IQA workspace command or `Ctrl+Shift+I` to show or hide it. Existing published results can also be opened through **File > Open IQA Result...**.
+Use **View > Show IQA Reference** to show or hide the contributed dock. The File action
+**Open IQA Reference Result...** opens a deterministic mock published result.
 
-## Remote service availability
+## Mock job flow
 
-Remote submission depends on deployment-specific service and storage configuration. The repository contains the client/UI integration, but this guide does **not** claim that a real GPU service, shared-storage publication path, or organization-specific infrastructure is available or externally qualified in every installation.
+The Reference workspace can exercise a representative public-contract flow:
 
-The remote submission input contract is narrower than the local viewer: configured submission accepts standard `.png`, `.bmp`, `.jpg`, and `.jpeg` RGB8 sources rather than treating local RAW/YUV viewing as an implicit remote-conversion pipeline.
+1. submit the current native two-image comparison pair, or use the synthetic fallback;
+2. advance the mock job from queued to running to completed;
+3. open the published mock result;
+4. switch IQA Reference and Scene selections;
+5. inspect the normalized result/spatial availability.
 
-## Full workflow
+No server URL, shared-storage mapping, credential, proprietary model, or confidential
+configuration is required.
 
-See [Use Remote IQA](../workflows/use-remote-iqa.md) for configuration, pair/folder submission, Jobs, Open Result, Inspect in Viewer, Return, partial results, and deployment constraints.
+## Enterprise deployments
+
+A real Enterprise IQA extension is downstream-owned and may use different detailed UI,
+settings, model/server, storage, and authentication behavior. The Reference workspace
+is an executable example of the public host/contracts, not a specification of the final
+Enterprise UI.
