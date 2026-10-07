@@ -13,9 +13,7 @@ from pixelscope.app.settings import (
     DIFFERENCE_THRESHOLD_KEY,
     DONT_SHOW_RAW_JSON_PROFILES_KEY,
     PRELOAD_ENABLED_KEY,
-    REMOTE_IQA_SERVER_URL_KEY,
-    REMOTE_IQA_STAGING_ROOT_ID_KEY,
-    REMOTE_IQA_STORAGE_ROOTS_KEY,
+    RETIRED_EXTENSION_SETTINGS_KEYS,
     REQUIRE_EXACT_RAW_FILE_SIZE_KEY,
     SCHEMA_VERSION_KEY,
     SOURCE_RESIDENCY_MIB_KEY,
@@ -23,8 +21,6 @@ from pixelscope.app.settings import (
     QSettingsAdapter,
     SettingsRepository,
 )
-from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
-
 
 @pytest.fixture(autouse=True)
 def isolated_settings(tmp_path: Path) -> None:
@@ -44,23 +40,20 @@ def _repository() -> tuple[SettingsRepository, QSettings]:
     return SettingsRepository(QSettingsAdapter(settings)), settings
 
 
-def test_schema_v6_fresh_defaults_include_preload_and_empty_remote_iqa() -> None:
+def test_schema_v7_fresh_defaults_are_generic_only() -> None:
     repository, settings = _repository()
 
     loaded = repository.load()
 
     assert loaded.source_residency_mib == DEFAULT_SOURCE_RESIDENCY_MIB == 256
     assert loaded.preload_enabled is True
-    assert loaded.remote_iqa == RemoteIqaSettings()
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 6
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
     assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is True
-    assert settings.value(REMOTE_IQA_SERVER_URL_KEY, type=str) == ""
-    assert settings.value(REMOTE_IQA_STORAGE_ROOTS_KEY, type=str) == "[]"
-    assert settings.value(REMOTE_IQA_STAGING_ROOT_ID_KEY, type=str) == ""
+    assert all(not settings.contains(key) for key in RETIRED_EXTENSION_SETTINGS_KEYS)
 
 
-def test_schema_v5_migration_preserves_values_and_adds_empty_remote_iqa() -> None:
+def test_schema_v5_migration_preserves_generic_values() -> None:
     repository, settings = _repository()
     settings.setValue(SCHEMA_VERSION_KEY, 5)
     settings.setValue(DONT_SHOW_RAW_JSON_PROFILES_KEY, True)
@@ -87,8 +80,7 @@ def test_schema_v5_migration_preserves_values_and_adds_empty_remote_iqa() -> Non
         difference_gain=4,
         preload_enabled=False,
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 6
-    assert loaded.remote_iqa == RemoteIqaSettings()
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
     assert settings.value("unrelated/workspace") == "keep"
 
 
@@ -118,7 +110,7 @@ def test_schema_v4_migration_preserves_values_and_adds_enabled_preload() -> None
         difference_gain=4,
         preload_enabled=True,
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 6
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
     assert settings.value(PRELOAD_ENABLED_KEY, type=bool) is True
     assert settings.value("unrelated/workspace") == "keep"
 
@@ -147,7 +139,7 @@ def test_schema_v3_migration_preserves_every_value_and_adds_source_default() -> 
         difference_threshold=32,
         difference_gain=4,
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION == 6
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == CURRENT_SETTINGS_SCHEMA_VERSION == 7
     assert settings.value(SOURCE_RESIDENCY_MIB_KEY, type=int) == 256
     assert settings.value("unrelated/workspace") == "keep"
 
@@ -161,7 +153,7 @@ def test_schema_v3_old_valid_cache_budget_clamps_to_new_maximum(legacy_cache_mib
 
     assert repository.load().difference_cache_mib == 1280
     assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 1280
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 6
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
     assert settings.value("unrelated/workspace") == "keep"
 
 
@@ -175,28 +167,27 @@ def test_schema_v3_invalid_cache_budget_uses_new_default(legacy_cache_mib: objec
     assert settings.value(DIFFERENCE_CACHE_MIB_KEY, type=int) == 128
 
 
-def test_schema_v6_remote_iqa_round_trip_and_reset() -> None:
+def test_schema_v6_migration_retires_remote_iqa_keys_without_touching_unrelated_state() -> None:
     repository, settings = _repository()
-    remote = RemoteIqaSettings(
-        server_base_url="https://iqa.example.test",
-        storage_roots=(
-            RemoteIqaStorageRoot("shared", r"Z:\shared"),
-            RemoteIqaStorageRoot("staging", r"\\server\iqa-staging"),
-        ),
-        staging_root_id="staging",
-    )
-    expected = ApplicationSettings(
-        source_residency_mib=2048,
-        preload_enabled=False,
-        remote_iqa=remote,
-    )
+    settings.setValue(SCHEMA_VERSION_KEY, 6)
+    settings.setValue(SOURCE_RESIDENCY_MIB_KEY, 2048)
+    settings.setValue(PRELOAD_ENABLED_KEY, False)
+    settings.setValue(RETIRED_EXTENSION_SETTINGS_KEYS[0], "https://iqa.example.test")
+    settings.setValue(RETIRED_EXTENSION_SETTINGS_KEYS[1], '[{"storage_root_id":"shared"}]')
+    settings.setValue(RETIRED_EXTENSION_SETTINGS_KEYS[2], "shared")
+    settings.setValue("unrelated/workspace", "keep")
 
-    repository.save(expected)
+    loaded = repository.load()
 
-    assert repository.load() == expected
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 6
-    assert settings.value(REMOTE_IQA_SERVER_URL_KEY, type=str) == "https://iqa.example.test"
-    assert repository.reset().remote_iqa == RemoteIqaSettings()
+    assert loaded.source_residency_mib == 2048
+    assert loaded.preload_enabled is False
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
+    assert all(not settings.contains(key) for key in RETIRED_EXTENSION_SETTINGS_KEYS)
+    assert settings.value("unrelated/workspace") == "keep"
+
+    repository.reset()
+    assert all(not settings.contains(key) for key in RETIRED_EXTENSION_SETTINGS_KEYS)
+    assert settings.value("unrelated/workspace") == "keep"
 
 
 def test_schema_v2_still_migrates_all_later_fields_to_defaults() -> None:
@@ -215,7 +206,7 @@ def test_schema_v2_still_migrates_all_later_fields_to_defaults() -> None:
         default_open_directory="C:/images",
         default_export_directory="D:/exports",
     )
-    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 6
+    assert settings.value(SCHEMA_VERSION_KEY, type=int) == 7
     assert settings.value(REQUIRE_EXACT_RAW_FILE_SIZE_KEY, type=bool) is False
     assert settings.value(DIFFERENCE_THRESHOLD_KEY, type=int) == 10
     assert settings.value(DIFFERENCE_GAIN_KEY, type=int) == 1
