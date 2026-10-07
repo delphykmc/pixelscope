@@ -18,8 +18,8 @@ from pixelscope.remote.iqa_v2_domain import (
 )
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
     compose_legacy_p5_presentation as _compose_main_window_presentation,
+    LegacyP5MainWindow as MainWindow,
 )
 from pixelscope.ui.iqa_workspace import (
     IQA_FLOATING_GEOMETRY_SETTING,
