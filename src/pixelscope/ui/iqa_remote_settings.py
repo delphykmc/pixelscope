@@ -243,6 +243,7 @@ def install_remote_iqa_settings_dialog(window: Any) -> None:
             self.performance_settings,
             self,
         )
+        self._install_settings_contributions(dialog)
         dialog.settings_saved.connect(self._application_settings_saved)
 
         def remote_settings_saved(_settings: object) -> None:

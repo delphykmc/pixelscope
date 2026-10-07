@@ -9,12 +9,47 @@ and shutdown points so separation does not create a new lifecycle model.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Protocol
+from pathlib import Path
+from typing import Any, Protocol, runtime_checkable
 
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QDockWidget, QMainWindow, QWidget
 
 MenuActionFactory = Callable[[str, str, Any, str | None], QAction]
+SettingsHook = Callable[[], None]
+
+
+class SettingsPageHost(Protocol):
+    """Minimal Base settings surface available to an external contribution."""
+
+    def add_contributed_page(
+        self,
+        label: str,
+        page: QWidget,
+        *,
+        validate: SettingsHook | None = None,
+        save: SettingsHook | None = None,
+        reset: SettingsHook | None = None,
+    ) -> None:
+        """Add one extension-owned settings page and optional lifecycle hooks."""
+
+
+@runtime_checkable
+class SettingsWindowContribution(Protocol):
+    """Optional settings phase for a window contribution."""
+
+    def install_settings(self, settings: SettingsPageHost) -> None:
+        """Contribute extension-owned settings without replacing the Base dialog."""
+
+
+class WindowHostAccess(Protocol):
+    """Bounded Base surface available to external window contributions."""
+
+    def current_comparison_source_paths(self) -> tuple[Path | None, ...]:
+        """Return one native source path or None for every comparison-page slot."""
+
+    def register_contributed_dock(self, dock: QDockWidget) -> None:
+        """Register a contribution-owned dock for Base persistence/shutdown handling."""
 
 
 class WindowContribution(Protocol):
@@ -36,3 +71,10 @@ class WindowContribution(Protocol):
 
     def shutdown(self) -> None:
         """Stop contribution-owned client work at the existing MainWindow shutdown point."""
+
+
+class RuntimeWindowContribution(Protocol):
+    """Optional post-window runtime phase owned by explicit composition roots."""
+
+    def install_runtime(self, window: QMainWindow) -> None:
+        """Install runtime/controller behavior after common presentation composition starts."""
