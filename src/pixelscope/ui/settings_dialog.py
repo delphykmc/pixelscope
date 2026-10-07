@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -169,6 +171,10 @@ class SettingsDialog(QDialog):
             if physical_memory_bytes is None
             else physical_memory_bytes
         )
+
+        self._contributed_validators: list[Callable[[], None]] = []
+        self._contributed_savers: list[Callable[[], None]] = []
+        self._contributed_resetters: list[Callable[[], None]] = []
 
         self.category_list = QListWidget()
         self.category_list.setObjectName("settingsCategoryList")
@@ -352,6 +358,44 @@ class SettingsDialog(QDialog):
         self.set_settings(initial_settings)
         if repository.is_read_only_compatibility_mode:
             self._set_future_schema_read_only(repository.future_schema_version)
+
+    def add_contributed_page(
+        self,
+        label: str,
+        page: QWidget,
+        *,
+        validate: Callable[[], None] | None = None,
+        save: Callable[[], None] | None = None,
+        reset: Callable[[], None] | None = None,
+    ) -> None:
+        """Add an extension-owned page without giving it Base settings ownership."""
+
+        normalized = label.strip()
+        if not normalized:
+            raise ValueError("contributed settings page label must not be blank")
+        existing = {
+            self.category_list.item(index).text()
+            for index in range(self.category_list.count())
+        }
+        if normalized in existing:
+            raise ValueError(f"settings page already exists: {normalized}")
+        self.category_list.addItem(normalized)
+        self.page_stack.addWidget(page)
+        if validate is not None:
+            self._contributed_validators.append(validate)
+        if save is not None:
+            self._contributed_savers.append(save)
+        if reset is not None:
+            self._contributed_resetters.append(reset)
+
+    def _validate_contributed_pages(self) -> bool:
+        for validate in self._contributed_validators:
+            try:
+                validate()
+            except (TypeError, ValueError) as exc:
+                QMessageBox.warning(self, "Invalid extension settings", str(exc))
+                return False
+        return True
 
     def _build_general_page(self) -> QScrollArea:
         page = _SettingsPage(
@@ -700,13 +744,19 @@ class SettingsDialog(QDialog):
                 "a conservative configuration guard, not an out-of-memory guarantee.",
             )
             return
+        if not self._validate_contributed_pages():
+            return
         settings = self._repository.save(requested)
+        for save in self._contributed_savers:
+            save()
         self.settings_saved.emit(settings)
         self.accept()
 
     def _reset(self) -> None:
         settings = self._repository.reset()
         self.set_settings(settings)
+        for reset in self._contributed_resetters:
+            reset()
         self.settings_saved.emit(settings)
 
     def _browse_default_open_directory(self) -> None:
