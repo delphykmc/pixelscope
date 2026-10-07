@@ -182,9 +182,10 @@ Core-only. Historical P5 UI tests/tools opt into `ui/iqa_legacy_composition.py`
 explicitly.
 
 Base `ApplicationSettings` is schema v7 and contains no Remote-IQA field or concrete
-IQA settings type. Retired schema-v6 `settings/remote_iqa/*` keys are removed during
-migration/reset without being interpreted by Base. Any legacy P5 settings persistence
-needed for historical tooling is owned under `pixelscope.remote`, not `pixelscope.app`.
+IQA settings type. Existing schema-v6 `settings/remote_iqa/*` keys are ignored and
+preserved across Base migration/reset so Base does not take ownership of extension data.
+Any legacy P5 settings migration or persistence is owned under `pixelscope.remote`,
+not `pixelscope.app`.
 
 The exact pre-extraction implementation snapshot is
 `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`. No ad-hoc release tag is required
