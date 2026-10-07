@@ -1,7 +1,7 @@
 # IQA repository and ownership boundary
 
-Status: Slice 7 public ownership/package contract for Issue #121.
-Current authority: latest Issue #121 revised Slice 7–8 plan.
+Status: Slice 8 public ownership/handoff contract for Issue #121.
+Current authority: latest Issue #121 revised Slice 8 plan and `docs/IQA_HANDOFF.md`.
 Checkpoint C baseline: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
 This document defines durable source ownership and dependency direction for PixelScope

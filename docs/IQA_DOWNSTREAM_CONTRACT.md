@@ -1,6 +1,6 @@
 # IQA downstream consumer and transfer contract
 
-Status: revised downstream contract after Issue #121 Checkpoint C.
+Status: Slice 8 downstream contract; operational handoff lives in `docs/IQA_HANDOFF.md`.
 Current authority: latest Issue #121 revised Slice 6–8 plan.
 Checkpoint C baseline: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 

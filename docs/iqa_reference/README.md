@@ -1,9 +1,9 @@
 # IQA reference extension
 
-Status: Issue #121 Slice 7 public package-mode guide.
+Status: Issue #121 Slice 8 supported public Reference/Mock guide.
 Baseline before extraction: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
-This directory documents the MAIN-owned reference/mock IQA extension. It is an
+The downstream handoff entry point is `docs/IQA_HANDOFF.md`.\n\nThis directory documents the MAIN-owned reference/mock IQA extension. It is an
 executable architecture/reference experience, not the final Enterprise UI.
 
 ## Source-level compositions
