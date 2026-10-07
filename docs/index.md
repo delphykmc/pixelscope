@@ -10,8 +10,8 @@ knowledge belongs in focused documents under `docs/`.
 | Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
 | User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `user-guide/` topic and `ui/` note | Behavior, terminology, shortcut, format semantics, or workflow changes |
 | Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
-| Remote IQA result/schema/submission work | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, current/deferred execution plan as applicable | Measurement/comparison ownership, storage/request/job identity, result schema, summaries/grids, loading boundaries, or P5 sequencing change |
-| Base / IQA reference / Enterprise ownership or SUB handoff | `IQA_OWNERSHIP.md`, `IQA_BOUNDARY_CHARACTERIZATION.md`, `IQA_DOWNSTREAM_CONTRACT.md`, `iqa_reference/README.md`, then relevant `ARCHITECTURE.md` / `DECISIONS.md` sections | Repository/source ownership, current concrete coupling, peer-extension dependency direction, public provider/host boundary, reference extraction, downstream conformance assumptions, synthetic-vs-confidential data rules, or lifecycle compatibility change |
+| Historical P5 Remote-IQA archaeology | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, and completed/deferred P5 records | Historical transport/storage/result-schema behavior or migration archaeology; these documents are not current MAIN runtime APIs |
+| Base / IQA Reference / Enterprise ownership or SUB handoff | `IQA_HANDOFF.md`, `IQA_OWNERSHIP.md`, `IQA_DOWNSTREAM_CONTRACT.md`, `iqa_reference/README.md`, then relevant `ARCHITECTURE.md` / `DECISIONS.md` sections | Repository/source ownership, peer-extension dependency direction, public provider/host boundary, reference behavior, downstream conformance, synthetic-vs-confidential data rules, lifecycle compatibility, or exact-MAIN-SHA sync policy |
 | Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures, `user-guide/formats/raw.md` | Storage schema, validation, decoder, Bayer behavior, or user-facing RAW interpretation changes |
@@ -28,6 +28,9 @@ knowledge belongs in focused documents under `docs/`.
 - `PRODUCT_SPEC.md`: stable user-visible contracts.
 - `ARCHITECTURE.md`: current component boundaries, state ownership, data flow,
   and lifecycle invariants; planned components are explicitly marked.
+- `IQA_HANDOFF.md`: Issue #121 Slice 8 operational handoff authority for stable host/
+  public IQA contracts, lifecycle/concurrency/configuration rules, conformance,
+  exact-MAIN-SHA sync, packaging shapes, and downstream patch policy.
 - `IQA_OWNERSHIP.md`: authoritative post-Checkpoint-C MAIN/SUB source-ownership and
   dependency contract for PixelScope Base/Core, MAIN Reference/Mock IQA, and SUB
   Enterprise IQA peer extensions, including reserved paths and the
@@ -47,10 +50,10 @@ knowledge belongs in focused documents under `docs/`.
   contract completion, not production Enterprise qualification.
 - `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
-- `REMOTE_IQA_CONTRACT.md`: broad P5 Remote IQA product/architecture/transport
-  boundary, including P5-C storage/submission/jobs/PARTIAL ownership.
-- `REMOTE_IQA_V2_SPEC.md`: current executable P5 numerical/result-schema authority,
-  including COMPLETE and P5-C PARTIAL schema-v2 rules.
+- `REMOTE_IQA_CONTRACT.md`: historical P5 Remote-IQA product/architecture/transport
+  boundary retained for implementation archaeology.
+- `REMOTE_IQA_V2_SPEC.md`: historical P5 numerical/result-schema authority retained
+  for migration/reference archaeology; the runtime implementation is retired from MAIN.
 - `REMOTE_IQA_V1_SPEC.md`: historical merged P5-A/schema-v1 executable/read-only
   compatibility contract; it is not the current writer/numerical target.
 - `REMOTE_IQA_VIEWER_INSPECTION.md`: additive native-Inspect contract and retained
@@ -85,8 +88,8 @@ knowledge belongs in focused documents under `docs/`.
   focused regression coverage, and Windows/multi-monitor manual checklist.
 - `ui/p1b_plots_plan.md`: completed and remaining P1-B plot work.
 - [`exec-plans/active/next-phase.md`](exec-plans/active/next-phase.md): required current
-  pointer; P7-D Stage 1 Release Metadata & Manual Publication Foundation is active
-  while P5-G and P6 production integration remain externally gated.
+  pointer; P7-D Stage 1 Release Metadata & Manual Publication Foundation is active.
+  Historical P5-G/P6 Enterprise integration no longer gates MAIN after Issue #121.
 - [`exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md):
   active P7 foundation sequence, including the P7-D Stage 1/Stage 2 boundary.
 - [`exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md):
@@ -104,7 +107,8 @@ knowledge belongs in focused documents under `docs/`.
   retained Beta UI Hardening Pass 2 audit, implementation, owner-finding fix loops,
   validation, and exact-head review evidence for draft PR #68.
 - [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md):
-  authoritative unobserved external GPU/SMB validation and final P5 closeout gate.
+  retained historical external-validation plan; real Enterprise qualification is now
+  downstream SUB work and is not a MAIN closeout gate.
 - [`exec-plans/completed/p5-remote-iqa-platform-through-p5f.md`](exec-plans/completed/p5-remote-iqa-platform-through-p5f.md):
   retained P5 program rationale and repository-side closure through P5-F / PR #45.
 - [`exec-plans/completed/p5-schema-v2-revision.md`](exec-plans/completed/p5-schema-v2-revision.md):
