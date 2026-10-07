@@ -319,3 +319,10 @@ implementation evidence remains recoverable from exact Git history.
 
 Retirement must not weaken Issue #81 lifecycle canaries, public contract coverage, or
 the two public package targets.
+
+
+Slice 8 retires the old product-facing P5/Remote-IQA diagnostic and preflight CLI entry
+points from `scripts/`. Their historical implementations remain available from the
+pre-extraction and Slice 7 Git history. Public validation now uses the provider-neutral
+handoff conformance suite and the supported Reference package instead of P5-specific
+server/storage diagnostic commands.
