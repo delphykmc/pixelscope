@@ -625,7 +625,7 @@ class RemoteIqaController(QObject):
         settings = self._settings_repository.load()
         self.workspace.set_configuration_state(settings)
         documents = list(self.window.current_comparison_documents())
-        identity = tuple(
+        identity_parts: list[object] = [
             (
                 getattr(item, "document_id", None),
                 getattr(item, "generation", None),
@@ -636,8 +636,9 @@ class RemoteIqaController(QObject):
                 getattr(item, "source_path", None),
             )
             for item in documents
-        )
-        identity += (settings.submission_configured,)
+        ]
+        identity_parts.append(settings.submission_configured)
+        identity = tuple(identity_parts)
         if identity == self._last_pair_identity:
             return
         self._last_pair_identity = identity
