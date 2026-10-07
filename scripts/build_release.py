@@ -14,7 +14,6 @@ from scripts.build_user_guide import build_user_guide  # noqa: E402
 from scripts.release_contract import (  # noqa: E402
     APP_DIR,
     BUILD_ROOT,
-    DIST_ROOT,
     REFERENCE_APP_DIR,
     REFERENCE_EXECUTABLE_PATH,
     REFERENCE_SPEC_PATH,
@@ -65,7 +64,7 @@ def build_public_target(target: str = "core") -> Path:
     """Build and validate one of the two public PixelScope package modes."""
 
     validate_release_host()
-    spec_path, app_dir, executable_name = _target_paths(target)
+    _spec_path, app_dir, executable_name = _target_paths(target)
     site = build_user_guide(python=documentation_python())
     write_windows_version_info()
     subprocess.run(pyinstaller_command(target), cwd=REPO_ROOT, check=True)
