@@ -52,6 +52,8 @@ The intended dependency surface is small:
 - generic `WindowContribution` composition for prepare/dock/action/shutdown;
 - optional generic runtime contribution phase when post-window installation is needed;
 - bounded `WindowHostAccess` for product-generic selection/source and dock hosting;
+- generic `SettingsWindowContribution` / `SettingsPageHost` for extension-owned
+  settings pages and validate/save/reset hooks;
 - Qt-free `IqaExecutionPort` and `IqaResultAccessPort`;
 - normalized public IQA result/job/source/availability types;
 - Base worker/lifecycle primitives only when they are genuinely product-generic.
