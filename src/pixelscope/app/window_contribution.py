@@ -42,8 +42,6 @@ class SettingsWindowContribution(Protocol):
         """Contribute extension-owned settings without replacing the Base dialog."""
 
 
-
-
 class WindowHostAccess(Protocol):
     """Bounded Base surface available to external window contributions."""
 
