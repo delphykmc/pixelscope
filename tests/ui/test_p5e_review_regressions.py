@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from PySide6.QtWidgets import QTreeWidgetItem
 
+import pixelscope.ui.iqa_historical_results as history_module
 from pixelscope.remote.iqa_history import (
     IqaResultIdentity,
     LogicalIqaResultLocator,
@@ -19,7 +20,6 @@ from pixelscope.remote.iqa_settings import (
 )
 from pixelscope.remote.iqa_submission import IqaResultReference, JobState
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
-import pixelscope.ui.iqa_historical_results as history_module
 from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.iqa_legacy_composition import (
     compose_legacy_p5_presentation as _compose_main_window_presentation,
