@@ -160,8 +160,10 @@ composition is represented by the generic `RuntimeWindowContribution` phase at t
 application composition root.
 
 `WindowHostAccess` is intentionally bounded. An external extension may obtain the
-current comparison source paths and register a contributed dock without learning
-IQA-specific MainWindow methods.
+current comparison source slots and register a contributed dock without learning
+IQA-specific MainWindow methods. The source tuple preserves comparison-page cardinality:
+each page member contributes one `Path | None` slot, so derived/non-native entries are
+not silently filtered out.
 
 `SettingsWindowContribution` / `SettingsPageHost` provide the corresponding
 product-generic settings seam. An extension may add its own page and validation/save/
