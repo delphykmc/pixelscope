@@ -64,7 +64,9 @@ class RemoteIqaResultMappingGuard(QObject):
         return frozenset(self._pending_jobs)
 
     def _settings_changed(self) -> None:
-        current_identity = _mapping_identity(load_legacy_remote_iqa_settings(self.controller.window))
+        current_identity = _mapping_identity(
+            load_legacy_remote_iqa_settings(self.controller.window)
+        )
         if current_identity != self._mapping_identity:
             self._mapping_identity = current_identity
             self._revision += 1
