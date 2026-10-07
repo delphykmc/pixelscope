@@ -7,10 +7,10 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from pixelscope.core.difference_cache import DifferenceMapCache
-from pixelscope.core.image_document import ImageDocument
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
+from pixelscope.core.difference_cache import DifferenceMapCache
+from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.design_tokens import TOKENS
 

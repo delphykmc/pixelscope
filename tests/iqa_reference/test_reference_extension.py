@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from PySide6.QtWidgets import QDockWidget
 
 from pixelscope.app.main_window import MainWindow
-from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope.remote.iqa_public_fixture import FixtureIqaProvider, IqaFixtureProfile
+from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope_iqa_reference.extension import ReferenceIqaExtension
 
 

@@ -7,13 +7,28 @@ from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QDockWidget, QLabel, QMainWindow, QSizePolicy, QSplitter, QWidget
 
-from pixelscope.ui.design_tokens import (
-    TOKENS,
-    WORKSPACE_CHROME_HEIGHT,
-    panel_heading_style,
-)
+from pixelscope.ui.design_tokens import WORKSPACE_CHROME_HEIGHT, panel_heading_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+
+
+def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
+    size_policy = widget.sizePolicy()
+    size_policy.setVerticalPolicy(policy)
+    widget.setSizePolicy(size_policy)
+
+
+def _set_horizontal_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
+    size_policy = widget.sizePolicy()
+    size_policy.setHorizontalPolicy(policy)
+    widget.setSizePolicy(size_policy)
+
+
+def _sync_full_text_label(label: QLabel, description: str) -> None:
+    text = label.text()
+    label.setToolTip(text)
+    label.setAccessibleName(f"{description}: {text}")
+
 
 class _WorkspaceDockTopLevelController(QObject):
     """Keep PixelScope dock chrome while QDockWidget owns floating topology."""

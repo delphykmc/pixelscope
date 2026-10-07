@@ -4,9 +4,9 @@ import pytest
 from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QDockWidget, QLabel, QWidget
 
+from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope.ui.design_tokens import TOKENS, WORKSPACE_CHROME_HEIGHT
-from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 
