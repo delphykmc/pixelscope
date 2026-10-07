@@ -4,7 +4,9 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QPointF
 
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.bayer import render_bayer_preview
 from pixelscope.core.channel_views import split_document_channels
