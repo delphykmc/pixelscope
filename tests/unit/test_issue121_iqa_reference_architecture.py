@@ -59,7 +59,9 @@ def test_default_core_modules_contain_no_iqa_implementation_imports() -> None:
 
 
 def test_main_window_has_no_legacy_iqa_constructor_or_auto_composition_seam() -> None:
-    source = (SOURCE_ROOT / "pixelscope" / "app" / "main_window.py").read_text(encoding="utf-8")
+    source = (SOURCE_ROOT / "pixelscope" / "app" / "main_window.py").read_text(
+        encoding="utf-8"
+    )
     assert "iqa_result_pool" not in source
     assert "_legacy_window_contributions" not in source
 
@@ -99,7 +101,6 @@ def test_generic_composition_lifetime_contains_no_iqa_compatibility_shim() -> No
     source = path.read_text(encoding="utf-8")
     assert not _contains_iqa_implementation(_imports(path))
     assert "install_remote_iqa" not in source
-
 
 
 def test_base_settings_has_no_concrete_iqa_type_or_runtime_dependency() -> None:
