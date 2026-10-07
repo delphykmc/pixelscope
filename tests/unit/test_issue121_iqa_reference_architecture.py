@@ -100,3 +100,23 @@ def test_generic_composition_lifetime_contains_no_iqa_compatibility_shim() -> No
     assert not _contains_iqa_implementation(_imports(path))
     assert "install_remote_iqa" not in source
 
+
+
+def test_base_production_owners_contain_no_concrete_iqa_imports_or_identifiers() -> None:
+    paths = (
+        SOURCE_ROOT / "pixelscope" / "app" / "application.py",
+        SOURCE_ROOT / "pixelscope" / "app" / "core_application.py",
+        SOURCE_ROOT / "pixelscope" / "app" / "main_window.py",
+        SOURCE_ROOT / "pixelscope" / "app" / "settings.py",
+        SOURCE_ROOT / "pixelscope" / "core" / "diagnostics.py",
+    )
+    violations: list[str] = []
+    for path in paths:
+        if _contains_iqa_implementation(_imports(path)):
+            violations.append(
+                f"{path.relative_to(REPOSITORY_ROOT)} imports concrete IQA implementation"
+            )
+        source = path.read_text(encoding="utf-8").casefold()
+        if "remote_iqa" in source or "iqaclientinstaller" in source:
+            violations.append(f"{path.relative_to(REPOSITORY_ROOT)} names concrete IQA")
+    assert violations == []
