@@ -153,12 +153,14 @@ def test_docked_custom_maximize_restores_original_dock_area(
     assert isinstance(title, PlotsDockTitleBar)
     original_area = window.dockWidgetArea(dock)
     assert original_area != Qt.DockWidgetArea.NoDockWidgetArea
-    available = title._available_screen_geometry()
-    assert isinstance(available, QRect)
 
     title.maximize_button.click()
     qtbot.waitUntil(lambda: title._workspace_maximized and dock.isFloating())  # type: ignore[attr-defined]
     assert not dock.isMaximized()
+    # Floating can move the native dock to another monitor. Resolve the expected
+    # available geometry only after Qt has established the floating window's screen.
+    available = title._available_screen_geometry()
+    assert isinstance(available, QRect)
     assert dock.geometry() == available
     assert title.maximize_button.toolTip().startswith("Restore ")
 
