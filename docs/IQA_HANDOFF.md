@@ -312,10 +312,24 @@ tag is optional and must follow the repository's normal release/tag policy.
 example and conformance peer.
 
 Historical P5/Remote-IQA runtime code under `pixelscope/**` is not a production
-dependency of Core or Reference after Slice 7. Slice 8 may remove obsolete historical
-runtime modules/tests/tools only after the handoff/conformance material above protects
-the public host and provider semantics. Historical behavior that is useful solely as
-implementation evidence remains recoverable from exact Git history.
+dependency of Core or Reference after Slice 7. Slice 8 retires that implementation from
+normal MAIN source ownership after the handoff/conformance material above protects the
+public host and provider semantics.
+
+The supported MAIN IQA source boundary after retirement is intentionally small:
+
+```text
+src/pixelscope/remote/iqa_domain.py
+src/pixelscope/remote/iqa_public_contract.py
+src/pixelscope/remote/iqa_public_fixture.py
+src/pixelscope_iqa_reference/**
+```
+
+Historical P5 transport/storage/schema-v1/v2/result-explorer/UI/runtime implementations
+and their dedicated test/tooling families are recoverable from immutable MAIN history,
+especially `037fda2dc3e79475b5ba1841e8308bbbe5d0cd07` and the Slice 7 merged baseline
+`29561bdb70e722380a8041212d991ae21b72c6be`. They are no longer supported public
+runtime APIs.
 
 Retirement must not weaken Issue #81 lifecycle canaries, public contract coverage, or
 the two public package targets.
