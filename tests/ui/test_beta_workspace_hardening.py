@@ -5,7 +5,7 @@ import pytest
 from PySide6.QtCore import QByteArray, QSettings, Qt
 from PySide6.QtWidgets import QSizePolicy
 
-from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope.ui.design_tokens import TOKENS
