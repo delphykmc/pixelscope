@@ -3,7 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QTableWidgetItem
 
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 
 
