@@ -11,6 +11,7 @@ from pixelscope.core.performance_settings import (
     MIB,
     PerformanceSettings,
 )
+
 CURRENT_SETTINGS_SCHEMA_VERSION: Final = 7
 DEFAULT_DIFFERENCE_CACHE_MIB: Final = DEFAULT_DIFFERENCE_CACHE_BYTES // MIB
 MIN_DIFFERENCE_CACHE_MIB: Final = 64
