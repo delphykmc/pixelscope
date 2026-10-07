@@ -112,30 +112,17 @@ class WorkerDiagnostics:
 
 
 @dataclass(frozen=True)
-class RemoteIqaDiagnostics:
-    worker_pool: WorkerPoolDiagnostics
-    http_clients_created: int
-    http_leases_reused: int
-    http_active_leases: int
-    http_max_active_leases: int
-    http_idle_clients: int
-    http_discarded_clients: int
-    transport_closed: bool
+class ExtensionDiagnosticsSection:
+    """One extension-owned diagnostics section rendered by the generic Base formatter."""
+
+    title: str
+    lines: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.worker_pool, WorkerPoolDiagnostics):
-            raise TypeError("worker_pool must be WorkerPoolDiagnostics")
-        for name in (
-            "http_clients_created",
-            "http_leases_reused",
-            "http_active_leases",
-            "http_max_active_leases",
-            "http_idle_clients",
-            "http_discarded_clients",
-        ):
-            _require_non_negative_int(name, getattr(self, name))
-        if not isinstance(self.transport_closed, bool):
-            raise TypeError("transport_closed must be bool")
+        title = _sanitize_label(self.title, fallback="Extension")
+        lines = tuple(str(line).replace("\r", " ").replace("\n", " ").strip() for line in self.lines)
+        object.__setattr__(self, "title", title)
+        object.__setattr__(self, "lines", tuple(line for line in lines if line))
 
 
 @dataclass(frozen=True)
@@ -188,7 +175,7 @@ class RuntimeDiagnosticsSnapshot:
     preload: PreloadDiagnostics
     normal_load_stale_drop_count: int
     recent_failures: tuple[FailureDiagnostic, ...] = ()
-    remote_iqa: RemoteIqaDiagnostics | None = None
+    extension_sections: tuple[ExtensionDiagnosticsSection, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.source, SourceResidencyDiagnostics):
@@ -199,8 +186,6 @@ class RuntimeDiagnosticsSnapshot:
             raise TypeError("workers must be WorkerDiagnostics")
         if not isinstance(self.preload, PreloadDiagnostics):
             raise TypeError("preload must be PreloadDiagnostics")
-        if self.remote_iqa is not None and not isinstance(self.remote_iqa, RemoteIqaDiagnostics):
-            raise TypeError("remote_iqa must be RemoteIqaDiagnostics when supplied")
         _require_non_negative_int(
             "normal_load_stale_drop_count",
             self.normal_load_stale_drop_count,
@@ -209,6 +194,10 @@ class RuntimeDiagnosticsSnapshot:
         if any(not isinstance(failure, FailureDiagnostic) for failure in failures):
             raise TypeError("recent_failures must contain FailureDiagnostic values")
         object.__setattr__(self, "recent_failures", failures[-MAX_RECENT_FAILURES:])
+        sections = tuple(self.extension_sections)
+        if any(not isinstance(section, ExtensionDiagnosticsSection) for section in sections):
+            raise TypeError("extension_sections must contain ExtensionDiagnosticsSection values")
+        object.__setattr__(self, "extension_sections", sections)
 
 
 def format_runtime_diagnostics(snapshot: RuntimeDiagnosticsSnapshot) -> str:
@@ -251,25 +240,8 @@ def format_runtime_diagnostics(snapshot: RuntimeDiagnosticsSnapshot) -> str:
         f"Cancellation requests: {preload.cancellation_request_count}",
         f"Failures: {preload.failure_count}",
     ]
-    remote = snapshot.remote_iqa
-    if remote is not None:
-        lines.extend(
-            [
-                "",
-                "Remote IQA",
-                (
-                    f"Workers: active {remote.worker_pool.active_count} / "
-                    f"max {remote.worker_pool.max_count}"
-                ),
-                f"HTTP clients created: {remote.http_clients_created}",
-                f"HTTP leases reused: {remote.http_leases_reused}",
-                f"HTTP active leases: {remote.http_active_leases}",
-                f"HTTP max active leases: {remote.http_max_active_leases}",
-                f"HTTP idle clients: {remote.http_idle_clients}",
-                f"HTTP discarded clients: {remote.http_discarded_clients}",
-                f"Transport closed: {'yes' if remote.transport_closed else 'no'}",
-            ]
-        )
+    for section in snapshot.extension_sections:
+        lines.extend(["", section.title, *section.lines])
     lines.extend(
         [
             "",
