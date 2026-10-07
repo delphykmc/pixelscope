@@ -24,17 +24,18 @@ from PySide6 import __version__ as pyside_version
 from PySide6.QtCore import QCoreApplication, QEvent, QEventLoop, QSettings, qVersion
 from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
-from pixelscope.app.application import (
-    _compose_main_window_presentation,
-    analysis_thread_pool,
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation,
     create_application,
     load_startup_settings,
-    remote_iqa_thread_pool,
 )
 from pixelscope.app.main_window import MainWindow
+from pixelscope.app.window_contribution import WindowContribution
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.core.roi import RoiBounds
 from pixelscope.version import __version__ as app_version
+from pixelscope.workers.thread_pools import analysis_thread_pool
+from pixelscope_iqa_reference.extension import ReferenceIqaExtension
 
 # Direct script invocation has scripts/ as sys.path[0]. This path is repository
 # tooling only and never modifies the installed application's module search path.
@@ -139,12 +140,18 @@ def _populated_window(
     app: QApplication,
     count: int,
     layout: str,
+    *,
+    window_contributions: tuple[WindowContribution, ...] = (),
 ) -> tuple[MainWindow, list[object]]:
     repository, settings, performance = load_startup_settings()
     analysis_thread_pool()
-    result_pool = remote_iqa_thread_pool()
-    window = MainWindow(settings, performance, repository, iqa_result_pool=result_pool)
-    _compose_main_window_presentation(window)
+    window = MainWindow(
+        settings,
+        performance,
+        repository,
+        window_contributions=window_contributions,
+    )
+    compose_main_window_presentation(window)
     window.setWindowIcon(app.windowIcon())
     documents = [review_document(index) for index in range(count)]
     for document in documents:
@@ -453,19 +460,27 @@ def _yuv_profile_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool],
 
 
 def _iqa_neutral(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
-    window, documents = _populated_window(app, 2, "Multi View")
-    window.iqa_dock.setMinimumWidth(300)
-    window.iqa_dock.show()
-    window.iqa_dock.raise_()
-    workspace = window.remote_iqa_workspace
-    workspace.tabs.setCurrentWidget(workspace.setup_page)
+    extension = ReferenceIqaExtension()
+    window, documents = _populated_window(
+        app,
+        2,
+        "Multi View",
+        window_contributions=(extension,),
+    )
+    dock = extension.dock
+    workspace = extension.widget
+    if dock is None or workspace is None:
+        raise RuntimeError("IQA Reference contribution did not install its workspace")
+    dock.setMinimumWidth(300)
+    dock.show()
+    dock.raise_()
     return (
         window,
         lambda: (
             _documents_presented(window, documents)
-            and window.iqa_dock.isVisible()
-            and workspace.tabs.count() == 3
-            and workspace.configuration_label.text() == "Not configured"
+            and dock.isVisible()
+            and workspace.status_label.text() == "Reference IQA ready."
+            and workspace.submit_button.isEnabled()
         ),
         _fixture_identity(documents, "iqa_neutral"),
     )
@@ -474,9 +489,8 @@ def _iqa_neutral(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
 def _raw_dialog(app: QApplication) -> tuple[QWidget, Callable[[], bool], str]:
     repository, settings, performance = load_startup_settings()
     analysis_thread_pool()
-    result_pool = remote_iqa_thread_pool()
-    window = MainWindow(settings, performance, repository, iqa_result_pool=result_pool)
-    _compose_main_window_presentation(window)
+    window = MainWindow(settings, performance, repository, window_contributions=())
+    compose_main_window_presentation(window)
     window.setWindowIcon(app.windowIcon())
 
     settings_root = Path(QSettings().fileName()).parent
