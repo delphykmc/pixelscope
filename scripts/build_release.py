@@ -85,6 +85,9 @@ def build_public_target(target: str = "core") -> Path:
     if target == "core":
         validate_artifact()
     else:
+        if target == "core":
+        validate_artifact(app_dir)
+    else:
         validate_artifact(app_dir, executable_name=executable_name)
     return app_dir
 
