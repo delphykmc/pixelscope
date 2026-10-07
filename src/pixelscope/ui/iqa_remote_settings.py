@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -25,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from pixelscope.app.settings import ApplicationSettings, SettingsRepository
 from pixelscope.core.performance_settings import PerformanceSettings
+from pixelscope.remote.iqa_legacy_settings import LegacyRemoteIqaSettingsRepository
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.ui.lifecycle_hooks import WeakOwnerHook
 from pixelscope.ui.settings_dialog import SettingsDialog
@@ -40,7 +40,9 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         runtime_performance_settings: PerformanceSettings,
         parent: QWidget | None = None,
         physical_memory_bytes: int | None = None,
+        remote_repository: LegacyRemoteIqaSettingsRepository | None = None,
     ) -> None:
+        self._remote_repository = remote_repository or LegacyRemoteIqaSettingsRepository()
         super().__init__(
             repository,
             initial_settings,
@@ -51,7 +53,7 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         self.category_list.addItem("Remote IQA")
         self.remote_page = self._build_remote_page()
         self.page_stack.addWidget(self.remote_page)
-        self._set_remote_iqa(initial_settings.remote_iqa)
+        self._set_remote_iqa(self._remote_repository.load())
         if repository.is_read_only_compatibility_mode:
             self.remote_page.setEnabled(False)
 
@@ -147,22 +149,27 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         )
         return scroll
 
-    def settings(self) -> ApplicationSettings:
-        base = super().settings()
-        return replace(base, remote_iqa=self._remote_iqa_from_controls())
+    def remote_settings(self) -> RemoteIqaSettings:
+        return self._remote_iqa_from_controls()
 
     def set_settings(self, settings: ApplicationSettings) -> None:
         super().set_settings(settings)
         if hasattr(self, "remote_server_url"):
-            self._set_remote_iqa(settings.remote_iqa)
+            self._set_remote_iqa(self._remote_repository.load())
 
     def _save(self) -> None:
         try:
-            self._remote_iqa_from_controls()
+            remote_settings = self._remote_iqa_from_controls()
         except (TypeError, ValueError) as exc:
             QMessageBox.warning(self, "Invalid Remote IQA settings", str(exc))
             return
+        self._remote_repository.save(remote_settings)
         super()._save()
+
+    def _reset(self) -> None:
+        self._remote_repository.reset()
+        super()._reset()
+        self._set_remote_iqa(self._remote_repository.load())
 
     def _set_remote_iqa(self, settings: RemoteIqaSettings) -> None:
         self.remote_server_url.setText(settings.server_base_url)
@@ -233,8 +240,13 @@ class RemoteIqaSettingsDialog(SettingsDialog):
         self.remote_staging_root.blockSignals(False)
 
 
-def install_remote_iqa_settings_dialog(window: Any) -> None:
-    """Use the extended Settings dialog without changing MainWindow's settings ownership."""
+def install_remote_iqa_settings_dialog(
+    window: Any,
+    remote_repository: LegacyRemoteIqaSettingsRepository | None = None,
+) -> None:
+    """Install the legacy P5 settings page with extension-owned persistence."""
+
+    repository = remote_repository or LegacyRemoteIqaSettingsRepository()
 
     def create_settings_dialog(self: Any) -> RemoteIqaSettingsDialog:
         dialog = RemoteIqaSettingsDialog(
@@ -242,6 +254,7 @@ def install_remote_iqa_settings_dialog(window: Any) -> None:
             self.application_settings,
             self.performance_settings,
             self,
+            remote_repository=repository,
         )
         self._install_settings_contributions(dialog)
         dialog.settings_saved.connect(self._application_settings_saved)
