@@ -13,8 +13,10 @@ from PySide6.QtWidgets import QApplication
 from scripts.e8_profile import measure_phase
 from shiboken6 import isValid
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.core.roi import RoiBounds, analyze_roi
 from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
 from pixelscope.ui.line_profile_panel import LineProfilePanel
