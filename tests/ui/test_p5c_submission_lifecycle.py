@@ -8,8 +8,10 @@ from typing import Any
 from PySide6.QtCore import QObject, QThreadPool
 from PySide6.QtWidgets import QLabel, QPushButton, QWidget
 
-from pixelscope.app.application import _compose_main_window_presentation
-from pixelscope.app.main_window import MainWindow
+from pixelscope.ui.iqa_legacy_composition import (
+    LegacyP5MainWindow as MainWindow,
+    compose_legacy_p5_presentation as _compose_main_window_presentation,
+)
 from pixelscope.core.cancellation import cancellation_checkpoint
 from pixelscope.remote.iqa_client import IqaClientErrorKind, IqaCreateOutcomeUnknown
 from pixelscope.ui.iqa_submission_lifecycle import (
