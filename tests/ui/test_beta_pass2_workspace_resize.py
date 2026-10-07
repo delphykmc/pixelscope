@@ -194,6 +194,7 @@ def test_production_workspace_accepts_fhd_and_compact_width(
 
     window.close()
 
+
 def test_command_row_refreshes_content_floors_after_composition_font_change(
     qtbot: object,
     tmp_path: Path,
@@ -263,7 +264,6 @@ def test_command_row_refreshes_combo_floors_after_composition_style_change(
     qtbot: object,
 ) -> None:
     window = _production_window(qtbot)
-    window.iqa_dock.hide()
     _assert_resize_accepted(window, qtbot, 1280, 720)
     gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
     layout_group = window.layout_selector.parentWidget()
@@ -397,7 +397,6 @@ def test_command_row_worst_case_keeps_enabled_three_view_and_live_curation_nonov
         window.add_document(document, select=False)
     documents = (*pair, *additional)
     window._select_document_ids([document.document_id for document in documents])
-    window.iqa_dock.show()
     _assert_resize_accepted(window, qtbot, *size)
 
     assert window.comparison_page_label.text() == "1 / 2"
