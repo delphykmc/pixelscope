@@ -112,9 +112,12 @@ def render_windows_version_info(
     value = version or release_version()
     file_version = windows_version_tuple(value)
     tuple_text = ", ".join(str(part) for part in file_version)
-    _path, internal_name, original_filename, file_description = _windows_version_identity(
-        target
-    )
+    (
+        _path,
+        internal_name,
+        original_filename,
+        file_description,
+    ) = _windows_version_identity(target)
     return f"""# UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
@@ -154,9 +157,12 @@ def write_windows_version_info(
 ) -> Path:
     """Write generated executable metadata for one public package target."""
 
-    path, _internal_name, _original_filename, _file_description = _windows_version_identity(
-        target
-    )
+    (
+        path,
+        _internal_name,
+        _original_filename,
+        _file_description,
+    ) = _windows_version_identity(target)
     GENERATED_ROOT.mkdir(parents=True, exist_ok=True)
     path.write_text(
         render_windows_version_info(version, target=target),
