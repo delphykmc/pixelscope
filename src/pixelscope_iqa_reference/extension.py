@@ -330,11 +330,7 @@ class ReferenceIqaExtension:
             raise RuntimeError("Reference IQA contribution is not prepared")
         selected = cast(WindowHostAccess, window).current_comparison_source_paths()
         paths: tuple[Path, Path]
-        if (
-            len(selected) == 2
-            and isinstance(selected[0], Path)
-            and isinstance(selected[1], Path)
-        ):
+        if len(selected) == 2 and isinstance(selected[0], Path) and isinstance(selected[1], Path):
             paths = (selected[0], selected[1])
             synthetic = False
         else:
