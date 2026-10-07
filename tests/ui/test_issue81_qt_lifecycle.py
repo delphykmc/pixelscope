@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import gc
 from collections.abc import Callable
-from pathlib import Path
 from threading import Event, get_ident
 from types import SimpleNamespace
 from weakref import ref
@@ -21,13 +20,13 @@ from pixelscope.ui.line_profile_panel import LineProfilePanel
 from pixelscope.workers.task_worker import TaskWorker
 
 
-def _blocked_loader(started: Event, release: Event) -> Callable[[Path | str], object]:
-    def load(_path: Path | str) -> object:
+def _blocked_task(started: Event, release: Event) -> Callable[[], object]:
+    def run() -> object:
         started.set()
         release.wait(timeout=3.0)
         return object()
 
-    return load
+    return run
 
 
 def test_running_task_worker_can_finish_after_window_destruction_without_cross_thread_qobject_delete(
@@ -49,7 +48,7 @@ def test_running_task_worker_can_finish_after_window_destruction_without_cross_t
         with measure_phase("issue81-window-compose-and-worker-start", iteration=_iteration):
             window = MainWindow()
             compose_main_window_presentation(window)
-            worker = TaskWorker(_blocked_loader(started, release), Path("diagnostic-result"))
+            worker = TaskWorker(_blocked_task(started, release))
             pool.start(worker)
             assert started.wait(timeout=1.0)
 
@@ -93,6 +92,7 @@ def test_running_task_worker_can_finish_after_window_destruction_without_cross_t
 
         assert signal_destruction_threads == [gui_thread_id]
         assert worker_ref() is None
+
 
 def test_comparison_analysis_shutdown_releases_pyqtgraph_resources(
     qtbot: object,
