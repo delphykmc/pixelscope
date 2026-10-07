@@ -151,6 +151,21 @@ def test_reference_entrypoint_transitive_iqa_imports_are_public_only() -> None:
     assert violations == []
 
 
+def test_historical_p5_runtime_files_are_retired_from_main_source() -> None:
+    remote_root = SOURCE_ROOT / "pixelscope" / "remote"
+    ui_root = SOURCE_ROOT / "pixelscope" / "ui"
+    allowed_remote = {
+        "iqa_domain.py",
+        "iqa_public_contract.py",
+        "iqa_public_fixture.py",
+    }
+
+    assert {path.name for path in remote_root.glob("iqa_*.py")} == allowed_remote
+    assert list(ui_root.glob("iqa_*.py")) == []
+    assert not (SOURCE_ROOT / "pixelscope" / "app" / "iqa_history.py").exists()
+    assert not (SOURCE_ROOT / "pixelscope" / "workers" / "iqa_thread_pool.py").exists()
+
+
 def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
     reserved = (
         "src/pixelscope_enterprise",
