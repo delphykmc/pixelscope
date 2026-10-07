@@ -17,8 +17,8 @@ from pixelscope.app.settings import (
     QSettingsAdapter,
     REQUIRE_EXACT_RAW_FILE_SIZE_KEY,
     SCHEMA_VERSION_KEY,
-    SettingsRepository,
     SOURCE_RESIDENCY_MIB_KEY,
+    SettingsRepository,
 )
 
 LEGACY_REMOTE_IQA_KEYS = (
