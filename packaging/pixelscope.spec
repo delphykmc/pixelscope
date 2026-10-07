@@ -21,7 +21,7 @@ analysis = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=["pixelscope_iqa_reference", "pixelscope_enterprise"],
     noarchive=False,
 )
 pyz = PYZ(analysis.pure, analysis.zipped_data)
