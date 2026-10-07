@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import pytest
 
+import pixelscope.ui.iqa_preview_lifecycle as preview_lifecycle_module
+import pixelscope.ui.iqa_submission as iqa_submission_module
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.remote.iqa_submission import (
     FolderPairEntry,
