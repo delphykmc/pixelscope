@@ -67,12 +67,16 @@ no IQA implementation. Concrete launchers select extensions explicitly.
 No discovery registry, entry points, marketplace, hot loading or version negotiation
 framework is introduced.
 
-The legacy Remote-IQA settings path is **not** treated as a completed generic host seam.
-It still extends/overrides the concrete Settings dialog and persists
-`ApplicationSettings.remote_iqa`. The reference extension needs no configuration, so
-Slice 6 does not invent a settings abstraction solely for future Enterprise use. A
-product-generic settings contribution seam and removal/migration of the legacy
-Remote-IQA settings ownership remain explicit Slice 7 work.
+Slice 6 also adds a product-generic settings contribution seam:
+`SettingsWindowContribution` may add an extension-owned page through
+`SettingsPageHost` with optional validate/save/reset hooks. The extension owns the
+page semantics and persistence behind those hooks; Base does not gain an Enterprise
+schema or IQA-specific setting.
+
+The legacy Remote-IQA path still persists `ApplicationSettings.remote_iqa` and
+temporarily subclasses the concrete Settings dialog. That transitional storage/schema
+ownership remains Slice 7 cleanup, but the legacy override now preserves any generic
+settings contributions instead of replacing the host seam.
 
 ## Reference behavior
 
