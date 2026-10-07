@@ -1,8 +1,11 @@
 # Verified target set: CPython 3.10 x64 / Windows 10-11.
 numpy==1.24.4
 opencv-python==4.8.1.78
+pydantic==1.10.13
 PySide6==6.4.2
 pyqtgraph==0.13.7
 PySide6-Addons==6.4.2
 PySide6-Essentials==6.4.2
 shiboken6==6.4.2
+
+typing_extensions==4.16.0
