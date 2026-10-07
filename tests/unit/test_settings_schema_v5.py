@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings
 import pytest
 from PySide6.QtCore import QSettings
 
