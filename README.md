@@ -195,7 +195,9 @@ The authoritative current baseline and verified backlog are in
 quality, roadmap, packaging, UI, and execution-plan documents.
 
 Portable ZIP/Inno Setup distribution and owner-local candidate/publication staging are
-implemented. Current Beta qualification does not include production Remote IQA
-server/GPU/SSO integration, production signing or privileged corporate publication,
-notification/self-update integration, saved ROI management, alpha overlay, RAW
-demosaic, or post-WP-C2 YUV extensions such as cross-subsampling/converted Difference.
+implemented. Public Core qualification does not include downstream Enterprise IQA
+provider/model/server/storage/auth integration, production signing or privileged
+corporate publication, notification/self-update integration, saved ROI management,
+alpha overlay, RAW demosaic, or post-WP-C2 YUV extensions such as
+cross-subsampling/converted Difference. The optional public IQA Reference package uses
+only synthetic/mock data and the public extension contract.
