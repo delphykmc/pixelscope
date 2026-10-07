@@ -1525,6 +1525,7 @@ def install_remote_iqa(
     """Extend the one IQA dock; never create a second result parser/controller path."""
 
     settings_repository = LegacyRemoteIqaSettingsRepository()
+    window.remote_iqa_settings_repository = settings_repository
     install_remote_iqa_settings_dialog(window, settings_repository)
     existing_results = window.iqa_workspace
     shell = RemoteIqaWorkspace(existing_results)
