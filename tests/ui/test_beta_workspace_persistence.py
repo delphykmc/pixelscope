@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")

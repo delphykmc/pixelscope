@@ -4,8 +4,8 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSizePolicy, QSplitter, QWidget
 
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
+from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
