@@ -100,9 +100,10 @@ URLs, storage roots, credentials, SSO/security objects, model configuration, ret
 policy and internal path mapping.
 
 MAIN Base schema v7 contains only product-generic settings. Legacy public P5 keys are
-retired during migration and are not interpreted by Base. MAIN must not gain environment
-keys or settings schemas merely to support SUB. If a generic settings contribution point
-is missing, request that generic host capability upstream.
+ignored and preserved by Base migration/reset; an extension that still recognizes those
+keys owns any interpretation, migration, or deletion. MAIN must not gain environment keys
+or settings schemas merely to support SUB. If a generic settings contribution point is
+missing, request that generic host capability upstream.
 
 ## Exact MAIN pin and provenance
 
