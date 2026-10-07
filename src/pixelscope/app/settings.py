@@ -302,7 +302,7 @@ class SettingsRepository:
         return self._load_pre_remote_values(include_preload=True)
 
     def _load_schema_v5_values(self) -> ApplicationSettings:
-        """Preserve schema-v5 values and add empty Remote IQA configuration."""
+        """Preserve schema-v5 generic values while migrating into schema v7."""
 
         return self._load_pre_remote_values(include_preload=True)
 
