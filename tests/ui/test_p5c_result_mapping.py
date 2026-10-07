@@ -6,6 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject
 
+from pixelscope.remote.iqa_legacy_settings import LegacyRemoteIqaSettingsRepository
 from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
 from pixelscope.remote.iqa_submission import IqaResultReference, JobState
 from pixelscope.ui.iqa_legacy_composition import (
@@ -27,7 +28,11 @@ class _FakeWorkspace:
 
 class _FakeController:
     def __init__(self, settings: RemoteIqaSettings, job: RemoteJobRecord) -> None:
-        self.window = SimpleNamespace(application_settings=SimpleNamespace(remote_iqa=settings))
+        self._settings_repository = LegacyRemoteIqaSettingsRepository()
+        self._settings_repository.save(settings)
+        self.window = SimpleNamespace(
+            remote_iqa_settings_repository=self._settings_repository,
+        )
         self.workspace = _FakeWorkspace()
         self._jobs = {job.job_id: job}
         self._workers: dict[str, TaskWorker] = {}
@@ -121,10 +126,10 @@ def test_mapping_change_ignores_stale_result_and_reresolves_latest() -> None:
     first_task_id = next(iter(controller._workers))
     assert controller._result_resolve_jobs == {job.job_id}
 
-    controller.window.application_settings.remote_iqa = _settings(
+    controller._settings_repository.save(_settings(
         "https://iqa.example.test",
         "D:/shared-new",
-    )
+    ))
     controller.settings_changed()
 
     assert guard.revision == 1
@@ -167,10 +172,10 @@ def test_server_url_only_change_does_not_invalidate_result_mapping() -> None:
     parent = QObject()
     guard = RemoteIqaResultMappingGuard(controller, parent)
 
-    controller.window.application_settings.remote_iqa = _settings(
+    controller._settings_repository.save(_settings(
         "https://iqa-new.example.test",
         "C:/shared",
-    )
+    ))
     controller.settings_changed()
 
     assert guard.revision == 0
