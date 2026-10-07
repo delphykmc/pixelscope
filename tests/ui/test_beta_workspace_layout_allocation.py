@@ -23,6 +23,7 @@ def test_bottom_plots_owns_both_lower_corners(qtbot: object) -> None:
 
     window.close()
 
+
 def test_horizontal_workspace_uses_qt_native_collapse_policy(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
