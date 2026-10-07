@@ -52,6 +52,7 @@ def test_docked_workspace_chrome_has_one_shared_baseline(qtbot: object) -> None:
 
     window.close()
 
+
 def test_floating_plots_workspace_has_explicit_outer_frame(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
