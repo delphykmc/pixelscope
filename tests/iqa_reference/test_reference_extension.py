@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 from PySide6.QtWidgets import QDockWidget
 
@@ -84,3 +85,71 @@ def test_reference_file_action_opens_published_mock_result_without_external_back
 
     window.close()
     assert not extension.active
+
+
+def test_window_host_preserves_comparison_slot_cardinality_and_missing_native_paths(
+    qtbot: object,
+    monkeypatch: object,
+    tmp_path: Path,
+) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    path_a = tmp_path / "a.png"
+    path_b = tmp_path / "b.png"
+    documents = [
+        SimpleNamespace(source_path=None),
+        SimpleNamespace(source_path=path_a),
+        SimpleNamespace(source_path=path_b),
+    ]
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        window,
+        "current_comparison_documents",
+        lambda: documents,
+    )
+
+    assert window.current_comparison_source_paths() == (None, path_a, path_b)
+
+    window.close()
+
+
+def test_reference_current_pair_requires_exactly_two_native_slots(
+    qtbot: object,
+    monkeypatch: object,
+    tmp_path: Path,
+) -> None:
+    provider = FixtureIqaProvider(tmp_path / "cardinality", IqaFixtureProfile.MINIMAL)
+    extension = ReferenceIqaExtension(provider)
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    path_a = tmp_path / "a.png"
+    path_b = tmp_path / "b.png"
+    path_c = tmp_path / "c.png"
+
+    for slots in (
+        (path_a, path_b, path_c),
+        (None, path_a),
+        (path_a, None),
+        (None, path_a, path_b),
+    ):
+        monkeypatch.setattr(  # type: ignore[attr-defined]
+            window,
+            "current_comparison_source_paths",
+            lambda slots=slots: slots,
+        )
+        _intent, paths, synthetic = extension._submission_intent()
+        assert synthetic
+        assert paths == (
+            Path("reference-a.synthetic"),
+            Path("reference-b.synthetic"),
+        )
+
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        window,
+        "current_comparison_source_paths",
+        lambda: (path_a, path_b),
+    )
+    _intent, paths, synthetic = extension._submission_intent()
+    assert not synthetic
+    assert paths == (path_a, path_b)
+
+    window.close()
