@@ -72,9 +72,9 @@ def test_remote_settings_dialog_round_trips_machine_local_mapping(
     dialog.remote_roots.setItem(0, 1, QTableWidgetItem("C:/shared"))
     dialog._refresh_staging_choices("shared")
 
-    settings = dialog.settings()
+    settings = dialog.remote_settings()
 
-    assert settings.remote_iqa == RemoteIqaSettings(
+    assert settings == RemoteIqaSettings(
         "https://iqa.example.test",
         (RemoteIqaStorageRoot("shared", "C:/shared"),),
         "shared",
