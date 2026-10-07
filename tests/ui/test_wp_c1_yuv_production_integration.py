@@ -10,7 +10,9 @@ from PySide6.QtWidgets import QDialog
 import pixelscope.app.main_window as main_window_module
 import pixelscope.app.raw_input_compatibility as raw_compatibility_module
 import pixelscope.app.yuv_input_semantics as yuv_semantics_module
-from pixelscope.app.application import _compose_main_window_presentation
+from pixelscope.app.bootstrap import (
+    compose_main_window_presentation as _compose_main_window_presentation,
+)
 from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.io.path_discovery import ImageInput, discover_image_inputs
