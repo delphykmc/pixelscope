@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.remote.iqa_client import HttpIqaJobClient, IqaJobClient
+from pixelscope.remote.iqa_legacy_settings import LegacyRemoteIqaSettingsRepository
 from pixelscope.remote.iqa_public_contract import (
     IqaExecutionPort,
     IqaResultAccessPort,
@@ -47,7 +48,6 @@ from pixelscope.remote.iqa_public_contract import (
 from pixelscope.remote.iqa_public_contract import (
     IqaResultReference as PublicIqaResultReference,
 )
-from pixelscope.remote.iqa_legacy_settings import LegacyRemoteIqaSettingsRepository
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_storage import StorageResolutionError, resolve_result_reference
 from pixelscope.remote.iqa_submission import (
