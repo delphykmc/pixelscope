@@ -4,7 +4,14 @@ from typing import Any
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QLabel,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.settings import ApplicationSettings, QSettingsAdapter, SettingsRepository
@@ -83,11 +90,9 @@ def test_generic_settings_contribution_adds_page_and_participates_in_save(
     dialog = window.create_settings_dialog()
     qtbot.addWidget(dialog)  # type: ignore[attr-defined]
 
-    labels = [
-        dialog.category_list.item(index).text()
-        for index in range(dialog.category_list.count())
-    ]
-    assert labels == ["General", "Files", "Performance", "Test Extension"]
+    categories = dialog.category_list
+    labels = tuple(categories.item(index).text() for index in range(categories.count()))
+    assert labels == ("General", "Files", "Performance", "Test Extension")
     assert contribution.page is not None
     assert dialog.page_stack.indexOf(contribution.page) == 3
 
