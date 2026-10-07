@@ -47,7 +47,10 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.app.settings import ApplicationSettings, SettingsRepository
-from pixelscope.app.window_contribution import WindowContribution
+from pixelscope.app.window_contribution import (
+    SettingsWindowContribution,
+    WindowContribution,
+)
 from pixelscope.core.bayer import bayer_channel_at
 from pixelscope.core.channel_views import split_document_channels
 from pixelscope.core.diagnostics import (
@@ -499,6 +502,11 @@ class MainWindow(QMainWindow):
         add_action("Help", "Copy Diagnostics", self.copy_diagnostics)
         self._update_action_states()
 
+    def _install_settings_contributions(self, dialog: SettingsDialog) -> None:
+        for contribution in self._window_contributions:
+            if isinstance(contribution, SettingsWindowContribution):
+                contribution.install_settings(dialog)
+
     def create_settings_dialog(self) -> SettingsDialog:
         dialog = SettingsDialog(
             self.settings_repository,
@@ -506,6 +514,7 @@ class MainWindow(QMainWindow):
             self.performance_settings,
             self,
         )
+        self._install_settings_contributions(dialog)
         dialog.settings_saved.connect(self._application_settings_saved)
         install_dialog_context_help(dialog, "features/settings.html")
         return dialog
