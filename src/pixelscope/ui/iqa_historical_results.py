@@ -32,6 +32,7 @@ from pixelscope.remote.iqa_history import (
     locator_for_manual_result,
     locator_leaf,
 )
+from pixelscope.remote.iqa_legacy_settings import load_legacy_remote_iqa_settings
 from pixelscope.remote.iqa_settings import RemoteIqaSettings
 from pixelscope.remote.iqa_storage import StorageResolutionError, resolve_result_reference
 from pixelscope.remote.iqa_submission import JobState
@@ -444,7 +445,7 @@ class HistoricalIqaResultsController(QObject):
         self._resolve_generation += 1
         generation = self._resolve_generation
         revision = self._mapping_revision()
-        settings = self.window.application_settings.remote_iqa
+        settings = load_legacy_remote_iqa_settings(self.window)
         locator = entry.locator
 
         def resolve() -> _ResolvedRecent:
@@ -570,7 +571,7 @@ class HistoricalIqaResultsController(QObject):
         identity = IqaResultIdentity(str(result.result_id), int(result.schema_version))
         locator = pending.locator or locator_for_manual_result(
             pending.root,
-            self.window.application_settings.remote_iqa,
+            load_legacy_remote_iqa_settings(self.window),
             schema_version=identity.schema_version,
         )
         entry = RecentIqaResultEntry(locator, identity)
@@ -579,7 +580,7 @@ class HistoricalIqaResultsController(QObject):
         self.provenance.set_context(
             result,
             locator,
-            self.window.application_settings.remote_iqa,
+            load_legacy_remote_iqa_settings(self.window),
         )
         if pending.previous is not None and pending.previous != identity:
             self._clear_scene()
@@ -590,7 +591,7 @@ class HistoricalIqaResultsController(QObject):
 
     @Slot(str)
     def _scene_requested(self, _scene_id: str) -> None:
-        self.provenance.refresh_settings(self.window.application_settings.remote_iqa)
+        self.provenance.refresh_settings(load_legacy_remote_iqa_settings(self.window))
 
     def _clear_scene(self) -> None:
         if getattr(self.workspace, "_selected_scene_id", None) is None:
