@@ -14,6 +14,7 @@ from scripts.build_user_guide import build_user_guide  # noqa: E402
 from scripts.release_contract import (  # noqa: E402
     APP_DIR,
     BUILD_ROOT,
+    DIST_ROOT,
     REFERENCE_APP_DIR,
     REFERENCE_EXECUTABLE_PATH,
     REFERENCE_SPEC_PATH,
