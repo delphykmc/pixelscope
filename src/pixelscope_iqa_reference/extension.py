@@ -329,12 +329,17 @@ class ReferenceIqaExtension:
         if window is None:
             raise RuntimeError("Reference IQA contribution is not prepared")
         selected = cast(WindowHostAccess, window).current_comparison_source_paths()
-        synthetic = len(selected) < 2
         paths: tuple[Path, Path]
-        if synthetic:
-            paths = (Path("reference-a.synthetic"), Path("reference-b.synthetic"))
-        else:
+        if (
+            len(selected) == 2
+            and isinstance(selected[0], Path)
+            and isinstance(selected[1], Path)
+        ):
             paths = (selected[0], selected[1])
+            synthetic = False
+        else:
+            paths = (Path("reference-a.synthetic"), Path("reference-b.synthetic"))
+            synthetic = True
         variants = (IqaVariant("reference", "Reference"), IqaVariant("candidate", "Candidate"))
         scene = IqaSubmissionScene(
             "reference_scene_0001",
