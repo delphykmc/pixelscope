@@ -19,8 +19,8 @@ from pixelscope.remote.iqa_submission import IqaResultReference, JobState
 from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
 from pixelscope.remote.iqa_v2_partial import PartialResultV2
 from pixelscope.ui.iqa_legacy_composition import (
-    LegacyP5MainWindow as MainWindow,
     compose_legacy_p5_presentation as _compose_main_window_presentation,
+    LegacyP5MainWindow as MainWindow,
 )
 from pixelscope.ui.iqa_submission import RemoteJobRecord
 
