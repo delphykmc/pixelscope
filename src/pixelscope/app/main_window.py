@@ -1008,14 +1008,10 @@ class MainWindow(QMainWindow):
         start = self._normalized_comparison_page_start(documents)
         return documents[start : start + COMPARISON_PAGE_SIZE]
 
-    def current_comparison_source_paths(self) -> tuple[Path, ...]:
-        """Return bounded local-source access for the current comparison page."""
+    def current_comparison_source_paths(self) -> tuple[Path | None, ...]:
+        """Return slot-preserving native-source access for the comparison page."""
 
-        return tuple(
-            document.source_path
-            for document in self.current_comparison_documents()
-            if document.source_path is not None
-        )
+        return tuple(document.source_path for document in self.current_comparison_documents())
 
     def _comparison_page_range(self) -> tuple[int, int, int]:
         documents = self.selected_documents
