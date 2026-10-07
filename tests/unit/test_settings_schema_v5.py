@@ -20,6 +20,7 @@ from pixelscope.app.settings import (
     QSettingsAdapter,
     SettingsRepository,
 )
+
 LEGACY_REMOTE_IQA_KEYS = (
     "settings/remote_iqa/server_base_url",
     "settings/remote_iqa/storage_roots_json",
