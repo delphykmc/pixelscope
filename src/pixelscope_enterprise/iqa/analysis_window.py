@@ -611,7 +611,7 @@ class AnalysisWindowManager:
         stored = QSettings("PixelScope", "EnterpriseIqa").value(
             "analysis_window_geometry"
         )
-        if isinstance(stored, (QByteArray, bytes)) and window.restoreGeometry(stored):
+        if isinstance(stored, QByteArray | bytes) and window.restoreGeometry(stored):
             geometry = window.frameGeometry()
             if any(
                 geometry.intersected(screen.availableGeometry()).width() >= 100
