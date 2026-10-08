@@ -117,7 +117,7 @@ jobs:
       - name: Check whole-repository Ruff lint and formatting
         run: |
           python -m ruff check .
-          python -m ruff format --check .
+          python -m ruff format --diff .
       - name: Check changed lines for whitespace errors
         env:
           BASE_SHA: ${{ needs.classify.outputs.base_sha }}
