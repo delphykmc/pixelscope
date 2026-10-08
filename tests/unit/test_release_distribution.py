@@ -251,9 +251,11 @@ def test_runtime_notice_inventory_tracks_pinned_runtime_requirements() -> None:
 
     assert "numpy" in names
     assert "opencv-python" in names
+    assert "pydantic" in names
     assert "pyside6" in names
-    assert "httpx" in names
     assert "shiboken6" in names
+    assert "typing_extensions" in names
+    assert "httpx" not in names
 
 
 def test_distribution_scripts_support_repo_root_file_execution_imports() -> None:
