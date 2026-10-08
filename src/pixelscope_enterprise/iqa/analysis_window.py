@@ -279,6 +279,72 @@ class AnalysisWindow(QMainWindow):
         self.open_action.setEnabled(load is not None)
         self.save_action.setEnabled(save is not None and self._active_id is not None)
 
+    @staticmethod
+    def _validated_saved_state(
+        result: AnalysisResult, raw: dict[str, object]
+    ) -> _ResultViewState:
+        """Validate the separate user state before mutating any visible UI."""
+
+        if set(raw) != {"attribute_id", "roi", "ranges", "viewport"}:
+            raise ValueError("invalid analysis_state fields")
+        ids = {attr.attribute_id for attr in result.attributes}
+        attribute_id = raw["attribute_id"]
+        if not isinstance(attribute_id, str) or attribute_id not in ids:
+            raise ValueError("unknown saved attribute")
+
+        def finite_number(value: object) -> float:
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                raise ValueError("saved state requires JSON numeric values")
+            number = float(value)
+            if not np.isfinite(number):
+                raise ValueError("non-finite saved state")
+            return number
+
+        raw_ranges = raw["ranges"]
+        if not isinstance(raw_ranges, dict):
+            raise ValueError("invalid saved ranges")
+        ranges: dict[str, float] = {}
+        for key, value in raw_ranges.items():
+            if not isinstance(key, str) or key not in ids:
+                raise ValueError("range refers to missing attribute")
+            limit = finite_number(value)
+            if not 0.001 <= limit <= 1_000_000.0:
+                raise ValueError("saved range outside UI limits")
+            ranges[key] = limit
+
+        roi: Roi | None = None
+        raw_roi = raw["roi"]
+        if raw_roi is not None:
+            if not isinstance(raw_roi, list) or len(raw_roi) != 4:
+                raise ValueError("invalid saved ROI")
+            x, y, width, height = (finite_number(item) for item in raw_roi)
+            if (
+                x < 0 or y < 0 or width <= 0 or height <= 0
+                or x + width > result.image_width
+                or y + height > result.image_height
+            ):
+                raise ValueError("saved ROI outside source geometry")
+            roi = (x, y, width, height)
+
+        viewport = raw["viewport"]
+        if not isinstance(viewport, dict) or set(viewport) != {
+            "scale", "center_x", "center_y"
+        }:
+            raise ValueError("invalid saved viewport")
+        zoom = viewport["scale"]
+        x_center = viewport["center_x"]
+        y_center = viewport["center_y"]
+        if zoom is None and x_center is None and y_center is None:
+            return _ResultViewState(attribute_id, roi, ranges)
+        scale = finite_number(zoom)
+        center_x = finite_number(x_center)
+        center_y = finite_number(y_center)
+        if not 0.04 <= scale <= 32.0:
+            raise ValueError("invalid saved zoom")
+        if not 0 <= center_x <= result.image_width or not 0 <= center_y <= result.image_height:
+            raise ValueError("saved view center outside source geometry")
+        return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y)
+
     def present_result(
         self, result: AnalysisResult, *, analysis_state: dict[str, object] | None = None
     ) -> None:
