@@ -12,10 +12,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QRectF, QSettings, Qt, Signal
 from PySide6.QtGui import QColor, QCloseEvent, QImage, QPainter, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
@@ -40,7 +41,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
 )
 
 ResultLoader = Callable[[Path], AnalysisResult]
-ResultSaver = Callable[[AnalysisResult, Path], None]
+ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
 
 
 @dataclass
@@ -157,6 +158,7 @@ class AnalysisWindow(QMainWindow):
         self._loader: ResultLoader | None = None
         self._saver: ResultSaver | None = None
         self._switching = False
+        self._rendering = False
         self._views: list[_LinkedView] = []
         self._roi_items: list[object] = []
 
@@ -196,6 +198,11 @@ class AnalysisWindow(QMainWindow):
         inspector.setObjectName("enterpriseIqaInspector")
         inspector.setMinimumWidth(275)
         inspector_layout = QVBoxLayout(inspector)
+        inspector_layout.addWidget(QLabel("Result", inspector))
+        self.result_combo = QComboBox(inspector)
+        self.result_combo.setObjectName("enterpriseIqaResultSelector")
+        self.result_combo.currentIndexChanged.connect(self._on_result_selected)
+        inspector_layout.addWidget(self.result_combo)
         inspector_layout.addWidget(QLabel("Attributes · supplied order", inspector))
         self.attribute_table = QTableWidget(0, 3, inspector)
         self.attribute_table.setObjectName("enterpriseIqaAttributes")
@@ -254,10 +261,16 @@ class AnalysisWindow(QMainWindow):
     def present_result(self, result: AnalysisResult) -> None:
         """Explicitly switch to a result; never called by implicit job completion."""
         self._remember_navigation()
+        is_new = result.result_id not in self._results
         self._results[result.result_id] = result
+        if is_new:
+            self.result_combo.addItem(result.result_id, result.result_id)
         if result.result_id not in self._states:
             self._states[result.result_id] = _ResultViewState(result.attributes[0].attribute_id)
         self._active_id = result.result_id
+        self.result_combo.blockSignals(True)
+        self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
+        self.result_combo.blockSignals(False)
         self.setWindowTitle(f"IQA Analysis — {result.result_id}")
         self.save_action.setEnabled(self._saver is not None)
         self._populate_attributes()
@@ -266,6 +279,28 @@ class AnalysisWindow(QMainWindow):
             "Official global and grid-derived ROI values are distinct. "
             "Positive = A better only for oriented metrics."
         )
+
+    def _on_result_selected(self, _index: int) -> None:
+        result_id = self.result_combo.currentData()
+        if isinstance(result_id, str) and result_id in self._results:
+            self.present_result(self._results[result_id])
+
+    def current_analysis_state(self) -> dict[str, object]:
+        """JSON-compatible user state, never model-produced measurement data."""
+        state = self._state()
+        if state is None:
+            return {}
+        self._remember_navigation()
+        return {
+            "attribute_id": state.attribute_id,
+            "roi": list(state.roi) if state.roi is not None else None,
+            "ranges": dict(state.ranges),
+            "viewport": {
+                "scale": state.scale,
+                "center_x": state.center_x,
+                "center_y": state.center_y,
+            },
+        }
 
     def _state(self) -> _ResultViewState | None:
         return self._states.get(self._active_id) if self._active_id is not None else None
@@ -331,7 +366,10 @@ class AnalysisWindow(QMainWindow):
         self.range_editor.setValue(limit)
         self.range_editor.setEnabled(attr.spatial is not None)
         self.range_editor.blockSignals(False)
+        self._rendering = True
         for i, view in enumerate(self._views):
+            view._muted = True
+            old_scene = view.scene()
             scene = QGraphicsScene(view)
             scene.setSceneRect(QRectF(0, 0, result.image_width, result.image_height))
             scene.setBackgroundBrush(QColor(29, 32, 36))
@@ -362,6 +400,11 @@ class AnalysisWindow(QMainWindow):
                         QTransform().scale(grid.block_width, grid.block_height)
                     )
             view.setScene(scene)
+            if old_scene is not None:
+                old_scene.deleteLater()
+        self._rendering = False
+        for view in self._views:
+            view._muted = False
         self._draw_roi(state.roi)
         if state.scale is not None and state.center_x is not None and state.center_y is not None:
             for view in self._views:
@@ -440,7 +483,7 @@ class AnalysisWindow(QMainWindow):
 
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()
-        if state is None:
+        if state is None or self._rendering:
             return
         state.scale, state.center_x, state.center_y = scale, x, y
         for other in self._views:
@@ -479,7 +522,7 @@ class AnalysisWindow(QMainWindow):
         if not filename:
             return
         try:
-            self._saver(self._results[self._active_id], Path(filename))
+            self._saver(self._results[self._active_id], self.current_analysis_state(), Path(filename))
         except (OSError, ValueError):
             self.statusBar().showMessage("Result could not be saved.")
             return
@@ -488,6 +531,9 @@ class AnalysisWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         # Closing the analysis window must not cancel jobs or change the host Viewer.
         self._remember_navigation()
+        QSettings("PixelScope", "EnterpriseIqa").setValue(
+            "analysis_window_geometry", self.saveGeometry()
+        )
         super().closeEvent(event)
 
 
@@ -519,6 +565,17 @@ class AnalysisWindowManager:
         screens = QApplication.screens()
         if not screens:
             return
+        stored = QSettings("PixelScope", "EnterpriseIqa").value(
+            "analysis_window_geometry"
+        )
+        if stored is not None and window.restoreGeometry(stored):
+            geometry = window.frameGeometry()
+            if any(
+                geometry.intersected(screen.availableGeometry()).width() >= 100
+                and geometry.intersected(screen.availableGeometry()).height() >= 100
+                for screen in screens
+            ):
+                return
         primary = QApplication.primaryScreen()
         destination = next((s for s in screens if s != primary), primary or screens[0])
         bounds = destination.availableGeometry()
