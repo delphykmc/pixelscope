@@ -45,12 +45,15 @@ from PySide6.QtWidgets import (
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
     AttributeDisplay,
+    LoadedAnalysis,
     Roi,
     clipped_cells,
+    colorize_spatial_rgba,
+    map_polarity_legend,
     roi_statistics,
 )
 
-ResultLoader = Callable[[Path], AnalysisResult]
+ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
 
 
@@ -136,24 +139,16 @@ class _LinkedView(QGraphicsView):
 
 
 def _map_pixmap(attribute: AttributeDisplay, half_range: float) -> QPixmap | None:
-    grid = attribute.spatial
-    if grid is None:
+    """Construct one safe Qt image from the bounded, vectorized signed grid."""
+
+    rgba = colorize_spatial_rgba(attribute, half_range)
+    if rgba is None:
         return None
-    image = QImage(grid.columns, grid.rows, QImage.Format.Format_ARGB32)
-    image.fill(QColor(0, 0, 0, 0))
-    # Work at grid resolution rather than allocating a second 4K RGB raster.
-    for row in range(grid.rows):
-        for col in range(grid.columns):
-            if not grid.valid_mask[row, col]:
-                continue
-            normalized = float(np.clip(grid.values[row, col] / half_range, -1.0, 1.0))
-            amount = abs(normalized)
-            # A better: red; B better: blue; neutral: light gray. No auto-contrast.
-            if normalized >= 0:
-                color = QColor(245, int(239 * (1 - amount)), int(239 * (1 - amount)))
-            else:
-                color = QColor(int(239 * (1 - amount)), int(239 * (1 - amount)), 245)
-            image.setPixelColor(col, row, color)
+    height, width, _ = rgba.shape
+    # QImage can alias buffers; copy the image before numpy memory is released.
+    image = QImage(
+        rgba.tobytes(), width, height, width * 4, QImage.Format.Format_RGBA8888
+    ).copy()
     return QPixmap.fromImage(image)
 
 
@@ -284,11 +279,25 @@ class AnalysisWindow(QMainWindow):
         self.open_action.setEnabled(load is not None)
         self.save_action.setEnabled(save is not None and self._active_id is not None)
 
-    def present_result(self, result: AnalysisResult) -> None:
-        """Explicitly switch to a result; never called by implicit job completion."""
+    def present_result(
+        self, result: AnalysisResult, *, analysis_state: dict[str, object] | None = None
+    ) -> None:
+        """Explicitly open an immutable result; collisions must not replace its payload."""
+
+        existing = self._results.get(result.result_id)
+        if existing is not None and existing is not result:
+            raise ValueError("conflicting immutable result ID; open a new ID for new payload")
+        state = (
+            self._validated_saved_state(result, analysis_state)
+            if analysis_state is not None
+            else None
+        )
         self._remember_navigation()
-        is_new = result.result_id not in self._results
-        self._results[result.result_id] = result
+        is_new = existing is None
+        if is_new:
+            self._results[result.result_id] = result
+        if state is not None:
+            self._states[result.result_id] = state
         if is_new:
             self.result_combo.addItem(result.result_id, result.result_id)
         if result.result_id not in self._states:
@@ -482,6 +491,7 @@ class AnalysisWindow(QMainWindow):
             pct = 0.0 if total == 0 else (clipped / total)
             self.clamp_label.setText(
                 f"Map scale: −{limit:g} to +{limit:g} {attr.unit}\n"
+                f"{map_polarity_legend(attr)}\n"
                 f"Clamped: {clipped}/{total} valid cells ({pct:.1%})"
             )
 
@@ -544,11 +554,12 @@ class AnalysisWindow(QMainWindow):
         if not filename:
             return
         try:
-            result = self._loader(Path(filename))
+            loaded = self._loader(Path(filename))
+            if not isinstance(loaded, LoadedAnalysis):
+                raise ValueError("reader must return a verified LoadedAnalysis")
+            self.present_result(loaded.result, analysis_state=loaded.analysis_state)
         except (OSError, ValueError):
             self.statusBar().showMessage("Result could not be opened or validated.")
-            return
-        self.present_result(result)
 
     def _save_from_dialog(self) -> None:
         if self._saver is None or self._active_id is None:
