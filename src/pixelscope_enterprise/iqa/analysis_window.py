@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QPoint, QRectF, QSettings, Qt, Signal
+from PySide6.QtCore import QByteArray, QPoint, QRectF, QSettings, Qt, Signal
 from PySide6.QtGui import (
     QCloseEvent,
     QColor,
@@ -79,8 +79,12 @@ class _LinkedView(QGraphicsView):
         self.setMinimumSize(180, 160)
         self._muted = False
         self._roi_start: QPoint | None = None
-        self.horizontalScrollBar().valueChanged.connect(self._navigation_changed)
-        self.verticalScrollBar().valueChanged.connect(self._navigation_changed)
+        self.horizontalScrollBar().valueChanged.connect(  # type: ignore[attr-defined]
+            self._navigation_changed
+        )
+        self.verticalScrollBar().valueChanged.connect(  # type: ignore[attr-defined]
+            self._navigation_changed
+        )
 
     def _navigation_changed(self, _value: int = 0) -> None:
         if self._muted or self.scene() is None:
@@ -111,7 +115,7 @@ class _LinkedView(QGraphicsView):
             and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         ):
             self._roi_start = event.pos()
-            event.accept()  # type: ignore[attr-defined]
+            event.accept()
             return
         super().mousePressEvent(event)
 
@@ -125,7 +129,7 @@ class _LinkedView(QGraphicsView):
             width, height = abs(a.x() - b.x()), abs(a.y() - b.y())
             if width >= 1 and height >= 1:
                 self.roi_requested.emit(left, top, width, height)
-            event.accept()  # type: ignore[attr-defined]
+            event.accept()
             return
         super().mouseReleaseEvent(event)
 
@@ -175,11 +179,15 @@ class AnalysisWindow(QMainWindow):
         self.open_action = file_menu.addAction("Open Result...")
         self.open_action.setObjectName("enterpriseIqaOpenResult")
         self.open_action.setEnabled(False)  # Enabled only with a genuine on-disk reader.
-        self.open_action.triggered.connect(self._open_from_dialog)
+        self.open_action.triggered.connect(  # type: ignore[attr-defined]
+            self._open_from_dialog
+        )
         self.save_action = file_menu.addAction("Save Result As...")
         self.save_action.setObjectName("enterpriseIqaSaveResult")
         self.save_action.setEnabled(False)  # Not a fake fixture export.
-        self.save_action.triggered.connect(self._save_from_dialog)
+        self.save_action.triggered.connect(  # type: ignore[attr-defined]
+            self._save_from_dialog
+        )
         self.export_action = file_menu.addAction("Export...")
         self.export_action.setEnabled(False)  # Separate H4 reporting work.
 
@@ -210,7 +218,9 @@ class AnalysisWindow(QMainWindow):
         inspector_layout.addWidget(QLabel("Result", inspector))
         self.result_combo = QComboBox(inspector)
         self.result_combo.setObjectName("enterpriseIqaResultSelector")
-        self.result_combo.currentIndexChanged.connect(self._on_result_selected)
+        self.result_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._on_result_selected
+        )
         inspector_layout.addWidget(self.result_combo)
         inspector_layout.addWidget(QLabel("Attributes · supplied order", inspector))
         self.attribute_table = QTableWidget(0, 3, inspector)
@@ -220,7 +230,9 @@ class AnalysisWindow(QMainWindow):
         self.attribute_table.verticalHeader().hide()
         self.attribute_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.attribute_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.attribute_table.itemSelectionChanged.connect(self._on_attribute_selected)
+        self.attribute_table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
+            self._on_attribute_selected
+        )
         inspector_layout.addWidget(self.attribute_table, 2)
         self.official_label = QLabel("Official pair comparison: —", inspector)
         self.official_label.setWordWrap(True)
@@ -234,7 +246,9 @@ class AnalysisWindow(QMainWindow):
         self.range_editor.setDecimals(3)
         self.range_editor.setRange(0.001, 1_000_000.0)
         self.range_editor.setEnabled(False)
-        self.range_editor.valueChanged.connect(self._update_range)
+        self.range_editor.valueChanged.connect(  # type: ignore[attr-defined]
+            self._update_range
+        )
         inspector_layout.addWidget(self.range_editor)
         self.clamp_label = QLabel("Map: unavailable", inspector)
         self.clamp_label.setWordWrap(True)
@@ -579,7 +593,7 @@ class AnalysisWindowManager:
         stored = QSettings("PixelScope", "EnterpriseIqa").value(
             "analysis_window_geometry"
         )
-        if stored is not None and window.restoreGeometry(stored):
+        if isinstance(stored, (QByteArray, bytes)) and window.restoreGeometry(stored):
             geometry = window.frameGeometry()
             if any(
                 geometry.intersected(screen.availableGeometry()).width() >= 100
