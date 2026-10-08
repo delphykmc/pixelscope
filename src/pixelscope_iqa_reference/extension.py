@@ -94,7 +94,7 @@ class ReferenceIqaWidget(QWidget):
         self.setObjectName("referenceIqaWorkspace")
         layout = QVBoxLayout(self)
 
-        self.status_label = QLabel("Synthetic IQA ready.", self)
+        self.status_label = QLabel("Reference IQA ready.", self)
         self.status_label.setObjectName("referenceIqaStatus")
         layout.addWidget(self.status_label)
 
@@ -283,9 +283,10 @@ class ReferenceIqaExtension:
         self.dock.visibilityChanged.connect(action.setChecked)  # type: ignore[attr-defined]
         self.action = action
 
-    def submit_mock(self) -> None:
+    def submit_mock(self) -> IqaJobReference | None:
+        """Submit a new synthetic job and return its identity only on success."""
         if not self._active or self.widget is None:
-            return
+            return None
         try:
             intent, paths, synthetic = self._submission_intent()
             job = self.provider.submit(intent)
@@ -296,14 +297,20 @@ class ReferenceIqaExtension:
             self._refresh_selected_job()
             self._show_dock()
             self._notify(f"Mock IQA {job.job_id}: queued")
+            return job
         except IqaProviderError as exc:
             self.widget.show_error(exc.display_message)
+            return None
 
     def advance_mock(self) -> None:
         if not self._active or self.widget is None:
             return
         job_id = self.widget.selected_job_id()
-        if job_id is None:
+        if job_id is not None:
+            self._advance_job(job_id)
+
+    def _advance_job(self, job_id: str) -> None:
+        if not self._active or self.widget is None or job_id not in self._jobs:
             return
         try:
             snapshot = self.provider.advance(IqaJobReference(job_id))
@@ -318,7 +325,16 @@ class ReferenceIqaExtension:
         if not self._active or self.widget is None:
             return
         job_id = self.widget.selected_job_id()
-        if job_id is None or self._jobs[job_id].state is not IqaJobState.COMPLETED:
+        if job_id is not None:
+            self._open_job_result(job_id)
+
+    def _open_job_result(self, job_id: str) -> None:
+        if (
+            not self._active
+            or self.widget is None
+            or job_id not in self._jobs
+            or self._jobs[job_id].state is not IqaJobState.COMPLETED
+        ):
             return
         try:
             reference = self.provider.get_result_reference(IqaJobReference(job_id))
@@ -339,12 +355,13 @@ class ReferenceIqaExtension:
 
     def open_reference_result(self) -> None:
         """Publish a deterministic demo job; this does NOT read any file from disk."""
-        if not self._active:
+        job = self.submit_mock()
+        if job is None:
             return
-        self.submit_mock()
-        self.advance_mock()
-        self.advance_mock()
-        self.open_current_result()
+        # Pin the new job: never advance/open an older selection after a failed submit.
+        self._advance_job(job.job_id)
+        self._advance_job(job.job_id)
+        self._open_job_result(job.job_id)
 
     def open_empty_window(self) -> None:
         if not self._active:
