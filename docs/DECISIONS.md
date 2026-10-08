@@ -1,5 +1,6 @@
 # Engineering decisions
 
+> **IQA history note:** P5/Remote-IQA decisions in this chronological ledger describe retired historical baselines, not the current IQA product or server contract. Current ownership and new server proposal: [IQA documentation index](iqa/README.md).\n
 ## Platform and implementation constraints
 
 - CPython 3.10 x64 is fixed.
@@ -661,9 +662,9 @@ reviewed PR #55 at `main@2f29bf95b8d51c470534cf6decda3033681c75bf`. P7 Release
 Foundation subsequently completed P7-A/P7-B/P7-C, and P7-D Stage 1 is the current
 repository implementation program; this does not advance P5-G or P6.
 
-`docs/REMOTE_IQA_CONTRACT.md` is the product/transport ownership authority.
-`docs/REMOTE_IQA_V2_SPEC.md` is the current numerical/artifact authority.
-`docs/REMOTE_IQA_V1_SPEC.md` remains historical and unchanged.
+`docs/iqa/legacy/REMOTE_IQA_CONTRACT.md` is the product/transport ownership authority.
+`docs/iqa/legacy/REMOTE_IQA_V2_SPEC.md` is the current numerical/artifact authority.
+`docs/iqa/legacy/REMOTE_IQA_V1_SPEC.md` remains historical and unchanged.
 
 ### Preserved local authority
 
@@ -900,13 +901,13 @@ repository implementation program; this does not advance P5-G or P6.
 - Mechanically forbid PySide6 and pyqtgraph imports from `src/pixelscope/core/` and
   `src/pixelscope/io/`. This enforces the existing numerical/presentation boundary; it
   does not introduce a broader speculative layer framework.
-- Retain `REMOTE_IQA_V1_SPEC.md` and `REMOTE_IQA_V2_SPEC.md` because version identity is
+- Retain `iqa/legacy/REMOTE_IQA_V1_SPEC.md` and `iqa/legacy/REMOTE_IQA_V2_SPEC.md` because version identity is
   part of persisted compatibility authority.
 - PR #54 initially retained the phase-named P5-D/P5-E/P5-F root documents to avoid
   link churn. The owner subsequently clarified that current durable contracts at the
   docs root must use phase-neutral filenames. Use
-  `REMOTE_IQA_VIEWER_INSPECTION.md`, `REMOTE_IQA_HISTORICAL_RESULTS.md`, and
-  `REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md` for current navigation; preserve P5-D,
+  `iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md`, `iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md`, and
+  `iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md` for current navigation; preserve P5-D,
   P5-E, and P5-F identity inside the documents and completed execution history.
 
 ## P7 release-engineering decisions — foundation active through P7-D Stage 1

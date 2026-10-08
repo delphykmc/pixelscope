@@ -1,5 +1,6 @@
 # Roadmap
 
+> Historical P5/Remote-IQA roadmap entries below refer to retired repository implementation. The present IQA authority and proposed work are indexed at [docs/iqa/README.md](iqa/README.md).\n
 ## Delivered baseline
 
 ### P0/P1 — Product foundation — Complete
@@ -138,22 +139,22 @@ P7-D Stage 1 publication audit:
 [`docs/exec-plans/active/p7-release-publication-audit.md`](exec-plans/active/p7-release-publication-audit.md).
 
 P5 durable contract:
-[`docs/REMOTE_IQA_CONTRACT.md`](REMOTE_IQA_CONTRACT.md).
+[`docs/iqa/legacy/REMOTE_IQA_CONTRACT.md`](iqa/legacy/REMOTE_IQA_CONTRACT.md).
 
 Current schema-v2 result contract:
-[`docs/REMOTE_IQA_V2_SPEC.md`](REMOTE_IQA_V2_SPEC.md).
+[`docs/iqa/legacy/REMOTE_IQA_V2_SPEC.md`](iqa/legacy/REMOTE_IQA_V2_SPEC.md).
 
 P5-D completed implementation contract:
-[`docs/REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md).
+[`docs/iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md`](iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md).
 
 P5-E historical-result contract:
-[`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md).
+[`docs/iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md`](iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 P5-F integration characterization:
-[`docs/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
+[`docs/iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
 
 Historical schema-v1 compatibility contract:
-[`docs/REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
+[`docs/iqa/legacy/REMOTE_IQA_V1_SPEC.md`](iqa/legacy/REMOTE_IQA_V1_SPEC.md).
 
 # P5 — Remote IQA Platform — Active
 
@@ -361,7 +362,7 @@ Results browsing mutate local comparison state.
   feature-local work.
 
 Detailed contract and manual-validation matrix:
-[`docs/REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md).
+[`docs/iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md`](iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md).
 
 ### P5-D completion
 
@@ -376,7 +377,7 @@ P5-E extends the canonical P5-B result-open path with bounded historical discove
 passive provenance while preserving P5-C logical storage and P5-D explicit Inspect.
 
 Focused contract:
-[`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md).
+[`docs/iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md`](iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 Delivered scope:
 

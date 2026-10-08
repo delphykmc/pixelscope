@@ -625,7 +625,7 @@ The P5-A through P5-C sections below are retained as pre-retirement validation
 history. Their file paths and commands may name modules/tests removed by Issue #121
 Slice 8 and **must not be treated as current-HEAD validation instructions**. For the
 supported current public IQA boundary and executable validation entry points, use
-`docs/IQA_HANDOFF.md` and the conformance/reference tests named there. Historical
+`docs/iqa/IQA_HANDOFF.md` and the conformance/reference tests named there. Historical
 commands are reproducible only from their corresponding repository snapshots.
 
 ## P5-A deterministic Remote IQA result contract — historical schema v1

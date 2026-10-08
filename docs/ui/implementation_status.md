@@ -16,13 +16,13 @@ R0 through R7 are merged. R7 is docs-only integration validation and closeout; R
 no UI behavior.
 
 Completed P5-F characterization:
-[`../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
+[`../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](../iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
 
 Completed P5-E contract:
-[`../REMOTE_IQA_HISTORICAL_RESULTS.md`](../REMOTE_IQA_HISTORICAL_RESULTS.md).
+[`../REMOTE_IQA_HISTORICAL_RESULTS.md`](../iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 Completed P5-D contract:
-[`../REMOTE_IQA_VIEWER_INSPECTION.md`](../REMOTE_IQA_VIEWER_INSPECTION.md).
+[`../REMOTE_IQA_VIEWER_INSPECTION.md`](../iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md).
 
 ## Current shell — implemented
 
@@ -338,7 +338,7 @@ existing P5-D **Inspect in Viewer** transition is explicitly invoked.
 P5-E merged as PR #44 at
 `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`. Its validation evidence is historical
 P5-E evidence and is not inferred as P5-F validation. See
-[`../REMOTE_IQA_HISTORICAL_RESULTS.md`](../REMOTE_IQA_HISTORICAL_RESULTS.md).
+[`../REMOTE_IQA_HISTORICAL_RESULTS.md`](../iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 ## P5-F Integration & Performance Hardening — Complete / PR #45
 
@@ -370,7 +370,7 @@ base. P5-F merged as PR #45 at
 
 Real external GPU/SMB validation remains unobserved and is explicitly assigned to P5-G.
 Full evidence is in
-[`../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
+[`../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](../iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
 
 ## P5-G External GPU/SMB Validation & Closeout — Deferred
 

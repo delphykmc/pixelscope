@@ -1018,7 +1018,7 @@ but must not change these lifetime policies.
 
 ## Historical R1 application composition seam — retired in Issue #121 Slice 8
 
-This section records the pre-extraction P5 composition for implementation archaeology. Current production composition authority is the Core/Reference split documented in `IQA_HANDOFF.md` and `iqa_reference/README.md`; the concrete Remote-IQA chain described below is no longer present in MAIN source.
+This section records the pre-extraction P5 composition for implementation archaeology. Current production composition authority is the Core/Reference split documented in `iqa/IQA_HANDOFF.md` and `iqa_reference/README.md`; the concrete Remote-IQA chain described below is no longer present in MAIN source.
 
 
 `src/pixelscope/app/application.py` remains the production composition root. Its local
@@ -1083,7 +1083,7 @@ authority remains `iqa_domain.py`/`iqa_reader.py` plus
 `tests/unit/test_remote_iqa_v1.py`. It also does not change the P5-C `/v1/iqa/jobs`
 transport or P5-F compatibility probe. The original endpoint sketch remains clearly
 marked historical/unsupported in `server/api_contract.md`; current server/transport
-authority stays in `REMOTE_IQA_CONTRACT.md`.
+authority stays in `iqa/legacy/REMOTE_IQA_CONTRACT.md`.
 
 ## Runtime diagnostics and release boundaries
 
