@@ -1,5 +1,8 @@
 # Remote IQA contract
 
+> **ARCHIVED P5 / Remote-IQA contract — NOT CURRENT.** This document preserves the state and technical decisions of historical P5 releases only. Wording below such as **current**, **normative**, **production**, and **server contract** refers to that historical baseline, not today's public MAIN or the planned one-pair IQA Window. Use the [current IQA index](../README.md), [ownership](../IQA_OWNERSHIP.md), and [new server interface request](../IQA_SERVER_RESULT_REQUEST.md) instead.
+
+
 Status: P5 durable contract — repository client complete through P5-F; P5-G external validation deferred
 Owner: PixelScope P5 program + external IQA server contract
 Established: P5-0; numerical ownership revised by PR #39; P5-C transport/storage/failure contract frozen in PR #42; P5-D native inspection frozen in PR #43; P5-E history frozen in PR #44; P5-F lifetime hardening merged in PR #45

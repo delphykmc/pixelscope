@@ -6,13 +6,21 @@ Slice 8 starting baseline (merged Slice 7): `main@29561bdb70e722380a8041212d991a
 Pre-extraction mixed implementation snapshot:
 `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 For the SUB agent's first implementation plan, repository layout, test migration, and
-validation commands, start with `docs/IQA_ENTERPRISE_SUB_GUIDE.md`.
+validation commands, start with `docs/iqa/IQA_ENTERPRISE_SUB_GUIDE.md`.
 That guide is public and contains no enterprise-specific configuration.
 
 This document is the single public handoff entry point for an external IQA extension.
 It does not describe a specific Enterprise implementation. It defines what MAIN owns,
 what a downstream repository may depend on, what it must validate, and how newer MAIN
 revisions are consumed without permanent downstream patches to MAIN-owned files.
+
+## Post-UX-discovery implementation plan (specification; pending code)
+
+After #137, the proposed division is **MAIN generic host + small Reference Lite integration canary**, with actual A/B/Map IQA Analysis Window work developed on a temporary public-safe, NON-MERGED SUB-owned handoff branch, then transferred to PRIVATE SUB. The historical Reference UX documented in this file reflects the current implementation and is not an approved product layout.
+
+See [MAIN scope and generic host requirements](IQA_MAIN_HOST_PLAN.md), [server JSON/NPZ/result publication request](IQA_SERVER_RESULT_REQUEST.md) and [temporary IQA Window implementation/handoff](IQA_HANDOFF_WINDOW_PLAN.md), tracked by #139, #140, #141. These specifications do not themselves change source code, bump the public contract revision or create the implementation branch.
+
+Public Core must not acquire a product-specific Job registry, A/B/Map UI or enterprise artifact parser. Existing `WindowContribution` and `WindowHostAccess` should be tested before adding any generic toolbar/status/lifecycle hooks. The enterprise extension owns the MainWindow-contributed Run/Status/View action and the independent non-modal Analysis Window. MAIN Reference only needs to prove extension composition, public job-state semantics, child-window lifecycle, clean shutdown and packaging. Any needed normalized official pair-comparison contract addition is a narrowly reviewed public MAIN change, never a private server wire schema.
 
 ## Stable host surface
 
@@ -73,7 +81,7 @@ The supported public example is:
 ```text
 src/pixelscope_iqa_reference/**
 tests/iqa_reference/**
-docs/iqa_reference/**
+docs/iqa/reference/**
 ```
 
 It is a peer consumer of the same MAIN host/contracts expected to be consumed by a
@@ -340,7 +348,7 @@ The 43 retired test files remain in the Slice 7 Git snapshot, **not** in current
 MAIN's working tree or a new archive directory. The SUB agent must inventory and
 selectively migrate their still-relevant behavioral assertions; do not copy the
 obsolete P5 import graph back into MAIN. See
-`docs/IQA_ENTERPRISE_SUB_GUIDE.md` for exact recovery commands and the file list.
+`docs/iqa/IQA_ENTERPRISE_SUB_GUIDE.md` for exact recovery commands and the file list.
 
 Retirement must not weaken Issue #81 lifecycle canaries, public contract coverage, or
 the two public package targets.

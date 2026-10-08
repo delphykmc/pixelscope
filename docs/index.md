@@ -10,9 +10,7 @@ knowledge belongs in focused documents under `docs/`.
 | Any implementation task | `CURRENT_STATE.md` | Completed scope, verified backlog, or assumptions change |
 | User-visible workflow | `PRODUCT_SPEC.md`, `USER_GUIDE.md`, relevant `user-guide/` topic and `ui/` note | Behavior, terminology, shortcut, format semantics, or workflow changes |
 | Session persistence / Recent entry UX | `SESSION_CONTRACT.md` | Session schema, restore transaction, legacy compatibility, Recent ownership, or PR #32/#33 integration changes |
-| Historical P5 Remote-IQA archaeology | `REMOTE_IQA_CONTRACT.md`, `REMOTE_IQA_V2_SPEC.md`, and completed/deferred P5 records | Historical transport/storage/result-schema behavior or migration archaeology; these documents are not current MAIN runtime APIs |
-| Base / IQA Reference / Enterprise ownership or SUB handoff | `IQA_HANDOFF.md`, `IQA_OWNERSHIP.md`, `IQA_DOWNSTREAM_CONTRACT.md`, `iqa_reference/README.md`, then relevant `ARCHITECTURE.md` / `DECISIONS.md` sections | Repository/source ownership, peer-extension dependency direction, public provider/host boundary, reference behavior, downstream conformance, synthetic-vs-confidential data rules, lifecycle compatibility, or exact-MAIN-SHA sync policy |
-| Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
+| IQA extension ownership, server contract, handoff and historical P5 archive | [iqa/README.md](iqa/README.md) | Current MAIN/SUB source of truth, planned work and separately labeled legacy history || Core/UI/worker/cache/lifecycle | `ARCHITECTURE.md`, `DECISIONS.md` | Ownership, boundary, invariant, or data flow changes |
 | Multi-step feature/refactor | `CURRENT_STATE.md`, `ROADMAP.md`, active execution plan | Scope, milestones, risks, or follow-up work changes |
 | RAW decoding/profile work | `ARCHITECTURE.md`, `QUALITY.md`, RAW tests and fixtures, `user-guide/formats/raw.md` | Storage schema, validation, decoder, Bayer behavior, or user-facing RAW interpretation changes |
 | Branding/application identity | `BRANDING.md`, `PACKAGING_CONSTRAINTS.md`, `DECISIONS.md` | Product mark, canonical assets, resource loading, or release-icon use changes |
@@ -28,40 +26,12 @@ knowledge belongs in focused documents under `docs/`.
 - `PRODUCT_SPEC.md`: stable user-visible contracts.
 - `ARCHITECTURE.md`: current component boundaries, state ownership, data flow,
   and lifecycle invariants; planned components are explicitly marked.
-- `IQA_HANDOFF.md`: Issue #121 Slice 8 operational handoff authority for stable host/
-  public IQA contracts, lifecycle/concurrency/configuration rules, conformance,
-  exact-MAIN-SHA sync, packaging shapes, and downstream patch policy.
-- `IQA_OWNERSHIP.md`: authoritative post-Checkpoint-C MAIN/SUB source-ownership and
-  dependency contract for PixelScope Base/Core, MAIN Reference/Mock IQA, and SUB
-  Enterprise IQA peer extensions, including reserved paths and the
-  no-confidential-runtime rule.
-- `IQA_BOUNDARY_CHARACTERIZATION.md`: Issue #121 Slice 1 inventory of current concrete
-  Base/IQA coupling, production install/shutdown order, settings ownership, IQA test
-  classes, and the minimum public provider/result semantics that Slice 2 preserves.
-- `IQA_DOWNSTREAM_CONTRACT.md`: revised downstream consumer contract preserving the
-  useful Slice 5 public-port/concurrency/pinning rules while making the SUB Enterprise
-  extension a peer consumer of MAIN host/contracts. Real Enterprise smoke is a
-  downstream release responsibility, not a prerequisite for MAIN Slice 6-8.
-- `iqa_reference/README.md`: Revised Slice 6 physical-extraction inventory, generic
-  host additions, reference/mock composition/behavior, immutable baseline snapshot,
-  dependency rules, and Slice 7 cleanup boundary.
+- [IQA documentation hub](iqa/README.md): single authoritative navigation for **current MAIN/SUB contracts**, **proposed implementation/server documents**, and **historical P5/Remote-IQA records** (clearly marked as non-current).
 - [`exec-plans/completed/iqa-downstream-transfer-contract.md`](exec-plans/completed/iqa-downstream-transfer-contract.md):
   retained Slice 5 draft/review/reconciliation record; completion is documentation-
   contract completion, not production Enterprise qualification.
 - `DECISIONS.md`: accepted engineering decisions and pending owner decisions.
 - `ROADMAP.md`: phase-level delivered and future scope.
-- `REMOTE_IQA_CONTRACT.md`: historical P5 Remote-IQA product/architecture/transport
-  boundary retained for implementation archaeology.
-- `REMOTE_IQA_V2_SPEC.md`: historical P5 numerical/result-schema authority retained
-  for migration/reference archaeology; the runtime implementation is retired from MAIN.
-- `REMOTE_IQA_V1_SPEC.md`: historical merged P5-A/schema-v1 executable/read-only
-  compatibility contract; it is not the current writer/numerical target.
-- `REMOTE_IQA_VIEWER_INSPECTION.md`: additive native-Inspect contract and retained
-  P5-D closure evidence.
-- `REMOTE_IQA_HISTORICAL_RESULTS.md`: historical-Result contract and retained P5-E
-  closure evidence.
-- `REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`: retained repository-side integration and
-  performance characterization; it does not claim the deferred external P5-G gate.
 - `SESSION_CONTRACT.md`: authoritative P4-C Session v1 persistence, restore,
   legacy Comparison Set compatibility, typed Recent, and PR #32/#33 integration
   contract.
@@ -137,9 +107,7 @@ knowledge belongs in focused documents under `docs/`.
 10. Move substantial completed plans to `exec-plans/completed/`, keep unavailable but
    still-authoritative work in `exec-plans/deferred/`, and keep the required current
    plan at `exec-plans/active/next-phase.md`.
-11. Retain explicit schema-v1/v2 filenames as compatibility authority. Use
-    phase-neutral filenames for current durable contracts at the docs root; preserve
-    phase identity inside those documents and in completed execution history.
+11. Keep current IQA contracts under `docs/iqa/` and the retired P5/Remote-IQA v1/v2 records under `docs/iqa/legacy/`; root `docs/` only links to the IQA index. Historical terminology is not current authority.
 
 ## Mechanical documentation check
 

@@ -1,7 +1,7 @@
 # IQA repository and ownership boundary
 
 Status: Slice 8 public ownership/handoff contract for Issue #121.
-Current authority: latest Issue #121 revised Slice 8 plan and `docs/IQA_HANDOFF.md`.
+Current authority: latest Issue #121 revised Slice 8 plan and `docs/iqa/IQA_HANDOFF.md`.
 Checkpoint C baseline: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
 This document defines durable source ownership and dependency direction for PixelScope
@@ -9,6 +9,17 @@ Base/Core, the public reference/mock IQA extension, and the internal Enterprise 
 extension. Earlier Slice 0 wording that described MAIN as the permanent owner of the
 final IQA Client UI, or described a later Stage 2 move of that Client to SUB, is retained
 only in Git history. The revised Issue #121 architecture below supersedes it.
+
+## Post-#137 implementation-scope clarification (planned; not yet code)
+
+The ownership direction established by #121 remains unchanged, but the redesigned operator UX is no longer proposed for reimplementation within the public Reference package. See [MAIN host/Reference Lite plan](IQA_MAIN_HOST_PLAN.md), [server Result contract](IQA_SERVER_RESULT_REQUEST.md) and [temporary-window handoff plan](IQA_HANDOFF_WINDOW_PLAN.md).
+
+- **MAIN Base:** only generic menu/dock/settings/worker/window hosting and public IQA job/result contract, with small incremental changes proved necessary by generic tests.
+- **MAIN Reference Lite:** deterministic synthetic request/status/result and independent extension window/lifecycle/build canary. Detailed IQA maps, ROI, chart, report, NPZ reader and portable Save As are *not* public Reference commitments.
+- **Temporary public handoff branch:** public-safe production-shaped UX, using exclusively SUB-reserved paths. It is never merged into PUBLIC main.
+- **Private SUB:** real IQA extension, server/storage/auth configuration and adapters, complete product UI and packaging.
+
+The existing Reference code and behavior described below are the **as-implemented Slice 8 baseline**, not a mandatory final UX or a claim that Reference Lite refactoring has already happened. Do not introduce IQA-specific status or analysis widgets into Base; a contributed MainWindow job UI is extension-owned. Execution, result publication and analysis window have independent lifetimes.
 
 ## Product shapes
 
@@ -91,7 +102,7 @@ MAIN reference namespace:
 ```text
 src/pixelscope_iqa_reference/**
 tests/iqa_reference/**
-docs/iqa_reference/**
+docs/iqa/reference/**
 ```
 
 Reserved SUB namespaces:

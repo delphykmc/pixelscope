@@ -9,11 +9,11 @@ Baseline: `main@cb48f64059c19b8bbcccc248d06c6519ea650bb0` (merged Slice 0 / PR #
 > `Enterprise IQA -> IQA Client -> Base`, permanent MAIN ownership of the final IQA
 > Client UI, and real-SUB proof as a prerequisite for MAIN cleanup. The current target
 > is peer Reference/Mock and Enterprise extensions consuming MAIN public host/contracts.
-> See `IQA_OWNERSHIP.md` and `iqa_reference/README.md` for the current authority.
+> See `../IQA_OWNERSHIP.md` and `../reference/README.md` for the current authority.
 
 This document records the **current physical IQA integration boundary** that later
 Issue #121 slices must preserve while introducing the staged Base + IQA Client +
-Enterprise ownership model from `IQA_OWNERSHIP.md`.
+Enterprise ownership model from `../IQA_OWNERSHIP.md`.
 
 Slice 1 is characterization only. It does not rename or relocate production modules,
 change runtime composition, alter settings behavior, change Qt ownership, or weaken
@@ -28,7 +28,7 @@ a decision that those dependencies belong in Base or MAIN permanently.
 
 Use these two views together:
 
-- `IQA_OWNERSHIP.md` answers **which layer should own the contract**.
+- `../IQA_OWNERSHIP.md` answers **which layer should own the contract**.
 - this document answers **where the current implementation is coupled today and what
   behavior must remain compatible while the seam is introduced**.
 

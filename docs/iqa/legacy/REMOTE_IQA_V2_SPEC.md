@@ -1,5 +1,8 @@
 # Remote IQA schema v2 source-measurement specification
 
+> **ARCHIVED P5 / Remote-IQA contract — NOT CURRENT.** This document preserves the state and technical decisions of historical P5 releases only. Wording below such as **current**, **normative**, **production**, and **server contract** refers to that historical baseline, not today's public MAIN or the planned one-pair IQA Window. Use the [current IQA index](../README.md), [ownership](../IQA_OWNERSHIP.md), and [new server interface request](../IQA_SERVER_RESULT_REQUEST.md) instead.
+
+
 Status: Executable schema-v2 authority; repository client extensions merged through P5-F / PR #45
 Owner: PixelScope P5 program + external IQA server contract
 Historical executable baseline: P5-A / PR #37 / schema v1

@@ -102,7 +102,7 @@ enumeration/count/pair checks, decode/RGB8 validation, and per-pair geometry val
 PixelScope should avoid eager full-folder decode merely to duplicate server work. Long
 Folder validation must remain asynchronous with visible preparation/validation progress
 (indeterminate while total work is unknown, determinate once a total is known). The
-durable authority and follow-up boundary are recorded in `docs/REMOTE_IQA_CONTRACT.md`.
+durable authority and follow-up boundary are recorded in `docs/iqa/legacy/REMOTE_IQA_CONTRACT.md`.
 
 ### Interactive minimum-width probe
 

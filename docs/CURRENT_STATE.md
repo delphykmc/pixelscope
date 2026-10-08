@@ -1,5 +1,6 @@
 # PixelScope current state
 
+> **IQA documentation navigation:** Current MAIN/SUB contract and proposed server/storage interface are indexed at [docs/iqa/README.md](iqa/README.md). Older P5/Remote-IQA passages below are historical checkpoints, not live contract requirements.
 Snapshot date: 2026-09-10
 Current merged `main`: `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`
 
@@ -9,7 +10,7 @@ Current merged `main`: `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`
 > package through `iqa_domain.py`, `iqa_public_contract.py`,
 > `iqa_public_fixture.py`, and `pixelscope_iqa_reference/**`. Real provider/model/
 > server/storage/auth integration and internal Full packaging are downstream SUB
-> responsibilities. See `IQA_HANDOFF.md` for the current authority. The detailed P5
+> responsibilities. See `iqa/IQA_HANDOFF.md` for the current authority. The detailed P5
 > sections below are retained as implementation history unless explicitly marked current.
 
 `main` includes the cumulative P5/R history below plus the release-foundation and
@@ -89,25 +90,25 @@ Completed R program record:
 [`exec-plans/completed/repository-refactoring-validation-hardening.md`](exec-plans/completed/repository-refactoring-validation-hardening.md).
 
 Durable P5 product/transport contract:
-[`REMOTE_IQA_CONTRACT.md`](REMOTE_IQA_CONTRACT.md).
+[`iqa/legacy/REMOTE_IQA_CONTRACT.md`](iqa/legacy/REMOTE_IQA_CONTRACT.md).
 
 Current numerical/result contract:
-[`REMOTE_IQA_V2_SPEC.md`](REMOTE_IQA_V2_SPEC.md).
+[`iqa/legacy/REMOTE_IQA_V2_SPEC.md`](iqa/legacy/REMOTE_IQA_V2_SPEC.md).
 
 P5-D viewer-linked inspection contract:
-[`REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md).
+[`iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md`](iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md).
 
 P5-E historical-result contract:
-[`REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md).
+[`iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md`](iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md).
 
 P5-F integration characterization:
-[`REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
+[`iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md).
 
 P5-G external validation plan:
 [`exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 Historical schema-v1 compatibility contract:
-[`REMOTE_IQA_V1_SPEC.md`](REMOTE_IQA_V1_SPEC.md).
+[`iqa/legacy/REMOTE_IQA_V1_SPEC.md`](iqa/legacy/REMOTE_IQA_V1_SPEC.md).
 
 P7 release-foundation plan:
 [`exec-plans/active/p7-release-foundation.md`](exec-plans/active/p7-release-foundation.md).
@@ -504,7 +505,7 @@ tests/ui/test_p5d_alias_spatial_binding.py
 ```
 
 The complete contract and historical validation matrix remain in
-[`REMOTE_IQA_VIEWER_INSPECTION.md`](REMOTE_IQA_VIEWER_INSPECTION.md). P5-D PASS is not inferred as
+[`iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md`](iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md). P5-D PASS is not inferred as
 P5-F PASS.
 
 ## P5-E completed historical workflow
@@ -519,7 +520,7 @@ protection while preserving P5-B canonical opening, P5-D Inspect, Session v1, an
 Recent ownership.
 
 Its exact durable contract is
-[`REMOTE_IQA_HISTORICAL_RESULTS.md`](REMOTE_IQA_HISTORICAL_RESULTS.md). P5-E validation remains
+[`iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md`](iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md). P5-E validation remains
 historical evidence only.
 
 ## P5-F completed repository-side hardening state
