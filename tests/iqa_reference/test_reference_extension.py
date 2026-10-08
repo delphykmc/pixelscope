@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from PySide6.QtWidgets import QDockWidget
 
 from pixelscope.app.main_window import MainWindow
@@ -158,7 +159,9 @@ def test_reference_failed_job_keeps_result_unavailable_without_disabling_new_job
     window.close()
 
 
+@pytest.mark.parametrize("completed_first", (False, True))
 def test_published_demo_submission_failure_does_not_advance_previous_selection(
+    completed_first: bool,
     qtbot: object,
     monkeypatch: object,
     tmp_path: Path,
@@ -173,7 +176,11 @@ def test_published_demo_submission_failure_does_not_advance_previous_selection(
     extension.widget.submit_button.click()
     previous_id = extension.widget.selected_job_id()
     assert previous_id is not None
-    assert extension.jobs[previous_id].state is IqaJobState.QUEUED
+    if completed_first:
+        extension.widget.advance_button.click()
+        extension.widget.advance_button.click()
+    expected = IqaJobState.COMPLETED if completed_first else IqaJobState.QUEUED
+    assert extension.jobs[previous_id].state is expected
 
     def reject_submit(_intent: object) -> None:
         raise IqaProviderError(
@@ -186,13 +193,13 @@ def test_published_demo_submission_failure_does_not_advance_previous_selection(
 
     assert extension.widget.selected_job_id() == previous_id
     assert len(extension.jobs) == 1
-    assert extension.jobs[previous_id].state is IqaJobState.QUEUED
+    assert extension.jobs[previous_id].state is expected
     assert extension.analysis_window is None
     assert "submission failed" in extension.widget.status_label.text()
 
     # A second failed attempt also leaves the prior job intact.
     window.action_map["Open Published Synthetic IQA Result (Demo)"].trigger()
-    assert extension.jobs[previous_id].state is IqaJobState.QUEUED
+    assert extension.jobs[previous_id].state is expected
     assert len(extension.jobs) == 1
     window.close()
 
