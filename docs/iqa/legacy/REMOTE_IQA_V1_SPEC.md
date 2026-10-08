@@ -1,5 +1,8 @@
 # Remote IQA v1 normative specification
 
+> **ARCHIVED P5 / Remote-IQA contract — NOT CURRENT.** This document preserves the state and technical decisions of historical P5 releases only. Wording below such as **current**, **normative**, **production**, and **server contract** refers to that historical baseline, not today's public MAIN or the planned one-pair IQA Window. Use the [current IQA index](../README.md), [ownership](../IQA_OWNERSHIP.md), and [new server interface request](../IQA_SERVER_RESULT_REQUEST.md) instead.
+
+
 Status: Normative specialization of `REMOTE_IQA_CONTRACT.md` for P5 v1
 Owner: PixelScope P5 program + external IQA server contract
 Established: P5-0 independent-review follow-up

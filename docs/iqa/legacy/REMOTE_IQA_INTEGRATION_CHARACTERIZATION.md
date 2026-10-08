@@ -1,5 +1,8 @@
 # Remote IQA Integration & Performance Characterization
 
+> **ARCHIVED P5 / Remote-IQA contract — NOT CURRENT.** This document preserves the state and technical decisions of historical P5 releases only. Wording below such as **current**, **normative**, **production**, and **server contract** refers to that historical baseline, not today's public MAIN or the planned one-pair IQA Window. Use the [current IQA index](../README.md), [ownership](../IQA_OWNERSHIP.md), and [new server interface request](../IQA_SERVER_RESULT_REQUEST.md) instead.
+
+
 Status: **Complete — PR #45**
 
 Implementation base: `main@6a0a334d61a7495b9c3433edfcbd537c8df59468`
@@ -357,7 +360,7 @@ P5-F passed independent latest-head review and merged as PR #45 at
 
 That merge does **not** mark the overall P5 program Complete. P5-G — External GPU/SMB
 Validation & Closeout remains deferred pending real environment access in
-[`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](exec-plans/deferred/p5g-external-gpu-smb-validation.md).
+[`docs/exec-plans/deferred/p5g-external-gpu-smb-validation.md`](../../exec-plans/deferred/p5g-external-gpu-smb-validation.md).
 
 Only after P5-G observes the real external gate may the repository:
 

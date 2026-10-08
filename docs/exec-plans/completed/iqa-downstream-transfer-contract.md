@@ -22,9 +22,9 @@ Reconciliation baseline `main@bc4090e8e6594089ee47b6dd181700d7ce301482`
 contains merged Slice 0/1/2, including PR #125's Qt-free public IQA Client seam.
 The confirmed [Checkpoint A](https://github.com/delphykmc/pixelscope/issues/121#issuecomment-5993880778)
 defines the enterprise execution/shared-storage/local-reopen workflow.
-[Ownership](../../IQA_OWNERSHIP.md),
-[characterization](../../IQA_BOUNDARY_CHARACTERIZATION.md), and the focused
-[downstream contract](../../IQA_DOWNSTREAM_CONTRACT.md) remain authoritative.
+[Ownership](../../iqa/IQA_OWNERSHIP.md),
+[characterization](../../iqa/legacy/IQA_BOUNDARY_CHARACTERIZATION.md), and the focused
+[downstream contract](../../iqa/IQA_DOWNSTREAM_CONTRACT.md) were the contemporary authority for this completed Slice 5 plan; the current implementation authority is [IQA documentation](../../iqa/README.md).
 
 Merged Slice 2 provides `IqaExecutionPort`, `IqaResultAccessPort`, normalized
 `IqaResult`, lazy `IqaSpatialAccess`, provider-neutral errors, explicit source outcomes,

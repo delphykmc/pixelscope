@@ -4,7 +4,7 @@ Status: Complete — P5-A2 Stage 1 / PR #39 and Stage 2 / PR #40 merged
 Owner: repository owner + P5 orchestrator
 Stage-2 base: `main@4f2d58f36152cbebd1110a2aed09afacc6f09596` (PR #39 merge)
 Stage-2 merge: `5fcea48bd80e7a9aa5f5caa42fdaabebb27256d6` (PR #40)
-Current schema authority: [`docs/REMOTE_IQA_V2_SPEC.md`](../../REMOTE_IQA_V2_SPEC.md)
+Current schema authority: [`docs/REMOTE_IQA_V2_SPEC.md`](../../iqa/legacy/REMOTE_IQA_V2_SPEC.md)
 Historical executable baseline: P5-A / PR #37 / schema v1
 
 This file preserves the rationale and closure record for the schema-v2 interruption

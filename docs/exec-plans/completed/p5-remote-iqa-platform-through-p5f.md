@@ -14,17 +14,17 @@ The current repository program is in
 Authoritative P5 documents:
 
 - product/transport/ownership contract:
-  [`docs/REMOTE_IQA_CONTRACT.md`](../../REMOTE_IQA_CONTRACT.md)
+  [`docs/REMOTE_IQA_CONTRACT.md`](../../iqa/legacy/REMOTE_IQA_CONTRACT.md)
 - current numerical/result contract:
-  [`docs/REMOTE_IQA_V2_SPEC.md`](../../REMOTE_IQA_V2_SPEC.md)
+  [`docs/REMOTE_IQA_V2_SPEC.md`](../../iqa/legacy/REMOTE_IQA_V2_SPEC.md)
 - completed P5-D viewer-linked inspection contract:
-  [`docs/REMOTE_IQA_VIEWER_INSPECTION.md`](../../REMOTE_IQA_VIEWER_INSPECTION.md)
+  [`docs/REMOTE_IQA_VIEWER_INSPECTION.md`](../../iqa/legacy/REMOTE_IQA_VIEWER_INSPECTION.md)
 - completed P5-E historical-result contract:
-  [`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](../../REMOTE_IQA_HISTORICAL_RESULTS.md)
+  [`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](../../iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md)
 - P5-F integration characterization:
-  [`docs/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](../../REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md)
+  [`docs/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md`](../../iqa/legacy/REMOTE_IQA_INTEGRATION_CHARACTERIZATION.md)
 - historical schema-v1 compatibility:
-  [`docs/REMOTE_IQA_V1_SPEC.md`](../../REMOTE_IQA_V1_SPEC.md)
+  [`docs/REMOTE_IQA_V1_SPEC.md`](../../iqa/legacy/REMOTE_IQA_V1_SPEC.md)
 - current repository snapshot:
   [`docs/CURRENT_STATE.md`](../../CURRENT_STATE.md)
 - program roadmap:
@@ -146,7 +146,7 @@ authority:
 - Session v1 unchanged.
 
 The detailed merged P5-E authority remains in
-[`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](../../REMOTE_IQA_HISTORICAL_RESULTS.md). Its validation is
+[`docs/REMOTE_IQA_HISTORICAL_RESULTS.md`](../../iqa/legacy/REMOTE_IQA_HISTORICAL_RESULTS.md). Its validation is
 historical evidence only and is not carried forward as P5-F PASS.
 
 ## P5-F completed scope — repository-side integration hardening
