@@ -34,9 +34,7 @@ def make_synthetic_result(result_id: str = "public-synthetic-pair") -> AnalysisR
         unit = "dB" if index < 10 else "delta"
         offset = (index - 5) / 4.0
         values = 3.0 * np.sin(xx / 7 + index / 3) * np.cos(yy / 6) + offset
-        grid = SpatialMap(
-            values, valid, width, height, float(block), float(block)
-        )
+        grid = SpatialMap(values, valid, width, height, float(block), float(block))
         attributes.append(
             AttributeDisplay(
                 attribute_id=f"synthetic_{index:02d}",
