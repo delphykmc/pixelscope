@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+from numpy.typing import NDArray
 
 Availability = Literal["available", "partial", "missing", "failed"]
 Roi = tuple[float, float, float, float]
@@ -23,8 +24,8 @@ _MAX_CELLS = 4_000_000
 class SpatialMap:
     """One verified 2-D signed spatial grid in original-image coordinates."""
 
-    values: np.ndarray
-    valid_mask: np.ndarray
+    values: NDArray[np.float64]
+    valid_mask: NDArray[np.bool_]
     image_width: int
     image_height: int
     block_width: float
