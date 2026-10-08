@@ -1,16 +1,16 @@
 # IQA reference extension
 
-## Target after UX discovery (planned, not implemented)
-
-The current Reference described in this README remains the Slice 8 executable baseline. The revised decision is to keep an optional **Reference Lite integration canary**, rather than clone the final IQA Analysis Window in MAIN. See [MAIN Host/Reference cutoff](../IQA_MAIN_HOST_PLAN.md), [server Result contract](../IQA_SERVER_RESULT_REQUEST.md) and [handoff UI plan](../IQA_HANDOFF_WINDOW_PLAN.md).
-
-Reference Lite should prove a contributed MainWindow Run/Job/Completed action, deterministic mock result flow, an independently opened/closed minimal non-modal test window, explicit cleanup and isolated build. It must NOT be described as a real saved-file opener merely because the fixture supports `open_result()`; nor should it duplicate production A/B/Map, NPZ storage, ROI analytics or report/Save As implementation. Remove/replace old Reference/Scene text-only Dock UX only in a later dedicated implementation PR with updated tests and screenshots. Until then the documented current mock behavior remains accurate.
-
 Status: Issue #121 Slice 8 supported public Reference/Mock guide.
 Baseline before extraction: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
 The downstream handoff entry point is `docs/IQA_HANDOFF.md`.\n\nThis directory documents the MAIN-owned reference/mock IQA extension. It is an
 executable architecture/reference experience, not the final Enterprise UI.
+
+## Target after UX discovery (planned, not implemented)
+
+The current Reference described in this README remains the Slice 8 executable baseline. The revised decision is to keep an optional **Reference Lite integration canary**, rather than clone the final IQA Analysis Window in MAIN. See [MAIN Host/Reference cutoff](../IQA_MAIN_HOST_PLAN.md), [server Result contract](../IQA_SERVER_RESULT_REQUEST.md) and [handoff UI plan](../IQA_HANDOFF_WINDOW_PLAN.md).
+
+Reference Lite should prove a contributed MainWindow Run/Job/Completed action, deterministic mock result flow, an independently opened/closed minimal non-modal test window, explicit cleanup and isolated build. It must NOT be described as a real saved-file opener merely because the fixture supports `open_result()`; nor should it duplicate production A/B/Map, NPZ storage, ROI analytics or report/Save As implementation. Remove/replace old Reference/Scene text-only Dock UX only in a later dedicated implementation PR with updated tests and screenshots. Until then the documented current mock behavior remains accurate.
 
 ## Source-level compositions
 
