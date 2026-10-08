@@ -120,9 +120,7 @@ def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
             hardened.update(imported)
         if node.module in {"pixelscope.ui.analysis_export", "pixelscope.ui.session"}:
             legacy_imports.extend(
-                name
-                for name in imported
-                if name in {"install_analysis_export", "install_session"}
+                name for name in imported if name in {"install_analysis_export", "install_session"}
             )
 
     assert {
