@@ -123,8 +123,7 @@ class AnalysisResult:
         for attr in self.attributes:
             grid = attr.spatial
             if grid is not None and (
-                grid.image_width != self.image_width
-                or grid.image_height != self.image_height
+                grid.image_width != self.image_width or grid.image_height != self.image_height
             ):
                 raise ValueError("spatial and source geometry must match")
 
@@ -157,12 +156,8 @@ def roi_statistics(grid: SpatialMap, roi: Roi) -> GridStatistics:
         return GridStatistics(None, 0.0, 0.0, 0.0)
     xs = grid.origin_x + np.arange(grid.columns) * grid.block_width
     ys = grid.origin_y + np.arange(grid.rows) * grid.block_height
-    overlap_x = np.maximum(
-        0.0, np.minimum(xs + grid.block_width, x1) - np.maximum(xs, x0)
-    )
-    overlap_y = np.maximum(
-        0.0, np.minimum(ys + grid.block_height, y1) - np.maximum(ys, y0)
-    )
+    overlap_x = np.maximum(0.0, np.minimum(xs + grid.block_width, x1) - np.maximum(xs, x0))
+    overlap_y = np.maximum(0.0, np.minimum(ys + grid.block_height, y1) - np.maximum(ys, y0))
     weights = overlap_y[:, None] * overlap_x[None, :]
     weights = np.where(grid.valid_mask, weights, 0.0)
     valid_area = float(weights.sum())
