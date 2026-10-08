@@ -190,9 +190,7 @@ class ReferenceIqaWidget(QWidget):
         self.job_label.setText(
             f"{snapshot.reference.job_id} · {snapshot.state.value}{progress}{message}"
         )
-        self.advance_button.setEnabled(
-            snapshot.state in {IqaJobState.QUEUED, IqaJobState.RUNNING}
-        )
+        self.advance_button.setEnabled(snapshot.state in {IqaJobState.QUEUED, IqaJobState.RUNNING})
         self.view_button.setEnabled(snapshot.state is IqaJobState.COMPLETED)
         if paths is not None:
             label = "Synthetic pair" if synthetic else "Current pair"
