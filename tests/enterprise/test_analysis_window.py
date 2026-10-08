@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem
 
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
@@ -214,3 +214,49 @@ def test_reader_carries_validated_state_separate_from_official_result(
     assert win.current_roi == (0, 0, 64, 64)
     assert win._state().ranges == {"metric_db": 3.0}  # type: ignore[union-attr]
     win.close()
+
+
+def test_qt_map_pixmap_respects_non_oriented_signed_polarity(qtbot: object) -> None:
+    grid = SpatialMap(
+        values=np.array([[4.0, -4.0, np.nan]]),
+        valid_mask=np.array([[True, True, False]]),
+        image_width=192,
+        image_height=64,
+        block_width=64.0,
+        block_height=64.0,
+    )
+    signed = AttributeDisplay(
+        "signed_only", "Signed only", "delta", "signed",
+        0.0, "available", False, 4.0, grid,
+    )
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(AnalysisResult(
+        "pure-signed-pair", 192, 64, "A", "B", (signed,)
+    ))
+    assert "NO quality winner" in win.clamp_label.text()
+    assert "neutral / no winner inferred" in win.official_label.text()
+    scene = win._views[2].scene()
+    assert scene is not None
+    images = [item for item in scene.items() if isinstance(item, QGraphicsPixmapItem)]
+    assert len(images) == 1
+    raster = images[0].pixmap().toImage()
+    assert raster.pixelColor(0, 0).getRgb() == (181, 72, 193, 255)
+    assert raster.pixelColor(1, 0).getRgb() == (35, 145, 148, 255)
+    assert raster.pixelColor(2, 0).alpha() == 0
+    win.close()
+
+
+def test_manager_shutdown_is_idempotent_after_multiple_empty_open_cycles(
+    qtbot: object,
+) -> None:
+    for _ in range(4):
+        manager = AnalysisWindowManager()
+        win = manager.show()
+        qtbot.addWidget(win)  # type: ignore[attr-defined]
+        win.close()
+        assert manager.show() is win
+        manager.shutdown()
+        manager.shutdown()
+        with pytest.raises(RuntimeError, match="shut down"):
+            manager.show()
