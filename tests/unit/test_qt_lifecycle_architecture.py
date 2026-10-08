@@ -99,8 +99,7 @@ def test_rank4_helpers_do_not_store_direct_owner_backreferences() -> None:
                     and (target.attr, root) in forbidden
                 ):
                     violations.append(
-                        f"{relative_path}:{node.lineno}: "
-                        f"self.{target.attr} retains {root}"
+                        f"{relative_path}:{node.lineno}: self.{target.attr} retains {root}"
                     )
     assert violations == []
 
