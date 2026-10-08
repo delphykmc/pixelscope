@@ -1,6 +1,6 @@
 # IQA MAIN host ownership and Reference Lite plan (proposed)
 
-Status: specification for review, **no implementation authorized by this document**. Tracking: [#139](https://github.com/delphykmc/pixelscope/issues/139). Related: [#121](https://github.com/delphykmc/pixelscope/issues/121), [#136](https://github.com/delphykmc/pixelscope/issues/136), [#137](https://github.com/delphykmc/pixelscope/issues/137), [#140](https://github.com/delphykmc/pixelscope/issues/140), [#141](https://github.com/delphykmc/pixelscope/issues/141).
+Status: approved MAIN implementation scope after merged docs PR #142; feature work tracked under Issue #139. This plan does not authorize any SUB-owned implementation in MAIN. Tracking: [#139](https://github.com/delphykmc/pixelscope/issues/139). Related: [#121](https://github.com/delphykmc/pixelscope/issues/121), [#136](https://github.com/delphykmc/pixelscope/issues/136), [#137](https://github.com/delphykmc/pixelscope/issues/137), [#140](https://github.com/delphykmc/pixelscope/issues/140), [#141](https://github.com/delphykmc/pixelscope/issues/141).
 
 ## Decision and authority
 
@@ -73,6 +73,21 @@ Generic schema must not contain real storage paths, server endpoints, tokens, pr
 - No Qt object leakage, stale callback touching deleted widgets, new unbounded pools, GC disable, hidden sleeps, forced timeouts or exception swallowing (Issue #81).
 - Source pair selection/Job ID identity, public port overlapping calls and ambiguous-submit are covered.
 - Exact merged MAIN SHA and contract revision are recorded for handoff.
+
+## M0 spike observation (#139 implementation branch)
+
+The optional Reference Lite uses the existing contribution phases and public source-slot host access:
+`install_actions()` contributes File > Run IQA (Synthetic) and View > Show IQA Mock Jobs;
+`install_dock()` registers a compact extension-owned jobs dock; the host's existing
+`statusBar().showMessage()` supplies transient status feedback. A separate top-level
+`QMainWindow(parent=host)` is held and disposed by the extension's idempotent shutdown.
+No generic toolbar, status widget, child-window registry, new Base API or new public
+IQA schema is required for this canary. Thus **conditional M1 is not exercised**.
+
+The mock presents multiple job IDs, explicit fixture-driven queued/running/completed/failed
+states and a user-triggered View Result. Closing the child does not cancel execution.
+FHD visual placement, normal-GC Windows lifecycle, both package targets and applicable
+local/CI tests remain separate verification gates until execution evidence is recorded.
 
 ## Acceptance / implementation gate
 
