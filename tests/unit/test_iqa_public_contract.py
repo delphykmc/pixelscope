@@ -1,466 +1,169 @@
 from __future__ import annotations
 
-import json
-import struct
-import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import fields
 from pathlib import Path
-from threading import Lock
-from typing import Any
 
+import numpy as np
 import pytest
 
-from pixelscope.remote.iqa_client import (
-    IqaClientError,
-    IqaClientErrorKind,
-    IqaCreateOutcomeUnknown,
-    IqaJobClient,
-)
-from pixelscope.remote.iqa_domain import ComparisonMode, LoadStatus, Source
-from pixelscope.remote.iqa_explorer import IqaExplorerModel
-from pixelscope.remote.iqa_public_adapter import (
-    P5IqaExecutionAdapter,
-    P5IqaReferenceRegistry,
-    P5IqaResultAccessAdapter,
-    normalize_result_v2,
-)
+from pixelscope.remote.iqa_domain import CompactAttributeData
 from pixelscope.remote.iqa_public_contract import (
     IqaAvailability,
-    IqaExecutionPort,
-    IqaJobReference,
+    IqaJobProgress,
     IqaJobState,
     IqaMeasurementSummary,
     IqaProviderError,
     IqaProviderErrorKind,
-    IqaResultAccessPort,
-    IqaResultCompleteness,
+    IqaResolvedSource,
     IqaResultReference,
+    IqaResultSource,
+    IqaResultSourceOutcome,
+    IqaSource,
     IqaSourceLocator,
+    IqaSourceResolutionOutcome,
+    IqaSpatialSceneData,
     IqaSubmissionIntent,
     IqaSubmissionScene,
     IqaSubmissionSource,
     IqaVariant,
 )
-from pixelscope.remote.iqa_settings import RemoteIqaSettings, RemoteIqaStorageRoot
-from pixelscope.remote.iqa_submission import (
-    IqaJobCreated,
-    IqaJobRequest,
-    IqaJobStatus,
-    JobState,
-)
-from pixelscope.remote.iqa_submission import IqaResultReference as P5ResultReference
-from pixelscope.remote.iqa_v2_domain import ResultV2
-from pixelscope.remote.iqa_v2_fixture import write_golden_result_v2
-from pixelscope.remote.iqa_v2_partial import PartialResultV2
-from pixelscope.remote.iqa_v2_reader import load_result_v2
 
 
-class _FakeJobClient(IqaJobClient):
-    def __init__(self) -> None:
-        self.created_request: IqaJobRequest | None = None
-
-    def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
-        self.created_request = request
-        return IqaJobCreated("job-public", JobState.QUEUED)
-
-    def get_status(self, job_id: str) -> IqaJobStatus:
-        return IqaJobStatus(
-            job_id,
-            JobState.EXTRACTING,
-            1,
-            3,
-            "internal status from https://private-provider.invalid/secret",
-        )
-
-    def get_result(self, job_id: str) -> P5ResultReference:
-        return P5ResultReference(job_id, "shared", "results/job-public", 2, "complete")
-
-    def cancel_job(self, job_id: str) -> IqaJobStatus:
-        return IqaJobStatus(job_id, JobState.CANCELLED, 1, 3, "cancelled")
-
-
-class _FailingSubmitClient(_FakeJobClient):
-    def __init__(self, error: IqaClientError) -> None:
-        super().__init__()
-        self._error = error
-
-    def create_job(self, request: IqaJobRequest) -> IqaJobCreated:
-        raise self._error
-
-
-class _FailingStatusClient(_FakeJobClient):
-    def __init__(self, error: IqaClientError) -> None:
-        super().__init__()
-        self._error = error
-
-    def get_status(self, job_id: str) -> IqaJobStatus:
-        raise self._error
-
-
-class _ConcurrentGuardJobClient(_FakeJobClient):
-    """Legacy client fake that fails if the adapter invokes it concurrently."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._guard = Lock()
-        self.overlap_detected = False
-
-    def get_status(self, job_id: str) -> IqaJobStatus:
-        if not self._guard.acquire(blocking=False):
-            self.overlap_detected = True
-            raise AssertionError("legacy job client received overlapping calls")
-        try:
-            time.sleep(0.01)
-            return super().get_status(job_id)
-        finally:
-            self._guard.release()
-
-
-def _png(path: Path, width: int = 8, height: int = 6) -> None:
-    path.write_bytes(
-        b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", width, height)
-    )
-
-
-def _settings(root: Path) -> RemoteIqaSettings:
-    return RemoteIqaSettings(
-        "https://provider.invalid",
-        (RemoteIqaStorageRoot("shared", str(root)),),
-        "shared",
-    )
-
-
-def _intent(a: Path, b: Path) -> IqaSubmissionIntent:
+def _intent() -> IqaSubmissionIntent:
+    variants = (IqaVariant("A", "Reference"), IqaVariant("B", "Candidate"))
     return IqaSubmissionIntent(
         "current_pair",
-        (IqaVariant("A", "A"), IqaVariant("B", "B")),
+        variants,
         (
             IqaSubmissionScene(
-                "scene_000000",
+                "scene_0001",
                 (
-                    IqaSubmissionSource("A", a),
-                    IqaSubmissionSource("B", b),
+                    IqaSubmissionSource("A", Path("a.png")),
+                    IqaSubmissionSource("B", Path("b.png")),
                 ),
             ),
         ),
     )
 
 
-def _loaded_v2(root: Path) -> ResultV2:
-    outcome = load_result_v2(root)
-    assert outcome.status is LoadStatus.SUCCESS, outcome.reason
-    assert isinstance(outcome.result, ResultV2)
-    return outcome.result
-
-
-def _manifest(root: Path) -> dict[str, Any]:
-    return json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-
-
-def _write_manifest(root: Path, manifest: dict[str, Any]) -> None:
-    (root / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, allow_nan=False),
-        encoding="utf-8",
-    )
-
-
-def test_public_ports_expose_semantics_without_transport_or_storage_topology(
-    tmp_path: Path,
-) -> None:
-    shared = tmp_path / "shared"
-    shared.mkdir()
-    a = shared / "a.png"
-    b = shared / "b.png"
-    _png(a)
-    _png(b)
-    registry = P5IqaReferenceRegistry()
-    client = _FakeJobClient()
-    adapter = P5IqaExecutionAdapter(client, _settings(shared), registry)
-
-    assert isinstance(adapter, IqaExecutionPort)
+def test_public_identity_types_do_not_expose_provider_storage_topology() -> None:
     assert [item.name for item in fields(IqaResultReference)] == ["reference_id"]
+    assert [item.name for item in fields(IqaSourceLocator)] == ["locator_id", "display_name"]
     assert [item.name for item in fields(IqaSubmissionSource)] == ["variant_id", "local_path"]
 
-    job = adapter.submit(_intent(a, b))
-    assert job == IqaJobReference("job-public")
-    assert client.created_request is not None
-    status = adapter.get_status(job)
-    assert status.state is IqaJobState.RUNNING
-    assert status.progress.completed == 1
-    assert status.message == "IQA job is running."
-    assert "private-provider" not in status.message
-    assert adapter.get_result_reference(job) == IqaResultReference("job-public")
-    assert adapter.cancel(job).state is IqaJobState.CANCELLED
+    locator = IqaSourceLocator("opaque-source", "source.png")
+    source = IqaSource("source-1", locator, "0" * 64, 640, 480)
+    assert source.relative_path == "source.png"
+    assert not hasattr(source, "storage_root_id")
 
 
-def test_execution_adapter_translates_ambiguous_submit_without_leaking_provider_detail(
-    tmp_path: Path,
-) -> None:
-    shared = tmp_path / "shared"
-    shared.mkdir()
-    a = shared / "a.png"
-    b = shared / "b.png"
-    _png(a)
-    _png(b)
-    error = IqaCreateOutcomeUnknown(
-        IqaClientErrorKind.TIMEOUT,
-        "timeout contacting https://private-provider.invalid/internal/job/create",
-    )
-    adapter = P5IqaExecutionAdapter(
-        _FailingSubmitClient(error),
-        _settings(shared),
-        P5IqaReferenceRegistry(),
-    )
+def test_submission_intent_requires_unique_identity_and_declared_variant_order() -> None:
+    intent = _intent()
+    assert tuple(item.variant_id for item in intent.variants) == ("A", "B")
 
-    with pytest.raises(IqaProviderError) as captured:
-        adapter.submit(_intent(a, b))
-    public = captured.value
-    assert public.kind is IqaProviderErrorKind.AMBIGUOUS_SUBMIT
-    assert public.submission_outcome_unknown
-    assert not public.retryable
-    assert "private-provider" not in public.display_message
-    assert "Do not resubmit automatically" in public.display_message
+    with pytest.raises(ValueError, match="variant IDs must be non-empty and unique"):
+        IqaSubmissionIntent(
+            "duplicate-variant",
+            (IqaVariant("A", "A"), IqaVariant("A", "Again")),
+            intent.scenes,
+        )
 
-
-@pytest.mark.parametrize(
-    ("legacy_error", "public_kind", "retryable"),
-    [
-        (
-            IqaClientError(
-                IqaClientErrorKind.HTTP,
-                "HTTP 403 at https://private-provider.invalid/internal",
-                status_code=403,
+    with pytest.raises(ValueError, match="declared variant order"):
+        IqaSubmissionIntent(
+            "wrong-order",
+            intent.variants,
+            (
+                IqaSubmissionScene(
+                    "scene_0001",
+                    (
+                        IqaSubmissionSource("B", Path("b.png")),
+                        IqaSubmissionSource("A", Path("a.png")),
+                    ),
+                ),
             ),
-            IqaProviderErrorKind.ACCESS_REQUIRED,
-            False,
-        ),
-        (
-            IqaClientError(
-                IqaClientErrorKind.TIMEOUT,
-                "timeout at https://private-provider.invalid/internal",
-            ),
-            IqaProviderErrorKind.UNAVAILABLE,
-            True,
-        ),
-        (
-            IqaClientError(
-                IqaClientErrorKind.PROTOCOL,
-                "proprietary payload key internal_model_name was missing",
-            ),
-            IqaProviderErrorKind.OPERATION_FAILED,
-            False,
-        ),
-    ],
-)
-def test_execution_adapter_maps_operational_failures_to_public_error_taxonomy(
-    tmp_path: Path,
-    legacy_error: IqaClientError,
-    public_kind: IqaProviderErrorKind,
-    retryable: bool,
-) -> None:
-    shared = tmp_path / "shared"
-    shared.mkdir()
-    adapter = P5IqaExecutionAdapter(
-        _FailingStatusClient(legacy_error),
-        _settings(shared),
-        P5IqaReferenceRegistry(),
+        )
+
+    with pytest.raises(ValueError, match="Scene IDs must be non-empty and unique"):
+        IqaSubmissionIntent(
+            "duplicate-scene",
+            intent.variants,
+            (intent.scenes[0], intent.scenes[0]),
+        )
+
+
+def test_job_progress_and_terminal_state_validation_are_provider_neutral() -> None:
+    assert not IqaJobState.QUEUED.terminal
+    assert not IqaJobState.RUNNING.terminal
+    assert IqaJobState.COMPLETED.terminal
+    assert IqaJobState.FAILED.terminal
+    assert IqaJobState.CANCELLED.terminal
+
+    assert IqaJobProgress(2, 3) == IqaJobProgress(completed=2, total=3)
+    with pytest.raises(ValueError, match="non-negative"):
+        IqaJobProgress(completed=-1)
+    with pytest.raises(ValueError, match="non-negative"):
+        IqaJobProgress(total=-1)
+    with pytest.raises(ValueError, match="cannot exceed total"):
+        IqaJobProgress(completed=4, total=3)
+
+
+def test_provider_error_exposes_only_bounded_sanitized_public_message() -> None:
+    error = IqaProviderError(
+        IqaProviderErrorKind.AMBIGUOUS_SUBMIT,
+        "  submit   outcome   is   unknown  ",
+        retryable=False,
     )
 
-    with pytest.raises(IqaProviderError) as captured:
-        adapter.get_status(IqaJobReference("job-public"))
-    public = captured.value
-    assert public.kind is public_kind
-    assert public.retryable is retryable
-    assert "private-provider" not in public.display_message
-    assert "internal_model_name" not in public.display_message
+    assert error.display_message == "submit outcome is unknown"
+    assert error.submission_outcome_unknown
+    assert not error.retryable
+    assert str(error) == error.display_message
+
+    bounded = IqaProviderError(IqaProviderErrorKind.OPERATION_FAILED, "x" * 400)
+    assert len(bounded.display_message) == 256
 
 
-def test_execution_adapter_is_safe_for_same_instance_concurrent_calls(tmp_path: Path) -> None:
-    shared = tmp_path / "shared"
-    shared.mkdir()
-    client = _ConcurrentGuardJobClient()
-    adapter = P5IqaExecutionAdapter(client, _settings(shared), P5IqaReferenceRegistry())
-    reference = IqaJobReference("job-public")
-
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        snapshots = tuple(pool.map(adapter.get_status, (reference,) * 8))
-
-    assert all(item.state is IqaJobState.RUNNING for item in snapshots)
-    assert not client.overlap_detected
-
-
-def test_p5_result_adapter_materializes_and_normalizes_for_existing_client_model(
+def test_availability_outcomes_keep_missing_partial_and_failure_explicit(
     tmp_path: Path,
 ) -> None:
-    shared = tmp_path / "shared"
-    shared.mkdir()
-    result_root = write_golden_result_v2(shared / "results" / "job-public")
-    legacy = _loaded_v2(result_root)
-    registry = P5IqaReferenceRegistry()
-    public_reference = registry.register_result(
-        P5ResultReference("job-public", "shared", "results/job-public", 2, "complete")
-    )
-    adapter = P5IqaResultAccessAdapter(_settings(shared), registry)
-
-    assert isinstance(adapter, IqaResultAccessPort)
-    materialized = adapter.materialize(public_reference)
-    assert materialized.succeeded
-    assert materialized.source is not None
-    opened = adapter.open_result(materialized.source)
-    assert opened.succeeded
-    assert opened.result is not None
-    public = opened.result
-    assert public.completeness is IqaResultCompleteness.COMPLETE
-    assert public.dataset.dataset_id == legacy.result_id
-    assert not hasattr(public.scenes[0].sources[0].source, "storage_root_id")
-    assert "/" not in public.scenes[0].sources[0].source.relative_path
-
-    legacy_model = IqaExplorerModel(legacy)
-    public_model = IqaExplorerModel(public)
-    assert legacy_model.result is legacy
-    assert legacy_model.normalized_result is None
-    assert public_model.result is public
-    assert public_model.normalized_result is public
-
-    attribute_id = legacy.attributes[0].attribute_id
-    variant_id = legacy.variants[0].variant_id
-    assert public_model.absolute_dataset_stat(
-        variant_id,
-        attribute_id,
-    ) == legacy_model.absolute_dataset_stat(variant_id, attribute_id)
-
-    reference_id = legacy.variants[0].variant_id
-    target_id = legacy.variants[1].variant_id
-    public_relative = public_model.prepare_reference(reference_id)
-    legacy_relative = legacy_model.prepare_reference(reference_id)
-    assert public_relative.relative_dataset_stat(
-        attribute_id,
-        ComparisonMode.RATIO_OF_WEIGHTED_MEANS,
-        reference_id,
-        target_id,
-    ) == legacy_relative.relative_dataset_stat(
-        attribute_id,
-        ComparisonMode.RATIO_OF_WEIGHTED_MEANS,
-        reference_id,
-        target_id,
-    )
-
-
-def test_source_resolution_distinguishes_available_missing_and_failure(tmp_path: Path) -> None:
-    shared = tmp_path / "shared"
-    shared.mkdir()
-    existing = shared / "source.png"
-    _png(existing)
-    registry = P5IqaReferenceRegistry()
-    adapter = P5IqaResultAccessAdapter(_settings(shared), registry)
-
-    available_locator = IqaSourceLocator("available", "source.png")
-    registry.register_source(
-        available_locator,
-        Source("source-available", "source.png", "0" * 64, 8, 6, storage_root_id="shared"),
-    )
-    available = adapter.resolve_source(available_locator)
-    assert available.availability is IqaAvailability.AVAILABLE
-    assert available.succeeded
-    assert available.source is not None
-    assert available.source.local_path == existing
-
-    missing_locator = IqaSourceLocator("missing", "gone.png")
-    registry.register_source(
-        missing_locator,
-        Source("source-missing", "gone.png", "0" * 64, 8, 6, storage_root_id="shared"),
-    )
-    missing = adapter.resolve_source(missing_locator)
-    assert missing.availability is IqaAvailability.MISSING
-    assert not missing.succeeded
-    assert missing.diagnostics[0].code == "source_not_available"
-
-    failed_locator = IqaSourceLocator("failed", "source.png")
-    registry.register_source(
-        failed_locator,
-        Source(
-            "source-failed",
-            "source.png",
-            "0" * 64,
-            8,
-            6,
-            storage_root_id="provider-private-root",
-        ),
-    )
-    failed = adapter.resolve_source(failed_locator)
-    assert failed.availability is IqaAvailability.FAILED
-    assert not failed.succeeded
-    assert failed.diagnostics[0].code == "source_access_unavailable"
-    assert "provider-private-root" not in failed.diagnostics[0].message
-
-    unknown = adapter.resolve_source(IqaSourceLocator("unknown"))
-    assert unknown.availability is IqaAvailability.MISSING
-    assert unknown.diagnostics[0].code == "source_not_available"
-
-
-def test_normalized_result_keeps_spatial_access_lazy_and_failure_explicit(
-    tmp_path: Path,
-) -> None:
-    root = write_golden_result_v2(tmp_path / "lazy")
-    legacy = _loaded_v2(root)
-    public = normalize_result_v2(legacy)
-    manifest = _manifest(root)
-    first_scene_id = legacy.scenes[0].scene_id
-    grid_path = root / manifest["scenes"][0]["grid_artifact"]["path"]
-    grid_path.unlink()
-
-    model = IqaExplorerModel(public)
-    attribute_id = legacy.attributes[0].attribute_id
-    variant_id = legacy.variants[0].variant_id
-    assert model.absolute_dataset_stat(variant_id, attribute_id).valid
-
-    spatial = public.load_spatial(first_scene_id)
-    assert spatial.availability is IqaAvailability.FAILED
-    assert not spatial.succeeded
-    assert spatial.diagnostics[0].scene_id == first_scene_id
-    with pytest.raises(ValueError, match=first_scene_id):
-        model.prepare_reference(variant_id)
-
-
-def test_partial_and_missing_states_are_explicit_in_public_domain(tmp_path: Path) -> None:
-    root = write_golden_result_v2(tmp_path / "partial", scene_count=4)
-    manifest = _manifest(root)
-    manifest["publication_state"] = "partial"
-    manifest["scene_outcomes"] = [
-        {"scene_id": scene["scene_id"], "status": "succeeded"} for scene in manifest["scenes"]
-    ] + [
-        {
-            "scene_id": "scene_000004",
-            "status": "failed",
-            "error": {
-                "code": "provider.scene_failed",
-                "message": "internal model path \\private\\model\\v7 failed",
-                "retryable": True,
-            },
-        }
-    ]
-    _write_manifest(root, manifest)
-    outcome = load_result_v2(root)
-    assert isinstance(outcome.result, PartialResultV2)
-
-    public = normalize_result_v2(outcome.result)
-    assert public.completeness is IqaResultCompleteness.PARTIAL
-    assert public.diagnostics[0].scene_id == "scene_000004"
-    assert public.diagnostics[0].code == "scene_failed"
-    assert "private" not in public.diagnostics[0].message
-
-    unpublished = public.load_spatial("scene_000004")
-    assert unpublished.availability is IqaAvailability.MISSING
-    assert unpublished.diagnostics[0].code == "spatial_scene_not_published"
-
-    first_grid = root / manifest["scenes"][0]["grid_artifact"]["path"]
-    first_grid.unlink()
-    damaged = public.load_spatial(outcome.result.scenes[0].scene_id)
-    assert damaged.availability is IqaAvailability.FAILED
-    assert damaged.diagnostics[0].code == "spatial_data_failed"
-
     missing = IqaMeasurementSummary.missing("metric_not_published")
+    failed = IqaMeasurementSummary.failed("provider_failed")
     assert missing.availability is IqaAvailability.MISSING
+    assert failed.availability is IqaAvailability.FAILED
     assert not missing.valid
-    assert missing.reason == "metric_not_published"
+    assert not failed.valid
+
+    result_source = IqaResultSource(tmp_path)
+    available_result = IqaResultSourceOutcome(IqaAvailability.AVAILABLE, result_source)
+    partial_result = IqaResultSourceOutcome(IqaAvailability.PARTIAL, result_source)
+    assert available_result.succeeded
+    assert partial_result.succeeded
+    assert not IqaResultSourceOutcome(IqaAvailability.MISSING).succeeded
+
+    resolved = IqaResolvedSource(tmp_path / "source.png")
+    assert IqaSourceResolutionOutcome(IqaAvailability.AVAILABLE, resolved).succeeded
+    assert not IqaSourceResolutionOutcome(IqaAvailability.PARTIAL, resolved).succeeded
+    assert not IqaSourceResolutionOutcome(IqaAvailability.MISSING).succeeded
+
+
+def test_spatial_scene_data_projects_the_requested_variant_without_legacy_adapter() -> None:
+    compact = CompactAttributeData(
+        weight_sum=np.asarray([1.0, 2.0]),
+        weighted_sum=np.asarray([3.0, 4.0]),
+        weighted_square_sum=np.asarray([9.0, 16.0]),
+        valid_count=np.asarray([5, 6]),
+        valid_mask=np.asarray([True, False]),
+    )
+    spatial = IqaSpatialSceneData(
+        "scene_0001",
+        ("A", "B"),
+        ("source-a", "source-b"),
+        {"detail": compact},
+    )
+
+    projected = spatial.attribute_for_variant("B", "detail")
+    assert float(np.asarray(projected.weight_sum).item()) == 2.0
+    assert float(np.asarray(projected.weighted_sum).item()) == 4.0
+    assert float(np.asarray(projected.weighted_square_sum).item()) == 16.0
+    assert int(np.asarray(projected.valid_count).item()) == 6
+    assert not bool(np.asarray(projected.valid_mask).item())

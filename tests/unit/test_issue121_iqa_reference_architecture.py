@@ -151,6 +151,30 @@ def test_reference_entrypoint_transitive_iqa_imports_are_public_only() -> None:
     assert violations == []
 
 
+def test_current_tests_do_not_import_retired_iqa_runtime_modules() -> None:
+    allowed = {
+        "pixelscope.remote.iqa_domain",
+        "pixelscope.remote.iqa_public_contract",
+        "pixelscope.remote.iqa_public_fixture",
+    }
+    retired_exact = {
+        "pixelscope.app.iqa_history",
+        "pixelscope.workers.iqa_thread_pool",
+    }
+    violations: list[str] = []
+    for path in (REPOSITORY_ROOT / "tests").rglob("*.py"):
+        for module in _imports(path):
+            retired = (
+                module.startswith("pixelscope.remote.iqa_")
+                or module.startswith("pixelscope.ui.iqa_")
+                or module in retired_exact
+            )
+            if retired and module not in allowed:
+                relative = path.relative_to(REPOSITORY_ROOT)
+                violations.append(f"{relative} -> {module}")
+    assert violations == []
+
+
 def test_historical_p5_runtime_files_are_retired_from_main_source() -> None:
     remote_root = SOURCE_ROOT / "pixelscope" / "remote"
     ui_root = SOURCE_ROOT / "pixelscope" / "ui"

@@ -619,10 +619,19 @@ CI gate without first observing PySide6/pytest-qt/offscreen reliability and
 acceptable suite runtime/resource use on the target runner. Windows CI
 introduction is therefore deferred; packaging/installer CI remains P7.
 
+## Historical P5 Remote-IQA quality records
+
+The P5-A through P5-C sections below are retained as pre-retirement validation
+history. Their file paths and commands may name modules/tests removed by Issue #121
+Slice 8 and **must not be treated as current-HEAD validation instructions**. For the
+supported current public IQA boundary and executable validation entry points, use
+`docs/IQA_HANDOFF.md` and the conformance/reference tests named there. Historical
+commands are reproducible only from their corresponding repository snapshots.
+
 ## P5-A deterministic Remote IQA result contract — historical schema v1
 
-`tests/unit/test_remote_iqa_v1.py` remains the deterministic historical schema-v1
-compatibility oracle. It verifies the original ten attributes, pairwise math,
+`tests/unit/test_remote_iqa_v1.py` was the deterministic historical schema-v1
+compatibility oracle at the P5 snapshot. It verifies the original ten attributes, pairwise math,
 W/S1/S2/count/valid recomposition, geometry, and bounded artifact safety. Its exact
 historical aggregation behavior is not changed to match v2.
 
@@ -635,12 +644,12 @@ Historical focused command:
 R3-A removed the isolated pre-P5 `/v1/jobs` scaffold and its self-only
 `tests/unit/test_remote.py` after history/import/package audit found no supported
 consumer. This does not reduce schema-v1 Result compatibility coverage: the canonical
-oracle above remains unchanged. Canonical P5-C/P5-F tests continue to cover the
-`/v1/iqa/jobs` client, localhost/mock transports, cancellation, and compatibility probe.
+oracle above remains unchanged. Canonical P5-C/P5-F tests covered the `/v1/iqa/jobs` client, localhost/mock
+transports, cancellation, and compatibility probe at those historical snapshots.
 
-## P5-A2 executable schema-v2 contract — Complete / PR #40
+## P5-A2 executable schema-v2 contract — historical / PR #40
 
-The executable-v2 quality baseline is covered by:
+The historical executable-v2 quality baseline was covered by:
 
 ```text
 tests/unit/test_remote_iqa_v2.py
@@ -745,7 +754,7 @@ P5-C acceptance is contract/transaction/lifecycle/resource based, not timing bas
 
 ### Focused P5-C validation
 
-Current focused command after closeout should include at least:
+Historical P5-C focused command at that snapshot included:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q `
@@ -760,8 +769,8 @@ Current focused command after closeout should include at least:
     tests\ui\test_p5c_result_retry.py
 ```
 
-Add focused staging/shutdown/remap/duplicate-create regressions as those blockers are
-fixed.
+At that historical snapshot, focused staging/shutdown/remap/duplicate-create
+regressions were added as those blockers were fixed.
 
 Then run static/docs checks:
 

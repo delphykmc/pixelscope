@@ -1,9 +1,10 @@
 # IQA downstream handoff and conformance kit
 
 Status: Issue #121 Slice 8 handoff authority.
-Slice 8 MAIN baseline: `main@29561bdb70e722380a8041212d991ae21b72c6be`.
+Slice 8 starting baseline (merged Slice 7): `main@29561bdb70e722380a8041212d991ae21b72c6be`.
 Pre-extraction mixed implementation snapshot:
 `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
+The final Slice 8 merge SHA is recorded only after merge; this PR does not preclaim it.
 
 This document is the single public handoff entry point for an external IQA extension.
 It does not describe a specific Enterprise implementation. It defines what MAIN owns,

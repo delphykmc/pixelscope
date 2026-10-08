@@ -574,29 +574,22 @@ acceptance. Hidden viewers release obsolete derived buffers.
 Frozen `ApplicationSettings` plus `SettingsRepository` own versioned application
 preferences. Workspace layout/session QSettings remain separate.
 
-Current schema version 6 owns the prior schema-v5 preferences—RAW JSON confirmation,
-exact RAW size, default Open/Export directories, Difference Threshold/Gain,
-Difference Map Cache MiB, Decoded Source Memory MiB, and preload enablement—and adds
-typed machine-local Remote IQA settings:
+Current schema version 7 owns only Base/Core application preferences: RAW JSON
+confirmation, exact RAW size, default Open/Export directories, Difference
+Threshold/Gain, Difference Map Cache MiB, Decoded Source Memory MiB, preload
+enablement, and the other generic settings defined by `ApplicationSettings`.
 
-```text
-RemoteIqaSettings
-    server_base_url
-    storage_roots[] {
-        storage_root_id
-        client_path
-    }
-    staging_root_id
-```
+Historical schema-v6 `settings/remote_iqa/*` keys are no longer a typed Base
+`ApplicationSettings` field. They are treated as extension-owned legacy keys:
+Base ignores and preserves them rather than interpreting, migrating, or deleting
+their provider/storage configuration. Provider endpoints, credentials, storage-root
+mapping, staging policy, and other real IQA configuration belong to the downstream
+extension.
 
-`storage_root_id` is portable client/server identity; `client_path` is machine-local
-only. Server physical paths and credentials are not persisted in PixelScope. Session
-v1 and result artifacts do not own these mappings.
-
-P4-A/P4-B introduced no setting/schema migration; Display Gain and temporary curation
-remain session-local. P5-C is the schema-v5→v6 migration owner. `Reset Settings`
-resets schema-owned application preferences, including Remote IQA configuration,
-while workspace-layout reset remains separate.
+`Reset Settings` resets only Base schema-owned application preferences. It does not
+claim ownership of extension settings, and workspace-layout reset remains separate.
+The pre-extraction P5-C schema-v6 Remote-IQA settings contract is retained only as
+historical repository evidence.
 
 ## Thread and request lifecycle
 
