@@ -6,86 +6,152 @@ from types import SimpleNamespace
 from PySide6.QtWidgets import QDockWidget
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.remote.iqa_public_contract import IqaJobState
 from pixelscope.remote.iqa_public_fixture import FixtureIqaProvider, IqaFixtureProfile
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope_iqa_reference.extension import ReferenceIqaExtension
 
 
-def test_reference_extension_exercises_mock_job_result_reference_and_scene_flow(
+def test_reference_lite_proves_existing_menu_dock_status_and_child_window_hooks(
     qtbot: object,
     monkeypatch: object,
     tmp_path: Path,
 ) -> None:
-    provider = FixtureIqaProvider(tmp_path / "reference", IqaFixtureProfile.MINIMAL)
-    extension = ReferenceIqaExtension(provider)
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "reference", IqaFixtureProfile.MINIMAL)
+    )
     window = MainWindow(window_contributions=(extension,))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    path_a = tmp_path / "a.png"
-    path_b = tmp_path / "b.png"
+    path_a, path_b = tmp_path / "a.png", tmp_path / "b.png"
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        window,
-        "current_comparison_source_paths",
-        lambda: (path_a, path_b),
+        window, "current_comparison_source_paths", lambda: (path_a, path_b)
     )
 
     assert extension.active
+    assert window.action_map["Run IQA (Synthetic)"] is not None
+    assert window.action_map["Show IQA Mock Jobs"] is extension.action
     assert extension.dock is not None
     assert extension.widget is not None
     assert extension.dock.objectName() == "referenceIqaWorkspaceDock"
     assert extension.dock.widget() is extension.widget
-    assert window.action_map["Open IQA Reference Result..."] is not None
-    assert window.action_map["Show IQA Reference"] is extension.action
-    assert [
-        dock
-        for dock in window.findChildren(QDockWidget)
-        if dock.objectName() == "referenceIqaWorkspaceDock"
-    ] == [extension.dock]
 
+    # Run from MainWindow, not from a Base-specific IQA method.
+    window.action_map["Run IQA (Synthetic)"].trigger()
+    jobs = extension.jobs
+    first_id = next(iter(jobs))
+    assert jobs[first_id].state is IqaJobState.QUEUED
+    assert extension.widget.jobs_list.count() == 1
+    assert "Current pair: a.png" in extension.widget.selection_label.text()
+    assert extension._job_sources[first_id] == ((path_a, path_b), False)
+    assert "queued" in window.statusBar().currentMessage()
+
+    # Captured sources and job identity survive a changed MainWindow selection.
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        window, "current_comparison_source_paths", lambda: (None, path_b)
+    )
     extension.widget.submit_button.click()
-    assert "queued" in extension.widget.job_label.text()
-    assert "Current pair" in extension.widget.selection_label.text()
+    jobs = extension.jobs
+    second_id = next(identifier for identifier in jobs if identifier != first_id)
+    assert jobs[second_id].state is IqaJobState.QUEUED
+    assert extension._job_sources[first_id] == ((path_a, path_b), False)
+    assert extension._job_sources[second_id][1] is True
+    assert "Synthetic pair" in extension.widget.selection_label.text()
 
+    # One child can open EMPTY while there are multiple live jobs.
+    extension.widget.empty_button.click()
+    analysis = extension.analysis_window
+    assert analysis is not None
+    assert analysis.result is None
+    assert analysis.isWindow()
+    assert analysis.parent() is window
+
+    # Manually advancing a selected fixture job never auto-switches the viewer.
     extension.widget.advance_button.click()
-    assert "running" in extension.widget.job_label.text()
+    assert extension.jobs[second_id].state is IqaJobState.RUNNING
+    assert extension.jobs[first_id].state is IqaJobState.QUEUED
     extension.widget.advance_button.click()
-    assert "completed" in extension.widget.job_label.text()
-    assert extension.widget.open_button.isEnabled()
+    assert extension.jobs[second_id].state is IqaJobState.COMPLETED
+    assert extension.widget.view_button.isEnabled()
+    assert analysis.result is None
 
-    extension.widget.open_button.click()
-    assert extension.widget.result is not None
-    assert extension.widget.result.result_id == "fixture-minimal"
-    assert extension.widget.reference_combo.count() == 2
-    assert extension.widget.scene_combo.count() == 3
-    assert "Synthetic IQA fixture" in extension.widget.result_label.text()
-    assert "Spatial: available" in extension.widget.detail_label.text()
+    extension.widget.view_button.click()
+    assert analysis is extension.analysis_window
+    assert analysis.result is not None
+    assert analysis.result.result_id == "fixture-minimal"
+    assert "Synthetic published result" in analysis.result_label.text()
+    assert "No saved-file reader" in analysis.note_label.text()
 
-    extension.widget.reference_combo.setCurrentIndex(1)
-    extension.widget.scene_combo.setCurrentIndex(2)
-    assert "scene_0002_variant_001.png" in extension.widget.detail_label.text()
+    # Closing the child neither removes nor cancels jobs; the same child reopens.
+    analysis.close()
+    assert extension.jobs[first_id].state is IqaJobState.QUEUED
+    assert extension.jobs[second_id].state is IqaJobState.COMPLETED
+    extension.widget.view_button.click()
+    assert extension.analysis_window is analysis
+
+    # Selecting an older job retains its independent state/controls.
+    extension.widget.jobs_list.setCurrentRow(0)
+    assert extension.widget.advance_button.isEnabled()
+    assert not extension.widget.view_button.isEnabled()
+    extension.widget.advance_button.click()
+    assert extension.jobs[first_id].state is IqaJobState.RUNNING
 
     window.close()
     assert not extension.active
+    assert extension.analysis_window is None
+    assert extension.jobs == {}
+    extension.shutdown()  # idempotent
 
 
-def test_reference_file_action_opens_published_mock_result_without_external_backend(
+def test_reference_published_result_demo_is_explicitly_synthetic(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
-    provider = FixtureIqaProvider(tmp_path / "saved", IqaFixtureProfile.MINIMAL)
-    extension = ReferenceIqaExtension(provider)
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "published", IqaFixtureProfile.MINIMAL)
+    )
     window = MainWindow(window_contributions=(extension,))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
-    window.action_map["Open IQA Reference Result..."].trigger()
+    window.action_map["Open Published Synthetic IQA Result (Demo)"].trigger()
+    assert len(extension.jobs) == 1
+    assert next(iter(extension.jobs.values())).state is IqaJobState.COMPLETED
+    assert extension.analysis_window is not None
+    assert extension.analysis_window.result is not None
+    assert extension.analysis_window.result.result_id == "fixture-minimal"
 
-    assert extension.widget is not None
-    assert extension.widget.result is not None
-    assert extension.widget.result.result_id == "fixture-minimal"
-    assert "completed" in extension.widget.job_label.text()
-    assert extension.dock is not None and not extension.dock.isHidden()
+    window.action_map["Open Empty IQA Analysis Canary"].trigger()
+    assert extension.analysis_window.result is None
+    assert "Empty analysis window" in extension.analysis_window.result_label.text()
 
     window.close()
-    assert not extension.active
+    assert extension.analysis_window is None
+
+
+def test_reference_failed_job_keeps_result_unavailable_without_disabling_new_jobs(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "failure", IqaFixtureProfile.FAILURE)
+    )
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    assert extension.widget is not None
+
+    extension.widget.submit_button.click()
+    job_id = next(iter(extension.jobs))
+    extension.widget.advance_button.click()
+    extension.widget.advance_button.click()
+    assert extension.jobs[job_id].state is IqaJobState.FAILED
+    assert not extension.widget.advance_button.isEnabled()
+    assert not extension.widget.view_button.isEnabled()
+    assert "failed" in window.statusBar().currentMessage()
+    assert extension.analysis_window is None
+
+    extension.widget.submit_button.click()
+    assert len(extension.jobs) == 2
+    assert extension.jobs[job_id].state is IqaJobState.FAILED
+    window.close()
 
 
 def test_window_host_preserves_comparison_slot_cardinality_and_missing_native_paths(
@@ -107,9 +173,7 @@ def test_window_host_preserves_comparison_slot_cardinality_and_missing_native_pa
         "current_comparison_documents",
         lambda: documents,
     )
-
     assert window.current_comparison_source_paths() == (None, path_a, path_b)
-
     window.close()
 
 
@@ -118,8 +182,9 @@ def test_reference_current_pair_requires_exactly_two_native_slots(
     monkeypatch: object,
     tmp_path: Path,
 ) -> None:
-    provider = FixtureIqaProvider(tmp_path / "cardinality", IqaFixtureProfile.MINIMAL)
-    extension = ReferenceIqaExtension(provider)
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "cardinality", IqaFixtureProfile.MINIMAL)
+    )
     window = MainWindow(window_contributions=(extension,))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     path_a = tmp_path / "a.png"
@@ -139,20 +204,16 @@ def test_reference_current_pair_requires_exactly_two_native_slots(
         )
         _intent, paths, synthetic = extension._submission_intent()
         assert synthetic
-        assert paths == (
-            Path("reference-a.synthetic"),
-            Path("reference-b.synthetic"),
-        )
+        assert paths == (Path("reference-a.synthetic"), Path("reference-b.synthetic"))
 
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        window,
-        "current_comparison_source_paths",
-        lambda: (path_a, path_b),
+        window, "current_comparison_source_paths", lambda: (path_a, path_b)
     )
-    _intent, paths, synthetic = extension._submission_intent()
+    intent, paths, synthetic = extension._submission_intent()
     assert not synthetic
     assert paths == (path_a, path_b)
-
+    assert intent.scenes[0].sources[0].local_path == path_a
+    assert intent.scenes[0].sources[1].local_path == path_b
     window.close()
 
 
@@ -167,7 +228,6 @@ def test_reference_dock_uses_generic_contributed_dock_lifecycle_hardening(
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
     hardening = install_beta_workspace_hardening(window)
-
     assert extension.dock is not None
     managed_parents = {controller.parent() for controller in hardening._dock_controllers}
     assert window.bottom_dock in managed_parents
@@ -175,4 +235,16 @@ def test_reference_dock_uses_generic_contributed_dock_lifecycle_hardening(
     assert not hasattr(window, "iqa_dock")
     assert not hasattr(window, "iqa_workspace_action")
 
+    window.close()
+
+
+def test_core_only_has_no_reference_ui_or_import_dependency(qtbot: object) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    assert "Run IQA (Synthetic)" not in window.action_map
+    assert "Open Empty IQA Analysis Canary" not in window.action_map
+    assert not any(
+        dock.objectName() == "referenceIqaWorkspaceDock"
+        for dock in window.findChildren(QDockWidget)
+    )
     window.close()
