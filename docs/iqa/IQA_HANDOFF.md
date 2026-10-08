@@ -14,11 +14,11 @@ It does not describe a specific Enterprise implementation. It defines what MAIN 
 what a downstream repository may depend on, what it must validate, and how newer MAIN
 revisions are consumed without permanent downstream patches to MAIN-owned files.
 
-## Post-UX-discovery implementation plan (specification; pending code)
+## Post-UX-discovery MAIN implementation (#139 Reference Lite)
 
-After #137, the proposed division is **MAIN generic host + small Reference Lite integration canary**, with actual A/B/Map IQA Analysis Window work developed on a temporary public-safe, NON-MERGED SUB-owned handoff branch, then transferred to PRIVATE SUB. The historical Reference UX documented in this file reflects the current implementation and is not an approved product layout.
+After #137, the division is **MAIN generic host + small Reference Lite integration canary**, with actual A/B/Map IQA Analysis Window work reserved for a temporary public-safe, NON-MERGED SUB-owned handoff branch and eventual transfer to PRIVATE SUB. The earlier Slice 8 Reference/Scene widget is historical, not the live reference or approved product UI.
 
-See [MAIN scope and generic host requirements](IQA_MAIN_HOST_PLAN.md), [server JSON/NPZ/result publication request](IQA_SERVER_RESULT_REQUEST.md) and [temporary IQA Window implementation/handoff](IQA_HANDOFF_WINDOW_PLAN.md), tracked by #139, #140, #141. These specifications do not themselves change source code, bump the public contract revision or create the implementation branch.
+See [MAIN scope and generic host requirements](IQA_MAIN_HOST_PLAN.md), [server JSON/NPZ/result publication request](IQA_SERVER_RESULT_REQUEST.md), [Reference Lite runtime](reference/README.md), and [temporary IQA Window implementation/handoff](IQA_HANDOFF_WINDOW_PLAN.md), tracked by #139, #140, #141. Reference Lite changes only the public example; it does not bump the public contract revision or create the SUB implementation branch.
 
 Public Core must not acquire a product-specific Job registry, A/B/Map UI or enterprise artifact parser. Existing `WindowContribution` and `WindowHostAccess` should be tested before adding any generic toolbar/status/lifecycle hooks. The enterprise extension owns the MainWindow-contributed Run/Status/View action and the independent non-modal Analysis Window. MAIN Reference only needs to prove extension composition, public job-state semantics, child-window lifecycle, clean shutdown and packaging. Any needed normalized official pair-comparison contract addition is a narrowly reviewed public MAIN change, never a private server wire schema.
 
@@ -92,13 +92,12 @@ The reference extension demonstrates:
 
 ```text
 explicit composition
--> contributed action/dock
--> current-pair or synthetic submit
--> queued -> running -> completed
--> published result open
--> Reference / Scene selection
--> lazy spatial access
--> explicit contribution shutdown
+-> contributed Run action / mock jobs dock / status notice
+-> exactly two current native source slots or labeled synthetic fallback
+-> multiple fixture Job IDs, queued -> running -> completed/failed
+-> explicit result view in a single non-modal synthetic child window
+-> independent empty child opening without a job
+-> child close without job cancellation and explicit owner shutdown
 ```
 
 ## Explicit composition example
@@ -157,7 +156,7 @@ A downstream contribution must:
   separately justified MAIN contract change;
 - reject stale callbacks/results after their owner is no longer active.
 
-The MAIN reference extension intentionally adds no new provider thread pool.
+The MAIN reference extension intentionally adds no new provider thread pool or timer. Its deterministic manual fixture advancement is a canary, not an asynchronous Enterprise scheduler. The child QMainWindow is extension-owned and explicitly released on host shutdown.
 
 ## Concurrency rules
 
