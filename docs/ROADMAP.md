@@ -1,6 +1,6 @@
 # Roadmap
 
-> Historical P5/Remote-IQA roadmap entries below refer to retired repository implementation. The present IQA authority and proposed work are indexed at [docs/iqa/README.md](iqa/README.md).\n
+> Historical P5/Remote-IQA roadmap entries below refer to retired repository implementation. The present IQA authority and proposed work are indexed at [docs/iqa/README.md](iqa/README.md).
 ## Delivered baseline
 
 ### P0/P1 — Product foundation — Complete

@@ -1,6 +1,6 @@
 # PixelScope current state
 
-> **IQA documentation navigation:** Current MAIN/SUB contract and proposed server/storage interface are indexed at [docs/iqa/README.md](iqa/README.md). Older P5/Remote-IQA passages below are historical checkpoints, not live contract requirements.\n
+> **IQA documentation navigation:** Current MAIN/SUB contract and proposed server/storage interface are indexed at [docs/iqa/README.md](iqa/README.md). Older P5/Remote-IQA passages below are historical checkpoints, not live contract requirements.
 Snapshot date: 2026-09-10
 Current merged `main`: `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`
 

@@ -1,6 +1,6 @@
 # Engineering decisions
 
-> **IQA history note:** P5/Remote-IQA decisions in this chronological ledger describe retired historical baselines, not the current IQA product or server contract. Current ownership and new server proposal: [IQA documentation index](iqa/README.md).\n
+> **IQA history note:** P5/Remote-IQA decisions in this chronological ledger describe retired historical baselines, not the current IQA product or server contract. Current ownership and new server proposal: [IQA documentation index](iqa/README.md).
 ## Platform and implementation constraints
 
 - CPython 3.10 x64 is fixed.

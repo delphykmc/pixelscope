@@ -3,7 +3,9 @@
 Status: Issue #121 Slice 8 supported public Reference/Mock guide.
 Baseline before extraction: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
-The downstream handoff entry point is `docs/iqa/IQA_HANDOFF.md`.\n\nThis directory documents the MAIN-owned reference/mock IQA extension. It is an
+The downstream handoff entry point is `docs/iqa/IQA_HANDOFF.md`.
+
+This directory documents the MAIN-owned reference/mock IQA extension. It is an
 executable architecture/reference experience, not the final Enterprise UI.
 
 ## Target after UX discovery (planned, not implemented)
