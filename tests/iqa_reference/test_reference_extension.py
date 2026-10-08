@@ -6,7 +6,11 @@ from types import SimpleNamespace
 from PySide6.QtWidgets import QDockWidget
 
 from pixelscope.app.main_window import MainWindow
-from pixelscope.remote.iqa_public_contract import IqaJobState
+from pixelscope.remote.iqa_public_contract import (
+    IqaJobState,
+    IqaProviderError,
+    IqaProviderErrorKind,
+)
 from pixelscope.remote.iqa_public_fixture import FixtureIqaProvider, IqaFixtureProfile
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope_iqa_reference.extension import ReferenceIqaExtension
@@ -152,6 +156,77 @@ def test_reference_failed_job_keeps_result_unavailable_without_disabling_new_job
     assert len(extension.jobs) == 2
     assert extension.jobs[job_id].state is IqaJobState.FAILED
     window.close()
+
+
+def test_published_demo_submission_failure_does_not_advance_previous_selection(
+    qtbot: object,
+    monkeypatch: object,
+    tmp_path: Path,
+) -> None:
+    provider = FixtureIqaProvider(tmp_path / "submit-error", IqaFixtureProfile.MINIMAL)
+    extension = ReferenceIqaExtension(provider)
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    assert extension.widget is not None
+
+    # An earlier selected job must never be mistaken for the failed new submission.
+    extension.widget.submit_button.click()
+    previous_id = extension.widget.selected_job_id()
+    assert previous_id is not None
+    assert extension.jobs[previous_id].state is IqaJobState.QUEUED
+
+    def reject_submit(_intent: object) -> None:
+        raise IqaProviderError(
+            IqaProviderErrorKind.UNAVAILABLE,
+            "Synthetic provider submission failed.",
+        )
+
+    monkeypatch.setattr(provider, "submit", reject_submit)
+    window.action_map["Open Published Synthetic IQA Result (Demo)"].trigger()
+
+    assert extension.widget.selected_job_id() == previous_id
+    assert len(extension.jobs) == 1
+    assert extension.jobs[previous_id].state is IqaJobState.QUEUED
+    assert extension.analysis_window is None
+    assert "submission failed" in extension.widget.status_label.text()
+
+    # A second failed attempt also leaves the prior job intact.
+    window.action_map["Open Published Synthetic IQA Result (Demo)"].trigger()
+    assert extension.jobs[previous_id].state is IqaJobState.QUEUED
+    assert len(extension.jobs) == 1
+    window.close()
+
+
+def test_reference_child_reopen_cycles_keep_jobs_alive_until_owner_shutdown(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "child-cycles", IqaFixtureProfile.MINIMAL)
+    )
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    assert extension.widget is not None
+    extension.widget.submit_button.click()
+    job_id = extension.widget.selected_job_id()
+    assert job_id is not None
+
+    extension.widget.empty_button.click()
+    child = extension.analysis_window
+    assert child is not None
+    for _ in range(5):
+        child.close()
+        assert not child.isVisible()
+        assert extension.jobs[job_id].state is IqaJobState.QUEUED
+        extension.widget.empty_button.click()
+        assert extension.analysis_window is child
+        assert child.isVisible()
+
+    window.close()
+    assert not extension.active
+    assert extension.analysis_window is None
+    assert not child.isVisible()
+    extension.shutdown()
 
 
 def test_window_host_preserves_comparison_slot_cardinality_and_missing_native_paths(
