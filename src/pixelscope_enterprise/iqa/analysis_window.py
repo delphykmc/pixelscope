@@ -174,6 +174,8 @@ class AnalysisWindow(QMainWindow):
         self._rendering = False
         self._views: list[_LinkedView] = []
         self._roi_items: list[object] = []
+        self._source_result_id: str | None = None
+        self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
 
         file_menu = self.menuBar().addMenu("File")
         self.open_action = file_menu.addAction("Open Result...")
@@ -389,7 +391,23 @@ class AnalysisWindow(QMainWindow):
         self.range_editor.setValue(limit)
         self.range_editor.setEnabled(attr.spatial is not None)
         self.range_editor.blockSignals(False)
+        # Decode source RGB once per active pair, not on attribute/range/ROI changes.
+        if self._source_result_id != result.result_id:
+            images: list[QPixmap | None] = []
+            for source in (result.source_a, result.source_b):
+                image = QImage(str(source)) if source is not None and source.is_file() else QImage()
+                if (
+                    image.isNull()
+                    or image.width() != result.image_width
+                    or image.height() != result.image_height
+                ):
+                    images.append(None)
+                else:
+                    images.append(QPixmap.fromImage(image))
+            self._source_pixmaps = (images[0], images[1])
+            self._source_result_id = result.result_id
         self._rendering = True
+        self._roi_items = []
         for i, view in enumerate(self._views):
             view._muted = True
             old_scene = view.scene()
@@ -397,18 +415,13 @@ class AnalysisWindow(QMainWindow):
             scene.setSceneRect(QRectF(0, 0, result.image_width, result.image_height))
             scene.setBackgroundBrush(QColor(29, 32, 36))
             if i < 2:
-                path = result.source_a if i == 0 else result.source_b
-                image = QImage(str(path)) if path is not None and path.is_file() else QImage()
-                if (
-                    image.isNull()
-                    or image.width() != result.image_width
-                    or image.height() != result.image_height
-                ):
-                    note = scene.addText("Source unavailable\nNumeric/spatial analysis retained")
+                pixmap = self._source_pixmaps[i]
+                if pixmap is None:
+                    note = scene.addText("Source unavailable\\nNumeric/spatial analysis retained")
                     note.setDefaultTextColor(QColor(240, 240, 240))
                     note.setPos(20, 20)
                 else:
-                    scene.addPixmap(QPixmap.fromImage(image))
+                    scene.addPixmap(pixmap)
             else:
                 pixmap = _map_pixmap(attr, limit)
                 grid = attr.spatial
@@ -422,6 +435,10 @@ class AnalysisWindow(QMainWindow):
                     item.setTransform(
                         QTransform().scale(grid.block_width, grid.block_height)
                     )
+            overlay = scene.addRect(QRectF(), QPen(QColor(255, 205, 0), 2))
+            overlay.setZValue(100)
+            overlay.setVisible(False)
+            self._roi_items.append(overlay)
             view.setScene(scene)
             if old_scene is not None:
                 old_scene.deleteLater()
@@ -470,15 +487,10 @@ class AnalysisWindow(QMainWindow):
             )
 
     def _draw_roi(self, roi: Roi | None) -> None:
-        if roi is None:
-            return
-        rect = QRectF(*roi)
-        for view in self._views:
-            scene = view.scene()
-            if scene is None:
-                continue
-            overlay = scene.addRect(rect, QPen(QColor(255, 205, 0), 2))
-            overlay.setZValue(100)
+        rect = QRectF(*roi) if roi is not None else QRectF()
+        for overlay in self._roi_items:
+            overlay.setRect(rect)  # type: ignore[attr-defined]
+            overlay.setVisible(roi is not None)  # type: ignore[attr-defined]
 
     def _set_roi(self, x: float, y: float, w: float, h: float) -> None:
         if self._active_id is None:
@@ -494,7 +506,12 @@ class AnalysisWindow(QMainWindow):
         if state is None:
             return
         state.roi = (left, top, right - left, bottom - top)
-        self._render_result()  # Attribute and ROI are retained; visuals stay synchronized.
+        self._draw_roi(state.roi)
+        attr = self._attribute()
+        if attr is not None:
+            self._render_inspector(
+                attr, state.ranges.get(attr.attribute_id, attr.fixed_range)
+            )
 
     def _update_range(self, value: float) -> None:
         state = self._state()
