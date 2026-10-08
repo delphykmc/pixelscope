@@ -141,7 +141,11 @@ def test_duplicate_id_changed_attribute_set_or_sources_is_rejected(qtbot: object
     original = _result("unchanged")
     win.present_result(original)
     changed = AnalysisResult(
-        "unchanged", 128, 128, "Synthetic A", "Synthetic B",
+        "unchanged",
+        128,
+        128,
+        "Synthetic A",
+        "Synthetic B",
         attributes=(original.attributes[1],),
         source_a=Path("different-a.png"),
         source_b=Path("different-b.png"),
