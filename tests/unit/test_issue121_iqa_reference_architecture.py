@@ -18,12 +18,50 @@ def _imports(path: Path) -> set[str]:
     return modules
 
 
+def _module_name(path: Path) -> str:
+    relative = path.relative_to(SOURCE_ROOT).with_suffix("")
+    parts = list(relative.parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def _source_import_graph() -> dict[str, set[str]]:
+    graph: dict[str, set[str]] = {}
+    for path in SOURCE_ROOT.rglob("*.py"):
+        graph[_module_name(path)] = {
+            module for module in _imports(path) if module.startswith("pixelscope")
+        }
+    return graph
+
+
+def _reachable_modules(entrypoint: str) -> set[str]:
+    graph = _source_import_graph()
+    pending = [entrypoint]
+    reachable: set[str] = set()
+    while pending:
+        module = pending.pop()
+        if module in reachable:
+            continue
+        reachable.add(module)
+        pending.extend(
+            dependency
+            for dependency in graph.get(module, ())
+            if dependency in graph and dependency not in reachable
+        )
+    return reachable
+
+
 def _is_reserved_implementation(module: str) -> bool:
     return module.startswith(("pixelscope_iqa_reference", "pixelscope_enterprise"))
 
 
 def _contains_iqa_implementation(modules: set[str]) -> bool:
     return any(".iqa_" in module or "remote_iqa" in module for module in modules)
+
+
+def _is_iqa_runtime_module(module: str) -> bool:
+    return module.startswith(("pixelscope.ui.iqa_", "pixelscope.remote.iqa_"))
 
 
 def _is_allowed_main_import(module: str, allowed: tuple[str, ...]) -> bool:
@@ -83,6 +121,75 @@ def test_reference_extension_uses_only_allowed_main_surfaces() -> None:
     assert violations == []
 
 
+def test_core_entrypoint_transitive_imports_reach_no_iqa_implementation() -> None:
+    reachable = _reachable_modules("pixelscope.__main__")
+    allowed_iqa_modules = {
+        "pixelscope.remote.iqa_domain",
+        "pixelscope.remote.iqa_public_contract",
+        "pixelscope.remote.iqa_public_fixture",
+    }
+    violations = sorted(
+        module
+        for module in reachable
+        if _is_iqa_runtime_module(module) and module not in allowed_iqa_modules
+    )
+    assert violations == []
+
+
+def test_reference_entrypoint_transitive_iqa_imports_are_public_only() -> None:
+    reachable = _reachable_modules("pixelscope_iqa_reference.__main__")
+    allowed_iqa_modules = {
+        "pixelscope.remote.iqa_domain",
+        "pixelscope.remote.iqa_public_contract",
+        "pixelscope.remote.iqa_public_fixture",
+    }
+    violations = sorted(
+        module
+        for module in reachable
+        if _is_iqa_runtime_module(module) and module not in allowed_iqa_modules
+    )
+    assert violations == []
+
+
+def test_current_tests_do_not_import_retired_iqa_runtime_modules() -> None:
+    allowed = {
+        "pixelscope.remote.iqa_domain",
+        "pixelscope.remote.iqa_public_contract",
+        "pixelscope.remote.iqa_public_fixture",
+    }
+    retired_exact = {
+        "pixelscope.app.iqa_history",
+        "pixelscope.workers.iqa_thread_pool",
+    }
+    violations: list[str] = []
+    for path in (REPOSITORY_ROOT / "tests").rglob("*.py"):
+        for module in _imports(path):
+            retired = (
+                module.startswith("pixelscope.remote.iqa_")
+                or module.startswith("pixelscope.ui.iqa_")
+                or module in retired_exact
+            )
+            if retired and module not in allowed:
+                relative = path.relative_to(REPOSITORY_ROOT)
+                violations.append(f"{relative} -> {module}")
+    assert violations == []
+
+
+def test_historical_p5_runtime_files_are_retired_from_main_source() -> None:
+    remote_root = SOURCE_ROOT / "pixelscope" / "remote"
+    ui_root = SOURCE_ROOT / "pixelscope" / "ui"
+    allowed_remote = {
+        "iqa_domain.py",
+        "iqa_public_contract.py",
+        "iqa_public_fixture.py",
+    }
+
+    assert {path.name for path in remote_root.glob("iqa_*.py")} == allowed_remote
+    assert list(ui_root.glob("iqa_*.py")) == []
+    assert not (SOURCE_ROOT / "pixelscope" / "app" / "iqa_history.py").exists()
+    assert not (SOURCE_ROOT / "pixelscope" / "workers" / "iqa_thread_pool.py").exists()
+
+
 def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
     reserved = (
         "src/pixelscope_enterprise",
@@ -107,6 +214,30 @@ def test_base_settings_has_no_concrete_iqa_type_or_runtime_dependency() -> None:
     assert not _contains_iqa_implementation(_imports(path))
     assert "RemoteIqaSettings" not in source
     assert "remote_iqa:" not in source
+
+
+def test_generic_base_ui_contains_no_legacy_p5_attribute_contract() -> None:
+    legacy_names = {
+        "iqa_dock",
+        "iqa_workspace",
+        "iqa_workspace_action",
+        "remote_iqa_workspace",
+        "iqaWorkspaceDock",
+        "ui/iqa_floating_geometry",
+    }
+    paths = (
+        SOURCE_ROOT / "pixelscope" / "ui" / "beta_workspace_hardening.py",
+        SOURCE_ROOT / "pixelscope" / "ui" / "workflow_polish.py",
+        SOURCE_ROOT / "pixelscope" / "ui" / "user_guide_help.py",
+        SOURCE_ROOT / "pixelscope" / "ui" / "plots_dock_title.py",
+    )
+    violations = {
+        str(path.relative_to(REPOSITORY_ROOT)): sorted(
+            name for name in legacy_names if name in path.read_text(encoding="utf-8")
+        )
+        for path in paths
+    }
+    assert {path: names for path, names in violations.items() if names} == {}
 
 
 def test_core_diagnostics_exposes_only_generic_extension_sections() -> None:

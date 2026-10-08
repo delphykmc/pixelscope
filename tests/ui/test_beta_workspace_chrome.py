@@ -4,9 +4,9 @@ import pytest
 from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QDockWidget, QLabel, QWidget
 
+from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope.ui.design_tokens import TOKENS, WORKSPACE_CHROME_HEIGHT
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 
@@ -32,18 +32,11 @@ def test_docked_workspace_chrome_has_one_shared_baseline(qtbot: object) -> None:
     polish_presentation_controls(window)
     install_beta_workspace_hardening(window)
     window.show()
-    window.iqa_workspace_action.trigger()
-    qtbot.waitUntil(window.iqa_dock.isVisible)  # type: ignore[attr-defined]
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: isinstance(window.iqa_dock.titleBarWidget(), PlotsDockTitleBar)
-    )
 
     files = _sidebar_heading(window, 0)
     analysis = _sidebar_heading(window, 1)
-    iqa_title = window.iqa_dock.titleBarWidget()
-    assert isinstance(iqa_title, PlotsDockTitleBar)
 
-    for heading in (files, analysis, window.presentation_controls, iqa_title):
+    for heading in (files, analysis, window.presentation_controls):
         assert heading.minimumHeight() == WORKSPACE_CHROME_HEIGHT
         assert heading.maximumHeight() == WORKSPACE_CHROME_HEIGHT
 
@@ -52,34 +45,22 @@ def test_docked_workspace_chrome_has_one_shared_baseline(qtbot: object) -> None:
     assert f"background: {TOKENS.title_background}" in analysis.styleSheet()
     assert f"border-bottom: 1px solid {TOKENS.border}" in analysis.styleSheet()
     assert f"border-bottom: 1px solid {TOKENS.border}" in window.presentation_controls.styleSheet()
-    assert f"background: {TOKENS.title_background}" in iqa_title.styleSheet()
-    assert f"border-bottom: 1px solid {TOKENS.border}" in iqa_title.styleSheet()
 
     files_bottom = _bottom_y(files, window)
     presentation_bottom = _bottom_y(window.presentation_controls, window)
-    iqa_bottom = _bottom_y(iqa_title, window)
-    assert files_bottom == presentation_bottom == iqa_bottom
+    assert files_bottom == presentation_bottom
 
     window.close()
 
 
-@pytest.mark.parametrize("workspace", ["plots", "iqa"])
-def test_floating_workspace_has_explicit_outer_frame(
-    qtbot: object,
-    workspace: str,
-) -> None:
+def test_floating_plots_workspace_has_explicit_outer_frame(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     install_beta_workspace_hardening(window)
     window.show()
 
-    if workspace == "plots":
-        window._set_plots_visible(True)
-        dock = window.bottom_dock
-    else:
-        window.iqa_workspace_action.trigger()
-        dock = window.iqa_dock
-
+    window._set_plots_visible(True)
+    dock = window.bottom_dock
     assert isinstance(dock, QDockWidget)
     qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
     qtbot.waitUntil(  # type: ignore[attr-defined]

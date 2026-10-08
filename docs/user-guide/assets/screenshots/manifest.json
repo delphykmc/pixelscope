@@ -460,10 +460,9 @@
       ],
       "source_globs": [
         "src/pixelscope/ui/settings_dialog.py",
-        "src/pixelscope/ui/iqa_remote_settings.py",
         "src/pixelscope/app/settings.py",
-        "src/pixelscope/core/performance_settings.py",
-        "src/pixelscope/remote/iqa_settings.py"
+        "src/pixelscope/app/window_contribution.py",
+        "src/pixelscope/core/performance_settings.py"
       ],
       "viewport": {
         "width": 960,
@@ -495,9 +494,11 @@
         "iqa"
       ],
       "source_globs": [
-        "src/pixelscope/ui/iqa_*.py",
-        "src/pixelscope/remote/iqa_*.py",
-        "src/pixelscope/app/iqa_history.py",
+        "src/pixelscope_iqa_reference/**",
+        "src/pixelscope/remote/iqa_domain.py",
+        "src/pixelscope/remote/iqa_public_contract.py",
+        "src/pixelscope/remote/iqa_public_fixture.py",
+        "src/pixelscope/app/window_contribution.py",
         "src/pixelscope/core/comparison_set.py"
       ],
       "viewport": {
@@ -559,7 +560,6 @@
     "requirements/runtime.txt",
     "scripts/capture_ui_review.py",
     "scripts/capture_ui_scene.py",
-    "scripts/generate_iqa_fixture.py",
     "scripts/generate_test_images.py",
     "scripts/generate_yuv_manual_fixtures.py",
     "scripts/run_ui_capture_poc.py",

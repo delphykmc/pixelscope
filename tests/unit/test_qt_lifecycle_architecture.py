@@ -17,41 +17,15 @@ LIFECYCLE_MODULES = (
     "src/pixelscope/ui/recent_entries.py",
     "src/pixelscope/ui/display_gain.py",
     "src/pixelscope/ui/composition_lifetime.py",
-    "src/pixelscope/ui/iqa_composition_lifetime.py",
-    "src/pixelscope/ui/iqa_client_install.py",
-    "src/pixelscope/ui/iqa_submission.py",
-    "src/pixelscope/ui/iqa_submission_lifecycle.py",
-    "src/pixelscope/ui/iqa_result_mapping.py",
-    "src/pixelscope/ui/iqa_historical_results.py",
-    "src/pixelscope/ui/iqa_historical_results_lifecycle.py",
-    "src/pixelscope/ui/iqa_scene_inspection.py",
-    "src/pixelscope/ui/iqa_scene_inspection_lifecycle.py",
-    "src/pixelscope/ui/iqa_result_retry.py",
-    "src/pixelscope/ui/iqa_preview_lifecycle.py",
-    "src/pixelscope/ui/iqa_replay_debug.py",
-    "src/pixelscope/ui/iqa_request_debug.py",
     "src/pixelscope/ui/quick_compare.py",
     "src/pixelscope/ui/issue77_ui_design_followup.py",
     "src/pixelscope/ui/multiview_reorder_stability.py",
     "src/pixelscope/ui/beta_workspace_hardening.py",
-    "src/pixelscope/ui/iqa_p5f_diagnostics.py",
-    "src/pixelscope/ui/iqa_remote_settings.py",
 )
 
 RANK4_OWNER_ASSIGNMENTS = {
     "src/pixelscope/app/yuv_runtime_contracts.py": {("window", "window")},
     "src/pixelscope/app/raw_input_compatibility.py": {("window", "window")},
-    "src/pixelscope/ui/iqa_result_retry.py": {("remote_controller", "remote_controller")},
-    "src/pixelscope/ui/iqa_preview_lifecycle.py": {
-        ("controller", "controller"),
-        ("workspace", "controller"),
-    },
-    "src/pixelscope/ui/iqa_replay_debug.py": {("window", "window")},
-    "src/pixelscope/ui/iqa_request_debug.py": {
-        ("window", "window"),
-        ("workspace", "window"),
-        ("controller", "controller"),
-    },
     "src/pixelscope/ui/workflow_polish.py": {
         ("window", "window"),
         ("tree", "window"),
@@ -69,14 +43,6 @@ RANK4_OWNER_ASSIGNMENTS = {
     "src/pixelscope/ui/composition_lifetime.py": {
         ("window", "window"),
         ("controller", "controller"),
-    },
-    "src/pixelscope/ui/iqa_composition_lifetime.py": {
-        ("window", "window"),
-        ("controller", "controller"),
-    },
-    "src/pixelscope/ui/iqa_client_install.py": {
-        ("_window", "window"),
-        ("window", "window"),
     },
 }
 
@@ -108,7 +74,8 @@ def test_cycle_hardened_modules_do_not_install_bound_methodtype_or_weak_proxy() 
                     for target in node.targets
                 )
             ):
-                violations.append(f"{relative_path}:{node.lineno}: strong original bound method")
+                location = f"{relative_path}:{node.lineno}"
+                violations.append(f"{location}: strong original bound method")
     assert violations == []
 
 
@@ -130,89 +97,37 @@ def test_rank4_helpers_do_not_store_direct_owner_backreferences() -> None:
                     and target.value.id == "self"
                     and (target.attr, root) in forbidden
                 ):
-                    violations.append(
-                        f"{relative_path}:{node.lineno}: self.{target.attr} retains {root}"
-                    )
-    assert violations == []
-
-
-def test_public_iqa_execution_controller_does_not_retain_main_window() -> None:
-    relative_path = "src/pixelscope/ui/iqa_submission.py"
-    tree = ast.parse(
-        (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8"),
-        filename=relative_path,
-    )
-    controller = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.ClassDef) and node.name == "PublicIqaExecutionController"
-    )
-    violations: list[str] = []
-    for node in ast.walk(controller):
-        if not isinstance(node, ast.Assign) or _root_name(node.value) != "window":
-            continue
-        for target in node.targets:
-            if (
-                isinstance(target, ast.Attribute)
-                and isinstance(target.value, ast.Name)
-                and target.value.id == "self"
-            ):
-                violations.append(
-                    f"{relative_path}:{node.lineno}: self.{target.attr} retains window"
-                )
+                    location = f"{relative_path}:{node.lineno}"
+                    detail = f"self.{target.attr} retains {root}"
+                    violations.append(f"{location}: {detail}")
     assert violations == []
 
 
 def test_production_composition_uses_final_rank4_non_owning_adapters() -> None:
     bootstrap_path = "src/pixelscope/app/bootstrap.py"
-    client_path = "src/pixelscope/ui/iqa_client_install.py"
     bootstrap_tree = ast.parse(
         (REPOSITORY_ROOT / bootstrap_path).read_text(encoding="utf-8"),
         filename=bootstrap_path,
     )
-    client_tree = ast.parse(
-        (REPOSITORY_ROOT / client_path).read_text(encoding="utf-8"),
-        filename=client_path,
-    )
 
-    bootstrap_hardened: set[str] = set()
-    client_hardened: set[str] = set()
+    hardened: set[str] = set()
     legacy_imports: list[str] = []
-    for tree, hardened in (
-        (bootstrap_tree, bootstrap_hardened),
-        (client_tree, client_hardened),
-    ):
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.ImportFrom):
-                continue
-            imported = {alias.name for alias in node.names}
-            if node.module in {
-                "pixelscope.ui.composition_lifetime",
-                "pixelscope.ui.iqa_composition_lifetime",
-            }:
-                hardened.update(imported)
-            if node.module in {
-                "pixelscope.ui.analysis_export",
-                "pixelscope.ui.iqa_submission",
-                "pixelscope.ui.session",
-            }:
-                legacy_imports.extend(
-                    name
-                    for name in imported
-                    if name
-                    in {
-                        "install_analysis_export",
-                        "install_remote_iqa",
-                        "install_session",
-                    }
-                )
+    for node in ast.walk(bootstrap_tree):
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        imported = {alias.name for alias in node.names}
+        if node.module == "pixelscope.ui.composition_lifetime":
+            hardened.update(imported)
+        if node.module in {"pixelscope.ui.analysis_export", "pixelscope.ui.session"}:
+            legacy_imports.extend(
+                name for name in imported if name in {"install_analysis_export", "install_session"}
+            )
 
     assert {
         "install_analysis_export",
         "install_session",
         "release_command_row_metric_window",
-    } <= bootstrap_hardened
-    assert "install_remote_iqa" in client_hardened
+    } <= hardened
     assert legacy_imports == []
 
     release_calls = [

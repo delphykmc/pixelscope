@@ -22,6 +22,9 @@ from pixelscope.remote.iqa_domain import (
     SceneGeometry,
 )
 
+IQA_PUBLIC_CONTRACT_REVISION = 1
+# Breaking public contract changes increment this value.
+
 
 class IqaJobState(str, Enum):
     """Client-visible execution states independent of backend pipeline phases."""

@@ -3,29 +3,13 @@ from __future__ import annotations
 import weakref
 from typing import Any, cast
 
-from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QWindow
-from PySide6.QtWidgets import (
-    QComboBox,
-    QDockWidget,
-    QLabel,
-    QListWidget,
-    QMainWindow,
-    QSizePolicy,
-    QSplitter,
-    QTabWidget,
-    QWidget,
-)
+from PySide6.QtCore import QObject, Qt, QTimer
+from PySide6.QtGui import QWindow
+from PySide6.QtWidgets import QDockWidget, QLabel, QMainWindow, QSizePolicy, QSplitter, QWidget
 
-from pixelscope.ui.design_tokens import (
-    TOKENS,
-    WORKSPACE_CHROME_HEIGHT,
-    panel_heading_style,
-)
+from pixelscope.ui.design_tokens import WORKSPACE_CHROME_HEIGHT, panel_heading_style
 from pixelscope.ui.lifecycle_hooks import OwnerCallback, WeakOwnerHook
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
-
-_DISABLED_ICON_COLOR = "#737980"
 
 
 def _set_vertical_policy(widget: QWidget, policy: QSizePolicy.Policy) -> None:
@@ -44,43 +28,6 @@ def _sync_full_text_label(label: QLabel, description: str) -> None:
     text = label.text()
     label.setToolTip(text)
     label.setAccessibleName(f"{description}: {text}")
-
-
-def _draw_iqa_pixmap(color_name: str) -> QPixmap:
-    scale = 2
-    logical_size = TOKENS.icon_size
-    pixmap = QPixmap(logical_size * scale, logical_size * scale)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    pixmap.setDevicePixelRatio(scale)
-
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    pen = QPen(QColor(color_name), 1.5)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    painter.setPen(pen)
-    painter.setBrush(Qt.BrushStyle.NoBrush)
-    painter.drawRect(QRectF(2.0, 2.0, 12.0, 12.0))
-    painter.drawLine(QPointF(4.0, 11.5), QPointF(4.0, 8.0))
-    painter.drawLine(QPointF(7.0, 11.5), QPointF(7.0, 5.5))
-    painter.drawLine(QPointF(10.0, 11.5), QPointF(10.0, 7.0))
-    painter.drawEllipse(QRectF(10.5, 3.0, 2.0, 2.0))
-    painter.end()
-    return pixmap
-
-
-def _iqa_toolbar_icon() -> QIcon:
-    icon = QIcon()
-    normal = _draw_iqa_pixmap(TOKENS.text_primary)
-    active = _draw_iqa_pixmap(TOKENS.accent)
-    disabled = _draw_iqa_pixmap(_DISABLED_ICON_COLOR)
-    icon.addPixmap(normal, QIcon.Mode.Normal, QIcon.State.Off)
-    icon.addPixmap(active, QIcon.Mode.Active, QIcon.State.Off)
-    icon.addPixmap(active, QIcon.Mode.Normal, QIcon.State.On)
-    icon.addPixmap(active, QIcon.Mode.Active, QIcon.State.On)
-    icon.addPixmap(disabled, QIcon.Mode.Disabled, QIcon.State.Off)
-    icon.addPixmap(disabled, QIcon.Mode.Disabled, QIcon.State.On)
-    return icon
 
 
 class _WorkspaceDockTopLevelController(QObject):
@@ -184,7 +131,6 @@ class BetaWorkspaceHardeningController(QObject):
         self._dock_controllers: list[_WorkspaceDockTopLevelController] = []
         self._install_layout_policy()
         self._install_workspace_windows()
-        self._install_iqa_toolbar_action()
 
     @property
     def window(self) -> QMainWindow:
@@ -238,86 +184,6 @@ class BetaWorkspaceHardeningController(QObject):
             widget = getattr(window, widget_name, None)
             if isinstance(widget, QWidget):
                 widget.setMinimumWidth(0)
-
-        workspace = getattr(window, "iqa_workspace", None)
-        dock = getattr(window, "iqa_dock", None)
-        if isinstance(workspace, QWidget):
-            workspace.setMinimumWidth(0)
-            workspace.setMinimumHeight(0)
-            workspace_policy = workspace.sizePolicy()
-            workspace_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
-            workspace_policy.setVerticalPolicy(QSizePolicy.Policy.Ignored)
-            workspace.setSizePolicy(workspace_policy)
-
-            for label_name in (
-                "status_label",
-                "result_label",
-                "dataset_label",
-                "trend_label",
-                "series_hint",
-                "preview_caption",
-            ):
-                label = getattr(workspace, label_name, None)
-                if isinstance(label, QLabel):
-                    label.setMinimumWidth(0)
-                    label.setWordWrap(True)
-
-            for combo in workspace.findChildren(QComboBox):
-                combo.setMinimumWidth(0)
-                combo.setSizeAdjustPolicy(
-                    QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-                )
-                combo_policy = combo.sizePolicy()
-                combo_policy.setHorizontalPolicy(QSizePolicy.Policy.Expanding)
-                combo.setSizePolicy(combo_policy)
-
-            attribute_filter = getattr(workspace, "attribute_filter", None)
-            if isinstance(attribute_filter, QListWidget):
-                attribute_filter.setMinimumWidth(0)
-                # Remove the legacy 230 px local cap so the Scene attribute list
-                # can use additional width when the user intentionally enlarges IQA.
-                attribute_filter.setMaximumWidth(window.maximumWidth())
-
-            pages = getattr(workspace, "pages", None)
-            if isinstance(pages, QTabWidget):
-                pages.setMinimumWidth(0)
-                pages.setMinimumHeight(0)
-                pages_policy = pages.sizePolicy()
-                pages_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
-                pages_policy.setVerticalPolicy(QSizePolicy.Policy.Ignored)
-                pages.setSizePolicy(pages_policy)
-
-            # IQA's detail/tree/preview surfaces are inspectable regions, not
-            # application-wide height floors. Let their local splitters compress
-            # them so a bottom Plots dock can take useful vertical space.
-            for widget_name in (
-                "overview_page",
-                "scene_page",
-                "overview_chart_panel",
-                "overview_detail_panel",
-                "overview_plot",
-                "hierarchy",
-                "scene_trend_plot",
-                "preview_scroll",
-            ):
-                child = getattr(workspace, widget_name, None)
-                if isinstance(child, QWidget):
-                    child.setMinimumHeight(0)
-                    _set_vertical_policy(child, QSizePolicy.Policy.Ignored)
-
-            for splitter_name in ("overview_splitter", "scene_splitter"):
-                splitter = getattr(workspace, splitter_name, None)
-                if isinstance(splitter, QSplitter):
-                    splitter.setMinimumHeight(0)
-                    _set_vertical_policy(splitter, QSizePolicy.Policy.Ignored)
-                    splitter.setChildrenCollapsible(True)
-                    for index in range(splitter.count()):
-                        splitter.setCollapsible(index, True)
-
-        if isinstance(dock, QDockWidget):
-            dock.setMinimumWidth(0)
-
-        self._relax_composed_iqa_shell()
 
         # Give the bottom workspace both lower corners. Otherwise a left/right IQA
         # dock owns the full side height and its minimum can cap Plots growth.
@@ -416,40 +282,6 @@ class BetaWorkspaceHardeningController(QObject):
             review._sync_controls = WeakOwnerHook(review, sync_with_accessibility)
         sync_review_label()
 
-    def _relax_composed_iqa_shell(self) -> None:
-        """Relax the final P5-C shell as well as the nested P5-B Results widget."""
-
-        remote_workspace = getattr(self.window, "remote_iqa_workspace", None)
-        if not isinstance(remote_workspace, QWidget):
-            return
-
-        remote_workspace.setMinimumWidth(0)
-        remote_workspace.setMinimumHeight(0)
-        _set_horizontal_policy(remote_workspace, QSizePolicy.Policy.Ignored)
-        _set_vertical_policy(remote_workspace, QSizePolicy.Policy.Ignored)
-
-        tabs = getattr(remote_workspace, "tabs", None)
-        if isinstance(tabs, QTabWidget):
-            tabs.setMinimumWidth(0)
-            tabs.setMinimumHeight(0)
-            _set_horizontal_policy(tabs, QSizePolicy.Policy.Ignored)
-            _set_vertical_policy(tabs, QSizePolicy.Policy.Ignored)
-            for index in range(tabs.count()):
-                page = tabs.widget(index)
-                if isinstance(page, QWidget):
-                    page.setMinimumWidth(0)
-                    page.setMinimumHeight(0)
-                    _set_horizontal_policy(page, QSizePolicy.Policy.Ignored)
-                    _set_vertical_policy(page, QSizePolicy.Policy.Ignored)
-
-        for label in remote_workspace.findChildren(QLabel):
-            label.setMinimumWidth(0)
-            label.setWordWrap(True)
-            if label.text() and not label.toolTip():
-                label.setToolTip(label.text())
-            if label.text() and not label.accessibleName():
-                label.setAccessibleName(label.text())
-
     def _install_workspace_windows(self) -> None:
         plots = getattr(self.window, "bottom_dock", None)
         if isinstance(plots, QDockWidget):
@@ -461,22 +293,10 @@ class BetaWorkspaceHardeningController(QObject):
                 )
             )
 
-        iqa = getattr(self.window, "iqa_dock", None)
-        if isinstance(iqa, QDockWidget):
-            self._dock_controllers.append(_WorkspaceDockTopLevelController(iqa))
-
-    def _install_iqa_toolbar_action(self) -> None:
-        toolbar = getattr(self.window, "main_toolbar", None)
-        action = getattr(self.window, "iqa_workspace_action", None)
-        plots_action = getattr(self.window, "plots_action", None)
-        if toolbar is None or action is None or plots_action is None:
-            return
-        if action in toolbar.actions():
-            return
-        action.setIcon(_iqa_toolbar_icon())
-        action.setIconText("IQA")
-        action.setToolTip("Show or hide the IQA workspace")
-        toolbar.insertAction(plots_action, action)
+        contributed = getattr(self.window, "_contributed_docks", ())
+        for dock in tuple(contributed):
+            if isinstance(dock, QDockWidget) and dock is not plots:
+                self._dock_controllers.append(_WorkspaceDockTopLevelController(dock))
 
     def quiesce_pending_callbacks(self) -> None:
         """Quiesce every managed dock's queued native-window adjustment."""

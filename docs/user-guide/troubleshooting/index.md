@@ -34,9 +34,13 @@ Stride is the number of stored bytes from the start of one image row to the star
 
 Confirm dimensions and native layout. YUV422 requires even width; YUV420 requires even width and height. Native YUV currently uses the supported fixed 8-bit/tightly-packed/BT.601 Full contract. If the file actually contains Generic RAW data, choose the RAW interpretation instead.
 
-## Remote IQA cannot submit
+## IQA Reference does not run
 
-Remote IQA requires deployment configuration and eligible standard-image inputs. Local RAW/YUV viewing does not imply remote submission support. Verify the configured service/storage environment and use local PixelScope workflows independently if the service is unavailable.
+The public Reference package uses deterministic synthetic/mock IQA data and does not
+require a server URL, shared storage, credentials, or model configuration. Confirm that
+you launched the explicit Reference package and use **View > Show IQA Reference**. Real
+Enterprise provider/model/server troubleshooting is downstream-owned and is not part of
+the public Core/Reference guide.
 
 ## Search keywords
 

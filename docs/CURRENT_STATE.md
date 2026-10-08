@@ -3,6 +3,15 @@
 Snapshot date: 2026-09-10
 Current merged `main`: `5f95d6ebbd4bc33079ed3583a03ce02814110e0a`
 
+> **Issue #121 Slice 8 IQA ownership override (2026-10-07):** the historical P5
+> Remote-IQA runtime described below is no longer part of normal MAIN production
+> ownership. MAIN now supports Core plus the optional company-neutral IQA Reference
+> package through `iqa_domain.py`, `iqa_public_contract.py`,
+> `iqa_public_fixture.py`, and `pixelscope_iqa_reference/**`. Real provider/model/
+> server/storage/auth integration and internal Full packaging are downstream SUB
+> responsibilities. See `IQA_HANDOFF.md` for the current authority. The detailed P5
+> sections below are retained as implementation history unless explicitly marked current.
+
 `main` includes the cumulative P5/R history below plus the release-foundation and
 local-workflow hardening merged after R closeout:
 
@@ -61,12 +70,12 @@ Current Comparison Page only while every relevant frame fully contains the uncha
 rectangle. A context mismatch clears the ROI; it is never clipped or specialized per
 image. Issue #77 remains the planning authority, and WP-B/WP-C are separate PR scopes.
 
-P5 **Remote IQA Platform** is complete through P5-F. Overall P5 remains Active because
-P5-G **External GPU/SMB Validation & Closeout** is only partially observed: temporary
-external transport/job/shared-source preflight is now validated, while real GPU/IQA
-computation, schema-v2 result publication, and full GPU/result-writer/SMB qualification
-remain deferred and NOT VALIDATED. R **Repository Refactoring & Validation Hardening**
-completed through independently reviewed PR #55 and remains historical completed work.
+P5 **Remote IQA Platform** through P5-F is retained as historical implementation
+evidence. Issue #121 supersedes P5-G/P6 as MAIN production gates: real GPU/IQA
+computation, server/storage/auth integration, result publication and internal
+qualification are downstream SUB responsibilities and do not block MAIN Core/Reference
+completion. R **Repository Refactoring & Validation Hardening** completed through
+independently reviewed PR #55 and remains historical completed work.
 P7 Release Foundation is now the active repository implementation program: P7-C is
 Complete and **P7-D Stage 1 — Release Metadata & Manual Publication Foundation** is
 active. P7-D Stage 2 notification-only update discovery/integration is deferred until
@@ -593,10 +602,10 @@ established approved P6 capability may be used and discovery otherwise skips sil
 if an authoritative provider is usable without application authentication, that path
 remains permitted. No common-IdP topology is established by Stage 1.
 
-P6 production integration remains sequenced after P5-G. A P6-0 contract audit/research
-may begin earlier if authoritative corporate identity/authentication documentation
-becomes available, but that research must not implement production authentication or
-invent server/token contracts.
+Historical P5-G external validation and P6 production identity/access integration no
+longer gate MAIN. Any real Enterprise IQA validation/authentication sequence is owned by
+SUB and may proceed against an exact approved MAIN SHA without adding confidential
+contracts back to MAIN.
 
 ## Forward sequence
 
@@ -605,11 +614,9 @@ P7-C Owner-local Release Candidate                 COMPLETE — PR #63
     ↓
 P7-D Stage 1 Release Metadata & Manual Publication ACTIVE
     ↓
-P5-G External GPU/SMB Validation                   IN PROGRESS — temporary preflight observed; full qualification deferred
-    ↓
-P6 Identity, Access & Remote Operations            PLANNED / production integration gated
-    ↓
 P7-D Stage 2 Notification-only Update Discovery    DEFERRED — provider/access authority pending
     ↓
 P7-E Final Release Qualification                   DEFERRED
+
+Enterprise IQA provider/model/server/storage/auth   DOWNSTREAM SUB — separate from MAIN gates
 ```

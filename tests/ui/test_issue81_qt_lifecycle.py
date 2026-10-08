@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import gc
 from collections.abc import Callable
-from pathlib import Path
 from threading import Event, get_ident
 from types import SimpleNamespace
 from weakref import ref
@@ -13,25 +12,24 @@ from PySide6.QtWidgets import QApplication
 from scripts.e8_profile import measure_phase
 from shiboken6 import isValid
 
+from pixelscope.app.bootstrap import compose_main_window_presentation
+from pixelscope.app.main_window import MainWindow
 from pixelscope.core.roi import RoiBounds, analyze_roi
 from pixelscope.ui.comparison_analysis_panel import ComparisonAnalysisPanel
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
-from pixelscope.ui.iqa_legacy_composition import (
-    compose_legacy_p5_presentation as _compose_main_window_presentation,
-)
 from pixelscope.ui.line_profile_panel import LineProfilePanel
+from pixelscope.workers.task_worker import TaskWorker
 
 
-def _blocked_loader(started: Event, release: Event) -> Callable[[Path | str], object]:
-    def load(_path: Path | str) -> object:
+def _blocked_task(started: Event, release: Event) -> Callable[[], object]:
+    def run() -> object:
         started.set()
         release.wait(timeout=3.0)
         return object()
 
-    return load
+    return run
 
 
-def test_running_iqa_loader_can_finish_after_window_destruction_without_cross_thread_qobject_delete(
+def test_task_worker_finishes_after_window_destruction_on_gui_thread(
     qtbot: object,
     isolated_qsettings_subdirectory: None,
 ) -> None:
@@ -48,14 +46,12 @@ def test_running_iqa_loader_can_finish_after_window_destruction_without_cross_th
         release = Event()
         signal_destruction_threads: list[int] = []
         with measure_phase("issue81-window-compose-and-worker-start", iteration=_iteration):
-            window = MainWindow(iqa_result_pool=pool)
-            _compose_main_window_presentation(window)
-            controller = window.iqa_controller
-            controller._loader = _blocked_loader(started, release)
-            controller.open_result(Path("diagnostic-result"))
+            window = MainWindow()
+            compose_main_window_presentation(window)
+            worker = TaskWorker(_blocked_task(started, release))
+            pool.start(worker)
             assert started.wait(timeout=1.0)
-        worker = controller._worker
-        assert worker is not None
+
         assert worker.autoDelete()
         assert worker.signals.parent() is app
         worker.signals.destroyed.connect(
@@ -68,7 +64,6 @@ def test_running_iqa_loader_can_finish_after_window_destruction_without_cross_th
         hardening_ref = ref(hardening)
         dock_controller_refs = tuple(ref(item) for item in hardening._dock_controllers)
         plots_title_ref = ref(plots_title)
-        controller_ref = ref(controller)
         worker_ref = ref(worker)
 
         with measure_phase("issue81-window-teardown", iteration=_iteration):
@@ -77,7 +72,6 @@ def test_running_iqa_loader_can_finish_after_window_destruction_without_cross_th
             QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             app.processEvents()
             del worker
-            del controller
             del plots_title
             del hardening
             del window
@@ -85,7 +79,6 @@ def test_running_iqa_loader_can_finish_after_window_destruction_without_cross_th
             # this is not general test-boundary cleanup or a passing precondition.
             gc.collect()
 
-        assert controller_ref() is None
         assert plots_title_ref() is None
         assert hardening_ref() is None
         assert all(item_ref() is None for item_ref in dock_controller_refs)
@@ -228,7 +221,7 @@ def test_production_composition_disposes_image_viewer_graphics_before_deferred_d
     assert isinstance(app, QApplication)
 
     window = MainWindow()
-    _compose_main_window_presentation(window)
+    compose_main_window_presentation(window)
     viewers = (window.viewer, *window.multi_compare_view.viewers)
     graphics = tuple(ref(viewer._graphics) for viewer in viewers)
 

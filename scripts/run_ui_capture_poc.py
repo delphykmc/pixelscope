@@ -24,6 +24,7 @@ _MANIFEST_ROWS = json.loads(MANIFEST.read_text(encoding="utf-8"))["screenshots"]
 SCENES = tuple(row["scenario"] for row in _MANIFEST_ROWS if row["capture_mode"] == "isolated")
 ATTEMPTS = 2
 MAX_CHANGED_FRACTION = 0.01
+MAX_CHANNEL_DELTA = 3
 EXPECTED_LOGICAL_SIZE = {
     row["scenario"]: [row["viewport"]["width"], row["viewport"]["height"]]
     for row in _MANIFEST_ROWS
@@ -143,15 +144,22 @@ def validate_capture(
     return result
 
 
-def changed_fraction(first: Path, second: Path) -> float:
+def changed_fraction(
+    first: Path,
+    second: Path,
+    *,
+    max_channel_delta: int = MAX_CHANNEL_DELTA,
+) -> float:
+    """Count only pixel changes larger than bounded renderer quantization jitter."""
     with Image.open(first) as a, Image.open(second) as b:
         if a.size != b.size:
             return 1.0
         difference = ImageChops.difference(a.convert("RGB"), b.convert("RGB"))
         channels = difference.split()
         union = ImageChops.lighter(ImageChops.lighter(channels[0], channels[1]), channels[2])
-        count_zero = union.histogram()[0]
-        return 1.0 - count_zero / (a.width * a.height)
+        histogram = union.histogram()
+        changed = sum(histogram[max_channel_delta + 1 :])
+        return changed / (a.width * a.height)
 
 
 def run(output: Path, source_sha: str) -> int:
@@ -163,6 +171,7 @@ def run(output: Path, source_sha: str) -> int:
         "python": platform.python_version(),
         "scenes": {},
         "max_changed_fraction": MAX_CHANGED_FRACTION,
+        "max_channel_delta": MAX_CHANNEL_DELTA,
         "status": "failed",
     }
     success = True
@@ -266,7 +275,8 @@ def run(output: Path, source_sha: str) -> int:
         f"- Source SHA: `{source_sha}`\n"
         f"- Result: **{report['status']}**\n"
         "- Scenes: real Single View and RAW profile dialog; two fresh processes each.\n"
-        "- Pixel repeatability tolerance: 1% changed pixels; exact fraction in report.json.\n"
+        "- Pixel repeatability tolerance: 1% changed pixels after ignoring per-channel "
+        "delta <= 3 renderer jitter; exact fraction in report.json.\n"
         "- Generated PNGs are candidate artifacts, not reviewed User Guide images.\n",
         encoding="utf-8",
     )

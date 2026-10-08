@@ -13,11 +13,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.app.bootstrap import compose_main_window_presentation
+from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
-from pixelscope.ui.iqa_legacy_composition import (
-    compose_legacy_p5_presentation as _compose_main_window_presentation,
-)
 from pixelscope.ui.presentation_controls import polish_presentation_controls
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
@@ -26,7 +24,7 @@ pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 def _production_window(qtbot: object) -> MainWindow:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    _compose_main_window_presentation(window)
+    compose_main_window_presentation(window)
     window.show()
     return window
 
@@ -178,7 +176,7 @@ def _assert_actionable_content_floors(window: MainWindow) -> None:
 
 
 @pytest.mark.parametrize("populated", [False, True])
-def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_visible(
+def test_production_workspace_accepts_fhd_and_compact_width(
     qtbot: object,
     tmp_path: Path,
     populated: bool,
@@ -187,33 +185,12 @@ def test_production_workspace_accepts_fhd_and_compact_width_with_iqa_hidden_or_v
     if populated:
         _register_rgb8_pair(window, tmp_path)
 
-    window.iqa_dock.hide()
-    qtbot.waitUntil(window.iqa_dock.isHidden)  # type: ignore[attr-defined]
     _assert_resize_accepted(window, qtbot, 1920, 1080)
     _assert_command_row_geometry(window)
     _assert_resize_accepted(window, qtbot, 960, 540)
     _assert_command_row_geometry(window)
     _assert_actionable_content_floors(window)
     assert window.minimumSizeHint().width() <= 960
-
-    window.iqa_dock.show()
-    qtbot.waitUntil(window.iqa_dock.isVisible)  # type: ignore[attr-defined]
-    _assert_resize_accepted(window, qtbot, 1920, 1080)
-    _assert_command_row_geometry(window)
-    _assert_resize_accepted(window, qtbot, 1280, 720)
-    _assert_command_row_geometry(window)
-    _assert_actionable_content_floors(window)
-    assert window.minimumSizeHint().width() <= 1280
-
-    shell = window.remote_iqa_workspace
-    assert shell.minimumWidth() == 0
-    assert shell.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
-    assert shell.tabs.minimumWidth() == 0
-    assert shell.tabs.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
-    for index in range(shell.tabs.count()):
-        page = shell.tabs.widget(index)
-        assert page.minimumWidth() == 0
-        assert page.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Ignored
 
     window.close()
 
@@ -224,7 +201,6 @@ def test_command_row_refreshes_content_floors_after_composition_font_change(
 ) -> None:
     window = _production_window(qtbot)
     _register_rgb8_pair(window, tmp_path)
-    window.iqa_dock.hide()
     _assert_resize_accepted(window, qtbot, 1280, 720)
 
     review = window.review_selection_controller
@@ -288,7 +264,6 @@ def test_command_row_refreshes_combo_floors_after_composition_style_change(
     qtbot: object,
 ) -> None:
     window = _production_window(qtbot)
-    window.iqa_dock.hide()
     _assert_resize_accepted(window, qtbot, 1280, 720)
     gain_combo = window.findChild(QComboBox, "DisplayGainCombo")
     layout_group = window.layout_selector.parentWidget()
@@ -342,7 +317,6 @@ def test_workspace_keeps_page_gain_and_curation_actions_observable_without_overl
         window.add_document(document, select=False)
     documents = (*pair, *additional)
     window._select_document_ids([document.document_id for document in documents])
-    window.iqa_dock.show()
     _assert_resize_accepted(window, qtbot, *size)
     _assert_command_row_geometry(window)
 
@@ -423,7 +397,6 @@ def test_command_row_worst_case_keeps_enabled_three_view_and_live_curation_nonov
         window.add_document(document, select=False)
     documents = (*pair, *additional)
     window._select_document_ids([document.document_id for document in documents])
-    window.iqa_dock.show()
     _assert_resize_accepted(window, qtbot, *size)
 
     assert window.comparison_page_label.text() == "1 / 2"
@@ -458,34 +431,15 @@ def test_command_row_worst_case_keeps_enabled_three_view_and_live_curation_nonov
     window.close()
 
 
-def test_populated_current_pair_keeps_long_names_out_of_iqa_minimum_hint(
+def test_populated_long_names_keep_core_minimum_hint_bounded(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
     window = _production_window(qtbot)
-    documents = _register_rgb8_pair(window, tmp_path)
-    shell = window.remote_iqa_workspace
-    shell.tabs.setCurrentWidget(shell.setup_page)
-    shell.set_current_pair_state(
-        "OK · RGB8 · 16×12",
-        True,
-        None,
-        names=(documents[0].display_name, documents[1].display_name),
-    )
-    window.iqa_dock.show()
+    _register_rgb8_pair(window, tmp_path)
+
     _assert_resize_accepted(window, qtbot, 1280, 720)
-
-    assert shell.current_pair_a.text() == documents[0].display_name
-    assert shell.current_pair_b.text() == documents[1].display_name
-    assert shell.current_pair_a.toolTip() == documents[0].display_name
-    assert shell.current_pair_b.toolTip() == documents[1].display_name
-    assert shell.current_pair_a.minimumWidth() == 0
-    assert shell.current_pair_b.minimumWidth() == 0
+    _assert_command_row_geometry(window)
     assert window.minimumSizeHint().width() <= 1280
-
-    for label in shell.findChildren(QLabel):
-        assert label.minimumWidth() == 0
-        if label.text():
-            assert label.toolTip() or label.accessibleName()
 
     window.close()

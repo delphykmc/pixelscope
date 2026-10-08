@@ -39,7 +39,6 @@ from pixelscope.ui.design_tokens import (
 )
 
 PLOTS_FLOATING_GEOMETRY_SETTING = "ui/plots_floating_geometry"
-IQA_FLOATING_GEOMETRY_SETTING = "ui/iqa_floating_geometry"
 _CONTROLLER_ATTRIBUTE = "_pixelscope_workspace_title_controller"
 
 
@@ -87,10 +86,7 @@ def _title_icon(kind: str) -> QIcon:
 class PlotsDockTitleBar(QWidget):
     """PixelScope-styled controls that preserve QDockWidget-native drag semantics."""
 
-    _known_geometry_settings = {
-        PLOTS_FLOATING_GEOMETRY_SETTING,
-        IQA_FLOATING_GEOMETRY_SETTING,
-    }
+    _known_geometry_settings = {PLOTS_FLOATING_GEOMETRY_SETTING}
 
     @classmethod
     def register_geometry_setting(cls, setting: str) -> None:
@@ -374,12 +370,14 @@ class PlotsDockTitleBar(QWidget):
             self._floating_geometry = QByteArray()
             self._workspace_maximized = False
             return
+        contributed_docks = tuple(getattr(window, "_contributed_docks", ()))
         for dock in window.findChildren(QDockWidget):
             title_bar = self.controller_for_dock(dock)
-            managed = isinstance(title_bar, PlotsDockTitleBar) or dock.objectName() in {
-                "plotsPanel",
-                "iqaWorkspaceDock",
-            }
+            managed = (
+                isinstance(title_bar, PlotsDockTitleBar)
+                or dock is getattr(window, "bottom_dock", None)
+                or dock in contributed_docks
+            )
             if not managed:
                 continue
             if isinstance(title_bar, PlotsDockTitleBar):

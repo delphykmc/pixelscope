@@ -129,7 +129,7 @@ def test_single_feature_owner_and_shared_shell(manifest: dict) -> None:
         ("src/pixelscope/core/yuv_difference.py", "difference-analysis"),
         ("src/pixelscope/io/raw_reader.py", "raw-profile-dialog"),
         ("src/pixelscope/core/statistics.py", "statistics-workspace"),
-        ("src/pixelscope/remote/iqa_v2_reader.py", "iqa-neutral"),
+        ("src/pixelscope/remote/iqa_public_contract.py", "iqa-neutral"),
         ("src/pixelscope/app/yuv_input_semantics.py", "yuv-profile-dialog"),
         ("src/pixelscope/ui/settings_dialog.py", "settings-dialog"),
     ],

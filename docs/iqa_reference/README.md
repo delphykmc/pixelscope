@@ -1,9 +1,9 @@
 # IQA reference extension
 
-Status: Issue #121 Slice 7 public package-mode guide.
+Status: Issue #121 Slice 8 supported public Reference/Mock guide.
 Baseline before extraction: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
-This directory documents the MAIN-owned reference/mock IQA extension. It is an
+The downstream handoff entry point is `docs/IQA_HANDOFF.md`.\n\nThis directory documents the MAIN-owned reference/mock IQA extension. It is an
 executable architecture/reference experience, not the final Enterprise UI.
 
 ## Source-level compositions
@@ -46,12 +46,12 @@ than by its current file location.
 | Base/Core generic | `app/main_window.py`, `app/window_contribution.py`, worker/lifecycle primitives, menu/dock persistence | Remain in `pixelscope/**`; generic bootstrap/runtime contribution and bounded source-path access are completed here. |
 | Public boundary contract | `remote/iqa_public_contract.py`, normalized IQA domain types and public fixture/conformance support | Remain in MAIN and are shared by reference and future Enterprise peers. |
 | MAIN reference implementation | New `pixelscope_iqa_reference/**` | Owns example/mock dock, actions, job controls, result/reference/Scene presentation and fixture driving. |
-| Transitional IQA/P5 implementation | `ui/iqa_client_install.py`, `ui/iqa_submission.py`, `ui/iqa_workspace.py`, `remote/iqa_explorer.py`, P5 transport/storage/settings/adapters, P5 inspection/history/diagnostics modules | Retained unchanged where practical in Slice 6 as implementation knowledge and compatibility behavior; concrete cleanup is Slice 7. |
+| Historical P5 implementation | Pre-extraction P5 UI/transport/storage/schema/history runtime | Retired from current MAIN source in Slice 8 after the public contract/reference handoff was fixed; preserved through exact Git history. |
 | Enterprise production implementation | reserved `pixelscope_enterprise/**` and related SUB paths | Not present or tracked in MAIN. |
 
-The broad legacy families are intentionally not mass-relocated in Slice 6. A relocation
-that rewrites dozens of imports/tests before a reference proof would increase lifecycle
-and review risk without improving the target dependency direction.
+Slice 6 intentionally kept the legacy families until the Reference proof existed.
+Slice 8 removes those obsolete runtime families instead of relocating them into another
+MAIN namespace. The exact pre-extraction SHA remains the implementation reference.
 
 ## Generic host additions
 
@@ -76,9 +76,9 @@ Slice 6 also adds a product-generic settings contribution seam:
 page semantics and persistence behind those hooks; Base does not gain an Enterprise
 schema or IQA-specific setting.
 
-Base schema v7 contains no Remote-IQA configuration. Existing public P5 keys are
-ignored and preserved by Base; historical P5 tooling uses an extension-owned repository
-outside `pixelscope.app` when it needs to interpret or update them.
+Base schema v7 contains no Remote-IQA configuration. Existing public P5 keys remain
+unknown extension data to Base and are preserved by migration/reset; current MAIN no
+longer ships P5 tooling that interprets them.
 
 ## Reference behavior
 
@@ -128,8 +128,8 @@ The reference contribution follows existing MainWindow contribution ownership:
   reference flow has no external durable resource;
 - normal cyclic GC remains the acceptance mode.
 
-This Slice does not alter the characterized P5 thread-pool cardinality or shutdown
-order.
+The historical P5-specific worker/thread-pool implementation is retired. Issue #81
+lifecycle coverage remains through generic TaskWorker and contributed-dock canaries.
 
 ## Snapshot and migration evidence
 
@@ -158,5 +158,5 @@ The public mock/reference target is built explicitly:
 
 Core excludes the reference and Enterprise namespaces. Reference uses the same Base
 and public contracts plus `pixelscope_iqa_reference`; neither target requires
-confidential configuration. Legacy P5 retirement decisions beyond this isolation are
-Slice 8 work.
+confidential configuration. Historical P5 runtime code is retired from current MAIN
+source as part of Slice 8.

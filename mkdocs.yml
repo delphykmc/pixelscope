@@ -60,7 +60,7 @@ nav:
       - Use Difference: workflows/use-difference.md
       - Export analysis: workflows/export-analysis.md
       - Save and restore work: workflows/save-and-restore-work.md
-      - Use Remote IQA: workflows/use-remote-iqa.md
+      - Use IQA Reference: workflows/use-remote-iqa.md
   - Features:
       - Files workspace: features/files-workspace.md
       - Image View: features/image-view.md

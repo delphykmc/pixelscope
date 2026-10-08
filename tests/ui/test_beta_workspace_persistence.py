@@ -2,35 +2,25 @@ from __future__ import annotations
 
 import pytest
 
+from pixelscope.app.main_window import MainWindow
 from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
 
-def _show_workspace(window: MainWindow, workspace: str) -> object:
-    if workspace == "plots":
-        window._set_plots_visible(True)
-        return window.bottom_dock
-    window.iqa_workspace_action.trigger()
-    return window.iqa_dock
+def _show_plots(window: MainWindow) -> object:
+    window._set_plots_visible(True)
+    return window.bottom_dock
 
 
-@pytest.mark.parametrize("workspace", ["plots", "iqa"])
-def test_hidden_floating_workspace_survives_restart_and_late_hardening(
-    qtbot: object,
-    workspace: str,
-) -> None:
+def test_hidden_floating_plots_survives_restart_and_late_hardening(qtbot: object) -> None:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     window.show()
 
-    dock = _show_workspace(window, workspace)
+    dock = _show_plots(window)
     qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: isinstance(dock.titleBarWidget(), PlotsDockTitleBar)
-    )
     dock.setFloating(True)
     qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
     dock.hide()
@@ -42,7 +32,7 @@ def test_hidden_floating_workspace_survives_restart_and_late_hardening(
 
     restored = MainWindow()
     qtbot.addWidget(restored)  # type: ignore[attr-defined]
-    restored_dock = restored.bottom_dock if workspace == "plots" else restored.iqa_dock
+    restored_dock = restored.bottom_dock
 
     assert restored_dock.isFloating()
     assert restored_dock.isHidden()
@@ -52,13 +42,12 @@ def test_hidden_floating_workspace_survives_restart_and_late_hardening(
 
     assert restored_dock.isFloating()
     assert restored_dock.isHidden()
-    action = restored.plots_action if workspace == "plots" else restored.iqa_workspace_action
-    assert not action.isChecked()
+    assert not restored.plots_action.isChecked()
 
     restored.show()
     qtbot.wait(20)  # type: ignore[attr-defined]
     assert restored_dock.isHidden()
-    assert not action.isChecked()
+    assert not restored.plots_action.isChecked()
 
     restored_dock.show()
     qtbot.waitUntil(restored_dock.isVisible)  # type: ignore[attr-defined]
@@ -74,11 +63,9 @@ def test_hidden_floating_workspace_survives_restart_and_late_hardening(
     restored.close()
 
 
-@pytest.mark.parametrize("workspace", ["plots", "iqa"])
 @pytest.mark.parametrize("floating_state", ["visible", "hidden", "maximized", "restored"])
-def test_shutdown_normalizes_native_dock_after_persisting_floating_state(
+def test_shutdown_normalizes_plots_after_persisting_floating_state(
     qtbot: object,
-    workspace: str,
     floating_state: str,
 ) -> None:
     window = MainWindow()
@@ -86,11 +73,8 @@ def test_shutdown_normalizes_native_dock_after_persisting_floating_state(
     install_beta_workspace_hardening(window)
     window.show()
 
-    dock = _show_workspace(window, workspace)
+    dock = _show_plots(window)
     qtbot.waitUntil(dock.isVisible)  # type: ignore[attr-defined]
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: isinstance(dock.titleBarWidget(), PlotsDockTitleBar)
-    )
     dock.setFloating(True)
     qtbot.waitUntil(dock.isFloating)  # type: ignore[attr-defined]
     if floating_state == "hidden":
@@ -114,7 +98,6 @@ def test_shutdown_normalizes_native_dock_after_persisting_floating_state(
 
     restored = MainWindow()
     qtbot.addWidget(restored)  # type: ignore[attr-defined]
-    restored_dock = restored.bottom_dock if workspace == "plots" else restored.iqa_dock
-    assert restored_dock.isFloating()
-    assert restored_dock.isHidden() is not expected_visible
+    assert restored.bottom_dock.isFloating()
+    assert restored.bottom_dock.isHidden() is not expected_visible
     restored.close()

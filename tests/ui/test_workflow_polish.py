@@ -7,15 +7,12 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
+from pixelscope.app.bootstrap import compose_main_window_presentation
+from pixelscope.app.main_window import MainWindow
 from pixelscope.core.difference_cache import DifferenceMapCache
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.core.line_profile import LineSelection
 from pixelscope.ui.design_tokens import TOKENS
-from pixelscope.ui.iqa_legacy_composition import LegacyP5MainWindow as MainWindow
-from pixelscope.ui.iqa_legacy_composition import (
-    compose_legacy_p5_presentation as _compose_main_window_presentation,
-)
-from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 
 pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 
@@ -23,7 +20,7 @@ pytestmark = pytest.mark.usefixtures("isolated_qsettings")
 def _window(qtbot: object) -> tuple[MainWindow, object]:
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    _compose_main_window_presentation(window)
+    compose_main_window_presentation(window)
     return window, window.review_selection_controller
 
 
@@ -42,7 +39,6 @@ def test_shortcuts_page_reservations_and_initial_placeholders(qtbot: object) -> 
     window, _review = _window(qtbot)
 
     assert window.split_channels_action.shortcut().toString() == "S"
-    assert window.iqa_workspace_action.shortcut().toString() == "Ctrl+Shift+I"
     assert not window.comparison_page_group.isHidden()
     assert window.comparison_page_label.text() == "— / —"
     assert window.comparison_page_range_label.text() == "—"
@@ -93,38 +89,7 @@ def test_shortcuts_dispatch_in_active_production_window(qtbot: object) -> None:
         timeout=3000,
     )
 
-    assert window.iqa_dock.isHidden()
-    qtbot.keyClick(  # type: ignore[attr-defined]
-        window.viewer,
-        Qt.Key.Key_I,
-        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
-    )
-    qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: not window.iqa_dock.isHidden(),
-        timeout=3000,
-    )
     window.close()
-
-
-def test_iqa_workspace_uses_plots_dock_chrome_before_first_show(qtbot: object) -> None:
-    window, _review = _window(qtbot)
-
-    title_bar = window.iqa_dock.titleBarWidget()
-    assert isinstance(title_bar, PlotsDockTitleBar)
-    assert window.iqa_workspace._dock_title is title_bar
-    assert title_bar.title.text() == "IQA Results"
-
-    layout = title_bar.layout()
-    assert layout is not None
-    assert layout.itemAt(1).widget() is title_bar.float_button
-    assert layout.itemAt(2).widget() is title_bar.maximize_button
-    assert layout.itemAt(3).widget() is title_bar.close_button
-    assert not title_bar.float_button.icon().isNull()
-    assert not title_bar.maximize_button.icon().isNull()
-    assert not title_bar.close_button.icon().isNull()
-    assert title_bar.float_button.toolTip() == "Float IQA Results"
-    assert title_bar.maximize_button.toolTip() == "Maximize IQA Results"
-    assert title_bar.close_button.toolTip() == "Hide IQA Results"
 
 
 def test_single_view_navigation_and_difference_reference_are_visually_separated(

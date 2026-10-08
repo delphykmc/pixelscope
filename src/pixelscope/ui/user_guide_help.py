@@ -116,10 +116,6 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
     def within(parent: QWidget) -> bool:
         return widget is parent or parent.isAncestorOf(widget)
 
-    iqa_dock = getattr(window, "iqa_dock", None)
-    if isinstance(iqa_dock, QWidget) and iqa_dock.isVisible() and within(iqa_dock):
-        return "features/iqa-workspace.html"
-
     plots_dock = getattr(window, "bottom_dock", None)
     plots = getattr(window, "bottom_tabs", None)
     if isinstance(plots_dock, QWidget) and plots_dock.isVisible() and within(plots_dock):
@@ -152,33 +148,27 @@ def context_help_page(window: QMainWindow, *, focus: QWidget | None = None) -> s
 
 
 def _install_floating_dock_context_help(window: QMainWindow) -> None:
-    """F1 also works when Plots/IQA becomes a separate top-level dock window."""
-    for dock_name in ("bottom_dock", "iqa_dock"):
-        dock = getattr(window, dock_name, None)
-        if not isinstance(dock, QDockWidget):
-            continue
-        if dock.findChild(QShortcut, "floatingContextHelpShortcut") is not None:
-            continue
-        shortcut = QShortcut(QKeySequence(Qt.Key.Key_F1), dock)
-        shortcut.setObjectName("floatingContextHelpShortcut")
-        shortcut.setEnabled(dock.isFloating())
-        dock.topLevelChanged.connect(shortcut.setEnabled)  # type: ignore[attr-defined]
-        if dock_name == "bottom_dock":
-            tabs = dock.widget()
-            shortcut.activated.connect(  # type: ignore[attr-defined]
-                lambda tabs=tabs: open_local_user_guide(
-                    window,
-                    page=(
-                        "features/line-profile.html"
-                        if isinstance(tabs, QTabWidget) and tabs.currentIndex() == 1
-                        else "features/histogram.html"
-                    ),
-                )
-            )
-        else:
-            shortcut.activated.connect(  # type: ignore[attr-defined]
-                lambda: open_local_user_guide(window, page="features/iqa-workspace.html")
-            )
+    """Keep F1 routing on the Base-owned floating Plots workspace."""
+    dock = getattr(window, "bottom_dock", None)
+    if not isinstance(dock, QDockWidget):
+        return
+    if dock.findChild(QShortcut, "floatingContextHelpShortcut") is not None:
+        return
+    shortcut = QShortcut(QKeySequence(Qt.Key.Key_F1), dock)
+    shortcut.setObjectName("floatingContextHelpShortcut")
+    shortcut.setEnabled(dock.isFloating())
+    dock.topLevelChanged.connect(shortcut.setEnabled)  # type: ignore[attr-defined]
+    tabs = dock.widget()
+    shortcut.activated.connect(  # type: ignore[attr-defined]
+        lambda tabs=tabs: open_local_user_guide(
+            window,
+            page=(
+                "features/line-profile.html"
+                if isinstance(tabs, QTabWidget) and tabs.currentIndex() == 1
+                else "features/histogram.html"
+            ),
+        )
+    )
 
 
 def install_dialog_context_help(dialog: object, page: str) -> QShortcut | None:

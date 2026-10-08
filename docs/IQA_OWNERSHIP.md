@@ -1,7 +1,7 @@
 # IQA repository and ownership boundary
 
-Status: Slice 7 public ownership/package contract for Issue #121.
-Current authority: latest Issue #121 revised Slice 7–8 plan.
+Status: Slice 8 public ownership/handoff contract for Issue #121.
+Current authority: latest Issue #121 revised Slice 8 plan and `docs/IQA_HANDOFF.md`.
 Checkpoint C baseline: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
 This document defines durable source ownership and dependency direction for PixelScope
@@ -173,24 +173,25 @@ Base.
 This is not a marketplace/plugin framework. There is no hot loading, entry-point
 discovery or runtime version negotiation.
 
-## Legacy P5 code after Slice 7
+## Legacy P5 retirement after Slice 8
 
-The existing public P5/Remote-IQA implementation remains in `src/pixelscope/**` as
-historical/diagnostic implementation knowledge, but it is no longer part of the Base
-production composition. The default `pixelscope` launcher and `MainWindow()` are
-Core-only. Historical P5 UI tests/tools opt into `ui/iqa_legacy_composition.py`
-explicitly.
+Historical public P5/Remote-IQA runtime modules, dedicated UI composition, transport,
+storage, schema readers, diagnostics, and their P5-specific tests/tools are no longer
+part of current MAIN source ownership. The supported public IQA surface is limited to:
 
-Base `ApplicationSettings` is schema v7 and contains no Remote-IQA field or concrete
-IQA settings type. Existing schema-v6 `settings/remote_iqa/*` keys are ignored and
-preserved across Base migration/reset so Base does not take ownership of extension data.
-Any legacy P5 settings migration or persistence is owned under `pixelscope.remote`,
-not `pixelscope.app`.
+- `pixelscope.remote.iqa_domain`;
+- `pixelscope.remote.iqa_public_contract`;
+- `pixelscope.remote.iqa_public_fixture`;
+- `pixelscope_iqa_reference/**` as the explicit public Mock/Reference package.
 
-The exact pre-extraction implementation snapshot is
-`main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`. No ad-hoc release tag is required
-for Slice 6; exact Git history plus the Slice 6 PR/HEAD provides immutable reference
-evidence.
+Base `ApplicationSettings` remains schema v7 and contains no Remote-IQA field or
+concrete IQA settings type. Existing schema-v6 `settings/remote_iqa/*` keys are
+ignored/preserved by Base migration/reset; MAIN no longer ships a production
+interpreter for those historical settings.
+
+The exact pre-extraction implementation snapshot remains
+`main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`. Git history plus the Slice 6/7 PRs
+is the immutable implementation-archaeology record after source retirement.
 
 ## Configuration boundary
 
@@ -232,8 +233,8 @@ and Reference package modes first-class. The default source/package target is Co
 Reference is selected explicitly through `pixelscope-reference`,
 `python -m pixelscope_iqa_reference`, or the reference PyInstaller target.
 
-Slice 8 completes the public handoff/conformance/packaging guidance and decides which
-legacy/reference runtime material remains supported.
+Slice 8 completes the public handoff/conformance/packaging guidance, retires the obsolete
+P5 runtime, and keeps only the intentional public Reference package plus stable public contracts.
 
 Real Enterprise integration and internal Full packaging are downstream work. They may
 validate the shared contracts, but they do not block MAIN architecture completion.

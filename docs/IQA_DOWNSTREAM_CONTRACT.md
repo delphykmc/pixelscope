@@ -1,6 +1,6 @@
 # IQA downstream consumer and transfer contract
 
-Status: revised downstream contract after Issue #121 Checkpoint C.
+Status: Slice 8 downstream contract; operational handoff lives in `docs/IQA_HANDOFF.md`.
 Current authority: latest Issue #121 revised Slice 6–8 plan.
 Checkpoint C baseline: `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 
@@ -100,10 +100,11 @@ URLs, storage roots, credentials, SSO/security objects, model configuration, ret
 policy and internal path mapping.
 
 MAIN Base schema v7 contains only product-generic settings. Legacy public P5 keys are
-ignored and preserved by Base migration/reset; an extension that still recognizes those
-keys owns any interpretation, migration, or deletion. MAIN must not gain environment keys
-or settings schemas merely to support SUB. If a generic settings contribution point is
-missing, request that generic host capability upstream.
+ignored and preserved by Base migration/reset, but current MAIN ships no production
+interpreter for them. Any downstream migration of historical extension data is
+downstream-owned. MAIN must not gain environment keys or settings schemas merely to
+support SUB. If a generic settings contribution point is missing, request that generic
+host capability upstream.
 
 ## Exact MAIN pin and provenance
 

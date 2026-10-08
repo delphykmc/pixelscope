@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QDockWidget
 
 from pixelscope.app.main_window import MainWindow
 from pixelscope.remote.iqa_public_fixture import FixtureIqaProvider, IqaFixtureProfile
+from pixelscope.ui.beta_workspace_hardening import install_beta_workspace_hardening
 from pixelscope_iqa_reference.extension import ReferenceIqaExtension
 
 
@@ -151,5 +152,27 @@ def test_reference_current_pair_requires_exactly_two_native_slots(
     _intent, paths, synthetic = extension._submission_intent()
     assert not synthetic
     assert paths == (path_a, path_b)
+
+    window.close()
+
+
+def test_reference_dock_uses_generic_contributed_dock_lifecycle_hardening(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "generic-dock", IqaFixtureProfile.MINIMAL)
+    )
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+
+    hardening = install_beta_workspace_hardening(window)
+
+    assert extension.dock is not None
+    managed_parents = {controller.parent() for controller in hardening._dock_controllers}
+    assert window.bottom_dock in managed_parents
+    assert extension.dock in managed_parents
+    assert not hasattr(window, "iqa_dock")
+    assert not hasattr(window, "iqa_workspace_action")
 
     window.close()
