@@ -43,7 +43,8 @@ class SpatialMap:
             raise ValueError("spatial values and mask dimensions differ")
         if self.image_width <= 0 or self.image_height <= 0:
             raise ValueError("original image dimensions must be positive")
-        if not np.isfinite([self.block_width, self.block_height, self.origin_x, self.origin_y]).all():
+        geometry = [self.block_width, self.block_height, self.origin_x, self.origin_y]
+        if not np.isfinite(geometry).all():
             raise ValueError("non-finite grid geometry")
         if self.block_width <= 0 or self.block_height <= 0:
             raise ValueError("grid cell extents must be positive")
@@ -156,7 +157,7 @@ def roi_statistics(grid: SpatialMap, roi: Roi) -> GridStatistics:
     xs = grid.origin_x + np.arange(grid.columns) * grid.block_width
     ys = grid.origin_y + np.arange(grid.rows) * grid.block_height
     overlap_x = np.maximum(
-        0.0, np.minimum(xs + grid.block_width, x1, ) - np.maximum(xs, x0)
+        0.0, np.minimum(xs + grid.block_width, x1) - np.maximum(xs, x0)
     )
     overlap_y = np.maximum(
         0.0, np.minimum(ys + grid.block_height, y1) - np.maximum(ys, y0)
