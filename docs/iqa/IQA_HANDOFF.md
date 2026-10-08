@@ -6,7 +6,7 @@ Slice 8 starting baseline (merged Slice 7): `main@29561bdb70e722380a8041212d991a
 Pre-extraction mixed implementation snapshot:
 `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
 For the SUB agent's first implementation plan, repository layout, test migration, and
-validation commands, start with `docs/IQA_ENTERPRISE_SUB_GUIDE.md`.
+validation commands, start with `docs/iqa/IQA_ENTERPRISE_SUB_GUIDE.md`.
 That guide is public and contains no enterprise-specific configuration.
 
 This document is the single public handoff entry point for an external IQA extension.
@@ -81,7 +81,7 @@ The supported public example is:
 ```text
 src/pixelscope_iqa_reference/**
 tests/iqa_reference/**
-docs/iqa_reference/**
+docs/iqa/reference/**
 ```
 
 It is a peer consumer of the same MAIN host/contracts expected to be consumed by a
@@ -348,7 +348,7 @@ The 43 retired test files remain in the Slice 7 Git snapshot, **not** in current
 MAIN's working tree or a new archive directory. The SUB agent must inventory and
 selectively migrate their still-relevant behavioral assertions; do not copy the
 obsolete P5 import graph back into MAIN. See
-`docs/IQA_ENTERPRISE_SUB_GUIDE.md` for exact recovery commands and the file list.
+`docs/iqa/IQA_ENTERPRISE_SUB_GUIDE.md` for exact recovery commands and the file list.
 
 Retirement must not weaken Issue #81 lifecycle canaries, public contract coverage, or
 the two public package targets.
