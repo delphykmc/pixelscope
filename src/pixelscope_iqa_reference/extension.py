@@ -136,9 +136,15 @@ class ReferenceIqaWidget(QWidget):
         layout.addStretch(1)
 
         self.submit_button.clicked.connect(self.submit_requested.emit)  # type: ignore[attr-defined]
-        self.advance_button.clicked.connect(self.advance_requested.emit)  # type: ignore[attr-defined]
-        self.view_button.clicked.connect(self.view_result_requested.emit)  # type: ignore[attr-defined]
-        self.empty_button.clicked.connect(self.open_empty_requested.emit)  # type: ignore[attr-defined]
+        self.advance_button.clicked.connect(  # type: ignore[attr-defined]
+            self.advance_requested.emit
+        )
+        self.view_button.clicked.connect(  # type: ignore[attr-defined]
+            self.view_result_requested.emit
+        )
+        self.empty_button.clicked.connect(  # type: ignore[attr-defined]
+            self.open_empty_requested.emit
+        )
 
     def selected_job_id(self) -> str | None:
         item = self.jobs_list.currentItem()
@@ -259,7 +265,10 @@ class ReferenceIqaExtension:
         if menu_name == "File":
             self._run_action = add_action("File", "Run IQA (Synthetic)", self.submit_mock, None)
             self._synthetic_result_action = add_action(
-                "File", "Open Published Synthetic IQA Result (Demo)", self.open_reference_result, None
+                "File",
+                "Open Published Synthetic IQA Result (Demo)",
+                self.open_reference_result,
+                None,
             )
             self._empty_window_action = add_action(
                 "File", "Open Empty IQA Analysis Canary", self.open_empty_window, None
