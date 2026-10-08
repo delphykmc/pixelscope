@@ -417,7 +417,7 @@ class AnalysisWindow(QMainWindow):
             if i < 2:
                 pixmap = self._source_pixmaps[i]
                 if pixmap is None:
-                    note = scene.addText("Source unavailable\\nNumeric/spatial analysis retained")
+                    note = scene.addText("Source unavailable\nNumeric/spatial analysis retained")
                     note.setDefaultTextColor(QColor(240, 240, 240))
                     note.setPos(20, 20)
                 else:
