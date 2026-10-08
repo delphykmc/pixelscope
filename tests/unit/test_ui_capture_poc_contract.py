@@ -77,16 +77,22 @@ def test_poc_validator_requires_decodable_nonblank_png_and_exact_identity(tmp_pa
         validate_capture(png, metadata, "single_image", sha)
 
 
-def test_poc_repeatability_is_exact_pixel_not_png_metadata(tmp_path: Path) -> None:
+def test_poc_repeatability_ignores_bounded_renderer_jitter(tmp_path: Path) -> None:
     first, second = tmp_path / "first.png", tmp_path / "second.png"
     _pattern(first)
     _pattern(second)
     assert changed_fraction(first, second) == 0
+
     with Image.open(second) as opened:
         changed = opened.copy()
-    changed.putpixel((20, 20), (1, 2, 3))
+    changed.putpixel((20, 20), (23, 21, 43))
+    changed.save(second)
+    assert changed_fraction(first, second) == 0
+
+    changed.putpixel((20, 20), (30, 20, 40))
     changed.save(second)
     assert 0 < changed_fraction(first, second) < 0.01
+
     Image.new("RGB", (450, 400)).save(second)
     assert changed_fraction(first, second) == 1.0
 
