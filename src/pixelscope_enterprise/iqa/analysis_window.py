@@ -13,7 +13,17 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QPoint, QRectF, QSettings, Qt, Signal
-from PySide6.QtGui import QColor, QCloseEvent, QImage, QPainter, QPen, QPixmap, QTransform
+from PySide6.QtGui import (
+    QColor,
+    QCloseEvent,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPen,
+    QPixmap,
+    QTransform,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -22,7 +32,6 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsScene,
     QGraphicsView,
-    QHBoxLayout,
     QLabel,
     QMainWindow,
     QSplitter,
@@ -87,38 +96,38 @@ class _LinkedView(QGraphicsView):
         self.centerOn(center_x, center_y)
         self._muted = False
 
-    def wheelEvent(self, event: object) -> None:
+    def wheelEvent(self, event: QWheelEvent) -> None:
         # Shift+drag defines a ROI; the wheel only zooms, never changes MainWindow.
-        factor = 1.2 if event.angleDelta().y() > 0 else (1 / 1.2)  # type: ignore[attr-defined]
+        factor = 1.2 if event.angleDelta().y() > 0 else (1 / 1.2)
         next_scale = self.transform().m11() * factor
         if 0.04 <= next_scale <= 32:
             self.scale(factor, factor)
             self._navigation_changed()
-        event.accept()  # type: ignore[attr-defined]
+        event.accept()
 
-    def mousePressEvent(self, event: object) -> None:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         if (
-            event.button() == Qt.MouseButton.LeftButton  # type: ignore[attr-defined]
-            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier  # type: ignore[attr-defined]
+            event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         ):
-            self._roi_start = event.pos()  # type: ignore[attr-defined]
+            self._roi_start = event.pos()
             event.accept()  # type: ignore[attr-defined]
             return
-        super().mousePressEvent(event)  # type: ignore[arg-type]
+        super().mousePressEvent(event)
 
-    def mouseReleaseEvent(self, event: object) -> None:
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         start = self._roi_start
         self._roi_start = None
         if start is not None:
             a = self.mapToScene(start)
-            b = self.mapToScene(event.pos())  # type: ignore[attr-defined]
+            b = self.mapToScene(event.pos())
             left, top = min(a.x(), b.x()), min(a.y(), b.y())
             width, height = abs(a.x() - b.x()), abs(a.y() - b.y())
             if width >= 1 and height >= 1:
                 self.roi_requested.emit(left, top, width, height)
             event.accept()  # type: ignore[attr-defined]
             return
-        super().mouseReleaseEvent(event)  # type: ignore[arg-type]
+        super().mouseReleaseEvent(event)
 
 
 def _map_pixmap(attribute: AttributeDisplay, half_range: float) -> QPixmap | None:
@@ -522,7 +531,9 @@ class AnalysisWindow(QMainWindow):
         if not filename:
             return
         try:
-            self._saver(self._results[self._active_id], self.current_analysis_state(), Path(filename))
+            self._saver(
+                self._results[self._active_id], self.current_analysis_state(), Path(filename)
+            )
         except (OSError, ValueError):
             self.statusBar().showMessage("Result could not be saved.")
             return
