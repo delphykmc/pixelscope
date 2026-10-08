@@ -239,7 +239,9 @@ class ReferenceIqaExtension:
         widget.advance_requested.connect(self.advance_mock)
         widget.view_result_requested.connect(self.open_current_result)
         widget.open_empty_requested.connect(self.open_empty_window)
-        widget.jobs_list.currentRowChanged.connect(self._refresh_selected_job)
+        widget.jobs_list.currentRowChanged.connect(  # type: ignore[attr-defined]
+            self._refresh_selected_job
+        )
         self.widget = widget
 
     def install_dock(self, window: QMainWindow) -> None:
@@ -367,7 +369,9 @@ class ReferenceIqaExtension:
             self.widget.advance_requested.disconnect(self.advance_mock)
             self.widget.view_result_requested.disconnect(self.open_current_result)
             self.widget.open_empty_requested.disconnect(self.open_empty_window)
-            self.widget.jobs_list.currentRowChanged.disconnect(self._refresh_selected_job)
+            self.widget.jobs_list.currentRowChanged.disconnect(  # type: ignore[attr-defined]
+                self._refresh_selected_job
+            )
         for action, handler in (
             (self._run_action, self.submit_mock),
             (self._synthetic_result_action, self.open_reference_result),
@@ -375,7 +379,7 @@ class ReferenceIqaExtension:
             (self.action, self.toggle_workspace),
         ):
             if action is not None:
-                action.triggered.disconnect(handler)
+                action.triggered.disconnect(handler)  # type: ignore[attr-defined]
         if self._analysis_window is not None:
             self._analysis_window.close()
             self._analysis_window.deleteLater()
