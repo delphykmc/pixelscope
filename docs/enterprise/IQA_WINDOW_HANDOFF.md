@@ -41,6 +41,35 @@ before the branch is approved for PRIVATE SUB transfer.
   Neutral metrics explicitly do **not** claim a winner.
 - No company-specific code, URLs, paths, payloads, model algorithms or private data.
 
+## PR #144 independent-review follow-up
+
+- **P1 polarity fixed:** verified quality-oriented values use red/blue with an
+  explicit `+A-better/-B-better` legend. Non-oriented signed values use an
+  independent purple/teal palette labeled **positive/negative signed polarity
+  only**, with no quality winner. Missing/masked cells remain transparent.
+  Vectorized NumPy conversion replaces nested per-cell Python/Qt calls.
+- **P1/P2 immutable Result ID guard:** reusing an ID with a different
+  `AnalysisResult` object raises `ValueError` **before** changing visible
+  state or RGB cache. This intentionally rejects even a second equivalent
+  in-memory instance: H2 must deduplicate by validated scientific identity
+  (or explicitly assign a new Result ID) rather than silently overwrite.
+  Re-selecting the same instance is allowed and preserves its UI state.
+- **H2 view-state seam:** injected `ResultLoader` now returns
+  `LoadedAnalysis(result, analysis_state)`. Saved state is validated for
+  declared attributes, known fixed ranges, source-bound ROI and finite,
+  bounded viewport values **before** UI mutation. Saver continues receiving
+  a separate view-state dictionary. A real secure portable file codec,
+  result integrity, versioning and saved-file round-trip remain H2 deliverables,
+  **not** implemented by these callback contracts.
+- **Regression scope:** signed/quality color, 64k-cell vectorized map,
+  immutable ID/attribute/source collision, state restoration and invalid
+  ROI/attribute rejection are covered by newly authored tests.
+- **Environment gate:** changes are subject to repo CI Ruff/mypy checks.
+  Existing change-scoped Windows job skips `tests/enterprise/**`. A
+  supported Windows Python 3.10/PySide6 6.4.2 focused run and native Qt/GC
+  repeated open-close smoke are still mandatory before accepting the slice.
+  Do not equate general screenshot CI with this dedicated UI validation.
+
 ## Manual standalone preview
 
 In a normal project Python 3.10 environment with editable package and Qt dependencies:
