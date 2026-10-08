@@ -12,6 +12,8 @@ from pixelscope_enterprise.iqa.analysis_model import (
     AttributeDisplay,
     SpatialMap,
     clipped_cells,
+    colorize_spatial_rgba,
+    map_polarity_legend,
     roi_statistics,
 )
 
@@ -105,3 +107,55 @@ def test_roi_can_reside_outside_coverage_without_fabricating_zeros() -> None:
     assert stats.mean == 4.0
     assert stats.valid_coverage == 0.25
     assert roi_statistics(grid, (64, 64, 64, 64)).mean is None
+
+
+def test_quality_oriented_and_signed_polarity_use_distinct_map_colors() -> None:
+    grid = SpatialMap(
+        values=np.array([[4.0, -4.0, 0.0, np.nan]]),
+        valid_mask=np.array([[True, True, True, False]]),
+        image_width=256,
+        image_height=64,
+        block_width=64.0,
+        block_height=64.0,
+    )
+    def attribute(oriented: bool) -> AttributeDisplay:
+        return AttributeDisplay(
+            "signed_example", "Example", "delta", "signed",
+            None, "missing", oriented, 4.0, grid,
+        )
+
+    oriented = colorize_spatial_rgba(attribute(True), 4.0)
+    signed = colorize_spatial_rgba(attribute(False), 4.0)
+    assert oriented is not None and signed is not None
+    assert tuple(oriented[0, 0]) == (245, 0, 0, 255)  # + means A better
+    assert tuple(oriented[0, 1]) == (0, 0, 245, 255)  # - means B better
+    assert tuple(signed[0, 0]) == (181, 72, 193, 255)  # + signed only
+    assert tuple(signed[0, 1]) == (35, 145, 148, 255)  # - signed only
+    assert tuple(signed[0, 2]) == (239, 239, 239, 255)
+    assert signed[0, 3, 3] == 0  # invalid is transparent, not zero
+    assert "A better" in map_polarity_legend(attribute(True))
+    assert "NO quality winner" in map_polarity_legend(attribute(False))
+    assert not np.shares_memory(signed, grid.values)
+
+
+def test_vectorized_dense_map_keeps_geometry_and_raw_values() -> None:
+    values = np.linspace(-10, 10, 256 * 256).reshape(256, 256)
+    original = values.copy()
+    grid = SpatialMap(
+        values=values,
+        valid_mask=np.ones((256, 256), dtype=np.bool_),
+        image_width=1024,
+        image_height=1024,
+        block_width=4,
+        block_height=4,
+    )
+    attr = AttributeDisplay(
+        "dense", "Dense", "dB", "power", 0.0, "available", True, 6, grid
+    )
+    rgba = colorize_spatial_rgba(attr, 6)
+    assert rgba is not None and rgba.shape == (256, 256, 4)
+    assert rgba.flags.c_contiguous
+    assert np.array_equal(grid.values, original)
+    assert clipped_cells(grid, 6)[0] > 0
+    with pytest.raises(ValueError):
+        colorize_spatial_rgba(attr, 0)
