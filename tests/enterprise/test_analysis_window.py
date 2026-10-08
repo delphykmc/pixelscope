@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import pytest
 from PySide6.QtWidgets import QApplication
 
 from pixelscope_enterprise.iqa.analysis_model import (
