@@ -29,13 +29,18 @@ def _result(result_id: str) -> AnalysisResult:
             "metric_db", "Example dB", "dB", "power", 1.5, "available", True, 5.0, grid
         ),
         AttributeDisplay(
-            "metric_delta", "Example delta", "delta", "signed",
-            None, "missing", False, 2.0, None
+            "metric_delta", "Example delta", "delta", "signed", None, "missing", False, 2.0, None
         ),
     )
     return AnalysisResult(
-        result_id, 128, 128, "Synthetic A", "Synthetic B", attributes,
-        source_a=Path("not-installed-a.png"), source_b=Path("not-installed-b.png"),
+        result_id,
+        128,
+        128,
+        "Synthetic A",
+        "Synthetic B",
+        attributes,
+        source_a=Path("not-installed-a.png"),
+        source_b=Path("not-installed-b.png"),
     )
 
 
