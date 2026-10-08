@@ -1,10 +1,13 @@
 # IQA downstream handoff and conformance kit
 
-Status: Issue #121 Slice 8 handoff authority.
+Status: Issue #121 MAIN architecture and Slice 8 handoff completed.
+Slice 8 merged MAIN snapshot: `main@19cf5d395fb86c62d55a28355e3beb147f5dd8bf` (PR #133).
 Slice 8 starting baseline (merged Slice 7): `main@29561bdb70e722380a8041212d991ae21b72c6be`.
 Pre-extraction mixed implementation snapshot:
 `main@037fda2dc3e79475b5ba1841e8308bbbe5d0cd07`.
-The final Slice 8 merge SHA is recorded only after merge; this PR does not preclaim it.
+For the SUB agent's first implementation plan, repository layout, test migration, and
+validation commands, start with `docs/IQA_ENTERPRISE_SUB_GUIDE.md`.
+That guide is public and contains no enterprise-specific configuration.
 
 This document is the single public handoff entry point for an external IQA extension.
 It does not describe a specific Enterprise implementation. It defines what MAIN owns,
@@ -331,6 +334,13 @@ and their dedicated test/tooling families are recoverable from immutable MAIN hi
 especially `037fda2dc3e79475b5ba1841e8308bbbe5d0cd07` and the Slice 7 merged baseline
 `29561bdb70e722380a8041212d991ae21b72c6be`. They are no longer supported public
 runtime APIs.
+
+No legacy P5 tests were copied to `tests/enterprise/**` as part of Issue #121.
+The 43 retired test files remain in the Slice 7 Git snapshot, **not** in current
+MAIN's working tree or a new archive directory. The SUB agent must inventory and
+selectively migrate their still-relevant behavioral assertions; do not copy the
+obsolete P5 import graph back into MAIN. See
+`docs/IQA_ENTERPRISE_SUB_GUIDE.md` for exact recovery commands and the file list.
 
 Retirement must not weaken Issue #81 lifecycle canaries, public contract coverage, or
 the two public package targets.
