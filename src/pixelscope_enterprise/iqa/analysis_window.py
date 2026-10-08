@@ -14,8 +14,8 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import QPoint, QRectF, QSettings, Qt, Signal
 from PySide6.QtGui import (
-    QColor,
     QCloseEvent,
+    QColor,
     QImage,
     QMouseEvent,
     QPainter,
@@ -352,7 +352,7 @@ class AnalysisWindow(QMainWindow):
         self._render_result()
 
     def _render_empty(self) -> None:
-        for view, name in zip(self._views, ("Image A", "Image B", "Map")):
+        for view, name in zip(self._views, ("Image A", "Image B", "Map"), strict=True):
             scene = QGraphicsScene(view)
             scene.addText(f"{name}\nNo result loaded")
             view.setScene(scene)
