@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
+    QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
     QLabel,
@@ -173,7 +174,7 @@ class AnalysisWindow(QMainWindow):
         self._switching = False
         self._rendering = False
         self._views: list[_LinkedView] = []
-        self._roi_items: list[object] = []
+        self._roi_items: list[QGraphicsRectItem] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
 
@@ -489,8 +490,8 @@ class AnalysisWindow(QMainWindow):
     def _draw_roi(self, roi: Roi | None) -> None:
         rect = QRectF(*roi) if roi is not None else QRectF()
         for overlay in self._roi_items:
-            overlay.setRect(rect)  # type: ignore[attr-defined]
-            overlay.setVisible(roi is not None)  # type: ignore[attr-defined]
+            overlay.setRect(rect)
+            overlay.setVisible(roi is not None)
 
     def _set_roi(self, x: float, y: float, w: float, h: float) -> None:
         if self._active_id is None:
