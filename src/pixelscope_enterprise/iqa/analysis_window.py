@@ -433,9 +433,7 @@ class AnalysisWindow(QMainWindow):
                     item = scene.addPixmap(pixmap)
                     item.setPos(grid.origin_x, grid.origin_y)
                     item.setTransformationMode(Qt.TransformationMode.FastTransformation)
-                    item.setTransform(
-                        QTransform().scale(grid.block_width, grid.block_height)
-                    )
+                    item.setTransform(QTransform().scale(grid.block_width, grid.block_height))
             overlay = scene.addRect(QRectF(), QPen(QColor(255, 205, 0), 2))
             overlay.setZValue(100)
             overlay.setVisible(False)
@@ -510,9 +508,7 @@ class AnalysisWindow(QMainWindow):
         self._draw_roi(state.roi)
         attr = self._attribute()
         if attr is not None:
-            self._render_inspector(
-                attr, state.ranges.get(attr.attribute_id, attr.fixed_range)
-            )
+            self._render_inspector(attr, state.ranges.get(attr.attribute_id, attr.fixed_range))
 
     def _update_range(self, value: float) -> None:
         state = self._state()
@@ -608,9 +604,7 @@ class AnalysisWindowManager:
         screens = QApplication.screens()
         if not screens:
             return
-        stored = QSettings("PixelScope", "EnterpriseIqa").value(
-            "analysis_window_geometry"
-        )
+        stored = QSettings("PixelScope", "EnterpriseIqa").value("analysis_window_geometry")
         if isinstance(stored, QByteArray | bytes) and window.restoreGeometry(stored):
             geometry = window.frameGeometry()
             if any(
