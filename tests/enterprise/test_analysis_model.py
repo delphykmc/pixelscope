@@ -118,10 +118,18 @@ def test_quality_oriented_and_signed_polarity_use_distinct_map_colors() -> None:
         block_width=64.0,
         block_height=64.0,
     )
+
     def attribute(oriented: bool) -> AttributeDisplay:
         return AttributeDisplay(
-            "signed_example", "Example", "delta", "signed",
-            None, "missing", oriented, 4.0, grid,
+            "signed_example",
+            "Example",
+            "delta",
+            "signed",
+            None,
+            "missing",
+            oriented,
+            4.0,
+            grid,
         )
 
     oriented = colorize_spatial_rgba(attribute(True), 4.0)
@@ -149,9 +157,7 @@ def test_vectorized_dense_map_keeps_geometry_and_raw_values() -> None:
         block_width=4,
         block_height=4,
     )
-    attr = AttributeDisplay(
-        "dense", "Dense", "dB", "power", 0.0, "available", True, 6, grid
-    )
+    attr = AttributeDisplay("dense", "Dense", "dB", "power", 0.0, "available", True, 6, grid)
     rgba = colorize_spatial_rgba(attr, 6)
     assert rgba is not None and rgba.shape == (256, 256, 4)
     assert rgba.flags.c_contiguous
