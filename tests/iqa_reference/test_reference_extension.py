@@ -216,16 +216,16 @@ def test_reference_child_reopen_cycles_keep_jobs_alive_until_owner_shutdown(
     assert child is not None
     for _ in range(5):
         child.close()
-        assert not child.isVisible()
+        assert child.isHidden()
         assert extension.jobs[job_id].state is IqaJobState.QUEUED
         extension.widget.empty_button.click()
         assert extension.analysis_window is child
-        assert child.isVisible()
+        assert not child.isHidden()
 
     window.close()
     assert not extension.active
     assert extension.analysis_window is None
-    assert not child.isVisible()
+    assert child.isHidden()
     extension.shutdown()
 
 
