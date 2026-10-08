@@ -54,13 +54,9 @@ def test_partial_grid_cell_overlap_and_clamp_are_independent() -> None:
         (np.array([["private"]]), np.array([[True]])),
     ],
 )
-def test_untrusted_grid_shape_and_dtype_rejected(
-    values: np.ndarray, mask: np.ndarray
-) -> None:
+def test_untrusted_grid_shape_and_dtype_rejected(values: np.ndarray, mask: np.ndarray) -> None:
     with pytest.raises(ValueError):
-        SpatialMap(
-            values, mask, image_width=64, image_height=64, block_width=64, block_height=64
-        )
+        SpatialMap(values, mask, image_width=64, image_height=64, block_width=64, block_height=64)
 
 
 def test_result_pair_geometry_and_official_missing_are_explicit() -> None:
@@ -87,13 +83,9 @@ def test_result_pair_geometry_and_official_missing_are_explicit() -> None:
     )
     assert result.attribute("synthetic_01").official_value == 0.0
     with pytest.raises(ValueError):
-        AttributeDisplay(
-            "synthetic_missing", "Missing", "dB", "power", 0.0, "missing", True, 6.0
-        )
+        AttributeDisplay("synthetic_missing", "Missing", "dB", "power", 0.0, "missing", True, 6.0)
     with pytest.raises(ValueError):
-        AnalysisResult(
-            "bad_geometry", 64, 64, "A", "B", attributes=(attr,)
-        )
+        AnalysisResult("bad_geometry", 64, 64, "A", "B", attributes=(attr,))
 
 
 def test_grid_is_defensively_copied_for_immutable_presentation() -> None:
@@ -108,9 +100,7 @@ def test_grid_is_defensively_copied_for_immutable_presentation() -> None:
 
 
 def test_roi_can_reside_outside_coverage_without_fabricating_zeros() -> None:
-    grid = SpatialMap(
-        np.array([[4.0]]), np.array([[True]]), 128, 128, 64.0, 64.0
-    )
+    grid = SpatialMap(np.array([[4.0]]), np.array([[True]]), 128, 128, 64.0, 64.0)
     stats = roi_statistics(grid, (0, 0, 128, 128))
     assert stats.mean == 4.0
     assert stats.valid_coverage == 0.25
