@@ -131,7 +131,6 @@ class AnalysisResult:
         return next(item for item in self.attributes if item.attribute_id == attribute_id)
 
 
-
 @dataclass(frozen=True)
 class LoadedAnalysis:
     """Reader outcome: immutable scientific result plus separate user-only view state.
@@ -181,6 +180,7 @@ def map_polarity_legend(attribute: AttributeDisplay) -> str:
     if attribute.quality_oriented:
         return "Red: A better (+) | Blue: B better (−)"
     return "Purple: positive signed value | Teal: negative (NO quality winner)"
+
 
 @dataclass(frozen=True)
 class GridStatistics:
