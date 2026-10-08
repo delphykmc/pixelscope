@@ -146,9 +146,7 @@ def _map_pixmap(attribute: AttributeDisplay, half_range: float) -> QPixmap | Non
         return None
     height, width, _ = rgba.shape
     # QImage can alias buffers; copy the image before numpy memory is released.
-    image = QImage(
-        rgba.tobytes(), width, height, width * 4, QImage.Format.Format_RGBA8888
-    ).copy()
+    image = QImage(rgba.tobytes(), width, height, width * 4, QImage.Format.Format_RGBA8888).copy()
     return QPixmap.fromImage(image)
 
 
@@ -280,9 +278,7 @@ class AnalysisWindow(QMainWindow):
         self.save_action.setEnabled(save is not None and self._active_id is not None)
 
     @staticmethod
-    def _validated_saved_state(
-        result: AnalysisResult, raw: dict[str, object]
-    ) -> _ResultViewState:
+    def _validated_saved_state(result: AnalysisResult, raw: dict[str, object]) -> _ResultViewState:
         """Validate the separate user state before mutating any visible UI."""
 
         if set(raw) != {"attribute_id", "roi", "ranges", "viewport"}:
@@ -319,7 +315,10 @@ class AnalysisWindow(QMainWindow):
                 raise ValueError("invalid saved ROI")
             x, y, width, height = (finite_number(item) for item in raw_roi)
             if (
-                x < 0 or y < 0 or width <= 0 or height <= 0
+                x < 0
+                or y < 0
+                or width <= 0
+                or height <= 0
                 or x + width > result.image_width
                 or y + height > result.image_height
             ):
@@ -327,9 +326,7 @@ class AnalysisWindow(QMainWindow):
             roi = (x, y, width, height)
 
         viewport = raw["viewport"]
-        if not isinstance(viewport, dict) or set(viewport) != {
-            "scale", "center_x", "center_y"
-        }:
+        if not isinstance(viewport, dict) or set(viewport) != {"scale", "center_x", "center_y"}:
             raise ValueError("invalid saved viewport")
         zoom = viewport["scale"]
         x_center = viewport["center_x"]
