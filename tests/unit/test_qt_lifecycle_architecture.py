@@ -74,8 +74,8 @@ def test_cycle_hardened_modules_do_not_install_bound_methodtype_or_weak_proxy() 
                     for target in node.targets
                 )
             ):
-                detail = "strong original bound method"
-                violations.append(f"{relative_path}:{node.lineno}: {detail}")
+                location = f"{relative_path}:{node.lineno}"
+                violations.append(f"{location}: strong original bound method")
     assert violations == []
 
 
@@ -97,8 +97,9 @@ def test_rank4_helpers_do_not_store_direct_owner_backreferences() -> None:
                     and target.value.id == "self"
                     and (target.attr, root) in forbidden
                 ):
+                    location = f"{relative_path}:{node.lineno}"
                     detail = f"self.{target.attr} retains {root}"
-                    violations.append(f"{relative_path}:{node.lineno}: {detail}")
+                    violations.append(f"{location}: {detail}")
     assert violations == []
 
 
