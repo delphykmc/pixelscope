@@ -1,5 +1,13 @@
 # IQA downstream handoff and conformance kit
 
+## Post-UX-discovery implementation plan (specification; pending code)
+
+After #137, the proposed division is **MAIN generic host + small Reference Lite integration canary**, with actual A/B/Map IQA Analysis Window work developed on a temporary public-safe, NON-MERGED SUB-owned handoff branch, then transferred to PRIVATE SUB. The historical Reference UX documented in this file reflects the current implementation and is not an approved product layout.
+
+See [MAIN scope and generic host requirements](IQA_MAIN_HOST_PLAN.md), [server JSON/NPZ/result publication request](IQA_SERVER_RESULT_REQUEST.md) and [temporary IQA Window implementation/handoff](IQA_HANDOFF_WINDOW_PLAN.md), tracked by #139, #140, #141. These specifications do not themselves change source code, bump the public contract revision or create the implementation branch.
+
+Public Core must not acquire a product-specific Job registry, A/B/Map UI or enterprise artifact parser. Existing `WindowContribution` and `WindowHostAccess` should be tested before adding any generic toolbar/status/lifecycle hooks. The enterprise extension owns the MainWindow-contributed Run/Status/View action and the independent non-modal Analysis Window. MAIN Reference only needs to prove extension composition, public job-state semantics, child-window lifecycle, clean shutdown and packaging. Any needed normalized official pair-comparison contract addition is a narrowly reviewed public MAIN change, never a private server wire schema.
+
 Status: Issue #121 MAIN architecture and Slice 8 handoff completed.
 Slice 8 merged MAIN snapshot: `main@19cf5d395fb86c62d55a28355e3beb147f5dd8bf` (PR #133).
 Slice 8 starting baseline (merged Slice 7): `main@29561bdb70e722380a8041212d991ae21b72c6be`.
