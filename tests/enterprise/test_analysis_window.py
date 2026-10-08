@@ -226,14 +226,19 @@ def test_qt_map_pixmap_respects_non_oriented_signed_polarity(qtbot: object) -> N
         block_height=64.0,
     )
     signed = AttributeDisplay(
-        "signed_only", "Signed only", "delta", "signed",
-        0.0, "available", False, 4.0, grid,
+        "signed_only",
+        "Signed only",
+        "delta",
+        "signed",
+        0.0,
+        "available",
+        False,
+        4.0,
+        grid,
     )
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
-    win.present_result(AnalysisResult(
-        "pure-signed-pair", 192, 64, "A", "B", (signed,)
-    ))
+    win.present_result(AnalysisResult("pure-signed-pair", 192, 64, "A", "B", (signed,)))
     assert "NO quality winner" in win.clamp_label.text()
     assert "neutral / no winner inferred" in win.official_label.text()
     scene = win._views[2].scene()
