@@ -5,11 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PySide6.QtWidgets import QApplication
 
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
     AttributeDisplay,
+    LoadedAnalysis,
     SpatialMap,
 )
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager
@@ -101,10 +103,11 @@ def test_explicit_open_handler_does_not_derive_result_from_job(qtbot: object) ->
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     assert not win.open_action.isEnabled()
-    win.install_file_handlers(load=lambda _: _result("opened"))
+    result = _result("opened")
+    win.install_file_handlers(load=lambda _: LoadedAnalysis(result))
     assert win.open_action.isEnabled()
     assert not win.save_action.isEnabled()
-    win.present_result(_result("opened"))
+    win.present_result(result)
     win.install_file_handlers(save=lambda _result, _state, _path: None)
     assert win.save_action.isEnabled()
     win.close()
@@ -112,3 +115,98 @@ def test_explicit_open_handler_does_not_derive_result_from_job(qtbot: object) ->
 
 def test_qt_runtime_exists_for_smoke(qtbot: object) -> None:
     assert QApplication.instance() is not None
+
+
+def test_duplicate_result_identity_must_not_mutate_visible_result(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    first = _result("same")
+    win.present_result(first)
+    win._set_roi(0, 0, 64, 64)
+    assert win.active_result_id == "same"
+    with pytest.raises(ValueError, match="immutable result ID"):
+        win.present_result(_result("same"))  # new object, potentially changed content
+    assert win._results["same"] is first
+    assert win.current_roi == (0, 0, 64, 64)
+    # The same validated immutable object may be selected again.
+    win.present_result(first)
+    assert win._results["same"] is first
+    assert win.result_combo.count() == 1
+    win.close()
+
+
+def test_duplicate_id_changed_attribute_set_or_sources_is_rejected(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    original = _result("unchanged")
+    win.present_result(original)
+    changed = AnalysisResult(
+        "unchanged", 128, 128, "Synthetic A", "Synthetic B",
+        attributes=(original.attributes[1],),
+        source_a=Path("different-a.png"),
+        source_b=Path("different-b.png"),
+    )
+    with pytest.raises(ValueError, match="immutable result ID"):
+        win.present_result(changed)
+    assert win._results["unchanged"] is original
+    assert win._state().attribute_id == "metric_db"  # type: ignore[union-attr]
+    assert win._source_result_id == "unchanged"
+    win.close()
+
+
+def test_saved_analysis_state_validation_and_restoration(qtbot: object) -> None:
+    source = AnalysisWindow()
+    qtbot.addWidget(source)  # type: ignore[attr-defined]
+    result = _result("saved-identity")
+    source.present_result(result)
+    source._set_roi(0, 0, 64, 64)
+    source.range_editor.setValue(2.0)
+    source.attribute_table.selectRow(1)
+    state = source.current_analysis_state()
+    assert state["attribute_id"] == "metric_delta"
+    source.close()
+
+    target = AnalysisWindow()
+    qtbot.addWidget(target)  # type: ignore[attr-defined]
+    target.present_result(result, analysis_state=state)
+    assert target.current_roi == (0.0, 0.0, 64.0, 64.0)
+    assert target.current_analysis_state()["ranges"] == {"metric_db": 2.0}
+    assert target._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
+    assert "neutral / no winner inferred" in target.official_label.text()
+
+    bad = dict(state)
+    bad["attribute_id"] = "removed-id"
+    with pytest.raises(ValueError, match="unknown saved attribute"):
+        target.present_result(result, analysis_state=bad)
+    assert target.current_analysis_state()["attribute_id"] == "metric_delta"
+
+    invalid_roi = dict(state)
+    invalid_roi["roi"] = [0, 0, 1e9, 64]
+    with pytest.raises(ValueError, match="saved ROI"):
+        target.present_result(result, analysis_state=invalid_roi)
+    target.close()
+
+
+def test_reader_carries_validated_state_separate_from_official_result(
+    qtbot: object, monkeypatch: object, tmp_path: Path
+) -> None:
+    from PySide6.QtWidgets import QFileDialog
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    result = _result("reopened")
+    state: dict[str, object] = {
+        "attribute_id": "metric_delta",
+        "roi": [0, 0, 64, 64],
+        "ranges": {"metric_db": 3.0},
+        "viewport": {"scale": None, "center_x": None, "center_y": None},
+    }
+    win.install_file_handlers(load=lambda _: LoadedAnalysis(result, state))
+    monkeypatch.setattr(  # type: ignore[attr-defined]
+        QFileDialog, "getOpenFileName", lambda *_args: (str(tmp_path / "stub"), "")
+    )
+    win._open_from_dialog()
+    assert win.active_result_id == "reopened"
+    assert win.current_roi == (0, 0, 64, 64)
+    assert win._state().ranges == {"metric_db": 3.0}  # type: ignore[union-attr]
+    win.close()
