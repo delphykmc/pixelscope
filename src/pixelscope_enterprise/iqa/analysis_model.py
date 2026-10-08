@@ -131,6 +131,57 @@ class AnalysisResult:
         return next(item for item in self.attributes if item.attribute_id == attribute_id)
 
 
+
+@dataclass(frozen=True)
+class LoadedAnalysis:
+    """Reader outcome: immutable scientific result plus separate user-only view state.
+
+    Real on-disk parsing and integrity validation are strictly H2/downstream work.
+    """
+
+    result: AnalysisResult
+    analysis_state: dict[str, object] | None = None
+
+
+def colorize_spatial_rgba(
+    attribute: AttributeDisplay, half_range: float
+) -> NDArray[np.uint8] | None:
+    """Vectorized signed grid -> RGBA; invalid cells are transparent.
+
+    Oriented red/blue encodes A-better/B-better only with verified direction.
+    Unoriented purple/teal encodes signed polarity, never a quality winner.
+    Color clipping is display-only; raw numbers and mask remain unchanged.
+    """
+
+    grid = attribute.spatial
+    if grid is None:
+        return None
+    if not np.isfinite(half_range) or half_range <= 0.0:
+        raise ValueError("display half-range must be positive")
+    # Compute only within the existing bounded grid, with no 4K RGB upsampling.
+    values = np.where(grid.valid_mask, grid.values, 0.0)
+    fraction = np.clip(values / half_range, -1.0, 1.0)
+    magnitude = np.abs(fraction)
+    positive = fraction >= 0.0
+    if attribute.quality_oriented:
+        plus, minus = (245, 0, 0), (0, 0, 245)
+    else:
+        plus, minus = (181, 72, 193), (35, 145, 148)
+    rgba = np.empty((*grid.values.shape, 4), dtype=np.uint8)
+    for channel in range(3):
+        endpoint = np.where(positive, plus[channel], minus[channel])
+        rgba[..., channel] = np.rint(239 + magnitude * (endpoint - 239)).astype(np.uint8)
+    rgba[..., 3] = np.where(grid.valid_mask, 255, 0).astype(np.uint8)
+    return np.ascontiguousarray(rgba)
+
+
+def map_polarity_legend(attribute: AttributeDisplay) -> str:
+    """Legend is semantic, not merely a description of the color palette."""
+
+    if attribute.quality_oriented:
+        return "Red: A better (+) | Blue: B better (−)"
+    return "Purple: positive signed value | Teal: negative (NO quality winner)"
+
 @dataclass(frozen=True)
 class GridStatistics:
     """Display-only, area-weighted GRID-DERIVED estimate; never official."""
