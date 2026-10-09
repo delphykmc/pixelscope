@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter
-from PySide6.QtWidgets import QGraphicsPixmapItem
+from PySide6.QtWidgets import QGraphicsPixmapItem, QWidget
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, official_chart_fraction
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
@@ -203,10 +203,10 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux1-compact"))
     assert all(win.attribute_table.rowHeight(i) == 36 for i in range(12))
-    assert win.findChild(object, "enterpriseIqaInspectorDetails") is not None
-    assert win.findChild(object, "enterpriseIqaRoiCard") is not None
-    assert win.findChild(object, "enterpriseIqaMapCard") is not None
-    assert win.findChild(object, "enterpriseIqaOfficialCard") is not None
+    assert win.findChild(QWidget, "enterpriseIqaInspectorDetails") is not None
+    assert win.findChild(QWidget, "enterpriseIqaRoiCard") is not None
+    assert win.findChild(QWidget, "enterpriseIqaMapCard") is not None
+    assert win.findChild(QWidget, "enterpriseIqaOfficialCard") is not None
     assert win._views[0].scene().backgroundBrush().color().name() == TOKENS.workspace_background
     assert "B better" in win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp").text()
     win.close()
