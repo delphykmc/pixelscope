@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QGraphicsPixmapItem
 
@@ -20,7 +20,9 @@ def test_ux1_chart_uses_official_axis_and_preserves_supplier_order(qtbot: object
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(result)
     win.show()
-    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._fit_pending_result_id is None, timeout=3000
+    )
     chart = win.attribute_table
     assert chart.rowCount() == 12
     assert chart.columnCount() == 2
@@ -59,7 +61,9 @@ def test_ux1_switches_and_range_edits_never_recreate_scenes(qtbot: object) -> No
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux1-preserve"))
     win.show()
-    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._fit_pending_result_id is None, timeout=3000
+    )
     win._set_roi(800, 450, 512, 512)
     roi = win.current_roi
     state = win.current_analysis_state()["viewport"]
@@ -82,7 +86,9 @@ def test_ux1_switches_and_range_edits_never_recreate_scenes(qtbot: object) -> No
         assert win.current_analysis_state()["viewport"] == state
     # User explicitly invokes Fit; only then navigation is reset.
     win.fit_button.click()
-    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._fit_pending_result_id is None, timeout=3000
+    )
     assert all(v.scene() is sc for v, sc in zip(win._views, scenes, strict=True))
     win.close()
 
@@ -103,7 +109,9 @@ def test_ux1_4k_rgb_source_preservation_and_nearest_grid(qtbot: object, tmp_path
     win.resize(1920, 1080)
     win.present_result(result)
     win.show()
-    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=5000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._fit_pending_result_id is None, timeout=5000
+    )
     before = [v.scene() for v in win._views]
     win._set_roi(1000, 500, 512, 512)
     for i in range(12):
@@ -113,7 +121,7 @@ def test_ux1_4k_rgb_source_preservation_and_nearest_grid(qtbot: object, tmp_path
     assert win._roi_items[1].isVisible()
     assert not win._views[2].renderHints() & QPainter.RenderHint.SmoothPixmapTransform
     assert isinstance(win._map_item, QGraphicsPixmapItem)
-    assert win._map_item.transformationMode() == win._map_item.transformationMode().FastTransformation
+    assert win._map_item.transformationMode() == Qt.TransformationMode.FastTransformation
     assert win.current_roi == (1000, 500, 512, 512)
     # Capture screenshot in native Windows validation without committing pixels.
     screenshot = win.grab().toImage()
