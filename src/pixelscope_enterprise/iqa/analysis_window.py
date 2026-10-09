@@ -1466,7 +1466,7 @@ class AnalysisWindow(QMainWindow):
             return
         if self._spatial_pending == key:
             return
-         previous = self._spatial_future
+        previous = self._spatial_future
         if previous is not None and not previous.done():
             previous.cancel()
         self._spatial_pending = key
@@ -1561,10 +1561,14 @@ class AnalysisWindow(QMainWindow):
             else ()
         )
         roi = self.current_roi
-        index = next(
-            (i for i, candidate in enumerate(candidates) if roi == candidate.roi),
-            None,
-        ) if roi is not None else None
+        index = (
+            next(
+                (i for i, candidate in enumerate(candidates) if roi == candidate.roi),
+                None,
+            )
+            if roi is not None
+            else None
+        )
         self.spatial_panel.mark_selected(index)
 
     def _draw_candidate_overlays(self, _checked: bool = False) -> None:
