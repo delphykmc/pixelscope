@@ -279,7 +279,9 @@ def test_first_fit_uses_visible_4k_layout_and_wheel_dispatch(qtbot: object) -> N
     result = make_synthetic_result("4k-visible")
     win.present_result(result)
     assert win.current_analysis_state()["viewport"] == {
-        "scale": None, "center_x": None, "center_y": None,
+        "scale": None,
+        "center_x": None,
+        "center_y": None,
     }
     win.show()
     qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
@@ -321,14 +323,18 @@ def test_shift_drag_on_real_viewport_selects_and_draws_linked_roi(qtbot: object)
     assert source.viewport().rect().contains(a)
     assert source.viewport().rect().contains(b)
     qtbot.mousePress(  # type: ignore[attr-defined]
-        source.viewport(), Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.ShiftModifier, pos=a,
+        source.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.ShiftModifier,
+        pos=a,
     )
     qtbot.mouseMove(source.viewport(), pos=b)  # type: ignore[attr-defined]
     assert source._rubber_band.isVisible()
     qtbot.mouseRelease(  # type: ignore[attr-defined]
-        source.viewport(), Qt.MouseButton.LeftButton,
-        Qt.KeyboardModifier.ShiftModifier, pos=b,
+        source.viewport(),
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.ShiftModifier,
+        pos=b,
     )
     assert not source._rubber_band.isVisible()
     roi = win.current_roi
