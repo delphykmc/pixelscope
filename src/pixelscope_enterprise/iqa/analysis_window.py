@@ -191,6 +191,7 @@ class AnalysisWindow(QMainWindow):
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
+        self._fit_attempts_remaining = 8
 
         file_menu = self.menuBar().addMenu("File")
         self.open_action = file_menu.addAction("Open Result...")
@@ -546,9 +547,11 @@ class AnalysisWindow(QMainWindow):
             view._muted = False
         self._draw_roi(state.roi)
         if state.scale is not None and state.center_x is not None and state.center_y is not None:
+            self._fit_pending_result_id = None
             for view in self._views:
                 view.apply_navigation(state.scale, state.center_x, state.center_y)
         else:
+            self._fit_attempts_remaining = 8
             # QWidget/Splitter viewport sizes are not valid before the first show.
             # A pre-show fit can produce a microscopic scale and disable wheel UX.
             self._fit_pending_result_id = result.result_id
@@ -658,7 +661,11 @@ class AnalysisWindow(QMainWindow):
         if not self.isVisible() or result_id is None or result_id != self._active_id:
             return
         if any(view.viewport().width() < 100 or view.viewport().height() < 100 for view in self._views):
-            # A subsequent show/layout will retry; never cache pre-layout geometry.
+            # The compositor/splitter may deliver child geometry in a later event.
+            # Bounded retries; never cache a pre-layout transform or spin forever.
+            if self._fit_attempts_remaining > 0:
+                self._fit_attempts_remaining -= 1
+                QTimer.singleShot(25, self._finish_initial_fit)
             return
         state = self._state()
         if state is None or state.scale is not None:
