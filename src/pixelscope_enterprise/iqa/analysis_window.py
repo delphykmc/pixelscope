@@ -675,10 +675,7 @@ class AnalysisWindow(QMainWindow):
         top3_layout = QVBoxLayout(top3_frame)
         top3_layout.setContentsMargins(7, 5, 7, 5)
         top3_layout.setSpacing(4)
-        self.top3_title = QLabel(
-            "TOP 3 · VERIFIED OFFICIAL dB DIFFERENCES · ranked by largest |Δ|",
-            top3_frame,
-        )
+        self.top3_title = QLabel("TOP 3   ·   OFFICIAL dB", top3_frame)
         self.top3_title.setObjectName("enterpriseIqaTop3Title")
         top3_layout.addWidget(self.top3_title)
         top3_row = QHBoxLayout()
@@ -723,7 +720,9 @@ class AnalysisWindow(QMainWindow):
         self.spatial_dock.visibilityChanged.connect(  # type: ignore[attr-defined]
             self._spatial_dock_visibility_changed
         )
-        # Different settings key/application scope than generic MAIN docks.
+        # Older builds could persist an invisible/zero-height dock and hide
+        # the entire ROI workflow on the next launch. Restore placement, but
+        # always show the ROI dock at the initial analysis-window presentation.
         dock_state = QSettings("PixelScope", "EnterpriseIqa").value(
             "analysis_window_spatial_dock_state"
         )
@@ -941,11 +940,11 @@ class AnalysisWindow(QMainWindow):
             attr.unit == "dB" and attr.summary_signal_gate is None for attr in result.attributes
         )
         self.top3_title.setText(
-            "TOP 3 · VERIFIED OFFICIAL dB DIFFERENCES · largest |Δ| first"
+            "TOP 3   ·   VERIFIED OFFICIAL dB"
             if ranked
-            else "TOP 3 · NO QUALIFYING dB DIFFERENCES"
+            else "TOP 3   ·   NO QUALIFYING dB"
             if not unknown_gate
-            else "TOP 3 · SIGNAL ELIGIBILITY NOT YET VERIFIED"
+            else "TOP 3   ·   SIGNAL PENDING"
         )
         for index, card in enumerate(self.top3_buttons):
             if index >= len(ranked):
@@ -966,19 +965,15 @@ class AnalysisWindow(QMainWindow):
                 if item.quality_oriented
                 else "signed only · no winner"
             )
-            rank_label = (
-                "01  LARGEST GLOBAL DIFFERENCE"
-                if index == 0
-                else "02  NEXT LARGEST"
-                if index == 1
-                else "03  THIRD LARGEST"
-            )
+            rank_symbol = "★ 1" if index == 0 else str(index + 1)
             card.setText(
-                f"{rank_label} · {item.label}\n" f"{item.delta_db:+.3f} dB  ·  {conclusion}"
+                f"{rank_symbol}   {item.label}\n"
+                f"{item.delta_db:+.3f} dB  ·  {conclusion}"
             )
             card.setToolTip(
-                f"OFFICIAL full pair: {item.label} {item.delta_db:+.4f} dB. "
-                "Click to inspect its spatial evidence; not an ROI score."
+                f"Rank {index + 1} of verified global |dB| differences: "
+                f"{item.label} {item.delta_db:+.4f} dB (OFFICIAL). "
+                "Card selection opens its spatial evidence, not an ROI quality score."
             )
             card.setEnabled(True)
         self._sync_top_cards()
@@ -1755,10 +1750,28 @@ class AnalysisWindow(QMainWindow):
         super().showEvent(event)
         if self._dock_startup_fit_pending:
             self._dock_startup_fit_pending = False
-            # Only compact the first FHD layout. Do not continuously fight
-            # user resizing or overwrite deliberate floating dock geometry.
-            QTimer.singleShot(0, self._settle_dock_initial_height)
+            # restoreState() can reapply a stale hidden/float state. Defer
+            # exactly once until QMainWindow has laid out its dock widgets.
+            QTimer.singleShot(0, self._show_spatial_dock_at_startup)
         self._queue_initial_fit()
+        self._request_spatial_candidates()
+
+    def _show_spatial_dock_at_startup(self) -> None:
+        if not self.isVisible():
+            return
+        dock = self.spatial_dock
+        # Re-dock an orphan floating panel (e.g. a disconnected monitor).
+        if dock.isFloating():
+            visible = any(
+                dock.frameGeometry().intersects(screen.availableGeometry())
+                for screen in QApplication.screens()
+            )
+            if not visible:
+                dock.setFloating(False)
+                self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        dock.show()
+        dock.raise_()
+        self._settle_dock_initial_height()
         self._request_spatial_candidates()
 
     def _settle_dock_initial_height(self) -> None:
