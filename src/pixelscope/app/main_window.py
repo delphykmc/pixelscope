@@ -753,19 +753,15 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Exported {target.name}", 4000)
 
     def _create_selection_shortcuts(self) -> None:
-        # Delete / Ctrl+A only belong to the Files tree. A QMainWindow-owned
-        # QAction with the default WindowShortcut would steal either key from
-        # contributed job lists and text fields, despite the Files selection
-        # remaining active in the background.
+        # Ctrl+A belongs only to Files, not a background selection when a
+        # contributed widget has focus. Delete is handled directly by
+        # DocumentListWidget.keyPressEvent, because its native item view may
+        # accept Delete before a parented QShortcut is activated on Windows.
         self._file_list_shortcuts: list[QShortcut] = []
-        for sequence, callback in (
-            ("Delete", self.remove_selected),
-            ("Ctrl+A", self.select_all_documents),
-        ):
-            shortcut = QShortcut(QKeySequence(sequence), self.document_list)
-            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-            shortcut.activated.connect(callback)  # type: ignore[attr-defined]
-            self._file_list_shortcuts.append(shortcut)
+        select_all = QShortcut(QKeySequence("Ctrl+A"), self.document_list)
+        select_all.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        select_all.activated.connect(self.select_all_documents)  # type: ignore[attr-defined]
+        self._file_list_shortcuts.append(select_all)
 
         self._selection_shortcuts: list[QShortcut] = []
         for index in range(COMPARISON_PAGE_SIZE):
