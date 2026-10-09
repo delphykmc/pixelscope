@@ -376,6 +376,13 @@ class MainWindow(QMainWindow):
             action.triggered.connect(callback)  # type: ignore[attr-defined]
             if shortcut is not None:
                 action.setShortcut(shortcut)
+            if menu_name not in menus:
+                # Extension-owned command groups are opt-in: create a top-level
+                # menu only when a contribution actually installs an action.
+                menu = QMenu(f"&{menu_name}", menu_bar)
+                menu.setStyleSheet(menu_style())
+                menu_bar.insertMenu(menus["View"].menuAction(), menu)
+                menus[menu_name] = menu
             menus[menu_name].addAction(action)
             self.action_map[text] = action
             return action
@@ -447,6 +454,9 @@ class MainWindow(QMainWindow):
         )
         previous_position.setText("Previous Folder Position\tPageUp")
         next_position.setText("Next Folder Position\tPageDown")
+
+        for contribution in self._window_contributions:
+            contribution.install_actions(self, "IQA", add_action)
 
         add_action("View", "Auto Layout", lambda: self.set_layout_mode("Auto"))
         add_action("View", "Single View", lambda: self.set_layout_mode("Single View"), "Ctrl+1")
