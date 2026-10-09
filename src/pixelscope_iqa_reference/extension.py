@@ -11,7 +11,7 @@ from typing import cast
 from weakref import ReferenceType, ref
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QHideEvent, QShowEvent
 from PySide6.QtWidgets import (
     QDockWidget,
     QLabel,
@@ -40,6 +40,16 @@ from pixelscope.remote.iqa_public_fixture import FixtureIqaProvider, IqaFixtureP
 
 class ReferenceIqaAnalysisWindow(QMainWindow):
     """Non-modal extension-owned window; NOT a production A/B/Map result viewer."""
+
+    visibility_changed = Signal(bool)
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        self.visibility_changed.emit(True)
+
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
+        super().hideEvent(event)
+        self.visibility_changed.emit(False)
 
     def __init__(self, parent: QMainWindow) -> None:
         super().__init__(parent, Qt.WindowType.Window)
@@ -87,7 +97,6 @@ class ReferenceIqaWidget(QWidget):
     submit_requested = Signal()
     advance_requested = Signal()
     view_result_requested = Signal()
-    open_empty_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -130,9 +139,6 @@ class ReferenceIqaWidget(QWidget):
         self.view_button.setEnabled(False)
         layout.addWidget(self.view_button)
 
-        self.empty_button = QPushButton("Open Empty Analysis Canary", self)
-        self.empty_button.setObjectName("referenceIqaOpenEmpty")
-        layout.addWidget(self.empty_button)
         layout.addStretch(1)
 
         self.submit_button.clicked.connect(self.submit_requested.emit)  # type: ignore[attr-defined]
@@ -141,9 +147,6 @@ class ReferenceIqaWidget(QWidget):
         )
         self.view_button.clicked.connect(  # type: ignore[attr-defined]
             self.view_result_requested.emit
-        )
-        self.empty_button.clicked.connect(  # type: ignore[attr-defined]
-            self.open_empty_requested.emit
         )
 
     def selected_job_id(self) -> str | None:
@@ -217,7 +220,7 @@ class ReferenceIqaExtension:
         self.action: QAction | None = None
         self._run_action: QAction | None = None
         self._synthetic_result_action: QAction | None = None
-        self._empty_window_action: QAction | None = None
+        self._analysis_action: QAction | None = None
 
     @property
     def active(self) -> bool:
@@ -238,7 +241,6 @@ class ReferenceIqaExtension:
         widget.submit_requested.connect(self.submit_mock)
         widget.advance_requested.connect(self.advance_mock)
         widget.view_result_requested.connect(self.open_current_result)
-        widget.open_empty_requested.connect(self.open_empty_window)
         widget.jobs_list.currentRowChanged.connect(  # type: ignore[attr-defined]
             self._refresh_selected_job
         )
@@ -262,26 +264,25 @@ class ReferenceIqaExtension:
         add_action: MenuActionFactory,
     ) -> None:
         del window
-        if menu_name == "File":
-            self._run_action = add_action("File", "Run IQA (Synthetic)", self.submit_mock, None)
+        if menu_name == "IQA":
+            self._run_action = add_action("IQA", "Run IQA (Synthetic)", self.submit_mock, None)
             self._synthetic_result_action = add_action(
-                "File",
-                "Open Published Synthetic IQA Result (Demo)",
-                self.open_reference_result,
-                None,
-            )
-            self._empty_window_action = add_action(
-                "File", "Open Empty IQA Analysis Canary", self.open_empty_window, None
+                "IQA", "Load Synthetic Demo Result", self.open_reference_result, None
             )
             return
         if menu_name != "View":
             return
         if self.dock is None:
             raise RuntimeError("Reference IQA dock must exist before actions are installed")
-        action = add_action("View", "Show IQA Mock Jobs", self.toggle_workspace, None)
-        action.setCheckable(True)
-        self.dock.visibilityChanged.connect(action.setChecked)  # type: ignore[attr-defined]
-        self.action = action
+        jobs_action = add_action("View", "Show IQA Mock Jobs", self.toggle_workspace, None)
+        jobs_action.setCheckable(True)
+        self.dock.visibilityChanged.connect(jobs_action.setChecked)  # type: ignore[attr-defined]
+        self.action = jobs_action
+        analysis_action = add_action(
+            "View", "Show IQA Analysis Window", self.toggle_analysis_window, None
+        )
+        analysis_action.setCheckable(True)
+        self._analysis_action = analysis_action
 
     def submit_mock(self) -> IqaJobReference | None:
         """Submit a new synthetic job and return its identity only on success."""
@@ -363,12 +364,14 @@ class ReferenceIqaExtension:
         self._advance_job(job.job_id)
         self._open_job_result(job.job_id)
 
-    def open_empty_window(self) -> None:
-        if not self._active:
+    def toggle_analysis_window(self) -> None:
+        """View is visibility-only: never clear the displayed result on reopen."""
+        if not self._active or self._analysis_action is None:
             return
-        analysis = self._get_analysis_window()
-        analysis.clear_result()
-        self._show_analysis_window(analysis)
+        if self._analysis_action.isChecked():
+            self._show_analysis_window(self._get_analysis_window())
+        elif self._analysis_window is not None:
+            self._analysis_window.hide()
 
     def toggle_workspace(self) -> None:
         if not self._active or self.dock is None or self.action is None:
@@ -385,19 +388,22 @@ class ReferenceIqaExtension:
             self.widget.submit_requested.disconnect(self.submit_mock)
             self.widget.advance_requested.disconnect(self.advance_mock)
             self.widget.view_result_requested.disconnect(self.open_current_result)
-            self.widget.open_empty_requested.disconnect(self.open_empty_window)
             self.widget.jobs_list.currentRowChanged.disconnect(  # type: ignore[attr-defined]
                 self._refresh_selected_job
             )
         for action, handler in (
             (self._run_action, self.submit_mock),
             (self._synthetic_result_action, self.open_reference_result),
-            (self._empty_window_action, self.open_empty_window),
+            (self._analysis_action, self.toggle_analysis_window),
             (self.action, self.toggle_workspace),
         ):
             if action is not None:
                 action.triggered.disconnect(handler)  # type: ignore[attr-defined]
         if self._analysis_window is not None:
+            if self._analysis_action is not None:
+                self._analysis_window.visibility_changed.disconnect(
+                    self._analysis_action.setChecked
+                )
             self._analysis_window.close()
             self._analysis_window.deleteLater()
             self._analysis_window = None
@@ -409,7 +415,7 @@ class ReferenceIqaExtension:
         self.action = None
         self._run_action = None
         self._synthetic_result_action = None
-        self._empty_window_action = None
+        self._analysis_action = None
 
     def _refresh_selected_job(self, _row: int = -1) -> None:
         if not self._active or self.widget is None:
@@ -431,6 +437,10 @@ class ReferenceIqaExtension:
             if parent is None:
                 raise RuntimeError("Reference IQA contribution has no active host")
             self._analysis_window = ReferenceIqaAnalysisWindow(parent)
+            if self._analysis_action is not None:
+                self._analysis_window.visibility_changed.connect(
+                    self._analysis_action.setChecked
+                )
         return self._analysis_window
 
     @staticmethod
