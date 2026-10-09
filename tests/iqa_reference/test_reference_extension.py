@@ -398,9 +398,7 @@ def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
     file_menu.popup(menu_bar.mapToGlobal(file_anchor))
     qtbot.waitUntil(file_menu.isVisible)  # type: ignore[attr-defined]
     assert all(
-        action.isVisible() and action.isEnabled()
-        for action in actual
-        if action.text() in expected
+        action.isVisible() and action.isEnabled() for action in actual if action.text() in expected
     ), menu_diagnostics()
     file_menu.hide()
     window.close()
