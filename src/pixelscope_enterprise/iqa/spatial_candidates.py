@@ -147,7 +147,7 @@ def find_spatial_candidates(
 
     if window_size <= 0 or max_candidates < 0:
         raise ValueError("positive window and nonnegative count required")
-    if stride not in SCAN_STRIDES:
+    if not isinstance(stride, int) or isinstance(stride, bool) or stride not in SCAN_STRIDES:
         raise ValueError("stride must be one of 64, 128, or 256 source pixels")
     if not 0 <= min_coverage <= 1 or not 0 <= max_iou <= 1:
         raise ValueError("coverage and IoU thresholds must be in [0, 1]")
