@@ -500,9 +500,20 @@ def test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area(
     assert "NOT official" in win.roi_label.text()
 
     win.attribute_table.selectRow(1)  # no spatial grid for second metric
+    assert win._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
+    assert win.attribute_table.selectionModel().selectedRows()[0].row() == 1
     assert [i.isVisible() for i in win._roi_items] == [True, False, False]
     assert "spatial statistics unavailable" in win.roi_label.text()
     win.attribute_table.selectRow(0)
+    assert win._state().attribute_id == "metric_db"  # type: ignore[union-attr]
+    assert [i.isVisible() for i in win._roi_items] == [True, False, True]
+    # Repeat without changing results/ROI to catch a stale currentRow race.
+    win.attribute_table.selectRow(1)
+    assert win._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
+    assert [i.isVisible() for i in win._roi_items] == [True, False, False]
+    assert win.current_roi == (0, 0, 64, 64)
+    win.attribute_table.selectRow(0)
+    assert win._state().attribute_id == "metric_db"  # type: ignore[union-attr]
     assert [i.isVisible() for i in win._roi_items] == [True, False, True]
     win.close()
 
