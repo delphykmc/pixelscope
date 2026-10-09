@@ -72,6 +72,7 @@ from PySide6.QtWidgets import (
 )
 
 from pixelscope.ui.design_tokens import TOKENS
+from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
     AttributeDisplay,
@@ -271,6 +272,13 @@ def _analysis_action_icon(kind: str) -> QIcon:
         for x, y, dx, dy in ((3, 3, 5, 5), (17, 3, -5, 5), (3, 17, 5, -5), (17, 17, -5, -5)):
             painter.drawLine(x, y, x + dx, y)
             painter.drawLine(x, y, x, y + dy)
+    elif kind == "hotspot":
+        painter.drawRect(3, 3, 14, 14)
+        painter.drawEllipse(7, 7, 6, 6)
+        painter.drawLine(10, 1, 10, 5)
+        painter.drawLine(10, 15, 10, 19)
+        painter.drawLine(1, 10, 5, 10)
+        painter.drawLine(15, 10, 19, 10)
     elif kind == "swap":
         painter.drawLine(3, 6, 17, 6)
         painter.drawLine(17, 6, 13, 2)
@@ -347,6 +355,12 @@ def _style_insight_card(card: QPushButton, tone: str) -> None:
         f"border-color: {TOKENS.border}; color: {TOKENS.text_disabled}; }}"
     )
     card.setIcon(_insight_badge_icon(tone) if tone != "empty" else QIcon())
+
+
+class _EnterpriseSpatialDockTitle(PlotsDockTitleBar):
+    """Reuse MAIN Plots title controls without entering its reset-key registry."""
+
+    _known_geometry_settings: set[str] = set()
 
 
 class AnalysisWindow(QMainWindow):
@@ -445,8 +459,9 @@ class AnalysisWindow(QMainWindow):
             "Swap the visual positions of A and B; measurement identity is unchanged " "(T, Alt+X)"
         )
         self.clear_roi_action.setIcon(_analysis_action_icon("clear"))
-        self.hotspot_overlay_action = view_menu.addAction("Show hotspot boxes")
+        self.hotspot_overlay_action = view_menu.addAction("Show Hotspot")
         self.hotspot_overlay_action.setObjectName("enterpriseIqaShowHotspotBoxes")
+        self.hotspot_overlay_action.setIcon(_analysis_action_icon("hotspot"))
         self.hotspot_overlay_action.setCheckable(True)
         self.hotspot_overlay_action.setChecked(False)
         self.hotspot_overlay_action.setShortcut(QKeySequence("Alt+H"))
@@ -712,6 +727,15 @@ class AnalysisWindow(QMainWindow):
         )
         self.spatial_panel = SpatialCandidatesPanel(self.spatial_dock)
         self.spatial_dock.setWidget(self.spatial_panel)
+        # Exactly the native Plot workspace controls: float/dock, maximize or
+        # restore to the active screen work area, and hide. Drawn Qt icons do
+        # not depend on an OS-specific floating QDockWidget title decoration.
+        self.spatial_dock_title = _EnterpriseSpatialDockTitle(
+            self.spatial_dock,
+            title="Hotspots",
+            geometry_setting="ui/enterprise_iqa_spatial_floating_geometry",
+        )
+        self.spatial_dock.setTitleBarWidget(self.spatial_dock_title)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.spatial_dock)
         view_menu.addSeparator()
         view_menu.addAction(self.spatial_dock.toggleViewAction())
@@ -1941,5 +1965,17 @@ class AnalysisWindowManager:
         window, self._window = self._window, None
         if window is not None:
             window._shutdown_spatial_worker()
+            window.spatial_dock_title.quiesce_pending_callbacks()
             window.close()
+            # Normalize native floating dock before Qt destroys the owner;
+            # the Plot workspace uses the same bounded shutdown sequence.
+            if window.spatial_dock.isFloating():
+                if window.spatial_dock.isMaximized():
+                    window.spatial_dock.showNormal()
+                window.spatial_dock.hide()
+                window.addDockWidget(
+                    window.spatial_dock_title.shutdown_dock_area(),
+                    window.spatial_dock,
+                )
+                window.spatial_dock.setFloating(False)
             window.deleteLater()
