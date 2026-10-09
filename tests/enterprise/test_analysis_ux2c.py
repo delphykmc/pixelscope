@@ -217,6 +217,9 @@ def test_spatial_dock_reopens_visible_after_saved_hidden_layout(qtbot: object) -
         first = AnalysisWindow()
         qtbot.addWidget(first)  # type: ignore[attr-defined]
         first.show()
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: first.spatial_dock.isVisible(), timeout=5000
+        )
         first.spatial_dock.hide()
         QApplication.processEvents()
         saved_hidden = first.saveState()
