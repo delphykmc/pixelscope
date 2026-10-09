@@ -44,7 +44,9 @@ def test_top_three_requires_trusted_signal_gate_and_strict_db_threshold() -> Non
         _attr("fourth", 0.4),
     )
     assert [(x.attribute_id, x.rank) for x in rank_top_differences(_result(*items))] == [
-        ("first", 1), ("second", 2), ("fourth", 3)
+        ("first", 1),
+        ("second", 2),
+        ("fourth", 3),
     ]
     assert rank_top_differences(_result(*items), count=0) == ()
 
