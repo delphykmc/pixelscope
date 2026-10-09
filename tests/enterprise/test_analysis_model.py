@@ -267,3 +267,17 @@ def test_public_demo_covers_independent_official_and_spatial_availability() -> N
     )
     assert spatial_only.official_value is None
     assert official_chart_fraction(spatial_only) is None
+
+
+def test_shared_map_gain_mapping_keeps_signed_zero_and_source_immutable() -> None:
+    from pixelscope_enterprise.iqa.analysis_model import spatial_display_half_range
+
+    assert spatial_display_half_range(10.0, 1.0) == 10.0
+    assert spatial_display_half_range(10.0, 0.5) == 20.0
+    assert spatial_display_half_range(10.0, 1.5) == pytest.approx(10 / 1.5)
+    assert spatial_display_half_range(10.0, 2.0) == 5.0
+    for invalid in (-1.0, 0.0, float("inf"), float("nan")):
+        with pytest.raises(ValueError, match="group display range"):
+            spatial_display_half_range(invalid, 1.0)
+        with pytest.raises(ValueError, match="display gain"):
+            spatial_display_half_range(10.0, invalid)
