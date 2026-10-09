@@ -9,7 +9,7 @@ supplied valid_mask only, never infers SNR from a difference map.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -48,7 +48,11 @@ def _scan_positions(image_length: int, window_length: int, stride: int) -> NDArr
 
 
 def _axis_overlap(
-    starts: NDArray[np.int64], window: int, origin: float, block: float, cells: int,
+    starts: NDArray[np.int64],
+    window: int,
+    origin: float,
+    block: float,
+    cells: int,
     image_length: int,
 ) -> NDArray[np.float64]:
     """Actual cell/ROI intersection areas, including partial boundary blocks."""
@@ -57,19 +61,17 @@ def _axis_overlap(
     cell_right = np.minimum(cell_left + block, float(image_length))
     roi_left = starts[:, None]
     roi_right = roi_left + window
-    return np.maximum(
-        0.0, np.minimum(roi_right, cell_right[None, :]) -
-        np.maximum(roi_left, cell_left[None, :])
+    return cast(
+        NDArray[np.float64],
+        np.maximum(
+            0.0, np.minimum(roi_right, cell_right[None, :]) - np.maximum(roi_left, cell_left[None, :])
+        ),
     )
 
 
 def _iou(a: SpatialCandidate, b: SpatialCandidate) -> float:
-    intersection_width = max(
-        0, min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
-    )
-    intersection_height = max(
-        0, min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
-    )
+    intersection_width = max(0, min(a.x + a.width, b.x + b.width) - max(a.x, b.x))
+    intersection_height = max(0, min(a.y + a.height, b.y + b.height) - max(a.y, b.y))
     intersection = intersection_width * intersection_height
     union = a.width * a.height + b.width * b.height - intersection
     return intersection / union if union else 0.0
@@ -114,12 +116,8 @@ def find_spatial_candidates(
     height = min(grid.image_height, window_size)
     xs = _scan_positions(grid.image_width, width, stride)
     ys = _scan_positions(grid.image_height, height, stride)
-    wx = _axis_overlap(
-        xs, width, grid.origin_x, grid.block_width, grid.columns, grid.image_width
-    )
-    wy = _axis_overlap(
-        ys, height, grid.origin_y, grid.block_height, grid.rows, grid.image_height
-    )
+    wx = _axis_overlap(xs, width, grid.origin_x, grid.block_width, grid.columns, grid.image_width)
+    wy = _axis_overlap(ys, height, grid.origin_y, grid.block_height, grid.rows, grid.image_height)
     mask = grid.valid_mask.astype(np.float64)
     valid_values = np.where(grid.valid_mask, grid.values, 0.0)
     weighted_area = (wy @ mask) @ wx.T
