@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter
-from PySide6.QtWidgets import QGraphicsPixmapItem, QWidget
+from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem, QWidget
 
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
@@ -258,7 +258,25 @@ def test_ux1_qss_braces_and_standalone_swap_shortcut(qtbot: object) -> None:
     ]
     win.present_result(make_synthetic_result("qss-and-t"))
     win.show()
-    qtbot.keyClick(win._views[0].viewport(), Qt.Key.Key_T)  # type: ignore[attr-defined]
+    # QTest sends directly to the widget; WindowShortcut requires an active
+    # top-level and a focused descendant. Showing alone does not ensure this.
+    win.raise_()
+    win.activateWindow()
+    QApplication.setActiveWindow(win)
+    view = win._views[0]
+    view.setFocus()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: QApplication.activeWindow() is win and view.hasFocus(), timeout=3000
+    )
+    assert not win._sources_swapped
+    qtbot.keyClick(view, Qt.Key.Key_T)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: win._sources_swapped, timeout=1000)  # type: ignore[attr-defined]
+    # The secondary shortcut must reach the *same* action without a second
+    # activation from the primary key.
+    qtbot.keyClick(view, Qt.Key.Key_X, Qt.KeyboardModifier.AltModifier)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: not win._sources_swapped, timeout=1000)  # type: ignore[attr-defined]
+    # Verify the menu action itself remains a valid explicit UI command.
+    win.swap_sources_action.trigger()
     assert win._sources_swapped
     win.close()
 
