@@ -330,6 +330,10 @@ class AnalysisWindow(QMainWindow):
         inspector_layout.addWidget(chart_help)
         self.attribute_table = QTableWidget(0, 2, inspector)
         self.attribute_table.setObjectName("enterpriseIqaAttributes")
+        self.attribute_table.setToolTip(
+            "Use arrow keys to select a metric; chart axes show official comparison, "
+            "not spatial Map color scale."
+        )
         self.attribute_table.setHorizontalHeaderLabels(["Metric / group", "Official difference"])
         self.attribute_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Fixed
