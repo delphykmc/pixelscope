@@ -37,6 +37,13 @@ def test_file_export_enabled_for_result_without_verified_reader(
     assert not win.open_action.isEnabled()
     assert not win.save_action.isEnabled()
     win._set_roi(64.0, 96.0, 512.0, 512.0)
+    assert "Full-pair comparison" in win.official_label.text()
+    assert "Grid-derived ROI estimate" in win.roi_label.text()
+    assert "FULL-PAIR" in win.top3_title.text() or "SIGNAL PENDING" in win.top3_title.text()
+    assert "official" not in win.official_label.text().lower()
+    assert "official" not in win.roi_label.text().lower()
+    assert "official" not in win.export_action.toolTip().lower()
+    assert "official" not in win.spatial_panel.provenance_badge.toolTip().lower()
     before = win.current_roi
     win._swap_sources()  # visual placement must NOT swap exported source identity
     destination = tmp_path / "measurements.csv"
