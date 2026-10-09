@@ -153,10 +153,16 @@ def _rank_badge(rank: int) -> QPixmap:
         painter.drawPolygon(
             QPolygonF(
                 [
-                    QPointF(23, 0), QPointF(25, 5), QPointF(29, 6),
-                    QPointF(26, 9), QPointF(27, 13), QPointF(23, 11),
-                    QPointF(19, 13), QPointF(20, 9), QPointF(17, 6),
-                    QPointF(21, 5),
+                    QPointF(23, 1),
+                    QPointF(24, 4),
+                    QPointF(27, 5),
+                    QPointF(25, 7),
+                    QPointF(26, 10),
+                    QPointF(23, 8),
+                    QPointF(20, 10),
+                    QPointF(21, 7),
+                    QPointF(19, 5),
+                    QPointF(22, 4),
                 ]
             )
         )
