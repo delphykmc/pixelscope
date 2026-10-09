@@ -210,3 +210,17 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     assert win._views[0].scene().backgroundBrush().color().name() == TOKENS.workspace_background
     assert "B better" in win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp").text()
     win.close()
+
+
+def test_ux1_patterned_rgb_demo_has_spatial_landmarks(tmp_path: Path) -> None:
+    from pixelscope_enterprise.iqa.demo import create_synthetic_rgb
+
+    a, b = tmp_path / "a.png", tmp_path / "b.png"
+    create_synthetic_rgb(a)
+    create_synthetic_rgb(b, source_b=True)
+    image_a, image_b = QImage(str(a)), QImage(str(b))
+    assert image_a.size() == image_b.size()
+    assert (image_a.width(), image_a.height()) == (3840, 2160)
+    # Geometry grid and gradient make visual pan/zoom test possible; A/B differ.
+    assert image_a.pixelColor(40, 40) != image_a.pixelColor(1800, 900)
+    assert image_a.pixelColor(40, 40) != image_b.pixelColor(40, 40)
