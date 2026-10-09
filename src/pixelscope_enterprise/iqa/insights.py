@@ -24,9 +24,7 @@ class TopDifference:
     quality_oriented: bool
 
 
-def rank_top_differences(
-    result: AnalysisResult, *, count: int = 3
-) -> tuple[TopDifference, ...]:
+def rank_top_differences(result: AnalysisResult, *, count: int = 3) -> tuple[TopDifference, ...]:
     """Select comparable verified dB differences, largest magnitude first.
 
     Signal gate True means a trusted upstream adapter verified that at least
