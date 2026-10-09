@@ -663,48 +663,137 @@ class AnalysisWindow(QMainWindow):
             return None
         return self._results[self._active_id].attribute(state.attribute_id)
 
+    @staticmethod
+    def _unit_default_range(result: AnalysisResult, unit: str) -> float:
+        """Only use declared adapter visualization defaults, never grid min/max."""
+
+        declared = [
+            attr.chart_axis_range or attr.fixed_range
+            for attr in result.attributes
+            if attr.unit == unit
+        ]
+        return max(0.5, float(np.ceil(max(declared) * 2.0) / 2.0))
+
     def _populate_attributes(self) -> None:
         result = self._results[self._active_id]  # type: ignore[index]
         state = self._state()
         self._switching = True
-        self.attribute_table.setRowCount(len(result.attributes))
-        selected = 0
-        for row, attr in enumerate(result.attributes):
-            if state is not None and attr.attribute_id == state.attribute_id:
-                selected = row
-            # Preserve producer order even when a group occurs non-contiguously.
-            group = f"{attr.group} · {attr.unit}"
-            fields = (f"{attr.label}\n{group}", "")
-            self.attribute_table.setRowHeight(row, 36)
-            for col, field_text in enumerate(fields):
-                item = QTableWidgetItem(field_text)
-                item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
-                item.setData(ATTRIBUTE_ROLE, attr)
-                item.setData(
-                    DISPLAY_RANGE_ROLE,
-                    state.ranges.get(attr.attribute_id, attr.chart_axis_range or attr.fixed_range)
-                    if state is not None
-                    else attr.chart_axis_range or attr.fixed_range,
-                )
-                item.setToolTip(
-                    f"{attr.label} | {group} | "
-                    f"official {attr.official_availability} | "
-                    f"map scale ±{attr.fixed_range:g} {attr.unit}"
-                )
-                self.attribute_table.setItem(row, col, item)
-        self.attribute_table.selectRow(selected)
+        # QScrollArea owns the groups; clear stale widgets on a result change.
+        for section in self._group_sections.values():
+            self._groups_layout.removeWidget(section)
+            section.hide()
+            section.deleteLater()
+        self._group_sections = {}
+        self._group_tables = {}
+        self._range_editors = {}
+        groups: dict[str, list[AttributeDisplay]] = {}
+        for attr in result.attributes:
+            groups.setdefault(attr.unit, []).append(attr)
+        self._group_units = list(groups)
+        for unit, attrs in groups.items():
+            section = QFrame(self.group_content)
+            section.setObjectName("enterpriseIqaUnitSection")
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(3, 3, 3, 3)
+            section_layout.setSpacing(3)
+            top = QHBoxLayout()
+            top.addWidget(QLabel(f"{unit}  ·  {len(attrs)} attributes", section), 1)
+            top.addWidget(QLabel("Range ±", section))
+            editor = QDoubleSpinBox(section)
+            editor.setObjectName("enterpriseIqaUnitRange")
+            editor.setDecimals(1)
+            editor.setRange(0.5, 1_000_000.0)
+            editor.setSingleStep(0.5)
+            editor.setSuffix(f" {unit}")
+            editor.setToolTip(
+                "One symmetric numeric range for ALL bars of this unit, "
+                "and the selected Map of this unit."
+            )
+            default = self._unit_default_range(result, unit)
+            limit = state.ranges.get(unit, default) if state is not None else default
+            editor.setValue(limit)
+            editor.valueChanged.connect(  # type: ignore[attr-defined]
+                lambda value, unit=unit: self._update_group_range(unit, value)
+            )
+            top.addWidget(editor)
+            section_layout.addLayout(top)
+
+            table = QTableWidget(len(attrs), 2, section)
+            table.setObjectName("enterpriseIqaAttributes")
+            table.setHorizontalHeaderLabels(["Metric / family", "Official difference"])
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+            table.setColumnWidth(0, 142)
+            table.horizontalHeader().setSectionResizeMode(
+                1, QHeaderView.ResizeMode.Stretch
+            )
+            table.setItemDelegateForColumn(1, RelativeDifferenceDelegate(table))
+            table.setAlternatingRowColors(True)
+            table.verticalHeader().hide()
+            table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            table.setFixedHeight(27 + 36 * len(attrs))
+            for row, attr in enumerate(attrs):
+                table.setRowHeight(row, 36)
+                for col, content in enumerate((f"{attr.label}\n{attr.group}", "")):
+                    item = QTableWidgetItem(content)
+                    item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
+                    item.setData(ATTRIBUTE_ROLE, attr)
+                    item.setData(DISPLAY_RANGE_ROLE, limit)
+                    item.setToolTip(
+                        f"{attr.label} · {attr.group} · {unit}; "
+                        f"official {attr.official_availability}; group scale ±{limit:g}"
+                    )
+                    table.setItem(row, col, item)
+            table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
+                lambda unit=unit: self._on_group_attribute_selected(unit)
+            )
+            section_layout.addWidget(table)
+            self._groups_layout.addWidget(section)
+            self._group_sections[unit] = section
+            self._group_tables[unit] = table
+            self._range_editors[unit] = editor
+
+        self._groups_layout.addStretch(1)
+        # Compatibility accessors for first-unit consumers; actual state is
+        # always by unit, never by whichever table currently has selection.
+        first_unit = self._group_units[0]
+        self.attribute_table = self._group_tables[first_unit]
+        self.range_editor = self._range_editors[first_unit]
+        self.gain_editor.blockSignals(True)
+        self.gain_editor.setValue(state.display_gain if state is not None else 1.0)
+        self.gain_editor.blockSignals(False)
+        self._switching = False
+        self._select_active_attribute()
+
+    def _select_active_attribute(self) -> None:
+        state = self._state()
+        if state is None or self._active_id is None:
+            return
+        selected = self._results[self._active_id].attribute(state.attribute_id)
+        self._switching = True
+        for unit, table in self._group_tables.items():
+            if unit == selected.unit:
+                for row in range(table.rowCount()):
+                    if table.item(row, 0).data(Qt.ItemDataRole.UserRole) == selected.attribute_id:
+                        table.selectRow(row)
+                        break
+            else:
+                table.clearSelection()
         self._switching = False
 
-    def _on_attribute_selected(self) -> None:
+    def _on_group_attribute_selected(self, unit: str) -> None:
         if self._switching or self._active_id is None:
             return
-        # itemSelectionChanged can fire before currentRow/currentItem catches
-        # up to a programmatic selectRow(). Read the selected row from the
-        # selection model instead of sampling a potentially stale currentRow.
-        selected_rows = self.attribute_table.selectionModel().selectedRows()
+        table = self._group_tables.get(unit)
+        if table is None:
+            return
+        selected_rows = table.selectionModel().selectedRows()
         if len(selected_rows) != 1:
             return
-        item = self.attribute_table.item(selected_rows[0].row(), 0)
+        item = table.item(selected_rows[0].row(), 0)
         state = self._state()
         if item is None or state is None:
             return
@@ -712,6 +801,47 @@ class AnalysisWindow(QMainWindow):
         if attribute_id == state.attribute_id:
             return
         state.attribute_id = attribute_id
+        self._select_active_attribute()
+        self._render_result()
+
+    def _on_attribute_selected(self) -> None:
+        """Legacy first-group selection callback kept for compatibility."""
+
+        if self._group_units:
+            self._on_group_attribute_selected(self._group_units[0])
+
+    def _refresh_group_bars(self, unit: str) -> None:
+        state = self._state()
+        if state is None or self._active_id is None:
+            return
+        table = self._group_tables.get(unit)
+        if table is None:
+            return
+        limit = self._display_range(
+            next(a for a in self._results[self._active_id].attributes if a.unit == unit), state
+        )
+        for row in range(table.rowCount()):
+            cell = table.item(row, 1)
+            if cell is not None:
+                cell.setData(DISPLAY_RANGE_ROLE, limit)
+        table.viewport().update()
+
+    def _update_group_range(self, unit: str, value: float) -> None:
+        state = self._state()
+        if state is None or unit not in self._group_tables or value <= 0:
+            return
+        state.ranges[unit] = value
+        self._refresh_group_bars(unit)
+        attr = self._attribute()
+        if attr is not None and attr.unit == unit:
+            self._render_result()
+
+    def _update_gain(self, value: float) -> None:
+        state = self._state()
+        if state is None or value <= 0:
+            return
+        state.display_gain = value
+        # Only selected Map raster/clipping changes; NO Bar value/ROI mutation.
         self._render_result()
 
     def _render_empty(self) -> None:
