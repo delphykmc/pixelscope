@@ -161,12 +161,9 @@ def test_scan_preset_cardinality_and_unchanged_default_4k_behavior() -> None:
     ).spatial
     assert grid is not None
     # Includes a final edge-aligned window even when not divisible by stride.
-    counts = {
-        step: scan_module._preflight_scan(grid, 512, 512, step) for step in SCAN_STRIDES
-    }
+    counts = {step: scan_module._preflight_scan(grid, 512, 512, step) for step in SCAN_STRIDES}
     assert counts == {64: (53, 27), 128: (27, 14), 256: (14, 8)}
-    attr = _attribute(np.ones((34, 60), dtype=np.float64),
-                      image_width=3840, image_height=2160)
+    attr = _attribute(np.ones((34, 60), dtype=np.float64), image_width=3840, image_height=2160)
     assert find_spatial_candidates(attr) == find_spatial_candidates(attr, stride=128)
 
 
@@ -174,8 +171,10 @@ def test_pathological_stride_rejected_before_position_allocation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     attr = _attribute(np.ones((1, 1)), image_width=3840, image_height=2160)
+
     def should_not_scan(*_args: object) -> None:
         raise AssertionError("scan positions must not be allocated for unsupported stride")
+
     monkeypatch.setattr(scan_module, "_scan_positions", should_not_scan)
     with pytest.raises(ValueError, match="stride must"):
         find_spatial_candidates(attr, stride=1)
@@ -186,11 +185,15 @@ def test_oversized_window_count_rejected_before_position_allocation(
 ) -> None:
     # Huge source geometry but only one valid grid cell; no 4K pixel iteration.
     attr = _attribute(
-        np.ones((1, 1)), image_width=1_000_000, image_height=1_000_000,
-        block_width=1_000_000.0, block_height=1_000_000.0,
+        np.ones((1, 1)),
+        image_width=1_000_000,
+        image_height=1_000_000,
+        block_width=1_000_000.0,
+        block_height=1_000_000.0,
     )
     def should_not_scan(*_args: object) -> None:
         raise AssertionError("preflight failed: created an unbounded position array")
+
     monkeypatch.setattr(scan_module, "_scan_positions", should_not_scan)
     with pytest.raises(ValueError, match="scan workload exceeds supported budget"):
         find_spatial_candidates(attr, stride=64)
@@ -202,11 +205,15 @@ def test_large_matmul_temporary_rejected_despite_small_window_count(
     # 156 vertical candidates × 4000 source grid columns: >500k intermediate
     # elements despite only 156 windows and a small X/Y overlap allocation.
     attr = _attribute(
-        np.ones((1, 4000)), image_width=512, image_height=40_000,
-        block_width=512.0 / 4000, block_height=40_000.0,
+        np.ones((1, 4000)),
+        image_width=512,
+        image_height=40_000,
+        block_width=512.0 / 4000,
+        block_height=40_000.0,
     )
     def should_not_scan(*_args: object) -> None:
         raise AssertionError("preflight must reject before np.arange")
+
     monkeypatch.setattr(scan_module, "_scan_positions", should_not_scan)
     with pytest.raises(ValueError, match="scan workload exceeds supported budget"):
         find_spatial_candidates(attr, stride=256)
