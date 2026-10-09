@@ -105,6 +105,52 @@ These are **implemented corrections, not yet an owner-verified Windows pass**.
 Re-run the entire focused suite without `-x` after this fix and inspect the
 standalone GUI. The change-scoped CI does not run Enterprise Qt tests.
 
+## Owner 14/14 Qt PASS and ROI usability review (2026-10-09)
+
+The owner reran the Windows 3.10.11 / PySide6 6.4.2 Enterprise Qt
+test module against the prior HEAD `5a609023`: **14 passed**, with five
+`QMouseEvent.pos()` deprecation warnings. This confirms the previously
+reported initial fit / wheel zoom / pan / viewport restore blockers were
+resolved on that HEAD. The owner subsequently observed **persistent
+visual outlines after repeated Shift+drag ROI**, even though each scene
+had one current ROI geometry item. Passing the earlier single-ROI unit
+test did *not* verify the stale viewport pixels.
+
+Follow-on changes in this slice (new owner Windows validation required):
+
+- Each completed ROI selection discards its `QRubberBand` child geometry and
+  explicitly repaints the affected viewport. Updating or clearing a ROI
+  also performs an on-demand viewport repaint across A/B/Map. This is
+  discrete-event invalidation, **not** a continuously enabled
+  `FullViewportUpdate` mode on every pan/zoom.
+- The finalized overlay is visible on Spatial Map only when a spatial
+  grid exists. It is mirrored on Source A and/or B **only when their
+  original RGB images were successfully loaded**. Synthetic source
+  absence is an expected state, not a server error. One authoritative
+  ROI in image coordinates is retained even if images are unavailable.
+- Shift selects with a crosshair rather than a hand cursor regardless
+  of which Inspector sibling has focus; releasing Shift / losing focus
+  restores the navigation cursor.
+- Standalone **View > Clear ROI**, an Inspector **Clear ROI** button and
+  shortcuts `Esc` / `Shift+Esc` delete only the active Result's ROI
+  and any in-progress rubber-band selection. The shortcut convention is
+  `Esc` for ROI; the alias is provided for owner discoverability.
+- Inspector now displays **ROI source (x,y,w,h)**, selected source-pixel
+  area and area-weighted grid valid/total coverage plus **GRID-DERIVED**
+  mean where available. Never equate this with the separate
+  **OFFICIAL full-pair** metric.
+- Deprecated Qt mouse `pos()` is replaced with
+  `position().toPoint()`. Qt-focused tests now include repeated real
+  viewport Shift+drag, painted-pixel old-outline disappearance **without
+  a resize**, explicit clear, source A/B present/missing combinations,
+  per-result retention, key modifiers and ROI quantitative context.
+
+The new interactive tests **have not yet been run by the owner on
+Windows**. Rerun the *entire* focused Qt module including a strict
+`-W error::DeprecationWarning` check when practical. Dual-monitor/DPI,
+native GC repetition and packaging remain gates. No `main` branch
+or Reference UI changes should be imported with this patch.
+
 ## Manual standalone preview
 
 In a normal project Python 3.10 environment with editable package and Qt dependencies:
