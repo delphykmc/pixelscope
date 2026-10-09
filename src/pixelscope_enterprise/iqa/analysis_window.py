@@ -27,6 +27,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import (
     QCloseEvent,
     QColor,
+    QIcon,
     QImage,
     QKeyEvent,
     QKeySequence,
@@ -60,6 +61,8 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -76,6 +79,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     roi_statistics,
     spatial_display_half_range,
 )
+from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
     DISPLAY_RANGE_ROLE,
@@ -244,6 +248,35 @@ def _map_pixmap(attribute: AttributeDisplay, half_range: float) -> QPixmap | Non
     return QPixmap.fromImage(image)
 
 
+def _analysis_action_icon(kind: str) -> QIcon:
+    """Paint three stable, high-contrast 20px Qt toolbar glyphs without theme files."""
+
+    image = QPixmap(20, 20)
+    image.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    pen = QPen(QColor(TOKENS.text_primary), 2)
+    pen.setCosmetic(True)
+    painter.setPen(pen)
+    if kind == "fit":
+        for x, y, dx, dy in ((3, 3, 5, 5), (17, 3, -5, 5), (3, 17, 5, -5), (17, 17, -5, -5)):
+            painter.drawLine(x, y, x + dx, y)
+            painter.drawLine(x, y, x, y + dy)
+    elif kind == "swap":
+        painter.drawLine(3, 6, 17, 6)
+        painter.drawLine(17, 6, 13, 2)
+        painter.drawLine(17, 6, 13, 10)
+        painter.drawLine(17, 14, 3, 14)
+        painter.drawLine(3, 14, 7, 10)
+        painter.drawLine(3, 14, 7, 18)
+    else:
+        painter.drawRect(4, 4, 12, 12)
+        painter.drawLine(7, 7, 13, 13)
+        painter.drawLine(13, 7, 7, 13)
+    painter.end()
+    return QIcon(image)
+
+
 class AnalysisWindow(QMainWindow):
     """One independent, non-modal window; may show with no loaded Result."""
 
@@ -272,6 +305,7 @@ class AnalysisWindow(QMainWindow):
         self._range_editors: dict[str, QDoubleSpinBox] = {}
         self._group_sections: dict[str, QWidget] = {}
         self._group_units: list[str] = []
+        self._top3_attribute_ids: list[str] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
@@ -309,6 +343,46 @@ class AnalysisWindow(QMainWindow):
         self.swap_sources_action.triggered.connect(  # type: ignore[attr-defined]
             self._swap_sources
         )
+
+        # Native window toolbar: actions are shared with View menu, so tooltips,
+        # enablement, mouse and scoped keyboard activation cannot diverge.
+        self.fit_action = view_menu.addAction("Fit pair")
+        self.fit_action.setObjectName("enterpriseIqaFitAction")
+        self.fit_action.setShortcut(QKeySequence("Ctrl+0"))
+        self.fit_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.fit_action.setEnabled(False)
+        self.fit_action.triggered.connect(self._fit_pair)  # type: ignore[attr-defined]
+        self.fit_action.setIcon(_analysis_action_icon("fit"))
+        self.fit_action.setToolTip("Fit all three panes to the source image (Ctrl+0)")
+        self.swap_sources_action.setIcon(_analysis_action_icon("swap"))
+        self.swap_sources_action.setToolTip(
+            "Swap the visual positions of A and B; measurement identity is unchanged "
+            "(T, Alt+X)"
+        )
+        self.clear_roi_action.setIcon(_analysis_action_icon("clear"))
+        self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
+
+        self.iqa_toolbar = QToolBar("IQA analysis tools", self)
+        self.iqa_toolbar.setObjectName("enterpriseIqaToolbar")
+        self.iqa_toolbar.setMovable(False)
+        self.iqa_toolbar.setFloatable(False)
+        self.iqa_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.iqa_toolbar)
+
+        def action_button(action: object) -> QToolButton:
+            from PySide6.QtGui import QAction
+
+            assert isinstance(action, QAction)
+            button = QToolButton(self.iqa_toolbar)
+            button.setDefaultAction(action)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            self.iqa_toolbar.addWidget(button)
+            return button
+
+        self.fit_button = action_button(self.fit_action)
+        self.swap_button = action_button(self.swap_sources_action)
+        self.iqa_toolbar.addSeparator()
+        self.clear_roi_tool_button = action_button(self.clear_roi_action)
 
         root_split = QSplitter(Qt.Orientation.Horizontal, self)
         root_split.setObjectName("enterpriseIqaRootSplitter")
@@ -494,19 +568,36 @@ class AnalysisWindow(QMainWindow):
         self.pair_summary.setObjectName("enterpriseIqaPairSummary")
         self.pair_summary.setMinimumWidth(230)
         header.addWidget(self.pair_summary, 2)
-        self.fit_button = QPushButton("Fit pair", central)
-        self.fit_button.setObjectName("enterpriseIqaFitPair")
-        self.fit_button.setEnabled(False)
-        self.fit_button.clicked.connect(self._fit_pair)  # type: ignore[attr-defined]
-        header.addWidget(self.fit_button)
-        self.swap_button = QPushButton("Swap A/B  (T)", central)
-        self.swap_button.setObjectName("enterpriseIqaSwapButton")
-        self.swap_button.clicked.connect(self._swap_sources)  # type: ignore[attr-defined]
-        header.addWidget(self.swap_button)
         self.roi_hint = QLabel("Shift+drag ROI  •  Esc clears", central)
         self.roi_hint.setObjectName("enterpriseIqaRoiHint")
         header.addWidget(self.roi_hint)
         central_layout.addLayout(header)
+        # One compact, first-screen overview; cards select the official metric,
+        # they NEVER replace the detailed unit-group chart or source evidence.
+        top3_frame = QFrame(central)
+        top3_frame.setObjectName("enterpriseIqaTop3Frame")
+        top3_layout = QVBoxLayout(top3_frame)
+        top3_layout.setContentsMargins(7, 5, 7, 5)
+        top3_layout.setSpacing(4)
+        self.top3_title = QLabel("TOP 3 · VERIFIED RELATIVE dB DIFFERENCES", top3_frame)
+        self.top3_title.setObjectName("enterpriseIqaTop3Title")
+        top3_layout.addWidget(self.top3_title)
+        top3_row = QHBoxLayout()
+        top3_row.setSpacing(7)
+        self.top3_buttons: list[QPushButton] = []
+        for index in range(3):
+            card = QPushButton(f"#{index + 1}  —", top3_frame)
+            card.setObjectName("enterpriseIqaTop3Card")
+            card.setMinimumHeight(50)
+            card.setCheckable(True)
+            card.setEnabled(False)
+            card.clicked.connect(  # type: ignore[attr-defined]
+                lambda _checked=False, n=index: self._activate_top_card(n)
+            )
+            self.top3_buttons.append(card)
+            top3_row.addWidget(card, 1)
+        top3_layout.addLayout(top3_row)
+        central_layout.addWidget(top3_frame)
         central_layout.addWidget(root_split, 1)
         self.setCentralWidget(central)
         # Read the same reusable design tokens as the public PixelScope host.
@@ -520,6 +611,15 @@ class AnalysisWindow(QMainWindow):
             f"QFrame#enterpriseIqaOfficialCard, "
             f"QFrame#enterpriseIqaRoiCard, QFrame#enterpriseIqaMapCard {{ "
             f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; }}"
+            f"QFrame#enterpriseIqaTop3Frame {{ background: {TOKENS.raised_background}; "
+            f"border: 1px solid {TOKENS.border}; border-radius: 9px; }}"
+            f"QPushButton#enterpriseIqaTop3Card {{ background: {TOKENS.workspace_background}; "
+            f"border: 1px solid {TOKENS.border}; border-radius: 8px; "
+            f"text-align: left; padding: 6px; color: {TOKENS.text_primary}; }}"
+            f"QPushButton#enterpriseIqaTop3Card:checked {{ border: 2px solid "
+            f"{TOKENS.text_primary}; font-weight: 700; }}"
+            f"QLabel#enterpriseIqaTop3Title {{ color: {TOKENS.text_secondary}; "
+            "font-weight: 700; }"
         )
         self.statusBar().showMessage(
             "Shift+drag ROI · T swaps A/B · Map Gain changes visualization only."
@@ -694,15 +794,79 @@ class AnalysisWindow(QMainWindow):
         self.pair_summary.setToolTip(
             f"Source A: {result.source_a_label}\nSource B: {result.source_b_label}"
         )
-        self.fit_button.setEnabled(True)
+        self.fit_action.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
         self._populate_attributes()
+        self._update_top_cards()
         self.gain_editor.setEnabled(True)
         self._render_result()
         self.statusBar().showMessage(
             "Official global and grid-derived ROI values are distinct. "
             "Positive = A better only for oriented metrics."
         )
+
+    def _update_top_cards(self) -> None:
+        """Refresh a guarded OFFICIAL-only first insight for the current pair."""
+
+        if self._active_id is None:
+            return
+        result = self._results[self._active_id]
+        ranked = rank_top_differences(result)
+        self._top3_attribute_ids = [item.attribute_id for item in ranked]
+        gated = any(
+            attr.unit == "dB" and attr.summary_signal_gate is not None
+            for attr in result.attributes
+        )
+        self.top3_title.setText(
+            "TOP 3 · VERIFIED RELATIVE dB DIFFERENCES"
+            if ranked
+            else "TOP 3 · NO QUALIFYING dB DIFFERENCES"
+            if gated
+            else "TOP 3 · SIGNAL ELIGIBILITY NOT YET VERIFIED"
+        )
+        for index, card in enumerate(self.top3_buttons):
+            if index >= len(ranked):
+                card.setText(f"#{index + 1}  —")
+                card.setToolTip(
+                    "Requires verified official dB, |difference| > 0.3 dB, "
+                    "and at least one original-relative signal above -50 dB."
+                )
+                card.setEnabled(False)
+                card.setChecked(False)
+                continue
+            item = ranked[index]
+            conclusion = (
+                "A better" if item.delta_db > 0 else "B better"
+            ) if item.quality_oriented else "signed only · no winner"
+            card.setText(
+                f"#{item.rank}  {item.label}\n"
+                f"{item.delta_db:+.3f} dB  ·  {conclusion}"
+            )
+            card.setToolTip(
+                f"OFFICIAL full pair: {item.label} {item.delta_db:+.4f} dB. "
+                "Click to inspect its spatial evidence; not an ROI score."
+            )
+            card.setEnabled(True)
+        self._sync_top_cards()
+
+    def _sync_top_cards(self) -> None:
+        state = self._state()
+        for index, card in enumerate(self.top3_buttons):
+            card.setChecked(
+                state is not None
+                and index < len(self._top3_attribute_ids)
+                and state.attribute_id == self._top3_attribute_ids[index]
+            )
+
+    def _activate_top_card(self, index: int) -> None:
+        if index >= len(self._top3_attribute_ids):
+            return
+        state = self._state()
+        if state is None:
+            return
+        state.attribute_id = self._top3_attribute_ids[index]
+        self._select_active_attribute()
+        self._render_result()
 
     def _on_result_selected(self, _index: int) -> None:
         result_id = self.result_combo.currentData()
@@ -940,7 +1104,7 @@ class AnalysisWindow(QMainWindow):
         self.gain_editor.setEnabled(False)
         self.clamp_label.setText("Map: unavailable")
         self.pair_summary.setText("No result loaded")
-        self.fit_button.setEnabled(False)
+        self.fit_action.setEnabled(False)
 
     def _render_result(self) -> None:
         if self._active_id is None:
@@ -1061,6 +1225,7 @@ class AnalysisWindow(QMainWindow):
             if len(self._roi_items) == 3:
                 self._roi_items[2].setVisible(state.roi is not None and attr.spatial is not None)
         self._render_inspector(attr, limit)
+        self._sync_top_cards()
 
     def _refresh_map(self, attr: AttributeDisplay, limit: float) -> None:
         """Update one persistent map pixmap and its validity placeholder."""
