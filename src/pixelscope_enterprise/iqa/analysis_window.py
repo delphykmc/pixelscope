@@ -744,6 +744,7 @@ class AnalysisWindow(QMainWindow):
                 cell.setData(DISPLAY_RANGE_ROLE, limit)
                 self.attribute_table.viewport().update()
         self.range_editor.blockSignals(True)
+        self.range_editor.setSuffix(f" {attr.unit}")
         self.range_editor.setValue(limit)
         self.range_editor.setEnabled(attr.spatial is not None or attr.chart_axis_range is not None)
         self.range_editor.blockSignals(False)
