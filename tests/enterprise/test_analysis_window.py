@@ -477,8 +477,14 @@ def test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area(
     assert image.save(str(rgb))
     original = _result("original")
     mixed = AnalysisResult(
-        "mixed-sources", 128, 128, "Synthetic A", "Synthetic B",
-        original.attributes, source_a=rgb, source_b=tmp_path / "missing-b.png",
+        "mixed-sources",
+        128,
+        128,
+        "Synthetic A",
+        "Synthetic B",
+        original.attributes,
+        source_a=rgb,
+        source_b=tmp_path / "missing-b.png",
     )
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
@@ -510,7 +516,8 @@ def test_clear_roi_keyboard_alias_and_per_result_independence(qtbot: object) -> 
     qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
     assert not win.clear_roi_action.isEnabled()
     assert [shortcut.toString() for shortcut in win.clear_roi_action.shortcuts()] == [
-        "Esc", "Shift+Esc"
+        "Esc",
+        "Shift+Esc",
     ]
     qtbot.keyPress(win.attribute_table, Qt.Key.Key_Shift)  # type: ignore[attr-defined]
     assert all(
