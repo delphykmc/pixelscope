@@ -273,7 +273,6 @@ def test_spatial_cards_are_short_ranked_visuals(qtbot: object) -> None:
     win._shutdown_spatial_worker()
 
 
-
 def test_roi_dock_uses_native_plot_workspace_title_controls(qtbot: object) -> None:
     """Reuse stable Qt-painted Plot controls, not broken native float glyphs."""
 
