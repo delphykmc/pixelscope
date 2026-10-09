@@ -40,6 +40,44 @@ pair window with linked A/B/Map and right Inspector remains intact.
    with gradient, grid, edges, circles and asymmetric position landmarks.
    This makes zoom/pan/alignment visible unlike flat DC images.
 
+## Owner-approved group mapping (2026-10-09, round 3)
+
+Owner approved the proposed group-based Inspector and **fixed-unit range
+mapping (Option A)**, NOT data-dependent min/max normalization:
+
+- Group dynamically by exact validated `unit`, in first-appearance order.
+  Prototype has `dB` (10 metrics) and `delta` (2 metrics); future
+  additional units create their own sections. Existing `AttributeDisplay.group`
+  is only a secondary metric-family label, **not** the unit-range key.
+- Each unit section exposes exactly **one symmetric ±Range**, adjusted in
+  0.5 increments. All official bars in that unit section use the same
+  range; the selected Map uses that range if it belongs to the section.
+  Initial range comes from the maximum **adapter-declared** official
+  chart-axis default or Map fixed display range within that unit,
+  rounded upwards to a 0.5 increment; never inferred from pixel content.
+- One `Map Display Gain ×` at Inspector top, default ×1.0, selectable
+  ×0.5 steps (0.5–10.0 in this prototype). It affects only visualization
+  of the selected spatial grid across any unit, not official bars, RGB or
+  GRID-DERIVED ROI statistics.
+- `official_bar_fraction = clip(official_value / unit_range, −1, +1)`
+  **only when the official adapter has declared numerical compatibility**
+  via `chart_axis_range`. Otherwise display text **unscaled**.
+- `map_color_fraction = clip(grid_value × map_gain / unit_range, −1, +1)`.
+  Invalid cells stay transparent, signed zero stays centered and clamped
+  counts are computed *after gain*. Underlying spatial values and
+  verified OFFICIAL measurement are immutable.
+- Per-result `analysis_state.ranges` is now keyed by `unit` and an
+  explicit `display_gain` is saved. Legacy H1 state with attribute-ID
+  ranges and no gain is accepted and deterministically migrated:
+  first source-order override within each unit, except the currently
+  selected Attribute's override wins its unit. Values are rounded
+  **upwards** to valid 0.5 increments. New saved states validate
+  unit membership and half-step ranges/gain (no arbitrary dict keys).
+  Original ROI / viewport state continues unchanged.
+- When changing units or their range, do not rebuild A/B/Map Qt scenes,
+  clear ROI or reset linked navigation. Unit bars update in place;
+  changing Map gain redraws only its single grid pixmap.
+
 ## Operator sequence
 
 1. A first result shows identity, source labels/dimensions and a compact **Fit
@@ -54,12 +92,12 @@ pair window with linked A/B/Map and right Inspector remains intact.
 3. Bar direction means **A better (+)/B better (−)** only when the adapter
    declared `quality_oriented=True`. Neutral signed values use the
    independent purple/teal polarity and never infer a winner.
-4. The chart uses a verified adapter `chart_axis_range` to establish
-   OFFICIAL visual comparability, then the selected **Display Range ±R**
-   maps both the official bar and spatial Map. Missing scale prints
-   **unscaled** (no fabricated bar). Missing official scalar prints
-   **MISSING/PARTIAL/FAILED**, not zero. True zero is a zero-width
-   centered bar; clipped values retain their original numeric value.
+4. The chart uses validated per-unit **Range ±R**, not per-attribute
+   controls. Map colors further multiply Grid values by one shared
+   **Display Gain**. Missing `chart_axis_range` prints unscaled (no
+   fabricated official bar). Missing Official prints
+   **MISSING/PARTIAL/FAILED**, not zero. True zero is centered; clipped
+   values retain their original signed measurement.
 5. Group labels are repeated per Attribute without sorting or coalescing:
    discontiguous same-group records keep the verified server/supplied order.
    No cross-group magnitude ranking or globally comparable maximum is
@@ -118,8 +156,9 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 
 Check a 1920×1080 physical desktop with 12 metrics and scroll the Inspector;
 take FHD capture at top and scrolled positions. Verify first insight,
-selected Map context, verified shared range ±4 vs ±10 for a +7 dB
-official scalar, source-missing fallback, one legend, 36px row density,
+selected Map context, per-unit dB range ±4 vs ±10 for a +7 dB
+official scalar and independent delta range, source-missing fallback,
+shared Map gain ×1 vs ×2, one legend and 36px row density,
 integer ROI and structured Official/ROI/Map cards. Test the A/Map/B
 and B/Map/A toggle with Alt+X, then the non-DC 4K patterned RGB case. Check Shift cursor/Clear ROI, wheel,
 keyboard chart navigation, per-result restoration and multiple normal-GC
