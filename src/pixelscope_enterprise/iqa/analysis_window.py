@@ -8,6 +8,7 @@ Base modifications, network access, background worker or inferred metric formula
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -44,6 +45,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDockWidget,
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
@@ -87,6 +89,11 @@ from pixelscope_enterprise.iqa.attribute_chart import (
     RelativeDifferenceDelegate,
 )
 from pixelscope_enterprise.iqa.insights import rank_top_differences
+from pixelscope_enterprise.iqa.spatial_candidates import (
+    SpatialCandidate,
+    find_spatial_candidates,
+)
+from pixelscope_enterprise.iqa.spatial_dock import SpatialCandidatesPanel
 
 ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
@@ -375,6 +382,17 @@ class AnalysisWindow(QMainWindow):
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
         self._fit_attempts_remaining = 8
+        self._spatial_cache: dict[tuple[str, str, int], tuple[SpatialCandidate, ...]] = {}
+        self._spatial_displayed: tuple[str, str, int] | None = None
+        self._spatial_pending: tuple[str, str, int] | None = None
+        self._spatial_epoch = 0
+        self._spatial_future: Future[tuple[SpatialCandidate, ...]] | None = None
+        self._spatial_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="iqa-roi")
+        self._spatial_timer = QTimer(self)
+        self._spatial_timer.setInterval(35)
+        self._spatial_timer.timeout.connect(self._finish_spatial_if_ready)
+        self._selected_spatial: dict[tuple[str, str], int] = {}
+        self._candidate_overlay_items: list[list[tuple[QGraphicsRectItem, QGraphicsTextItem]]] = []
 
         file_menu = self.menuBar().addMenu("File")
         self.open_action = file_menu.addAction("Open Result...")
@@ -424,6 +442,16 @@ class AnalysisWindow(QMainWindow):
             "Swap the visual positions of A and B; measurement identity is unchanged " "(T, Alt+X)"
         )
         self.clear_roi_action.setIcon(_analysis_action_icon("clear"))
+        self.hotspot_overlay_action = view_menu.addAction("Show hotspot boxes")
+        self.hotspot_overlay_action.setObjectName("enterpriseIqaShowHotspotBoxes")
+        self.hotspot_overlay_action.setCheckable(True)
+        self.hotspot_overlay_action.setChecked(False)
+        self.hotspot_overlay_action.setShortcut(QKeySequence("Alt+H"))
+        self.hotspot_overlay_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.hotspot_overlay_action.setToolTip(
+            "Show/hide numbered hotspot proposals without altering native RGB (Alt+H)"
+        )
+        self.hotspot_overlay_action.toggled.connect(self._draw_candidate_overlays)
         self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
 
         self.iqa_toolbar = QToolBar("IQA analysis tools", self)
@@ -444,6 +472,8 @@ class AnalysisWindow(QMainWindow):
         self.swap_button = action_button(self.swap_sources_action)
         self.iqa_toolbar.addSeparator()
         self.clear_roi_tool_button = action_button(self.clear_roi_action)
+        self.iqa_toolbar.addSeparator()
+        self.iqa_toolbar.addAction(self.hotspot_overlay_action)
 
         root_split = QSplitter(Qt.Orientation.Horizontal, self)
         root_split.setObjectName("enterpriseIqaRootSplitter")
@@ -663,6 +693,32 @@ class AnalysisWindow(QMainWindow):
         central_layout.addWidget(top3_frame)
         central_layout.addWidget(root_split, 1)
         self.setCentralWidget(central)
+
+        # Own QMainWindow dock manager: never attach this dock to PixelScope MAIN.
+        self.spatial_dock = QDockWidget("Spatial ROI Candidates", self)
+        self.spatial_dock.setObjectName("enterpriseIqaSpatialCandidatesDock")
+        self.spatial_dock.setAllowedAreas(
+            Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
+        )
+        self.spatial_dock.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+            | QDockWidget.DockWidgetFeature.DockWidgetClosable
+        )
+        self.spatial_panel = SpatialCandidatesPanel(self.spatial_dock)
+        self.spatial_dock.setWidget(self.spatial_panel)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.spatial_dock)
+        view_menu.addSeparator()
+        view_menu.addAction(self.spatial_dock.toggleViewAction())
+        self.spatial_panel.candidate_clicked.connect(self._select_spatial_candidate)
+        self.spatial_panel.stride_changed.connect(self._request_spatial_candidates)
+        self.spatial_dock.visibilityChanged.connect(self._spatial_dock_visibility_changed)
+        # Different settings key/application scope than generic MAIN docks.
+        dock_state = QSettings("PixelScope", "EnterpriseIqa").value(
+            "analysis_window_spatial_dock_state"
+        )
+        if isinstance(dock_state, QByteArray | bytes):
+            self.restoreState(dock_state)
         # Read the same reusable design tokens as the public PixelScope host.
         # No private stylesheet or global palette mutation when hosted by MAIN.
         self.setStyleSheet(
@@ -1207,6 +1263,7 @@ class AnalysisWindow(QMainWindow):
                 self._source_result_id = result.result_id
             self._rendering = True
             self._roi_items = []
+            self._candidate_overlay_items = []
             for i, view in enumerate(self._views):
                 view._muted = True
                 old_scene = view.scene()
@@ -1247,6 +1304,22 @@ class AnalysisWindow(QMainWindow):
                 overlay.setZValue(100)
                 overlay.setVisible(False)
                 self._roi_items.append(overlay)
+                proposal_layers: list[tuple[QGraphicsRectItem, QGraphicsTextItem]] = []
+                for number, tone in enumerate(("#e0a84f", "#4aa3df", "#aeb4bc"), start=1):
+                    pen = QPen(QColor(tone), 2)
+                    pen.setCosmetic(True)
+                    hotspot = scene.addRect(QRectF(), pen)
+                    hotspot.setZValue(80)
+                    hotspot.hide()
+                    annotation = scene.addText(f"ROI #{number}")
+                    annotation.setDefaultTextColor(QColor(tone))
+                    annotation.setFlag(
+                        QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
+                    )
+                    annotation.setZValue(81)
+                    annotation.hide()
+                    proposal_layers.append((hotspot, annotation))
+                self._candidate_overlay_items.append(proposal_layers)
                 view.setScene(scene)
                 if old_scene is not None:
                     old_scene.deleteLater()
@@ -1287,6 +1360,7 @@ class AnalysisWindow(QMainWindow):
                 self._roi_items[2].setVisible(state.roi is not None and attr.spatial is not None)
         self._render_inspector(attr, limit)
         self._sync_top_cards()
+        self._request_spatial_candidates()
 
     def _refresh_map(self, attr: AttributeDisplay, limit: float) -> None:
         """Update one persistent map pixmap and its validity placeholder."""
@@ -1308,6 +1382,154 @@ class AnalysisWindow(QMainWindow):
             self._map_item.setPixmap(QPixmap())
         self._map_item.setVisible(available)
         self._map_placeholder.setVisible(not available)
+
+    def _spatial_key(self) -> tuple[str, str, int] | None:
+        state = self._state()
+        if state is None or self._active_id is None:
+            return None
+        return (self._active_id, state.attribute_id, int(self.spatial_panel.stride_selector.currentData()))
+
+    def _spatial_dock_visibility_changed(self, visible: bool) -> None:
+        if visible:
+            self._request_spatial_candidates()
+        else:
+            self._draw_candidate_overlays()
+
+    def _request_spatial_candidates(self, _stride: int = 128) -> None:
+        """Bounded, on-demand background scan; ignore stale Attribute or result."""
+
+        if self.spatial_dock.isHidden():
+            return
+        key = self._spatial_key()
+        attr = self._attribute()
+        if key is None or attr is None:
+            return
+        if self._spatial_displayed == key:
+            return
+        if key in self._spatial_cache:
+            self._present_spatial_candidates(key, self._spatial_cache[key])
+            return
+        if self._spatial_pending == key:
+            return
+        self._spatial_epoch += 1
+        previous = self._spatial_future
+        if previous is not None and not previous.done():
+            previous.cancel()
+        self._spatial_pending = key
+        self._spatial_displayed = None
+        self.spatial_panel.set_busy(f"Locating local differences · {attr.label}…")
+        self._draw_candidate_overlays()
+        if attr.spatial is None:
+            self._present_spatial_candidates(key, ())
+            return
+        self._spatial_future = self._spatial_executor.submit(
+            find_spatial_candidates, attr, stride=key[2]
+        )
+        self._spatial_timer.start()
+
+    def _finish_spatial_if_ready(self) -> None:
+        future = self._spatial_future
+        key = self._spatial_pending
+        if future is None or key is None or not future.done():
+            return
+        self._spatial_timer.stop()
+        self._spatial_future = None
+        self._spatial_pending = None
+        if key != self._spatial_key():
+            return
+        try:
+            candidates = future.result()
+        except (ValueError, RuntimeError):
+            self.spatial_panel.set_busy(
+                "Spatial scan unavailable: unsupported geometry or resource budget."
+            )
+            return
+        self._spatial_cache[key] = candidates
+        self._present_spatial_candidates(key, candidates)
+
+    def _present_spatial_candidates(
+        self, key: tuple[str, str, int], candidates: tuple[SpatialCandidate, ...]
+    ) -> None:
+        if key != self._spatial_key():
+            return
+        attr = self._attribute()
+        if attr is None:
+            return
+        self._spatial_pending = None
+        self._spatial_displayed = key
+        self.spatial_panel.populate(candidates, self._source_pixmaps, attr.unit)
+        selected = self._selected_spatial.get((key[0], key[1]))
+        self.spatial_panel.mark_selected(
+            selected if selected is not None and selected < len(candidates) else None
+        )
+        self._draw_candidate_overlays()
+
+    def _select_spatial_candidate(self, index: int) -> None:
+        key = self._spatial_key()
+        if key is None or self._spatial_displayed != key:
+            return
+        candidates = self._spatial_cache.get(key, ())
+        if index < 0 or index >= len(candidates):
+            return
+        candidate = candidates[index]
+        self._selected_spatial[(key[0], key[1])] = index
+        self.spatial_panel.mark_selected(index)
+        self._set_roi(*candidate.roi)
+        # One pixel-consistent zoom for all A/Map/B panes, centered on ROI.
+        available_width = min(view.viewport().width() for view in self._views)
+        available_height = min(view.viewport().height() for view in self._views)
+        zoom = max(
+            1e-8,
+            min(32.0, 0.88 * min(
+                available_width / candidate.width, available_height / candidate.height
+            )),
+        )
+        state = self._state()
+        if state is not None:
+            state.scale = zoom
+            state.center_x = candidate.x + candidate.width / 2
+            state.center_y = candidate.y + candidate.height / 2
+            self._fit_pending_result_id = None
+            for view in self._views:
+                view.apply_navigation(zoom, state.center_x, state.center_y)
+        self._draw_candidate_overlays()
+
+    def _draw_candidate_overlays(self, _checked: bool = False) -> None:
+        key = self._spatial_key() if hasattr(self, "spatial_panel") else None
+        candidates = (
+            self._spatial_cache.get(key, ())
+            if key is not None and key == self._spatial_displayed
+            else ()
+        )
+        attr = self._attribute()
+        show = self.hotspot_overlay_action.isChecked() if hasattr(
+            self, "hotspot_overlay_action"
+        ) else False
+        for i, layers in enumerate(self._candidate_overlay_items):
+            has_source = (
+                self._source_pixmaps[i] is not None
+                if i < 2
+                else attr is not None and attr.spatial is not None
+            )
+            for number, (rect_item, text_item) in enumerate(layers):
+                visible = show and has_source and number < len(candidates)
+                rect_item.setVisible(False)
+                text_item.setVisible(False)
+                if visible:
+                    candidate = candidates[number]
+                    rect_item.setRect(QRectF(*candidate.roi))
+                    text_item.setPos(candidate.x + 3, candidate.y + 3)
+                    rect_item.setVisible(True)
+                    text_item.setVisible(True)
+
+    def _shutdown_spatial_worker(self) -> None:
+        self._spatial_timer.stop()
+        pending = self._spatial_future
+        self._spatial_pending = None
+        self._spatial_future = None
+        if pending is not None:
+            pending.cancel()
+        self._spatial_executor.shutdown(wait=False, cancel_futures=True)
 
     def _fit_pair(self) -> None:
         """Explicitly reset all three linked views to a post-layout full fit."""
@@ -1499,6 +1721,7 @@ class AnalysisWindow(QMainWindow):
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
         self._queue_initial_fit()
+        self._request_spatial_candidates()
 
     def _queue_initial_fit(self) -> None:
         if self.isVisible() and self._fit_pending_result_id is not None:
@@ -1580,6 +1803,16 @@ class AnalysisWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # Closing the analysis window must not cancel jobs or change the host Viewer.
+        self._spatial_timer.stop()
+        self._spatial_displayed = None
+        pending = self._spatial_future
+        if pending is not None and not pending.done():
+            pending.cancel()
+        self._spatial_future = None
+        self._spatial_pending = None
+        QSettings("PixelScope", "EnterpriseIqa").setValue(
+            "analysis_window_spatial_dock_state", self.saveState()
+        )
         for view in self._views:
             view.cancel_roi_drag()
             view._set_roi_cursor(False)
@@ -1644,5 +1877,6 @@ class AnalysisWindowManager:
         self._closed = True
         window, self._window = self._window, None
         if window is not None:
+            window._shutdown_spatial_worker()
             window.close()
             window.deleteLater()
