@@ -357,8 +357,7 @@ class AnalysisWindow(QMainWindow):
         self.fit_action.setToolTip("Fit all three panes to the source image (Ctrl+0)")
         self.swap_sources_action.setIcon(_analysis_action_icon("swap"))
         self.swap_sources_action.setToolTip(
-            "Swap the visual positions of A and B; measurement identity is unchanged "
-            "(T, Alt+X)"
+            "Swap the visual positions of A and B; measurement identity is unchanged " "(T, Alt+X)"
         )
         self.clear_roi_action.setIcon(_analysis_action_icon("clear"))
         self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
@@ -812,8 +811,7 @@ class AnalysisWindow(QMainWindow):
         ranked = rank_top_differences(result)
         self._top3_attribute_ids = [item.attribute_id for item in ranked]
         unknown_gate = any(
-            attr.unit == "dB" and attr.summary_signal_gate is None
-            for attr in result.attributes
+            attr.unit == "dB" and attr.summary_signal_gate is None for attr in result.attributes
         )
         self.top3_title.setText(
             "TOP 3 · VERIFIED RELATIVE dB DIFFERENCES"
@@ -834,11 +832,12 @@ class AnalysisWindow(QMainWindow):
                 continue
             item = ranked[index]
             conclusion = (
-                "A better" if item.delta_db > 0 else "B better"
-            ) if item.quality_oriented else "signed only · no winner"
+                ("A better" if item.delta_db > 0 else "B better")
+                if item.quality_oriented
+                else "signed only · no winner"
+            )
             card.setText(
-                f"#{item.rank}  {item.label}\n"
-                f"{item.delta_db:+.3f} dB  ·  {conclusion}"
+                f"#{item.rank}  {item.label}\n" f"{item.delta_db:+.3f} dB  ·  {conclusion}"
             )
             card.setToolTip(
                 f"OFFICIAL full pair: {item.label} {item.delta_db:+.4f} dB. "
