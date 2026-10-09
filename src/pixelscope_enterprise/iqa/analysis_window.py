@@ -967,8 +967,7 @@ class AnalysisWindow(QMainWindow):
             )
             rank_symbol = "★ 1" if index == 0 else str(index + 1)
             card.setText(
-                f"{rank_symbol}   {item.label}\n"
-                f"{item.delta_db:+.3f} dB  ·  {conclusion}"
+                f"{rank_symbol}   {item.label}\n" f"{item.delta_db:+.3f} dB  ·  {conclusion}"
             )
             card.setToolTip(
                 f"Rank {index + 1} of verified global |dB| differences: "
