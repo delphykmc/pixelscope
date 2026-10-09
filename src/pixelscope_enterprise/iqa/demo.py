@@ -70,6 +70,9 @@ def make_synthetic_result(result_id: str = "public-synthetic-pair") -> AnalysisR
                 # An explicitly public *illustrative* axis, not inferred from
                 # the map color range or a private server schema.
                 chart_axis_range=4.0 if index < 10 else 2.0,
+                # Public synthetic demo has no real signal-power measurement.
+                # Only explicitly tagged simulated qualifying entries are shown.
+                summary_signal_gate=(index not in (2, 3, 7)) if index < 10 else None,
             )
         )
     return AnalysisResult(
