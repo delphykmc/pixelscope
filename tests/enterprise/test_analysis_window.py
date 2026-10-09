@@ -182,6 +182,11 @@ def test_saved_analysis_state_validation_and_restoration(qtbot: object) -> None:
     assert target._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
     assert "neutral / no winner inferred" in target.official_label.text()
 
+    fractional = dict(state)
+    fractional["roi"] = [10.2, 20.4, 5.1, 7.6]
+    target.present_result(result, analysis_state=fractional)
+    assert target.current_roi == (10, 20, 6, 8)
+
     bad = dict(state)
     bad["attribute_id"] = "removed-id"
     with pytest.raises(ValueError, match="unknown saved attribute"):
