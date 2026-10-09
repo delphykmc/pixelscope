@@ -57,9 +57,7 @@ def _scan_axis_count(image_length: int, window_length: int, stride: int) -> int:
     return 1 + (remaining + stride - 1) // stride
 
 
-def _preflight_scan(
-    grid: SpatialMap, width: int, height: int, stride: int
-) -> tuple[int, int]:
+def _preflight_scan(grid: SpatialMap, width: int, height: int, stride: int) -> tuple[int, int]:
     """Reject unreasonable workload before allocating any scan-position arrays."""
 
     count_x = _scan_axis_count(grid.image_width, width, stride)
