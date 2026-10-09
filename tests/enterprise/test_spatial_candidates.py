@@ -65,9 +65,7 @@ def test_negative_official_selects_negative_local_mean_not_positive() -> None:
     values = np.zeros((4, 4), dtype=np.float64)
     values[:2, :2] = -8
     values[2:, 2:] = 6
-    regions = find_spatial_candidates(
-        _attribute(values, official=-3.0), window_size=128, stride=64
-    )
+    regions = find_spatial_candidates(_attribute(values, official=-3.0), window_size=128, stride=64)
     assert regions[0].roi == (0, 0, 128, 128)
     assert regions[0].mean == pytest.approx(-8)
     assert all(region.mean < 0 for region in regions)
@@ -123,9 +121,7 @@ def test_uniform_ties_are_ordered_by_y_then_x_and_nms_is_deterministic() -> None
 
 def test_edge_scan_position_and_4k_grid_smoke() -> None:
     rows, cols = 34, 60
-    values = np.sin(np.arange(rows)[:, None] / 3.0) + np.cos(
-        np.arange(cols)[None, :] / 4.0
-    )
+    values = np.sin(np.arange(rows)[:, None] / 3.0) + np.cos(np.arange(cols)[None, :] / 4.0)
     attr = _attribute(values, image_width=3840, image_height=2160, official=1)
     regions = find_spatial_candidates(attr)
     assert 0 < len(regions) <= 3
