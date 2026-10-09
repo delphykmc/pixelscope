@@ -8,9 +8,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QGraphicsPixmapItem
 
-from pixelscope_enterprise.iqa.analysis_model import AnalysisResult
+from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, official_chart_fraction
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
-from pixelscope_enterprise.iqa.attribute_chart import ATTRIBUTE_ROLE, RelativeDifferenceDelegate
+from pixelscope_enterprise.iqa.attribute_chart import (
+    ATTRIBUTE_ROLE,
+    DISPLAY_RANGE_ROLE,
+    RelativeDifferenceDelegate,
+)
 from pixelscope_enterprise.iqa.demo import make_synthetic_result
 
 
@@ -137,4 +141,72 @@ def test_ux1_4k_rgb_source_preservation_and_nearest_grid(qtbot: object, tmp_path
     # Capture screenshot in native Windows validation without committing pixels.
     screenshot = win.grab().toImage()
     assert screenshot.width() > 500 and screenshot.height() > 400
+    win.close()
+
+
+def test_ux1_shared_display_range_restores_clipped_bar_and_map(qtbot: object) -> None:
+    fixture = make_synthetic_result("ux1-shared-display")
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(fixture)
+    win.attribute_table.selectRow(4)  # verified +7 dB, originally clipped at ±4
+    attribute = fixture.attributes[4]
+    assert win.range_editor.value() == 4.0
+    assert official_chart_fraction(attribute, win.range_editor.value()) == 1.0
+    assert "clipped" not in win.official_label.text().lower()
+    assert "Clamped:" in win.clamp_label.text()
+    before = win._map_item.pixmap().toImage().pixelColor(12, 5)  # type: ignore[union-attr]
+    scenes = [view.scene() for view in win._views]
+
+    win.range_editor.setValue(10.0)
+    assert win.range_editor.value() == 10.0
+    assert official_chart_fraction(attribute, win.range_editor.value()) == 0.7
+    assert win.attribute_table.item(4, 1).data(DISPLAY_RANGE_ROLE) == 10.0
+    assert win._state().ranges["synthetic_04"] == 10.0  # type: ignore[union-attr]
+    after = win._map_item.pixmap().toImage().pixelColor(12, 5)  # type: ignore[union-attr]
+    assert before != after
+    assert all(view.scene() is scene for view, scene in zip(win._views, scenes, strict=True))
+    assert attribute.official_value == 7.0
+    assert attribute.chart_axis_range == 4.0  # the immutable source default
+    assert attribute.fixed_range == 6.0  # independent immutable map fallback
+    win.close()
+
+
+def test_ux1_a_map_b_swap_changes_placement_not_scientific_identity(qtbot: object) -> None:
+    fixture = make_synthetic_result("ux1-swappable")
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(fixture)
+    panes = win._pane_wrappers
+    splitter = win._image_split
+    assert [splitter.widget(i) for i in range(3)] == [panes[0], panes[2], panes[1]]
+    assert win.swap_sources_action.shortcut().toString() == "Alt+X"
+    scenes = [view.scene() for view in win._views]
+    win._set_roi(100.2, 400.3, 511.4, 511.4)
+    assert win.current_roi == (100, 400, 512, 512)
+    win.swap_sources_action.trigger()
+    assert [splitter.widget(i) for i in range(3)] == [panes[1], panes[2], panes[0]]
+    assert win.current_roi == (100, 400, 512, 512)
+    assert all(view.scene() is scene for view, scene in zip(win._views, scenes, strict=True))
+    assert win._views[0].objectName() == "enterpriseIqaViewImageA"
+    assert win._views[1].objectName() == "enterpriseIqaViewImageB"
+    win.swap_button.click()
+    assert [splitter.widget(i) for i in range(3)] == [panes[0], panes[2], panes[1]]
+    assert win.active_result_id == fixture.result_id
+    win.close()
+
+
+def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
+    from pixelscope.ui.design_tokens import TOKENS
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(make_synthetic_result("ux1-compact"))
+    assert all(win.attribute_table.rowHeight(i) == 36 for i in range(12))
+    assert win.findChild(object, "enterpriseIqaInspectorDetails") is not None
+    assert win.findChild(object, "enterpriseIqaRoiCard") is not None
+    assert win.findChild(object, "enterpriseIqaMapCard") is not None
+    assert win.findChild(object, "enterpriseIqaOfficialCard") is not None
+    assert win._views[0].scene().backgroundBrush().color().name() == TOKENS.workspace_background
+    assert "B better" in win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp").text()
     win.close()
