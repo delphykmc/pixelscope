@@ -252,11 +252,13 @@ def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> No
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.resize(1600, 800)
-    # UX-1 measures the original Inspector's expandable layout in isolation.
-    # The new optional UX-2C bottom dock naturally consumes vertical space.
-    win.spatial_dock.hide()
+    # UX-1 measures the Inspector independently of the optional UX-2C dock.
+    # Hide only AFTER the first show: UX-2C intentionally restores a hidden
+    # saved dock to visible on first presentation for discoverability.
     win.present_result(make_synthetic_result("fhd-inspector"))
     win.show()
+    QApplication.processEvents()
+    win.spatial_dock.hide()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: win.inspector_splitter.height() > 350 and win._fit_pending_result_id is None,
         timeout=4000,
