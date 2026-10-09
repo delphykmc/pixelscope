@@ -64,6 +64,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.ui.design_tokens import TOKENS
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
     AttributeDisplay,
@@ -74,7 +75,6 @@ from pixelscope_enterprise.iqa.analysis_model import (
     map_polarity_legend,
     roi_statistics,
 )
-from pixelscope.ui.design_tokens import TOKENS
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
     DISPLAY_RANGE_ROLE,
