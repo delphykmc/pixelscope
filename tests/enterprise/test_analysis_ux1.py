@@ -255,7 +255,9 @@ def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> No
     win.present_result(make_synthetic_result("fhd-inspector"))
     win.show()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: win.inspector_splitter.height() > 350, timeout=4000
+        lambda: win.inspector_splitter.height() > 350
+        and win._fit_pending_result_id is None,
+        timeout=4000,
     )
     splitter = win.inspector_splitter
     assert splitter.orientation() == Qt.Orientation.Vertical
