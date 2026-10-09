@@ -371,10 +371,29 @@ class AnalysisWindow(QMainWindow):
         self.attribute_table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
             self._on_attribute_selected
         )
-        inspector_layout.addWidget(self.attribute_table, 2)
+        inspector_layout.addWidget(self.attribute_table, 3)
+        details_scroll = QScrollArea(inspector)
+        details_scroll.setObjectName("enterpriseIqaInspectorDetails")
+        details_scroll.setWidgetResizable(True)
+        details_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        details_scroll.setMinimumHeight(175)
+        details_content = QWidget()
+        details_layout = QVBoxLayout(details_content)
+        details_layout.setContentsMargins(0, 2, 0, 2)
+        details_layout.setSpacing(5)
+        details_scroll.setWidget(details_content)
+        inspector_layout.addWidget(details_scroll, 2)
         self.official_label = QLabel("Official pair comparison: —", inspector)
         self.official_label.setWordWrap(True)
-        inspector_layout.addWidget(self.official_label)
+        official_card = QFrame(inspector)
+        official_card.setObjectName("enterpriseIqaOfficialCard")
+        official_card.setFrameShape(QFrame.Shape.StyledPanel)
+        official_layout = QVBoxLayout(official_card)
+        official_layout.setContentsMargins(9, 6, 9, 6)
+        official_layout.setSpacing(4)
+        official_layout.addWidget(QLabel("OFFICIAL · FULL PAIR", official_card))
+        official_layout.addWidget(self.official_label)
+        details_layout.addWidget(official_card)
         self.roi_label = QLabel("ROI: none", inspector)
         self.roi_label.setWordWrap(True)
         self.clear_roi_button = QPushButton("Clear ROI (Esc / Shift+Esc)", inspector)
@@ -390,8 +409,8 @@ class AnalysisWindow(QMainWindow):
         roi_layout.addWidget(QLabel("ROI ANALYSIS · SOURCE PIXELS", roi_card))
         roi_layout.addWidget(self.roi_label)
         roi_layout.addWidget(self.clear_roi_button)
-        inspector_layout.addWidget(roi_card)
-        inspector_layout.addWidget(QLabel("DISPLAY RANGE · shared ±", inspector))
+        details_layout.addWidget(roi_card)
+        details_layout.addWidget(QLabel("DISPLAY RANGE · shared ±", inspector))
         self.range_editor = QDoubleSpinBox(inspector)
         self.range_editor.setObjectName("enterpriseIqaMapRange")
         self.range_editor.setDecimals(3)
@@ -404,7 +423,7 @@ class AnalysisWindow(QMainWindow):
         self.range_editor.valueChanged.connect(  # type: ignore[attr-defined]
             self._update_range
         )
-        inspector_layout.addWidget(self.range_editor)
+        details_layout.addWidget(self.range_editor)
         self.clamp_label = QLabel("Map: unavailable", inspector)
         self.clamp_label.setWordWrap(True)
         map_card = QFrame(inspector)
@@ -415,7 +434,8 @@ class AnalysisWindow(QMainWindow):
         map_layout.setSpacing(4)
         map_layout.addWidget(QLabel("SPATIAL MAP · CELL STATISTICS", map_card))
         map_layout.addWidget(self.clamp_label)
-        inspector_layout.addWidget(map_card)
+        details_layout.addWidget(map_card)
+        details_layout.addStretch(1)
         root_split.addWidget(image_split)
         root_split.addWidget(inspector)
         root_split.setStretchFactor(0, 3)
@@ -455,6 +475,7 @@ class AnalysisWindow(QMainWindow):
             f"QLabel#enterpriseIqaWorkspaceTitle {{ color: {TOKENS.text_primary}; "
             "font-weight: 700; }}"
             f"QLabel#enterpriseIqaChartHelp {{ color: {TOKENS.text_secondary}; }}"
+            f"QFrame#enterpriseIqaOfficialCard, "
             f"QFrame#enterpriseIqaRoiCard, QFrame#enterpriseIqaMapCard {{ "
             f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; }}"
         )
@@ -655,7 +676,7 @@ class AnalysisWindow(QMainWindow):
             # Preserve producer order even when a group occurs non-contiguously.
             group = f"{attr.group} · {attr.unit}"
             fields = (f"{attr.label}\n{group}", "")
-            self.attribute_table.setRowHeight(row, 40)
+            self.attribute_table.setRowHeight(row, 36)
             for col, field_text in enumerate(fields):
                 item = QTableWidgetItem(field_text)
                 item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
