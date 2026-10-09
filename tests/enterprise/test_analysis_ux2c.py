@@ -74,6 +74,9 @@ def test_spatial_cards_pixel_aligned_native_crops_and_focus(qtbot: object, tmp_p
     assert "LARGEST LOCAL" not in win.spatial_panel.titles[0].text()
     assert win.spatial_panel.impact_bars[0].value() == 100
     assert win.spatial_panel.impact_bars[1].value() <= 100
+    assert win.spatial_panel.buttons[0].property("spatialRankTone") == "top"
+    assert "#e5857d" in win.spatial_panel.buttons[0].styleSheet()
+    assert "QPushButton:checked" in win.spatial_panel.buttons[0].styleSheet()
     original = tuple(view.scene() for view in win._views)
     key = win._spatial_key()
     assert key is not None
@@ -266,5 +269,67 @@ def test_spatial_cards_are_short_ranked_visuals(qtbot: object) -> None:
     assert len(win.spatial_panel.status_label.text()) < 45
     assert win.spatial_panel.impact_bars[0].value() == 100
     assert "GRID" in win.spatial_panel.provenance_badge.text()
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+
+def test_roi_dock_uses_native_plot_workspace_title_controls(qtbot: object) -> None:
+    """Reuse stable Qt-painted Plot controls, not broken native float glyphs."""
+
+    from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        win.spatial_dock.isVisible, timeout=4000
+    )
+    title = win.spatial_dock_title
+    assert isinstance(title, PlotsDockTitleBar)
+    assert win.spatial_dock.titleBarWidget() is title
+    assert title.title.text() == "Hotspots"
+    assert all(
+        not button.icon().isNull()
+        for button in (title.float_button, title.maximize_button, title.close_button)
+    )
+    assert title.float_button.toolTip() == "Float Hotspots"
+    assert title.maximize_button.toolTip() == "Maximize Hotspots"
+    dock_icon = title.float_button.icon().cacheKey()
+    title.float_button.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        win.spatial_dock.isFloating, timeout=4000
+    )
+    assert title.float_button.icon().cacheKey() != dock_icon
+    title.maximize_button.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: title._workspace_maximized, timeout=4000
+    )
+    assert title.maximize_button.toolTip() == "Restore Hotspots"
+    title.maximize_button.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not title._workspace_maximized, timeout=4000
+    )
+    title.float_button.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: not win.spatial_dock.isFloating(), timeout=4000
+    )
+    title.close_button.click()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        win.spatial_dock.isHidden, timeout=4000
+    )
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+def test_hotspot_action_is_iconified_and_short(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    action = win.hotspot_overlay_action
+    assert action.text() == "Show Hotspot"
+    assert not action.icon().isNull()
+    assert action.shortcut().toString() == "Alt+H"
+    assert action in win.iqa_toolbar.actions()
+    assert action.isCheckable()
     win.close()
     win._shutdown_spatial_worker()
