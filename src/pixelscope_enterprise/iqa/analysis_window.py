@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMainWindow,
+    QMenu,
     QPushButton,
     QRubberBand,
     QScrollArea,
@@ -411,7 +412,11 @@ class AnalysisWindow(QMainWindow):
         )
         self._candidate_overlay_items: list[list[tuple[QGraphicsRectItem, QGraphicsTextItem]]] = []
 
-        file_menu = self.menuBar().addMenu("File")
+        # Retain direct Python references as well as explicit Qt ownership.
+        # PySide6 can invalidate transient QAction.menu()/menuAction() wrappers
+        # during test GC if native menu parents are only held indirectly.
+        self.file_menu = self.menuBar().addMenu("File")
+        file_menu = self.file_menu
         self.open_action = file_menu.addAction("Open Result...")
         self.open_action.setObjectName("enterpriseIqaOpenResult")
         self.open_action.setEnabled(False)  # Enabled only with a genuine on-disk reader.
@@ -424,9 +429,11 @@ class AnalysisWindow(QMainWindow):
         self.save_action.triggered.connect(  # type: ignore[attr-defined]
             self._save_from_dialog
         )
-        self.export_menu = file_menu.addMenu("Export Result")
+        self.export_menu = QMenu("Export Result", file_menu)
         self.export_menu.setObjectName("enterpriseIqaExportResultMenu")
-        self.export_menu.menuAction().setEnabled(False)
+        file_menu.addMenu(self.export_menu)
+        self.export_menu_action = self.export_menu.menuAction()
+        self.export_menu_action.setEnabled(False)
         self.export_action = self.export_menu.addAction("Measurements (CSV)...")
         self.export_action.setObjectName("enterpriseIqaExportMeasurementsCsv")
         self.export_action.setEnabled(False)
@@ -958,7 +965,7 @@ class AnalysisWindow(QMainWindow):
         )
         self.fit_action.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
-        self.export_menu.menuAction().setEnabled(True)
+        self.export_menu_action.setEnabled(True)
         self.export_action.setEnabled(True)
         self._populate_attributes()
         self._update_top_cards()
