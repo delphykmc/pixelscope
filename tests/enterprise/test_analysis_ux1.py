@@ -185,7 +185,10 @@ def test_ux1_a_map_b_swap_changes_placement_not_scientific_identity(qtbot: objec
     panes = win._pane_wrappers
     splitter = win._image_split
     assert [splitter.widget(i) for i in range(3)] == [panes[0], panes[2], panes[1]]
-    assert win.swap_sources_action.shortcut().toString() == "Alt+X"
+    assert [key.toString() for key in win.swap_sources_action.shortcuts()] == [
+        "T",
+        "Alt+X",
+    ]
     scenes = [view.scene() for view in win._views]
     win._set_roi(100.2, 400.3, 511.4, 511.4)
     assert win.current_roi == (100, 400, 512, 512)
@@ -215,6 +218,25 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     assert win.findChild(QWidget, "enterpriseIqaOfficialCard") is not None
     assert win._views[0].scene().backgroundBrush().color().name() == TOKENS.workspace_background
     assert "B better" in win.findChild(type(win.roi_hint), "enterpriseIqaChartHelp").text()
+    win.close()
+
+
+def test_ux1_qss_braces_and_standalone_swap_shortcut(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    style = win.styleSheet()
+    assert style.count("{") == style.count("}")
+    assert "font-weight: 700; }" in style
+    assert "font-weight: 700; }}" not in style
+    assert win.swap_sources_action.shortcutContext() == Qt.ShortcutContext.WindowShortcut
+    assert [key.toString() for key in win.swap_sources_action.shortcuts()] == [
+        "T",
+        "Alt+X",
+    ]
+    win.present_result(make_synthetic_result("qss-and-t"))
+    win.show()
+    qtbot.keyClick(win._views[0].viewport(), Qt.Key.Key_T)  # type: ignore[attr-defined]
+    assert win._sources_swapped
     win.close()
 
 
