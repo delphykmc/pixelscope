@@ -123,9 +123,7 @@ def build_measurements_csv(result: AnalysisResult, roi: Roi | None = None) -> st
     return buffer.getvalue()
 
 
-def write_measurements_csv(
-    result: AnalysisResult, roi: Roi | None, destination: Path
-) -> None:
+def write_measurements_csv(result: AnalysisResult, roi: Roi | None, destination: Path) -> None:
     """Atomically write UTF-8-with-BOM CSV for Windows Excel interoperability."""
 
     payload = build_measurements_csv(result, roi)
