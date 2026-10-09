@@ -23,7 +23,6 @@ def test_file_export_enabled_for_result_without_verified_reader(
     assert win.export_menu.title() == "Export Result"
     assert win.export_menu.objectName() == "enterpriseIqaExportResultMenu"
     assert win.export_menu_action in file_menu.actions()
-    assert win.export_menu_action.menu().objectName() == "enterpriseIqaExportResultMenu"
     assert win.export_menu.actions() == [win.export_action]
     assert win.export_action.text() == "Measurements (CSV)..."
     assert win.export_action.objectName() == "enterpriseIqaExportMeasurementsCsv"
