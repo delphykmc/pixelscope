@@ -75,7 +75,7 @@ def test_window_preserves_roi_and_per_result_state(qtbot: object) -> None:
     win.range_editor.setValue(2.0)
     assert "Clamped: 2/3" in win.clamp_label.text()
 
-    win.attribute_table.selectRow(1)
+    win._group_tables["delta"].selectRow(0)
     assert win.current_roi == (0, 0, 64, 64)
     assert "not zero" in win.official_label.text()
     win.present_result(_result("two"))
@@ -83,7 +83,7 @@ def test_window_preserves_roi_and_per_result_state(qtbot: object) -> None:
     win.result_combo.setCurrentIndex(win.result_combo.findData("one"))
     assert win.active_result_id == "one"
     assert win.current_roi == (0, 0, 64, 64)
-    assert win._state().ranges["metric_db"] == 2.0  # type: ignore[union-attr]
+    assert win._state().ranges["dB"] == 2.0  # type: ignore[union-attr]
     assert win._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
     assert win.current_analysis_state()["roi"] == [0, 0, 64, 64]
     win.close()
@@ -167,7 +167,7 @@ def test_saved_analysis_state_validation_and_restoration(qtbot: object) -> None:
     source.present_result(result)
     source._set_roi(0, 0, 64, 64)
     source.range_editor.setValue(2.0)
-    source.attribute_table.selectRow(1)
+    source._group_tables["delta"].selectRow(0)
     state = source.current_analysis_state()
     assert state["attribute_id"] == "metric_delta"
     # No layout exists pre-show: retain selections but NOT invented navigation.
@@ -178,7 +178,8 @@ def test_saved_analysis_state_validation_and_restoration(qtbot: object) -> None:
     qtbot.addWidget(target)  # type: ignore[attr-defined]
     target.present_result(result, analysis_state=state)
     assert target.current_roi == (0.0, 0.0, 64.0, 64.0)
-    assert target.current_analysis_state()["ranges"] == {"metric_db": 2.0}
+    assert target.current_analysis_state()["ranges"] == {"dB": 2.0}
+    assert target.current_analysis_state()["display_gain"] == 1.0
     assert target._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
     assert "neutral / no winner inferred" in target.official_label.text()
 
@@ -221,7 +222,7 @@ def test_reader_carries_validated_state_separate_from_official_result(
     win._open_from_dialog()
     assert win.active_result_id == "reopened"
     assert win.current_roi == (0, 0, 64, 64)
-    assert win._state().ranges == {"metric_db": 3.0}  # type: ignore[union-attr]
+    assert win._state().ranges == {"dB": 3.0}  # type: ignore[union-attr]
     win.close()
 
 
@@ -359,7 +360,7 @@ def test_shift_drag_on_real_viewport_selects_and_draws_linked_roi(qtbot: object)
         assert rect.width() == pytest.approx(width)
         assert rect.height() == pytest.approx(height)
 
-    win.attribute_table.selectRow(1)
+    win._group_tables["delta"].selectRow(0)
     assert win.current_roi == roi
     assert not any(item.isVisible() for item in win._roi_items)
     win.close()
@@ -504,16 +505,16 @@ def test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area(
     assert "Grid valid area" in win.roi_label.text()
     assert "NOT official" in win.roi_label.text()
 
-    win.attribute_table.selectRow(1)  # no spatial grid for second metric
+    win._group_tables["delta"].selectRow(0)  # no spatial grid for second metric
     assert win._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
-    assert win.attribute_table.selectionModel().selectedRows()[0].row() == 1
+    assert win._group_tables["delta"].selectionModel().selectedRows()[0].row() == 0
     assert [i.isVisible() for i in win._roi_items] == [True, False, False]
     assert "spatial statistics unavailable" in win.roi_label.text()
     win.attribute_table.selectRow(0)
     assert win._state().attribute_id == "metric_db"  # type: ignore[union-attr]
     assert [i.isVisible() for i in win._roi_items] == [True, False, True]
     # Repeat without changing results/ROI to catch a stale currentRow race.
-    win.attribute_table.selectRow(1)
+    win._group_tables["delta"].selectRow(0)
     assert win._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
     assert [i.isVisible() for i in win._roi_items] == [True, False, False]
     assert win.current_roi == (0, 0, 64, 64)
