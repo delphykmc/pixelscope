@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QWheelEvent
-from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem
+from PySide6.QtGui import QColor, QImage, QWheelEvent
+from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem, QGraphicsRectItem
 
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
@@ -345,8 +345,9 @@ def test_shift_drag_on_real_viewport_selects_and_draws_linked_roi(qtbot: object)
     assert width >= 40 and height >= 40
     assert "GRID-DERIVED ROI" in win.roi_label.text()
 
+    # Original RGB is deliberately absent; only the spatial map is annotated.
+    assert [item.isVisible() for item in win._roi_items] == [False, False, True]
     for rect_item in win._roi_items:
-        assert rect_item.isVisible()
         rect = rect_item.rect()
         assert rect.x() == pytest.approx(x)
         assert rect.y() == pytest.approx(y)
@@ -355,7 +356,7 @@ def test_shift_drag_on_real_viewport_selects_and_draws_linked_roi(qtbot: object)
 
     win.attribute_table.selectRow(1)
     assert win.current_roi == roi
-    assert all(item.isVisible() for item in win._roi_items)
+    assert not any(item.isVisible() for item in win._roi_items)
     win.close()
 
 
@@ -388,3 +389,146 @@ def test_visible_navigation_round_trip_and_bounded_overscan(qtbot: object) -> No
     with pytest.raises(ValueError, match="non-finite"):
         target.present_result(result, analysis_state=bad)
     target.close()
+
+
+def _drag_map_roi(
+    qtbot: object, view: object, top_left: tuple[int, int], bottom_right: tuple[int, int]
+) -> None:
+    a = view.mapFromScene(QPointF(float(top_left[0]), float(top_left[1])))  # type: ignore[attr-defined]
+    b = view.mapFromScene(QPointF(float(bottom_right[0]), float(bottom_right[1])))  # type: ignore[attr-defined]
+    viewport = view.viewport()  # type: ignore[attr-defined]
+    assert viewport.rect().contains(a)
+    assert viewport.rect().contains(b)
+    qtbot.mousePress(  # type: ignore[attr-defined]
+        viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, pos=a
+    )
+    qtbot.mouseMove(viewport, pos=b)  # type: ignore[attr-defined]
+    assert view._rubber_band.isVisible()  # type: ignore[attr-defined]
+    qtbot.mouseRelease(  # type: ignore[attr-defined]
+        viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, pos=b
+    )
+    assert not view._rubber_band.isVisible()  # type: ignore[attr-defined]
+
+
+def _visible_roi_yellow(view: object, x: float, y: float) -> bool:
+    """Sample painted viewport pixels, not just GraphicsScene item metadata."""
+
+    point = view.mapFromScene(QPointF(x, y))  # type: ignore[attr-defined]
+    viewport = view.viewport()  # type: ignore[attr-defined]
+    dpr = viewport.devicePixelRatioF()
+    image = viewport.grab().toImage()
+    px, py = round(point.x() * dpr), round(point.y() * dpr)
+    for iy in range(max(0, py - 4), min(image.height(), py + 5)):
+        for ix in range(max(0, px - 4), min(image.width(), px + 5)):
+            color = image.pixelColor(ix, iy)
+            if color.red() > 235 and 165 <= color.green() <= 232 and color.blue() < 75:
+                return True
+    return False
+
+
+def test_repeated_mouse_roi_replaces_actual_viewport_pixels_without_resize(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("repeat-pixels"))
+    win.show()
+    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    view = win._views[2]
+    scene = view.scene()
+    assert scene is not None
+    base_items = len(scene.items())
+    assert len([i for i in scene.items() if isinstance(i, QGraphicsRectItem)]) == 1
+    assert not _visible_roi_yellow(view, 25, 8)
+
+    # Each ROI is disjoint. We inspect painted pixels after release, with no
+    # resize or attribute switch that might incidentally cure stale outlines.
+    selections = [
+        ((8, 8), (43, 43), (25, 8)),
+        ((68, 68), (110, 110), (85, 68)),
+        ((10, 75), (43, 112), (25, 75)),
+    ]
+    for index, (start, end, edge) in enumerate(selections):
+        _drag_map_roi(qtbot, view, start, end)
+        QApplication.processEvents()
+        assert _visible_roi_yellow(view, *edge)
+        for _, _, previous_edge in selections[:index]:
+            assert not _visible_roi_yellow(view, *previous_edge)
+        assert len(scene.items()) == base_items
+        assert len([i for i in scene.items() if isinstance(i, QGraphicsRectItem)]) == 1
+        assert [item.isVisible() for item in win._roi_items] == [False, False, True]
+
+    win.clear_roi_action.trigger()
+    QApplication.processEvents()
+    assert win.current_roi is None
+    assert not view._rubber_band.isVisible()
+    assert not any(item.isVisible() for item in win._roi_items)
+    assert not win.clear_roi_action.isEnabled()
+    assert not win.clear_roi_button.isEnabled()
+    for _, _, edge in selections:
+        assert not _visible_roi_yellow(view, *edge)
+    win.close()
+
+
+def test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area(
+    qtbot: object, tmp_path: Path
+) -> None:
+    rgb = tmp_path / "synthetic-source.png"
+    image = QImage(128, 128, QImage.Format.Format_RGB32)
+    image.fill(QColor(200, 200, 200))
+    assert image.save(str(rgb))
+    original = _result("original")
+    mixed = AnalysisResult(
+        "mixed-sources", 128, 128, "Synthetic A", "Synthetic B",
+        original.attributes, source_a=rgb, source_b=tmp_path / "missing-b.png",
+    )
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(mixed)
+    win.show()
+    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    win._set_roi(0, 0, 64, 64)
+    assert [i.isVisible() for i in win._roi_items] == [True, False, True]
+    assert "(0.0, 0.0, 64.0, 64.0)" in win.roi_label.text()
+    assert "4,096.0 px²" in win.roi_label.text()
+    assert "GRID-DERIVED ROI mean" in win.roi_label.text()
+    assert "Grid valid area" in win.roi_label.text()
+    assert "NOT official" in win.roi_label.text()
+
+    win.attribute_table.selectRow(1)  # no spatial grid for second metric
+    assert [i.isVisible() for i in win._roi_items] == [True, False, False]
+    assert "spatial statistics unavailable" in win.roi_label.text()
+    win.attribute_table.selectRow(0)
+    assert [i.isVisible() for i in win._roi_items] == [True, False, True]
+    win.close()
+
+
+def test_clear_roi_keyboard_alias_and_per_result_independence(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    first, second = _result("roi-one"), _result("roi-two")
+    win.present_result(first)
+    win.show()
+    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    assert not win.clear_roi_action.isEnabled()
+    assert [shortcut.toString() for shortcut in win.clear_roi_action.shortcuts()] == [
+        "Esc", "Shift+Esc"
+    ]
+    qtbot.keyPress(win.attribute_table, Qt.Key.Key_Shift)  # type: ignore[attr-defined]
+    assert all(view.viewport().cursor().shape() == Qt.CursorShape.CrossCursor for view in win._views)
+    qtbot.keyRelease(win.attribute_table, Qt.Key.Key_Shift)  # type: ignore[attr-defined]
+    assert all(view.viewport().cursor().shape() != Qt.CursorShape.CrossCursor for view in win._views)
+
+    win._set_roi(10, 20, 45, 50)
+    assert win.clear_roi_action.isEnabled() and win.clear_roi_button.isEnabled()
+    win.present_result(second)
+    win._set_roi(1, 2, 30, 40)
+    win.clear_roi_button.click()
+    assert win.current_roi is None
+    assert not any(item.isVisible() for item in win._roi_items)
+    win.present_result(first)
+    assert win.current_roi == (10, 20, 45, 50)
+    # Explicit action works regardless of which of the three panes had focus.
+    win.clear_roi_action.trigger()
+    assert win.current_roi is None
+    assert "ROI: none" in win.roi_label.text()
+    assert win._states["roi-two"].roi is None
+    win.close()
