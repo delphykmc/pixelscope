@@ -6,7 +6,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow
 
@@ -401,8 +401,19 @@ def test_spatial_card_tracks_clear_manual_roi_and_changed_stride(
 
     win.spatial_panel.buttons[0].click()
     assert win.current_roi == first.roi
-    win._set_roi(32, 48, 120, 120)  # same canonical path as manual Shift+drag
-    assert win.current_roi == (32, 48, 120, 120)
+    view = win._views[2]
+    viewport = view.viewport()
+    a = view.mapFromScene(QPointF(first.x + 100, first.y + 110))
+    b = view.mapFromScene(QPointF(first.x + 180, first.y + 190))
+    assert viewport.rect().contains(a) and viewport.rect().contains(b)
+    qtbot.mousePress(  # type: ignore[attr-defined]
+        viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, pos=a
+    )
+    qtbot.mouseMove(viewport, pos=b)  # type: ignore[attr-defined]
+    qtbot.mouseRelease(  # type: ignore[attr-defined]
+        viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, pos=b
+    )
+    assert win.current_roi is not None and win.current_roi != first.roi
     assert not any(card.isChecked() for card in win.spatial_panel.buttons)
 
     win.spatial_panel.buttons[0].click()
