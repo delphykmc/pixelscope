@@ -628,11 +628,7 @@ class AnalysisWindow(QMainWindow):
 
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()
-        if (
-            state is None
-            or self._rendering
-            or self._fit_pending_result_id == self._active_id
-        ):
+        if state is None or self._rendering or self._fit_pending_result_id == self._active_id:
             return
         state.scale, state.center_x, state.center_y = scale, x, y
         for other in self._views:
@@ -666,8 +662,7 @@ class AnalysisWindow(QMainWindow):
         if not self.isVisible() or result_id is None or result_id != self._active_id:
             return
         if any(
-            view.viewport().width() < 100 or view.viewport().height() < 100
-            for view in self._views
+            view.viewport().width() < 100 or view.viewport().height() < 100 for view in self._views
         ):
             # The compositor/splitter may deliver child geometry in a later event.
             # Bounded retries; never cache a pre-layout transform or spin forever.
