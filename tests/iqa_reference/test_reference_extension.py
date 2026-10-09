@@ -371,8 +371,7 @@ def test_delete_and_ctrl_a_only_modify_files_when_files_tree_has_focus(
     window = MainWindow(window_contributions=(extension,))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     documents = [
-        ImageDocument.from_array(np.zeros((4, 4), dtype=np.uint8), f"image-{i}")
-        for i in range(2)
+        ImageDocument.from_array(np.zeros((4, 4), dtype=np.uint8), f"image-{i}") for i in range(2)
     ]
     window.add_document(documents[0], select=True)
     window.add_document(documents[1], select=False)
