@@ -493,8 +493,8 @@ def test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area(
     qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
     win._set_roi(0, 0, 64, 64)
     assert [i.isVisible() for i in win._roi_items] == [True, False, True]
-    assert "(0.0, 0.0, 64.0, 64.0)" in win.roi_label.text()
-    assert "4,096.0 px²" in win.roi_label.text()
+    assert "(0, 0, 64, 64)" in win.roi_label.text()
+    assert "4,096 px²" in win.roi_label.text()
     assert "GRID-DERIVED ROI mean" in win.roi_label.text()
     assert "Grid valid area" in win.roi_label.text()
     assert "NOT official" in win.roi_label.text()
