@@ -168,6 +168,16 @@ def test_dock_vertical_growth_enlarges_single_stitch_without_resampling(
     assert after.height() > before.height()
     assert after.width() > before.width()
     assert after.width() == pytest.approx(2.0 * after.height(), rel=0.03)
+    # Paint the full composite; both sides must meet at one seam with no
+    # independent QLabel black gutters or source resampling on resize.
+    painted = QImage(stitched.size(), QImage.Format.Format_RGB32)
+    stitched.render(painted)
+    y = int(after.center().y())
+    seam_x = int(after.center().x())
+    left_pixel = painted.pixelColor(seam_x - 5, y)
+    right_pixel = painted.pixelColor(seam_x + 5, y)
+    assert left_pixel.red() > left_pixel.blue()
+    assert right_pixel.blue() > right_pixel.red()
     assert stitched._a is not None and stitched._a.cacheKey() == a_key
     assert stitched._b is not None and stitched._b.cacheKey() == b_key
     assert "GRID-derived" in win.spatial_panel.status_label.text()
