@@ -371,12 +371,19 @@ class AnalysisWindow(QMainWindow):
         shared_controls.addWidget(self.gain_editor)
         inspector_layout.addLayout(shared_controls)
 
+        # The chart and details are both full-height, user-resizable panes.
+        # Fixed-height table rows remain inside the independently scrolling chart.
+        self.inspector_splitter = QSplitter(Qt.Orientation.Vertical, inspector)
+        self.inspector_splitter.setObjectName("enterpriseIqaInspectorSplitter")
+        self.inspector_splitter.setChildrenCollapsible(False)
+        self.inspector_splitter.setHandleWidth(8)
         self.attribute_table = QTableWidget(0, 2, inspector)  # first active unit alias
         self.attribute_table.hide()
         self.range_editor = QDoubleSpinBox(inspector)  # first active unit alias
         self.range_editor.hide()
-        self.group_scroll = QScrollArea(inspector)
+        self.group_scroll = QScrollArea(self.inspector_splitter)
         self.group_scroll.setObjectName("enterpriseIqaGroupScroll")
+        self.group_scroll.setMinimumHeight(140)
         self.group_scroll.setWidgetResizable(True)
         self.group_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.group_content = QWidget()
@@ -384,8 +391,8 @@ class AnalysisWindow(QMainWindow):
         self._groups_layout.setContentsMargins(0, 2, 0, 2)
         self._groups_layout.setSpacing(7)
         self.group_scroll.setWidget(self.group_content)
-        inspector_layout.addWidget(self.group_scroll, 3)
-        details_scroll = QScrollArea(inspector)
+        self.inspector_splitter.addWidget(self.group_scroll)
+        details_scroll = QScrollArea(self.inspector_splitter)
         details_scroll.setObjectName("enterpriseIqaInspectorDetails")
         details_scroll.setWidgetResizable(True)
         details_scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -395,7 +402,17 @@ class AnalysisWindow(QMainWindow):
         details_layout.setContentsMargins(0, 2, 0, 2)
         details_layout.setSpacing(5)
         details_scroll.setWidget(details_content)
-        inspector_layout.addWidget(details_scroll, 2)
+        self.inspector_splitter.addWidget(details_scroll)
+        self.inspector_splitter.setStretchFactor(0, 3)
+        self.inspector_splitter.setStretchFactor(1, 2)
+        self.inspector_splitter.setSizes([420, 280])
+        self.inspector_splitter.handle(1).setToolTip(
+            "Drag vertically to resize the Attribute chart and Analysis details."
+        )
+        inspector_layout.addWidget(self.inspector_splitter, 1)
+        self.detail_context = QLabel("DETAILS · select an attribute", details_content)
+        self.detail_context.setObjectName("enterpriseIqaDetailContext")
+        details_layout.addWidget(self.detail_context)
         self.official_label = QLabel("Official pair comparison: —", inspector)
         self.official_label.setWordWrap(True)
         official_card = QFrame(inspector)
@@ -405,8 +422,15 @@ class AnalysisWindow(QMainWindow):
         official_layout.setContentsMargins(9, 6, 9, 6)
         official_layout.setSpacing(4)
         official_layout.addWidget(QLabel("OFFICIAL · FULL PAIR", official_card))
+        official_description = QLabel(
+            "Verified A/B difference for the entire image pair. "
+            "Not calculated from the selected ROI or Map grid.", official_card
+        )
+        official_description.setObjectName("enterpriseIqaOfficialExplanation")
+        official_description.setWordWrap(True)
+        official_layout.addWidget(official_description)
         official_layout.addWidget(self.official_label)
-        details_layout.addWidget(official_card)
+        details_layout.addWidget(official_card, 1)
         self.roi_label = QLabel("ROI: none", inspector)
         self.roi_label.setWordWrap(True)
         self.clear_roi_button = QPushButton("Clear ROI (Esc / Shift+Esc)", inspector)
@@ -420,9 +444,16 @@ class AnalysisWindow(QMainWindow):
         roi_layout.setContentsMargins(9, 6, 9, 6)
         roi_layout.setSpacing(4)
         roi_layout.addWidget(QLabel("ROI ANALYSIS · SOURCE PIXELS", roi_card))
+        roi_description = QLabel(
+            "Selected rectangle in original-image pixels. GRID-DERIVED mean "
+            "is estimated from valid Map cells, not an official local score.", roi_card
+        )
+        roi_description.setObjectName("enterpriseIqaRoiExplanation")
+        roi_description.setWordWrap(True)
+        roi_layout.addWidget(roi_description)
         roi_layout.addWidget(self.roi_label)
         roi_layout.addWidget(self.clear_roi_button)
-        details_layout.addWidget(roi_card)
+        details_layout.addWidget(roi_card, 2)
         self.clamp_label = QLabel("Map: unavailable", inspector)
         self.clamp_label.setWordWrap(True)
         map_card = QFrame(inspector)
@@ -432,9 +463,15 @@ class AnalysisWindow(QMainWindow):
         map_layout.setContentsMargins(9, 6, 9, 6)
         map_layout.setSpacing(4)
         map_layout.addWidget(QLabel("SPATIAL MAP · CELL STATISTICS", map_card))
+        map_description = QLabel(
+            "Colors show signed grid-cell differences at Unit Range ±R and Map Gain ×G. "
+            "Invalid cells are transparent; clipped cells reach the end color.", map_card
+        )
+        map_description.setObjectName("enterpriseIqaMapExplanation")
+        map_description.setWordWrap(True)
+        map_layout.addWidget(map_description)
         map_layout.addWidget(self.clamp_label)
-        details_layout.addWidget(map_card)
-        details_layout.addStretch(1)
+        details_layout.addWidget(map_card, 2)
         root_split.addWidget(image_split)
         root_split.addWidget(inspector)
         root_split.setStretchFactor(0, 3)
@@ -473,7 +510,9 @@ class AnalysisWindow(QMainWindow):
         self.setStyleSheet(
             f"QLabel#enterpriseIqaWorkspaceTitle {{ color: {TOKENS.text_primary}; "
             "font-weight: 700; }"
-            f"QLabel#enterpriseIqaChartHelp {{ color: {TOKENS.text_secondary}; }}"
+            f"QLabel#enterpriseIqaChartHelp, QLabel#enterpriseIqaDetailContext, "
+            f"QLabel#enterpriseIqaOfficialExplanation, QLabel#enterpriseIqaRoiExplanation, "
+            f"QLabel#enterpriseIqaMapExplanation {{ color: {TOKENS.text_secondary}; }}"
             f"QFrame#enterpriseIqaOfficialCard, "
             f"QFrame#enterpriseIqaRoiCard, QFrame#enterpriseIqaMapCard {{ "
             f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; }}"
@@ -891,6 +930,7 @@ class AnalysisWindow(QMainWindow):
             scene.addText(f"{name}\nNo result loaded")
             view.setScene(scene)
         self.official_label.setText("Official pair comparison: —")
+        self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
         self.range_editor.setEnabled(False)
         self.gain_editor.setEnabled(False)
@@ -1090,6 +1130,7 @@ class AnalysisWindow(QMainWindow):
         return state.ranges.get(attr.unit, self._unit_default_range(result, attr.unit))
 
     def _render_inspector(self, attr: AttributeDisplay, limit: float) -> None:
+        self.detail_context.setText(f"DETAILS · {attr.label}  ({attr.unit})")
         if attr.official_value is None:
             text = attr.official_availability.upper() + " (not zero)"
         else:
