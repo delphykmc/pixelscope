@@ -20,6 +20,7 @@ from PySide6.QtCore import (
     QRect,
     QRectF,
     QSettings,
+    QSize,
     Qt,
     QTimer,
     Signal,
@@ -276,6 +277,70 @@ def _analysis_action_icon(kind: str) -> QIcon:
         painter.drawLine(13, 7, 7, 13)
     painter.end()
     return QIcon(image)
+
+
+_INSIGHT_COLORS = {
+    "a": ("#e5857d", "A"),
+    "b": ("#79afe6", "B"),
+    "signed": ("#b99bdc", "±"),
+    "empty": (TOKENS.border, "—"),
+}
+
+
+def _blend_insight_color(base: str, tint: str, strength: float) -> str:
+    """Subtle semantic tint over the shared MAIN panel background."""
+
+    original = QColor(base)
+    highlight = QColor(tint)
+    return QColor(
+        round(original.red() * (1.0 - strength) + highlight.red() * strength),
+        round(original.green() * (1.0 - strength) + highlight.green() * strength),
+        round(original.blue() * (1.0 - strength) + highlight.blue() * strength),
+    ).name()
+
+
+def _insight_badge_icon(tone: str) -> QIcon:
+    """Small letter-marked swatch: color is never the only direction cue."""
+
+    color, glyph = _INSIGHT_COLORS[tone]
+    pixmap = QPixmap(22, 22)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(color))
+    painter.drawRoundedRect(QRect(1, 1, 20, 20), 6, 6)
+    font = painter.font()
+    font.setBold(True)
+    font.setPixelSize(12)
+    painter.setFont(font)
+    painter.setPen(QColor("#182028"))
+    painter.drawText(QRect(1, 1, 20, 20), Qt.AlignmentFlag.AlignCenter, glyph)
+    painter.end()
+    return QIcon(pixmap)
+
+
+def _style_insight_card(card: QPushButton, tone: str) -> None:
+    """Keep a calm semantic accent, with a distinct selected/hover state."""
+
+    color, _ = _INSIGHT_COLORS[tone]
+    base = TOKENS.raised_background
+    quiet = _blend_insight_color(base, color, 0.14)
+    hover = _blend_insight_color(base, color, 0.22)
+    selected = _blend_insight_color(base, color, 0.30)
+    card.setProperty("insightTone", tone)
+    card.setStyleSheet(
+        f"QPushButton {{ background-color: {quiet}; color: {TOKENS.text_primary}; "
+        f"border: 1px solid {TOKENS.border}; border-left: 4px solid {color}; "
+        "border-radius: 9px; padding: 6px 9px; text-align: left; }"
+        f"QPushButton:hover {{ background-color: {hover}; border-color: {color}; }}"
+        f"QPushButton:checked {{ background-color: {selected}; "
+        f"border: 2px solid {color}; border-left: 5px solid {color}; font-weight: 700; }}"
+        f"QPushButton:disabled {{ background-color: {base}; "
+        f"border-color: {TOKENS.border}; color: {TOKENS.text_disabled}; }}"
+    )
+    card.setIcon(_insight_badge_icon(tone) if tone != "empty" else QIcon())
+
 
 
 class AnalysisWindow(QMainWindow):
@@ -585,7 +650,9 @@ class AnalysisWindow(QMainWindow):
         for index in range(3):
             card = QPushButton(f"#{index + 1}  —", top3_frame)
             card.setObjectName("enterpriseIqaTop3Card")
-            card.setMinimumHeight(50)
+            card.setMinimumHeight(60)
+            card.setIconSize(QSize(22, 22))
+            _style_insight_card(card, "empty")
             card.setCheckable(True)
             card.setEnabled(False)
             card.clicked.connect(  # type: ignore[attr-defined]
@@ -610,11 +677,6 @@ class AnalysisWindow(QMainWindow):
             f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; }}"
             f"QFrame#enterpriseIqaTop3Frame {{ background: {TOKENS.raised_background}; "
             f"border: 1px solid {TOKENS.border}; border-radius: 9px; }}"
-            f"QPushButton#enterpriseIqaTop3Card {{ background: {TOKENS.workspace_background}; "
-            f"border: 1px solid {TOKENS.border}; border-radius: 8px; "
-            f"text-align: left; padding: 6px; color: {TOKENS.text_primary}; }}"
-            f"QPushButton#enterpriseIqaTop3Card:checked {{ border: 2px solid "
-            f"{TOKENS.text_primary}; font-weight: 700; }}"
             f"QLabel#enterpriseIqaTop3Title {{ color: {TOKENS.text_secondary}; "
             "font-weight: 700; }"
         )
@@ -823,6 +885,7 @@ class AnalysisWindow(QMainWindow):
         for index, card in enumerate(self.top3_buttons):
             if index >= len(ranked):
                 card.setText(f"#{index + 1}  —")
+                _style_insight_card(card, "empty")
                 card.setToolTip(
                     "Requires verified official dB, |difference| > 0.3 dB, "
                     "and at least one original-relative signal above -50 dB."
@@ -831,6 +894,10 @@ class AnalysisWindow(QMainWindow):
                 card.setChecked(False)
                 continue
             item = ranked[index]
+            tone = (
+                "a" if item.delta_db > 0 else "b"
+            ) if item.quality_oriented else "signed"
+            _style_insight_card(card, tone)
             conclusion = (
                 ("A better" if item.delta_db > 0 else "B better")
                 if item.quality_oriented
