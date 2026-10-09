@@ -14,6 +14,15 @@ in `QSettings("PixelScope", "EnterpriseIqa")` under the *dedicated*
 `analysis_window_spatial_dock_state` key. It cannot modify MAIN dock
 registration, contents, stored window state or user shortcuts.
 
+Dock title controls directly reuse `pixelscope.ui.plots_dock_title.PlotsDockTitleBar`
+through a minimal IQA subclass with an isolated geometry-key registry.
+They provide identical platform-independent Qt-drawn **Float/Dock,
+Maximize/Restore, Hide** icons, work-area-safe floating maximize, saved
+normal geometry and bounded shutdown. Floating geometry uses
+`ui/enterprise_iqa_spatial_floating_geometry`; it is separate from the
+MAIN Plots key. There is no separate Minimize action in the MAIN Plot title
+bar: Hide is the same close-button behavior as MAIN.
+
 The selected Attribute drives at most three candidate cards. Each card
 displays the same immutable source-pixel ROI coordinate from original A and B,
 within one A|B stitched canvas with a narrow central seam and no
@@ -29,24 +38,26 @@ explicitly reads source unavailable while GRID-DERIVED ROI score, position
 and valid coverage remain selectable. No private server/reader/auth content
 or model images are embedded in this repository.
 
-Cards report GRID mean signed values and coverage, not OFFICIAL per-ROI
-scores. Their ranking headings say **LARGEST LOCAL DIFFERENCE**, **NEXT
-STRONGEST**, **THIRD STRONGEST**, with a small bar normalized only against the
-current #1 candidate (`score / rank1.score`). This is not an absolute
-severity measure or quality winner and is tooltip-labeled accordingly.
-The first card receives higher-contrast emphasis through its gold rank
-disc and comparison bar. Card headers now show only **rank 1/2/3 icons and
-short ROI coordinates**; no "LARGEST LOCAL DIFFERENCE"/"NEXT STRONGEST"
-prose. The global OFFICIAL cards also use compact **★ 1 / 2 / 3** tokens
-rather than verbose ranking sentences. The small **GRID** chip and tooltips
-retain scientific provenance without dominating the card layout. Missing/zero official scalars retain exploratory-mode labels.
+Cards report GRID signed local mean and validity coverage, never OFFICIAL
+ROI scores. Ranking is conveyed by **small circular 1/2/3 badges** and a
+relative strength bar normalized to the leading search candidate
+(`score / rank1.score`). **#1 uses the same muted red (#e5857d),
+hover/checked color blending (14/22/30%), strong border, and a small vector
+star** as the Attribute Top-3 visual system. Other ranks have subdued
+blue-grey tones; selected cards have visibly filled tinted backgrounds
+rather than merely changed outlines. This is a relative local search
+ranking, not an absolute severity or quality-winner indicator.
+The global OFFICIAL cards use compact **★ 1 / 2 / 3** tokens. The small
+**GRID** chip and tooltips keep provenance visible without verbose
+on-screen rank sentences. Missing/zero official scalars retain exploratory-mode labels.
 Clicking a card uses the selected source ROI, updates the existing ROI
 Inspector and centers A, Spatial Map and B at one common source-pixel
 zoom. Existing scenes are never rebuilt on candidate or Attribute selection.
 This intentionally changes zoom because focus is a user action; ordinary
 Attribute changes and Map Gain adjustments preserve viewport.
 
-Optional `Show hotspot boxes` (View / top toolbar, Alt+H) overlays
+Optional `Show Hotspot` with an in-house Qt-painted crosshair icon
+(View / top toolbar, Alt+H) overlays
 numbered cosmetic rectangles in the three original-coordinate scenes.
 Boxes are not painted on missing RGB sources, and the Map can be absent.
 Disabling the toggle returns original RGB displays unchanged; source A/B
@@ -118,3 +129,15 @@ Visual references: [NVIDIA ICAT](https://www.nvidia.com/en-us/geforce/technologi
 for co-aligned A/B image inspection; [NN/g visual hierarchy](https://www.nngroup.com/articles/principles-visual-design/)
 for emphasizing the first ranked finding through labels, contrast and
 relative strength rather than relying on bare ranking numerals.
+
+## October 10 final owner-requested refinements
+
+- Unified ROI #1 emphasis with Attribute cards: muted **red** instead of
+  yellow, distinct filled **checked** state, star-marked #1.
+- Renamed `Show hotspot boxes` to **Show Hotspot** and added a compact
+  crosshair/ROI vector toolbar icon, without changing Alt+H semantics.
+- Replaced broken OS-native QDockWidget float/close chrome with the
+  production Plots title controller. Test float/dock, maximize/restore,
+  hide, tooltip and icon parity on Windows and secondary monitors.
+- Corrected the stale UX-2A `NOT YET VERIFIED` assertion to the concise
+  `SIGNAL PENDING` label; eligible Top-3 list remains empty and disabled.
