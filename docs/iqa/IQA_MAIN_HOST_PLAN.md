@@ -77,12 +77,21 @@ Generic schema must not contain real storage paths, server endpoints, tokens, pr
 ## M0 spike observation (#139 implementation branch)
 
 The optional Reference Lite uses the existing contribution phases and public source-slot host access:
-`install_actions()` contributes File > Run IQA (Synthetic) and View > Show IQA Mock Jobs;
-`install_dock()` registers a compact extension-owned jobs dock; the host's existing
-`statusBar().showMessage()` supplies transient status feedback. A separate top-level
-`QMainWindow(parent=host)` is held and disposed by the extension's idempotent shutdown.
-No generic toolbar, status widget, child-window registry, new Base API or new public
-IQA schema is required for this canary. Thus **conditional M1 is not exercised**.
+`install_actions()` contributes **IQA > Run IQA (Synthetic) / Load Synthetic Demo
+Result**, and checkable **View > Show IQA Mock Jobs / Show IQA Analysis Window**.
+The host lazily creates the optional IQA command menu only when the extension
+contributes an action; Core-only has no IQA menu. `install_dock()` registers a
+compact extension-owned jobs dock; `statusBar().showMessage()` supplies transient
+status feedback. The extension owns a separate top-level `QMainWindow(parent=host)`.
+Its visibility state and View checkbox stay synchronized, while hiding/reopening
+preserves the current result and does not affect jobs. Owner shutdown disposes
+the child. No toolbar, status widget, child-window registry, new contribution
+protocol method or IQA schema is required; conditional M1 is not exercised.
+
+The original File > Run/Empty canary controls were superseded after owner
+Windows acceptance by the clearer separation: **File = real file I/O (deferred
+saved IQA result reader), IQA = execution/demo, View = window visibility**.
+No synthetic File Open command masquerades as a portable result reader.
 
 The mock presents multiple job IDs, explicit fixture-driven queued/running/completed/failed
 states and a user-triggered View Result. Closing the child does not cancel execution.
