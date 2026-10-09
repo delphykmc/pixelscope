@@ -509,9 +509,7 @@ class AnalysisWindow(QMainWindow):
         # migrating old attribute overrides without changing measurements.
         fields = set(raw)
         legacy = fields == {"attribute_id", "roi", "ranges", "viewport"}
-        if not legacy and fields != {
-            "attribute_id", "roi", "ranges", "viewport", "display_gain"
-        }:
+        if not legacy and fields != {"attribute_id", "roi", "ranges", "viewport", "display_gain"}:
             raise ValueError("invalid analysis_state fields")
         ids = {attr.attribute_id for attr in result.attributes}
         attribute_id = raw["attribute_id"]
@@ -604,9 +602,7 @@ class AnalysisWindow(QMainWindow):
             raise ValueError("saved view center outside bounded source overscan")
         if not (-max_y_overscan <= center_y <= result.image_height + max_y_overscan):
             raise ValueError("saved view center outside bounded source overscan")
-        return _ResultViewState(
-            attribute_id, roi, ranges, scale, center_x, center_y, gain
-        )
+        return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y, gain)
 
     def present_result(
         self, result: AnalysisResult, *, analysis_state: dict[str, object] | None = None
@@ -759,9 +755,7 @@ class AnalysisWindow(QMainWindow):
             table.setHorizontalHeaderLabels(["Metric / family", "Official difference"])
             table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
             table.setColumnWidth(0, 142)
-            table.horizontalHeader().setSectionResizeMode(
-                1, QHeaderView.ResizeMode.Stretch
-            )
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
             table.setItemDelegateForColumn(1, RelativeDifferenceDelegate(table))
             table.setAlternatingRowColors(True)
             table.verticalHeader().hide()
