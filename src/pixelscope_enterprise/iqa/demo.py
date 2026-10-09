@@ -107,9 +107,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
             if not image.save(str(filename)):
                 raise RuntimeError("could not save public-safe synthetic RGB preview")
             paths.append(filename)
-        manager.show(
-            replace(make_synthetic_result(), source_a=paths[0], source_b=paths[1])
-        )
+        manager.show(replace(make_synthetic_result(), source_a=paths[0], source_b=paths[1]))
         return app.exec()
 
 
