@@ -7,8 +7,10 @@ misleading zero-length comparison bar.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, QRect, Qt
-from PySide6.QtGui import QColor, QPainter
+from typing import Protocol, cast
+
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRect, Qt
+from PySide6.QtGui import QColor, QPainter, QPalette
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, official_chart_fraction
@@ -22,6 +24,14 @@ _POS_COLOR = QColor(177, 90, 191)
 _NEG_COLOR = QColor(43, 155, 155)
 
 
+class _OptionFields(Protocol):
+    """Actual Qt6 style fields omitted from some supported PySide6 stubs."""
+
+    state: QStyle.StateFlag
+    palette: QPalette
+    rect: QRect
+
+
 class RelativeDifferenceDelegate(QStyledItemDelegate):
     """Paint one small, keyboard-selectable bipolar bar in a table column."""
 
@@ -29,22 +39,26 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
         super().__init__(parent)
 
     def paint(
-        self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
     ) -> None:
+        styled = cast(_OptionFields, option)
         attribute = index.data(ATTRIBUTE_ROLE)
         if not isinstance(attribute, AttributeDisplay):
             super().paint(painter, option, index)
             return
-        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        selected = bool(styled.state & QStyle.StateFlag.State_Selected)
         text_color = (
-            option.palette.highlightedText().color() if selected else option.palette.text().color()
+            styled.palette.highlightedText().color() if selected else styled.palette.text().color()
         )
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         painter.fillRect(
-            option.rect, option.palette.highlight() if selected else option.palette.base()
+            styled.rect, styled.palette.highlight() if selected else styled.palette.base()
         )
-        box = option.rect.adjusted(10, 3, -10, -3)
+        box = styled.rect.adjusted(10, 3, -10, -3)
         fraction = official_chart_fraction(attribute)
         if attribute.official_value is None:
             painter.setPen(text_color)
@@ -78,8 +92,8 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
         width = max(16, box.width() - 24)
         middle = x + width // 2
         y = box.top() + 24
-        painter.fillRect(QRect(x, y, width, 9), option.palette.midlight())
-        painter.fillRect(QRect(middle, y - 4, 1, 17), option.palette.text())
+        painter.fillRect(QRect(x, y, width, 9), styled.palette.midlight())
+        painter.fillRect(QRect(middle, y - 4, 1, 17), styled.palette.text())
         extent = round(abs(fraction) * width / 2)
         if extent:
             if fraction > 0:
