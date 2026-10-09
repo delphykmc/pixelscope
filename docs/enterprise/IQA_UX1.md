@@ -78,6 +78,40 @@ mapping (Option A)**, NOT data-dependent min/max normalization:
   clear ROI or reset linked navigation. Unit bars update in place;
   changing Map gain redraws only its single grid pixmap.
 
+## Final operator readability and FHD resizing polish (2026-10-09)
+
+The owner approved grouped Range/Gain behavior and native tests, and requested
+a final explanatory-layout pass before merging UX-1.
+
+- The **relative Attribute chart** and **analysis details** are now vertically
+  stacked in one **draggable QSplitter**, with non-collapsible panes, a visible
+  8px handle and independent scroll areas. At FHD, they expand to occupy
+  the available Inspector height rather than leaving a fixed empty strip.
+  Drag the divider to devote more height to either chart or details.
+- The details pane clearly identifies the **selected Attribute name/unit**,
+  and groups the three analysis domains into labeled, expanding cards.
+- **OFFICIAL · FULL PAIR:** producer-verified full-image-pair A/B difference;
+  never a locally calculated ROI or average of a Map.
+- **ROI ANALYSIS · SOURCE PIXELS:** an integer source-coordinate rectangle.
+  A valid-cell area-weighted **GRID-DERIVED** mean is a spatial estimate;
+  it is not an official per-ROI model score. Coverage means the fraction
+  of ROI pixels supported by valid spatial cells.
+- **SPATIAL MAP · CELL STATISTICS:** signed grid values are displayed as
+  nearest-neighbor cells. The color endpoints use the selected unit
+  Range ±R and shared Map Gain ×G; invalid cells are transparent, and
+  clipped cells are valid cells saturated at the endpoint color. The
+  producer's underlying Grid and official metrics remain unchanged.
+- The lower cards share spare vertical height; the chart and details
+  remain separately scrollable. Existing result, ROI, keyboard navigation,
+  T swap, map-only repaint and saved user state contracts are unchanged.
+
+For owner visual acceptance, resize the Analysis Window to 1920×1080 and
+drag the **horizontal divider inside the right Inspector** in both directions.
+Verify the chart remains keyboard-selectable, cards remain legible at high
+and low detail allocations, and changing Attribute updates the details
+heading. See `test_ux1_fhd_inspector_splitter_and_metric_explanations`
+for focused Qt geometry and semantics regression.
+
 ## Operator sequence
 
 1. A first result shows identity, source labels/dimensions and a compact **Fit
