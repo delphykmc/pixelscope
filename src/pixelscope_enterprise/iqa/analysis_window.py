@@ -86,6 +86,7 @@ class _LinkedView(QGraphicsView):
         self._muted = False
         self._roi_start: QPoint | None = None
         self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
+        self._rubber_band.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._fit_scale = 1.0
         self.horizontalScrollBar().valueChanged.connect(  # type: ignore[attr-defined]
             self._navigation_changed
@@ -116,7 +117,7 @@ class _LinkedView(QGraphicsView):
             return
         factor = 1.2 ** (delta / 120.0)
         next_scale = self.transform().m11() * factor
-        min_scale = max(self._fit_scale / 16.0, 1e-8)
+        min_scale = max(min(self._fit_scale, self.transform().m11()) / 16.0, 1e-8)
         if min_scale <= next_scale <= 32.0:
             self.scale(factor, factor)
             self._navigation_changed()
@@ -189,6 +190,7 @@ class AnalysisWindow(QMainWindow):
         self._roi_items: list[QGraphicsRectItem] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
+        self._fit_pending_result_id: str | None = None
 
         file_menu = self.menuBar().addMenu("File")
         self.open_action = file_menu.addAction("Open Result...")
@@ -355,10 +357,17 @@ class AnalysisWindow(QMainWindow):
         scale = finite_number(zoom)
         center_x = finite_number(x_center)
         center_y = finite_number(y_center)
-        if not 0.04 <= scale <= 32.0:
+        if not 1e-8 <= scale <= 32.0:
             raise ValueError("invalid saved zoom")
-        if not 0 <= center_x <= result.image_width or not 0 <= center_y <= result.image_height:
-            raise ValueError("saved view center outside source geometry")
+        # A graphics viewport may be larger than the mapped source image. Qt can
+        # legitimately expose an off-image center when scrollbars are clamped.
+        # Keep finite, bounded overscan; never accept arbitrary remote coordinates.
+        max_x_overscan = max(4.0 * result.image_width, 2048.0)
+        max_y_overscan = max(4.0 * result.image_height, 2048.0)
+        if not (-max_x_overscan <= center_x <= result.image_width + max_x_overscan):
+            raise ValueError("saved view center outside bounded source overscan")
+        if not (-max_y_overscan <= center_y <= result.image_height + max_y_overscan):
+            raise ValueError("saved view center outside bounded source overscan")
         return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y)
 
     def present_result(
@@ -540,11 +549,10 @@ class AnalysisWindow(QMainWindow):
             for view in self._views:
                 view.apply_navigation(state.scale, state.center_x, state.center_y)
         else:
-            view = self._views[0]
-            view.fitInView(view.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
-            center = view.mapToScene(view.viewport().rect().center())
-            for other in self._views[1:]:
-                other.apply_navigation(view.transform().m11(), center.x(), center.y())
+            # QWidget/Splitter viewport sizes are not valid before the first show.
+            # A pre-show fit can produce a microscopic scale and disable wheel UX.
+            self._fit_pending_result_id = result.result_id
+            self._queue_initial_fit()
         self._render_inspector(attr, limit)
 
     def _render_inspector(self, attr: AttributeDisplay, limit: float) -> None:
@@ -612,7 +620,11 @@ class AnalysisWindow(QMainWindow):
 
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()
-        if state is None or self._rendering:
+        if (
+            state is None
+            or self._rendering
+            or self._fit_pending_result_id == self._active_id
+        ):
             return
         state.scale, state.center_x, state.center_y = scale, x, y
         for other in self._views:
@@ -621,11 +633,59 @@ class AnalysisWindow(QMainWindow):
 
     def _remember_navigation(self) -> None:
         state = self._state()
-        if state is None or state.scale is not None:
+        if (
+            state is None
+            or state.scale is not None
+            or not self.isVisible()
+            or self._fit_pending_result_id == self._active_id
+        ):
             return
         view = self._views[0]
         center = view.mapToScene(view.viewport().rect().center())
         state.scale, state.center_x, state.center_y = view.transform().m11(), center.x(), center.y()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._queue_initial_fit()
+
+    def _queue_initial_fit(self) -> None:
+        if self.isVisible() and self._fit_pending_result_id is not None:
+            # Defer until Qt has assigned real splitter/viewport dimensions.
+            QTimer.singleShot(0, self._finish_initial_fit)
+
+    def _finish_initial_fit(self) -> None:
+        result_id = self._fit_pending_result_id
+        if not self.isVisible() or result_id is None or result_id != self._active_id:
+            return
+        if any(view.viewport().width() < 100 or view.viewport().height() < 100 for view in self._views):
+            # A subsequent show/layout will retry; never cache pre-layout geometry.
+            return
+        state = self._state()
+        if state is None or state.scale is not None:
+            self._fit_pending_result_id = None
+            return
+        result = self._results[result_id]
+        self._rendering = True
+        for view in self._views:
+            view._muted = True
+        try:
+            first = self._views[0]
+            first.fitInView(first.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+            scale = first.transform().m11()
+            if not np.isfinite(scale) or scale <= 0:
+                return
+            # Use the scene's canonical center, not a pre-layout mapToScene
+            # coordinate (which can legitimately fall outside the image).
+            center_x, center_y = result.image_width / 2.0, result.image_height / 2.0
+            state.scale, state.center_x, state.center_y = scale, center_x, center_y
+            for view in self._views:
+                view._fit_scale = scale
+                view.apply_navigation(scale, center_x, center_y)
+            self._fit_pending_result_id = None
+        finally:
+            for view in self._views:
+                view._muted = False
+            self._rendering = False
 
     def _open_from_dialog(self) -> None:
         if self._loader is None:
