@@ -131,7 +131,9 @@ def _rank_badge(rank: int) -> QPixmap:
     badge.fill(Qt.GlobalColor.transparent)
     painter = QPainter(badge)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    tone = TOKENS.selection if rank == 1 else "#7595b4"
+    # Match the muted-red A/B Attribute card semantic accent for first rank;
+    # ranking itself is magnitude-only, not an A-wins verdict.
+    tone = "#e5857d" if rank == 1 else "#7595b4"
     painter.setBrush(QColor(tone) if rank == 1 else QColor(TOKENS.raised_background))
     painter.setPen(QPen(QColor(tone), 2))
     painter.drawEllipse(2, 2, 24, 24)
@@ -141,8 +143,37 @@ def _rank_badge(rank: int) -> QPixmap:
     painter.setFont(font)
     painter.setPen(QColor("#1a1d21") if rank == 1 else QColor(TOKENS.text_primary))
     painter.drawText(QRect(2, 2, 24, 24), Qt.AlignmentFlag.AlignCenter, str(rank))
+    if rank == 1:
+        # A tiny star marks the highest-impact proposal independent of hue.
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QPolygonF
+
+        painter.setBrush(QColor("#fce8ce"))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPolygon(
+            QPolygonF(
+                [
+                    QPointF(23, 0), QPointF(25, 5), QPointF(29, 6),
+                    QPointF(26, 9), QPointF(27, 13), QPointF(23, 11),
+                    QPointF(19, 13), QPointF(20, 9), QPointF(17, 6),
+                    QPointF(21, 5),
+                ]
+            )
+        )
     painter.end()
     return badge
+
+
+def _blend_rank_tint(base: str, tint: str, fraction: float) -> str:
+    """Use the exact quiet/hover/selected mixing levels of Attribute Top-3."""
+
+    a = QColor(base)
+    b = QColor(tint)
+    return QColor(
+        round(a.red() * (1.0 - fraction) + b.red() * fraction),
+        round(a.green() * (1.0 - fraction) + b.green() * fraction),
+        round(a.blue() * (1.0 - fraction) + b.blue() * fraction),
+    ).name()
 
 
 class SpatialCandidatesPanel(QWidget):
@@ -266,17 +297,22 @@ class SpatialCandidatesPanel(QWidget):
                 f"QProgressBar {{ background-color: {TOKENS.panel_background}; "
                 "border: none; }"
                 f"QProgressBar::chunk {{ background-color: "
-                f"{TOKENS.selection if index == 0 else TOKENS.accent}; }}"
+                f"{'#e5857d' if index == 0 else TOKENS.accent}; }}"
             )
             column.addWidget(impact)
             # Narrow, native per-button styling avoids complex parent QSS selector
             # parsing and any propagation into the custom paint canvas.
-            frame_color = TOKENS.selection if index == 0 else TOKENS.border
+            accent = "#e5857d" if index == 0 else "#7595b4"
+            base = TOKENS.raised_background
+            card.setProperty("spatialRankTone", "top" if index == 0 else "other")
             card.setStyleSheet(
-                f"QPushButton {{ background-color: {TOKENS.raised_background}; "
-                f"border: 2px solid {frame_color}; border-radius: 7px; }}"
-                f"QPushButton:checked {{ border-color: {TOKENS.accent}; }}"
-                f"QPushButton:hover {{ border-color: {TOKENS.accent}; }}"
+                f"QPushButton {{ background-color: {_blend_rank_tint(base, accent, 0.14)}; "
+                f"border: 1px solid {TOKENS.border}; border-left: 4px solid {accent}; "
+                "border-radius: 9px; text-align: left; }"
+                f"QPushButton:hover {{ background-color: {_blend_rank_tint(base, accent, 0.22)}; "
+                f"border-color: {accent}; }}"
+                f"QPushButton:checked {{ background-color: {_blend_rank_tint(base, accent, 0.30)}; "
+                f"border: 2px solid {accent}; border-left: 5px solid {accent}; }}"
             )
             for child in (rank_badge, card_title, preview, detail, impact):
                 child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
