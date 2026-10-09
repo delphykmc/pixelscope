@@ -745,9 +745,7 @@ class AnalysisWindow(QMainWindow):
                 self.attribute_table.viewport().update()
         self.range_editor.blockSignals(True)
         self.range_editor.setValue(limit)
-        self.range_editor.setEnabled(
-            attr.spatial is not None or attr.chart_axis_range is not None
-        )
+        self.range_editor.setEnabled(attr.spatial is not None or attr.chart_axis_range is not None)
         self.range_editor.blockSignals(False)
 
         # Attribute and color-range changes do not rebuild three Qt scenes.
@@ -885,9 +883,7 @@ class AnalysisWindow(QMainWindow):
 
         indices = (1, 2, 0) if self._sources_swapped else (0, 2, 1)
         for visual_index, semantic_index in enumerate(indices):
-            self._image_split.insertWidget(
-                visual_index, self._pane_wrappers[semantic_index]
-            )
+            self._image_split.insertWidget(visual_index, self._pane_wrappers[semantic_index])
 
     def _swap_sources(self) -> None:
         """Toggle B/Map/A vs A/Map/B; never reverse the signed metric."""
@@ -898,9 +894,7 @@ class AnalysisWindow(QMainWindow):
     def _display_range(self, attr: AttributeDisplay, state: _ResultViewState) -> float:
         """Use one range when the adapter declared comparable official units."""
 
-        return state.ranges.get(
-            attr.attribute_id, attr.chart_axis_range or attr.fixed_range
-        )
+        return state.ranges.get(attr.attribute_id, attr.chart_axis_range or attr.fixed_range)
 
     def _render_inspector(self, attr: AttributeDisplay, limit: float) -> None:
         if attr.official_value is None:
