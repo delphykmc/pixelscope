@@ -94,7 +94,7 @@ def test_missing_sources_do_not_invalidate_spatial_analysis(qtbot: object) -> No
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(_result("missing_sources"))
     assert win.active_result_id == "missing_sources"
-    assert "OFFICIAL full-pair" in win.official_label.text()
+    assert "Full-pair comparison" in win.official_label.text()
     assert "Clamped:" in win.clamp_label.text()
     assert win._views[0].scene().items()  # type: ignore[union-attr]
     assert win._views[1].scene().items()  # type: ignore[union-attr]
@@ -512,7 +512,7 @@ def test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area(
     assert "4,096 px²" in win.roi_label.text()
     assert "GRID-DERIVED ROI mean" in win.roi_label.text()
     assert "Grid valid area" in win.roi_label.text()
-    assert "NOT official" in win.roi_label.text()
+    assert "not full-pair" in win.roi_label.text()
 
     win._group_tables["delta"].selectRow(0)  # no spatial grid for second metric
     assert win._state().attribute_id == "metric_delta"  # type: ignore[union-attr]
