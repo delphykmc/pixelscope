@@ -80,12 +80,12 @@ from pixelscope_enterprise.iqa.analysis_model import (
     roi_statistics,
     spatial_display_half_range,
 )
-from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
     DISPLAY_RANGE_ROLE,
     RelativeDifferenceDelegate,
 )
+from pixelscope_enterprise.iqa.insights import rank_top_differences
 
 ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
