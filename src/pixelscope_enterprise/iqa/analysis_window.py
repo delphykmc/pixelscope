@@ -911,7 +911,7 @@ class AnalysisWindow(QMainWindow):
         self.official_label.setText(f"OFFICIAL full-pair: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
-            self.roi_label.setText("No ROI selected\nShift+drag on A, Map or B · Esc clears")
+            self.roi_label.setText("ROI: none\nShift+drag on A, Map or B · Esc clears")
         else:
             x, y, width, height = roi
             description = (
