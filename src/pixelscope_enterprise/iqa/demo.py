@@ -35,17 +35,35 @@ def make_synthetic_result(result_id: str = "public-synthetic-pair") -> AnalysisR
         offset = (index - 5) / 4.0
         values = 3.0 * np.sin(xx / 7 + index / 3) * np.cos(yy / 6) + offset
         grid = SpatialMap(values, valid, width, height, float(block), float(block))
+        # Deliberately exercise independent availability, unlike a polished
+        # screenshot where every metric would misleadingly have both outputs.
+        official = (
+            None
+            if index in (1, 11)
+            else 0.0
+            if index == 2
+            else 0.01
+            if index == 3
+            else 7.0
+            if index == 4
+            else -7.0
+            if index == 5
+            else offset
+        )
         attributes.append(
             AttributeDisplay(
                 attribute_id=f"synthetic_{index:02d}",
                 label=f"Synthetic attribute {index + 1}",
                 unit=unit,
                 group="Relative power" if index < 10 else "Signed delta",
-                official_value=None if index == 11 else offset,
-                official_availability="missing" if index == 11 else "available",
+                official_value=official,
+                official_availability="missing" if official is None else "available",
                 quality_oriented=index < 10,
                 fixed_range=6.0 if index < 10 else 3.0,
-                spatial=None if index == 11 else grid,
+                spatial=None if index in (0, 11) else grid,
+                # An explicitly public *illustrative* axis, not inferred from
+                # the map color range or a private server schema.
+                chart_axis_range=4.0 if index < 10 else 2.0,
             )
         )
     return AnalysisResult(
