@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QGraphicsPixmapItem, QWidget
 
-from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, official_chart_fraction
+from pixelscope_enterprise.iqa.analysis_model import (
+    AnalysisResult,
+    official_chart_fraction,
+    spatial_display_half_range,
+)
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
@@ -269,3 +275,95 @@ def test_ux1_patterned_rgb_demo_has_spatial_landmarks(tmp_path: Path) -> None:
     # Geometry grid and gradient make visual pan/zoom test possible; A/B differ.
     assert image_a.pixelColor(40, 40) != image_a.pixelColor(1800, 900)
     assert image_a.pixelColor(40, 40) != image_b.pixelColor(40, 40)
+
+
+def test_ux1_unit_ranges_and_global_map_gain_isolate_measurement(
+    qtbot: object,
+) -> None:
+    result = make_synthetic_result("unit-gain")
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(result)
+    assert list(win._group_tables) == ["dB", "delta"]
+    assert win._group_tables["dB"].rowCount() == 10
+    assert win._group_tables["delta"].rowCount() == 2
+    assert win._range_editors["dB"].value() == 4.0
+    assert win._range_editors["delta"].value() == 2.0
+    assert win.gain_editor.value() == 1.0
+
+    _select_attribute(win, 4)  # +7 dB official, nonzero signed spatial
+    official = result.attributes[4].official_value
+    win._set_roi(800, 500, 512, 512)
+    original_roi = win.roi_label.text()
+    win._range_editors["dB"].setValue(10.0)
+    assert official_chart_fraction(result.attributes[4], 10.0) == 0.7
+    assert all(win._group_tables["dB"].item(i, 1).data(DISPLAY_RANGE_ROLE) == 10.0
+               for i in range(10))
+    assert all(win._group_tables["delta"].item(i, 1).data(DISPLAY_RANGE_ROLE) == 2.0
+               for i in range(2))
+    before = win._map_item.pixmap().toImage().pixelColor(12, 5)  # type: ignore[union-attr]
+    win.gain_editor.setValue(2.0)
+    after = win._map_item.pixmap().toImage().pixelColor(12, 5)  # type: ignore[union-attr]
+    assert before != after
+    assert spatial_display_half_range(10.0, 2.0) == 5.0
+    assert official_chart_fraction(result.attributes[4], 10.0) == 0.7
+    assert win._group_tables["dB"].item(4, 1).data(DISPLAY_RANGE_ROLE) == 10.0
+    assert result.attributes[4].official_value == official
+    assert win.roi_label.text() == original_roi
+    assert "gain ×2" in win.clamp_label.text()
+
+    _select_attribute(win, 10)
+    win._range_editors["delta"].setValue(3.0)
+    assert win._range_editors["dB"].value() == 10.0
+    assert "Group ±3 delta" in win.clamp_label.text()
+    assert win.gain_editor.value() == 2.0
+    state = win.current_analysis_state()
+    assert state["ranges"] == {"dB": 10.0, "delta": 3.0}
+    assert state["display_gain"] == 2.0
+    win.close()
+
+    restored = AnalysisWindow()
+    qtbot.addWidget(restored)  # type: ignore[attr-defined]
+    restored.present_result(result, analysis_state=state)
+    assert restored._state().attribute_id == "synthetic_10"  # type: ignore[union-attr]
+    assert restored._range_editors["dB"].value() == 10.0
+    assert restored._range_editors["delta"].value() == 3.0
+    assert restored.gain_editor.value() == 2.0
+    restored.close()
+
+
+def test_ux1_saved_legacy_range_migrates_and_unknown_unit_is_dynamic(
+    qtbot: object,
+) -> None:
+    result = make_synthetic_result("legacy-groups")
+    extra = replace(
+        result.attributes[6],
+        attribute_id="third_unit",
+        label="Third unit",
+        unit="score",
+        group="Additional metric family",
+        chart_axis_range=2.5,
+    )
+    result = replace(result, attributes=(*result.attributes, extra))
+    legacy: dict[str, object] = {
+        "attribute_id": "synthetic_04",
+        "roi": None,
+        "ranges": {
+            "synthetic_00": 5.0,
+            "synthetic_04": 7.0,
+            "synthetic_10": 2.5,
+        },
+        "viewport": {"scale": None, "center_x": None, "center_y": None},
+    }
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(result, analysis_state=legacy)
+    assert list(win._group_tables) == ["dB", "delta", "score"]
+    assert win.current_analysis_state()["ranges"] == {"dB": 7.0, "delta": 2.5}
+    assert win.current_analysis_state()["display_gain"] == 1.0
+    state = win.current_analysis_state()
+    state["display_gain"] = 0.7
+    with pytest.raises(ValueError, match="display gain"):
+        win.present_result(result, analysis_state=state)
+    assert win.current_analysis_state()["display_gain"] == 1.0
+    win.close()
