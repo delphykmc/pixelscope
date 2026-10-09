@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from PySide6.QtCore import QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPaintEvent, QPainter, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
