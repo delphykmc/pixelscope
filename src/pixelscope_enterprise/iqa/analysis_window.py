@@ -56,6 +56,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QRubberBand,
+    QScrollArea,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -73,7 +74,12 @@ from pixelscope_enterprise.iqa.analysis_model import (
     map_polarity_legend,
     roi_statistics,
 )
-from pixelscope_enterprise.iqa.attribute_chart import ATTRIBUTE_ROLE, RelativeDifferenceDelegate
+from pixelscope.ui.design_tokens import TOKENS
+from pixelscope_enterprise.iqa.attribute_chart import (
+    ATTRIBUTE_ROLE,
+    DISPLAY_RANGE_ROLE,
+    RelativeDifferenceDelegate,
+)
 
 ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
@@ -258,6 +264,8 @@ class AnalysisWindow(QMainWindow):
         self._map_item: QGraphicsPixmapItem | None = None
         self._map_placeholder: QGraphicsTextItem | None = None
         self._pane_labels: list[QLabel] = []
+        self._pane_wrappers: list[QWidget] = []
+        self._sources_swapped = False
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
@@ -286,13 +294,22 @@ class AnalysisWindow(QMainWindow):
         self.clear_roi_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.clear_roi_action.setEnabled(False)
         self.clear_roi_action.triggered.connect(self._clear_roi)  # type: ignore[attr-defined]
+        self.swap_sources_action = view_menu.addAction("Swap A/B positions")
+        self.swap_sources_action.setObjectName("enterpriseIqaSwapSources")
+        self.swap_sources_action.setShortcut(QKeySequence("Alt+X"))
+        self.swap_sources_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.swap_sources_action.triggered.connect(  # type: ignore[attr-defined]
+            self._swap_sources
+        )
 
         root_split = QSplitter(Qt.Orientation.Horizontal, self)
         root_split.setObjectName("enterpriseIqaRootSplitter")
         image_split = QSplitter(Qt.Orientation.Horizontal, root_split)
         image_split.setObjectName("enterpriseIqaImageSplitter")
+        self._image_split = image_split
         for title in ("Image A", "Image B", "Relative Spatial Map"):
             wrapper = QWidget(image_split)
+            self._pane_wrappers.append(wrapper)
             column = QVBoxLayout(wrapper)
             column.setContentsMargins(2, 2, 2, 2)
             caption = QLabel(title, wrapper)
@@ -310,6 +327,7 @@ class AnalysisWindow(QMainWindow):
             column.addWidget(view, 1)
             image_split.addWidget(wrapper)
             self._views.append(view)
+        self._set_pane_order()
         inspector = QWidget(root_split)
         inspector.setObjectName("enterpriseIqaInspector")
         inspector.setMinimumWidth(385)
@@ -321,8 +339,8 @@ class AnalysisWindow(QMainWindow):
         )
         inspector_layout.addWidget(QLabel("RELATIVE ATTRIBUTES · supplied order", inspector))
         chart_help = QLabel(
-            "A/B quality colors require verified direction.\n"
-            "Bar axis is independent of Map color range.",
+            "B better (−)  ←  0  →  A better (+)\n"
+            "Neutral signed: teal (−) / purple (+) · no winner",
             inspector,
         )
         chart_help.setWordWrap(True)
@@ -331,8 +349,8 @@ class AnalysisWindow(QMainWindow):
         self.attribute_table = QTableWidget(0, 2, inspector)
         self.attribute_table.setObjectName("enterpriseIqaAttributes")
         self.attribute_table.setToolTip(
-            "Use arrow keys to select a metric; chart axes show official comparison, "
-            "not spatial Map color scale."
+            "Select a metric using arrow keys; one Display Range controls "
+            "both the verified official bar and its spatial Map."
         )
         self.attribute_table.setHorizontalHeaderLabels(["Metric / group", "Official difference"])
         self.attribute_table.horizontalHeader().setSectionResizeMode(
@@ -359,26 +377,45 @@ class AnalysisWindow(QMainWindow):
         inspector_layout.addWidget(self.official_label)
         self.roi_label = QLabel("ROI: none", inspector)
         self.roi_label.setWordWrap(True)
-        inspector_layout.addWidget(self.roi_label)
         self.clear_roi_button = QPushButton("Clear ROI (Esc / Shift+Esc)", inspector)
         self.clear_roi_button.setObjectName("enterpriseIqaClearRoiButton")
         self.clear_roi_button.setEnabled(False)
         self.clear_roi_button.clicked.connect(self._clear_roi)  # type: ignore[attr-defined]
-        inspector_layout.addWidget(self.clear_roi_button)
-        inspector_layout.addWidget(QLabel("SPATIAL MAP · fixed bipolar color range ±", inspector))
+        roi_card = QFrame(inspector)
+        roi_card.setObjectName("enterpriseIqaRoiCard")
+        roi_card.setFrameShape(QFrame.Shape.StyledPanel)
+        roi_layout = QVBoxLayout(roi_card)
+        roi_layout.setContentsMargins(9, 6, 9, 6)
+        roi_layout.setSpacing(4)
+        roi_layout.addWidget(QLabel("ROI ANALYSIS · SOURCE PIXELS", roi_card))
+        roi_layout.addWidget(self.roi_label)
+        roi_layout.addWidget(self.clear_roi_button)
+        inspector_layout.addWidget(roi_card)
+        inspector_layout.addWidget(QLabel("DISPLAY RANGE · shared ±", inspector))
         self.range_editor = QDoubleSpinBox(inspector)
         self.range_editor.setObjectName("enterpriseIqaMapRange")
         self.range_editor.setDecimals(3)
         self.range_editor.setRange(0.001, 1_000_000.0)
         self.range_editor.setEnabled(False)
+        self.range_editor.setToolTip(
+            "The same range controls the verified official bar width and spatial Map colors; "
+            "measurement data never changes."
+        )
         self.range_editor.valueChanged.connect(  # type: ignore[attr-defined]
             self._update_range
         )
         inspector_layout.addWidget(self.range_editor)
         self.clamp_label = QLabel("Map: unavailable", inspector)
         self.clamp_label.setWordWrap(True)
-        inspector_layout.addWidget(self.clamp_label)
-        inspector_layout.addStretch(1)
+        map_card = QFrame(inspector)
+        map_card.setObjectName("enterpriseIqaMapCard")
+        map_card.setFrameShape(QFrame.Shape.StyledPanel)
+        map_layout = QVBoxLayout(map_card)
+        map_layout.setContentsMargins(9, 6, 9, 6)
+        map_layout.setSpacing(4)
+        map_layout.addWidget(QLabel("SPATIAL MAP · CELL STATISTICS", map_card))
+        map_layout.addWidget(self.clamp_label)
+        inspector_layout.addWidget(map_card)
         root_split.addWidget(image_split)
         root_split.addWidget(inspector)
         root_split.setStretchFactor(0, 3)
@@ -402,12 +439,25 @@ class AnalysisWindow(QMainWindow):
         self.fit_button.setEnabled(False)
         self.fit_button.clicked.connect(self._fit_pair)  # type: ignore[attr-defined]
         header.addWidget(self.fit_button)
+        self.swap_button = QPushButton("Swap A/B  (Alt+X)", central)
+        self.swap_button.setObjectName("enterpriseIqaSwapButton")
+        self.swap_button.clicked.connect(self._swap_sources)  # type: ignore[attr-defined]
+        header.addWidget(self.swap_button)
         self.roi_hint = QLabel("Shift+drag ROI  •  Esc clears", central)
         self.roi_hint.setObjectName("enterpriseIqaRoiHint")
         header.addWidget(self.roi_hint)
         central_layout.addLayout(header)
         central_layout.addWidget(root_split, 1)
         self.setCentralWidget(central)
+        # Read the same reusable design tokens as the public PixelScope host.
+        # No private stylesheet or global palette mutation when hosted by MAIN.
+        self.setStyleSheet(
+            f"QLabel#enterpriseIqaWorkspaceTitle {{ color: {TOKENS.text_primary}; "
+            "font-weight: 700; }}"
+            f"QLabel#enterpriseIqaChartHelp {{ color: {TOKENS.text_secondary}; }}"
+            f"QFrame#enterpriseIqaRoiCard, QFrame#enterpriseIqaMapCard {{ "
+            f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; }}"
+        )
         self.statusBar().showMessage(
             "Shift+drag selects ROI. Esc or Shift+Esc clears it. Missing RGB is optional."
         )
@@ -601,11 +651,17 @@ class AnalysisWindow(QMainWindow):
             # Preserve producer order even when a group occurs non-contiguously.
             group = f"{attr.group} · {attr.unit}"
             fields = (f"{attr.label}\n{group}", "")
-            self.attribute_table.setRowHeight(row, 65)
+            self.attribute_table.setRowHeight(row, 40)
             for col, field_text in enumerate(fields):
                 item = QTableWidgetItem(field_text)
                 item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
                 item.setData(ATTRIBUTE_ROLE, attr)
+                item.setData(
+                    DISPLAY_RANGE_ROLE,
+                    state.ranges.get(attr.attribute_id, attr.chart_axis_range or attr.fixed_range)
+                    if state is not None
+                    else attr.chart_axis_range or attr.fixed_range,
+                )
                 item.setToolTip(
                     f"{attr.label} | {group} | "
                     f"official {attr.official_availability} | "
@@ -655,10 +711,18 @@ class AnalysisWindow(QMainWindow):
         attr = self._attribute()
         if state is None or attr is None:
             return
-        limit = state.ranges.get(attr.attribute_id, attr.fixed_range)
+        limit = self._display_range(attr, state)
+        selected_rows = self.attribute_table.selectionModel().selectedRows()
+        if len(selected_rows) == 1:
+            cell = self.attribute_table.item(selected_rows[0].row(), 1)
+            if cell is not None:
+                cell.setData(DISPLAY_RANGE_ROLE, limit)
+                self.attribute_table.viewport().update()
         self.range_editor.blockSignals(True)
         self.range_editor.setValue(limit)
-        self.range_editor.setEnabled(attr.spatial is not None)
+        self.range_editor.setEnabled(
+            attr.spatial is not None or attr.chart_axis_range is not None
+        )
         self.range_editor.blockSignals(False)
 
         # Attribute and color-range changes do not rebuild three Qt scenes.
@@ -688,14 +752,14 @@ class AnalysisWindow(QMainWindow):
                 old_scene = view.scene()
                 scene = QGraphicsScene(view)
                 scene.setSceneRect(QRectF(0, 0, result.image_width, result.image_height))
-                scene.setBackgroundBrush(QColor(29, 32, 36))
+                scene.setBackgroundBrush(QColor(TOKENS.workspace_background))
                 if i < 2:
                     pixmap = self._source_pixmaps[i]
                     if pixmap is None:
                         note = scene.addText(
                             "Source unavailable\nNumeric/spatial analysis retained"
                         )
-                        note.setDefaultTextColor(QColor(240, 240, 240))
+                        note.setDefaultTextColor(QColor(TOKENS.text_secondary))
                         note.setFlag(
                             QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
                         )
@@ -708,7 +772,7 @@ class AnalysisWindow(QMainWindow):
                     self._map_item = scene.addPixmap(QPixmap())
                     self._map_item.setTransformationMode(Qt.TransformationMode.FastTransformation)
                     self._map_placeholder = scene.addText("Spatial map unavailable")
-                    self._map_placeholder.setDefaultTextColor(QColor(240, 240, 240))
+                    self._map_placeholder.setDefaultTextColor(QColor(TOKENS.text_secondary))
                     self._map_placeholder.setFlag(
                         QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
                     )
@@ -790,6 +854,28 @@ class AnalysisWindow(QMainWindow):
         self._fit_attempts_remaining = 8
         self._fit_pending_result_id = self._active_id
         self._queue_initial_fit()
+
+    def _set_pane_order(self) -> None:
+        """Reorder only visual containers, keeping the A/B science immutable."""
+
+        indices = (1, 2, 0) if self._sources_swapped else (0, 2, 1)
+        for visual_index, semantic_index in enumerate(indices):
+            self._image_split.insertWidget(
+                visual_index, self._pane_wrappers[semantic_index]
+            )
+
+    def _swap_sources(self) -> None:
+        """Toggle B/Map/A vs A/Map/B; never reverse the signed metric."""
+
+        self._sources_swapped = not self._sources_swapped
+        self._set_pane_order()
+
+    def _display_range(self, attr: AttributeDisplay, state: _ResultViewState) -> float:
+        """Use one range when the adapter declared comparable official units."""
+
+        return state.ranges.get(
+            attr.attribute_id, attr.chart_axis_range or attr.fixed_range
+        )
 
     def _render_inspector(self, attr: AttributeDisplay, limit: float) -> None:
         if attr.official_value is None:
@@ -873,7 +959,7 @@ class AnalysisWindow(QMainWindow):
         self._draw_roi(None)
         attr = self._attribute()
         if attr is not None and state is not None:
-            self._render_inspector(attr, state.ranges.get(attr.attribute_id, attr.fixed_range))
+            self._render_inspector(attr, self._display_range(attr, state))
 
     def _set_roi(self, x: float, y: float, w: float, h: float) -> None:
         if self._active_id is None:
@@ -892,7 +978,7 @@ class AnalysisWindow(QMainWindow):
         self._draw_roi(state.roi)
         attr = self._attribute()
         if attr is not None:
-            self._render_inspector(attr, state.ranges.get(attr.attribute_id, attr.fixed_range))
+            self._render_inspector(attr, self._display_range(attr, state))
 
     def _update_range(self, value: float) -> None:
         state = self._state()
