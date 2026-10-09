@@ -297,10 +297,12 @@ def test_ux1_unit_ranges_and_global_map_gain_isolate_measurement(
     original_roi = win.roi_label.text()
     win._range_editors["dB"].setValue(10.0)
     assert official_chart_fraction(result.attributes[4], 10.0) == 0.7
-    assert all(win._group_tables["dB"].item(i, 1).data(DISPLAY_RANGE_ROLE) == 10.0
-               for i in range(10))
-    assert all(win._group_tables["delta"].item(i, 1).data(DISPLAY_RANGE_ROLE) == 2.0
-               for i in range(2))
+    assert all(
+        win._group_tables["dB"].item(i, 1).data(DISPLAY_RANGE_ROLE) == 10.0 for i in range(10)
+    )
+    assert all(
+        win._group_tables["delta"].item(i, 1).data(DISPLAY_RANGE_ROLE) == 2.0 for i in range(2)
+    )
     before = win._map_item.pixmap().toImage().pixelColor(12, 5)  # type: ignore[union-attr]
     win.gain_editor.setValue(2.0)
     after = win._map_item.pixmap().toImage().pixelColor(12, 5)  # type: ignore[union-attr]
