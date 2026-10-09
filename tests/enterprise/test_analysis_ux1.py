@@ -277,7 +277,7 @@ def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> No
     assert splitter.widget(1).height() >= 175
     for name, phrase in (
         ("enterpriseIqaOfficialExplanation", "entire image pair"),
-        ("enterpriseIqaRoiExplanation", "not an official score"),
+        ("enterpriseIqaRoiExplanation", "not a full-pair measurement"),
         ("enterpriseIqaMapExplanation", "clipped cells"),
     ):
         label = win.findChild(QLabel, name)
