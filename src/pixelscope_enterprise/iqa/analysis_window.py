@@ -25,6 +25,7 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import (
+    QAction,
     QCloseEvent,
     QColor,
     QIcon,
@@ -369,10 +370,7 @@ class AnalysisWindow(QMainWindow):
         self.iqa_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.iqa_toolbar)
 
-        def action_button(action: object) -> QToolButton:
-            from PySide6.QtGui import QAction
-
-            assert isinstance(action, QAction)
+        def action_button(action: QAction) -> QToolButton:
             button = QToolButton(self.iqa_toolbar)
             button.setDefaultAction(action)
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -813,15 +811,15 @@ class AnalysisWindow(QMainWindow):
         result = self._results[self._active_id]
         ranked = rank_top_differences(result)
         self._top3_attribute_ids = [item.attribute_id for item in ranked]
-        gated = any(
-            attr.unit == "dB" and attr.summary_signal_gate is not None
+        unknown_gate = any(
+            attr.unit == "dB" and attr.summary_signal_gate is None
             for attr in result.attributes
         )
         self.top3_title.setText(
             "TOP 3 · VERIFIED RELATIVE dB DIFFERENCES"
             if ranked
             else "TOP 3 · NO QUALIFYING dB DIFFERENCES"
-            if gated
+            if not unknown_gate
             else "TOP 3 · SIGNAL ELIGIBILITY NOT YET VERIFIED"
         )
         for index, card in enumerate(self.top3_buttons):
