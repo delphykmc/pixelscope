@@ -191,6 +191,7 @@ def test_oversized_window_count_rejected_before_position_allocation(
         block_width=1_000_000.0,
         block_height=1_000_000.0,
     )
+
     def should_not_scan(*_args: object) -> None:
         raise AssertionError("preflight failed: created an unbounded position array")
 
@@ -211,6 +212,7 @@ def test_large_matmul_temporary_rejected_despite_small_window_count(
         block_width=512.0 / 4000,
         block_height=40_000.0,
     )
+
     def should_not_scan(*_args: object) -> None:
         raise AssertionError("preflight must reject before np.arange")
 
