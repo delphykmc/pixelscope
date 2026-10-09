@@ -65,16 +65,12 @@ class RelativeDifferenceDelegate(QStyledItemDelegate):
 
         supplied = index.data(DISPLAY_RANGE_ROLE)
         display_range = (
-            float(supplied)
-            if isinstance(supplied, int | float)
-            else attr.chart_axis_range
+            float(supplied) if isinstance(supplied, int | float) else attr.chart_axis_range
         )
         fraction = official_chart_fraction(attr, display_range)
         value_text = f"{attr.official_value:+.3f} {attr.unit}"
         if fraction is None:
-            painter.drawText(
-                content, Qt.AlignmentFlag.AlignVCenter, value_text + " · unscaled"
-            )
+            painter.drawText(content, Qt.AlignmentFlag.AlignVCenter, value_text + " · unscaled")
             painter.restore()
             return
 
