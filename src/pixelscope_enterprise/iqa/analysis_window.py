@@ -887,10 +887,28 @@ class AnalysisWindow(QMainWindow):
             self._image_split.insertWidget(visual_index, self._pane_wrappers[semantic_index])
 
     def _swap_sources(self) -> None:
-        """Toggle B/Map/A vs A/Map/B; never reverse the signed metric."""
+        """Toggle A/Map/B placement without mutating A/B data or zoom state."""
 
-        self._sources_swapped = not self._sources_swapped
-        self._set_pane_order()
+        state = self._state()
+        self._remember_navigation()
+        self._rendering = True
+        for view in self._views:
+            view._muted = True
+        try:
+            self._sources_swapped = not self._sources_swapped
+            self._set_pane_order()
+        finally:
+            for view in self._views:
+                view._muted = False
+            self._rendering = False
+        if (
+            state is not None
+            and state.scale is not None
+            and state.center_x is not None
+            and state.center_y is not None
+        ):
+            for view in self._views:
+                view.apply_navigation(state.scale, state.center_x, state.center_y)
 
     def _display_range(self, attr: AttributeDisplay, state: _ResultViewState) -> float:
         """Use one range when the adapter declared comparable official units."""
