@@ -273,6 +273,14 @@ class AnalysisWindow(QMainWindow):
         )
         self.export_action = file_menu.addAction("Export...")
         self.export_action.setEnabled(False)  # Separate H4 reporting work.
+        view_menu = self.menuBar().addMenu("View")
+        self.clear_roi_action = view_menu.addAction("Clear ROI")
+        self.clear_roi_action.setObjectName("enterpriseIqaClearRoi")
+        # MAIN uses Esc for ROI; also accept Shift+Esc as a documented alias.
+        self.clear_roi_action.setShortcuts([QKeySequence("Esc"), QKeySequence("Shift+Esc")])
+        self.clear_roi_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.clear_roi_action.setEnabled(False)
+        self.clear_roi_action.triggered.connect(self._clear_roi)  # type: ignore[attr-defined]
 
         root_split = QSplitter(Qt.Orientation.Horizontal, self)
         root_split.setObjectName("enterpriseIqaRootSplitter")
@@ -323,6 +331,11 @@ class AnalysisWindow(QMainWindow):
         self.roi_label = QLabel("ROI: none", inspector)
         self.roi_label.setWordWrap(True)
         inspector_layout.addWidget(self.roi_label)
+        self.clear_roi_button = QPushButton("Clear ROI (Esc / Shift+Esc)", inspector)
+        self.clear_roi_button.setObjectName("enterpriseIqaClearRoiButton")
+        self.clear_roi_button.setEnabled(False)
+        self.clear_roi_button.clicked.connect(self._clear_roi)  # type: ignore[attr-defined]
+        inspector_layout.addWidget(self.clear_roi_button)
         inspector_layout.addWidget(QLabel("Fixed symmetric map range ±", inspector))
         self.range_editor = QDoubleSpinBox(inspector)
         self.range_editor.setObjectName("enterpriseIqaMapRange")
@@ -343,7 +356,7 @@ class AnalysisWindow(QMainWindow):
         root_split.setStretchFactor(1, 1)
         self.setCentralWidget(root_split)
         self.statusBar().showMessage(
-            "Open a saved Result using an installed reader. Shift+drag in any view selects a ROI."
+            "Shift+drag selects ROI. Esc or Shift+Esc clears it. Missing RGB is optional."
         )
         self._render_empty()
 
@@ -450,6 +463,8 @@ class AnalysisWindow(QMainWindow):
             else None
         )
         self._remember_navigation()
+        for view in self._views:
+            view.cancel_roi_drag()
         is_new = existing is None
         if is_new:
             self._results[result.result_id] = result
@@ -636,16 +651,26 @@ class AnalysisWindow(QMainWindow):
         self.official_label.setText(f"OFFICIAL full-pair: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
-            self.roi_label.setText("ROI: none · Shift+drag to inspect")
-        elif attr.spatial is None:
-            self.roi_label.setText("ROI selected; local spatial data unavailable")
+            self.roi_label.setText("ROI: none · Shift+drag to inspect · Esc clears")
         else:
-            stats = roi_statistics(attr.spatial, roi)
-            value = "missing" if stats.mean is None else f"{stats.mean:+.4f} {attr.unit}"
-            self.roi_label.setText(
-                f"GRID-DERIVED ROI: {value}\n"
-                f"Valid area coverage: {stats.valid_coverage:.1%} (not official)"
+            x, y, width, height = roi
+            description = (
+                f"ROI source (x, y, w, h): ({x:.1f}, {y:.1f}, "
+                f"{width:.1f}, {height:.1f}) px\\n"
+                f"Selected source area: {width * height:,.1f} px²"
             )
+            if attr.spatial is None:
+                self.roi_label.setText(
+                    description + "\\nGRID-DERIVED spatial statistics unavailable"
+                )
+            else:
+                stats = roi_statistics(attr.spatial, roi)
+                value = "missing" if stats.mean is None else f"{stats.mean:+.4f} {attr.unit}"
+                self.roi_label.setText(
+                    f"{description}\\nGRID-DERIVED ROI mean: {value} (NOT official)\\n"
+                    f"Grid valid area: {stats.valid_area:,.1f} / "
+                    f"{stats.roi_area:,.1f} px² ({stats.valid_coverage:.1%} coverage)"
+                )
         if attr.spatial is None:
             self.clamp_label.setText("Map missing (not zero)")
         else:
@@ -658,10 +683,44 @@ class AnalysisWindow(QMainWindow):
             )
 
     def _draw_roi(self, roi: Roi | None) -> None:
+        """Replace the one live overlay/view and repaint its transient old pixels.
+
+        Qt may retain the old rubber-band/graphics dirty region until a resize.
+        Synchronously repaint only on ROI changes (not every pan/zoom/frame).
+        """
+
         rect = QRectF(*roi) if roi is not None else QRectF()
-        for overlay in self._roi_items:
+        attr = self._attribute()
+        for i, (view, overlay) in enumerate(zip(self._views, self._roi_items, strict=True)):
+            # A missing RGB source has no image to spatially annotate. The
+            # source-pixel ROI still exists; show it on a populated map only.
+            has_image = (
+                self._source_pixmaps[i] is not None
+                if i < 2
+                else attr is not None and attr.spatial is not None
+            )
+            overlay.setVisible(False)
             overlay.setRect(rect)
-            overlay.setVisible(roi is not None)
+            overlay.setVisible(roi is not None and has_image)
+            if view.viewport().isVisible():
+                view.viewport().repaint()
+        enabled = roi is not None
+        self.clear_roi_action.setEnabled(enabled)
+        self.clear_roi_button.setEnabled(enabled)
+
+    def _clear_roi(self) -> None:
+        """Cancel the draft selection and clear only the active result's ROI."""
+
+        for view in self._views:
+            view.cancel_roi_drag()
+        state = self._state()
+        if state is not None:
+            state.roi = None
+        self._draw_roi(None)
+        attr = self._attribute()
+        if attr is not None and state is not None:
+            self._render_inspector(attr, state.ranges.get(attr.attribute_id, attr.fixed_range))
+
 
     def _set_roi(self, x: float, y: float, w: float, h: float) -> None:
         if self._active_id is None:
@@ -796,6 +855,9 @@ class AnalysisWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # Closing the analysis window must not cancel jobs or change the host Viewer.
+        for view in self._views:
+            view.cancel_roi_drag()
+            view._set_roi_cursor(False)
         self._remember_navigation()
         QSettings("PixelScope", "EnterpriseIqa").setValue(
             "analysis_window_geometry", self.saveGeometry()
