@@ -73,6 +73,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     clipped_cells,
     colorize_spatial_rgba,
     map_polarity_legend,
+    spatial_display_half_range,
     roi_statistics,
 )
 from pixelscope_enterprise.iqa.attribute_chart import (
@@ -89,10 +90,11 @@ ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
 class _ResultViewState:
     attribute_id: str
     roi: Roi | None = None
-    ranges: dict[str, float] = field(default_factory=dict)
+    ranges: dict[str, float] = field(default_factory=dict)  # by unit, not by attribute
     scale: float | None = None
     center_x: float | None = None
     center_y: float | None = None
+    display_gain: float = 1.0
 
 
 class _LinkedView(QGraphicsView):
@@ -266,6 +268,10 @@ class AnalysisWindow(QMainWindow):
         self._pane_labels: list[QLabel] = []
         self._pane_wrappers: list[QWidget] = []
         self._sources_swapped = False
+        self._group_tables: dict[str, QTableWidget] = {}
+        self._range_editors: dict[str, QDoubleSpinBox] = {}
+        self._group_sections: dict[str, QWidget] = {}
+        self._group_units: list[str] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
