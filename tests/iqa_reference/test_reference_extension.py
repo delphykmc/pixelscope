@@ -401,6 +401,42 @@ def test_reference_iqa_commands_and_view_controls_in_composed_window(
     window.close()
 
 
+def test_jobs_dock_view_toggle_honors_explicit_hide_across_new_jobs(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "dock-visibility", IqaFixtureProfile.MINIMAL)
+    )
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    window.show()
+    assert extension.widget is not None
+    assert extension.dock is not None
+    dock_action = window.action_map["Show IQA Mock Jobs"]
+    assert not dock_action.isChecked()
+
+    # The first submission may reveal Jobs as a convenience.
+    extension.widget.submit_button.click()
+    assert extension.dock.isVisible()
+    assert dock_action.isChecked()
+
+    dock_action.trigger()  # User explicitly hides the dock from View.
+    assert not dock_action.isChecked()
+    assert extension.dock.isHidden()
+
+    extension.widget.submit_button.click()
+    assert len(extension.jobs) == 2
+    assert extension.dock.isHidden()
+    assert not dock_action.isChecked()
+
+    dock_action.trigger()
+    assert dock_action.isChecked()
+    assert extension.dock.isVisible()
+    assert extension.widget.jobs_list.count() == 2
+    window.close()
+
+
 def test_delete_and_ctrl_a_only_modify_files_when_files_tree_has_focus(
     qtbot: object,
     tmp_path: Path,
