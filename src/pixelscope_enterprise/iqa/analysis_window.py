@@ -626,6 +626,7 @@ class AnalysisWindow(QMainWindow):
         self.fit_button.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
         self._populate_attributes()
+        self.gain_editor.setEnabled(True)
         self._render_result()
         self.statusBar().showMessage(
             "Official global and grid-derived ROI values are distinct. "
@@ -646,7 +647,8 @@ class AnalysisWindow(QMainWindow):
         return {
             "attribute_id": state.attribute_id,
             "roi": list(state.roi) if state.roi is not None else None,
-            "ranges": dict(state.ranges),
+            "ranges": dict(state.ranges),  # stable unit names, not attribute IDs
+            "display_gain": state.display_gain,
             "viewport": {
                 "scale": state.scale,
                 "center_x": state.center_x,
@@ -679,10 +681,12 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         self._switching = True
         # QScrollArea owns the groups; clear stale widgets on a result change.
-        for section in self._group_sections.values():
-            self._groups_layout.removeWidget(section)
-            section.hide()
-            section.deleteLater()
+        while self._groups_layout.count():
+            item = self._groups_layout.takeAt(0)
+            section = item.widget() if item is not None else None
+            if section is not None:
+                section.hide()
+                section.deleteLater()
         self._group_sections = {}
         self._group_tables = {}
         self._range_editors = {}
@@ -852,6 +856,7 @@ class AnalysisWindow(QMainWindow):
         self.official_label.setText("Official pair comparison: —")
         self.roi_label.setText("ROI: none")
         self.range_editor.setEnabled(False)
+        self.gain_editor.setEnabled(False)
         self.clamp_label.setText("Map: unavailable")
         self.pair_summary.setText("No result loaded")
         self.fit_button.setEnabled(False)
@@ -866,17 +871,13 @@ class AnalysisWindow(QMainWindow):
         if state is None or attr is None:
             return
         limit = self._display_range(attr, state)
-        selected_rows = self.attribute_table.selectionModel().selectedRows()
-        if len(selected_rows) == 1:
-            cell = self.attribute_table.item(selected_rows[0].row(), 1)
-            if cell is not None:
-                cell.setData(DISPLAY_RANGE_ROLE, limit)
-                self.attribute_table.viewport().update()
-        self.range_editor.blockSignals(True)
-        self.range_editor.setSuffix(f" {attr.unit}")
-        self.range_editor.setValue(limit)
-        self.range_editor.setEnabled(attr.spatial is not None or attr.chart_axis_range is not None)
-        self.range_editor.blockSignals(False)
+        self._refresh_group_bars(attr.unit)
+        # Unit controls are always visible; gain changes only the current Map.
+        editor = self._range_editors.get(attr.unit)
+        if editor is not None and editor.value() != limit:
+            editor.blockSignals(True)
+            editor.setValue(limit)
+            editor.blockSignals(False)
 
         # Attribute and color-range changes do not rebuild three Qt scenes.
         # Recreate only when the actual result identity changes.
@@ -985,7 +986,11 @@ class AnalysisWindow(QMainWindow):
 
         if self._map_item is None or self._map_placeholder is None:
             return
-        pixmap = _map_pixmap(attr, limit)
+        state = self._state()
+        effective = spatial_display_half_range(
+            limit, state.display_gain if state is not None else 1.0
+        )
+        pixmap = _map_pixmap(attr, effective)
         grid = attr.spatial
         available = pixmap is not None and grid is not None
         if available and pixmap is not None and grid is not None:
@@ -1042,7 +1047,10 @@ class AnalysisWindow(QMainWindow):
     def _display_range(self, attr: AttributeDisplay, state: _ResultViewState) -> float:
         """Use one range when the adapter declared comparable official units."""
 
-        return state.ranges.get(attr.attribute_id, attr.chart_axis_range or attr.fixed_range)
+        if self._active_id is None:
+            return attr.chart_axis_range or attr.fixed_range
+        result = self._results[self._active_id]
+        return state.ranges.get(attr.unit, self._unit_default_range(result, attr.unit))
 
     def _render_inspector(self, attr: AttributeDisplay, limit: float) -> None:
         if attr.official_value is None:
@@ -1077,11 +1085,13 @@ class AnalysisWindow(QMainWindow):
             self.clamp_label.setText("Map missing (not zero)")
         else:
             grid = attr.spatial
-            clipped, total = clipped_cells(grid, limit)
+            state = self._state()
+            gain = state.display_gain if state is not None else 1.0
+            clipped, total = clipped_cells(grid, spatial_display_half_range(limit, gain))
             pct = 0.0 if total == 0 else (clipped / total)
             invalid = grid.values.size - total
             self.clamp_label.setText(
-                f"Display ±{limit:g} {attr.unit} · Map and verified bar\n"
+                f"Group ±{limit:g} {attr.unit} · Map gain ×{gain:g}\n"
                 f"{map_polarity_legend(attr)}\n"
                 f"Cells: {grid.rows}×{grid.columns} • "
                 f"{grid.block_width:g}×{grid.block_height:g} source px, nearest\n"
@@ -1150,12 +1160,11 @@ class AnalysisWindow(QMainWindow):
             self._render_inspector(attr, self._display_range(attr, state))
 
     def _update_range(self, value: float) -> None:
-        state = self._state()
+        """Compatibility entrypoint for an explicit selected-unit range edit."""
+
         attr = self._attribute()
-        if state is None or attr is None or value <= 0:
-            return
-        state.ranges[attr.attribute_id] = value
-        self._render_result()
+        if attr is not None:
+            self._update_group_range(attr.unit, value)
 
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()
