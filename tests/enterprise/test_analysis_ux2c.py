@@ -287,6 +287,7 @@ def test_roi_dock_uses_native_plot_workspace_title_controls(qtbot: object) -> No
     title = win.spatial_dock_title
     assert isinstance(title, PlotsDockTitleBar)
     assert win.spatial_dock.titleBarWidget() is title
+    assert win._spatial_dock_chrome.parent() is win.spatial_dock
     assert title.title.text() == "Hotspots"
     assert all(
         not button.icon().isNull()
@@ -298,6 +299,9 @@ def test_roi_dock_uses_native_plot_workspace_title_controls(qtbot: object) -> No
     title.float_button.click()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         win.spatial_dock.isFloating, timeout=4000
+    )
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win.spatial_dock.titleBarWidget() is title, timeout=4000
     )
     assert title.float_button.icon().cacheKey() != dock_icon
     title.maximize_button.click()
