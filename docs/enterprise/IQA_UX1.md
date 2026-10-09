@@ -103,7 +103,7 @@ selection, persistent scene identities and a real QImage screenshot.
 ## Windows owner validation (separate Python processes)
 
 ```powershell
-$py = "C:\Users\MCKANG\mycode\pixelscope\.venv\Scripts\python.exe"
+$py = Join-Path $env:USERPROFILE "mycode\pixelscope\.venv\Scripts\python.exe"
 if (-not (Test-Path $py)) { throw "Locate a valid Python 3.10 environment" }
 $env:PYTHONPATH = (Resolve-Path .\src).Path
 & $py -m pytest -q tests/enterprise/test_analysis_model.py
