@@ -645,74 +645,142 @@ class AnalysisWindow(QMainWindow):
         self.range_editor.setValue(limit)
         self.range_editor.setEnabled(attr.spatial is not None)
         self.range_editor.blockSignals(False)
-        # Decode source RGB once per active pair, not on attribute/range/ROI changes.
-        if self._source_result_id != result.result_id:
-            images: list[QPixmap | None] = []
-            for source in (result.source_a, result.source_b):
-                image = QImage(str(source)) if source is not None and source.is_file() else QImage()
-                if (
-                    image.isNull()
-                    or image.width() != result.image_width
-                    or image.height() != result.image_height
-                ):
-                    images.append(None)
+
+        # Attribute and color-range changes do not rebuild three Qt scenes.
+        # Recreate only when the actual result identity changes.
+        new_result = self._scene_result_id != result.result_id
+        if new_result:
+            if self._source_result_id != result.result_id:
+                images: list[QPixmap | None] = []
+                for source in (result.source_a, result.source_b):
+                    image = (
+                        QImage(str(source))
+                        if source is not None and source.is_file()
+                        else QImage()
+                    )
+                    if (
+                        image.isNull()
+                        or image.width() != result.image_width
+                        or image.height() != result.image_height
+                    ):
+                        images.append(None)
+                    else:
+                        images.append(QPixmap.fromImage(image))
+                self._source_pixmaps = (images[0], images[1])
+                self._source_result_id = result.result_id
+            self._rendering = True
+            self._roi_items = []
+            for i, view in enumerate(self._views):
+                view._muted = True
+                old_scene = view.scene()
+                scene = QGraphicsScene(view)
+                scene.setSceneRect(QRectF(0, 0, result.image_width, result.image_height))
+                scene.setBackgroundBrush(QColor(29, 32, 36))
+                if i < 2:
+                    pixmap = self._source_pixmaps[i]
+                    if pixmap is None:
+                        note = scene.addText("Source unavailable\nNumeric/spatial analysis retained")
+                        note.setDefaultTextColor(QColor(240, 240, 240))
+                        note.setFlag(
+                            QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
+                        )
+                        note.setPos(result.image_width * 0.03, result.image_height * 0.03)
+                    else:
+                        scene.addPixmap(pixmap)
                 else:
-                    images.append(QPixmap.fromImage(image))
-            self._source_pixmaps = (images[0], images[1])
-            self._source_result_id = result.result_id
-        self._rendering = True
-        self._roi_items = []
-        for i, view in enumerate(self._views):
-            view._muted = True
-            old_scene = view.scene()
-            scene = QGraphicsScene(view)
-            scene.setSceneRect(QRectF(0, 0, result.image_width, result.image_height))
-            scene.setBackgroundBrush(QColor(29, 32, 36))
-            if i < 2:
-                pixmap = self._source_pixmaps[i]
-                if pixmap is None:
-                    note = scene.addText("Source unavailable\nNumeric/spatial analysis retained")
-                    note.setDefaultTextColor(QColor(240, 240, 240))
-                    note.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
-                    note.setPos(result.image_width * 0.03, result.image_height * 0.03)
-                else:
-                    scene.addPixmap(pixmap)
-            else:
-                pixmap = _map_pixmap(attr, limit)
-                grid = attr.spatial
-                if pixmap is None or grid is None:
-                    note = scene.addText("Spatial map unavailable")
-                    note.setDefaultTextColor(QColor(240, 240, 240))
-                    note.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
-                else:
-                    item = scene.addPixmap(pixmap)
-                    item.setPos(grid.origin_x, grid.origin_y)
-                    item.setTransformationMode(Qt.TransformationMode.FastTransformation)
-                    item.setTransform(QTransform().scale(grid.block_width, grid.block_height))
-            roi_pen = QPen(QColor(255, 205, 0), 2)
-            roi_pen.setCosmetic(True)  # Two visible display pixels, even on fitted 4K imagery.
-            overlay = scene.addRect(QRectF(), roi_pen)
-            overlay.setZValue(100)
-            overlay.setVisible(False)
-            self._roi_items.append(overlay)
-            view.setScene(scene)
-            if old_scene is not None:
-                old_scene.deleteLater()
-        self._rendering = False
-        for view in self._views:
-            view._muted = False
-        self._draw_roi(state.roi)
-        if state.scale is not None and state.center_x is not None and state.center_y is not None:
-            self._fit_pending_result_id = None
+                    # Persistent Map layer; only its pixels/declared grid transform
+                    # change when the selected Attribute or display range changes.
+                    self._map_item = scene.addPixmap(QPixmap())
+                    self._map_item.setTransformationMode(
+                        Qt.TransformationMode.FastTransformation
+                    )
+                    self._map_placeholder = scene.addText("Spatial map unavailable")
+                    self._map_placeholder.setDefaultTextColor(QColor(240, 240, 240))
+                    self._map_placeholder.setFlag(
+                        QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
+                    )
+                    self._map_placeholder.setPos(
+                        result.image_width * 0.03, result.image_height * 0.03
+                    )
+                    # Block grid: never interpolate cell values into fake 4K detail.
+                    view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                roi_pen = QPen(QColor(255, 205, 0), 2)
+                roi_pen.setCosmetic(True)
+                overlay = scene.addRect(QRectF(), roi_pen)
+                overlay.setZValue(100)
+                overlay.setVisible(False)
+                self._roi_items.append(overlay)
+                view.setScene(scene)
+                if old_scene is not None:
+                    old_scene.deleteLater()
+            self._scene_result_id = result.result_id
+            self._rendering = False
             for view in self._views:
-                view.apply_navigation(state.scale, state.center_x, state.center_y)
+                view._muted = False
+
+        self._refresh_map(attr, limit)
+        self._pane_labels[0].setText(f"IMAGE A  ·  {result.source_a_label}")
+        self._pane_labels[1].setText(f"IMAGE B  ·  {result.source_b_label}")
+        if attr.spatial is None:
+            self._pane_labels[2].setText(f"RELATIVE MAP  ·  {attr.label}  ·  unavailable")
         else:
-            self._fit_attempts_remaining = 8
-            # QWidget/Splitter viewport sizes are not valid before the first show.
-            # A pre-show fit can produce a microscopic scale and disable wheel UX.
-            self._fit_pending_result_id = result.result_id
-            self._queue_initial_fit()
+            grid = attr.spatial
+            self._pane_labels[2].setText(
+                f"RELATIVE MAP  ·  {attr.label}  ·  "
+                f"{grid.block_width:g}×{grid.block_height:g} px cells"
+            )
+        if new_result:
+            self._draw_roi(state.roi)
+            if (
+                state.scale is not None
+                and state.center_x is not None
+                and state.center_y is not None
+            ):
+                self._fit_pending_result_id = None
+                for view in self._views:
+                    view.apply_navigation(state.scale, state.center_x, state.center_y)
+            else:
+                self._fit_attempts_remaining = 8
+                self._fit_pending_result_id = result.result_id
+                self._queue_initial_fit()
+        else:
+            # The selected map may become absent. Keep A/B item identity, viewport,
+            # ROI geometry, and active keyboard selection stable.
+            if len(self._roi_items) == 3:
+                self._roi_items[2].setVisible(
+                    state.roi is not None and attr.spatial is not None
+                )
         self._render_inspector(attr, limit)
+
+    def _refresh_map(self, attr: AttributeDisplay, limit: float) -> None:
+        """Update one persistent map pixmap and its validity placeholder."""
+
+        if self._map_item is None or self._map_placeholder is None:
+            return
+        pixmap = _map_pixmap(attr, limit)
+        grid = attr.spatial
+        available = pixmap is not None and grid is not None
+        if available and pixmap is not None and grid is not None:
+            self._map_item.setPixmap(pixmap)
+            self._map_item.setPos(grid.origin_x, grid.origin_y)
+            self._map_item.setTransform(
+                QTransform().scale(grid.block_width, grid.block_height)
+            )
+        else:
+            self._map_item.setPixmap(QPixmap())
+        self._map_item.setVisible(available)
+        self._map_placeholder.setVisible(not available)
+
+    def _fit_pair(self) -> None:
+        """Explicitly reset all three linked views to a post-layout full fit."""
+
+        state = self._state()
+        if state is None or self._active_id is None:
+            return
+        state.scale = state.center_x = state.center_y = None
+        self._fit_attempts_remaining = 8
+        self._fit_pending_result_id = self._active_id
+        self._queue_initial_fit()
 
     def _render_inspector(self, attr: AttributeDisplay, limit: float) -> None:
         if attr.official_value is None:
