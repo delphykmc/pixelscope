@@ -15,7 +15,10 @@ in `QSettings("PixelScope", "EnterpriseIqa")` under the *dedicated*
 registration, contents, stored window state or user shortcuts.
 
 Dock title controls directly reuse `pixelscope.ui.plots_dock_title.PlotsDockTitleBar`
-through a minimal IQA subclass with an isolated geometry-key registry.
+through a minimal IQA subclass with an isolated geometry-key registry,
+plus the MAIN `_WorkspaceDockTopLevelController` floating-normalization
+behavior: reattach retained Qt title widgets and detach transient parent
+safely after QDockWidget's native float transition.
 They provide identical platform-independent Qt-drawn **Float/Dock,
 Maximize/Restore, Hide** icons, work-area-safe floating maximize, saved
 normal geometry and bounded shutdown. Floating geometry uses
