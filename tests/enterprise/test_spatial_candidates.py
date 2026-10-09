@@ -7,8 +7,8 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa import spatial_candidates as scan_module
+from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.spatial_candidates import (
     DEFAULT_SCAN_STRIDE,
     SCAN_STRIDES,
