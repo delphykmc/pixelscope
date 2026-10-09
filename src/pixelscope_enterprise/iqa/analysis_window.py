@@ -12,11 +12,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QByteArray, QPoint, QRect, QRectF, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QByteArray,
+    QEvent,
+    QObject,
+    QPoint,
+    QRect,
+    QRectF,
+    QSettings,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import (
     QCloseEvent,
     QColor,
     QImage,
+    QKeyEvent,
+    QKeySequence,
     QMouseEvent,
     QPainter,
     QPen,
@@ -37,6 +50,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QLabel,
     QMainWindow,
+    QPushButton,
     QRubberBand,
     QSplitter,
     QTableWidget,
@@ -88,7 +102,12 @@ class _LinkedView(QGraphicsView):
         self._roi_start: QPoint | None = None
         self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
         self._rubber_band.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._normal_cursor = self.viewport().cursor()
         self._fit_scale = 1.0
+        app = QApplication.instance()
+        if app is not None:
+            # Shift must work even when the Inspector/sibling currently has focus.
+            app.installEventFilter(self)
         self.horizontalScrollBar().valueChanged.connect(  # type: ignore[attr-defined]
             self._navigation_changed
         )
@@ -124,13 +143,55 @@ class _LinkedView(QGraphicsView):
             self._navigation_changed()
         event.accept()
 
+    def _set_roi_cursor(self, selecting: bool) -> None:
+        self.viewport().setCursor(
+            Qt.CursorShape.CrossCursor if selecting else self._normal_cursor
+        )
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        # An application-level key filter avoids depending on which view or
+        # Inspector widget currently owns keyboard focus. No keys are consumed.
+        event_type = event.type()
+        if isinstance(event, QKeyEvent) and event_type in (
+            QEvent.Type.KeyPress,
+            QEvent.Type.KeyRelease,
+        ):
+            if event.key() == Qt.Key.Key_Shift:
+                selecting = event_type == QEvent.Type.KeyPress
+                if selecting and not self.window().isVisible():
+                    selecting = False
+                self._set_roi_cursor(selecting)
+        elif event_type in (QEvent.Type.WindowDeactivate, QEvent.Type.ApplicationDeactivate):
+            if watched is self.window() or watched is QApplication.instance():
+                self._set_roi_cursor(False)
+                self.cancel_roi_drag()
+        elif event_type == QEvent.Type.FocusOut and (
+            watched is self or watched is self.viewport()
+        ):
+            self._set_roi_cursor(False)
+        return super().eventFilter(watched, event)
+
+    def cancel_roi_drag(self) -> None:
+        """Discard the transient rubber band; invalidate its old screen pixels."""
+
+        old_geometry = self._rubber_band.geometry()
+        self._roi_start = None
+        self._rubber_band.hide()
+        self._rubber_band.setGeometry(QRect())
+        if self.viewport().isVisible() and not old_geometry.isNull():
+            # QRubberBand is a child widget, not a GraphicsScene item. Without
+            # invalidating its old pixels Qt may leave ghost outlines until resize.
+            self.viewport().repaint()
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if (
             event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         ):
-            self._roi_start = event.pos()
-            self._rubber_band.setGeometry(QRect(event.pos(), event.pos()))
+            position = event.position().toPoint()
+            self._set_roi_cursor(True)
+            self._roi_start = position
+            self._rubber_band.setGeometry(QRect(position, position))
             self._rubber_band.show()
             event.accept()
             return
@@ -138,18 +199,21 @@ class _LinkedView(QGraphicsView):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if self._roi_start is not None:
-            self._rubber_band.setGeometry(QRect(self._roi_start, event.pos()).normalized())
+            self._rubber_band.setGeometry(
+                QRect(self._roi_start, event.position().toPoint()).normalized()
+            )
             event.accept()
             return
+        self._set_roi_cursor(bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier))
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         start = self._roi_start
-        self._roi_start = None
         if start is not None:
-            self._rubber_band.hide()
+            end = event.position().toPoint()
+            self.cancel_roi_drag()
             a = self.mapToScene(start)
-            b = self.mapToScene(event.pos())
+            b = self.mapToScene(end)
             left, top = min(a.x(), b.x()), min(a.y(), b.y())
             width, height = abs(a.x() - b.x()), abs(a.y() - b.y())
             if width >= 1 and height >= 1:
