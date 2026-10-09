@@ -390,7 +390,9 @@ class AnalysisWindow(QMainWindow):
         self._spatial_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="iqa-roi")
         self._spatial_timer = QTimer(self)
         self._spatial_timer.setInterval(35)
-        self._spatial_timer.timeout.connect(self._finish_spatial_if_ready)
+        self._spatial_timer.timeout.connect(  # type: ignore[attr-defined]
+            self._finish_spatial_if_ready
+        )
         self._selected_spatial: dict[tuple[str, str], int] = {}
         self._candidate_overlay_items: list[list[tuple[QGraphicsRectItem, QGraphicsTextItem]]] = []
 
@@ -451,7 +453,9 @@ class AnalysisWindow(QMainWindow):
         self.hotspot_overlay_action.setToolTip(
             "Show/hide numbered hotspot proposals without altering native RGB (Alt+H)"
         )
-        self.hotspot_overlay_action.toggled.connect(self._draw_candidate_overlays)
+        self.hotspot_overlay_action.toggled.connect(  # type: ignore[attr-defined]
+            self._draw_candidate_overlays
+        )
         self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
 
         self.iqa_toolbar = QToolBar("IQA analysis tools", self)
@@ -712,7 +716,9 @@ class AnalysisWindow(QMainWindow):
         view_menu.addAction(self.spatial_dock.toggleViewAction())
         self.spatial_panel.candidate_clicked.connect(self._select_spatial_candidate)
         self.spatial_panel.stride_changed.connect(self._request_spatial_candidates)
-        self.spatial_dock.visibilityChanged.connect(self._spatial_dock_visibility_changed)
+        self.spatial_dock.visibilityChanged.connect(  # type: ignore[attr-defined]
+            self._spatial_dock_visibility_changed
+        )
         # Different settings key/application scope than generic MAIN docks.
         dock_state = QSettings("PixelScope", "EnterpriseIqa").value(
             "analysis_window_spatial_dock_state"
@@ -1387,7 +1393,11 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         if state is None or self._active_id is None:
             return None
-        return (self._active_id, state.attribute_id, int(self.spatial_panel.stride_selector.currentData()))
+        return (
+            self._active_id,
+            state.attribute_id,
+            int(self.spatial_panel.stride_selector.currentData()),
+        )
 
     def _spatial_dock_visibility_changed(self, visible: bool) -> None:
         if visible:
