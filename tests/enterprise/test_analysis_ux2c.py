@@ -67,7 +67,11 @@ def test_spatial_cards_pixel_aligned_native_crops_and_focus(qtbot: object, tmp_p
     assert stitched._a is not None and stitched._b is not None
     assert stitched._a.width() == stitched._b.width() == 512
     assert stitched._a.height() == stitched._b.height() == 512
-    assert "LARGEST LOCAL DIFFERENCE" in win.spatial_panel.titles[0].text()
+    assert win.spatial_panel.rank_badges[0].pixmap() is not None
+    assert not win.spatial_panel.rank_badges[0].pixmap().isNull()
+    assert win.spatial_panel.titles[0].text().startswith("(")
+    assert win.spatial_panel.provenance_badge.text() == "GRID"
+    assert "LARGEST LOCAL" not in win.spatial_panel.titles[0].text()
     assert win.spatial_panel.impact_bars[0].value() == 100
     assert win.spatial_panel.impact_bars[1].value() <= 100
     original = tuple(view.scene() for view in win._views)
@@ -109,7 +113,8 @@ def test_spatial_dock_without_source_still_shows_grid_provenance(qtbot: object) 
         lambda: win._spatial_displayed is not None, timeout=5000
     )
     assert win.spatial_panel.buttons[0].isEnabled()
-    assert "GRID mean" in win.spatial_panel.details[0].text()
+    assert "Δ " in win.spatial_panel.details[0].text()
+    assert "GRID-derived" in win.spatial_panel.details[0].toolTip()
     stitched = win.spatial_panel.previews[0]
     assert not stitched.has_a and not stitched.has_b
     assert "source-pixel ROI" in stitched.toolTip()
@@ -180,7 +185,7 @@ def test_dock_vertical_growth_enlarges_single_stitch_without_resampling(
     assert right_pixel.blue() > right_pixel.red()
     assert stitched._a is not None and stitched._a.cacheKey() == a_key
     assert stitched._b is not None and stitched._b.cacheKey() == b_key
-    assert "GRID-derived" in win.spatial_panel.status_label.text()
+    assert "A/B ROI" in win.spatial_panel.status_label.text()
     win.close()
     win._shutdown_spatial_worker()
 
@@ -197,5 +202,65 @@ def test_startup_bottom_dock_does_not_collapse_fhd_inspector(qtbot: object) -> N
         timeout=5000,
     )
     assert win.spatial_dock.isVisible()
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+def test_spatial_dock_reopens_visible_after_saved_hidden_layout(qtbot: object) -> None:
+    """Reopen should recover the ROI dock even when Qt saved an invisible dock."""
+
+    from PySide6.QtCore import QSettings
+
+    settings = QSettings("PixelScope", "EnterpriseIqa")
+    original_state = settings.value("analysis_window_spatial_dock_state")
+    try:
+        first = AnalysisWindow()
+        qtbot.addWidget(first)  # type: ignore[attr-defined]
+        first.show()
+        first.spatial_dock.hide()
+        QApplication.processEvents()
+        saved_hidden = first.saveState()
+        first.close()
+        first._shutdown_spatial_worker()
+        settings.setValue("analysis_window_spatial_dock_state", saved_hidden)
+        second = AnalysisWindow()
+        qtbot.addWidget(second)  # type: ignore[attr-defined]
+        second.present_result(make_synthetic_result("ux2c-reopen-dock"))
+        second.show()
+        qtbot.waitUntil(  # type: ignore[attr-defined]
+            lambda: second.spatial_dock.isVisible()
+            and second.spatial_panel.buttons[0].isEnabled(),
+            timeout=5000,
+        )
+        assert second.spatial_dock.toggleViewAction().isChecked()
+        assert second.dockWidgetArea(second.spatial_dock) == Qt.DockWidgetArea.BottomDockWidgetArea
+        second.close()
+        second._shutdown_spatial_worker()
+    finally:
+        if original_state is None:
+            settings.remove("analysis_window_spatial_dock_state")
+        else:
+            settings.setValue("analysis_window_spatial_dock_state", original_state)
+
+
+def test_spatial_cards_are_short_ranked_visuals(qtbot: object) -> None:
+    """Keep rank icons/relative bars; do not regress to prose-card titles."""
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(make_synthetic_result("ux2c-compact-ranks"))
+    win.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._spatial_displayed is not None, timeout=5000
+    )
+    assert len(win.spatial_panel.rank_badges) == 3
+    assert len(win.spatial_panel.impact_bars) == 3
+    for title in win.spatial_panel.titles:
+        assert len(title.text()) < 35
+        assert "STRONGEST" not in title.text()
+        assert "LARGEST" not in title.text()
+    assert len(win.spatial_panel.status_label.text()) < 45
+    assert win.spatial_panel.impact_bars[0].value() == 100
+    assert "GRID" in win.spatial_panel.provenance_badge.text()
     win.close()
     win._shutdown_spatial_worker()
