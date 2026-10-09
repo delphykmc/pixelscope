@@ -866,6 +866,12 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         if state is None or unit not in self._group_tables or value <= 0:
             return
+        value = max(0.5, min(1_000_000.0, round(value * 2) / 2))
+        editor = self._range_editors[unit]
+        if editor.value() != value:
+            editor.blockSignals(True)
+            editor.setValue(value)
+            editor.blockSignals(False)
         state.ranges[unit] = value
         self._refresh_group_bars(unit)
         attr = self._attribute()
@@ -876,6 +882,11 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         if state is None or value <= 0:
             return
+        value = max(0.5, min(10.0, round(value * 2) / 2))
+        if self.gain_editor.value() != value:
+            self.gain_editor.blockSignals(True)
+            self.gain_editor.setValue(value)
+            self.gain_editor.blockSignals(False)
         state.display_gain = value
         # Only selected Map raster/clipping changes; NO Bar value/ROI mutation.
         self._render_result()
