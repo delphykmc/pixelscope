@@ -10,7 +10,7 @@ extension. Earlier Slice 0 wording that described MAIN as the permanent owner of
 final IQA Client UI, or described a later Stage 2 move of that Client to SUB, is retained
 only in Git history. The revised Issue #121 architecture below supersedes it.
 
-## Post-#137 implementation-scope clarification (planned; not yet code)
+## Post-#137 implementation-scope clarification (#139 Reference Lite)
 
 The ownership direction established by #121 remains unchanged, but the redesigned operator UX is no longer proposed for reimplementation within the public Reference package. See [MAIN host/Reference Lite plan](IQA_MAIN_HOST_PLAN.md), [server Result contract](IQA_SERVER_RESULT_REQUEST.md) and [temporary-window handoff plan](IQA_HANDOFF_WINDOW_PLAN.md).
 
@@ -19,7 +19,7 @@ The ownership direction established by #121 remains unchanged, but the redesigne
 - **Temporary public handoff branch:** public-safe production-shaped UX, using exclusively SUB-reserved paths. It is never merged into PUBLIC main.
 - **Private SUB:** real IQA extension, server/storage/auth configuration and adapters, complete product UI and packaging.
 
-The existing Reference code and behavior described below are the **as-implemented Slice 8 baseline**, not a mandatory final UX or a claim that Reference Lite refactoring has already happened. Do not introduce IQA-specific status or analysis widgets into Base; a contributed MainWindow job UI is extension-owned. Execution, result publication and analysis window have independent lifetimes.
+The Slice 8 Reference/Scene text-only Dock UI is historical; Issue #139's MAIN Reference Lite now implements a narrower synthetic jobs Dock and independently managed analysis canary (see [reference README](reference/README.md)). Do not introduce IQA-specific status or analysis widgets into Base; the contributed MainWindow job UI and controller remain extension-owned. Execution, result publication and the canary analysis window have independent lifetimes.
 
 ## Product shapes
 

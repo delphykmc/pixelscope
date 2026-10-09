@@ -352,6 +352,18 @@ class DocumentListWidget(QTreeWidget):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.modifiers() == Qt.KeyboardModifier.NoModifier:
+            if event.key() == Qt.Key.Key_Delete:
+                # Keyboard removal is local to the focused Files tree, not a
+                # MainWindow-wide shortcut. Reuse the context-menu mutation
+                # boundary so remove_changing/remove_requested stay ordered.
+                event.accept()
+                document_ids = [
+                    str(item.data(0, Qt.ItemDataRole.UserRole))
+                    for item in self.selected_document_items()
+                ]
+                if document_ids:
+                    self._emit_remove_request(document_ids)
+                return
             if event.key() == Qt.Key.Key_PageUp:
                 event.accept()
                 self.previous_position_requested.emit()

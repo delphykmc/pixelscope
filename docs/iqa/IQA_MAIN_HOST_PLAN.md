@@ -1,6 +1,6 @@
 # IQA MAIN host ownership and Reference Lite plan (proposed)
 
-Status: specification for review, **no implementation authorized by this document**. Tracking: [#139](https://github.com/delphykmc/pixelscope/issues/139). Related: [#121](https://github.com/delphykmc/pixelscope/issues/121), [#136](https://github.com/delphykmc/pixelscope/issues/136), [#137](https://github.com/delphykmc/pixelscope/issues/137), [#140](https://github.com/delphykmc/pixelscope/issues/140), [#141](https://github.com/delphykmc/pixelscope/issues/141).
+Status: approved MAIN implementation scope after merged docs PR #142; feature work tracked under Issue #139. This plan does not authorize any SUB-owned implementation in MAIN. Tracking: [#139](https://github.com/delphykmc/pixelscope/issues/139). Related: [#121](https://github.com/delphykmc/pixelscope/issues/121), [#136](https://github.com/delphykmc/pixelscope/issues/136), [#137](https://github.com/delphykmc/pixelscope/issues/137), [#140](https://github.com/delphykmc/pixelscope/issues/140), [#141](https://github.com/delphykmc/pixelscope/issues/141).
 
 ## Decision and authority
 
@@ -73,6 +73,30 @@ Generic schema must not contain real storage paths, server endpoints, tokens, pr
 - No Qt object leakage, stale callback touching deleted widgets, new unbounded pools, GC disable, hidden sleeps, forced timeouts or exception swallowing (Issue #81).
 - Source pair selection/Job ID identity, public port overlapping calls and ambiguous-submit are covered.
 - Exact merged MAIN SHA and contract revision are recorded for handoff.
+
+## M0 spike observation (#139 implementation branch)
+
+The optional Reference Lite uses the existing contribution phases and public source-slot host access:
+`install_actions()` contributes **IQA > Run IQA (Synthetic) / Load Synthetic Demo
+Result**, and checkable **View > Show IQA Mock Jobs / Show IQA Analysis Window**.
+The host lazily creates the optional IQA command menu only when the extension
+contributes an action; Core-only has no IQA menu. `install_dock()` registers a
+compact extension-owned jobs dock; `statusBar().showMessage()` supplies transient
+status feedback. The extension owns a separate top-level `QMainWindow(parent=host)`.
+Its visibility state and View checkbox stay synchronized, while hiding/reopening
+preserves the current result and does not affect jobs. Owner shutdown disposes
+the child. No toolbar, status widget, child-window registry, new contribution
+protocol method or IQA schema is required; conditional M1 is not exercised.
+
+The original File > Run/Empty canary controls were superseded after owner
+Windows acceptance by the clearer separation: **File = real file I/O (deferred
+saved IQA result reader), IQA = execution/demo, View = window visibility**.
+No synthetic File Open command masquerades as a portable result reader.
+
+The mock presents multiple job IDs, explicit fixture-driven queued/running/completed/failed
+states and a user-triggered View Result. Closing the child does not cancel execution.
+FHD visual placement, normal-GC Windows lifecycle, both package targets and applicable
+local/CI tests remain separate verification gates until execution evidence is recorded.
 
 ## Acceptance / implementation gate
 

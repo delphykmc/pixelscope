@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSplitter,
@@ -376,6 +377,13 @@ class MainWindow(QMainWindow):
             action.triggered.connect(callback)  # type: ignore[attr-defined]
             if shortcut is not None:
                 action.setShortcut(shortcut)
+            if menu_name not in menus:
+                # Extension-owned command groups are opt-in: create a top-level
+                # menu only when a contribution actually installs an action.
+                menu = QMenu(f"&{menu_name}", menu_bar)
+                menu.setStyleSheet(menu_style())
+                menu_bar.insertMenu(menus["View"].menuAction(), menu)
+                menus[menu_name] = menu
             menus[menu_name].addAction(action)
             self.action_map[text] = action
             return action
@@ -401,7 +409,10 @@ class MainWindow(QMainWindow):
         menus["File"].addSeparator()
         add_action("File", "Exit", self.close, "Alt+F4")
 
-        add_action("Edit", "Remove Selected", self.remove_selected, "Delete")
+        # File-list keys must not act on previously selected images while an
+        # extension job list, editor, or other independent widget has focus.
+        remove_action = add_action("Edit", "Remove Selected", self.remove_selected)
+        remove_action.setText("Remove Selected\tDelete")
         add_action("Edit", "Clear ROI", self._escape_action, "Esc")
         add_action("Edit", "Clear Line Profile", self.clear_line, "Shift+Esc")
         menus["Edit"].addSeparator()
@@ -413,7 +424,8 @@ class MainWindow(QMainWindow):
             self.compare_selection,
             "M",
         )
-        add_action("Selection", "Select All", self.select_all_documents, "Ctrl+A")
+        select_all_action = add_action("Selection", "Select All", self.select_all_documents)
+        select_all_action.setText("Select All\tCtrl+A")
         menus["Selection"].addSeparator()
         previous_image = add_action("Selection", "Previous Selected Image", self.previous_image)
         next_image = add_action("Selection", "Next Selected Image", self.next_image)
@@ -443,6 +455,9 @@ class MainWindow(QMainWindow):
         )
         previous_position.setText("Previous Folder Position\tPageUp")
         next_position.setText("Next Folder Position\tPageDown")
+
+        for contribution in self._window_contributions:
+            contribution.install_actions(self, "IQA", add_action)
 
         add_action("View", "Auto Layout", lambda: self.set_layout_mode("Auto"))
         add_action("View", "Single View", lambda: self.set_layout_mode("Single View"), "Ctrl+1")
@@ -749,6 +764,16 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Exported {target.name}", 4000)
 
     def _create_selection_shortcuts(self) -> None:
+        # Ctrl+A belongs only to Files, not a background selection when a
+        # contributed widget has focus. Delete is handled directly by
+        # DocumentListWidget.keyPressEvent, because its native item view may
+        # accept Delete before a parented QShortcut is activated on Windows.
+        self._file_list_shortcuts: list[QShortcut] = []
+        select_all = QShortcut(QKeySequence("Ctrl+A"), self.document_list)
+        select_all.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        select_all.activated.connect(self.select_all_documents)  # type: ignore[attr-defined]
+        self._file_list_shortcuts.append(select_all)
+
         self._selection_shortcuts: list[QShortcut] = []
         for index in range(COMPARISON_PAGE_SIZE):
             shortcut = QShortcut(QKeySequence(str(index + 1)), self)

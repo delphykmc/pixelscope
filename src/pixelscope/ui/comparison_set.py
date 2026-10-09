@@ -93,34 +93,36 @@ class SessionController:
         insert_before = (
             top_level_actions[stale_index + 1] if stale_index + 1 < len(top_level_actions) else None
         )
+        original = stale_action.menu()
+        if not isinstance(original, QMenu):
+            raise RuntimeError("File menu action must own a QMenu")
 
         replacement = QMenu("&File", menu_bar)
         replacement.setStyleSheet(menu_style())
         self._file_menu_ref = replacement
 
-        action_map = self.window.action_map
-        for name in (
-            "Open Images...",
-            "Open Folder...",
-            "Open IQA Result...",
-        ):
-            action = action_map.get(name)
-            if isinstance(action, QAction):
+        # The base menu may already contain extension-owned commands. Copy the
+        # actual QAction sequence, not a fixed allowlist of built-in names:
+        # otherwise Session composition silently drops contributed File actions.
+        # Recreate separators because they are owned by the old QMenu; transfer
+        # normal actions without altering their callbacks or enabled state.
+        for action in original.actions():
+            if action.isSeparator():
+                replacement.addSeparator()
+            else:
+                original.removeAction(action)
                 replacement.addAction(action)
-        replacement.addSeparator()
-        export_action = action_map.get("Export Statistics CSV...")
-        if isinstance(export_action, QAction):
-            replacement.addAction(export_action)
-        replacement.addSeparator()
-        exit_action = action_map.get("Exit")
-        if isinstance(exit_action, QAction):
-            replacement.addAction(exit_action)
 
         menu_bar.removeAction(stale_action)
         if insert_before is None:
             menu_bar.addMenu(replacement)
         else:
             menu_bar.insertMenu(insert_before, replacement)
+
+        # Keep consumers of the host menu map aligned with the *visible* menu.
+        menus = getattr(self.window, "_menu_map", None)
+        if isinstance(menus, dict):
+            menus["File"] = replacement
         return replacement
 
     def _install_file_menu_actions(self) -> None:

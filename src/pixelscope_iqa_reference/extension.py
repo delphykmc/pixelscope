@@ -1,8 +1,7 @@
-"""Company-neutral reference/mock IQA extension.
+"""Company-neutral Reference Lite IQA integration canary.
 
-The reference extension is a peer consumer of Base host facilities and the public IQA
-ports. It intentionally does not import the legacy P5 Client installer, transport,
-storage, settings, or Enterprise implementation.
+All job/UI ownership stays inside this optional contribution. The synthetic provider
+and fixture clock are not a production scheduler, persistent file reader, or IQA UX.
 """
 
 from __future__ import annotations
@@ -12,12 +11,12 @@ from typing import cast
 from weakref import ReferenceType, ref
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QHideEvent, QShowEvent
 from PySide6.QtWidgets import (
-    QComboBox,
     QDockWidget,
-    QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QPushButton,
     QVBoxLayout,
@@ -39,100 +38,154 @@ from pixelscope.remote.iqa_public_contract import (
 from pixelscope.remote.iqa_public_fixture import FixtureIqaProvider, IqaFixtureProfile
 
 
+class ReferenceIqaAnalysisWindow(QMainWindow):
+    """Non-modal extension-owned window; NOT a production A/B/Map result viewer."""
+
+    visibility_changed = Signal(bool)
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
+        super().showEvent(event)
+        self.visibility_changed.emit(True)
+
+    def hideEvent(self, event: QHideEvent) -> None:  # noqa: N802
+        super().hideEvent(event)
+        self.visibility_changed.emit(False)
+
+    def __init__(self, parent: QMainWindow) -> None:
+        super().__init__(parent, Qt.WindowType.Window)
+        self.setObjectName("referenceIqaAnalysisCanary")
+        self.setWindowTitle("IQA Analysis Canary (Synthetic)")
+        self.resize(520, 260)
+        self._result: IqaResult | None = None
+
+        central = QWidget(self)
+        layout = QVBoxLayout(central)
+        self.result_label = QLabel(central)
+        self.result_label.setObjectName("referenceIqaCanaryResult")
+        self.result_label.setWordWrap(True)
+        layout.addWidget(self.result_label)
+        self.note_label = QLabel(
+            "Synthetic integration test only. No saved-file reader, A/B/Map, or ROI UI.",
+            central,
+        )
+        self.note_label.setWordWrap(True)
+        layout.addWidget(self.note_label)
+        layout.addStretch()
+        self.setCentralWidget(central)
+        self.clear_result()
+
+    @property
+    def result(self) -> IqaResult | None:
+        return self._result
+
+    def clear_result(self) -> None:
+        self._result = None
+        self.result_label.setText("Empty analysis window. Run a mock job or view a completed one.")
+
+    def present_result(self, result: IqaResult) -> None:
+        self._result = result
+        self.result_label.setText(
+            f"Synthetic published result: {result.result_id}\n"
+            f"{len(result.attributes)} attributes · {len(result.variants)} variants · "
+            f"{len(result.scenes)} scenes · {result.completeness.value}"
+        )
+
+
 class ReferenceIqaWidget(QWidget):
-    """Small IQA UX reference that exercises public job/result/reference/Scene semantics."""
+    """Compact contributed job controls, with no model-specific result presentation."""
 
     submit_requested = Signal()
     advance_requested = Signal()
-    open_result_requested = Signal()
+    view_result_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("referenceIqaWorkspace")
-        self._result: IqaResult | None = None
-
         layout = QVBoxLayout(self)
+
         self.status_label = QLabel("Reference IQA ready.", self)
         self.status_label.setObjectName("referenceIqaStatus")
-        self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
 
         self.selection_label = QLabel(
-            "Run Mock IQA uses the current comparison pair when available.",
+            "Uses exactly two native comparison slots; otherwise a labeled synthetic pair.",
             self,
         )
         self.selection_label.setObjectName("referenceIqaSelection")
         self.selection_label.setWordWrap(True)
         layout.addWidget(self.selection_label)
 
-        job_row = QHBoxLayout()
         self.submit_button = QPushButton("Run Mock IQA", self)
         self.submit_button.setObjectName("referenceIqaSubmit")
-        self.advance_button = QPushButton("Advance Mock Job", self)
-        self.advance_button.setObjectName("referenceIqaAdvance")
-        self.open_button = QPushButton("Open Result", self)
-        self.open_button.setObjectName("referenceIqaOpenResult")
-        self.advance_button.setEnabled(False)
-        self.open_button.setEnabled(False)
-        job_row.addWidget(self.submit_button)
-        job_row.addWidget(self.advance_button)
-        job_row.addWidget(self.open_button)
-        layout.addLayout(job_row)
+        layout.addWidget(self.submit_button)
+
+        self.jobs_list = QListWidget(self)
+        self.jobs_list.setObjectName("referenceIqaJobs")
+        self.jobs_list.setMinimumHeight(110)
+        layout.addWidget(self.jobs_list)
 
         self.job_label = QLabel("No mock job.", self)
         self.job_label.setObjectName("referenceIqaJob")
+        self.job_label.setWordWrap(True)
         layout.addWidget(self.job_label)
 
-        result_row = QHBoxLayout()
-        result_row.addWidget(QLabel("Reference", self))
-        self.reference_combo = QComboBox(self)
-        self.reference_combo.setObjectName("referenceIqaReference")
-        result_row.addWidget(self.reference_combo, 1)
-        result_row.addWidget(QLabel("Scene", self))
-        self.scene_combo = QComboBox(self)
-        self.scene_combo.setObjectName("referenceIqaScene")
-        result_row.addWidget(self.scene_combo, 1)
-        layout.addLayout(result_row)
+        self.advance_button = QPushButton("Advance Selected Mock Job", self)
+        self.advance_button.setObjectName("referenceIqaAdvance")
+        self.advance_button.setEnabled(False)
+        layout.addWidget(self.advance_button)
 
-        self.result_label = QLabel("No result open.", self)
-        self.result_label.setObjectName("referenceIqaResult")
-        self.result_label.setWordWrap(True)
-        layout.addWidget(self.result_label)
+        self.view_button = QPushButton("View Selected Result", self)
+        self.view_button.setObjectName("referenceIqaViewResult")
+        self.view_button.setEnabled(False)
+        layout.addWidget(self.view_button)
 
-        self.detail_label = QLabel("", self)
-        self.detail_label.setObjectName("referenceIqaDetail")
-        self.detail_label.setWordWrap(True)
-        layout.addWidget(self.detail_label)
         layout.addStretch(1)
 
-        self.reference_combo.setEnabled(False)
-        self.scene_combo.setEnabled(False)
-        self.submit_button.clicked.connect(  # type: ignore[attr-defined]
-            self.submit_requested.emit
-        )
+        self.submit_button.clicked.connect(self.submit_requested.emit)  # type: ignore[attr-defined]
         self.advance_button.clicked.connect(  # type: ignore[attr-defined]
             self.advance_requested.emit
         )
-        self.open_button.clicked.connect(  # type: ignore[attr-defined]
-            self.open_result_requested.emit
-        )
-        self.reference_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
-            self._selection_changed
-        )
-        self.scene_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
-            self._selection_changed
+        self.view_button.clicked.connect(  # type: ignore[attr-defined]
+            self.view_result_requested.emit
         )
 
-    @property
-    def result(self) -> IqaResult | None:
-        return self._result
+    def selected_job_id(self) -> str | None:
+        item = self.jobs_list.currentItem()
+        if item is None:
+            return None
+        value = item.data(Qt.ItemDataRole.UserRole)
+        return value if isinstance(value, str) else None
 
-    def present_submission_sources(self, paths: tuple[Path, Path], *, synthetic: bool) -> None:
-        names = f"{paths[0].name} ↔ {paths[1].name}"
-        prefix = "Synthetic pair" if synthetic else "Current pair"
-        self.selection_label.setText(f"{prefix}: {names}")
+    def upsert_job(self, snapshot: IqaJobSnapshot, *, select: bool = False) -> None:
+        job_id = snapshot.reference.job_id
+        item = next(
+            (
+                self.jobs_list.item(index)
+                for index in range(self.jobs_list.count())
+                if self.jobs_list.item(index).data(Qt.ItemDataRole.UserRole) == job_id
+            ),
+            None,
+        )
+        if item is None:
+            item = QListWidgetItem()
+            item.setData(Qt.ItemDataRole.UserRole, job_id)
+            self.jobs_list.addItem(item)
+        item.setText(f"{job_id} · {snapshot.state.value}")
+        if select:
+            self.jobs_list.setCurrentItem(item)
 
-    def present_job(self, snapshot: IqaJobSnapshot) -> None:
+    def present_selected_job(
+        self,
+        snapshot: IqaJobSnapshot | None,
+        paths: tuple[Path, Path] | None = None,
+        *,
+        synthetic: bool = True,
+    ) -> None:
+        if snapshot is None:
+            self.job_label.setText("No mock job selected.")
+            self.advance_button.setEnabled(False)
+            self.view_button.setEnabled(False)
+            return
         progress = ""
         if snapshot.progress.completed is not None and snapshot.progress.total is not None:
             progress = f" · {snapshot.progress.completed}/{snapshot.progress.total}"
@@ -141,75 +194,46 @@ class ReferenceIqaWidget(QWidget):
             f"{snapshot.reference.job_id} · {snapshot.state.value}{progress}{message}"
         )
         self.advance_button.setEnabled(snapshot.state in {IqaJobState.QUEUED, IqaJobState.RUNNING})
-        self.open_button.setEnabled(snapshot.state is IqaJobState.COMPLETED)
-        self.submit_button.setEnabled(snapshot.state.terminal)
-        self.status_label.setText(f"Mock job: {snapshot.state.value}")
-
-    def present_result(self, result: IqaResult) -> None:
-        self._result = result
-        self.reference_combo.blockSignals(True)
-        self.scene_combo.blockSignals(True)
-        self.reference_combo.clear()
-        self.scene_combo.clear()
-        for variant in result.variants:
-            self.reference_combo.addItem(variant.label, variant.variant_id)
-        for scene in result.scenes:
-            self.scene_combo.addItem(scene.scene_id, scene.scene_id)
-        self.reference_combo.blockSignals(False)
-        self.scene_combo.blockSignals(False)
-        self.reference_combo.setEnabled(bool(result.variants))
-        self.scene_combo.setEnabled(bool(result.scenes))
-        self.result_label.setText(
-            f"{result.dataset.label} · {len(result.variants)} variants · "
-            f"{len(result.scenes)} Scenes · {result.completeness.value}"
-        )
-        self.status_label.setText("Reference result open.")
-        self._selection_changed()
+        self.view_button.setEnabled(snapshot.state is IqaJobState.COMPLETED)
+        if paths is not None:
+            label = "Synthetic pair" if synthetic else "Current pair"
+            self.selection_label.setText(f"{label}: {paths[0].name} ↔ {paths[1].name}")
 
     def show_error(self, message: str) -> None:
-        self.status_label.setText(f"Reference IQA error: {message}")
-
-    def _selection_changed(self) -> None:
-        result = self._result
-        variant_id = self.reference_combo.currentData()
-        scene_id = self.scene_combo.currentData()
-        if result is None or not isinstance(variant_id, str) or not isinstance(scene_id, str):
-            self.detail_label.setText("")
-            return
-
-        attribute = result.attributes[0]
-        summary = result.dataset_summary(variant_id, attribute.attribute_id).pooled
-        value = "—" if summary.weighted_mean is None else f"{summary.weighted_mean:.4f}"
-        scene = result.scene(scene_id)
-        source = scene.source_for_variant(variant_id).source
-        spatial = result.load_spatial(scene_id)
-        self.detail_label.setText(
-            f"{attribute.name}: {value} · Source: {source.relative_path} · "
-            f"Spatial: {spatial.availability.value}"
-        )
+        self.status_label.setText(f"Synthetic IQA error: {message}")
 
 
 class ReferenceIqaExtension:
-    """Explicit MAIN-owned reference contribution using only public host/contracts."""
+    """Optional peer extension; job registry and child window are NOT Base-owned."""
 
-    def __init__(
-        self,
-        provider: FixtureIqaProvider | None = None,
-    ) -> None:
+    def __init__(self, provider: FixtureIqaProvider | None = None) -> None:
         self.provider = provider or FixtureIqaProvider(
-            Path("synthetic-iqa-reference"),
-            IqaFixtureProfile.MINIMAL,
+            Path("synthetic-iqa-reference"), IqaFixtureProfile.MINIMAL
         )
         self._window_ref: ReferenceType[QMainWindow] | None = None
         self._active = False
-        self._current_job: IqaJobReference | None = None
+        self._jobs: dict[str, IqaJobSnapshot] = {}
+        self._job_sources: dict[str, tuple[tuple[Path, Path], bool]] = {}
+        self._analysis_window: ReferenceIqaAnalysisWindow | None = None
         self.widget: ReferenceIqaWidget | None = None
         self.dock: QDockWidget | None = None
         self.action: QAction | None = None
+        self._run_action: QAction | None = None
+        self._synthetic_result_action: QAction | None = None
+        self._analysis_action: QAction | None = None
+        self._dock_auto_show_allowed = True
 
     @property
     def active(self) -> bool:
         return self._active
+
+    @property
+    def analysis_window(self) -> ReferenceIqaAnalysisWindow | None:
+        return self._analysis_window
+
+    @property
+    def jobs(self) -> dict[str, IqaJobSnapshot]:
+        return dict(self._jobs)
 
     def prepare(self, window: QMainWindow) -> None:
         self._window_ref = ref(window)
@@ -217,13 +241,16 @@ class ReferenceIqaExtension:
         widget = ReferenceIqaWidget()
         widget.submit_requested.connect(self.submit_mock)
         widget.advance_requested.connect(self.advance_mock)
-        widget.open_result_requested.connect(self.open_current_result)
+        widget.view_result_requested.connect(self.open_current_result)
+        widget.jobs_list.currentRowChanged.connect(  # type: ignore[attr-defined]
+            self._refresh_selected_job
+        )
         self.widget = widget
 
     def install_dock(self, window: QMainWindow) -> None:
         if self.widget is None:
             raise RuntimeError("Reference IQA contribution must be prepared before dock install")
-        dock = QDockWidget("IQA Reference", window)
+        dock = QDockWidget("IQA Mock Jobs", window)
         dock.setObjectName("referenceIqaWorkspaceDock")
         dock.setWidget(self.widget)
         window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
@@ -238,76 +265,132 @@ class ReferenceIqaExtension:
         add_action: MenuActionFactory,
     ) -> None:
         del window
-        if menu_name == "File":
-            add_action("File", "Open IQA Reference Result...", self.open_reference_result, None)
+        if menu_name == "IQA":
+            self._run_action = add_action("IQA", "Run IQA (Synthetic)", self.submit_mock, None)
+            self._synthetic_result_action = add_action(
+                "IQA", "Load Synthetic Demo Result", self.open_reference_result, None
+            )
             return
         if menu_name != "View":
             return
         if self.dock is None:
             raise RuntimeError("Reference IQA dock must exist before actions are installed")
-        action = add_action("View", "Show IQA Reference", self.toggle_workspace, None)
-        action.setCheckable(True)
-        self.dock.visibilityChanged.connect(action.setChecked)  # type: ignore[attr-defined]
-        self.action = action
+        jobs_action = add_action("View", "Show IQA Mock Jobs", self.toggle_workspace, None)
+        jobs_action.setCheckable(True)
+        self.dock.visibilityChanged.connect(  # type: ignore[attr-defined]
+            self._dock_visibility_changed
+        )
+        self.action = jobs_action
+        analysis_action = add_action(
+            "View", "Show IQA Analysis Window", self.toggle_analysis_window, None
+        )
+        analysis_action.setCheckable(True)
+        self._analysis_action = analysis_action
 
-    def submit_mock(self) -> None:
+    def submit_mock(self) -> IqaJobReference | None:
+        """Submit a new synthetic job and return its identity only on success."""
         if not self._active or self.widget is None:
-            return
+            return None
         try:
             intent, paths, synthetic = self._submission_intent()
-            self.widget.present_submission_sources(paths, synthetic=synthetic)
-            self._current_job = self.provider.submit(intent)
-            self.widget.present_job(self.provider.get_status(self._current_job))
+            job = self.provider.submit(intent)
+            snapshot = self.provider.get_status(job)
+            self._jobs[job.job_id] = snapshot
+            self._job_sources[job.job_id] = (paths, synthetic)
+            self.widget.upsert_job(snapshot, select=True)
+            self._refresh_selected_job()
+            self._show_dock()
+            self._notify(f"Mock IQA {job.job_id}: queued")
+            return job
         except IqaProviderError as exc:
             self.widget.show_error(exc.display_message)
+            return None
 
     def advance_mock(self) -> None:
-        if not self._active or self.widget is None or self._current_job is None:
+        if not self._active or self.widget is None:
+            return
+        job_id = self.widget.selected_job_id()
+        if job_id is not None:
+            self._advance_job(job_id)
+
+    def _advance_job(self, job_id: str) -> None:
+        if not self._active or self.widget is None or job_id not in self._jobs:
             return
         try:
-            self.widget.present_job(self.provider.advance(self._current_job))
+            snapshot = self.provider.advance(IqaJobReference(job_id))
+            self._jobs[job_id] = snapshot
+            self.widget.upsert_job(snapshot)
+            self._refresh_selected_job()
+            self._notify(f"Mock IQA {job_id}: {snapshot.state.value}")
         except IqaProviderError as exc:
             self.widget.show_error(exc.display_message)
 
     def open_current_result(self) -> None:
-        if not self._active or self.widget is None or self._current_job is None:
+        if not self._active or self.widget is None:
+            return
+        job_id = self.widget.selected_job_id()
+        if job_id is not None:
+            self._open_job_result(job_id)
+
+    def _open_job_result(self, job_id: str) -> None:
+        if (
+            not self._active
+            or self.widget is None
+            or job_id not in self._jobs
+            or self._jobs[job_id].state is not IqaJobState.COMPLETED
+        ):
             return
         try:
-            reference = self.provider.get_result_reference(self._current_job)
+            reference = self.provider.get_result_reference(IqaJobReference(job_id))
             source = self.provider.materialize(reference)
             if not source.succeeded or source.source is None:
-                self.widget.show_error("Synthetic result is not available.")
+                self.widget.show_error("Synthetic published result is not available.")
                 return
             opened = self.provider.open_result(source.source)
             if not opened.succeeded or opened.result is None:
-                self.widget.show_error("Synthetic result could not be opened.")
+                self.widget.show_error("Synthetic published result could not be opened.")
                 return
-            self._show_dock()
-            self.widget.present_result(opened.result)
+            analysis = self._get_analysis_window()
+            analysis.present_result(opened.result)
+            self._show_analysis_window(analysis)
+            self._notify(f"Mock IQA {job_id}: result opened")
         except IqaProviderError as exc:
             self.widget.show_error(exc.display_message)
 
     def open_reference_result(self) -> None:
-        """Open a deterministic published mock result through the public result ports."""
-
-        if not self._active or self.widget is None:
+        """Publish a deterministic demo job; this does NOT read any file from disk."""
+        job = self.submit_mock()
+        if job is None:
             return
-        intent, paths, synthetic = self._submission_intent()
-        self.widget.present_submission_sources(paths, synthetic=synthetic)
-        job = self.provider.submit(intent)
-        self.provider.advance(job)
-        self.provider.advance(job)
-        self._current_job = job
-        self.widget.present_job(self.provider.get_status(job))
-        self.open_current_result()
+        # Pin the new job: never advance/open an older selection after a failed submit.
+        self._advance_job(job.job_id)
+        self._advance_job(job.job_id)
+        self._open_job_result(job.job_id)
+
+    def toggle_analysis_window(self) -> None:
+        """View is visibility-only: never clear the displayed result on reopen."""
+        if not self._active or self._analysis_action is None:
+            return
+        if self._analysis_action.isChecked():
+            self._show_analysis_window(self._get_analysis_window())
+        elif self._analysis_window is not None:
+            self._analysis_window.hide()
 
     def toggle_workspace(self) -> None:
-        if self.dock is None or self.action is None:
+        if not self._active or self.dock is None or self.action is None:
             return
-        visible = self.action.isChecked()
-        self.dock.setVisible(visible)
-        if visible:
+        show = self.action.isChecked()
+        self._dock_auto_show_allowed = show
+        self.dock.setVisible(show)
+        if show:
             self.dock.raise_()
+
+    def _dock_visibility_changed(self, visible: bool) -> None:
+        if self.action is not None:
+            self.action.setChecked(visible)
+        if self._active and not visible:
+            # A manual dock close must not be undone by the next mock run.
+            self._dock_auto_show_allowed = False
 
     def shutdown(self) -> None:
         if not self._active:
@@ -316,11 +399,77 @@ class ReferenceIqaExtension:
         if self.widget is not None:
             self.widget.submit_requested.disconnect(self.submit_mock)
             self.widget.advance_requested.disconnect(self.advance_mock)
-            self.widget.open_result_requested.disconnect(self.open_current_result)
+            self.widget.view_result_requested.disconnect(self.open_current_result)
+            self.widget.jobs_list.currentRowChanged.disconnect(  # type: ignore[attr-defined]
+                self._refresh_selected_job
+            )
+        if self.dock is not None:
+            self.dock.visibilityChanged.disconnect(  # type: ignore[attr-defined]
+                self._dock_visibility_changed
+            )
+        for action, handler in (
+            (self._run_action, self.submit_mock),
+            (self._synthetic_result_action, self.open_reference_result),
+            (self._analysis_action, self.toggle_analysis_window),
+            (self.action, self.toggle_workspace),
+        ):
+            if action is not None:
+                action.triggered.disconnect(handler)  # type: ignore[attr-defined]
+        if self._analysis_window is not None:
+            if self._analysis_action is not None:
+                self._analysis_window.visibility_changed.disconnect(
+                    self._analysis_action.setChecked
+                )
+            self._analysis_window.close()
+            self._analysis_window.deleteLater()
+            self._analysis_window = None
+        self._jobs.clear()
+        self._job_sources.clear()
         self._window_ref = None
+        self.widget = None
+        self.dock = None
+        self.action = None
+        self._run_action = None
+        self._synthetic_result_action = None
+        self._analysis_action = None
+        self._dock_auto_show_allowed = True
+
+    def _refresh_selected_job(self, _row: int = -1) -> None:
+        if not self._active or self.widget is None:
+            return
+        job_id = self.widget.selected_job_id()
+        snapshot = self._jobs.get(job_id) if job_id is not None else None
+        source = self._job_sources.get(job_id) if job_id is not None else None
+        self.widget.present_selected_job(
+            snapshot,
+            source[0] if source is not None else None,
+            synthetic=source[1] if source is not None else True,
+        )
+        if snapshot is not None:
+            self.widget.status_label.setText(f"Selected job: {snapshot.state.value}")
+
+    def _get_analysis_window(self) -> ReferenceIqaAnalysisWindow:
+        if self._analysis_window is None:
+            parent = self._window_ref() if self._window_ref is not None else None
+            if parent is None:
+                raise RuntimeError("Reference IQA contribution has no active host")
+            self._analysis_window = ReferenceIqaAnalysisWindow(parent)
+            if self._analysis_action is not None:
+                self._analysis_window.visibility_changed.connect(self._analysis_action.setChecked)
+        return self._analysis_window
+
+    @staticmethod
+    def _show_analysis_window(analysis: ReferenceIqaAnalysisWindow) -> None:
+        analysis.show()
+        analysis.raise_()
+
+    def _notify(self, message: str) -> None:
+        window = self._window_ref() if self._window_ref is not None else None
+        if self._active and window is not None:
+            window.statusBar().showMessage(message, 5000)
 
     def _show_dock(self) -> None:
-        if self.dock is not None:
+        if self.dock is not None and self._dock_auto_show_allowed:
             self.dock.show()
             self.dock.raise_()
 
@@ -328,10 +477,9 @@ class ReferenceIqaExtension:
         window = self._window_ref() if self._window_ref is not None else None
         if window is None:
             raise RuntimeError("Reference IQA contribution is not prepared")
-        selected = cast(WindowHostAccess, window).current_comparison_source_paths()
-        paths: tuple[Path, Path]
-        if len(selected) == 2 and isinstance(selected[0], Path) and isinstance(selected[1], Path):
-            paths = (selected[0], selected[1])
+        slots = cast(WindowHostAccess, window).current_comparison_source_paths()
+        if len(slots) == 2 and all(isinstance(slot, Path) for slot in slots):
+            paths: tuple[Path, Path] = cast(tuple[Path, Path], slots)
             synthetic = False
         else:
             paths = (Path("reference-a.synthetic"), Path("reference-b.synthetic"))
