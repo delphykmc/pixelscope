@@ -144,9 +144,7 @@ class _LinkedView(QGraphicsView):
         event.accept()
 
     def _set_roi_cursor(self, selecting: bool) -> None:
-        self.viewport().setCursor(
-            Qt.CursorShape.CrossCursor if selecting else self._normal_cursor
-        )
+        self.viewport().setCursor(Qt.CursorShape.CrossCursor if selecting else self._normal_cursor)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         # An application-level key filter avoids depending on which view or
@@ -165,9 +163,7 @@ class _LinkedView(QGraphicsView):
             if watched is self.window() or watched is QApplication.instance():
                 self._set_roi_cursor(False)
                 self.cancel_roi_drag()
-        elif event_type == QEvent.Type.FocusOut and (
-            watched is self or watched is self.viewport()
-        ):
+        elif event_type == QEvent.Type.FocusOut and (watched is self or watched is self.viewport()):
             self._set_roi_cursor(False)
         return super().eventFilter(watched, event)
 
@@ -720,7 +716,6 @@ class AnalysisWindow(QMainWindow):
         attr = self._attribute()
         if attr is not None and state is not None:
             self._render_inspector(attr, state.ranges.get(attr.attribute_id, attr.fixed_range))
-
 
     def _set_roi(self, x: float, y: float, w: float, h: float) -> None:
         if self._active_id is None:
