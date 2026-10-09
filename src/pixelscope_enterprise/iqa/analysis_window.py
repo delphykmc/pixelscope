@@ -656,7 +656,7 @@ class AnalysisWindow(QMainWindow):
             x, y, width, height = roi
             description = (
                 f"ROI source (x, y, w, h): ({x:.1f}, {y:.1f}, "
-                f"{width:.1f}, {height:.1f}) px\\n"
+                f"{width:.1f}, {height:.1f}) px\n"
                 f"Selected source area: {width * height:,.1f} px²"
             )
             if attr.spatial is None:
