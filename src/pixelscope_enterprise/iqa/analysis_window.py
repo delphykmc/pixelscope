@@ -354,32 +354,37 @@ class AnalysisWindow(QMainWindow):
         chart_help.setWordWrap(True)
         chart_help.setObjectName("enterpriseIqaChartHelp")
         inspector_layout.addWidget(chart_help)
-        self.attribute_table = QTableWidget(0, 2, inspector)
-        self.attribute_table.setObjectName("enterpriseIqaAttributes")
-        self.attribute_table.setToolTip(
-            "Select a metric using arrow keys; one Display Range controls "
-            "both the verified official bar and its spatial Map."
+        shared_controls = QHBoxLayout()
+        shared_controls.addWidget(QLabel("MAP DISPLAY GAIN", inspector))
+        self.gain_editor = QDoubleSpinBox(inspector)
+        self.gain_editor.setObjectName("enterpriseIqaDisplayGain")
+        self.gain_editor.setDecimals(1)
+        self.gain_editor.setRange(0.5, 10.0)
+        self.gain_editor.setSingleStep(0.5)
+        self.gain_editor.setValue(1.0)
+        self.gain_editor.setPrefix("×")
+        self.gain_editor.setToolTip(
+            "Visual Map contrast only: color fraction = Grid × Gain / Unit Range. "
+            "Official bar and ROI values are unchanged."
         )
-        self.attribute_table.setHorizontalHeaderLabels(["Metric / group", "Official difference"])
-        self.attribute_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Fixed
-        )
-        self.attribute_table.setColumnWidth(0, 142)
-        self.attribute_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
-        self.attribute_table.setItemDelegateForColumn(
-            1, RelativeDifferenceDelegate(self.attribute_table)
-        )
-        self.attribute_table.setAlternatingRowColors(True)
-        self.attribute_table.verticalHeader().hide()
-        self.attribute_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.attribute_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.attribute_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.attribute_table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
-            self._on_attribute_selected
-        )
-        inspector_layout.addWidget(self.attribute_table, 3)
+        self.gain_editor.valueChanged.connect(self._update_gain)  # type: ignore[attr-defined]
+        shared_controls.addWidget(self.gain_editor)
+        inspector_layout.addLayout(shared_controls)
+
+        self.attribute_table = QTableWidget(0, 2, inspector)  # first active unit alias
+        self.attribute_table.hide()
+        self.range_editor = QDoubleSpinBox(inspector)  # first active unit alias
+        self.range_editor.hide()
+        self.group_scroll = QScrollArea(inspector)
+        self.group_scroll.setObjectName("enterpriseIqaGroupScroll")
+        self.group_scroll.setWidgetResizable(True)
+        self.group_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.group_content = QWidget()
+        self._groups_layout = QVBoxLayout(self.group_content)
+        self._groups_layout.setContentsMargins(0, 2, 0, 2)
+        self._groups_layout.setSpacing(7)
+        self.group_scroll.setWidget(self.group_content)
+        inspector_layout.addWidget(self.group_scroll, 3)
         details_scroll = QScrollArea(inspector)
         details_scroll.setObjectName("enterpriseIqaInspectorDetails")
         details_scroll.setWidgetResizable(True)
@@ -418,20 +423,6 @@ class AnalysisWindow(QMainWindow):
         roi_layout.addWidget(self.roi_label)
         roi_layout.addWidget(self.clear_roi_button)
         details_layout.addWidget(roi_card)
-        details_layout.addWidget(QLabel("DISPLAY RANGE · shared ±", inspector))
-        self.range_editor = QDoubleSpinBox(inspector)
-        self.range_editor.setObjectName("enterpriseIqaMapRange")
-        self.range_editor.setDecimals(3)
-        self.range_editor.setRange(0.001, 1_000_000.0)
-        self.range_editor.setEnabled(False)
-        self.range_editor.setToolTip(
-            "The same range controls the verified official bar width and spatial Map colors; "
-            "measurement data never changes."
-        )
-        self.range_editor.valueChanged.connect(  # type: ignore[attr-defined]
-            self._update_range
-        )
-        details_layout.addWidget(self.range_editor)
         self.clamp_label = QLabel("Map: unavailable", inspector)
         self.clamp_label.setWordWrap(True)
         map_card = QFrame(inspector)
@@ -488,7 +479,7 @@ class AnalysisWindow(QMainWindow):
             f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; }}"
         )
         self.statusBar().showMessage(
-            "Shift+drag selects ROI. Esc or Shift+Esc clears it. Missing RGB is optional."
+            "Shift+drag ROI · T swaps A/B · Map Gain changes visualization only."
         )
         self._render_empty()
 
