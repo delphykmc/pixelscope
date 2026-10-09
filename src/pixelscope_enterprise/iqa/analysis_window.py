@@ -296,7 +296,11 @@ class AnalysisWindow(QMainWindow):
         self.clear_roi_action.triggered.connect(self._clear_roi)  # type: ignore[attr-defined]
         self.swap_sources_action = view_menu.addAction("Swap A/B positions")
         self.swap_sources_action.setObjectName("enterpriseIqaSwapSources")
-        self.swap_sources_action.setShortcut(QKeySequence("Alt+X"))
+        # T is free in the generic MAIN keymap; WindowShortcut scopes the
+        # single key to the independent Analysis Window.
+        self.swap_sources_action.setShortcuts(
+            [QKeySequence("T"), QKeySequence("Alt+X")]
+        )
         self.swap_sources_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.swap_sources_action.triggered.connect(  # type: ignore[attr-defined]
             self._swap_sources
@@ -459,7 +463,7 @@ class AnalysisWindow(QMainWindow):
         self.fit_button.setEnabled(False)
         self.fit_button.clicked.connect(self._fit_pair)  # type: ignore[attr-defined]
         header.addWidget(self.fit_button)
-        self.swap_button = QPushButton("Swap A/B  (Alt+X)", central)
+        self.swap_button = QPushButton("Swap A/B  (T)", central)
         self.swap_button.setObjectName("enterpriseIqaSwapButton")
         self.swap_button.clicked.connect(self._swap_sources)  # type: ignore[attr-defined]
         header.addWidget(self.swap_button)
@@ -473,7 +477,7 @@ class AnalysisWindow(QMainWindow):
         # No private stylesheet or global palette mutation when hosted by MAIN.
         self.setStyleSheet(
             f"QLabel#enterpriseIqaWorkspaceTitle {{ color: {TOKENS.text_primary}; "
-            "font-weight: 700; }}"
+            "font-weight: 700; }"
             f"QLabel#enterpriseIqaChartHelp {{ color: {TOKENS.text_secondary}; }}"
             f"QFrame#enterpriseIqaOfficialCard, "
             f"QFrame#enterpriseIqaRoiCard, QFrame#enterpriseIqaMapCard {{ "
