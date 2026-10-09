@@ -401,7 +401,6 @@ class AnalysisWindow(QMainWindow):
         self._spatial_cache: dict[tuple[str, str, int], tuple[SpatialCandidate, ...]] = {}
         self._spatial_displayed: tuple[str, str, int] | None = None
         self._spatial_pending: tuple[str, str, int] | None = None
-        self._spatial_epoch = 0
         self._spatial_future: Future[tuple[SpatialCandidate, ...]] | None = None
         self._spatial_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="iqa-roi")
         self._spatial_timer = QTimer(self)
@@ -409,7 +408,6 @@ class AnalysisWindow(QMainWindow):
         self._spatial_timer.timeout.connect(  # type: ignore[attr-defined]
             self._finish_spatial_if_ready
         )
-        self._selected_spatial: dict[tuple[str, str], int] = {}
         self._candidate_overlay_items: list[list[tuple[QGraphicsRectItem, QGraphicsTextItem]]] = []
 
         file_menu = self.menuBar().addMenu("File")
@@ -1401,6 +1399,7 @@ class AnalysisWindow(QMainWindow):
         self._render_inspector(attr, limit)
         self._sync_top_cards()
         self._request_spatial_candidates()
+        self._sync_spatial_selection()
 
     def _refresh_map(self, attr: AttributeDisplay, limit: float) -> None:
         """Update one persistent map pixmap and its validity placeholder."""
@@ -1440,8 +1439,12 @@ class AnalysisWindow(QMainWindow):
             self._draw_candidate_overlays()
 
     def _request_spatial_candidates(self, _stride: int = 128) -> None:
-        """Bounded, on-demand background scan; ignore stale Attribute or result."""
+        """Always synchronize scene overlays before the visibility-gated scan."""
 
+        # A hidden dock does not scan, but old Attribute hotspots MUST NOT
+        # survive over a different Attribute/Map or stride. Repaint/visibility
+        # synchronization is cheap and independent of worker scheduling.
+        self._draw_candidate_overlays()
         if not self.isVisible() or self.spatial_dock.isHidden():
             return
         key = self._spatial_key()
@@ -1463,8 +1466,7 @@ class AnalysisWindow(QMainWindow):
             return
         if self._spatial_pending == key:
             return
-        self._spatial_epoch += 1
-        previous = self._spatial_future
+         previous = self._spatial_future
         if previous is not None and not previous.done():
             previous.cancel()
         self._spatial_pending = key
@@ -1492,9 +1494,10 @@ class AnalysisWindow(QMainWindow):
         try:
             candidates = future.result()
         except (ValueError, RuntimeError):
-            self.spatial_panel.set_busy(
+            self.spatial_panel.set_unavailable(
                 "Spatial scan unavailable: unsupported geometry or resource budget."
             )
+            self._draw_candidate_overlays()
             return
         self._spatial_cache[key] = candidates
         self._present_spatial_candidates(key, candidates)
@@ -1511,10 +1514,7 @@ class AnalysisWindow(QMainWindow):
         self._spatial_timer.stop()
         self._spatial_displayed = key
         self.spatial_panel.populate(candidates, self._source_pixmaps, attr.unit)
-        selected = self._selected_spatial.get((key[0], key[1]))
-        self.spatial_panel.mark_selected(
-            selected if selected is not None and selected < len(candidates) else None
-        )
+        self._sync_spatial_selection()
         self._draw_candidate_overlays()
 
     def _select_spatial_candidate(self, index: int) -> None:
@@ -1525,8 +1525,6 @@ class AnalysisWindow(QMainWindow):
         if index < 0 or index >= len(candidates):
             return
         candidate = candidates[index]
-        self._selected_spatial[(key[0], key[1])] = index
-        self.spatial_panel.mark_selected(index)
         self._set_roi(*candidate.roi)
         # One pixel-consistent zoom for all A/Map/B panes, centered on ROI.
         available_width = min(view.viewport().width() for view in self._views)
@@ -1547,6 +1545,27 @@ class AnalysisWindow(QMainWindow):
             for view in self._views:
                 view.apply_navigation(zoom, state.center_x, state.center_y)
         self._draw_candidate_overlays()
+
+    def _sync_spatial_selection(self) -> None:
+        """A card is checked only when its ROI matches the current source ROI.
+
+        No index is persisted across stride changes: candidates can have a
+        different position/order even when their visual rank is unchanged.
+        Manual ROI editing and Clear ROI use this same reconciliation.
+        """
+
+        key = self._spatial_key()
+        candidates = (
+            self._spatial_cache.get(key, ())
+            if key is not None and key == self._spatial_displayed
+            else ()
+        )
+        roi = self.current_roi
+        index = next(
+            (i for i, candidate in enumerate(candidates) if roi == candidate.roi),
+            None,
+        ) if roi is not None else None
+        self.spatial_panel.mark_selected(index)
 
     def _draw_candidate_overlays(self, _checked: bool = False) -> None:
         key = self._spatial_key() if hasattr(self, "spatial_panel") else None
@@ -1720,6 +1739,7 @@ class AnalysisWindow(QMainWindow):
         if state is not None:
             state.roi = None
         self._draw_roi(None)
+        self._sync_spatial_selection()
         attr = self._attribute()
         if attr is not None and state is not None:
             self._render_inspector(attr, self._display_range(attr, state))
@@ -1741,6 +1761,7 @@ class AnalysisWindow(QMainWindow):
             return
         state.roi = (left, top, right - left, bottom - top)
         self._draw_roi(state.roi)
+        self._sync_spatial_selection()
         attr = self._attribute()
         if attr is not None:
             self._render_inspector(attr, self._display_range(attr, state))
