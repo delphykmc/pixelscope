@@ -18,6 +18,18 @@ from pixelscope_enterprise.iqa.attribute_chart import (
 from pixelscope_enterprise.iqa.demo import make_synthetic_result
 
 
+def _select_attribute(win: AnalysisWindow, global_index: int) -> None:
+    """Select an attribute by supplier index across unit-grouped Qt tables."""
+
+    result = win._results[win.active_result_id]
+    target = result.attributes[global_index]
+    table = win._group_tables[target.unit]
+    row = [attr.attribute_id for attr in result.attributes if attr.unit == target.unit].index(
+        target.attribute_id
+    )
+    table.selectRow(row)
+
+
 def test_ux1_chart_uses_official_axis_and_preserves_supplier_order(qtbot: object) -> None:
     result = make_synthetic_result("ux1-first-insight")
     win = AnalysisWindow()
@@ -28,14 +40,16 @@ def test_ux1_chart_uses_official_axis_and_preserves_supplier_order(qtbot: object
         lambda: win._fit_pending_result_id is None, timeout=3000
     )
     chart = win.attribute_table
-    assert chart.rowCount() == 12
+    assert chart.rowCount() == 10
+    assert win._group_tables["delta"].rowCount() == 2
+    assert set(win._range_editors) == {"dB", "delta"}
     assert chart.columnCount() == 2
     assert isinstance(chart.itemDelegateForColumn(1), RelativeDifferenceDelegate)
     assert win.pair_summary.text().startswith("A:")
     assert win.fit_button.isEnabled()
     assert "Shift+drag" in win.roi_hint.text()
-    assert [chart.item(row, 0).data(ATTRIBUTE_ROLE).attribute_id for row in range(12)] == [
-        a.attribute_id for a in result.attributes
+    assert [chart.item(row, 0).data(ATTRIBUTE_ROLE).attribute_id for row in range(10)] == [
+        a.attribute_id for a in result.attributes if a.unit == "dB"
     ]
     assert chart.item(0, 1).data(ATTRIBUTE_ROLE).fixed_range == 6.0
     assert chart.item(0, 1).data(ATTRIBUTE_ROLE).chart_axis_range == 4.0
@@ -56,10 +70,10 @@ def test_ux1_chart_uses_official_axis_and_preserves_supplier_order(qtbot: object
     chart.setFocus()
     qtbot.keyClick(chart, Qt.Key.Key_Down)  # type: ignore[attr-defined]
     assert win._state().attribute_id == "synthetic_03"  # type: ignore[union-attr]
-    chart.selectRow(10)
+    _select_attribute(win, 10)
     assert not result.attributes[10].quality_oriented
     assert "NO quality winner" in win.clamp_label.text()
-    chart.selectRow(11)
+    _select_attribute(win, 11)
     assert "not zero" in win.official_label.text()
     assert "Map missing" in win.clamp_label.text()
     assert not win._map_item.isVisible()  # type: ignore[union-attr]
@@ -84,10 +98,11 @@ def test_ux1_switches_and_range_edits_never_recreate_scenes(qtbot: object) -> No
 
     # Repeated switching and spinbox ticks exercise the operator's hot path.
     for row in (1, 2, 4, 5, 10, 11, 3, 7, 0, 1, 5):
-        win.attribute_table.selectRow(row)
-        if win.range_editor.isEnabled():
-            win.range_editor.setValue(2.5)
-            win.range_editor.setValue(3.5)
+        _select_attribute(win, row)
+        editor = win._range_editors[win._attribute().unit]
+        if editor.isEnabled():
+            editor.setValue(2.5)
+            editor.setValue(3.5)
         assert all(v.scene() is sc for v, sc in zip(win._views, scenes, strict=True))
         assert all(a is b for a, b in zip(win._roi_items, overlays, strict=True))
         assert win._map_item is map_item
@@ -130,7 +145,7 @@ def test_ux1_4k_rgb_source_preservation_and_nearest_grid(qtbot: object, tmp_path
     before = [v.scene() for v in win._views]
     win._set_roi(1000, 500, 512, 512)
     for i in range(12):
-        win.attribute_table.selectRow(i)
+        _select_attribute(win, i)
     assert all(v.scene() is s for v, s in zip(win._views, before, strict=True))
     assert win._roi_items[0].isVisible()
     assert win._roi_items[1].isVisible()
@@ -162,7 +177,7 @@ def test_ux1_shared_display_range_restores_clipped_bar_and_map(qtbot: object) ->
     assert win.range_editor.value() == 10.0
     assert official_chart_fraction(attribute, win.range_editor.value()) == 0.7
     assert win.attribute_table.item(4, 1).data(DISPLAY_RANGE_ROLE) == 10.0
-    assert win._state().ranges["synthetic_04"] == 10.0  # type: ignore[union-attr]
+    assert win._state().ranges["dB"] == 10.0  # type: ignore[union-attr]
     after = win._map_item.pixmap().toImage().pixelColor(12, 5)  # type: ignore[union-attr]
     assert before != after
     assert all(view.scene() is scene for view, scene in zip(win._views, scenes, strict=True))
@@ -211,7 +226,9 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux1-compact"))
-    assert all(win.attribute_table.rowHeight(i) == 36 for i in range(12))
+    assert all(win.attribute_table.rowHeight(i) == 36 for i in range(10))
+    assert all(win._group_tables["delta"].rowHeight(i) == 36 for i in range(2))
+    assert win.findChild(QWidget, "enterpriseIqaGroupScroll") is not None
     assert win.findChild(QWidget, "enterpriseIqaInspectorDetails") is not None
     assert win.findChild(QWidget, "enterpriseIqaRoiCard") is not None
     assert win.findChild(QWidget, "enterpriseIqaMapCard") is not None
