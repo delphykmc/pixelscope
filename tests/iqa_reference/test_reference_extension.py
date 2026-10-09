@@ -428,7 +428,7 @@ def test_delete_and_ctrl_a_only_modify_files_when_files_tree_has_focus(
 
     # Delete while IQA Jobs has focus must not remove the previously selected image.
     jobs_list.setFocus()
-    qtbot.waitUntil(lambda: QApplication.focusWidget() is jobs_list)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: QApplication.focusWidget() == jobs_list)  # type: ignore[attr-defined]
     qtbot.keyClick(jobs_list, Qt.Key.Key_Delete)  # type: ignore[attr-defined]
     assert all(doc.document_id in window.documents for doc in documents)
     assert window.document_list.document_count == 2
@@ -443,7 +443,7 @@ def test_delete_and_ctrl_a_only_modify_files_when_files_tree_has_focus(
     # The scoped shortcuts must continue working in Files itself.
     files = window.document_list
     files.setFocus()
-    qtbot.waitUntil(lambda: QApplication.focusWidget() is files)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: QApplication.focusWidget() == files)  # type: ignore[attr-defined]
     qtbot.keyClick(  # type: ignore[attr-defined]
         files, Qt.Key.Key_A, modifier=Qt.KeyboardModifier.ControlModifier
     )
