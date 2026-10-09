@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -57,6 +58,13 @@ class SpatialCandidatesPanel(QWidget):
         self.status_label.setObjectName("enterpriseIqaSpatialStatus")
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
+        self.progress = QProgressBar(self)
+        self.progress.setObjectName("enterpriseIqaSpatialBusy")
+        self.progress.setRange(0, 0)
+        self.progress.setTextVisible(False)
+        self.progress.setMaximumHeight(5)
+        self.progress.hide()
+        layout.addWidget(self.progress)
 
         cards = QHBoxLayout()
         cards.setSpacing(8)
@@ -144,6 +152,7 @@ class SpatialCandidatesPanel(QWidget):
 
     def set_busy(self, message: str) -> None:
         self.status_label.setText(message)
+        self.progress.show()
         self.clear_cards()
 
     def clear_cards(self) -> None:
@@ -163,6 +172,7 @@ class SpatialCandidatesPanel(QWidget):
         unit: str,
     ) -> None:
         self.clear_cards()
+        self.progress.hide()
         if not candidates:
             self.status_label.setText("No qualifying GRID-DERIVED hotspot for this Attribute.")
             return
