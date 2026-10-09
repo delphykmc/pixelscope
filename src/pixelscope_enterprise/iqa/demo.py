@@ -116,7 +116,9 @@ def create_synthetic_rgb(path: Path, *, source_b: bool = False) -> None:
         x = 120 + index * 255
         painter.drawRect(x, 1810 - (index % 4) * 45, 105, 110)
     painter.setPen(QPen(QColor(253, 246, 224), 5))
-    painter.drawText(100, 110, "SOURCE B  •  GEOMETRY TEST" if source_b else "SOURCE A  •  GEOMETRY TEST")
+    painter.drawText(
+        100, 110, "SOURCE B  •  GEOMETRY TEST" if source_b else "SOURCE A  •  GEOMETRY TEST"
+    )
     painter.drawText(width - 640, height - 80, "BOTTOM RIGHT  3840 × 2160")
     painter.end()
     if not image.save(str(path)):
