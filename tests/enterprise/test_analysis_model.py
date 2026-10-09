@@ -167,53 +167,94 @@ def test_vectorized_dense_map_keeps_geometry_and_raw_values() -> None:
         colorize_spatial_rgba(attr, 0)
 
 
+
 def test_official_chart_axis_is_not_spatial_map_color_scale() -> None:
     from pixelscope_enterprise.iqa.analysis_model import official_chart_fraction
 
     # Deliberately unrelated scales. The map color range must NOT be reused.
     positive = AttributeDisplay(
-        "c", "Official", "dB", "power", 2.0, "available", True, 0.05,
+        "c",
+        "Official",
+        "dB",
+        "power",
+        2.0,
+        "available",
+        True,
+        0.05,
         chart_axis_range=4.0,
     )
     assert official_chart_fraction(positive) == 0.5
     assert positive.fixed_range == 0.05
-    assert official_chart_fraction(
-        AttributeDisplay("zero", "Zero", "dB", "power", 0.0, "available", True, 1.0,
-                         chart_axis_range=4.0)
-    ) == 0.0
+    zero = AttributeDisplay(
+        "zero", "Zero", "dB", "power", 0.0, "available", True, 1.0, chart_axis_range=4.0,
+    )
+    assert official_chart_fraction(zero) == 0.0
     no_axis = AttributeDisplay("axis", "Unknown axis", "dB", "power", 2.0, "available", True, 5.0)
     no_value = AttributeDisplay(
-        "missing", "Missing", "dB", "power", None, "missing", True, 5.0,
+        "missing",
+        "Missing",
+        "dB",
+        "power",
+        None,
+        "missing",
+        True,
+        5.0,
         chart_axis_range=4.0,
     )
     assert official_chart_fraction(no_axis) is None
     assert official_chart_fraction(no_value) is None
     negative = AttributeDisplay(
-        "neg", "Neutral", "delta", "signed", -8.0, "available", False, 2.0,
+        "neg",
+        "Neutral",
+        "delta",
+        "signed",
+        -8.0,
+        "available",
+        False,
+        2.0,
         chart_axis_range=3.0,
     )
     assert official_chart_fraction(negative) == -1.0
     for bad in (-1.0, 0.0, float("inf"), float("nan")):
         with pytest.raises(ValueError, match="official chart axis"):
             AttributeDisplay(
-                "bad", "Bad", "dB", "power", 1.0, "available", True, 3.0,
+                "bad",
+                "Bad",
+                "dB",
+                "power",
+                1.0,
+                "available",
+                True,
+                3.0,
                 chart_axis_range=bad,
             )
 
 
 def test_public_demo_covers_independent_official_and_spatial_availability() -> None:
-    # The model itself remains Qt-free. This fixture's intended matrix is
-    # checked here through only immutable value shapes.
     from pixelscope_enterprise.iqa.analysis_model import official_chart_fraction
 
     official_only = AttributeDisplay(
-        "official", "Official only", "dB", "power", 0.0, "available", True, 2.0,
+        "official",
+        "Official only",
+        "dB",
+        "power",
+        0.0,
+        "available",
+        True,
+        2.0,
         chart_axis_range=3.0,
     )
     assert official_only.spatial is None
     assert official_chart_fraction(official_only) == 0.0
     spatial_only = AttributeDisplay(
-        "grid", "Grid only", "dB", "power", None, "missing", True, 2.0,
+        "grid",
+        "Grid only",
+        "dB",
+        "power",
+        None,
+        "missing",
+        True,
+        2.0,
         chart_axis_range=3.0,
     )
     assert spatial_only.official_value is None
