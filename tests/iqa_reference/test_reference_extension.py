@@ -349,12 +349,25 @@ def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
         while parent is not None:
             ancestors.append(type(parent).__name__)
             parent = parent.parent()
+        top = [
+            (
+                action.text(),
+                action.isVisible(),
+                action.isEnabled(),
+                action.menu().title() if action.menu() else None,
+            )
+            for action in top_actions
+        ]
+        file_actions = [
+            (action.text(), action.isVisible(), action.isEnabled())
+            for action in file_menu.actions()
+        ]
         return (
             f"menubar_visible={menu_bar.isVisible()}, "
-            f"top_actions={[(a.text(), a.isVisible(), a.isEnabled(), a.menu().title() if a.menu() else None) for a in top_actions]!r}, "
+            f"top_actions={top!r}, "
             f"file_menu={file_menu.title()!r}, parents={ancestors!r}, "
             f"file_menu_action={file_menu_action.text()!r}, "
-            f"file_actions={[(a.text(), a.isVisible(), a.isEnabled()) for a in file_menu.actions()]!r}"
+            f"file_actions={file_actions!r}"
         )
 
     # Qt object equality, not Python 'is' (PySide may return distinct wrappers).
