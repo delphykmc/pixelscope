@@ -47,8 +47,11 @@ def test_ux1_chart_uses_official_axis_and_preserves_supplier_order(qtbot: object
     assert result.attributes[1].official_value is None
     assert result.attributes[1].spatial is not None
     assert win._map_item.isVisible()  # type: ignore[union-attr]
-    chart.selectRow(2)
+    chart.setCurrentCell(2, 0)
     assert result.attributes[2].official_value == 0.0
+    chart.setFocus()
+    qtbot.keyClick(chart, Qt.Key.Key_Down)  # type: ignore[attr-defined]
+    assert win._state().attribute_id == "synthetic_03"  # type: ignore[union-attr]
     chart.selectRow(10)
     assert not result.attributes[10].quality_oriented
     assert "NO quality winner" in win.clamp_label.text()
