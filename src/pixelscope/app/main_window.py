@@ -401,7 +401,10 @@ class MainWindow(QMainWindow):
         menus["File"].addSeparator()
         add_action("File", "Exit", self.close, "Alt+F4")
 
-        add_action("Edit", "Remove Selected", self.remove_selected, "Delete")
+        # File-list keys must not act on previously selected images while an
+        # extension job list, editor, or other independent widget has focus.
+        remove_action = add_action("Edit", "Remove Selected", self.remove_selected)
+        remove_action.setText("Remove Selected\tDelete")
         add_action("Edit", "Clear ROI", self._escape_action, "Esc")
         add_action("Edit", "Clear Line Profile", self.clear_line, "Shift+Esc")
         menus["Edit"].addSeparator()
@@ -413,7 +416,8 @@ class MainWindow(QMainWindow):
             self.compare_selection,
             "M",
         )
-        add_action("Selection", "Select All", self.select_all_documents, "Ctrl+A")
+        select_all_action = add_action("Selection", "Select All", self.select_all_documents)
+        select_all_action.setText("Select All\tCtrl+A")
         menus["Selection"].addSeparator()
         previous_image = add_action("Selection", "Previous Selected Image", self.previous_image)
         next_image = add_action("Selection", "Next Selected Image", self.next_image)
@@ -749,6 +753,20 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Exported {target.name}", 4000)
 
     def _create_selection_shortcuts(self) -> None:
+        # Delete / Ctrl+A only belong to the Files tree. A QMainWindow-owned
+        # QAction with the default WindowShortcut would steal either key from
+        # contributed job lists and text fields, despite the Files selection
+        # remaining active in the background.
+        self._file_list_shortcuts: list[QShortcut] = []
+        for sequence, callback in (
+            ("Delete", self.remove_selected),
+            ("Ctrl+A", self.select_all_documents),
+        ):
+            shortcut = QShortcut(QKeySequence(sequence), self.document_list)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(callback)  # type: ignore[attr-defined]
+            self._file_list_shortcuts.append(shortcut)
+
         self._selection_shortcuts: list[QShortcut] = []
         for index in range(COMPARISON_PAGE_SIZE):
             shortcut = QShortcut(QKeySequence(str(index + 1)), self)
