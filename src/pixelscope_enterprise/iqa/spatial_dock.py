@@ -165,9 +165,7 @@ class SpatialCandidatesPanel(QWidget):
             "Ranks provisional GRID-derived spatial differences by local magnitude, "
             "not by an official ROI quality score."
         )
-        self.heading.setStyleSheet(
-            f"color: {TOKENS.text_primary}; font-weight: 700;"
-        )
+        self.heading.setStyleSheet(f"color: {TOKENS.text_primary}; font-weight: 700;")
         header.addWidget(self.heading)
         self.provenance_badge = QLabel("GRID", self)
         self.provenance_badge.setObjectName("enterpriseIqaGridBadge")
@@ -244,9 +242,7 @@ class SpatialCandidatesPanel(QWidget):
             card_header.addWidget(rank_badge)
             card_title = QLabel("—", card)
             card_title.setObjectName("enterpriseIqaSpatialCardTitle")
-            card_title.setStyleSheet(
-                f"color: {TOKENS.text_primary}; font-weight: 600;"
-            )
+            card_title.setStyleSheet(f"color: {TOKENS.text_primary}; font-weight: 600;")
             card_header.addWidget(card_title, 1)
             column.addLayout(card_header)
             preview = StitchedRoiCanvas(card)
@@ -341,9 +337,7 @@ class SpatialCandidatesPanel(QWidget):
         leader = candidates[0].score
         for i, candidate in enumerate(candidates[:3]):
             self.buttons[i].setEnabled(True)
-            self.titles[i].setText(
-                f"({candidate.x}, {candidate.y})"
-            )
+            self.titles[i].setText(f"({candidate.x}, {candidate.y})")
             self.titles[i].setToolTip(
                 f"GRID proposal #{i + 1}: x={candidate.x}, y={candidate.y}, "
                 f"source ROI {candidate.width}×{candidate.height} px"
