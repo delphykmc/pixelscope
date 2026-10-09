@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage, QColor
+from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QDockWidget, QMainWindow
 
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager
