@@ -322,7 +322,8 @@ class AnalysisWindow(QMainWindow):
         inspector_layout.addWidget(QLabel("RELATIVE ATTRIBUTES · supplied order", inspector))
         chart_help = QLabel(
             "A/B quality colors require verified direction.\n"
-            "Bar axis is independent of Map color range.", inspector
+            "Bar axis is independent of Map color range.",
+            inspector,
         )
         chart_help.setWordWrap(True)
         chart_help.setObjectName("enterpriseIqaChartHelp")
@@ -654,9 +655,7 @@ class AnalysisWindow(QMainWindow):
                 images: list[QPixmap | None] = []
                 for source in (result.source_a, result.source_b):
                     image = (
-                        QImage(str(source))
-                        if source is not None and source.is_file()
-                        else QImage()
+                        QImage(str(source)) if source is not None and source.is_file() else QImage()
                     )
                     if (
                         image.isNull()
@@ -693,9 +692,7 @@ class AnalysisWindow(QMainWindow):
                     # Persistent Map layer; only its pixels/declared grid transform
                     # change when the selected Attribute or display range changes.
                     self._map_item = scene.addPixmap(QPixmap())
-                    self._map_item.setTransformationMode(
-                        Qt.TransformationMode.FastTransformation
-                    )
+                    self._map_item.setTransformationMode(Qt.TransformationMode.FastTransformation)
                     self._map_placeholder = scene.addText("Spatial map unavailable")
                     self._map_placeholder.setDefaultTextColor(QColor(240, 240, 240))
                     self._map_placeholder.setFlag(
@@ -749,9 +746,7 @@ class AnalysisWindow(QMainWindow):
             # The selected map may become absent. Keep A/B item identity, viewport,
             # ROI geometry, and active keyboard selection stable.
             if len(self._roi_items) == 3:
-                self._roi_items[2].setVisible(
-                    state.roi is not None and attr.spatial is not None
-                )
+                self._roi_items[2].setVisible(state.roi is not None and attr.spatial is not None)
         self._render_inspector(attr, limit)
 
     def _refresh_map(self, attr: AttributeDisplay, limit: float) -> None:
@@ -765,9 +760,7 @@ class AnalysisWindow(QMainWindow):
         if available and pixmap is not None and grid is not None:
             self._map_item.setPixmap(pixmap)
             self._map_item.setPos(grid.origin_x, grid.origin_y)
-            self._map_item.setTransform(
-                QTransform().scale(grid.block_width, grid.block_height)
-            )
+            self._map_item.setTransform(QTransform().scale(grid.block_width, grid.block_height))
         else:
             self._map_item.setPixmap(QPixmap())
         self._map_item.setVisible(available)
