@@ -20,8 +20,8 @@ from PySide6.QtGui import (
     QMouseEvent,
     QPainter,
     QPen,
-    QShowEvent,
     QPixmap,
+    QShowEvent,
     QTransform,
     QWheelEvent,
 )
@@ -660,7 +660,10 @@ class AnalysisWindow(QMainWindow):
         result_id = self._fit_pending_result_id
         if not self.isVisible() or result_id is None or result_id != self._active_id:
             return
-        if any(view.viewport().width() < 100 or view.viewport().height() < 100 for view in self._views):
+        if any(
+            view.viewport().width() < 100 or view.viewport().height() < 100
+            for view in self._views
+        ):
             # The compositor/splitter may deliver child geometry in a later event.
             # Bounded retries; never cache a pre-layout transform or spin forever.
             if self._fit_attempts_remaining > 0:
