@@ -73,9 +73,7 @@ def test_ux2a_unknown_signal_gate_does_not_claim_top_three(qtbot: object) -> Non
 def test_ux2a_neutral_signed_and_selected_card_visuals(qtbot: object) -> None:
     original = make_synthetic_result("ux2a-neutral-visual")
     attributes = list(original.attributes)
-    attributes[0] = replace(
-        attributes[0], official_value=-12.0, quality_oriented=False
-    )
+    attributes[0] = replace(attributes[0], official_value=-12.0, quality_oriented=False)
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(replace(original, attributes=tuple(attributes)))
