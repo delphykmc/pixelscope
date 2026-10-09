@@ -73,8 +73,8 @@ from pixelscope_enterprise.iqa.analysis_model import (
     clipped_cells,
     colorize_spatial_rgba,
     map_polarity_legend,
-    spatial_display_half_range,
     roi_statistics,
+    spatial_display_half_range,
 )
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
@@ -714,8 +714,8 @@ class AnalysisWindow(QMainWindow):
         self._switching = True
         # QScrollArea owns the groups; clear stale widgets on a result change.
         while self._groups_layout.count():
-            item = self._groups_layout.takeAt(0)
-            section = item.widget() if item is not None else None
+            layout_item = self._groups_layout.takeAt(0)
+            section = layout_item.widget() if layout_item is not None else None
             if section is not None:
                 section.hide()
                 section.deleteLater()
