@@ -298,9 +298,7 @@ class AnalysisWindow(QMainWindow):
         self.swap_sources_action.setObjectName("enterpriseIqaSwapSources")
         # T is free in the generic MAIN keymap; WindowShortcut scopes the
         # single key to the independent Analysis Window.
-        self.swap_sources_action.setShortcuts(
-            [QKeySequence("T"), QKeySequence("Alt+X")]
-        )
+        self.swap_sources_action.setShortcuts([QKeySequence("T"), QKeySequence("Alt+X")])
         self.swap_sources_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.swap_sources_action.triggered.connect(  # type: ignore[attr-defined]
             self._swap_sources
