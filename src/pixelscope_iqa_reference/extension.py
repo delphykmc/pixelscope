@@ -221,6 +221,7 @@ class ReferenceIqaExtension:
         self._run_action: QAction | None = None
         self._synthetic_result_action: QAction | None = None
         self._analysis_action: QAction | None = None
+        self._dock_auto_show_allowed = True
 
     @property
     def active(self) -> bool:
@@ -276,7 +277,9 @@ class ReferenceIqaExtension:
             raise RuntimeError("Reference IQA dock must exist before actions are installed")
         jobs_action = add_action("View", "Show IQA Mock Jobs", self.toggle_workspace, None)
         jobs_action.setCheckable(True)
-        self.dock.visibilityChanged.connect(jobs_action.setChecked)  # type: ignore[attr-defined]
+        self.dock.visibilityChanged.connect(  # type: ignore[attr-defined]
+            self._dock_visibility_changed
+        )
         self.action = jobs_action
         analysis_action = add_action(
             "View", "Show IQA Analysis Window", self.toggle_analysis_window, None
@@ -376,9 +379,18 @@ class ReferenceIqaExtension:
     def toggle_workspace(self) -> None:
         if not self._active or self.dock is None or self.action is None:
             return
-        self.dock.setVisible(self.action.isChecked())
-        if self.dock.isVisible():
+        show = self.action.isChecked()
+        self._dock_auto_show_allowed = show
+        self.dock.setVisible(show)
+        if show:
             self.dock.raise_()
+
+    def _dock_visibility_changed(self, visible: bool) -> None:
+        if self.action is not None:
+            self.action.setChecked(visible)
+        if self._active and not visible:
+            # A manual dock close must not be undone by the next mock run.
+            self._dock_auto_show_allowed = False
 
     def shutdown(self) -> None:
         if not self._active:
@@ -390,6 +402,10 @@ class ReferenceIqaExtension:
             self.widget.view_result_requested.disconnect(self.open_current_result)
             self.widget.jobs_list.currentRowChanged.disconnect(  # type: ignore[attr-defined]
                 self._refresh_selected_job
+            )
+        if self.dock is not None:
+            self.dock.visibilityChanged.disconnect(  # type: ignore[attr-defined]
+                self._dock_visibility_changed
             )
         for action, handler in (
             (self._run_action, self.submit_mock),
@@ -416,6 +432,7 @@ class ReferenceIqaExtension:
         self._run_action = None
         self._synthetic_result_action = None
         self._analysis_action = None
+        self._dock_auto_show_allowed = True
 
     def _refresh_selected_job(self, _row: int = -1) -> None:
         if not self._active or self.widget is None:
@@ -438,9 +455,7 @@ class ReferenceIqaExtension:
                 raise RuntimeError("Reference IQA contribution has no active host")
             self._analysis_window = ReferenceIqaAnalysisWindow(parent)
             if self._analysis_action is not None:
-                self._analysis_window.visibility_changed.connect(
-                    self._analysis_action.setChecked
-                )
+                self._analysis_window.visibility_changed.connect(self._analysis_action.setChecked)
         return self._analysis_window
 
     @staticmethod
@@ -454,7 +469,7 @@ class ReferenceIqaExtension:
             window.statusBar().showMessage(message, 5000)
 
     def _show_dock(self) -> None:
-        if self.dock is not None:
+        if self.dock is not None and self._dock_auto_show_allowed:
             self.dock.show()
             self.dock.raise_()
 
