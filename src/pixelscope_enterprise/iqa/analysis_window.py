@@ -522,7 +522,17 @@ class AnalysisWindow(QMainWindow):
         if is_new:
             self.result_combo.addItem(result.result_id, result.result_id)
         if result.result_id not in self._states:
-            self._states[result.result_id] = _ResultViewState(result.attributes[0].attribute_id)
+            # Prefer a first view with both official summary and spatial
+            # evidence; never silently rank unrelated Attribute units.
+            first_view = next(
+                (
+                    item
+                    for item in result.attributes
+                    if item.spatial is not None and item.official_value is not None
+                ),
+                result.attributes[0],
+            )
+            self._states[result.result_id] = _ResultViewState(first_view.attribute_id)
         self._active_id = result.result_id
         self.result_combo.blockSignals(True)
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
