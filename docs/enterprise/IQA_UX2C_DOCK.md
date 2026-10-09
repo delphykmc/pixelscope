@@ -144,3 +144,28 @@ relative strength rather than relying on bare ranking numerals.
   hide, tooltip and icon parity on Windows and secondary monitors.
 - Corrected the stale UX-2A `NOT YET VERIFIED` assertion to the concise
   `SIGNAL PENDING` label; eligible Top-3 list remains empty and disabled.
+
+
+## Handoff full-suite contract boundary
+
+The temporary Enterprise handoff branch intentionally carries
+`src/pixelscope_enterprise/`, `tests/enterprise/`, and `docs/enterprise/`
+alongside the PUBLIC MAIN sources. Thus PUBLIC MAIN's architectural guard
+`tests/unit/test_issue121_iqa_reference_architecture.py::test_enterprise_reserved_paths_are_not_owned_by_main`
+**must fail on this combined handoff tree**; it verifies an invariant for the
+standalone PUBLIC MAIN publication tree, not this temporary integration
+snapshot. **Do not relax/delete/skip it in MAIN.**
+
+For a handoff-local near-full-suite run retaining every other test:
+
+```powershell
+& $py -m pytest -q --deselect=tests/unit/test_issue121_iqa_reference_architecture.py::test_enterprise_reserved_paths_are_not_owned_by_main
+```
+
+The other reported full-suite failure
+`test_repeated_mouse_roi_replaces_actual_viewport_pixels_without_resize`
+was a stale assertion that counted *all* `QGraphicsRectItem` instances:
+UX-2C intentionally added three always-present (normally hidden) hotspot
+rectangles next to the **single** ROI edit rectangle. The updated regression
+still requires exactly one live ROI identity, no new scene objects after
+repeated ROI drags, and no stale yellow viewport pixels.
