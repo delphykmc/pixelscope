@@ -382,6 +382,7 @@ class AnalysisWindow(QMainWindow):
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
         self._fit_attempts_remaining = 8
+        self._dock_startup_fit_pending = True
         self._spatial_cache: dict[tuple[str, str, int], tuple[SpatialCandidate, ...]] = {}
         self._spatial_displayed: tuple[str, str, int] | None = None
         self._spatial_pending: tuple[str, str, int] | None = None
@@ -674,7 +675,10 @@ class AnalysisWindow(QMainWindow):
         top3_layout = QVBoxLayout(top3_frame)
         top3_layout.setContentsMargins(7, 5, 7, 5)
         top3_layout.setSpacing(4)
-        self.top3_title = QLabel("TOP 3 · VERIFIED RELATIVE dB DIFFERENCES", top3_frame)
+        self.top3_title = QLabel(
+            "TOP 3 · VERIFIED OFFICIAL dB DIFFERENCES · ranked by largest |Δ|",
+            top3_frame,
+        )
         self.top3_title.setObjectName("enterpriseIqaTop3Title")
         top3_layout.addWidget(self.top3_title)
         top3_row = QHBoxLayout()
@@ -937,7 +941,7 @@ class AnalysisWindow(QMainWindow):
             attr.unit == "dB" and attr.summary_signal_gate is None for attr in result.attributes
         )
         self.top3_title.setText(
-            "TOP 3 · VERIFIED RELATIVE dB DIFFERENCES"
+            "TOP 3 · VERIFIED OFFICIAL dB DIFFERENCES · largest |Δ| first"
             if ranked
             else "TOP 3 · NO QUALIFYING dB DIFFERENCES"
             if not unknown_gate
@@ -962,8 +966,14 @@ class AnalysisWindow(QMainWindow):
                 if item.quality_oriented
                 else "signed only · no winner"
             )
+            rank_label = (
+                "01  LARGEST GLOBAL DIFFERENCE"
+                if index == 0
+                else "02  NEXT LARGEST" if index == 1 else "03  THIRD LARGEST"
+            )
             card.setText(
-                f"#{item.rank}  {item.label}\n" f"{item.delta_db:+.3f} dB  ·  {conclusion}"
+                f"{rank_label} · {item.label}\n"
+                f"{item.delta_db:+.3f} dB  ·  {conclusion}"
             )
             card.setToolTip(
                 f"OFFICIAL full pair: {item.label} {item.delta_db:+.4f} dB. "
@@ -1742,8 +1752,28 @@ class AnalysisWindow(QMainWindow):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
+        if self._dock_startup_fit_pending:
+            self._dock_startup_fit_pending = False
+            # Only compact the first FHD layout. Do not continuously fight
+            # user resizing or overwrite deliberate floating dock geometry.
+            QTimer.singleShot(0, self._settle_dock_initial_height)
         self._queue_initial_fit()
         self._request_spatial_candidates()
+
+    def _settle_dock_initial_height(self) -> None:
+        if (
+            not self.isVisible()
+            or self.height() > 850
+            or self.spatial_dock.isHidden()
+            or self.spatial_dock.isFloating()
+        ):
+            return
+        if self.inspector_splitter.height() < 380:
+            # Compact initial presentation leaves the UX-1 Inspector at least
+            # 350px high at FHD, while the operator may expand the ROI evidence.
+            self.resizeDocks(
+                [self.spatial_dock], [175], Qt.Orientation.Vertical
+            )
 
     def _queue_initial_fit(self) -> None:
         if self.isVisible() and self._fit_pending_result_id is not None:
