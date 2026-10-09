@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QByteArray, QPoint, QRect, QRectF, QSettings, QTimer, Qt, Signal
+from PySide6.QtCore import QByteArray, QPoint, QRect, QRectF, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QCloseEvent,
     QColor,
