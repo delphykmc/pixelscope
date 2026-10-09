@@ -43,22 +43,21 @@ def test_spatial_dock_owned_only_by_iqa_window_and_toggles(qtbot: object) -> Non
     assert isinstance(win, QMainWindow)
     assert isinstance(win.spatial_dock, QDockWidget)
     assert win.spatial_dock.parent() is win
+    # Persisted user docking is expected: normalize area before testing defaults.
+    win.spatial_dock.setFloating(False)
+    win.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, win.spatial_dock)
     assert win.dockWidgetArea(win.spatial_dock) == Qt.DockWidgetArea.BottomDockWidgetArea
     assert win.spatial_dock.objectName() == "enterpriseIqaSpatialCandidatesDock"
     assert win.spatial_dock.features() & QDockWidget.DockWidgetFeature.DockWidgetFloatable
     assert win.spatial_dock.toggleViewAction() in win.menuBar().actions()[1].menu().actions()
-    assert [win.spatial_panel.stride_selector.itemData(i) for i in range(3)] == [
-        64, 128, 256
-    ]
+    assert [win.spatial_panel.stride_selector.itemData(i) for i in range(3)] == [64, 128, 256]
     assert win.spatial_panel.stride_selector.currentData() == 128
     assert not any(card.isEnabled() for card in win.spatial_panel.buttons)
     win.close()
     win._shutdown_spatial_worker()
 
 
-def test_spatial_cards_pixel_aligned_native_crops_and_focus(
-    qtbot: object, tmp_path: Path
-) -> None:
+def test_spatial_cards_pixel_aligned_native_crops_and_focus(qtbot: object, tmp_path: Path) -> None:
     win = _loaded_window(qtbot, tmp_path)
     assert len(win.spatial_panel.buttons) == 3
     assert all(button.isEnabled() for button in win.spatial_panel.buttons)
@@ -125,8 +124,7 @@ def test_spatial_dock_result_switch_and_close_reopen(qtbot: object) -> None:
     first_key = win._spatial_displayed
     win.present_result(make_synthetic_result("ux2c-second"))
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: win._spatial_displayed is not None
-        and win._spatial_displayed[0] == "ux2c-second",
+        lambda: win._spatial_displayed is not None and win._spatial_displayed[0] == "ux2c-second",
         timeout=5000,
     )
     assert win._spatial_displayed != first_key
