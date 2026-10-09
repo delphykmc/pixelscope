@@ -181,6 +181,16 @@ def colorize_spatial_rgba(
     return np.ascontiguousarray(rgba)
 
 
+def spatial_display_half_range(group_range: float, display_gain: float) -> float:
+    """Render grid × global gain against unit-group ±range, without editing data."""
+
+    if not np.isfinite(group_range) or group_range <= 0.0:
+        raise ValueError("group display range must be positive and finite")
+    if not np.isfinite(display_gain) or display_gain <= 0.0:
+        raise ValueError("display gain must be positive and finite")
+    return group_range / display_gain
+
+
 def map_polarity_legend(attribute: AttributeDisplay) -> str:
     """Legend is semantic, not merely a description of the color palette."""
 
