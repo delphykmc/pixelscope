@@ -71,9 +71,9 @@ def test_official_and_grid_derived_rows_are_distinct_and_masked() -> None:
     rows = _rows(payload)
     assert len(rows) == 3
     assert [r["measurement_scope"] for r in rows] == [
-        "OFFICIAL_FULL_PAIR",
+        "FULL_PAIR_COMPARISON",
         "GRID_DERIVED_ROI",
-        "OFFICIAL_FULL_PAIR",
+        "FULL_PAIR_COMPARISON",
     ]
     assert all(r["source_a_label"] == "A, source" for r in rows)
     assert all(r["source_b_label"] == "B\nsource" for r in rows)
@@ -96,8 +96,8 @@ def test_official_and_grid_derived_rows_are_distinct_and_masked() -> None:
 
 def test_no_roi_exports_official_only() -> None:
     assert [r["measurement_scope"] for r in _rows(build_measurements_csv(_result()))] == [
-        "OFFICIAL_FULL_PAIR",
-        "OFFICIAL_FULL_PAIR",
+        "FULL_PAIR_COMPARISON",
+        "FULL_PAIR_COMPARISON",
     ]
 
 
