@@ -45,9 +45,13 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGraphicsItem,
+    QGraphicsPixmapItem,
+    QGraphicsTextItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
+    QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -59,6 +63,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope_enterprise.iqa.attribute_chart import ATTRIBUTE_ROLE, RelativeDifferenceDelegate
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
     AttributeDisplay,
@@ -249,6 +254,10 @@ class AnalysisWindow(QMainWindow):
         self._rendering = False
         self._views: list[_LinkedView] = []
         self._roi_items: list[QGraphicsRectItem] = []
+        self._scene_result_id: str | None = None
+        self._map_item: QGraphicsPixmapItem | None = None
+        self._map_placeholder: QGraphicsTextItem | None = None
+        self._pane_labels: list[QLabel] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
@@ -287,7 +296,10 @@ class AnalysisWindow(QMainWindow):
             column = QVBoxLayout(wrapper)
             column.setContentsMargins(2, 2, 2, 2)
             caption = QLabel(title, wrapper)
+            caption.setObjectName("enterpriseIqaPaneCaption" + title.replace(" ", ""))
             caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            caption.setWordWrap(True)
+            self._pane_labels.append(caption)
             column.addWidget(caption)
             view = _LinkedView(wrapper)
             view.setObjectName("enterpriseIqaView" + title.replace(" ", ""))
@@ -300,20 +312,35 @@ class AnalysisWindow(QMainWindow):
             self._views.append(view)
         inspector = QWidget(root_split)
         inspector.setObjectName("enterpriseIqaInspector")
-        inspector.setMinimumWidth(275)
+        inspector.setMinimumWidth(385)
         inspector_layout = QVBoxLayout(inspector)
-        inspector_layout.addWidget(QLabel("Result", inspector))
         self.result_combo = QComboBox(inspector)
         self.result_combo.setObjectName("enterpriseIqaResultSelector")
         self.result_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._on_result_selected
         )
-        inspector_layout.addWidget(self.result_combo)
-        inspector_layout.addWidget(QLabel("Attributes · supplied order", inspector))
-        self.attribute_table = QTableWidget(0, 3, inspector)
+        inspector_layout.addWidget(QLabel("RELATIVE ATTRIBUTES · supplied order", inspector))
+        chart_help = QLabel(
+            "A/B quality colors require verified direction.\n"
+            "Bar axis is independent of Map color range.", inspector
+        )
+        chart_help.setWordWrap(True)
+        chart_help.setObjectName("enterpriseIqaChartHelp")
+        inspector_layout.addWidget(chart_help)
+        self.attribute_table = QTableWidget(0, 2, inspector)
         self.attribute_table.setObjectName("enterpriseIqaAttributes")
-        self.attribute_table.setHorizontalHeaderLabels(["Attribute", "Official", "Unit"])
-        self.attribute_table.horizontalHeader().setStretchLastSection(True)
+        self.attribute_table.setHorizontalHeaderLabels(["Metric / group", "Official difference"])
+        self.attribute_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Fixed
+        )
+        self.attribute_table.setColumnWidth(0, 142)
+        self.attribute_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        self.attribute_table.setItemDelegateForColumn(
+            1, RelativeDifferenceDelegate(self.attribute_table)
+        )
+        self.attribute_table.setAlternatingRowColors(True)
         self.attribute_table.verticalHeader().hide()
         self.attribute_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.attribute_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -333,7 +360,7 @@ class AnalysisWindow(QMainWindow):
         self.clear_roi_button.setEnabled(False)
         self.clear_roi_button.clicked.connect(self._clear_roi)  # type: ignore[attr-defined]
         inspector_layout.addWidget(self.clear_roi_button)
-        inspector_layout.addWidget(QLabel("Fixed symmetric map range ±", inspector))
+        inspector_layout.addWidget(QLabel("SPATIAL MAP · fixed bipolar color range ±", inspector))
         self.range_editor = QDoubleSpinBox(inspector)
         self.range_editor.setObjectName("enterpriseIqaMapRange")
         self.range_editor.setDecimals(3)
@@ -351,7 +378,31 @@ class AnalysisWindow(QMainWindow):
         root_split.addWidget(inspector)
         root_split.setStretchFactor(0, 3)
         root_split.setStretchFactor(1, 1)
-        self.setCentralWidget(root_split)
+        central = QWidget(self)
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(6, 5, 6, 5)
+        header = QHBoxLayout()
+        title = QLabel("IQA  /  PAIR ANALYSIS", central)
+        title.setObjectName("enterpriseIqaWorkspaceTitle")
+        header.addWidget(title)
+        header.addWidget(QLabel("Result:", central))
+        # Keep the same combo and its original result-selected behavior.
+        header.addWidget(self.result_combo, 1)
+        self.pair_summary = QLabel("No result loaded", central)
+        self.pair_summary.setObjectName("enterpriseIqaPairSummary")
+        self.pair_summary.setMinimumWidth(230)
+        header.addWidget(self.pair_summary, 2)
+        self.fit_button = QPushButton("Fit pair", central)
+        self.fit_button.setObjectName("enterpriseIqaFitPair")
+        self.fit_button.setEnabled(False)
+        self.fit_button.clicked.connect(self._fit_pair)  # type: ignore[attr-defined]
+        header.addWidget(self.fit_button)
+        self.roi_hint = QLabel("Shift+drag ROI  •  Esc clears", central)
+        self.roi_hint.setObjectName("enterpriseIqaRoiHint")
+        header.addWidget(self.roi_hint)
+        central_layout.addLayout(header)
+        central_layout.addWidget(root_split, 1)
+        self.setCentralWidget(central)
         self.statusBar().showMessage(
             "Shift+drag selects ROI. Esc or Shift+Esc clears it. Missing RGB is optional."
         )
@@ -476,6 +527,14 @@ class AnalysisWindow(QMainWindow):
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
         self.result_combo.blockSignals(False)
         self.setWindowTitle(f"IQA Analysis — {result.result_id}")
+        self.pair_summary.setText(
+            f"A: {result.source_a_label}  /  B: {result.source_b_label}  "
+            f"• {result.image_width}×{result.image_height}"
+        )
+        self.pair_summary.setToolTip(
+            f"Source A: {result.source_a_label}\nSource B: {result.source_b_label}"
+        )
+        self.fit_button.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
         self._populate_attributes()
         self._render_result()
@@ -524,11 +583,19 @@ class AnalysisWindow(QMainWindow):
         for row, attr in enumerate(result.attributes):
             if state is not None and attr.attribute_id == state.attribute_id:
                 selected = row
-            value = "—" if attr.official_value is None else f"{attr.official_value:+.3f}"
-            fields = (f"{attr.group} / {attr.label}", value, attr.unit)
+            # Preserve producer order even when a group occurs non-contiguously.
+            group = f"{attr.group} · {attr.unit}"
+            fields = (f"{attr.label}\n{group}", "")
+            self.attribute_table.setRowHeight(row, 65)
             for col, field_text in enumerate(fields):
                 item = QTableWidgetItem(field_text)
                 item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
+                item.setData(ATTRIBUTE_ROLE, attr)
+                item.setToolTip(
+                    f"{attr.label} | {group} | "
+                    f"official {attr.official_availability} | "
+                    f"map scale ±{attr.fixed_range:g} {attr.unit}"
+                )
                 self.attribute_table.setItem(row, col, item)
         self.attribute_table.selectRow(selected)
         self._switching = False
@@ -561,6 +628,8 @@ class AnalysisWindow(QMainWindow):
         self.roi_label.setText("ROI: none")
         self.range_editor.setEnabled(False)
         self.clamp_label.setText("Map: unavailable")
+        self.pair_summary.setText("No result loaded")
+        self.fit_button.setEnabled(False)
 
     def _render_result(self) -> None:
         if self._active_id is None:
