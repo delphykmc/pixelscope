@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
+    QGraphicsItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
@@ -521,7 +522,8 @@ class AnalysisWindow(QMainWindow):
                 if pixmap is None:
                     note = scene.addText("Source unavailable\nNumeric/spatial analysis retained")
                     note.setDefaultTextColor(QColor(240, 240, 240))
-                    note.setPos(20, 20)
+                    note.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+                    note.setPos(result.image_width * 0.03, result.image_height * 0.03)
                 else:
                     scene.addPixmap(pixmap)
             else:
@@ -530,12 +532,15 @@ class AnalysisWindow(QMainWindow):
                 if pixmap is None or grid is None:
                     note = scene.addText("Spatial map unavailable")
                     note.setDefaultTextColor(QColor(240, 240, 240))
+                    note.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
                 else:
                     item = scene.addPixmap(pixmap)
                     item.setPos(grid.origin_x, grid.origin_y)
                     item.setTransformationMode(Qt.TransformationMode.FastTransformation)
                     item.setTransform(QTransform().scale(grid.block_width, grid.block_height))
-            overlay = scene.addRect(QRectF(), QPen(QColor(255, 205, 0), 2))
+            roi_pen = QPen(QColor(255, 205, 0), 2)
+            roi_pen.setCosmetic(True)  # Two visible display pixels, even on fitted 4K imagery.
+            overlay = scene.addRect(QRectF(), roi_pen)
             overlay.setZValue(100)
             overlay.setVisible(False)
             self._roi_items.append(overlay)
