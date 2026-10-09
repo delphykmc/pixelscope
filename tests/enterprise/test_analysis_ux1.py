@@ -244,6 +244,57 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     win.close()
 
 
+def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> None:
+    """The chart/details share spare screen space and can be resized by drag."""
+
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.resize(1920, 1080)
+    win.present_result(make_synthetic_result("fhd-inspector"))
+    win.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win.inspector_splitter.height() > 350, timeout=4000
+    )
+    splitter = win.inspector_splitter
+    assert splitter.orientation() == Qt.Orientation.Vertical
+    assert splitter.childrenCollapsible() is False
+    assert splitter.widget(0) is win.group_scroll
+    assert splitter.widget(1).objectName() == "enterpriseIqaInspectorDetails"
+    assert splitter.handleWidth() >= 6
+    assert splitter.widget(0).height() >= 140
+    assert splitter.widget(1).height() >= 175
+    for name, phrase in (
+        ("enterpriseIqaOfficialExplanation", "entire image pair"),
+        ("enterpriseIqaRoiExplanation", "not an official local score"),
+        ("enterpriseIqaMapExplanation", "clipped cells"),
+    ):
+        label = win.findChild(QLabel, name)
+        assert label is not None
+        assert phrase.lower() in label.text().lower()
+        assert label.wordWrap()
+    assert "Synthetic attribute" in win.detail_context.text()
+
+    # Splitter resize is independent of selection, ROI and analysis data.
+    state = win.current_analysis_state()
+    splitter.setSizes([520, 180])
+    QApplication.processEvents()
+    chart_large = splitter.sizes()
+    assert chart_large[0] > chart_large[1]
+    splitter.setSizes([180, 520])
+    QApplication.processEvents()
+    detail_large = splitter.sizes()
+    assert detail_large[1] > detail_large[0]
+    assert win.current_analysis_state() == state
+
+    # A different result/metric still updates the detail context.
+    _select_attribute(win, 10)
+    assert "Synthetic attribute 11" in win.detail_context.text()
+    assert splitter.widget(0) is win.group_scroll
+    win.close()
+
+
 def test_ux1_qss_braces_and_standalone_swap_shortcut(qtbot: object) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
