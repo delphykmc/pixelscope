@@ -119,18 +119,23 @@ The demo synthesizes 12 public-safe attributes and an aligned 3840×2160/64 spat
 grid. RGB source files are intentionally absent, making the numeric/map fallback
 observable. The synthetic official values do **not** establish scientific
 equivalence to a model or server output. For visual inspection on a real screen,
-omit `QT_QPA_PLATFORM=offscreen`.
+omit `QT_QPA_PLATFORM=offscreen` (PowerShell: `Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue`).
 
 Focused validation (run in the MAIN-compatible Python 3.10 Qt environment):
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m pytest -q tests/enterprise/test_analysis_model.py tests/enterprise/test_analysis_window.py
+.\.venv\Scripts\python.exe -m pytest -q tests/enterprise/test_analysis_model.py
+# Run Qt tests in a *separate Python process* to isolate native Qt teardown.
+.\.venv\Scripts\python.exe -m pytest -q tests/enterprise/test_analysis_window.py
 ```
 
-The implementation environment used to author this handoff did **not** have PySide6
-installed and had no network package-install access. The Qt runtime tests are
-authored but **not yet executed/verified**. No CI or full-suite success is claimed.
+The authoring environment does **not** have PySide6 and cannot execute these
+native Qt tests. Prior owner Windows evidence on the older HEAD was 10 model
+PASS / 7 Qt PASS + 1 Qt FAIL with `-x`; the three remaining tests were not
+run. The fixes above still need a full separate-process Windows Qt suite,
+including the newly authored interactive regression cases. CI Ruff/typecheck
+success cannot substitute for this manual validation.
 
 ## Explicit follow-up / owner integration gates
 
