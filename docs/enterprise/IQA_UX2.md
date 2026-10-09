@@ -27,6 +27,12 @@ controls must always be explicitly distinguished.
   algorithm/wire fields are not part of this PR. `None` means UNKNOWN and
   must not rank; `False` means gate failed. No attempt to deduce power from
   relative signed delta or the spatial grid. Ties keep supplier Attribute order.
+- **Owner color pass:** the Top-3 row uses subtly tinted raised-panel cards,
+  with an A (muted red), B (muted blue), or ± (muted violet) badge; signed-neutral
+  metrics have **no winner** label. Hover and selected cards have separate
+  contrast and borders; the icon/text jointly encode meaning so color alone
+  is never required. Disabled/unknown cards remain neutral. No user-level
+  change to measured values, source polarity or chart grouping.
 - Clicking a card selects that Attribute exactly as chart selection does.
   Existing ROI, source pixel coordinates, zoom, unit range and Map Gain survive;
   A/B names and polarity remain immutable. Cards still show verified official
