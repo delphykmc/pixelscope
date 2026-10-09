@@ -18,6 +18,17 @@ from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, SpatialMa
 
 RankingMode = Literal["aligned", "exploratory_abs"]
 
+# Three UX-only scan presets: detailed / standard / fast. Never accept arbitrary
+# pixel strides from a future Qt control or deserialized user settings.
+SCAN_STRIDES = (64, 128, 256)
+DEFAULT_SCAN_STRIDE = 128
+
+# Upper bounds are checked using Python integers BEFORE any candidate positions,
+# grid overlap matrices, dense score maps or sorting lists are constructed.
+_MAX_SCAN_WINDOWS = 16_384
+_MAX_AXIS_OVERLAP_ELEMENTS = 500_000
+_MAX_INTERMEDIATE_ELEMENTS = 500_000
+
 
 @dataclass(frozen=True)
 class SpatialCandidate:
@@ -37,6 +48,38 @@ class SpatialCandidate:
     @property
     def roi(self) -> tuple[int, int, int, int]:
         return (self.x, self.y, self.width, self.height)
+
+
+def _scan_axis_count(image_length: int, window_length: int, stride: int) -> int:
+    """Exact count including the far-edge window, using integers only."""
+
+    remaining = image_length - window_length
+    return 1 + (remaining + stride - 1) // stride
+
+
+def _preflight_scan(
+    grid: SpatialMap, width: int, height: int, stride: int
+) -> tuple[int, int]:
+    """Reject unreasonable workload before allocating any scan-position arrays."""
+
+    count_x = _scan_axis_count(grid.image_width, width, stride)
+    count_y = _scan_axis_count(grid.image_height, height, stride)
+    count = count_x * count_y
+    axis_elements = count_x * grid.columns + count_y * grid.rows
+    # wy @ grid is an (n_y × columns) intermediate. Account for both
+    # transpose directions to protect later equivalent implementations too.
+    intermediate_elements = count_y * grid.columns + count_x * grid.rows
+    if (
+        count > _MAX_SCAN_WINDOWS
+        or axis_elements > _MAX_AXIS_OVERLAP_ELEMENTS
+        or intermediate_elements > _MAX_INTERMEDIATE_ELEMENTS
+    ):
+        raise ValueError(
+            "spatial scan workload exceeds supported budget "
+            f"({count} windows, {axis_elements} overlap elements, "
+            f"{intermediate_elements} intermediate elements)"
+        )
+    return count_x, count_y
 
 
 def _scan_positions(image_length: int, window_length: int, stride: int) -> NDArray[np.int64]:
@@ -78,7 +121,7 @@ def find_spatial_candidates(
     attribute: AttributeDisplay,
     *,
     window_size: int = 512,
-    stride: int = 128,
+    stride: int = DEFAULT_SCAN_STRIDE,
     min_coverage: float = 0.8,
     max_candidates: int = 3,
     max_iou: float = 0.1,
@@ -98,11 +141,14 @@ def find_spatial_candidates(
 
     This does NOT prove that the official scalar aggregates from this map,
     and is not a substitute for the producer's future per-region A/B signal
-    validity gate.
+    validity gate. Only 64/128/256 px strides are allowed. The scan budget is
+    checked before allocating any window positions or overlap matrices.
     """
 
-    if window_size <= 0 or stride <= 0 or max_candidates < 0:
-        raise ValueError("positive window/stride and nonnegative count required")
+    if window_size <= 0 or max_candidates < 0:
+        raise ValueError("positive window and nonnegative count required")
+    if stride not in SCAN_STRIDES:
+        raise ValueError("stride must be one of 64, 128, or 256 source pixels")
     if not 0 <= min_coverage <= 1 or not 0 <= max_iou <= 1:
         raise ValueError("coverage and IoU thresholds must be in [0, 1]")
     grid: SpatialMap | None = attribute.spatial
@@ -111,6 +157,7 @@ def find_spatial_candidates(
 
     width = min(grid.image_width, window_size)
     height = min(grid.image_height, window_size)
+    _preflight_scan(grid, width, height, stride)
     xs = _scan_positions(grid.image_width, width, stride)
     ys = _scan_positions(grid.image_height, height, stride)
     wx = _axis_overlap(xs, width, grid.origin_x, grid.block_width, grid.columns, grid.image_width)
