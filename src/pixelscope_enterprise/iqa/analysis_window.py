@@ -504,7 +504,14 @@ class AnalysisWindow(QMainWindow):
     def _validated_saved_state(result: AnalysisResult, raw: dict[str, object]) -> _ResultViewState:
         """Validate the separate user state before mutating any visible UI."""
 
-        if set(raw) != {"attribute_id", "roi", "ranges", "viewport"}:
+        # H1 legacy states used attribute-id ranges and had no gain. New
+        # states use unit keys and include display_gain, deterministically
+        # migrating old attribute overrides without changing measurements.
+        fields = set(raw)
+        legacy = fields == {"attribute_id", "roi", "ranges", "viewport"}
+        if not legacy and fields != {
+            "attribute_id", "roi", "ranges", "viewport", "display_gain"
+        }:
             raise ValueError("invalid analysis_state fields")
         ids = {attr.attribute_id for attr in result.attributes}
         attribute_id = raw["attribute_id"]
@@ -522,14 +529,37 @@ class AnalysisWindow(QMainWindow):
         raw_ranges = raw["ranges"]
         if not isinstance(raw_ranges, dict):
             raise ValueError("invalid saved ranges")
+        units = {item.unit for item in result.attributes}
+        lookup = {item.attribute_id: item.unit for item in result.attributes}
         ranges: dict[str, float] = {}
+        legacy_ranges: dict[str, float] = {}
         for key, value in raw_ranges.items():
-            if not isinstance(key, str) or key not in ids:
-                raise ValueError("range refers to missing attribute")
+            if not isinstance(key, str) or key not in (lookup if legacy else units):
+                raise ValueError("range refers to missing attribute or unit")
             limit = finite_number(value)
             if not 0.001 <= limit <= 1_000_000.0:
                 raise ValueError("saved range outside UI limits")
-            ranges[key] = limit
+            if legacy:
+                legacy_ranges[key] = limit
+            else:
+                if limit < 0.5 or abs(limit * 2 - round(limit * 2)) > 1e-7:
+                    raise ValueError("saved unit range must be a positive 0.5 step")
+                ranges[key] = limit
+        if legacy:
+            # Deterministic migration: the selected metric's old per-attr
+            # setting takes precedence for its unit; other units use their
+            # first matching metric in producer order.
+            for attr in result.attributes:
+                if attr.attribute_id in legacy_ranges and attr.unit not in ranges:
+                    value = legacy_ranges[attr.attribute_id]
+                    ranges[attr.unit] = max(0.5, float(np.ceil(value * 2) / 2))
+            chosen_unit = lookup[attribute_id]
+            if attribute_id in legacy_ranges:
+                value = legacy_ranges[attribute_id]
+                ranges[chosen_unit] = max(0.5, float(np.ceil(value * 2) / 2))
+        gain = 1.0 if legacy else finite_number(raw["display_gain"])
+        if not 0.5 <= gain <= 10.0 or abs(gain * 2 - round(gain * 2)) > 1e-7:
+            raise ValueError("saved display gain must be a positive 0.5 step")
 
         roi: Roi | None = None
         raw_roi = raw["roi"]
@@ -559,7 +589,7 @@ class AnalysisWindow(QMainWindow):
         x_center = viewport["center_x"]
         y_center = viewport["center_y"]
         if zoom is None and x_center is None and y_center is None:
-            return _ResultViewState(attribute_id, roi, ranges)
+            return _ResultViewState(attribute_id, roi, ranges, display_gain=gain)
         scale = finite_number(zoom)
         center_x = finite_number(x_center)
         center_y = finite_number(y_center)
@@ -574,7 +604,9 @@ class AnalysisWindow(QMainWindow):
             raise ValueError("saved view center outside bounded source overscan")
         if not (-max_y_overscan <= center_y <= result.image_height + max_y_overscan):
             raise ValueError("saved view center outside bounded source overscan")
-        return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y)
+        return _ResultViewState(
+            attribute_id, roi, ranges, scale, center_x, center_y, gain
+        )
 
     def present_result(
         self, result: AnalysisResult, *, analysis_state: dict[str, object] | None = None
