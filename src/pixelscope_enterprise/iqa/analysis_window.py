@@ -1408,7 +1408,7 @@ class AnalysisWindow(QMainWindow):
     def _request_spatial_candidates(self, _stride: int = 128) -> None:
         """Bounded, on-demand background scan; ignore stale Attribute or result."""
 
-        if self.spatial_dock.isHidden():
+        if not self.isVisible() or self.spatial_dock.isHidden():
             return
         key = self._spatial_key()
         attr = self._attribute()
@@ -1416,6 +1416,14 @@ class AnalysisWindow(QMainWindow):
             return
         if self._spatial_displayed == key:
             return
+        if self._spatial_pending is not None and self._spatial_pending != key:
+            # Cancel/forget the old task even when the new key is cached.
+            self._spatial_timer.stop()
+            previous = self._spatial_future
+            if previous is not None and not previous.done():
+                previous.cancel()
+            self._spatial_future = None
+            self._spatial_pending = None
         if key in self._spatial_cache:
             self._present_spatial_candidates(key, self._spatial_cache[key])
             return
@@ -1466,6 +1474,7 @@ class AnalysisWindow(QMainWindow):
         if attr is None:
             return
         self._spatial_pending = None
+        self._spatial_timer.stop()
         self._spatial_displayed = key
         self.spatial_panel.populate(candidates, self._source_pixmaps, attr.unit)
         selected = self._selected_spatial.get((key[0], key[1]))
@@ -1490,9 +1499,10 @@ class AnalysisWindow(QMainWindow):
         available_height = min(view.viewport().height() for view in self._views)
         zoom = max(
             1e-8,
-            min(32.0, 0.88 * min(
-                available_width / candidate.width, available_height / candidate.height
-            )),
+            min(
+                32.0,
+                0.88 * min(available_width / candidate.width, available_height / candidate.height),
+            ),
         )
         state = self._state()
         if state is not None:
@@ -1512,9 +1522,11 @@ class AnalysisWindow(QMainWindow):
             else ()
         )
         attr = self._attribute()
-        show = self.hotspot_overlay_action.isChecked() if hasattr(
-            self, "hotspot_overlay_action"
-        ) else False
+        show = (
+            self.hotspot_overlay_action.isChecked()
+            if hasattr(self, "hotspot_overlay_action")
+            else False
+        )
         for i, layers in enumerate(self._candidate_overlay_items):
             has_source = (
                 self._source_pixmaps[i] is not None
