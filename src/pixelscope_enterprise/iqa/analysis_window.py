@@ -316,6 +316,7 @@ class AnalysisWindow(QMainWindow):
         self.attribute_table.horizontalHeader().setStretchLastSection(True)
         self.attribute_table.verticalHeader().hide()
         self.attribute_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.attribute_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.attribute_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.attribute_table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
             self._on_attribute_selected
@@ -535,14 +536,20 @@ class AnalysisWindow(QMainWindow):
     def _on_attribute_selected(self) -> None:
         if self._switching or self._active_id is None:
             return
-        row = self.attribute_table.currentRow()
-        if row < 0:
+        # itemSelectionChanged can fire before currentRow/currentItem catches
+        # up to a programmatic selectRow(). Read the selected row from the
+        # selection model instead of sampling a potentially stale currentRow.
+        selected_rows = self.attribute_table.selectionModel().selectedRows()
+        if len(selected_rows) != 1:
             return
-        item = self.attribute_table.item(row, 0)
+        item = self.attribute_table.item(selected_rows[0].row(), 0)
         state = self._state()
         if item is None or state is None:
             return
-        state.attribute_id = str(item.data(Qt.ItemDataRole.UserRole))
+        attribute_id = str(item.data(Qt.ItemDataRole.UserRole))
+        if attribute_id == state.attribute_id:
+            return
+        state.attribute_id = attribute_id
         self._render_result()
 
     def _render_empty(self) -> None:
