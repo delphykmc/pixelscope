@@ -6,6 +6,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication, QGraphicsPixmapItem
 
 from pixelscope_enterprise.iqa.analysis_model import (
@@ -168,6 +170,8 @@ def test_saved_analysis_state_validation_and_restoration(qtbot: object) -> None:
     source.attribute_table.selectRow(1)
     state = source.current_analysis_state()
     assert state["attribute_id"] == "metric_delta"
+    # No layout exists pre-show: retain selections but NOT invented navigation.
+    assert state["viewport"] == {"scale": None, "center_x": None, "center_y": None}
     source.close()
 
     target = AnalysisWindow()
@@ -265,3 +269,116 @@ def test_manager_shutdown_is_idempotent_after_multiple_empty_open_cycles(
         manager.shutdown()
         with pytest.raises(RuntimeError, match="shut down"):
             manager.show()
+
+
+def test_first_fit_uses_visible_4k_layout_and_wheel_dispatch(qtbot: object) -> None:
+    from pixelscope_enterprise.iqa.demo import make_synthetic_result
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    result = make_synthetic_result("4k-visible")
+    win.present_result(result)
+    assert win.current_analysis_state()["viewport"] == {
+        "scale": None, "center_x": None, "center_y": None,
+    }
+    win.show()
+    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    view = win._views[0]
+    initial = view.transform().m11()
+    assert initial > 0.0
+    assert win._state().scale == pytest.approx(initial)  # type: ignore[union-attr]
+
+    # A real viewport-targeted Qt wheel event, not a direct private zoom helper.
+    midpoint = view.viewport().rect().center()
+    wheel = QWheelEvent(
+        QPointF(midpoint),
+        QPointF(view.viewport().mapToGlobal(midpoint)),
+        QPoint(0, 0),
+        QPoint(0, 120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+    QApplication.sendEvent(view.viewport(), wheel)
+    assert view.transform().m11() > initial
+    assert win._state().scale == pytest.approx(view.transform().m11())  # type: ignore[union-attr]
+    for other in win._views[1:]:
+        assert other.transform().m11() == pytest.approx(view.transform().m11())
+    win.close()
+
+
+def test_shift_drag_on_real_viewport_selects_and_draws_linked_roi(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("mouse-roi"))
+    win.show()
+    qtbot.waitUntil(lambda: win._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+
+    source = win._views[2]  # Spatial-map viewport also supports Shift+drag.
+    a = source.mapFromScene(QPointF(16.0, 16.0))
+    b = source.mapFromScene(QPointF(96.0, 96.0))
+    assert source.viewport().rect().contains(a)
+    assert source.viewport().rect().contains(b)
+    qtbot.mousePress(  # type: ignore[attr-defined]
+        source.viewport(), Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.ShiftModifier, pos=a,
+    )
+    qtbot.mouseMove(source.viewport(), pos=b)  # type: ignore[attr-defined]
+    assert source._rubber_band.isVisible()
+    qtbot.mouseRelease(  # type: ignore[attr-defined]
+        source.viewport(), Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.ShiftModifier, pos=b,
+    )
+    assert not source._rubber_band.isVisible()
+    roi = win.current_roi
+    assert roi is not None
+    x, y, width, height = roi
+    assert 0 <= x < x + width <= 128
+    assert 0 <= y < y + height <= 128
+    assert width >= 40 and height >= 40
+    assert "GRID-DERIVED ROI" in win.roi_label.text()
+
+    for rect_item in win._roi_items:
+        assert rect_item.isVisible()
+        rect = rect_item.rect()
+        assert rect.x() == pytest.approx(x)
+        assert rect.y() == pytest.approx(y)
+        assert rect.width() == pytest.approx(width)
+        assert rect.height() == pytest.approx(height)
+
+    win.attribute_table.selectRow(1)
+    assert win.current_roi == roi
+    assert all(item.isVisible() for item in win._roi_items)
+    win.close()
+
+
+def test_visible_navigation_round_trip_and_bounded_overscan(qtbot: object) -> None:
+    source = AnalysisWindow()
+    qtbot.addWidget(source)  # type: ignore[attr-defined]
+    result = _result("visible-state")
+    source.present_result(result)
+    source.show()
+    qtbot.waitUntil(lambda: source._fit_pending_result_id is None, timeout=3000)  # type: ignore[attr-defined]
+    # Source coordinates can extend beyond a tiny image when the viewport is larger.
+    scale = source._views[0].transform().m11()
+    source._sync_views(source._views[0], scale, -154.6667, -288.0)
+    state = source.current_analysis_state()
+    source.close()
+
+    target = AnalysisWindow()
+    qtbot.addWidget(target)  # type: ignore[attr-defined]
+    target.present_result(result, analysis_state=state)
+    restored = target.current_analysis_state()["viewport"]
+    assert isinstance(restored, dict)
+    assert restored["center_x"] == pytest.approx(-154.6667)
+    assert restored["center_y"] == pytest.approx(-288.0)
+    assert restored["scale"] == pytest.approx(scale)
+    bad = dict(state)
+    bad["viewport"] = {"scale": scale, "center_x": -1e9, "center_y": 0.0}
+    with pytest.raises(ValueError, match="bounded source overscan"):
+        target.present_result(result, analysis_state=bad)
+    bad["viewport"] = {"scale": float("nan"), "center_x": 0.0, "center_y": 0.0}
+    with pytest.raises(ValueError, match="non-finite"):
+        target.present_result(result, analysis_state=bad)
+    target.close()
