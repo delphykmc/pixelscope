@@ -11,6 +11,35 @@ merge any of it into PUBLIC MAIN or mistake the synthetic fixture for server
 truth. Original owner decision (#137) to use an independent nonmodal single
 pair window with linked A/B/Map and right Inspector remains intact.
 
+## Owner UX-1 feedback round 2 (accepted 2026-10-09)
+
+1. **Single per-Attribute Display Range ±R:** approved OFFICIAL signed
+   difference bars and the selected Spatial Map use exactly the same
+   numeric visualization span. Changing R alters bar and Map display only;
+   measurement data is never modified. A +7 dB value at ±4 dB clips,
+   but at ±10 dB is 70% of the positive half-axis without clipping.
+2. `chart_axis_range` declares comparability and an initial range
+   preference, **not a second user-controlled axis**. If it is missing,
+   no official bar is fabricated; a Map can still use `fixed_range`.
+   This protects against unverified scientific or unit equivalence.
+3. **A | Map | B** is the default visual order. `Alt+X` and the header
+   button toggle **B | Map | A**, keeping the Map centered and preserving
+   source A/B identity, data, polarity, ROI and zoom.
+4. **One header legend** names B-better (negative, blue) and A-better
+   (positive, red); neutral signed values use teal/purple and never infer
+   a winner. Rows are **36px** with no per-row ±ticks/endpoint labels.
+   Official/ROI/Map summaries are independent labeled cards in a
+   scrollable lower Inspector section.
+5. **Pixel ROI:** source coordinates round outward to covered integer
+   pixels, including when validating an earlier fractional saved ROI.
+   The user sees integer (x,y,w,h) and pixel area rather than subpixels.
+6. **Styling:** the downstream window uses MAIN's public `TOKENS` and
+   the standalone demo calls `apply_engineering_palette`. No competing
+   private theme or public MAIN source modification.
+7. **Visual fixture:** `--rgb` now creates patterned 4K A/B PNG images
+   with gradient, grid, edges, circles and asymmetric position landmarks.
+   This makes zoom/pan/alignment visible unlike flat DC images.
+
 ## Operator sequence
 
 1. A first result shows identity, source labels/dimensions and a compact **Fit
@@ -25,19 +54,18 @@ pair window with linked A/B/Map and right Inspector remains intact.
 3. Bar direction means **A better (+)/B better (−)** only when the adapter
    declared `quality_oriented=True`. Neutral signed values use the
    independent purple/teal polarity and never infer a winner.
-4. The chart uses `AttributeDisplay.chart_axis_range`, a strictly positive,
-   separately provided display half-axis. Map `fixed_range` is **not** a
-   chart axis. Unknown official axis prints numeric scalar and **Axis not
-   supplied**, with *no bar*. A missing official scalar prints
-   **MISSING/PARTIAL/FAILED**, not zero. Genuine official zero is a
-   zero-width bar against a visible zero tick. A clipped bar announces
-   `clipped`, but the original scalar remains unchanged.
+4. The chart uses a verified adapter `chart_axis_range` to establish
+   OFFICIAL visual comparability, then the selected **Display Range ±R**
+   maps both the official bar and spatial Map. Missing scale prints
+   **unscaled** (no fabricated bar). Missing official scalar prints
+   **MISSING/PARTIAL/FAILED**, not zero. True zero is a zero-width
+   centered bar; clipped values retain their original numeric value.
 5. Group labels are repeated per Attribute without sorting or coalescing:
    discontiguous same-group records keep the verified server/supplied order.
    No cross-group magnitude ranking or globally comparable maximum is
    implied. Current synthetic axis ranges are **illustrative**, not a model
    or server contract.
-6. Selecting a different Attribute or editing Map color scale **does not
+6. Selecting a different Attribute or editing the shared Display Range **does not
    rebuild** any A/B or Map `QGraphicsScene` or persistent ROI overlay. Only
    the selected Map item's grid-resolution pixmap, grid transform, placeholder,
    Inspector and pane caption update. Deliberate Result replacement
@@ -46,7 +74,7 @@ pair window with linked A/B/Map and right Inspector remains intact.
    interpolated per-pixel precision. The legend names cell original-pixel
    footprint and transparent invalid-mask count, distinct from *true zero*
    and clamped valid counts.
-8. Save/Open portable, hotpots, official local scores, report Export and live
+8. Save/Open portable, hotspots, official local scores, report Export and live
    server/jobs are **not** implied by this UX; they remain #140/#141 H2-H5.
 
 ## Review fixture coverage
@@ -67,31 +95,33 @@ deliberately tests independent official/map availability:
 
 The default standalone demo has neither original RGB image; both show source
 unavailable with the grid still functional. Running the demo with `--rgb`
-creates two safe temporary flat-color 3840×2160 PNGs and displays them in
-A/B, deleting them after the window exits. A separate Qt regression writes a
+creates two safe patterned 3840×2160 PNGs (grid/gradient/edges/circles/landmarks)
+and displays them in A/B, deleting them after the window exits. A separate Qt regression writes a
 safe 3840×2160 RGB fixture and confirms source panes, repeated 12-attribute
 selection, persistent scene identities and a real QImage screenshot.
 
 ## Windows owner validation (separate Python processes)
 
 ```powershell
-$env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m pytest -q tests/enterprise/test_analysis_model.py
-.\.venv\Scripts\python.exe -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_window.py
-.\.venv\Scripts\python.exe -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_ux1.py
-.\.venv\Scripts\python.exe -m pytest -q tests/iqa_reference/test_reference_extension.py
+$py = "C:\Users\MCKANG\mycode\pixelscope\.venv\Scripts\python.exe"
+if (-not (Test-Path $py)) { throw "Locate a valid Python 3.10 environment" }
+$env:PYTHONPATH = (Resolve-Path .\src).Path
+& $py -m pytest -q tests/enterprise/test_analysis_model.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_window.py
+& $py -m pytest -q -W error::DeprecationWarning tests/enterprise/test_analysis_ux1.py
+& $py -m pytest -q tests/iqa_reference/test_reference_extension.py
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
-.\.venv\Scripts\python.exe -m pixelscope_enterprise.iqa.demo
-# Optional: produce two temporary company-neutral 3840x2160 RGB source PNGs
-# to exercise live A/B pane rendering; files are deleted on demo exit.
-.\.venv\Scripts\python.exe -m pixelscope_enterprise.iqa.demo --rgb
+& $py -m pixelscope_enterprise.iqa.demo
+# Optional: local synthetic 4K A/B geometry patterns, removed at exit.
+& $py -m pixelscope_enterprise.iqa.demo --rgb
 ```
 
 Check a 1920×1080 physical desktop with 12 metrics and scroll the Inspector;
 take FHD capture at top and scrolled positions. Verify first insight,
-selected Map context, official-vs-spatial axes, source-missing fallback,
-legend text/invalid grid cells, ROI and relative chart alignment. Repeat
-with a safe 4K RGB source-present case. Check Shift cursor/Clear ROI, wheel,
+selected Map context, verified shared range ±4 vs ±10 for a +7 dB
+official scalar, source-missing fallback, one legend, 36px row density,
+integer ROI and structured Official/ROI/Map cards. Test the A/Map/B
+and B/Map/A toggle with Alt+X, then the non-DC 4K patterned RGB case. Check Shift cursor/Clear ROI, wheel,
 keyboard chart navigation, per-result restoration and multiple normal-GC
 close/reopen cycles. Do not claim Qt success solely from generic public CI:
 Enterprise-native PySide6 tests remain owner-local under CI policy.
