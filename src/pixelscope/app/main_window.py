@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSplitter,
