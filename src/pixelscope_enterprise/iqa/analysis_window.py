@@ -412,9 +412,8 @@ class AnalysisWindow(QMainWindow):
         )
         self._candidate_overlay_items: list[list[tuple[QGraphicsRectItem, QGraphicsTextItem]]] = []
 
-        # Retain direct Python references as well as explicit Qt ownership.
-        # PySide6 can invalidate transient QAction.menu()/menuAction() wrappers
-        # during test GC if native menu parents are only held indirectly.
+        # Retain Qt menu parents and submenu actions with direct Python refs.
+        # Avoid borrowing temporary QAction.menu() wrappers in native Qt tests.
         self.file_menu = self.menuBar().addMenu("File")
         file_menu = self.file_menu
         self.open_action = file_menu.addAction("Open Result...")
@@ -568,7 +567,7 @@ class AnalysisWindow(QMainWindow):
         self.gain_editor.setPrefix("×")
         self.gain_editor.setToolTip(
             "Visual Map contrast only: color fraction = Grid × Gain / Unit Range. "
-            "Official bar and ROI values are unchanged."
+            "Full-pair bar and ROI values are unchanged."
         )
         self.gain_editor.valueChanged.connect(self._update_gain)  # type: ignore[attr-defined]
         shared_controls.addWidget(self.gain_editor)
