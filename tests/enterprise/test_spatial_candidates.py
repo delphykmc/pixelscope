@@ -8,7 +8,12 @@ import numpy as np
 import pytest
 
 from pixelscope_enterprise.iqa.analysis_model import AttributeDisplay, SpatialMap
-from pixelscope_enterprise.iqa.spatial_candidates import find_spatial_candidates
+from pixelscope_enterprise.iqa import spatial_candidates as scan_module
+from pixelscope_enterprise.iqa.spatial_candidates import (
+    DEFAULT_SCAN_STRIDE,
+    SCAN_STRIDES,
+    find_spatial_candidates,
+)
 
 
 def _attribute(
@@ -133,7 +138,75 @@ def test_edge_scan_position_and_4k_grid_smoke() -> None:
 def test_no_grid_no_candidate_and_validation() -> None:
     attr = replace(_attribute(np.ones((2, 2))), spatial=None)
     assert find_spatial_candidates(attr) == ()
-    with pytest.raises(ValueError, match="positive window"):
+    with pytest.raises(ValueError, match="stride must"):
         find_spatial_candidates(attr, stride=0)
+    with pytest.raises(ValueError, match="positive window"):
+        find_spatial_candidates(attr, window_size=0)
     with pytest.raises(ValueError, match="thresholds"):
         find_spatial_candidates(attr, min_coverage=1.2)
+
+
+@pytest.mark.parametrize("stride", [1, 2, 10, 63, 65, 127, 129, 255, 257, 512, 64.0, True])
+def test_stride_must_be_one_of_three_exact_integer_presets(stride: object) -> None:
+    attr = _attribute(np.ones((2, 2), dtype=np.float64))
+    with pytest.raises(ValueError, match="stride must be one of 64, 128, or 256"):
+        find_spatial_candidates(attr, stride=stride)  # type: ignore[arg-type]
+
+
+def test_scan_preset_cardinality_and_unchanged_default_4k_behavior() -> None:
+    assert SCAN_STRIDES == (64, 128, 256)
+    assert DEFAULT_SCAN_STRIDE == 128
+    grid = _attribute(
+        np.ones((34, 60), dtype=np.float64), image_width=3840, image_height=2160
+    ).spatial
+    assert grid is not None
+    # Includes a final edge-aligned window even when not divisible by stride.
+    counts = {
+        step: scan_module._preflight_scan(grid, 512, 512, step) for step in SCAN_STRIDES
+    }
+    assert counts == {64: (53, 27), 128: (27, 14), 256: (14, 8)}
+    attr = _attribute(np.ones((34, 60), dtype=np.float64),
+                      image_width=3840, image_height=2160)
+    assert find_spatial_candidates(attr) == find_spatial_candidates(attr, stride=128)
+
+
+def test_pathological_stride_rejected_before_position_allocation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attr = _attribute(np.ones((1, 1)), image_width=3840, image_height=2160)
+    def should_not_scan(*_args: object) -> None:
+        raise AssertionError("scan positions must not be allocated for unsupported stride")
+    monkeypatch.setattr(scan_module, "_scan_positions", should_not_scan)
+    with pytest.raises(ValueError, match="stride must"):
+        find_spatial_candidates(attr, stride=1)
+
+
+def test_oversized_window_count_rejected_before_position_allocation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Huge source geometry but only one valid grid cell; no 4K pixel iteration.
+    attr = _attribute(
+        np.ones((1, 1)), image_width=1_000_000, image_height=1_000_000,
+        block_width=1_000_000.0, block_height=1_000_000.0,
+    )
+    def should_not_scan(*_args: object) -> None:
+        raise AssertionError("preflight failed: created an unbounded position array")
+    monkeypatch.setattr(scan_module, "_scan_positions", should_not_scan)
+    with pytest.raises(ValueError, match="scan workload exceeds supported budget"):
+        find_spatial_candidates(attr, stride=64)
+
+
+def test_large_matmul_temporary_rejected_despite_small_window_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 156 vertical candidates × 4000 source grid columns: >500k intermediate
+    # elements despite only 156 windows and a small X/Y overlap allocation.
+    attr = _attribute(
+        np.ones((1, 4000)), image_width=512, image_height=40_000,
+        block_width=512.0 / 4000, block_height=40_000.0,
+    )
+    def should_not_scan(*_args: object) -> None:
+        raise AssertionError("preflight must reject before np.arange")
+    monkeypatch.setattr(scan_module, "_scan_positions", should_not_scan)
+    with pytest.raises(ValueError, match="scan workload exceeds supported budget"):
+        find_spatial_candidates(attr, stride=256)
