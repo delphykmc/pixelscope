@@ -46,8 +46,8 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsItem,
     QGraphicsPixmapItem,
-    QGraphicsTextItem,
     QGraphicsRectItem,
+    QGraphicsTextItem,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -63,7 +63,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pixelscope_enterprise.iqa.attribute_chart import ATTRIBUTE_ROLE, RelativeDifferenceDelegate
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
     AttributeDisplay,
@@ -74,6 +73,7 @@ from pixelscope_enterprise.iqa.analysis_model import (
     map_polarity_legend,
     roi_statistics,
 )
+from pixelscope_enterprise.iqa.attribute_chart import ATTRIBUTE_ROLE, RelativeDifferenceDelegate
 
 ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
@@ -679,7 +679,9 @@ class AnalysisWindow(QMainWindow):
                 if i < 2:
                     pixmap = self._source_pixmaps[i]
                     if pixmap is None:
-                        note = scene.addText("Source unavailable\nNumeric/spatial analysis retained")
+                        note = scene.addText(
+                            "Source unavailable\nNumeric/spatial analysis retained"
+                        )
                         note.setDefaultTextColor(QColor(240, 240, 240))
                         note.setFlag(
                             QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
