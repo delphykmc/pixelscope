@@ -442,7 +442,13 @@ def test_repeated_mouse_roi_replaces_actual_viewport_pixels_without_resize(qtbot
     scene = view.scene()
     assert scene is not None
     base_items = len(scene.items())
-    assert len([i for i in scene.items() if isinstance(i, QGraphicsRectItem)]) == 1
+    # One ROI-edit rectangle plus three persistent, normally hidden hotspot
+    # proposals. The test verifies ROI identity/pixels, not total rectangle
+    # subclass count: UX-2C deliberately adds separate overlay evidence.
+    assert sum(item is win._roi_items[2] for item in scene.items()) == 1
+    assert len([i for i in scene.items() if isinstance(i, QGraphicsRectItem)]) == (
+        1 + len(win._candidate_overlay_items[2])
+    )
     assert not _visible_roi_yellow(view, 25, 8)
 
     # Each ROI is disjoint. We inspect painted pixels after release, with no
@@ -459,7 +465,10 @@ def test_repeated_mouse_roi_replaces_actual_viewport_pixels_without_resize(qtbot
         for _, _, previous_edge in selections[:index]:
             assert not _visible_roi_yellow(view, *previous_edge)
         assert len(scene.items()) == base_items
-        assert len([i for i in scene.items() if isinstance(i, QGraphicsRectItem)]) == 1
+        assert sum(item is win._roi_items[2] for item in scene.items()) == 1
+        assert len([i for i in scene.items() if isinstance(i, QGraphicsRectItem)]) == (
+            1 + len(win._candidate_overlay_items[2])
+        )
         assert [item.isVisible() for item in win._roi_items] == [False, False, True]
 
     win.clear_roi_action.trigger()

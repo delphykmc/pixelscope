@@ -62,7 +62,7 @@ def test_ux2a_unknown_signal_gate_does_not_claim_top_three(qtbot: object) -> Non
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(unverified)
-    assert "NOT YET VERIFIED" in win.top3_title.text()
+    assert "SIGNAL PENDING" in win.top3_title.text()
     assert all(not card.isEnabled() for card in win.top3_buttons)
     assert win._top3_attribute_ids == []
     # Default Attribute/Map remain navigable, independent of absent Top-3.
