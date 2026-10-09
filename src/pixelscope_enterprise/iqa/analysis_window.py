@@ -816,11 +816,16 @@ class AnalysisWindow(QMainWindow):
         if attr.spatial is None:
             self.clamp_label.setText("Map missing (not zero)")
         else:
-            clipped, total = clipped_cells(attr.spatial, limit)
+            grid = attr.spatial
+            clipped, total = clipped_cells(grid, limit)
             pct = 0.0 if total == 0 else (clipped / total)
+            invalid = grid.values.size - total
             self.clamp_label.setText(
-                f"Map scale: −{limit:g} to +{limit:g} {attr.unit}\n"
+                f"Map colors: −{limit:g} to +{limit:g} {attr.unit}\n"
                 f"{map_polarity_legend(attr)}\n"
+                f"Cells: {grid.rows}×{grid.columns} • "
+                f"{grid.block_width:g}×{grid.block_height:g} source px, nearest\n"
+                f"Invalid: {invalid} transparent cells (not zero)\n"
                 f"Clamped: {clipped}/{total} valid cells ({pct:.1%})"
             )
 
