@@ -2,6 +2,25 @@
 
 Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementation branch: `feat/141-analysis-window-shell` targeting **`handoff/enterprise-iqa-window`, not `main`**.
 
+## Latest authoritative state (2026-10-09)
+
+- **Merged H0/H1:** PR #144 was **squash-merged only** into
+  `handoff/enterprise-iqa-window` at exact SHA
+  `6c51c703b4b9054f99bc57910de89845a09df7df`. PUBLIC
+  `main@95b7845e731302934e21033a0ee09ef08947495a` was unchanged.
+- **Owner acceptance:** on the rebased #144 feature, the owner reported
+  the *complete focused Windows model, strict Qt and #143 Reference
+  suites all PASS*. Earlier historical 16/17 Qt failure logs later in this
+  document are **superseded**, not unresolved.
+- **UX-1 active:** [#145](https://github.com/delphykmc/pixelscope/issues/145)
+  branches from this merged handoff to improve visual hierarchy,
+  signed official chart and efficient Map-only redraw. See
+  [IQA_UX1.md](IQA_UX1.md) for current display-axis semantics and
+  new Windows acceptance checklist.
+- **Deferred:** #140 official file-schema adapter, H2 genuine Open/Save,
+  Enterprise host jobs/server and secure PRIVATE SUB import remain
+  pending. A historical Qt PASS is **not** UX-1 native Windows validation.
+
 ## Integration provenance
 
 | Field | Value |
