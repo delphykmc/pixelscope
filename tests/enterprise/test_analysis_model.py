@@ -165,3 +165,119 @@ def test_vectorized_dense_map_keeps_geometry_and_raw_values() -> None:
     assert clipped_cells(grid, 6)[0] > 0
     with pytest.raises(ValueError):
         colorize_spatial_rgba(attr, 0)
+
+
+def test_official_chart_axis_is_not_spatial_map_color_scale() -> None:
+    from pixelscope_enterprise.iqa.analysis_model import official_chart_fraction
+
+    # Deliberately unrelated scales. The map color range must NOT be reused.
+    positive = AttributeDisplay(
+        "c",
+        "Official",
+        "dB",
+        "power",
+        2.0,
+        "available",
+        True,
+        0.05,
+        chart_axis_range=4.0,
+    )
+    assert official_chart_fraction(positive) == 0.5
+    assert official_chart_fraction(positive, 10.0) == 0.2
+    assert positive.fixed_range == 0.05
+    zero = AttributeDisplay(
+        "zero",
+        "Zero",
+        "dB",
+        "power",
+        0.0,
+        "available",
+        True,
+        1.0,
+        chart_axis_range=4.0,
+    )
+    assert official_chart_fraction(zero) == 0.0
+    no_axis = AttributeDisplay("axis", "Unknown axis", "dB", "power", 2.0, "available", True, 5.0)
+    no_value = AttributeDisplay(
+        "missing",
+        "Missing",
+        "dB",
+        "power",
+        None,
+        "missing",
+        True,
+        5.0,
+        chart_axis_range=4.0,
+    )
+    assert official_chart_fraction(no_axis) is None
+    assert official_chart_fraction(no_value) is None
+    negative = AttributeDisplay(
+        "neg",
+        "Neutral",
+        "delta",
+        "signed",
+        -8.0,
+        "available",
+        False,
+        2.0,
+        chart_axis_range=3.0,
+    )
+    assert official_chart_fraction(negative) == -1.0
+    for bad in (-1.0, 0.0, float("inf"), float("nan")):
+        with pytest.raises(ValueError, match="official chart axis"):
+            AttributeDisplay(
+                "bad",
+                "Bad",
+                "dB",
+                "power",
+                1.0,
+                "available",
+                True,
+                3.0,
+                chart_axis_range=bad,
+            )
+
+
+def test_public_demo_covers_independent_official_and_spatial_availability() -> None:
+    from pixelscope_enterprise.iqa.analysis_model import official_chart_fraction
+
+    official_only = AttributeDisplay(
+        "official",
+        "Official only",
+        "dB",
+        "power",
+        0.0,
+        "available",
+        True,
+        2.0,
+        chart_axis_range=3.0,
+    )
+    assert official_only.spatial is None
+    assert official_chart_fraction(official_only) == 0.0
+    spatial_only = AttributeDisplay(
+        "grid",
+        "Grid only",
+        "dB",
+        "power",
+        None,
+        "missing",
+        True,
+        2.0,
+        chart_axis_range=3.0,
+    )
+    assert spatial_only.official_value is None
+    assert official_chart_fraction(spatial_only) is None
+
+
+def test_shared_map_gain_mapping_keeps_signed_zero_and_source_immutable() -> None:
+    from pixelscope_enterprise.iqa.analysis_model import spatial_display_half_range
+
+    assert spatial_display_half_range(10.0, 1.0) == 10.0
+    assert spatial_display_half_range(10.0, 0.5) == 20.0
+    assert spatial_display_half_range(10.0, 1.5) == pytest.approx(10 / 1.5)
+    assert spatial_display_half_range(10.0, 2.0) == 5.0
+    for invalid in (-1.0, 0.0, float("inf"), float("nan")):
+        with pytest.raises(ValueError, match="group display range"):
+            spatial_display_half_range(invalid, 1.0)
+        with pytest.raises(ValueError, match="display gain"):
+            spatial_display_half_range(10.0, invalid)

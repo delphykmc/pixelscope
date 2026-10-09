@@ -83,6 +83,9 @@ class AttributeDisplay:
     quality_oriented: bool
     fixed_range: float
     spatial: SpatialMap | None = None
+    # Independent display contract for OFFICIAL scalar chart; never inherited
+    # from fixed_range (which exclusively controls the spatial map colors).
+    chart_axis_range: float | None = None
 
     def __post_init__(self) -> None:
         if not self.attribute_id or not self.label or not self.unit:
@@ -97,6 +100,10 @@ class AttributeDisplay:
             raise ValueError("available official comparison requires a value")
         if not np.isfinite(self.fixed_range) or self.fixed_range <= 0:
             raise ValueError("the adapter must provide a positive fixed color range")
+        if self.chart_axis_range is not None and (
+            not np.isfinite(self.chart_axis_range) or self.chart_axis_range <= 0
+        ):
+            raise ValueError("official chart axis range must be finite and positive")
 
 
 @dataclass(frozen=True)
@@ -174,6 +181,16 @@ def colorize_spatial_rgba(
     return np.ascontiguousarray(rgba)
 
 
+def spatial_display_half_range(group_range: float, display_gain: float) -> float:
+    """Render grid × global gain against unit-group ±range, without editing data."""
+
+    if not np.isfinite(group_range) or group_range <= 0.0:
+        raise ValueError("group display range must be positive and finite")
+    if not np.isfinite(display_gain) or display_gain <= 0.0:
+        raise ValueError("display gain must be positive and finite")
+    return group_range / display_gain
+
+
 def map_polarity_legend(attribute: AttributeDisplay) -> str:
     """Legend is semantic, not merely a description of the color palette."""
 
@@ -228,3 +245,22 @@ def clipped_cells(grid: SpatialMap, half_range: float) -> tuple[int, int]:
     return int(np.count_nonzero(mask & (np.abs(grid.values) > half_range))), int(
         np.count_nonzero(mask)
     )
+
+
+def official_chart_fraction(
+    attribute: AttributeDisplay, display_range: float | None = None
+) -> float | None:
+    """Official comparison on a shared display range, with explicit adapter consent.
+
+    chart_axis_range signals that this scalar's numeric unit can share a
+    display domain with its spatial map. A user's range override changes
+    visualization only: it cannot alter either the original official value
+    or the spatial grid. Without that consent, never draw a fabricated bar.
+    """
+
+    if attribute.chart_axis_range is None or attribute.official_value is None:
+        return None
+    axis = attribute.chart_axis_range if display_range is None else display_range
+    if not np.isfinite(axis) or axis <= 0:
+        raise ValueError("shared display range must be positive and finite")
+    return float(np.clip(attribute.official_value / axis, -1.0, 1.0))

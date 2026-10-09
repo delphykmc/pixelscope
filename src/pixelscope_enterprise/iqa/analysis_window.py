@@ -45,13 +45,18 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGraphicsItem,
+    QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsScene,
+    QGraphicsTextItem,
     QGraphicsView,
+    QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMainWindow,
     QPushButton,
     QRubberBand,
+    QScrollArea,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -59,6 +64,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.ui.design_tokens import TOKENS
 from pixelscope_enterprise.iqa.analysis_model import (
     AnalysisResult,
     AttributeDisplay,
@@ -68,6 +74,12 @@ from pixelscope_enterprise.iqa.analysis_model import (
     colorize_spatial_rgba,
     map_polarity_legend,
     roi_statistics,
+    spatial_display_half_range,
+)
+from pixelscope_enterprise.iqa.attribute_chart import (
+    ATTRIBUTE_ROLE,
+    DISPLAY_RANGE_ROLE,
+    RelativeDifferenceDelegate,
 )
 
 ResultLoader = Callable[[Path], LoadedAnalysis]
@@ -78,10 +90,11 @@ ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
 class _ResultViewState:
     attribute_id: str
     roi: Roi | None = None
-    ranges: dict[str, float] = field(default_factory=dict)
+    ranges: dict[str, float] = field(default_factory=dict)  # by unit, not by attribute
     scale: float | None = None
     center_x: float | None = None
     center_y: float | None = None
+    display_gain: float = 1.0
 
 
 class _LinkedView(QGraphicsView):
@@ -249,6 +262,16 @@ class AnalysisWindow(QMainWindow):
         self._rendering = False
         self._views: list[_LinkedView] = []
         self._roi_items: list[QGraphicsRectItem] = []
+        self._scene_result_id: str | None = None
+        self._map_item: QGraphicsPixmapItem | None = None
+        self._map_placeholder: QGraphicsTextItem | None = None
+        self._pane_labels: list[QLabel] = []
+        self._pane_wrappers: list[QWidget] = []
+        self._sources_swapped = False
+        self._group_tables: dict[str, QTableWidget] = {}
+        self._range_editors: dict[str, QDoubleSpinBox] = {}
+        self._group_sections: dict[str, QWidget] = {}
+        self._group_units: list[str] = []
         self._source_result_id: str | None = None
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
@@ -277,17 +300,31 @@ class AnalysisWindow(QMainWindow):
         self.clear_roi_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.clear_roi_action.setEnabled(False)
         self.clear_roi_action.triggered.connect(self._clear_roi)  # type: ignore[attr-defined]
+        self.swap_sources_action = view_menu.addAction("Swap A/B positions")
+        self.swap_sources_action.setObjectName("enterpriseIqaSwapSources")
+        # T is free in the generic MAIN keymap; WindowShortcut scopes the
+        # single key to the independent Analysis Window.
+        self.swap_sources_action.setShortcuts([QKeySequence("T"), QKeySequence("Alt+X")])
+        self.swap_sources_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.swap_sources_action.triggered.connect(  # type: ignore[attr-defined]
+            self._swap_sources
+        )
 
         root_split = QSplitter(Qt.Orientation.Horizontal, self)
         root_split.setObjectName("enterpriseIqaRootSplitter")
         image_split = QSplitter(Qt.Orientation.Horizontal, root_split)
         image_split.setObjectName("enterpriseIqaImageSplitter")
+        self._image_split = image_split
         for title in ("Image A", "Image B", "Relative Spatial Map"):
             wrapper = QWidget(image_split)
+            self._pane_wrappers.append(wrapper)
             column = QVBoxLayout(wrapper)
             column.setContentsMargins(2, 2, 2, 2)
             caption = QLabel(title, wrapper)
+            caption.setObjectName("enterpriseIqaPaneCaption" + title.replace(" ", ""))
             caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            caption.setWordWrap(True)
+            self._pane_labels.append(caption)
             column.addWidget(caption)
             view = _LinkedView(wrapper)
             view.setObjectName("enterpriseIqaView" + title.replace(" ", ""))
@@ -298,62 +335,194 @@ class AnalysisWindow(QMainWindow):
             column.addWidget(view, 1)
             image_split.addWidget(wrapper)
             self._views.append(view)
+        self._set_pane_order()
         inspector = QWidget(root_split)
         inspector.setObjectName("enterpriseIqaInspector")
-        inspector.setMinimumWidth(275)
+        inspector.setMinimumWidth(385)
         inspector_layout = QVBoxLayout(inspector)
-        inspector_layout.addWidget(QLabel("Result", inspector))
         self.result_combo = QComboBox(inspector)
         self.result_combo.setObjectName("enterpriseIqaResultSelector")
         self.result_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._on_result_selected
         )
-        inspector_layout.addWidget(self.result_combo)
-        inspector_layout.addWidget(QLabel("Attributes · supplied order", inspector))
-        self.attribute_table = QTableWidget(0, 3, inspector)
-        self.attribute_table.setObjectName("enterpriseIqaAttributes")
-        self.attribute_table.setHorizontalHeaderLabels(["Attribute", "Official", "Unit"])
-        self.attribute_table.horizontalHeader().setStretchLastSection(True)
-        self.attribute_table.verticalHeader().hide()
-        self.attribute_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.attribute_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.attribute_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.attribute_table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
-            self._on_attribute_selected
+        inspector_layout.addWidget(QLabel("RELATIVE ATTRIBUTES · supplied order", inspector))
+        chart_help = QLabel(
+            "B better (−)  ←  0  →  A better (+)\n"
+            "Neutral signed: teal (−) / purple (+) · no winner",
+            inspector,
         )
-        inspector_layout.addWidget(self.attribute_table, 2)
+        chart_help.setWordWrap(True)
+        chart_help.setObjectName("enterpriseIqaChartHelp")
+        inspector_layout.addWidget(chart_help)
+        shared_controls = QHBoxLayout()
+        shared_controls.addWidget(QLabel("MAP DISPLAY GAIN", inspector))
+        self.gain_editor = QDoubleSpinBox(inspector)
+        self.gain_editor.setObjectName("enterpriseIqaDisplayGain")
+        self.gain_editor.setDecimals(1)
+        self.gain_editor.setRange(0.5, 10.0)
+        self.gain_editor.setSingleStep(0.5)
+        self.gain_editor.setValue(1.0)
+        self.gain_editor.setPrefix("×")
+        self.gain_editor.setToolTip(
+            "Visual Map contrast only: color fraction = Grid × Gain / Unit Range. "
+            "Official bar and ROI values are unchanged."
+        )
+        self.gain_editor.valueChanged.connect(self._update_gain)  # type: ignore[attr-defined]
+        shared_controls.addWidget(self.gain_editor)
+        inspector_layout.addLayout(shared_controls)
+
+        # The chart and details are both full-height, user-resizable panes.
+        # Fixed-height table rows remain inside the independently scrolling chart.
+        self.inspector_splitter = QSplitter(Qt.Orientation.Vertical, inspector)
+        self.inspector_splitter.setObjectName("enterpriseIqaInspectorSplitter")
+        self.inspector_splitter.setChildrenCollapsible(False)
+        self.inspector_splitter.setHandleWidth(8)
+        self.attribute_table = QTableWidget(0, 2, inspector)  # first active unit alias
+        self.attribute_table.hide()
+        self.range_editor = QDoubleSpinBox(inspector)  # first active unit alias
+        self.range_editor.hide()
+        self.group_scroll = QScrollArea(self.inspector_splitter)
+        self.group_scroll.setObjectName("enterpriseIqaGroupScroll")
+        self.group_scroll.setMinimumHeight(140)
+        self.group_scroll.setWidgetResizable(True)
+        self.group_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.group_content = QWidget()
+        self._groups_layout = QVBoxLayout(self.group_content)
+        self._groups_layout.setContentsMargins(0, 2, 0, 2)
+        self._groups_layout.setSpacing(7)
+        self.group_scroll.setWidget(self.group_content)
+        self.inspector_splitter.addWidget(self.group_scroll)
+        details_scroll = QScrollArea(self.inspector_splitter)
+        details_scroll.setObjectName("enterpriseIqaInspectorDetails")
+        details_scroll.setWidgetResizable(True)
+        details_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        details_scroll.setMinimumHeight(175)
+        details_content = QWidget()
+        details_layout = QVBoxLayout(details_content)
+        details_layout.setContentsMargins(0, 2, 0, 2)
+        details_layout.setSpacing(5)
+        details_scroll.setWidget(details_content)
+        self.inspector_splitter.addWidget(details_scroll)
+        self.inspector_splitter.setStretchFactor(0, 3)
+        self.inspector_splitter.setStretchFactor(1, 2)
+        self.inspector_splitter.setSizes([420, 280])
+        self.inspector_splitter.handle(1).setToolTip(
+            "Drag vertically to resize the Attribute chart and Analysis details."
+        )
+        inspector_layout.addWidget(self.inspector_splitter, 1)
+        self.detail_context = QLabel("DETAILS · select an attribute", details_content)
+        self.detail_context.setObjectName("enterpriseIqaDetailContext")
+        details_layout.addWidget(self.detail_context)
         self.official_label = QLabel("Official pair comparison: —", inspector)
         self.official_label.setWordWrap(True)
-        inspector_layout.addWidget(self.official_label)
+        official_card = QFrame(inspector)
+        official_card.setObjectName("enterpriseIqaOfficialCard")
+        official_card.setFrameShape(QFrame.Shape.StyledPanel)
+        official_layout = QVBoxLayout(official_card)
+        official_layout.setContentsMargins(9, 6, 9, 6)
+        official_layout.setSpacing(4)
+        official_layout.addWidget(QLabel("OFFICIAL · FULL PAIR", official_card))
+        official_description = QLabel(
+            "Verified A/B difference for the entire image pair. "
+            "Not calculated from the selected ROI or Map grid.",
+            official_card,
+        )
+        official_description.setObjectName("enterpriseIqaOfficialExplanation")
+        official_description.setWordWrap(True)
+        official_layout.addWidget(official_description)
+        official_layout.addWidget(self.official_label)
+        details_layout.addWidget(official_card, 1)
         self.roi_label = QLabel("ROI: none", inspector)
         self.roi_label.setWordWrap(True)
-        inspector_layout.addWidget(self.roi_label)
         self.clear_roi_button = QPushButton("Clear ROI (Esc / Shift+Esc)", inspector)
         self.clear_roi_button.setObjectName("enterpriseIqaClearRoiButton")
         self.clear_roi_button.setEnabled(False)
         self.clear_roi_button.clicked.connect(self._clear_roi)  # type: ignore[attr-defined]
-        inspector_layout.addWidget(self.clear_roi_button)
-        inspector_layout.addWidget(QLabel("Fixed symmetric map range ±", inspector))
-        self.range_editor = QDoubleSpinBox(inspector)
-        self.range_editor.setObjectName("enterpriseIqaMapRange")
-        self.range_editor.setDecimals(3)
-        self.range_editor.setRange(0.001, 1_000_000.0)
-        self.range_editor.setEnabled(False)
-        self.range_editor.valueChanged.connect(  # type: ignore[attr-defined]
-            self._update_range
+        roi_card = QFrame(inspector)
+        roi_card.setObjectName("enterpriseIqaRoiCard")
+        roi_card.setFrameShape(QFrame.Shape.StyledPanel)
+        roi_layout = QVBoxLayout(roi_card)
+        roi_layout.setContentsMargins(9, 6, 9, 6)
+        roi_layout.setSpacing(4)
+        roi_layout.addWidget(QLabel("ROI ANALYSIS · SOURCE PIXELS", roi_card))
+        roi_description = QLabel(
+            "Selected rectangle in original-image pixels. GRID-DERIVED mean "
+            "estimates local differences; it is not an official score. "
+            "Coverage is the ROI area supported by valid Map cells.",
+            roi_card,
         )
-        inspector_layout.addWidget(self.range_editor)
+        roi_description.setObjectName("enterpriseIqaRoiExplanation")
+        roi_description.setWordWrap(True)
+        roi_layout.addWidget(roi_description)
+        roi_layout.addWidget(self.roi_label)
+        roi_layout.addWidget(self.clear_roi_button)
+        details_layout.addWidget(roi_card, 2)
         self.clamp_label = QLabel("Map: unavailable", inspector)
         self.clamp_label.setWordWrap(True)
-        inspector_layout.addWidget(self.clamp_label)
-        inspector_layout.addStretch(1)
+        map_card = QFrame(inspector)
+        map_card.setObjectName("enterpriseIqaMapCard")
+        map_card.setFrameShape(QFrame.Shape.StyledPanel)
+        map_layout = QVBoxLayout(map_card)
+        map_layout.setContentsMargins(9, 6, 9, 6)
+        map_layout.setSpacing(4)
+        map_layout.addWidget(QLabel("SPATIAL MAP · CELL STATISTICS", map_card))
+        map_description = QLabel(
+            "Colors show signed grid-cell differences at Unit Range ±R and Map Gain ×G. "
+            "Invalid cells are transparent; clipped cells reach the end color.",
+            map_card,
+        )
+        map_description.setObjectName("enterpriseIqaMapExplanation")
+        map_description.setWordWrap(True)
+        map_layout.addWidget(map_description)
+        map_layout.addWidget(self.clamp_label)
+        details_layout.addWidget(map_card, 2)
         root_split.addWidget(image_split)
         root_split.addWidget(inspector)
         root_split.setStretchFactor(0, 3)
         root_split.setStretchFactor(1, 1)
-        self.setCentralWidget(root_split)
+        central = QWidget(self)
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(6, 5, 6, 5)
+        header = QHBoxLayout()
+        workspace_heading = QLabel("IQA  /  PAIR ANALYSIS", central)
+        workspace_heading.setObjectName("enterpriseIqaWorkspaceTitle")
+        header.addWidget(workspace_heading)
+        header.addWidget(QLabel("Result:", central))
+        # Keep the same combo and its original result-selected behavior.
+        header.addWidget(self.result_combo, 1)
+        self.pair_summary = QLabel("No result loaded", central)
+        self.pair_summary.setObjectName("enterpriseIqaPairSummary")
+        self.pair_summary.setMinimumWidth(230)
+        header.addWidget(self.pair_summary, 2)
+        self.fit_button = QPushButton("Fit pair", central)
+        self.fit_button.setObjectName("enterpriseIqaFitPair")
+        self.fit_button.setEnabled(False)
+        self.fit_button.clicked.connect(self._fit_pair)  # type: ignore[attr-defined]
+        header.addWidget(self.fit_button)
+        self.swap_button = QPushButton("Swap A/B  (T)", central)
+        self.swap_button.setObjectName("enterpriseIqaSwapButton")
+        self.swap_button.clicked.connect(self._swap_sources)  # type: ignore[attr-defined]
+        header.addWidget(self.swap_button)
+        self.roi_hint = QLabel("Shift+drag ROI  •  Esc clears", central)
+        self.roi_hint.setObjectName("enterpriseIqaRoiHint")
+        header.addWidget(self.roi_hint)
+        central_layout.addLayout(header)
+        central_layout.addWidget(root_split, 1)
+        self.setCentralWidget(central)
+        # Read the same reusable design tokens as the public PixelScope host.
+        # No private stylesheet or global palette mutation when hosted by MAIN.
+        self.setStyleSheet(
+            f"QLabel#enterpriseIqaWorkspaceTitle {{ color: {TOKENS.text_primary}; "
+            "font-weight: 700; }"
+            f"QLabel#enterpriseIqaChartHelp, QLabel#enterpriseIqaDetailContext, "
+            f"QLabel#enterpriseIqaOfficialExplanation, QLabel#enterpriseIqaRoiExplanation, "
+            f"QLabel#enterpriseIqaMapExplanation {{ color: {TOKENS.text_secondary}; }}"
+            f"QFrame#enterpriseIqaOfficialCard, "
+            f"QFrame#enterpriseIqaRoiCard, QFrame#enterpriseIqaMapCard {{ "
+            f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; }}"
+        )
         self.statusBar().showMessage(
-            "Shift+drag selects ROI. Esc or Shift+Esc clears it. Missing RGB is optional."
+            "Shift+drag ROI · T swaps A/B · Map Gain changes visualization only."
         )
         self._render_empty()
 
@@ -378,7 +547,12 @@ class AnalysisWindow(QMainWindow):
     def _validated_saved_state(result: AnalysisResult, raw: dict[str, object]) -> _ResultViewState:
         """Validate the separate user state before mutating any visible UI."""
 
-        if set(raw) != {"attribute_id", "roi", "ranges", "viewport"}:
+        # H1 legacy states used attribute-id ranges and had no gain. New
+        # states use unit keys and include display_gain, deterministically
+        # migrating old attribute overrides without changing measurements.
+        fields = set(raw)
+        legacy = fields == {"attribute_id", "roi", "ranges", "viewport"}
+        if not legacy and fields != {"attribute_id", "roi", "ranges", "viewport", "display_gain"}:
             raise ValueError("invalid analysis_state fields")
         ids = {attr.attribute_id for attr in result.attributes}
         attribute_id = raw["attribute_id"]
@@ -396,14 +570,37 @@ class AnalysisWindow(QMainWindow):
         raw_ranges = raw["ranges"]
         if not isinstance(raw_ranges, dict):
             raise ValueError("invalid saved ranges")
+        units = {item.unit for item in result.attributes}
+        lookup = {item.attribute_id: item.unit for item in result.attributes}
         ranges: dict[str, float] = {}
+        legacy_ranges: dict[str, float] = {}
         for key, value in raw_ranges.items():
-            if not isinstance(key, str) or key not in ids:
-                raise ValueError("range refers to missing attribute")
+            if not isinstance(key, str) or key not in (lookup if legacy else units):
+                raise ValueError("range refers to missing attribute or unit")
             limit = finite_number(value)
             if not 0.001 <= limit <= 1_000_000.0:
                 raise ValueError("saved range outside UI limits")
-            ranges[key] = limit
+            if legacy:
+                legacy_ranges[key] = limit
+            else:
+                if limit < 0.5 or abs(limit * 2 - round(limit * 2)) > 1e-7:
+                    raise ValueError("saved unit range must be a positive 0.5 step")
+                ranges[key] = limit
+        if legacy:
+            # Deterministic migration: the selected metric's old per-attr
+            # setting takes precedence for its unit; other units use their
+            # first matching metric in producer order.
+            for attr in result.attributes:
+                if attr.attribute_id in legacy_ranges and attr.unit not in ranges:
+                    value = legacy_ranges[attr.attribute_id]
+                    ranges[attr.unit] = max(0.5, float(np.ceil(value * 2) / 2))
+            chosen_unit = lookup[attribute_id]
+            if attribute_id in legacy_ranges:
+                value = legacy_ranges[attribute_id]
+                ranges[chosen_unit] = max(0.5, float(np.ceil(value * 2) / 2))
+        gain = 1.0 if legacy else finite_number(raw["display_gain"])
+        if not 0.5 <= gain <= 10.0 or abs(gain * 2 - round(gain * 2)) > 1e-7:
+            raise ValueError("saved display gain must be a positive 0.5 step")
 
         roi: Roi | None = None
         raw_roi = raw["roi"]
@@ -420,7 +617,11 @@ class AnalysisWindow(QMainWindow):
                 or y + height > result.image_height
             ):
                 raise ValueError("saved ROI outside source geometry")
-            roi = (x, y, width, height)
+            # Normalize legacy fractional saved ROIs outward onto covered pixels.
+            # Source coordinates are an integer-pixel selection, never subpixel.
+            left, top = int(np.floor(x)), int(np.floor(y))
+            right, bottom = int(np.ceil(x + width)), int(np.ceil(y + height))
+            roi = (left, top, right - left, bottom - top)
 
         viewport = raw["viewport"]
         if not isinstance(viewport, dict) or set(viewport) != {"scale", "center_x", "center_y"}:
@@ -429,7 +630,7 @@ class AnalysisWindow(QMainWindow):
         x_center = viewport["center_x"]
         y_center = viewport["center_y"]
         if zoom is None and x_center is None and y_center is None:
-            return _ResultViewState(attribute_id, roi, ranges)
+            return _ResultViewState(attribute_id, roi, ranges, display_gain=gain)
         scale = finite_number(zoom)
         center_x = finite_number(x_center)
         center_y = finite_number(y_center)
@@ -444,7 +645,7 @@ class AnalysisWindow(QMainWindow):
             raise ValueError("saved view center outside bounded source overscan")
         if not (-max_y_overscan <= center_y <= result.image_height + max_y_overscan):
             raise ValueError("saved view center outside bounded source overscan")
-        return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y)
+        return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y, gain)
 
     def present_result(
         self, result: AnalysisResult, *, analysis_state: dict[str, object] | None = None
@@ -470,14 +671,33 @@ class AnalysisWindow(QMainWindow):
         if is_new:
             self.result_combo.addItem(result.result_id, result.result_id)
         if result.result_id not in self._states:
-            self._states[result.result_id] = _ResultViewState(result.attributes[0].attribute_id)
+            # Prefer a first view with both official summary and spatial
+            # evidence; never silently rank unrelated Attribute units.
+            first_view = next(
+                (
+                    item
+                    for item in result.attributes
+                    if item.spatial is not None and item.official_value is not None
+                ),
+                result.attributes[0],
+            )
+            self._states[result.result_id] = _ResultViewState(first_view.attribute_id)
         self._active_id = result.result_id
         self.result_combo.blockSignals(True)
         self.result_combo.setCurrentIndex(self.result_combo.findData(result.result_id))
         self.result_combo.blockSignals(False)
         self.setWindowTitle(f"IQA Analysis — {result.result_id}")
+        self.pair_summary.setText(
+            f"A: {result.source_a_label}  /  B: {result.source_b_label}  "
+            f"• {result.image_width}×{result.image_height}"
+        )
+        self.pair_summary.setToolTip(
+            f"Source A: {result.source_a_label}\nSource B: {result.source_b_label}"
+        )
+        self.fit_button.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
         self._populate_attributes()
+        self.gain_editor.setEnabled(True)
         self._render_result()
         self.statusBar().showMessage(
             "Official global and grid-derived ROI values are distinct. "
@@ -498,7 +718,8 @@ class AnalysisWindow(QMainWindow):
         return {
             "attribute_id": state.attribute_id,
             "roi": list(state.roi) if state.roi is not None else None,
-            "ranges": dict(state.ranges),
+            "ranges": dict(state.ranges),  # stable unit names, not attribute IDs
+            "display_gain": state.display_gain,
             "viewport": {
                 "scale": state.scale,
                 "center_x": state.center_x,
@@ -515,34 +736,137 @@ class AnalysisWindow(QMainWindow):
             return None
         return self._results[self._active_id].attribute(state.attribute_id)
 
+    @staticmethod
+    def _unit_default_range(result: AnalysisResult, unit: str) -> float:
+        """Only use declared adapter visualization defaults, never grid min/max."""
+
+        declared = [
+            attr.chart_axis_range or attr.fixed_range
+            for attr in result.attributes
+            if attr.unit == unit
+        ]
+        return max(0.5, float(np.ceil(max(declared) * 2.0) / 2.0))
+
     def _populate_attributes(self) -> None:
         result = self._results[self._active_id]  # type: ignore[index]
         state = self._state()
         self._switching = True
-        self.attribute_table.setRowCount(len(result.attributes))
-        selected = 0
-        for row, attr in enumerate(result.attributes):
-            if state is not None and attr.attribute_id == state.attribute_id:
-                selected = row
-            value = "—" if attr.official_value is None else f"{attr.official_value:+.3f}"
-            fields = (f"{attr.group} / {attr.label}", value, attr.unit)
-            for col, field_text in enumerate(fields):
-                item = QTableWidgetItem(field_text)
-                item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
-                self.attribute_table.setItem(row, col, item)
-        self.attribute_table.selectRow(selected)
+        # QScrollArea owns the groups; clear stale widgets on a result change.
+        while self._groups_layout.count():
+            layout_item = self._groups_layout.takeAt(0)
+            section = layout_item.widget() if layout_item is not None else None
+            if section is not None:
+                section.hide()
+                section.deleteLater()
+        self._group_sections = {}
+        self._group_tables = {}
+        self._range_editors = {}
+        groups: dict[str, list[AttributeDisplay]] = {}
+        for attr in result.attributes:
+            groups.setdefault(attr.unit, []).append(attr)
+        self._group_units = list(groups)
+        for unit, attrs in groups.items():
+            section = QFrame(self.group_content)
+            section.setObjectName("enterpriseIqaUnitSection")
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(3, 3, 3, 3)
+            section_layout.setSpacing(3)
+            top = QHBoxLayout()
+            top.addWidget(QLabel(f"{unit}  ·  {len(attrs)} attributes", section), 1)
+            top.addWidget(QLabel("Range ±", section))
+            editor = QDoubleSpinBox(section)
+            editor.setObjectName("enterpriseIqaUnitRange")
+            editor.setDecimals(1)
+            editor.setRange(0.5, 1_000_000.0)
+            editor.setSingleStep(0.5)
+            editor.setSuffix(f" {unit}")
+            editor.setToolTip(
+                "One symmetric numeric range for ALL bars of this unit, "
+                "and the selected Map of this unit."
+            )
+            default = self._unit_default_range(result, unit)
+            limit = state.ranges.get(unit, default) if state is not None else default
+            editor.setValue(limit)
+            editor.valueChanged.connect(  # type: ignore[attr-defined]
+                lambda value, unit=unit: self._update_group_range(unit, value)
+            )
+            top.addWidget(editor)
+            section_layout.addLayout(top)
+
+            table = QTableWidget(len(attrs), 2, section)
+            table.setObjectName("enterpriseIqaAttributes")
+            table.setHorizontalHeaderLabels(["Metric / family", "Official difference"])
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+            table.setColumnWidth(0, 142)
+            table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            table.setItemDelegateForColumn(1, RelativeDifferenceDelegate(table))
+            table.setAlternatingRowColors(True)
+            table.verticalHeader().hide()
+            table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+            table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            table.setFixedHeight(27 + 36 * len(attrs))
+            for row, attr in enumerate(attrs):
+                table.setRowHeight(row, 36)
+                for col, content in enumerate((f"{attr.label}\n{attr.group}", "")):
+                    item = QTableWidgetItem(content)
+                    item.setData(Qt.ItemDataRole.UserRole, attr.attribute_id)
+                    item.setData(ATTRIBUTE_ROLE, attr)
+                    item.setData(DISPLAY_RANGE_ROLE, limit)
+                    item.setToolTip(
+                        f"{attr.label} · {attr.group} · {unit}; "
+                        f"official {attr.official_availability}; group scale ±{limit:g}"
+                    )
+                    table.setItem(row, col, item)
+            table.itemSelectionChanged.connect(  # type: ignore[attr-defined]
+                lambda unit=unit: self._on_group_attribute_selected(unit)
+            )
+            section_layout.addWidget(table)
+            self._groups_layout.addWidget(section)
+            self._group_sections[unit] = section
+            self._group_tables[unit] = table
+            self._range_editors[unit] = editor
+
+        self._groups_layout.addStretch(1)
+        # Compatibility accessors for first-unit consumers; actual state is
+        # always by unit, never by whichever table currently has selection.
+        first_unit = self._group_units[0]
+        self.attribute_table = self._group_tables[first_unit]
+        self.range_editor = self._range_editors[first_unit]
+        self.gain_editor.blockSignals(True)
+        self.gain_editor.setValue(state.display_gain if state is not None else 1.0)
+        self.gain_editor.blockSignals(False)
+        self._switching = False
+        self._select_active_attribute()
+
+    def _select_active_attribute(self) -> None:
+        state = self._state()
+        if state is None or self._active_id is None:
+            return
+        selected = self._results[self._active_id].attribute(state.attribute_id)
+        self._switching = True
+        for unit, table in self._group_tables.items():
+            if unit == selected.unit:
+                for row in range(table.rowCount()):
+                    if table.item(row, 0).data(Qt.ItemDataRole.UserRole) == selected.attribute_id:
+                        table.selectRow(row)
+                        break
+            else:
+                table.clearSelection()
         self._switching = False
 
-    def _on_attribute_selected(self) -> None:
+    def _on_group_attribute_selected(self, unit: str) -> None:
         if self._switching or self._active_id is None:
             return
-        # itemSelectionChanged can fire before currentRow/currentItem catches
-        # up to a programmatic selectRow(). Read the selected row from the
-        # selection model instead of sampling a potentially stale currentRow.
-        selected_rows = self.attribute_table.selectionModel().selectedRows()
+        table = self._group_tables.get(unit)
+        if table is None:
+            return
+        selected_rows = table.selectionModel().selectedRows()
         if len(selected_rows) != 1:
             return
-        item = self.attribute_table.item(selected_rows[0].row(), 0)
+        item = table.item(selected_rows[0].row(), 0)
         state = self._state()
         if item is None or state is None:
             return
@@ -550,6 +874,58 @@ class AnalysisWindow(QMainWindow):
         if attribute_id == state.attribute_id:
             return
         state.attribute_id = attribute_id
+        self._select_active_attribute()
+        self._render_result()
+
+    def _on_attribute_selected(self) -> None:
+        """Legacy first-group selection callback kept for compatibility."""
+
+        if self._group_units:
+            self._on_group_attribute_selected(self._group_units[0])
+
+    def _refresh_group_bars(self, unit: str) -> None:
+        state = self._state()
+        if state is None or self._active_id is None:
+            return
+        table = self._group_tables.get(unit)
+        if table is None:
+            return
+        limit = self._display_range(
+            next(a for a in self._results[self._active_id].attributes if a.unit == unit), state
+        )
+        for row in range(table.rowCount()):
+            cell = table.item(row, 1)
+            if cell is not None:
+                cell.setData(DISPLAY_RANGE_ROLE, limit)
+        table.viewport().update()
+
+    def _update_group_range(self, unit: str, value: float) -> None:
+        state = self._state()
+        if state is None or unit not in self._group_tables or value <= 0:
+            return
+        value = max(0.5, min(1_000_000.0, round(value * 2) / 2))
+        editor = self._range_editors[unit]
+        if editor.value() != value:
+            editor.blockSignals(True)
+            editor.setValue(value)
+            editor.blockSignals(False)
+        state.ranges[unit] = value
+        self._refresh_group_bars(unit)
+        attr = self._attribute()
+        if attr is not None and attr.unit == unit:
+            self._render_result()
+
+    def _update_gain(self, value: float) -> None:
+        state = self._state()
+        if state is None or value <= 0:
+            return
+        value = max(0.5, min(10.0, round(value * 2) / 2))
+        if self.gain_editor.value() != value:
+            self.gain_editor.blockSignals(True)
+            self.gain_editor.setValue(value)
+            self.gain_editor.blockSignals(False)
+        state.display_gain = value
+        # Only selected Map raster/clipping changes; NO Bar value/ROI mutation.
         self._render_result()
 
     def _render_empty(self) -> None:
@@ -558,9 +934,13 @@ class AnalysisWindow(QMainWindow):
             scene.addText(f"{name}\nNo result loaded")
             view.setScene(scene)
         self.official_label.setText("Official pair comparison: —")
+        self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
         self.range_editor.setEnabled(False)
+        self.gain_editor.setEnabled(False)
         self.clamp_label.setText("Map: unavailable")
+        self.pair_summary.setText("No result loaded")
+        self.fit_button.setEnabled(False)
 
     def _render_result(self) -> None:
         if self._active_id is None:
@@ -571,81 +951,190 @@ class AnalysisWindow(QMainWindow):
         attr = self._attribute()
         if state is None or attr is None:
             return
-        limit = state.ranges.get(attr.attribute_id, attr.fixed_range)
-        self.range_editor.blockSignals(True)
-        self.range_editor.setValue(limit)
-        self.range_editor.setEnabled(attr.spatial is not None)
-        self.range_editor.blockSignals(False)
-        # Decode source RGB once per active pair, not on attribute/range/ROI changes.
-        if self._source_result_id != result.result_id:
-            images: list[QPixmap | None] = []
-            for source in (result.source_a, result.source_b):
-                image = QImage(str(source)) if source is not None and source.is_file() else QImage()
-                if (
-                    image.isNull()
-                    or image.width() != result.image_width
-                    or image.height() != result.image_height
-                ):
-                    images.append(None)
+        limit = self._display_range(attr, state)
+        self._refresh_group_bars(attr.unit)
+        # Unit controls are always visible; gain changes only the current Map.
+        editor = self._range_editors.get(attr.unit)
+        if editor is not None and editor.value() != limit:
+            editor.blockSignals(True)
+            editor.setValue(limit)
+            editor.blockSignals(False)
+
+        # Attribute and color-range changes do not rebuild three Qt scenes.
+        # Recreate only when the actual result identity changes.
+        new_result = self._scene_result_id != result.result_id
+        if new_result:
+            if self._source_result_id != result.result_id:
+                images: list[QPixmap | None] = []
+                for source in (result.source_a, result.source_b):
+                    image = (
+                        QImage(str(source)) if source is not None and source.is_file() else QImage()
+                    )
+                    if (
+                        image.isNull()
+                        or image.width() != result.image_width
+                        or image.height() != result.image_height
+                    ):
+                        images.append(None)
+                    else:
+                        images.append(QPixmap.fromImage(image))
+                self._source_pixmaps = (images[0], images[1])
+                self._source_result_id = result.result_id
+            self._rendering = True
+            self._roi_items = []
+            for i, view in enumerate(self._views):
+                view._muted = True
+                old_scene = view.scene()
+                scene = QGraphicsScene(view)
+                scene.setSceneRect(QRectF(0, 0, result.image_width, result.image_height))
+                scene.setBackgroundBrush(QColor(TOKENS.workspace_background))
+                if i < 2:
+                    pixmap = self._source_pixmaps[i]
+                    if pixmap is None:
+                        note = scene.addText(
+                            "Source unavailable\nNumeric/spatial analysis retained"
+                        )
+                        note.setDefaultTextColor(QColor(TOKENS.text_secondary))
+                        note.setFlag(
+                            QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
+                        )
+                        note.setPos(result.image_width * 0.03, result.image_height * 0.03)
+                    else:
+                        scene.addPixmap(pixmap)
                 else:
-                    images.append(QPixmap.fromImage(image))
-            self._source_pixmaps = (images[0], images[1])
-            self._source_result_id = result.result_id
-        self._rendering = True
-        self._roi_items = []
-        for i, view in enumerate(self._views):
-            view._muted = True
-            old_scene = view.scene()
-            scene = QGraphicsScene(view)
-            scene.setSceneRect(QRectF(0, 0, result.image_width, result.image_height))
-            scene.setBackgroundBrush(QColor(29, 32, 36))
-            if i < 2:
-                pixmap = self._source_pixmaps[i]
-                if pixmap is None:
-                    note = scene.addText("Source unavailable\nNumeric/spatial analysis retained")
-                    note.setDefaultTextColor(QColor(240, 240, 240))
-                    note.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
-                    note.setPos(result.image_width * 0.03, result.image_height * 0.03)
-                else:
-                    scene.addPixmap(pixmap)
-            else:
-                pixmap = _map_pixmap(attr, limit)
-                grid = attr.spatial
-                if pixmap is None or grid is None:
-                    note = scene.addText("Spatial map unavailable")
-                    note.setDefaultTextColor(QColor(240, 240, 240))
-                    note.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
-                else:
-                    item = scene.addPixmap(pixmap)
-                    item.setPos(grid.origin_x, grid.origin_y)
-                    item.setTransformationMode(Qt.TransformationMode.FastTransformation)
-                    item.setTransform(QTransform().scale(grid.block_width, grid.block_height))
-            roi_pen = QPen(QColor(255, 205, 0), 2)
-            roi_pen.setCosmetic(True)  # Two visible display pixels, even on fitted 4K imagery.
-            overlay = scene.addRect(QRectF(), roi_pen)
-            overlay.setZValue(100)
-            overlay.setVisible(False)
-            self._roi_items.append(overlay)
-            view.setScene(scene)
-            if old_scene is not None:
-                old_scene.deleteLater()
-        self._rendering = False
-        for view in self._views:
-            view._muted = False
-        self._draw_roi(state.roi)
-        if state.scale is not None and state.center_x is not None and state.center_y is not None:
-            self._fit_pending_result_id = None
+                    # Persistent Map layer; only its pixels/declared grid transform
+                    # change when the selected Attribute or display range changes.
+                    self._map_item = scene.addPixmap(QPixmap())
+                    self._map_item.setTransformationMode(Qt.TransformationMode.FastTransformation)
+                    self._map_placeholder = scene.addText("Spatial map unavailable")
+                    self._map_placeholder.setDefaultTextColor(QColor(TOKENS.text_secondary))
+                    self._map_placeholder.setFlag(
+                        QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
+                    )
+                    self._map_placeholder.setPos(
+                        result.image_width * 0.03, result.image_height * 0.03
+                    )
+                    # Block grid: never interpolate cell values into fake 4K detail.
+                    view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                roi_pen = QPen(QColor(255, 205, 0), 2)
+                roi_pen.setCosmetic(True)
+                overlay = scene.addRect(QRectF(), roi_pen)
+                overlay.setZValue(100)
+                overlay.setVisible(False)
+                self._roi_items.append(overlay)
+                view.setScene(scene)
+                if old_scene is not None:
+                    old_scene.deleteLater()
+            self._scene_result_id = result.result_id
+            self._rendering = False
             for view in self._views:
-                view.apply_navigation(state.scale, state.center_x, state.center_y)
+                view._muted = False
+
+        self._refresh_map(attr, limit)
+        self._pane_labels[0].setText(f"IMAGE A  ·  {result.source_a_label}")
+        self._pane_labels[1].setText(f"IMAGE B  ·  {result.source_b_label}")
+        if attr.spatial is None:
+            self._pane_labels[2].setText(f"RELATIVE MAP  ·  {attr.label}  ·  unavailable")
         else:
-            self._fit_attempts_remaining = 8
-            # QWidget/Splitter viewport sizes are not valid before the first show.
-            # A pre-show fit can produce a microscopic scale and disable wheel UX.
-            self._fit_pending_result_id = result.result_id
-            self._queue_initial_fit()
+            grid = attr.spatial
+            self._pane_labels[2].setText(
+                f"RELATIVE MAP  ·  {attr.label}  ·  "
+                f"{grid.block_width:g}×{grid.block_height:g} px cells"
+            )
+        if new_result:
+            self._draw_roi(state.roi)
+            if (
+                state.scale is not None
+                and state.center_x is not None
+                and state.center_y is not None
+            ):
+                self._fit_pending_result_id = None
+                for view in self._views:
+                    view.apply_navigation(state.scale, state.center_x, state.center_y)
+            else:
+                self._fit_attempts_remaining = 8
+                self._fit_pending_result_id = result.result_id
+                self._queue_initial_fit()
+        else:
+            # The selected map may become absent. Keep A/B item identity, viewport,
+            # ROI geometry, and active keyboard selection stable.
+            if len(self._roi_items) == 3:
+                self._roi_items[2].setVisible(state.roi is not None and attr.spatial is not None)
         self._render_inspector(attr, limit)
 
+    def _refresh_map(self, attr: AttributeDisplay, limit: float) -> None:
+        """Update one persistent map pixmap and its validity placeholder."""
+
+        if self._map_item is None or self._map_placeholder is None:
+            return
+        state = self._state()
+        effective = spatial_display_half_range(
+            limit, state.display_gain if state is not None else 1.0
+        )
+        pixmap = _map_pixmap(attr, effective)
+        grid = attr.spatial
+        available = pixmap is not None and grid is not None
+        if available and pixmap is not None and grid is not None:
+            self._map_item.setPixmap(pixmap)
+            self._map_item.setPos(grid.origin_x, grid.origin_y)
+            self._map_item.setTransform(QTransform().scale(grid.block_width, grid.block_height))
+        else:
+            self._map_item.setPixmap(QPixmap())
+        self._map_item.setVisible(available)
+        self._map_placeholder.setVisible(not available)
+
+    def _fit_pair(self) -> None:
+        """Explicitly reset all three linked views to a post-layout full fit."""
+
+        state = self._state()
+        if state is None or self._active_id is None:
+            return
+        state.scale = state.center_x = state.center_y = None
+        self._fit_attempts_remaining = 8
+        self._fit_pending_result_id = self._active_id
+        self._queue_initial_fit()
+
+    def _set_pane_order(self) -> None:
+        """Reorder only visual containers, keeping the A/B science immutable."""
+
+        indices = (1, 2, 0) if self._sources_swapped else (0, 2, 1)
+        for visual_index, semantic_index in enumerate(indices):
+            self._image_split.insertWidget(visual_index, self._pane_wrappers[semantic_index])
+
+    def _swap_sources(self) -> None:
+        """Toggle A/Map/B placement without mutating A/B data or zoom state."""
+
+        state = self._state()
+        self._remember_navigation()
+        self._rendering = True
+        for view in self._views:
+            view._muted = True
+        try:
+            self._sources_swapped = not self._sources_swapped
+            self._set_pane_order()
+        finally:
+            for view in self._views:
+                view._muted = False
+            self._rendering = False
+        if (
+            state is not None
+            and state.scale is not None
+            and state.center_x is not None
+            and state.center_y is not None
+        ):
+            for view in self._views:
+                view.apply_navigation(state.scale, state.center_x, state.center_y)
+
+    def _display_range(self, attr: AttributeDisplay, state: _ResultViewState) -> float:
+        """Use one range when the adapter declared comparable official units."""
+
+        if self._active_id is None:
+            return attr.chart_axis_range or attr.fixed_range
+        result = self._results[self._active_id]
+        return state.ranges.get(attr.unit, self._unit_default_range(result, attr.unit))
+
     def _render_inspector(self, attr: AttributeDisplay, limit: float) -> None:
+        self.detail_context.setText(f"DETAILS · {attr.label}  ({attr.unit})")
         if attr.official_value is None:
             text = attr.official_availability.upper() + " (not zero)"
         else:
@@ -654,13 +1143,13 @@ class AnalysisWindow(QMainWindow):
         self.official_label.setText(f"OFFICIAL full-pair: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
-            self.roi_label.setText("ROI: none · Shift+drag to inspect · Esc clears")
+            self.roi_label.setText("ROI: none\nShift+drag on A, Map or B · Esc clears")
         else:
             x, y, width, height = roi
             description = (
-                f"ROI source (x, y, w, h): ({x:.1f}, {y:.1f}, "
-                f"{width:.1f}, {height:.1f}) px\n"
-                f"Selected source area: {width * height:,.1f} px²"
+                f"ROI source (x, y, w, h): "
+                f"({int(x)}, {int(y)}, {int(width)}, {int(height)}) px\n"
+                f"Selected source area: {int(width * height):,} px²"
             )
             if attr.spatial is None:
                 self.roi_label.setText(
@@ -671,17 +1160,24 @@ class AnalysisWindow(QMainWindow):
                 value = "missing" if stats.mean is None else f"{stats.mean:+.4f} {attr.unit}"
                 self.roi_label.setText(
                     f"{description}\nGRID-DERIVED ROI mean: {value} (NOT official)\n"
-                    f"Grid valid area: {stats.valid_area:,.1f} / "
-                    f"{stats.roi_area:,.1f} px² ({stats.valid_coverage:.1%} coverage)"
+                    f"Grid valid area: {stats.valid_area:,.0f} / "
+                    f"{stats.roi_area:,.0f} px²  ·  {stats.valid_coverage:.1%} coverage"
                 )
         if attr.spatial is None:
             self.clamp_label.setText("Map missing (not zero)")
         else:
-            clipped, total = clipped_cells(attr.spatial, limit)
+            grid = attr.spatial
+            state = self._state()
+            gain = state.display_gain if state is not None else 1.0
+            clipped, total = clipped_cells(grid, spatial_display_half_range(limit, gain))
             pct = 0.0 if total == 0 else (clipped / total)
+            invalid = grid.values.size - total
             self.clamp_label.setText(
-                f"Map scale: −{limit:g} to +{limit:g} {attr.unit}\n"
+                f"Group ±{limit:g} {attr.unit} · Map gain ×{gain:g}\n"
                 f"{map_polarity_legend(attr)}\n"
+                f"Cells: {grid.rows}×{grid.columns} • "
+                f"{grid.block_width:g}×{grid.block_height:g} source px, nearest\n"
+                f"Invalid: {invalid} transparent cells (not zero)\n"
                 f"Clamped: {clipped}/{total} valid cells ({pct:.1%})"
             )
 
@@ -722,16 +1218,18 @@ class AnalysisWindow(QMainWindow):
         self._draw_roi(None)
         attr = self._attribute()
         if attr is not None and state is not None:
-            self._render_inspector(attr, state.ranges.get(attr.attribute_id, attr.fixed_range))
+            self._render_inspector(attr, self._display_range(attr, state))
 
     def _set_roi(self, x: float, y: float, w: float, h: float) -> None:
         if self._active_id is None:
             return
         result = self._results[self._active_id]
-        left = max(0.0, min(x, float(result.image_width)))
-        top = max(0.0, min(y, float(result.image_height)))
-        right = max(left, min(x + w, float(result.image_width)))
-        bottom = max(top, min(y + h, float(result.image_height)))
+        # A dragged source ROI includes every touched integer pixel. Round the
+        # start down and exclusive end up; preserve clipped image boundaries.
+        left = max(0, min(int(np.floor(x)), result.image_width))
+        top = max(0, min(int(np.floor(y)), result.image_height))
+        right = max(left, min(int(np.ceil(x + w)), result.image_width))
+        bottom = max(top, min(int(np.ceil(y + h)), result.image_height))
         if right <= left or bottom <= top:
             return
         state = self._state()
@@ -741,15 +1239,14 @@ class AnalysisWindow(QMainWindow):
         self._draw_roi(state.roi)
         attr = self._attribute()
         if attr is not None:
-            self._render_inspector(attr, state.ranges.get(attr.attribute_id, attr.fixed_range))
+            self._render_inspector(attr, self._display_range(attr, state))
 
     def _update_range(self, value: float) -> None:
-        state = self._state()
+        """Compatibility entrypoint for an explicit selected-unit range edit."""
+
         attr = self._attribute()
-        if state is None or attr is None or value <= 0:
-            return
-        state.ranges[attr.attribute_id] = value
-        self._render_result()
+        if attr is not None:
+            self._update_group_range(attr.unit, value)
 
     def _sync_views(self, source: _LinkedView, scale: float, x: float, y: float) -> None:
         state = self._state()
