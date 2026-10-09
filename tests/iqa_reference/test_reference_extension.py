@@ -67,12 +67,13 @@ def test_reference_lite_proves_existing_menu_dock_status_and_child_window_hooks(
     assert "Synthetic pair" in extension.widget.selection_label.text()
 
     # One child can open EMPTY while there are multiple live jobs.
-    extension.widget.empty_button.click()
+    window.action_map["Show IQA Analysis Window"].trigger()
     analysis = extension.analysis_window
     assert analysis is not None
     assert analysis.result is None
     assert analysis.isWindow()
     assert analysis.parent() is window
+    assert window.action_map["Show IQA Analysis Window"].isChecked()
 
     # Manually advancing a selected fixture job never auto-switches the viewer.
     extension.widget.advance_button.click()
@@ -92,10 +93,12 @@ def test_reference_lite_proves_existing_menu_dock_status_and_child_window_hooks(
 
     # Closing the child neither removes nor cancels jobs; the same child reopens.
     analysis.close()
+    assert not window.action_map["Show IQA Analysis Window"].isChecked()
     assert extension.jobs[first_id].state is IqaJobState.QUEUED
     assert extension.jobs[second_id].state is IqaJobState.COMPLETED
     extension.widget.view_button.click()
     assert extension.analysis_window is analysis
+    assert window.action_map["Show IQA Analysis Window"].isChecked()
 
     # Selecting an older job retains its independent state/controls.
     extension.widget.jobs_list.setCurrentRow(0)
@@ -121,16 +124,26 @@ def test_reference_published_result_demo_is_explicitly_synthetic(
     window = MainWindow(window_contributions=(extension,))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
 
-    window.action_map["Open Published Synthetic IQA Result (Demo)"].trigger()
+    window.action_map["Load Synthetic Demo Result"].trigger()
     assert len(extension.jobs) == 1
     assert next(iter(extension.jobs.values())).state is IqaJobState.COMPLETED
     assert extension.analysis_window is not None
     assert extension.analysis_window.result is not None
     assert extension.analysis_window.result.result_id == "fixture-minimal"
 
-    window.action_map["Open Empty IQA Analysis Canary"].trigger()
-    assert extension.analysis_window.result is None
-    assert "Empty analysis window" in extension.analysis_window.result_label.text()
+    # Visibility-only toggle preserves the published result and child identity.
+    view_action = window.action_map["Show IQA Analysis Window"]
+    assert view_action.isChecked()
+    analysis = extension.analysis_window
+    view_action.trigger()
+    assert not view_action.isChecked()
+    assert analysis.isHidden()
+    assert analysis.result is not None
+    assert analysis.result.result_id == "fixture-minimal"
+    view_action.trigger()
+    assert view_action.isChecked()
+    assert extension.analysis_window is analysis
+    assert analysis.result.result_id == "fixture-minimal"
 
     window.close()
     assert extension.analysis_window is None
@@ -193,7 +206,7 @@ def test_published_demo_submission_failure_does_not_advance_previous_selection(
         )
 
     monkeypatch.setattr(provider, "submit", reject_submit)
-    window.action_map["Open Published Synthetic IQA Result (Demo)"].trigger()
+    window.action_map["Load Synthetic Demo Result"].trigger()
 
     assert extension.widget.selected_job_id() == previous_id
     assert len(extension.jobs) == 1
@@ -202,7 +215,7 @@ def test_published_demo_submission_failure_does_not_advance_previous_selection(
     assert "submission failed" in extension.widget.status_label.text()
 
     # A second failed attempt also leaves the prior job intact.
-    window.action_map["Open Published Synthetic IQA Result (Demo)"].trigger()
+    window.action_map["Load Synthetic Demo Result"].trigger()
     assert extension.jobs[previous_id].state is expected
     assert len(extension.jobs) == 1
     window.close()
@@ -222,14 +235,17 @@ def test_reference_child_reopen_cycles_keep_jobs_alive_until_owner_shutdown(
     job_id = extension.widget.selected_job_id()
     assert job_id is not None
 
-    extension.widget.empty_button.click()
+    view_action = window.action_map["Show IQA Analysis Window"]
+    view_action.trigger()
     child = extension.analysis_window
     assert child is not None
     for _ in range(5):
         child.close()
         assert child.isHidden()
+        assert not view_action.isChecked()
         assert extension.jobs[job_id].state is IqaJobState.QUEUED
-        extension.widget.empty_button.click()
+        view_action.trigger()
+        assert view_action.isChecked()
         assert extension.analysis_window is child
         assert not child.isHidden()
 
@@ -380,7 +396,7 @@ def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
     labels = [action.text() for action in actual]
     expected = (
         "Run IQA (Synthetic)",
-        "Open Published Synthetic IQA Result (Demo)",
+        "Load Synthetic Demo Result",
         "Open Empty IQA Analysis Canary",
     )
     for label in expected:
