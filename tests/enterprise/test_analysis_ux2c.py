@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
-from PySide6.QtWidgets import QDockWidget, QMainWindow
+from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow
 
 from pixelscope_enterprise.iqa.analysis_window import AnalysisWindow, AnalysisWindowManager
 from pixelscope_enterprise.iqa.demo import make_synthetic_result
@@ -61,8 +63,14 @@ def test_spatial_cards_pixel_aligned_native_crops_and_focus(qtbot: object, tmp_p
     win = _loaded_window(qtbot, tmp_path)
     assert len(win.spatial_panel.buttons) == 3
     assert all(button.isEnabled() for button in win.spatial_panel.buttons)
-    assert win.spatial_panel.previews[0][0].pixmap() is not None
-    assert win.spatial_panel.previews[0][1].pixmap() is not None
+    stitched = win.spatial_panel.previews[0]
+    assert stitched.has_a and stitched.has_b
+    assert stitched._a is not None and stitched._b is not None
+    assert stitched._a.width() == stitched._b.width() == 512
+    assert stitched._a.height() == stitched._b.height() == 512
+    assert "LARGEST LOCAL DIFFERENCE" in win.spatial_panel.titles[0].text()
+    assert win.spatial_panel.impact_bars[0].value() == 100
+    assert win.spatial_panel.impact_bars[1].value() <= 100
     original = tuple(view.scene() for view in win._views)
     key = win._spatial_key()
     assert key is not None
@@ -103,8 +111,9 @@ def test_spatial_dock_without_source_still_shows_grid_provenance(qtbot: object) 
     )
     assert win.spatial_panel.buttons[0].isEnabled()
     assert "GRID mean" in win.spatial_panel.details[0].text()
-    assert win.spatial_panel.previews[0][0].pixmap() is None
-    assert "unavailable" in win.spatial_panel.previews[0][0].text()
+    stitched = win.spatial_panel.previews[0]
+    assert not stitched.has_a and not stitched.has_b
+    assert "source-pixel ROI" in stitched.toolTip()
     win.hotspot_overlay_action.setChecked(True)
     assert not any(rect.isVisible() for rect, _ in win._candidate_overlay_items[0])
     assert not any(rect.isVisible() for rect, _ in win._candidate_overlay_items[1])
@@ -134,3 +143,51 @@ def test_spatial_dock_result_switch_and_close_reopen(qtbot: object) -> None:
         lambda: win._spatial_displayed is not None, timeout=5000
     )
     manager.shutdown()
+
+
+
+def test_dock_vertical_growth_enlarges_single_stitch_without_resampling(
+    qtbot: object, tmp_path: Path
+) -> None:
+    """No two independent black-padded panes or per-resize pixmap creation."""
+
+    win = _loaded_window(qtbot, tmp_path)
+    win.resize(1600, 950)
+    QApplication.processEvents()
+    win.resizeDocks([win.spatial_dock], [195], Qt.Orientation.Vertical)
+    QApplication.processEvents()
+    stitched = win.spatial_panel.previews[0]
+    before = stitched.fitted_rect()
+    assert stitched.has_a and stitched.has_b
+    a = stitched._a
+    b = stitched._b
+    assert a is not None and b is not None
+    a_key, b_key = a.cacheKey(), b.cacheKey()
+
+    win.resizeDocks([win.spatial_dock], [345], Qt.Orientation.Vertical)
+    QApplication.processEvents()
+    after = stitched.fitted_rect()
+    assert after.height() > before.height()
+    assert after.width() > before.width()
+    assert after.width() == pytest.approx(2.0 * after.height(), rel=0.03)
+    assert stitched._a is not None and stitched._a.cacheKey() == a_key
+    assert stitched._b is not None and stitched._b.cacheKey() == b_key
+    assert "GRID-derived" in win.spatial_panel.status_label.text()
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+def test_startup_bottom_dock_does_not_collapse_fhd_inspector(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.resize(1600, 800)
+    win.present_result(make_synthetic_result("ux2c-fhd-inspector"))
+    win.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._fit_pending_result_id is None
+        and win.inspector_splitter.height() > 350,
+        timeout=5000,
+    )
+    assert win.spatial_dock.isVisible()
+    win.close()
+    win._shutdown_spatial_worker()
