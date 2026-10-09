@@ -21,6 +21,26 @@ The MAIN Host needs **no new toolbar/status API** for this layout. Existing `Win
 - **Open Published Synthetic IQA Result (Demo)** creates/completes a fake job and opens its fixture result. It is **not** a filesystem Open/Save As operation; no persistent portable result is produced.
 - Result presentation in the child is intentionally limited to identity/count/completeness. No A/B/Map, image reader, ROI/hotspot, NPZ, report, server/storage/auth logic, or official comparative metric is implemented.
 
+### MAIN keyboard focus and menu integration
+
+The Reference launcher contributes three real actions to **File**: Run IQA
+(Synthetic), Open Published Synthetic IQA Result (Demo), and Open Empty IQA
+Analysis Canary. These actions must occur in the File menu's visible/enabled
+QAction list, not only in the MainWindow's internal action map. View > Show IQA
+Mock Jobs is independently contributed to View. When debugging launcher
+differences, check the explicit `python -m pixelscope_iqa_reference` entry point
+and the currently running executable/version; the Core-only launcher does not
+install Reference actions.
+
+The generic MAIN Files tree exclusively owns keyboard **Delete** and **Ctrl+A**
+through focus-scoped `WidgetWithChildrenShortcut` handlers. A focused IQA
+Jobs list must never remove already selected PixelScope images, nor change
+the background Files selection. Explicit Edit > Remove Selected and
+Selection > Select All menu commands remain available. Other existing
+application-wide navigation shortcuts (for example image/page arrows and
+number keys) are not changed in this scope: their focus behavior should be
+reviewed separately before changing established viewer navigation.
+
 The actual IQA client execution and result workflows, async scheduling, and full A/B/Map Analysis Window remain **SUB-owned**. Reference's fixture `advance()` is a deterministic UI conformance clock, never a scheduler contract. The child window is parented to the owning MainWindow as a top-level Qt window with extension-owned references and teardown; no new generic host API is required.
 
 ### Targeted validation
