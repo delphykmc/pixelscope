@@ -301,7 +301,9 @@ class SpatialCandidatesPanel(QWidget):
             rank_title = (
                 "01  LARGEST LOCAL DIFFERENCE"
                 if i == 0
-                else f"0{i + 1}  NEXT STRONGEST" if i == 1 else "03  THIRD STRONGEST"
+                else f"0{i + 1}  NEXT STRONGEST"
+                if i == 1
+                else "03  THIRD STRONGEST"
             )
             self.titles[i].setText(rank_title)
             self.titles[i].setToolTip(
@@ -319,9 +321,7 @@ class SpatialCandidatesPanel(QWidget):
             )
             a = self._crop(pixmaps[0], candidate)
             b = self._crop(pixmaps[1], candidate)
-            self.previews[i].set_patches(
-                a, b, (candidate.width, candidate.height)
-            )
+            self.previews[i].set_patches(a, b, (candidate.width, candidate.height))
             self.impact_bars[i].setValue(
                 round(100.0 * candidate.score / leader) if leader > 0 else 0
             )
