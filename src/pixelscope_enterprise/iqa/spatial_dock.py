@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from PySide6.QtCore import Qt, QRect, Signal
+from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -47,10 +47,16 @@ class SpatialCandidatesPanel(QWidget):
         header.addWidget(QLabel("Scan", self))
         self.stride_selector = QComboBox(self)
         self.stride_selector.setObjectName("enterpriseIqaSpatialStride")
-        for title, stride in (("Detailed · 64 px", 64), ("Standard · 128 px", 128), ("Fast · 256 px", 256)):
-            self.stride_selector.addItem(title, stride)
+        for label, stride in (
+            ("Detailed · 64 px", 64),
+            ("Standard · 128 px", 128),
+            ("Fast · 256 px", 256),
+        ):
+            self.stride_selector.addItem(label, stride)
         self.stride_selector.setCurrentIndex(1)
-        self.stride_selector.currentIndexChanged.connect(self._stride_selected)
+        self.stride_selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._stride_selected
+        )
         header.addWidget(self.stride_selector)
         layout.addLayout(header)
 
@@ -82,9 +88,9 @@ class SpatialCandidatesPanel(QWidget):
             column = QVBoxLayout(card)
             column.setContentsMargins(7, 5, 7, 5)
             column.setSpacing(3)
-            title = QLabel(f"#{index + 1}  —", card)
-            title.setObjectName("enterpriseIqaSpatialCardTitle")
-            column.addWidget(title)
+            card_title = QLabel(f"#{index + 1}  —", card)
+            card_title.setObjectName("enterpriseIqaSpatialCardTitle")
+            column.addWidget(card_title)
             row = QHBoxLayout()
             row.setSpacing(2)
             left = self._image_label(card, "A · source unavailable")
@@ -100,13 +106,16 @@ class SpatialCandidatesPanel(QWidget):
             detail.setObjectName("enterpriseIqaSpatialCardDetails")
             column.addWidget(detail)
             # Labels are visual content; mouse clicks reach the actual button.
-            for child in (title, left, seam, right, detail):
-                child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-            card.clicked.connect(lambda _checked=False, i=index: self.candidate_clicked.emit(i))
+            for child in (card_title, left, seam, right, detail):
+                if isinstance(child, QWidget):
+                    child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            card.clicked.connect(  # type: ignore[attr-defined]
+                lambda _checked=False, i=index: self.candidate_clicked.emit(i)
+            )
             cards.addWidget(card, 1)
             self.buttons.append(card)
             self.previews.append((left, right))
-            self.titles.append(title)
+            self.titles.append(card_title)
             self.details.append(detail)
         layout.addLayout(cards, 1)
         self.setStyleSheet(
