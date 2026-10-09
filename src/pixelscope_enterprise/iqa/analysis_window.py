@@ -47,8 +47,8 @@ from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
-    QGraphicsTextItem,
     QGraphicsScene,
+    QGraphicsTextItem,
     QGraphicsView,
     QHBoxLayout,
     QHeaderView,
@@ -382,9 +382,9 @@ class AnalysisWindow(QMainWindow):
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(6, 5, 6, 5)
         header = QHBoxLayout()
-        title = QLabel("IQA  /  PAIR ANALYSIS", central)
-        title.setObjectName("enterpriseIqaWorkspaceTitle")
-        header.addWidget(title)
+        workspace_heading = QLabel("IQA  /  PAIR ANALYSIS", central)
+        workspace_heading.setObjectName("enterpriseIqaWorkspaceTitle")
+        header.addWidget(workspace_heading)
         header.addWidget(QLabel("Result:", central))
         # Keep the same combo and its original result-selected behavior.
         header.addWidget(self.result_combo, 1)
