@@ -66,7 +66,9 @@ deliberately tests independent official/map availability:
 | 12 | Missing | Missing | Honest empty chart/map |
 
 The default standalone demo has neither original RGB image; both show source
-unavailable with the grid still functional. A separate Qt regression writes a
+unavailable with the grid still functional. Running the demo with `--rgb`
+creates two safe temporary flat-color 3840×2160 PNGs and displays them in
+A/B, deleting them after the window exits. A separate Qt regression writes a
 safe 3840×2160 RGB fixture and confirms source panes, repeated 12-attribute
 selection, persistent scene identities and a real QImage screenshot.
 
@@ -80,6 +82,9 @@ $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m pytest -q tests/iqa_reference/test_reference_extension.py
 Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 .\.venv\Scripts\python.exe -m pixelscope_enterprise.iqa.demo
+# Optional: produce two temporary company-neutral 3840x2160 RGB source PNGs
+# to exercise live A/B pane rendering; files are deleted on demo exit.
+.\.venv\Scripts\python.exe -m pixelscope_enterprise.iqa.demo --rgb
 ```
 
 Check a 1920×1080 physical desktop with 12 metrics and scroll the Inspector;
