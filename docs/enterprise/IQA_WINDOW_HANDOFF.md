@@ -151,6 +151,29 @@ Windows**. Rerun the *entire* focused Qt module including a strict
 native GC repetition and packaging remain gates. No `main` branch
 or Reference UI changes should be imported with this patch.
 
+## Owner Windows focused test follow-up — attribute switch / missing map
+
+On Windows (Python 3.10.11 / PySide6 6.4.2), the owner ran model tests
+**10 PASS** and the strict-deprecation Qt suite **16 PASS / 1 FAIL**
+(17 total) at the preceding PR #144 HEAD. The failure was
+`test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area`:
+after calling `attribute_table.selectRow(1)` (attribute without a
+spatial grid), the Spatial Map ROI rectangle remained visible.
+
+The visibility predicate in `_draw_roi()` already checks the selected
+attribute's `spatial` field. The selection handler had instead read
+`currentRow()` from an `itemSelectionChanged` callback, which can be
+stale during programmatic row changes. It now obtains the actually
+selected row via `selectionModel().selectedRows()` and enforces
+single-row selection. Regression assertions verify that selected
+`attribute_id` changes as intended and map-ROI visibility toggles
+on repeated attribute switches while image-source visibility and ROI
+coordinates remain intact.
+
+**This is a code-level correction, not yet a confirmed rerun of the
+failed Windows test.** The full module should be executed again in the
+owner environment; existing change-scoped CI still skips Enterprise Qt.
+
 ## Manual standalone preview
 
 In a normal project Python 3.10 environment with editable package and Qt dependencies:
