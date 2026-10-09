@@ -22,7 +22,9 @@ def test_ux2a_top_cards_select_official_metric_without_destroying_views(
     assert len(win.top3_buttons) == 3
     assert all(button.isEnabled() for button in win.top3_buttons)
     assert win._top3_attribute_ids == [  # type: ignore[attr-defined]
-        "synthetic_04", "synthetic_05", "synthetic_00"
+        "synthetic_04",
+        "synthetic_05",
+        "synthetic_00",
     ]
     scenes = tuple(view.scene() for view in win._views)
     win._set_roi(200.0, 220.0, 512.0, 512.0)
@@ -66,9 +68,7 @@ def test_ux2a_toolbar_reuses_menu_actions_and_documented_shortcuts(qtbot: object
     assert win.fit_button.defaultAction() is win.fit_action
     assert win.clear_roi_tool_button.defaultAction() is win.clear_roi_action
     assert win.fit_action.shortcut() == QKeySequence("Ctrl+0")
-    assert win.swap_sources_action.shortcuts() == [
-        QKeySequence("T"), QKeySequence("Alt+X")
-    ]
+    assert win.swap_sources_action.shortcuts() == [QKeySequence("T"), QKeySequence("Alt+X")]
     assert win.fit_action.isEnabled() is False
     win.present_result(make_synthetic_result("ux2a-toolbar"))
     assert win.fit_button.isEnabled()
