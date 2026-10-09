@@ -237,16 +237,20 @@ def clipped_cells(grid: SpatialMap, half_range: float) -> tuple[int, int]:
     )
 
 
-def official_chart_fraction(attribute: AttributeDisplay) -> float | None:
-    """Signed ratio on an independently *declared* official chart axis.
+def official_chart_fraction(
+    attribute: AttributeDisplay, display_range: float | None = None
+) -> float | None:
+    """Official comparison on a shared display range, with explicit adapter consent.
 
-    Returns None for missing official values or unknown chart-axis scale.
-    This avoids using spatial map color limits as alleged official ranges.
-    A true official zero returns 0.0, distinct from None.
+    chart_axis_range signals that this scalar's numeric unit can share a
+    display domain with its spatial map. A user's range override changes
+    visualization only: it cannot alter either the original official value
+    or the spatial grid. Without that consent, never draw a fabricated bar.
     """
 
-    axis = attribute.chart_axis_range
-    value = attribute.official_value
-    if axis is None or value is None:
+    if attribute.chart_axis_range is None or attribute.official_value is None:
         return None
-    return float(np.clip(value / axis, -1.0, 1.0))
+    axis = attribute.chart_axis_range if display_range is None else display_range
+    if not np.isfinite(axis) or axis <= 0:
+        raise ValueError("shared display range must be positive and finite")
+    return float(np.clip(attribute.official_value / axis, -1.0, 1.0))
