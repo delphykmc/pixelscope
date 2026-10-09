@@ -18,6 +18,10 @@ pair window with linked A/B/Map and right Inspector remains intact.
 2. The main Inspector **relative difference** display presents supplied
    Attribute order in two columns: label+group+unit and an interactive
    **official** bipolar bar. Clicking/arrow-key selecting a row picks a Map.
+   First opening prefers the first supplied Attribute with **both official
+   value and a spatial grid**, without ranking different attributes/units;
+   if none exists, it selects the first supplied Attribute. Explicit user
+   selection and restored per-result state always take priority.
 3. Bar direction means **A better (+)/B better (−)** only when the adapter
    declared `quality_oriented=True`. Neutral signed values use the
    independent purple/teal polarity and never infer a winner.
