@@ -28,6 +28,9 @@ The Reference launcher contributes **IQA > Run IQA (Synthetic)** and
 only when a contribution adds a command; Core-only has no IQA menu.
 **View > Show IQA Mock Jobs** and **View > Show IQA Analysis Window** are
 checkable visibility controls. The latter never resets the displayed result.
+A mock submission may reveal the Jobs dock initially, but explicitly hiding
+it via View or its close affordance prevents later submissions from reopening
+it; the next View ON restores the existing dock and job history.
 Synthetic Run, Demo, and Empty Canary commands do not belong in File.
 
 **File > Open IQA Result...** is reserved for a real saved-result browser/reader;
