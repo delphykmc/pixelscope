@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from PySide6.QtCore import QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPixmap
+from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
@@ -124,6 +124,27 @@ class StitchedRoiCanvas(QWidget):
         painter.end()
 
 
+def _rank_badge(rank: int) -> QPixmap:
+    """Compact vector-painted rank token; top discovery is visually dominant."""
+
+    badge = QPixmap(28, 28)
+    badge.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(badge)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    tone = TOKENS.selection if rank == 1 else "#7595b4"
+    painter.setBrush(QColor(tone) if rank == 1 else QColor(TOKENS.raised_background))
+    painter.setPen(QPen(QColor(tone), 2))
+    painter.drawEllipse(2, 2, 24, 24)
+    font = painter.font()
+    font.setBold(True)
+    font.setPixelSize(14 if rank == 1 else 12)
+    painter.setFont(font)
+    painter.setPen(QColor("#1a1d21") if rank == 1 else QColor(TOKENS.text_primary))
+    painter.drawText(QRect(2, 2, 24, 24), Qt.AlignmentFlag.AlignCenter, str(rank))
+    painter.end()
+    return badge
+
+
 class SpatialCandidatesPanel(QWidget):
     """Three resizable stitched source comparison cards and one scan preset."""
 
@@ -138,13 +159,27 @@ class SpatialCandidatesPanel(QWidget):
         layout.setSpacing(3)
 
         header = QHBoxLayout()
-        self.heading = QLabel("TOP 3  /  LOCAL DIFFERENCE HOTSPOTS", self)
+        self.heading = QLabel("ROI   TOP 3", self)
         self.heading.setObjectName("enterpriseIqaSpatialHeading")
         self.heading.setToolTip(
             "Ranks provisional GRID-derived spatial differences by local magnitude, "
             "not by an official ROI quality score."
         )
-        header.addWidget(self.heading, 1)
+        self.heading.setStyleSheet(
+            f"color: {TOKENS.text_primary}; font-weight: 700;"
+        )
+        header.addWidget(self.heading)
+        self.provenance_badge = QLabel("GRID", self)
+        self.provenance_badge.setObjectName("enterpriseIqaGridBadge")
+        self.provenance_badge.setToolTip(
+            "Provisional GRID-derived ROI candidates. Not official IQA quality scores."
+        )
+        self.provenance_badge.setStyleSheet(
+            f"color: {TOKENS.accent}; background-color: {TOKENS.title_background}; "
+            f"border: 1px solid {TOKENS.border}; border-radius: 4px; padding: 1px 5px;"
+        )
+        header.addWidget(self.provenance_badge)
+        header.addStretch(1)
         self.stride_selector = QComboBox(self)
         self.stride_selector.setObjectName("enterpriseIqaSpatialStride")
         for label, stride in (
@@ -161,17 +196,14 @@ class SpatialCandidatesPanel(QWidget):
         header.addWidget(self.stride_selector)
         layout.addLayout(header)
 
-        self.status_label = QLabel(
-            "Largest local contrast first · A | B native crops · click to inspect. "
-            "GRID-DERIVED, not official ROI scores.",
-            self,
-        )
+        self.status_label = QLabel("Peak |Δ|  ↓   ·   A/B ROI", self)
         self.status_label.setObjectName("enterpriseIqaSpatialStatus")
         self.status_label.setToolTip(
             "Mean of signed valid spatial grid cells inside a proposed source ROI. "
             "Ranking strength is relative among the three proposals only."
         )
         self.status_label.setWordWrap(False)
+        self.status_label.setStyleSheet(f"color: {TOKENS.text_secondary};")
         layout.addWidget(self.status_label)
         self.progress = QProgressBar(self)
         self.progress.setObjectName("enterpriseIqaSpatialBusy")
@@ -186,6 +218,7 @@ class SpatialCandidatesPanel(QWidget):
         self.buttons: list[QPushButton] = []
         self.previews: list[StitchedRoiCanvas] = []
         self.titles: list[QLabel] = []
+        self.rank_badges: list[QLabel] = []
         self.details: list[QLabel] = []
         self.impact_bars: list[QProgressBar] = []
         for index in range(3):
@@ -199,9 +232,23 @@ class SpatialCandidatesPanel(QWidget):
             column = QVBoxLayout(card)
             column.setContentsMargins(5, 3, 5, 3)
             column.setSpacing(2)
-            card_title = QLabel(f"#{index + 1}  —", card)
+            card_header = QHBoxLayout()
+            card_header.setSpacing(5)
+            rank_badge = QLabel(card)
+            rank_badge.setObjectName(f"enterpriseIqaSpatialRank{index + 1}")
+            rank_badge.setPixmap(_rank_badge(index + 1))
+            rank_badge.setFixedSize(28, 28)
+            rank_badge.setToolTip(
+                f"#{index + 1}: ordered by relative GRID-derived search magnitude"
+            )
+            card_header.addWidget(rank_badge)
+            card_title = QLabel("—", card)
             card_title.setObjectName("enterpriseIqaSpatialCardTitle")
-            column.addWidget(card_title)
+            card_title.setStyleSheet(
+                f"color: {TOKENS.text_primary}; font-weight: 600;"
+            )
+            card_header.addWidget(card_title, 1)
+            column.addLayout(card_header)
             preview = StitchedRoiCanvas(card)
             column.addWidget(preview, 1)
             detail = QLabel("—", card)
@@ -210,6 +257,7 @@ class SpatialCandidatesPanel(QWidget):
                 "GRID-derived local mean; valid denotes spatial mask coverage. "
                 "Not a verified official regional uplift."
             )
+            detail.setStyleSheet(f"color: {TOKENS.text_secondary};")
             column.addWidget(detail)
             impact = QProgressBar(card)
             impact.setObjectName("enterpriseIqaSpatialRelativeImpact")
@@ -218,8 +266,23 @@ class SpatialCandidatesPanel(QWidget):
             impact.setTextVisible(False)
             impact.setMaximumHeight(3)
             impact.setToolTip("Relative search score vs #1; not a calibrated quality rating")
+            impact.setStyleSheet(
+                f"QProgressBar {{ background-color: {TOKENS.panel_background}; "
+                "border: none; }"
+                f"QProgressBar::chunk {{ background-color: "
+                f"{TOKENS.selection if index == 0 else TOKENS.accent}; }}"
+            )
             column.addWidget(impact)
-            for child in (card_title, preview, detail, impact):
+            # Narrow, native per-button styling avoids complex parent QSS selector
+            # parsing and any propagation into the custom paint canvas.
+            frame_color = TOKENS.selection if index == 0 else TOKENS.border
+            card.setStyleSheet(
+                f"QPushButton {{ background-color: {TOKENS.raised_background}; "
+                f"border: 2px solid {frame_color}; border-radius: 7px; }}"
+                f"QPushButton:checked {{ border-color: {TOKENS.accent}; }}"
+                f"QPushButton:hover {{ border-color: {TOKENS.accent}; }}"
+            )
+            for child in (rank_badge, card_title, preview, detail, impact):
                 child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             card.clicked.connect(  # type: ignore[attr-defined]
                 lambda _checked=False, i=index: self.candidate_clicked.emit(i)
@@ -228,28 +291,10 @@ class SpatialCandidatesPanel(QWidget):
             self.buttons.append(card)
             self.previews.append(preview)
             self.titles.append(card_title)
+            self.rank_badges.append(rank_badge)
             self.details.append(detail)
             self.impact_bars.append(impact)
         layout.addLayout(row, 1)
-        self.setStyleSheet(
-            f"QLabel#enterpriseIqaSpatialHeading {{ color: {TOKENS.text_primary}; "
-            "font-weight: 700; }}"
-            f"QLabel#enterpriseIqaSpatialStatus {{ color: {TOKENS.text_secondary}; }}"
-            f"QLabel#enterpriseIqaSpatialCardDetails {{ color: {TOKENS.text_secondary}; }}"
-            f"QPushButton#enterpriseIqaSpatialCard1 {{ background: {TOKENS.raised_background}; "
-            f"border: 1px solid {TOKENS.selection}; border-left: 4px solid {TOKENS.selection}; "
-            "border-radius: 7px; text-align: left; }"
-            f"QPushButton#enterpriseIqaSpatialCard2, QPushButton#enterpriseIqaSpatialCard3 {{ "
-            f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; "
-            "border-left: 3px solid #6586a2; border-radius: 7px; text-align: left; }"
-            f"QPushButton:checked {{ border: 2px solid {TOKENS.accent}; "
-            f"border-left: 5px solid {TOKENS.accent}; }}"
-            f"QPushButton:hover {{ border-color: {TOKENS.accent}; }}"
-            f"QProgressBar#enterpriseIqaSpatialRelativeImpact {{ background: "
-            f"{TOKENS.panel_background}; border: 0px; }}"
-            f"QProgressBar#enterpriseIqaSpatialRelativeImpact::chunk {{ "
-            f"background: {TOKENS.accent}; }}"
-        )
 
     def _stride_selected(self, _index: int) -> None:
         value = self.stride_selector.currentData()
@@ -276,7 +321,7 @@ class SpatialCandidatesPanel(QWidget):
         for i, card in enumerate(self.buttons):
             card.setEnabled(False)
             card.setChecked(False)
-            self.titles[i].setText(f"#{i + 1}  —")
+            self.titles[i].setText("—")
             self.details[i].setText("—")
             self.previews[i].set_patches(None, None, (512, 512))
             self.impact_bars[i].setValue(0)
@@ -292,32 +337,26 @@ class SpatialCandidatesPanel(QWidget):
         if not candidates:
             self.status_label.setText("No qualifying local GRID hotspot for this Attribute.")
             return
-        self.status_label.setText(
-            "Ranked by local GRID-derived contrast (largest first) · not official ROI scores"
-        )
+        self.status_label.setText("Peak |Δ|  ↓   ·   A/B ROI")
         leader = candidates[0].score
         for i, candidate in enumerate(candidates[:3]):
             self.buttons[i].setEnabled(True)
-            rank_title = (
-                "01  LARGEST LOCAL DIFFERENCE"
-                if i == 0
-                else f"0{i + 1}  NEXT STRONGEST"
-                if i == 1
-                else "03  THIRD STRONGEST"
+            self.titles[i].setText(
+                f"({candidate.x}, {candidate.y})"
             )
-            self.titles[i].setText(rank_title)
             self.titles[i].setToolTip(
                 f"GRID proposal #{i + 1}: x={candidate.x}, y={candidate.y}, "
                 f"source ROI {candidate.width}×{candidate.height} px"
             )
             self.details[i].setText(
-                f"GRID Δ {candidate.mean:+.2f} {unit}  ·  valid {candidate.valid_coverage:.0%}"
-                + (" · exploratory" if candidate.mode == "exploratory_abs" else "")
+                f"Δ {candidate.mean:+.2f} {unit}  ·  {candidate.valid_coverage:.0%}"
+                + (" · ?" if candidate.mode == "exploratory_abs" else "")
             )
             self.details[i].setToolTip(
                 f"ROI: ({candidate.x}, {candidate.y}) "
                 f"{candidate.width}×{candidate.height} px; "
-                f"mean {candidate.mean:+.4f} {unit}. GRID-derived only."
+                f"mean {candidate.mean:+.4f} {unit}. GRID-derived only. "
+                + ("Exploratory (OFFICIAL sign missing)." if candidate.mode == "exploratory_abs" else "")
             )
             a = self._crop(pixmaps[0], candidate)
             b = self._crop(pixmaps[1], candidate)
