@@ -83,6 +83,9 @@ class AttributeDisplay:
     quality_oriented: bool
     fixed_range: float
     spatial: SpatialMap | None = None
+    # Independent display contract for OFFICIAL scalar chart; never inherited
+    # from fixed_range (which exclusively controls the spatial map colors).
+    chart_axis_range: float | None = None
 
     def __post_init__(self) -> None:
         if not self.attribute_id or not self.label or not self.unit:
@@ -97,6 +100,10 @@ class AttributeDisplay:
             raise ValueError("available official comparison requires a value")
         if not np.isfinite(self.fixed_range) or self.fixed_range <= 0:
             raise ValueError("the adapter must provide a positive fixed color range")
+        if self.chart_axis_range is not None and (
+            not np.isfinite(self.chart_axis_range) or self.chart_axis_range <= 0
+        ):
+            raise ValueError("official chart axis range must be finite and positive")
 
 
 @dataclass(frozen=True)
@@ -228,3 +235,18 @@ def clipped_cells(grid: SpatialMap, half_range: float) -> tuple[int, int]:
     return int(np.count_nonzero(mask & (np.abs(grid.values) > half_range))), int(
         np.count_nonzero(mask)
     )
+
+
+def official_chart_fraction(attribute: AttributeDisplay) -> float | None:
+    """Signed ratio on an independently *declared* official chart axis.
+
+    Returns None for missing official values or unknown chart-axis scale.
+    This avoids using spatial map color limits as alleged official ranges.
+    A true official zero returns 0.0, distinct from None.
+    """
+
+    axis = attribute.chart_axis_range
+    value = attribute.official_value
+    if axis is None or value is None:
+        return None
+    return float(np.clip(value / axis, -1.0, 1.0))
