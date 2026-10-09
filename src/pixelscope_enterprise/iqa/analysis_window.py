@@ -526,7 +526,11 @@ class AnalysisWindow(QMainWindow):
                 or y + height > result.image_height
             ):
                 raise ValueError("saved ROI outside source geometry")
-            roi = (x, y, width, height)
+            # Normalize legacy fractional saved ROIs outward onto covered pixels.
+            # Source coordinates are an integer-pixel selection, never subpixel.
+            left, top = int(np.floor(x)), int(np.floor(y))
+            right, bottom = int(np.ceil(x + width)), int(np.ceil(y + height))
+            roi = (left, top, right - left, bottom - top)
 
         viewport = raw["viewport"]
         if not isinstance(viewport, dict) or set(viewport) != {"scale", "center_x", "center_y"}:
@@ -886,13 +890,13 @@ class AnalysisWindow(QMainWindow):
         self.official_label.setText(f"OFFICIAL full-pair: {text}\n{orientation}")
         roi = self.current_roi
         if roi is None:
-            self.roi_label.setText("ROI: none · Shift+drag to inspect · Esc clears")
+            self.roi_label.setText("No ROI selected\nShift+drag on A, Map or B · Esc clears")
         else:
             x, y, width, height = roi
             description = (
-                f"ROI source (x, y, w, h): ({x:.1f}, {y:.1f}, "
-                f"{width:.1f}, {height:.1f}) px\n"
-                f"Selected source area: {width * height:,.1f} px²"
+                f"ROI source (x, y, w, h): "
+                f"({int(x)}, {int(y)}, {int(width)}, {int(height)}) px\n"
+                f"Selected source area: {int(width * height):,} px²"
             )
             if attr.spatial is None:
                 self.roi_label.setText(
@@ -903,8 +907,8 @@ class AnalysisWindow(QMainWindow):
                 value = "missing" if stats.mean is None else f"{stats.mean:+.4f} {attr.unit}"
                 self.roi_label.setText(
                     f"{description}\nGRID-DERIVED ROI mean: {value} (NOT official)\n"
-                    f"Grid valid area: {stats.valid_area:,.1f} / "
-                    f"{stats.roi_area:,.1f} px² ({stats.valid_coverage:.1%} coverage)"
+                    f"Grid valid area: {stats.valid_area:,.0f} / "
+                    f"{stats.roi_area:,.0f} px²  ·  {stats.valid_coverage:.1%} coverage"
                 )
         if attr.spatial is None:
             self.clamp_label.setText("Map missing (not zero)")
@@ -914,7 +918,7 @@ class AnalysisWindow(QMainWindow):
             pct = 0.0 if total == 0 else (clipped / total)
             invalid = grid.values.size - total
             self.clamp_label.setText(
-                f"Map colors: −{limit:g} to +{limit:g} {attr.unit}\n"
+                f"Display ±{limit:g} {attr.unit} · Map and verified bar\n"
                 f"{map_polarity_legend(attr)}\n"
                 f"Cells: {grid.rows}×{grid.columns} • "
                 f"{grid.block_width:g}×{grid.block_height:g} source px, nearest\n"
@@ -965,10 +969,12 @@ class AnalysisWindow(QMainWindow):
         if self._active_id is None:
             return
         result = self._results[self._active_id]
-        left = max(0.0, min(x, float(result.image_width)))
-        top = max(0.0, min(y, float(result.image_height)))
-        right = max(left, min(x + w, float(result.image_width)))
-        bottom = max(top, min(y + h, float(result.image_height)))
+        # A dragged source ROI includes every touched integer pixel. Round the
+        # start down and exclusive end up; preserve clipped image boundaries.
+        left = max(0, min(int(np.floor(x)), result.image_width))
+        top = max(0, min(int(np.floor(y)), result.image_height))
+        right = max(left, min(int(np.ceil(x + w)), result.image_width))
+        bottom = max(top, min(int(np.ceil(y + h)), result.image_height))
         if right <= left or bottom <= top:
             return
         state = self._state()
