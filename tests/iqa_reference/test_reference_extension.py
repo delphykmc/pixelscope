@@ -3,10 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
-from PySide6.QtWidgets import QDockWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QDockWidget
 
 from pixelscope.app.main_window import MainWindow
+from pixelscope.app.bootstrap import compose_main_window_presentation
+from pixelscope.core.image_document import ImageDocument
 from pixelscope.remote.iqa_public_contract import (
     IqaJobState,
     IqaProviderError,
@@ -317,6 +321,95 @@ def test_reference_dock_uses_generic_contributed_dock_lifecycle_hardening(
     assert not hasattr(window, "iqa_dock")
     assert not hasattr(window, "iqa_workspace_action")
 
+    window.close()
+
+
+def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "menu", IqaFixtureProfile.MINIMAL)
+    )
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    compose_main_window_presentation(window)  # Match the Reference app entrypoint.
+    window.show()
+
+    # Looking up action_map alone does not prove an action reaches the File menu.
+    file_menu = window._menu_map["File"]
+    menu_action = next(
+        action for action in window.menuBar().actions() if action.menu() is file_menu
+    )
+    assert menu_action.isVisible() and menu_action.isEnabled()
+    actual = list(file_menu.actions())
+    labels = [action.text() for action in actual]
+    expected = (
+        "Run IQA (Synthetic)",
+        "Open Published Synthetic IQA Result (Demo)",
+        "Open Empty IQA Analysis Canary",
+    )
+    for label in expected:
+        assert labels.count(label) == 1
+        action = next(action for action in actual if action.text() == label)
+        assert action is window.action_map[label]
+        assert action.isVisible() and action.isEnabled()
+
+    assert labels.index("Open Folder...") < labels.index(expected[0])
+    assert labels.index(expected[0]) < labels.index(expected[1]) < labels.index(expected[2])
+    assert labels.index(expected[2]) < labels.index("Export Statistics CSV...")
+    window.close()
+
+
+def test_delete_and_ctrl_a_only_modify_files_when_files_tree_has_focus(
+    qtbot: object,
+    tmp_path: Path,
+) -> None:
+    extension = ReferenceIqaExtension(
+        FixtureIqaProvider(tmp_path / "keys", IqaFixtureProfile.MINIMAL)
+    )
+    window = MainWindow(window_contributions=(extension,))
+    qtbot.addWidget(window)  # type: ignore[attr-defined]
+    documents = [
+        ImageDocument.from_array(np.zeros((4, 4), dtype=np.uint8), f"image-{i}")
+        for i in range(2)
+    ]
+    window.add_document(documents[0], select=True)
+    window.add_document(documents[1], select=False)
+    window.show()
+    window.activateWindow()
+    assert extension.widget is not None
+    extension.widget.submit_button.click()  # Show dock and populate its job list.
+    jobs_list = extension.widget.jobs_list
+    assert jobs_list.count() == 1
+    assert len(window.document_list.selected_document_items()) == 1
+
+    # Delete while IQA Jobs has focus must not remove the previously selected image.
+    jobs_list.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is jobs_list)  # type: ignore[attr-defined]
+    qtbot.keyClick(jobs_list, Qt.Key.Key_Delete)  # type: ignore[attr-defined]
+    assert all(doc.document_id in window.documents for doc in documents)
+    assert window.document_list.document_count == 2
+    assert len(window.document_list.selected_document_items()) == 1
+
+    # Ctrl+A in the Jobs list must likewise not change background Files selection.
+    qtbot.keyClick(  # type: ignore[attr-defined]
+        jobs_list, Qt.Key.Key_A, modifier=Qt.KeyboardModifier.ControlModifier
+    )
+    assert len(window.document_list.selected_document_items()) == 1
+
+    # The scoped shortcuts must continue working in Files itself.
+    files = window.document_list
+    files.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is files)  # type: ignore[attr-defined]
+    qtbot.keyClick(  # type: ignore[attr-defined]
+        files, Qt.Key.Key_A, modifier=Qt.KeyboardModifier.ControlModifier
+    )
+    assert len(files.selected_document_items()) == 2
+    qtbot.keyClick(files, Qt.Key.Key_Delete)  # type: ignore[attr-defined]
+    assert window.documents == {}
+    assert files.document_count == 0
+    assert jobs_list.count() == 1
     window.close()
 
 
