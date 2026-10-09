@@ -424,7 +424,8 @@ class AnalysisWindow(QMainWindow):
         official_layout.addWidget(QLabel("OFFICIAL · FULL PAIR", official_card))
         official_description = QLabel(
             "Verified A/B difference for the entire image pair. "
-            "Not calculated from the selected ROI or Map grid.", official_card
+            "Not calculated from the selected ROI or Map grid.",
+            official_card,
         )
         official_description.setObjectName("enterpriseIqaOfficialExplanation")
         official_description.setWordWrap(True)
@@ -446,7 +447,8 @@ class AnalysisWindow(QMainWindow):
         roi_layout.addWidget(QLabel("ROI ANALYSIS · SOURCE PIXELS", roi_card))
         roi_description = QLabel(
             "Selected rectangle in original-image pixels. GRID-DERIVED mean "
-            "is estimated from valid Map cells, not an official local score.", roi_card
+            "is estimated from valid Map cells, not an official local score.",
+            roi_card,
         )
         roi_description.setObjectName("enterpriseIqaRoiExplanation")
         roi_description.setWordWrap(True)
@@ -465,7 +467,8 @@ class AnalysisWindow(QMainWindow):
         map_layout.addWidget(QLabel("SPATIAL MAP · CELL STATISTICS", map_card))
         map_description = QLabel(
             "Colors show signed grid-cell differences at Unit Range ±R and Map Gain ×G. "
-            "Invalid cells are transparent; clipped cells reach the end color.", map_card
+            "Invalid cells are transparent; clipped cells reach the end color.",
+            map_card,
         )
         map_description.setObjectName("enterpriseIqaMapExplanation")
         map_description.setWordWrap(True)
