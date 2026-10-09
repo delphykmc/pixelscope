@@ -34,10 +34,12 @@ scores. Their ranking headings say **LARGEST LOCAL DIFFERENCE**, **NEXT
 STRONGEST**, **THIRD STRONGEST**, with a small bar normalized only against the
 current #1 candidate (`score / rank1.score`). This is not an absolute
 severity measure or quality winner and is tooltip-labeled accordingly.
-The first card receives higher-contrast emphasis; Attribute overview
-similarly labels its first OFFICIAL card **LARGEST GLOBAL DIFFERENCE**.
-A one-line visible description clarifies sorting and ROI provenance, rather
-than hiding the critical distinction only in a tooltip. Missing/zero official scalars retain exploratory-mode labels.
+The first card receives higher-contrast emphasis through its gold rank
+disc and comparison bar. Card headers now show only **rank 1/2/3 icons and
+short ROI coordinates**; no "LARGEST LOCAL DIFFERENCE"/"NEXT STRONGEST"
+prose. The global OFFICIAL cards also use compact **★ 1 / 2 / 3** tokens
+rather than verbose ranking sentences. The small **GRID** chip and tooltips
+retain scientific provenance without dominating the card layout. Missing/zero official scalars retain exploratory-mode labels.
 Clicking a card uses the selected source ROI, updates the existing ROI
 Inspector and centers A, Spatial Map and B at one common source-pixel
 zoom. Existing scenes are never rebuilt on candidate or Attribute selection.
@@ -94,8 +96,19 @@ screenshot CI cannot confirm Enterprise dock behavior.
   `has_a`/`has_b` rather than relying on QLabel's binding return type.
 - The default dock squeezed the UX-1 Inspector at 1600×800. A one-time
   initial FHD dock compacting step requests ~175px while leaving the user
-  free to expand/float later. No continuous resize override; native UX-1
-  splitter must still grow when window size increases.
+  free to expand/float later. No continuous resize override. Historical UX-1
+  Inspector test hides the optional Dock **after first show**; a separate
+  UX-2C test exercises FHD layout with Dock visible.
+- Qt QSettings dock `restoreState()` may resurrect a previously hidden dock
+  or restore a floating panel off a disconnected display. **First show only**
+  explicitly restores discoverability (and re-docks offscreen floats); View
+  toggle/hide still works thereafter. Add saved-hidden-layout regression.
+- Prior broad `SpatialCandidatesPanel.setStyleSheet()` generated PySide6
+  `Could not parse stylesheet` warnings. Replaced with minimal, scoped
+  per-control QSS: cards, rank tokens, bars, labels. Scientific strings
+  shortened to Δ, coverage and a GRID provenance chip, with details in tooltips.
+- Tests must follow displayed UI semantics (old `GRID mean` literal is now
+  `Δ` accompanied by a GRID provenance badge).
 - Source-native A/B crops are now drawn in **one widget**, not padded
   independent QLabel viewers. Pixel identity, map science and ROI focus
   remain unchanged. Regression tests assert FHD inspector height,
