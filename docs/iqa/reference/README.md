@@ -37,11 +37,15 @@ When debugging launcher differences, check the explicit
 `python -m pixelscope_iqa_reference` entry point and the currently running
 executable/version; the Core-only launcher does not install Reference actions.
 
-The generic MAIN Files tree exclusively owns keyboard **Delete** and **Ctrl+A**
-through focus-scoped `WidgetWithChildrenShortcut` handlers. A focused IQA
-Jobs list must never remove already selected PixelScope images, nor change
-the background Files selection. Explicit Edit > Remove Selected and
-Selection > Select All menu commands remain available. Other existing
+The generic MAIN Files tree exclusively owns keyboard **Delete** and **Ctrl+A**.
+The native `DocumentListWidget.keyPressEvent` consumes unmodified Delete and
+emits the same `remove_changing` / `remove_requested` signals as its context
+menu; a Files-owned `WidgetWithChildrenShortcut` handles Ctrl+A. The Delete
+QShortcut was intentionally removed because the Qt item view can consume that
+key before shortcut activation. A focused IQA Jobs list must never remove
+already selected PixelScope images, nor change the background Files selection.
+Explicit Edit > Remove Selected and Selection > Select All menu commands remain
+available. Other existing
 application-wide navigation shortcuts (for example image/page arrows and
 number keys) are not changed in this scope: their focus behavior should be
 reviewed separately before changing established viewer navigation.
