@@ -167,7 +167,6 @@ def test_vectorized_dense_map_keeps_geometry_and_raw_values() -> None:
         colorize_spatial_rgba(attr, 0)
 
 
-
 def test_official_chart_axis_is_not_spatial_map_color_scale() -> None:
     from pixelscope_enterprise.iqa.analysis_model import official_chart_fraction
 
@@ -186,7 +185,15 @@ def test_official_chart_axis_is_not_spatial_map_color_scale() -> None:
     assert official_chart_fraction(positive) == 0.5
     assert positive.fixed_range == 0.05
     zero = AttributeDisplay(
-        "zero", "Zero", "dB", "power", 0.0, "available", True, 1.0, chart_axis_range=4.0,
+        "zero",
+        "Zero",
+        "dB",
+        "power",
+        0.0,
+        "available",
+        True,
+        1.0,
+        chart_axis_range=4.0,
     )
     assert official_chart_fraction(zero) == 0.0
     no_axis = AttributeDisplay("axis", "Unknown axis", "dB", "power", 2.0, "available", True, 5.0)
