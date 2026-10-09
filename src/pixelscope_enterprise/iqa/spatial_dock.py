@@ -293,7 +293,7 @@ class SpatialCandidatesPanel(QWidget):
             self.status_label.setText("No qualifying local GRID hotspot for this Attribute.")
             return
         self.status_label.setText(
-            "Ranked by local GRID contrast (largest first) · not official ROI scores"
+            "Ranked by local GRID-derived contrast (largest first) · not official ROI scores"
         )
         leader = candidates[0].score
         for i, candidate in enumerate(candidates[:3]):
