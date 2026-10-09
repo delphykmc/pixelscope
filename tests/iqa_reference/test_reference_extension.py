@@ -336,12 +336,33 @@ def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
     compose_main_window_presentation(window)  # Match the Reference app entrypoint.
     window.show()
 
-    # Looking up action_map alone does not prove an action reaches the File menu.
+    # Source-level entrypoint calls Session composition, which replaces the
+    # original File menu. Inspect the one *currently attached* to QMenuBar.
+    menu_bar = window.menuBar()
     file_menu = window._menu_map["File"]
-    menu_action = next(
-        action for action in window.menuBar().actions() if action.menu() is file_menu
-    )
-    assert menu_action.isVisible() and menu_action.isEnabled()
+    top_actions = list(menu_bar.actions())
+    file_menu_action = file_menu.menuAction()
+
+    def menu_diagnostics() -> str:
+        ancestors: list[str] = []
+        parent = file_menu.parent()
+        while parent is not None:
+            ancestors.append(type(parent).__name__)
+            parent = parent.parent()
+        return (
+            f"menubar_visible={menu_bar.isVisible()}, "
+            f"top_actions={[(a.text(), a.isVisible(), a.isEnabled(), a.menu().title() if a.menu() else None) for a in top_actions]!r}, "
+            f"file_menu={file_menu.title()!r}, parents={ancestors!r}, "
+            f"file_menu_action={file_menu_action.text()!r}, "
+            f"file_actions={[(a.text(), a.isVisible(), a.isEnabled()) for a in file_menu.actions()]!r}"
+        )
+
+    # Qt object equality, not Python 'is' (PySide may return distinct wrappers).
+    assert menu_bar.isVisible(), menu_diagnostics()
+    assert file_menu_action in top_actions, menu_diagnostics()
+    assert any(action.menu() == file_menu for action in top_actions), menu_diagnostics()
+    assert file_menu_action.isVisible() and file_menu_action.isEnabled(), menu_diagnostics()
+
     actual = list(file_menu.actions())
     labels = [action.text() for action in actual]
     expected = (
@@ -350,14 +371,25 @@ def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
         "Open Empty IQA Analysis Canary",
     )
     for label in expected:
-        assert labels.count(label) == 1
+        assert labels.count(label) == 1, menu_diagnostics()
         action = next(action for action in actual if action.text() == label)
-        assert action is window.action_map[label]
-        assert action.isVisible() and action.isEnabled()
+        assert action == window.action_map[label], menu_diagnostics()
+        assert action.isVisible() and action.isEnabled(), menu_diagnostics()
 
-    assert labels.index("Open Folder...") < labels.index(expected[0])
+    assert labels.index("Open Folder...") < labels.index(expected[0]), menu_diagnostics()
     assert labels.index(expected[0]) < labels.index(expected[1]) < labels.index(expected[2])
     assert labels.index(expected[2]) < labels.index("Export Statistics CSV...")
+
+    # Test the actual popup at the File item, not merely action_map membership.
+    file_anchor = menu_bar.actionGeometry(file_menu_action).bottomLeft()
+    file_menu.popup(menu_bar.mapToGlobal(file_anchor))
+    qtbot.waitUntil(file_menu.isVisible)  # type: ignore[attr-defined]
+    assert all(
+        action.isVisible() and action.isEnabled()
+        for action in actual
+        if action.text() in expected
+    ), menu_diagnostics()
+    file_menu.hide()
     window.close()
 
 
