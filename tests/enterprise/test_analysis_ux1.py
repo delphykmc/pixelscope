@@ -100,9 +100,14 @@ def test_ux1_4k_rgb_source_preservation_and_nearest_grid(qtbot: object, tmp_path
     assert image.save(str(image_path))
     fixture = make_synthetic_result("ux1-4k-rgb")
     result = AnalysisResult(
-        fixture.result_id, fixture.image_width, fixture.image_height,
-        fixture.source_a_label, fixture.source_b_label, fixture.attributes,
-        source_a=image_path, source_b=image_path,
+        fixture.result_id,
+        fixture.image_width,
+        fixture.image_height,
+        fixture.source_a_label,
+        fixture.source_b_label,
+        fixture.attributes,
+        source_a=image_path,
+        source_b=image_path,
     )
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
