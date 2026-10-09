@@ -8,6 +8,7 @@ No MAIN window, job, real image, data-service, transport or proprietary artifact
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -83,7 +84,7 @@ def make_synthetic_result(result_id: str = "public-synthetic-pair") -> AnalysisR
 def main(arguments: Sequence[str] | None = None) -> int:
     """Run demo with optional `--rgb` local 4K synthetic original images."""
 
-    argv = list(arguments) if arguments is not None else []
+    argv = list(arguments) if arguments is not None else sys.argv[1:]
     use_rgb = "--rgb" in argv
     app = QApplication([arg for arg in argv if arg != "--rgb"])
     manager = AnalysisWindowManager()
