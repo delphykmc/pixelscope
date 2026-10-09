@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -334,5 +335,119 @@ def test_hotspot_action_is_iconified_and_short(qtbot: object) -> None:
     assert action.shortcut().toString() == "Alt+H"
     assert action in win.iqa_toolbar.actions()
     assert action.isCheckable()
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+def test_hidden_spatial_dock_attribute_switch_clears_previous_map_hotspots(
+    qtbot: object,
+) -> None:
+    """P1: old Attribute GRID boxes must never label a new Attribute Map."""
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(make_synthetic_result("ux2c-hidden-stale-map"))
+    win.show()
+    win.spatial_dock.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._spatial_displayed is not None
+        and len(win._spatial_cache.get(win._spatial_key(), ())) > 0,
+        timeout=5000,
+    )
+    original_attribute = win._state().attribute_id  # type: ignore[union-attr]
+    win.hotspot_overlay_action.setChecked(True)
+    assert any(rect.isVisible() for rect, _ in win._candidate_overlay_items[2])
+
+    win.spatial_dock.hide()
+    win.attribute_table.selectRow(6)
+    assert win._state().attribute_id != original_attribute  # type: ignore[union-attr]
+    assert win.hotspot_overlay_action.isChecked()
+    assert not any(rect.isVisible() for rect, _ in win._candidate_overlay_items[2])
+    assert not any(text.isVisible() for _, text in win._candidate_overlay_items[2])
+
+    win.spatial_dock.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._spatial_displayed == win._spatial_key(), timeout=5000
+    )
+    assert any(rect.isVisible() for rect, _ in win._candidate_overlay_items[2])
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+def test_spatial_card_tracks_clear_manual_roi_and_changed_stride(
+    qtbot: object,
+) -> None:
+    """P2: a checked card must match the actual source ROI, never stale rank."""
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(make_synthetic_result("ux2c-roi-identity"))
+    win.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._spatial_displayed is not None
+        and len(win._spatial_cache.get(win._spatial_key(), ())) > 0,
+        timeout=5000,
+    )
+    key = win._spatial_key()
+    assert key is not None
+    first = win._spatial_cache[key][0]
+    win.spatial_panel.buttons[0].click()
+    assert win.current_roi == first.roi
+    assert win.spatial_panel.buttons[0].isChecked()
+
+    win.clear_roi_action.trigger()
+    assert win.current_roi is None
+    assert not any(card.isChecked() for card in win.spatial_panel.buttons)
+
+    win.spatial_panel.buttons[0].click()
+    assert win.current_roi == first.roi
+    win._set_roi(32, 48, 120, 120)  # same canonical path as manual Shift+drag
+    assert win.current_roi == (32, 48, 120, 120)
+    assert not any(card.isChecked() for card in win.spatial_panel.buttons)
+
+    win.spatial_panel.buttons[0].click()
+    old_roi = win.current_roi
+    assert old_roi == first.roi
+    # Inject one controlled new-stride candidate at different source pixels:
+    # deterministic regardless of the particular GRID ranking topology.
+    other_x = first.x + 64 if first.x + first.width + 64 <= 3840 else first.x - 64
+    new_stride_key = (key[0], key[1], 64)
+    win._spatial_cache[new_stride_key] = (replace(first, x=other_x),)
+    win.spatial_panel.stride_selector.setCurrentIndex(0)
+    assert win._spatial_displayed == new_stride_key
+    assert win.current_roi == old_roi
+    assert not any(card.isChecked() for card in win.spatial_panel.buttons)
+
+    # Switching back is allowed to rediscover the exact same active ROI.
+    win.spatial_panel.stride_selector.setCurrentIndex(1)
+    assert win.spatial_panel.buttons[0].isChecked()
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+def test_scan_failure_is_terminal_not_perpetual_busy(
+    qtbot: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P2: rejected workload or ValueError must clear indeterminate progress."""
+
+    import pixelscope_enterprise.iqa.analysis_window as analysis_module
+
+    def rejected_scan(*_args: object, **_kwargs: object) -> tuple[()]:
+        raise ValueError("test-only rejected budget")
+
+    monkeypatch.setattr(analysis_module, "find_spatial_candidates", rejected_scan)
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(make_synthetic_result("ux2c-failed-scan"))
+    win.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: "scan unavailable" in win.spatial_panel.status_label.text().lower(),
+        timeout=5000,
+    )
+    assert win._spatial_pending is None
+    assert win._spatial_future is None
+    assert not win._spatial_timer.isActive()
+    assert not win.spatial_panel.progress.isVisible()
+    assert all(not card.isEnabled() for card in win.spatial_panel.buttons)
     win.close()
     win._shutdown_spatial_worker()
