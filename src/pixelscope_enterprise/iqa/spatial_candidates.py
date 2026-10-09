@@ -61,12 +61,9 @@ def _axis_overlap(
     cell_right = np.minimum(cell_left + block, float(image_length))
     roi_left = starts[:, None]
     roi_right = roi_left + window
-    return cast(
-        NDArray[np.float64],
-        np.maximum(
-            0.0, np.minimum(roi_right, cell_right[None, :]) - np.maximum(roi_left, cell_left[None, :])
-        ),
-    )
+    left_edge = np.minimum(roi_right, cell_right[None, :])
+    right_edge = np.maximum(roi_left, cell_left[None, :])
+    return cast(NDArray[np.float64], np.maximum(0.0, left_edge - right_edge))
 
 
 def _iou(a: SpatialCandidate, b: SpatialCandidate) -> float:
