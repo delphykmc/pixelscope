@@ -91,6 +91,7 @@ from pixelscope_enterprise.iqa.attribute_chart import (
     RelativeDifferenceDelegate,
 )
 from pixelscope_enterprise.iqa.insights import rank_top_differences
+from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
 from pixelscope_enterprise.iqa.spatial_candidates import (
     SpatialCandidate,
     find_spatial_candidates,
@@ -423,8 +424,15 @@ class AnalysisWindow(QMainWindow):
         self.save_action.triggered.connect(  # type: ignore[attr-defined]
             self._save_from_dialog
         )
-        self.export_action = file_menu.addAction("Export...")
-        self.export_action.setEnabled(False)  # Separate H4 reporting work.
+        self.export_action = file_menu.addAction("Export Measurements CSV...")
+        self.export_action.setObjectName("enterpriseIqaExportMeasurementsCsv")
+        self.export_action.setEnabled(False)
+        self.export_action.setToolTip(
+            "Export OFFICIAL full-pair and GRID-DERIVED ROI measurements; not Save Result As"
+        )
+        self.export_action.triggered.connect(  # type: ignore[attr-defined]
+            self._export_csv_from_dialog
+        )
         view_menu = self.menuBar().addMenu("View")
         self.clear_roi_action = view_menu.addAction("Clear ROI")
         self.clear_roi_action.setObjectName("enterpriseIqaClearRoi")
@@ -946,6 +954,7 @@ class AnalysisWindow(QMainWindow):
         )
         self.fit_action.setEnabled(True)
         self.save_action.setEnabled(self._saver is not None)
+        self.export_action.setEnabled(True)
         self._populate_attributes()
         self._update_top_cards()
         self.gain_editor.setEnabled(True)
@@ -1900,6 +1909,35 @@ class AnalysisWindow(QMainWindow):
             self.present_result(loaded.result, analysis_state=loaded.analysis_state)
         except (OSError, ValueError):
             self.statusBar().showMessage("Result could not be opened or validated.")
+
+    def _export_csv_from_dialog(self) -> None:
+        """Export scientific measurements, not a portable or official ROI result."""
+
+        if self._active_id is None:
+            return
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export IQA measurements CSV",
+            "",
+            "CSV files (*.csv)",
+        )
+        if not filename:
+            return
+        destination = Path(filename)
+        if not destination.suffix:
+            destination = destination.with_suffix(".csv")
+        try:
+            write_measurements_csv(
+                self._results[self._active_id],
+                self.current_roi,
+                destination,
+            )
+        except (OSError, ValueError):
+            self.statusBar().showMessage("CSV export failed; the IQA result was not changed.")
+            return
+        self.statusBar().showMessage(
+            "CSV exported: OFFICIAL full-pair and GRID-DERIVED ROI values remain distinct."
+        )
 
     def _save_from_dialog(self) -> None:
         if self._saver is None or self._active_id is None:
