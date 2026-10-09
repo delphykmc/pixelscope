@@ -969,11 +969,12 @@ class AnalysisWindow(QMainWindow):
             rank_label = (
                 "01  LARGEST GLOBAL DIFFERENCE"
                 if index == 0
-                else "02  NEXT LARGEST" if index == 1 else "03  THIRD LARGEST"
+                else "02  NEXT LARGEST"
+                if index == 1
+                else "03  THIRD LARGEST"
             )
             card.setText(
-                f"{rank_label} · {item.label}\n"
-                f"{item.delta_db:+.3f} dB  ·  {conclusion}"
+                f"{rank_label} · {item.label}\n" f"{item.delta_db:+.3f} dB  ·  {conclusion}"
             )
             card.setToolTip(
                 f"OFFICIAL full pair: {item.label} {item.delta_db:+.4f} dB. "
@@ -1771,9 +1772,7 @@ class AnalysisWindow(QMainWindow):
         if self.inspector_splitter.height() < 380:
             # Compact initial presentation leaves the UX-1 Inspector at least
             # 350px high at FHD, while the operator may expand the ROI evidence.
-            self.resizeDocks(
-                [self.spatial_dock], [175], Qt.Orientation.Vertical
-            )
+            self.resizeDocks([self.spatial_dock], [175], Qt.Orientation.Vertical)
 
     def _queue_initial_fit(self) -> None:
         if self.isVisible() and self._fit_pending_result_id is not None:
