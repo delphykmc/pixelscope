@@ -356,7 +356,11 @@ class SpatialCandidatesPanel(QWidget):
                 f"ROI: ({candidate.x}, {candidate.y}) "
                 f"{candidate.width}×{candidate.height} px; "
                 f"mean {candidate.mean:+.4f} {unit}. GRID-derived only. "
-                + ("Exploratory (OFFICIAL sign missing)." if candidate.mode == "exploratory_abs" else "")
+                + (
+                    "Exploratory (OFFICIAL sign missing)."
+                    if candidate.mode == "exploratory_abs"
+                    else ""
+                )
             )
             a = self._crop(pixmaps[0], candidate)
             b = self._crop(pixmaps[1], candidate)
