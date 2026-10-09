@@ -70,6 +70,41 @@ before the branch is approved for PRIVATE SUB transfer.
   repeated open-close smoke are still mandatory before accepting the slice.
   Do not equate general screenshot CI with this dedicated UI validation.
 
+## Owner Windows validation — 2026-10-09 (PR #144)
+
+Owner environment: Windows, Python 3.10.11, PySide6/Qt 6.4.2.
+At former HEAD `34e2294a`: pure model **10 PASS**; window test **7 PASS /
+1 FAIL**, with three remaining tests not executed by `pytest -x`. The
+reproducible failure was `test_saved_analysis_state_validation_and_restoration`
+because the window wrote viewport center `(-154.6667,-288.0)` before the
+views were laid out, yet its reader rejected off-image coordinates. Manual
+demo also reported a tiny map, dead wheel zoom and non-working Shift+drag.
+
+### Corrective design
+
+- First source-pixel fit is deferred with a zero-delay Qt event-loop callback
+  until the window is visible and its three viewports have real sizes. A
+  bounded retry handles late splitter geometry. No fit or synthetic navigation
+  state is persisted for a result prepared **before show**.
+- Post-show fit uses the canonical source center, and wheel minimum zoom is
+  relative to the fitted scale rather than a hard `0.04` cutoff. This permits
+  meaningful zoom with a large 4K source and maintains linked-view navigation.
+- A finite, bounded off-image viewport center (e.g. an oversized viewport
+  around a small 128-pixel image) can be restored. Arbitrarily large,
+  non-finite or unreasonable coordinates and invalid zoom remain rejected.
+- Shift+drag in the actual graphics **viewport** provides a mouse-transparent
+  rubber-band preview, then sets a source-bounded ROI overlay on all three
+  views. Attribute switching preserves the ROI.
+- Focused tests now exercise the previously failing pre-show round-trip, a
+  visible-window viewport wheel event on synthetic 4K data, a real
+  Shift-modified mouse drag on the map, drawn overlay and attribute
+  persistence, and bounded visible-state restore/reject behavior. Direct
+  `_set_roi` tests are no longer the only ROI evidence.
+
+These are **implemented corrections, not yet an owner-verified Windows pass**.
+Re-run the entire focused suite without `-x` after this fix and inspect the
+standalone GUI. The change-scoped CI does not run Enterprise Qt tests.
+
 ## Manual standalone preview
 
 In a normal project Python 3.10 environment with editable package and Qt dependencies:
