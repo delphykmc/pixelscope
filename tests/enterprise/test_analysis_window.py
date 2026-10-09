@@ -71,7 +71,7 @@ def test_window_preserves_roi_and_per_result_state(qtbot: object) -> None:
     win.present_result(_result("one"))
     win._set_roi(0, 0, 64, 64)
     assert win.current_roi == (0, 0, 64, 64)
-    assert "GRID-DERIVED" in win.roi_label.text()
+    assert "Grid-derived ROI estimate" in win.roi_label.text()
     win.range_editor.setValue(2.0)
     assert "Clamped: 2/3" in win.clamp_label.text()
 
@@ -349,7 +349,7 @@ def test_shift_drag_on_real_viewport_selects_and_draws_linked_roi(qtbot: object)
     assert 0 <= x < x + width <= 128
     assert 0 <= y < y + height <= 128
     assert width >= 40 and height >= 40
-    assert "GRID-DERIVED ROI" in win.roi_label.text()
+    assert "Grid-derived ROI estimate" in win.roi_label.text()
 
     # Original RGB is deliberately absent; only the spatial map is annotated.
     assert [item.isVisible() for item in win._roi_items] == [False, False, True]
@@ -510,7 +510,7 @@ def test_roi_source_panels_only_when_rgb_exists_and_stats_include_pixel_area(
     assert [i.isVisible() for i in win._roi_items] == [True, False, True]
     assert "(0, 0, 64, 64)" in win.roi_label.text()
     assert "4,096 px²" in win.roi_label.text()
-    assert "GRID-DERIVED ROI mean" in win.roi_label.text()
+    assert "Grid-derived ROI estimate" in win.roi_label.text()
     assert "Grid valid area" in win.roi_label.text()
     assert "not full-pair" in win.roi_label.text()
 
