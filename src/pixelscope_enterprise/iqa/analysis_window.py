@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QByteArray, QPoint, QRectF, QSettings, Qt, Signal
+from PySide6.QtCore import QByteArray, QPoint, QRect, QRectF, QSettings, QTimer, Qt, Signal
 from PySide6.QtGui import (
     QCloseEvent,
     QColor,
@@ -20,6 +20,7 @@ from PySide6.QtGui import (
     QMouseEvent,
     QPainter,
     QPen,
+    QShowEvent,
     QPixmap,
     QTransform,
     QWheelEvent,
@@ -35,6 +36,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QLabel,
     QMainWindow,
+    QRubberBand,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -83,6 +85,8 @@ class _LinkedView(QGraphicsView):
         self.setMinimumSize(180, 160)
         self._muted = False
         self._roi_start: QPoint | None = None
+        self._rubber_band = QRubberBand(QRubberBand.Shape.Rectangle, self.viewport())
+        self._fit_scale = 1.0
         self.horizontalScrollBar().valueChanged.connect(  # type: ignore[attr-defined]
             self._navigation_changed
         )
@@ -105,10 +109,15 @@ class _LinkedView(QGraphicsView):
         self._muted = False
 
     def wheelEvent(self, event: QWheelEvent) -> None:
-        # Shift+drag defines a ROI; the wheel only zooms, never changes MainWindow.
-        factor = 1.2 if event.angleDelta().y() > 0 else (1 / 1.2)
+        # Minimum zoom is relative to a *post-layout* fit. A 4K fit can be <0.04.
+        delta = event.angleDelta().y()
+        if delta == 0:
+            event.ignore()
+            return
+        factor = 1.2 ** (delta / 120.0)
         next_scale = self.transform().m11() * factor
-        if 0.04 <= next_scale <= 32:
+        min_scale = max(self._fit_scale / 16.0, 1e-8)
+        if min_scale <= next_scale <= 32.0:
             self.scale(factor, factor)
             self._navigation_changed()
         event.accept()
@@ -119,14 +128,24 @@ class _LinkedView(QGraphicsView):
             and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         ):
             self._roi_start = event.pos()
+            self._rubber_band.setGeometry(QRect(event.pos(), event.pos()))
+            self._rubber_band.show()
             event.accept()
             return
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._roi_start is not None:
+            self._rubber_band.setGeometry(QRect(self._roi_start, event.pos()).normalized())
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         start = self._roi_start
         self._roi_start = None
         if start is not None:
+            self._rubber_band.hide()
             a = self.mapToScene(start)
             b = self.mapToScene(event.pos())
             left, top = min(a.x(), b.x()), min(a.y(), b.y())
