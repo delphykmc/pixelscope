@@ -86,6 +86,10 @@ class AttributeDisplay:
     # Independent display contract for OFFICIAL scalar chart; never inherited
     # from fixed_range (which exclusively controls the spatial map colors).
     chart_axis_range: float | None = None
+    # Verified upstream eligibility for Top-3 first insight. None is unknown,
+    # not a pass. An adapter checks at least one A/B original-relative signal
+    # level > -50 dB; do NOT infer this from the signed comparison/map.
+    summary_signal_gate: bool | None = None
 
     def __post_init__(self) -> None:
         if not self.attribute_id or not self.label or not self.unit:
@@ -98,6 +102,8 @@ class AttributeDisplay:
             raise ValueError("missing/failed official value must be absent")
         if self.official_availability == "available" and self.official_value is None:
             raise ValueError("available official comparison requires a value")
+        if self.summary_signal_gate is not None and type(self.summary_signal_gate) is not bool:
+            raise ValueError("summary signal gate must be bool or unknown")
         if not np.isfinite(self.fixed_range) or self.fixed_range <= 0:
             raise ValueError("the adapter must provide a positive fixed color range")
         if self.chart_axis_range is not None and (
