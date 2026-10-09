@@ -251,7 +251,7 @@ def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> No
 
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
-    win.resize(1920, 1080)
+    win.resize(1600, 800)
     win.present_result(make_synthetic_result("fhd-inspector"))
     win.show()
     qtbot.waitUntil(  # type: ignore[attr-defined]
@@ -259,6 +259,10 @@ def test_ux1_fhd_inspector_splitter_and_metric_explanations(qtbot: object) -> No
         timeout=4000,
     )
     splitter = win.inspector_splitter
+    initial_height = splitter.height()
+    win.resize(1920, 1080)
+    QApplication.processEvents()
+    assert splitter.height() > initial_height
     assert splitter.orientation() == Qt.Orientation.Vertical
     assert splitter.childrenCollapsible() is False
     assert splitter.widget(0) is win.group_scroll
