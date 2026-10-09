@@ -27,10 +27,15 @@ The Reference launcher contributes three real actions to **File**: Run IQA
 (Synthetic), Open Published Synthetic IQA Result (Demo), and Open Empty IQA
 Analysis Canary. These actions must occur in the File menu's visible/enabled
 QAction list, not only in the MainWindow's internal action map. View > Show IQA
-Mock Jobs is independently contributed to View. When debugging launcher
-differences, check the explicit `python -m pixelscope_iqa_reference` entry point
-and the currently running executable/version; the Core-only launcher does not
-install Reference actions.
+Mock Jobs is independently contributed to View. The generic Session composition
+replaces the File menu after initial MainWindow action installation. That
+replacement **must transfer every existing contributed QAction in order**, rather
+than rebuilding from a hardcoded list of Base commands, and update `_menu_map`
+to the newly attached menu. The Reference regression checks the active menu-bar
+membership and the visible File popup after full presentation composition.
+When debugging launcher differences, check the explicit
+`python -m pixelscope_iqa_reference` entry point and the currently running
+executable/version; the Core-only launcher does not install Reference actions.
 
 The generic MAIN Files tree exclusively owns keyboard **Delete** and **Ctrl+A**
 through focus-scoped `WidgetWithChildrenShortcut` handlers. A focused IQA
