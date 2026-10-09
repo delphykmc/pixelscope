@@ -183,6 +183,7 @@ def test_official_chart_axis_is_not_spatial_map_color_scale() -> None:
         chart_axis_range=4.0,
     )
     assert official_chart_fraction(positive) == 0.5
+    assert official_chart_fraction(positive, 10.0) == 0.2
     assert positive.fixed_range == 0.05
     zero = AttributeDisplay(
         "zero",
