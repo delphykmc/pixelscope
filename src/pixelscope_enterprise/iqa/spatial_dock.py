@@ -355,6 +355,13 @@ class SpatialCandidatesPanel(QWidget):
         self.progress.show()
         self.clear_cards()
 
+    def set_unavailable(self, message: str) -> None:
+        """Terminal error: no pending work means no indeterminate progress."""
+
+        self.progress.hide()
+        self.clear_cards()
+        self.status_label.setText(message)
+
     def clear_cards(self) -> None:
         for i, card in enumerate(self.buttons):
             card.setEnabled(False)
