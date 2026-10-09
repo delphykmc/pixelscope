@@ -447,7 +447,8 @@ class AnalysisWindow(QMainWindow):
         roi_layout.addWidget(QLabel("ROI ANALYSIS · SOURCE PIXELS", roi_card))
         roi_description = QLabel(
             "Selected rectangle in original-image pixels. GRID-DERIVED mean "
-            "is estimated from valid Map cells, not an official local score.",
+            "estimates local differences; it is not an official score. "
+            "Coverage is the ROI area supported by valid Map cells.",
             roi_card,
         )
         roi_description.setObjectName("enterpriseIqaRoiExplanation")
