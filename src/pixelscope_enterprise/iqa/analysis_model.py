@@ -102,7 +102,7 @@ class AttributeDisplay:
             raise ValueError("missing/failed official value must be absent")
         if self.official_availability == "available" and self.official_value is None:
             raise ValueError("available official comparison requires a value")
-        if self.summary_signal_gate is not None and type(self.summary_signal_gate) is not bool:
+        if self.summary_signal_gate is not None and not isinstance(self.summary_signal_gate, bool):
             raise ValueError("summary signal gate must be bool or unknown")
         if not np.isfinite(self.fixed_range) or self.fixed_range <= 0:
             raise ValueError("the adapter must provide a positive fixed color range")
