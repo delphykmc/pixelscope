@@ -21,6 +21,17 @@ def test_ux2a_top_cards_select_official_metric_without_destroying_views(
     assert "VERIFIED" in win.top3_title.text()
     assert len(win.top3_buttons) == 3
     assert all(button.isEnabled() for button in win.top3_buttons)
+    assert [button.property("insightTone") for button in win.top3_buttons] == [
+        "a",
+        "b",
+        "b",
+    ]
+    assert all(not button.icon().isNull() for button in win.top3_buttons)
+    assert all("border-left" in button.styleSheet() for button in win.top3_buttons)
+    assert all(
+        button.styleSheet().count("{") == button.styleSheet().count("}")
+        for button in win.top3_buttons
+    )
     assert win._top3_attribute_ids == [  # type: ignore[attr-defined]
         "synthetic_04",
         "synthetic_05",
@@ -56,6 +67,27 @@ def test_ux2a_unknown_signal_gate_does_not_claim_top_three(qtbot: object) -> Non
     assert win._top3_attribute_ids == []
     # Default Attribute/Map remain navigable, independent of absent Top-3.
     assert win._attribute() is not None
+    win.close()
+
+
+def test_ux2a_neutral_signed_and_selected_card_visuals(qtbot: object) -> None:
+    original = make_synthetic_result("ux2a-neutral-visual")
+    attributes = list(original.attributes)
+    attributes[0] = replace(
+        attributes[0], official_value=-12.0, quality_oriented=False
+    )
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(replace(original, attributes=tuple(attributes)))
+    assert win._top3_attribute_ids[0] == "synthetic_00"
+    neutral = win.top3_buttons[0]
+    assert neutral.property("insightTone") == "signed"
+    assert "no winner" in neutral.text()
+    assert not neutral.icon().isNull()
+    neutral.click()
+    assert neutral.isChecked()
+    assert "QPushButton:checked" in neutral.styleSheet()
+    assert win.current_analysis_state()["attribute_id"] == "synthetic_00"
     win.close()
 
 
