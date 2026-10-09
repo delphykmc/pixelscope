@@ -1770,8 +1770,8 @@ class AnalysisWindow(QMainWindow):
         ):
             return
         if self.inspector_splitter.height() < 380:
-            # Compact initial presentation leaves the UX-1 Inspector at least
-            # 350px high at FHD, while the operator may expand the ROI evidence.
+            # Request a compact first FHD dock while allowing operators to
+            # enlarge it later; exact Inspector height depends on Qt layout minima.
             self.resizeDocks([self.spatial_dock], [175], Qt.Orientation.Vertical)
 
     def _queue_initial_fit(self) -> None:
