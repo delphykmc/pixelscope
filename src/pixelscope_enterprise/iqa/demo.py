@@ -9,8 +9,12 @@ No MAIN window, job, real image, data-service, transport or proprietary artifact
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
+from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
 from pixelscope_enterprise.iqa.analysis_model import (
@@ -77,10 +81,35 @@ def make_synthetic_result(result_id: str = "public-synthetic-pair") -> AnalysisR
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
-    app = QApplication(list(arguments) if arguments is not None else [])
+    """Run demo with optional `--rgb` local 4K synthetic original images."""
+
+    argv = list(arguments) if arguments is not None else []
+    use_rgb = "--rgb" in argv
+    app = QApplication([arg for arg in argv if arg != "--rgb"])
     manager = AnalysisWindowManager()
-    manager.show(make_synthetic_result())
-    return app.exec()
+    if not use_rgb:
+        manager.show(make_synthetic_result())
+        return app.exec()
+
+    # Created only in the local temporary directory, never committed/uploaded.
+    # Synthetic RGB imagery demonstrates that the A/B panes really render and
+    # continue to be reused while the selected Map changes.
+    with TemporaryDirectory(prefix="pixelscope-ux1-rgb-") as directory:
+        paths: list[Path] = []
+        for label, color in (
+            ("a", QColor(115, 140, 159)),
+            ("b", QColor(134, 127, 114)),
+        ):
+            filename = Path(directory) / f"synthetic-{label}-4k.png"
+            image = QImage(3840, 2160, QImage.Format.Format_RGB32)
+            image.fill(color)
+            if not image.save(str(filename)):
+                raise RuntimeError("could not save public-safe synthetic RGB preview")
+            paths.append(filename)
+        manager.show(
+            replace(make_synthetic_result(), source_a=paths[0], source_b=paths[1])
+        )
+        return app.exec()
 
 
 if __name__ == "__main__":
