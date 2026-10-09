@@ -513,9 +513,13 @@ def test_clear_roi_keyboard_alias_and_per_result_independence(qtbot: object) -> 
         "Esc", "Shift+Esc"
     ]
     qtbot.keyPress(win.attribute_table, Qt.Key.Key_Shift)  # type: ignore[attr-defined]
-    assert all(view.viewport().cursor().shape() == Qt.CursorShape.CrossCursor for view in win._views)
+    assert all(
+        view.viewport().cursor().shape() == Qt.CursorShape.CrossCursor for view in win._views
+    )
     qtbot.keyRelease(win.attribute_table, Qt.Key.Key_Shift)  # type: ignore[attr-defined]
-    assert all(view.viewport().cursor().shape() != Qt.CursorShape.CrossCursor for view in win._views)
+    assert all(
+        view.viewport().cursor().shape() != Qt.CursorShape.CrossCursor for view in win._views
+    )
 
     win._set_roi(10, 20, 45, 50)
     assert win.clear_roi_action.isEnabled() and win.clear_roi_button.isEnabled()
