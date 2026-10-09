@@ -12,30 +12,34 @@ executable architecture/reference experience, not the final Enterprise UI.
 
 Issue #139 replaces the Slice 8 text-heavy result/reference/Scene dock with a small optional **integration canary**. See [MAIN Host/Reference cutoff](../IQA_MAIN_HOST_PLAN.md), [server Result contract](../IQA_SERVER_RESULT_REQUEST.md), and [handoff UI plan](../IQA_HANDOFF_WINDOW_PLAN.md).
 
-The MAIN Host needs **no new toolbar/status API** for this layout. Existing `WindowContribution.install_actions/install_dock/shutdown`, the bounded `current_comparison_source_paths()` and QMainWindow's status bar suffice. An opt-in Reference contributes the **File > Run IQA (Synthetic)** command, a **View > Show IQA Mock Jobs** dock, a menu/toolbar-independent job-status notification, and a separately owned non-modal **IQA Analysis Canary** window.
+The MAIN Host needs **no new toolbar/status API** for this layout. Existing `WindowContribution.install_actions/install_dock/shutdown`, the bounded `current_comparison_source_paths()` and QMainWindow's status bar suffice. An opt-in Reference contributes a top-level **IQA** menu for synthetic Run/Demo commands and checkable **View > Show IQA Mock Jobs / Show IQA Analysis Window** controls. The extension owns a compact jobs dock, status notification, and a separate non-modal **IQA Analysis Canary** window.
 
 - Each invocation snapshots exactly two native source-path slots in declared order, or explicitly labels the fallback *synthetic pair* when unavailable. The fixture never stages actual files.
 - A compact dock lists multiple independent synthetic job IDs. A deliberately manual **Advance Selected Mock Job** test clock drives queued → running → completed/failed with no QTimer, backend thread, sleeps or fabricated production progress; other MainWindow interactions remain enabled.
 - **View Selected Result** alone materializes and opens the synthetic published result. Completion never automatically switches the analysis window.
-- **Open Empty IQA Analysis Canary** works with no job. The same child QMainWindow reopens when closed, without cancelling queued/running jobs. Closing the owning MainWindow explicitly shuts down the extension.
-- **Open Published Synthetic IQA Result (Demo)** creates/completes a fake job and opens its fixture result. It is **not** a filesystem Open/Save As operation; no persistent portable result is produced.
+- **View > Show IQA Analysis Window** opens an empty child even without a job. Both View checkboxes track real visibility; closing the child unchecks its action. Hiding/reopening never clears an existing result or cancels a job. Owner MainWindow shutdown disposes the child.
+- **IQA > Load Synthetic Demo Result** creates/completes a fake job and opens its fixture result. It is **not** a filesystem Open/Save As operation; no persistent portable result is produced.
 - Result presentation in the child is intentionally limited to identity/count/completeness. No A/B/Map, image reader, ROI/hotspot, NPZ, report, server/storage/auth logic, or official comparative metric is implemented.
 
 ### MAIN keyboard focus and menu integration
 
-The Reference launcher contributes three real actions to **File**: Run IQA
-(Synthetic), Open Published Synthetic IQA Result (Demo), and Open Empty IQA
-Analysis Canary. These actions must occur in the File menu's visible/enabled
-QAction list, not only in the MainWindow's internal action map. View > Show IQA
-Mock Jobs is independently contributed to View. The generic Session composition
-replaces the File menu after initial MainWindow action installation. That
-replacement **must transfer every existing contributed QAction in order**, rather
-than rebuilding from a hardcoded list of Base commands, and update `_menu_map`
-to the newly attached menu. The Reference regression checks the active menu-bar
-membership and the visible File popup after full presentation composition.
+The Reference launcher contributes **IQA > Run IQA (Synthetic)** and
+**IQA > Load Synthetic Demo Result**. The opt-in IQA menu is inserted before View
+only when a contribution adds a command; Core-only has no IQA menu.
+**View > Show IQA Mock Jobs** and **View > Show IQA Analysis Window** are
+checkable visibility controls. The latter never resets the displayed result.
+Synthetic Run, Demo, and Empty Canary commands do not belong in File.
+
+**File > Open IQA Result...** is reserved for a real saved-result browser/reader;
+MAIN Reference does not implement it or pretend the synthetic fixture is a
+portable file. The generic Session composition still replaces the File menu
+after initial MainWindow action installation; it must transfer every existing
+contributed QAction and update `_menu_map` to the attached menu. The Reference
+regression checks actual IQA menu and View entries, and excludes synthetic
+commands from File, after full presentation composition.
 When debugging launcher differences, check the explicit
-`python -m pixelscope_iqa_reference` entry point and the currently running
-executable/version; the Core-only launcher does not install Reference actions.
+`python -m pixelscope_iqa_reference` entry point and the current
+executable/version; Core-only never installs Reference actions.
 
 The generic MAIN Files tree exclusively owns keyboard **Delete** and **Ctrl+A**.
 The native `DocumentListWidget.keyPressEvent` consumes unmodified Delete and
