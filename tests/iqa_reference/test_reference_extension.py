@@ -340,7 +340,7 @@ def test_reference_dock_uses_generic_contributed_dock_lifecycle_hardening(
     window.close()
 
 
-def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
+def test_reference_iqa_commands_and_view_controls_in_composed_window(
     qtbot: object,
     tmp_path: Path,
 ) -> None:
@@ -349,74 +349,55 @@ def test_reference_file_menu_actions_are_actually_visible_in_composed_window(
     )
     window = MainWindow(window_contributions=(extension,))
     qtbot.addWidget(window)  # type: ignore[attr-defined]
-    compose_main_window_presentation(window)  # Match the Reference app entrypoint.
+    compose_main_window_presentation(window)  # Match the Reference launcher.
     window.show()
 
-    # Source-level entrypoint calls Session composition, which replaces the
-    # original File menu. Inspect the one *currently attached* to QMenuBar.
+    # Session replaces File during presentation composition. Check the
+    # attached menus, not stale QMenu wrappers in the old File menu.
     menu_bar = window.menuBar()
-    file_menu = window._menu_map["File"]
     top_actions = list(menu_bar.actions())
-    file_menu_action = file_menu.menuAction()
+    names = [action.text().replace("&", "") for action in top_actions]
+    assert names.index("Selection") < names.index("IQA") < names.index("View")
+    assert menu_bar.isVisible()
+    for name in ("File", "IQA", "View"):
+        menu = window._menu_map[name]
+        assert menu.menuAction() in top_actions, (name, names)
+        assert menu.menuAction().isVisible() and menu.menuAction().isEnabled()
 
-    def menu_diagnostics() -> str:
-        ancestors: list[str] = []
-        parent = file_menu.parent()
-        while parent is not None:
-            ancestors.append(type(parent).__name__)
-            parent = parent.parent()
-        top = [
-            (
-                action.text(),
-                action.isVisible(),
-                action.isEnabled(),
-                action.menu().title() if action.menu() else None,
-            )
-            for action in top_actions
-        ]
-        file_actions = [
-            (action.text(), action.isVisible(), action.isEnabled())
-            for action in file_menu.actions()
-        ]
-        return (
-            f"menubar_visible={menu_bar.isVisible()}, "
-            f"top_actions={top!r}, "
-            f"file_menu={file_menu.title()!r}, parents={ancestors!r}, "
-            f"file_menu_action={file_menu_action.text()!r}, "
-            f"file_actions={file_actions!r}"
-        )
+    file_actions = window._menu_map["File"].actions()
+    file_labels = [action.text() for action in file_actions]
+    assert "Open Images..." in file_labels and "Open Folder..." in file_labels
+    assert "Run IQA (Synthetic)" not in file_labels
+    assert "Load Synthetic Demo Result" not in file_labels
+    assert "Open Empty IQA Analysis Canary" not in file_labels
+    assert "Open IQA Result..." not in file_labels  # No saved-file reader in Reference.
 
-    # Qt object equality, not Python 'is' (PySide may return distinct wrappers).
-    assert menu_bar.isVisible(), menu_diagnostics()
-    assert file_menu_action in top_actions, menu_diagnostics()
-    assert any(action.menu() == file_menu for action in top_actions), menu_diagnostics()
-    assert file_menu_action.isVisible() and file_menu_action.isEnabled(), menu_diagnostics()
+    iqa_menu = window._menu_map["IQA"]
+    commands = ("Run IQA (Synthetic)", "Load Synthetic Demo Result")
+    iqa_actions = list(iqa_menu.actions())
+    iqa_labels = [action.text() for action in iqa_actions]
+    assert iqa_labels == list(commands)
+    for label in commands:
+        action = window.action_map[label]
+        assert action in iqa_actions
+        assert action.isVisible() and action.isEnabled()
 
-    actual = list(file_menu.actions())
-    labels = [action.text() for action in actual]
-    expected = (
-        "Run IQA (Synthetic)",
-        "Load Synthetic Demo Result",
-        "Open Empty IQA Analysis Canary",
-    )
-    for label in expected:
-        assert labels.count(label) == 1, menu_diagnostics()
-        action = next(action for action in actual if action.text() == label)
-        assert action == window.action_map[label], menu_diagnostics()
-        assert action.isVisible() and action.isEnabled(), menu_diagnostics()
+    view_menu = window._menu_map["View"]
+    view_labels = [action.text() for action in view_menu.actions()]
+    for label in ("Show IQA Mock Jobs", "Show IQA Analysis Window"):
+        action = window.action_map[label]
+        assert action in view_menu.actions()
+        assert view_labels.count(label) == 1
+        assert action.isCheckable()
+        assert action.isVisible() and action.isEnabled()
+    assert not window.action_map["Show IQA Analysis Window"].isChecked()
 
-    assert labels.index("Open Folder...") < labels.index(expected[0]), menu_diagnostics()
-    assert labels.index(expected[0]) < labels.index(expected[1]) < labels.index(expected[2])
-    assert labels.index(expected[2]) < labels.index("Export Statistics CSV...")
-
-    # Test the actual popup at the File item, not merely action_map membership.
-    file_anchor = menu_bar.actionGeometry(file_menu_action).bottomLeft()
-    file_menu.popup(menu_bar.mapToGlobal(file_anchor))
-    qtbot.waitUntil(file_menu.isVisible)  # type: ignore[attr-defined]
-    assert all(
-        action.isVisible() and action.isEnabled() for action in actual if action.text() in expected
-    ), menu_diagnostics()
-    file_menu.hide()
+    # Verify the actual IQA popup rather than just an action map.
+    anchor = menu_bar.actionGeometry(iqa_menu.menuAction()).bottomLeft()
+    iqa_menu.popup(menu_bar.mapToGlobal(anchor))
+    qtbot.waitUntil(iqa_menu.isVisible)  # type: ignore[attr-defined]
+    assert all(action.isVisible() and action.isEnabled() for action in iqa_actions)
+    iqa_menu.hide()
     window.close()
 
 
@@ -475,7 +456,8 @@ def test_core_only_has_no_reference_ui_or_import_dependency(qtbot: object) -> No
     window = MainWindow()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
     assert "Run IQA (Synthetic)" not in window.action_map
-    assert "Open Empty IQA Analysis Canary" not in window.action_map
+    assert "Show IQA Analysis Window" not in window.action_map
+    assert "IQA" not in window._menu_map
     assert not any(
         dock.objectName() == "referenceIqaWorkspaceDock"
         for dock in window.findChildren(QDockWidget)
