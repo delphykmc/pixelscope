@@ -144,7 +144,6 @@ def test_spatial_dock_result_switch_and_close_reopen(qtbot: object) -> None:
     manager.shutdown()
 
 
-
 def test_dock_vertical_growth_enlarges_single_stitch_without_resampling(
     qtbot: object, tmp_path: Path
 ) -> None:
@@ -183,8 +182,7 @@ def test_startup_bottom_dock_does_not_collapse_fhd_inspector(qtbot: object) -> N
     win.present_result(make_synthetic_result("ux2c-fhd-inspector"))
     win.show()
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: win._fit_pending_result_id is None
-        and win.inspector_splitter.height() >= 320,
+        lambda: win._fit_pending_result_id is None and win.inspector_splitter.height() >= 320,
         timeout=5000,
     )
     assert win.spatial_dock.isVisible()
