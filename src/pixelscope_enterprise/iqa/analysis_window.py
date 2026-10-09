@@ -71,6 +71,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pixelscope.ui.beta_workspace_hardening import _WorkspaceDockTopLevelController
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
 from pixelscope_enterprise.iqa.analysis_model import (
@@ -736,6 +737,10 @@ class AnalysisWindow(QMainWindow):
             geometry_setting="ui/enterprise_iqa_spatial_floating_geometry",
         )
         self.spatial_dock.setTitleBarWidget(self.spatial_dock_title)
+        self._spatial_dock_chrome = _WorkspaceDockTopLevelController(
+            self.spatial_dock,
+            docked_title_bar=self.spatial_dock_title,
+        )
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.spatial_dock)
         view_menu.addSeparator()
         view_menu.addAction(self.spatial_dock.toggleViewAction())
@@ -1965,6 +1970,7 @@ class AnalysisWindowManager:
         window, self._window = self._window, None
         if window is not None:
             window._shutdown_spatial_worker()
+            window._spatial_dock_chrome.quiesce_pending_callbacks()
             window.spatial_dock_title.quiesce_pending_callbacks()
             window.close()
             # Normalize native floating dock before Qt destroys the owner;
