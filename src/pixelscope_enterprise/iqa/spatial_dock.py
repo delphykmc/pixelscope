@@ -1,23 +1,23 @@
-"""Bottom-dock cards for provisional GRID-DERIVED spatial ROI suggestions.
+"""Responsive source-aligned A|B stitched ROI evidence in the IQA bottom dock.
 
-Presentation only. All source crops use the SAME integer-pixel ROI in A/B.
-Pixmap scaling is for thumbnail presentation, never model measurement or ROI
-geometry. This widget owns neither IQA jobs nor a host MainWindow dock manager.
+One canvas draws both patches from bounded 512px source crops; resizing repaints
+cached pixels directly without generating scaled QPixmaps or clearing labels.
+Grid-derived hotspot rankings are comparative proposals, not official scores.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from PySide6.QtCore import QRect, Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QPaintEvent, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -25,12 +25,107 @@ from PySide6.QtWidgets import (
 from pixelscope.ui.design_tokens import TOKENS
 from pixelscope_enterprise.iqa.spatial_candidates import SpatialCandidate
 
-_THUMB_WIDTH = 154
-_THUMB_HEIGHT = 88
+
+class StitchedRoiCanvas(QWidget):
+    """Paint source-native A|B crops with one fit transform and no inner gutters."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("enterpriseIqaStitchedRoiCanvas")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumHeight(64)
+        self._a: QPixmap | None = None
+        self._b: QPixmap | None = None
+        self._roi_size: tuple[int, int] = (512, 512)
+        self.setToolTip("Original source-pixel ROI: A left | B right, common fit, no crop offset")
+
+    @property
+    def has_a(self) -> bool:
+        return self._a is not None and not self._a.isNull()
+
+    @property
+    def has_b(self) -> bool:
+        return self._b is not None and not self._b.isNull()
+
+    def set_patches(
+        self,
+        a: QPixmap | None,
+        b: QPixmap | None,
+        source_size: tuple[int, int],
+    ) -> None:
+        """Accept already-cropped pixmaps; never recompute them on a resize."""
+
+        self._a = a if a is not None and not a.isNull() else None
+        self._b = b if b is not None and not b.isNull() else None
+        self._roi_size = source_size
+        self.update()
+
+    def fitted_rect(self) -> QRectF:
+        """Exact single-canvas A+B geometry, centered with no internal letterboxing."""
+
+        width, height = self._roi_size
+        if width <= 0 or height <= 0:
+            return QRectF()
+        usable = self.contentsRect()
+        if usable.width() <= 0 or usable.height() <= 0:
+            return QRectF()
+        scale = min(usable.width() / (2.0 * width), usable.height() / height)
+        target_width, target_height = 2.0 * width * scale, height * scale
+        return QRectF(
+            usable.x() + (usable.width() - target_width) / 2.0,
+            usable.y() + (usable.height() - target_height) / 2.0,
+            target_width,
+            target_height,
+        )
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.fillRect(self.rect(), QColor(TOKENS.raised_background))
+        frame = self.fitted_rect()
+        if frame.isEmpty():
+            painter.end()
+            return
+        half = frame.width() / 2.0
+        source_width, source_height = self._roi_size
+        for index, patch in enumerate((self._a, self._b)):
+            region = QRectF(frame.x() + index * half, frame.y(), half, frame.height())
+            if patch is None:
+                painter.fillRect(region, QColor(TOKENS.workspace_background))
+                painter.setPen(QColor(TOKENS.text_secondary))
+                painter.drawText(
+                    region.adjusted(4, 4, -4, -4),
+                    Qt.AlignmentFlag.AlignCenter,
+                    f"{'A' if index == 0 else 'B'} source unavailable",
+                )
+            else:
+                painter.drawPixmap(
+                    region,
+                    patch,
+                    QRectF(0, 0, source_width, source_height),
+                )
+            # Labels identify semantic sources, not left/right preference or quality.
+            tag = QRectF(region.left() + 5, region.top() + 5, 19, 18)
+            painter.fillRect(tag, QColor(22, 25, 30, 215))
+            painter.setPen(QColor("#f2f4f5"))
+            painter.drawText(
+                tag,
+                Qt.AlignmentFlag.AlignCenter,
+                "A" if index == 0 else "B",
+            )
+        painter.setPen(QColor(TOKENS.accent))
+        seam_x = frame.left() + half
+        painter.drawLine(
+            int(round(seam_x)),
+            int(round(frame.top())),
+            int(round(seam_x)),
+            int(round(frame.bottom())),
+        )
+        painter.end()
 
 
 class SpatialCandidatesPanel(QWidget):
-    """Three compact A | B stitch previews and an exact-three-choice stride."""
+    """Three resizable stitched source comparison cards and one scan preset."""
 
     candidate_clicked = Signal(int)
     stride_changed = Signal(int)
@@ -39,12 +134,17 @@ class SpatialCandidatesPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("enterpriseIqaSpatialCandidatesPanel")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 6, 10, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(7, 3, 7, 5)
+        layout.setSpacing(3)
 
         header = QHBoxLayout()
-        header.addWidget(QLabel("SPATIAL HOTSPOTS · GRID-DERIVED (NOT OFFICIAL)", self), 1)
-        header.addWidget(QLabel("Scan", self))
+        self.heading = QLabel("TOP 3  /  LOCAL DIFFERENCE HOTSPOTS", self)
+        self.heading.setObjectName("enterpriseIqaSpatialHeading")
+        self.heading.setToolTip(
+            "Ranks provisional GRID-derived spatial differences by local magnitude, "
+            "not by an official ROI quality score."
+        )
+        header.addWidget(self.heading, 1)
         self.stride_selector = QComboBox(self)
         self.stride_selector.setObjectName("enterpriseIqaSpatialStride")
         for label, stride in (
@@ -54,110 +154,118 @@ class SpatialCandidatesPanel(QWidget):
         ):
             self.stride_selector.addItem(label, stride)
         self.stride_selector.setCurrentIndex(1)
+        self.stride_selector.setToolTip("Spatial search step in source pixels (not ROI size)")
         self.stride_selector.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._stride_selected
         )
         header.addWidget(self.stride_selector)
         layout.addLayout(header)
 
-        self.status_label = QLabel("Choose an Attribute to inspect local differences.", self)
+        self.status_label = QLabel(
+            "Largest local contrast first · A | B native crops · click to inspect. "
+            "GRID-DERIVED, not official ROI scores.",
+            self,
+        )
         self.status_label.setObjectName("enterpriseIqaSpatialStatus")
-        self.status_label.setWordWrap(True)
+        self.status_label.setToolTip(
+            "Mean of signed valid spatial grid cells inside a proposed source ROI. "
+            "Ranking strength is relative among the three proposals only."
+        )
+        self.status_label.setWordWrap(False)
         layout.addWidget(self.status_label)
         self.progress = QProgressBar(self)
         self.progress.setObjectName("enterpriseIqaSpatialBusy")
         self.progress.setRange(0, 0)
         self.progress.setTextVisible(False)
-        self.progress.setMaximumHeight(5)
+        self.progress.setMaximumHeight(4)
         self.progress.hide()
         layout.addWidget(self.progress)
 
-        cards = QHBoxLayout()
-        cards.setSpacing(8)
+        row = QHBoxLayout()
+        row.setSpacing(7)
         self.buttons: list[QPushButton] = []
-        self.previews: list[tuple[QLabel, QLabel]] = []
+        self.previews: list[StitchedRoiCanvas] = []
         self.titles: list[QLabel] = []
         self.details: list[QLabel] = []
+        self.impact_bars: list[QProgressBar] = []
         for index in range(3):
             card = QPushButton(self)
             card.setObjectName(f"enterpriseIqaSpatialCard{index + 1}")
             card.setCheckable(True)
             card.setEnabled(False)
-            card.setMinimumWidth(160)
-            card.setMinimumHeight(142)
+            card.setMinimumHeight(108)
+            card.setMinimumWidth(130)
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             column = QVBoxLayout(card)
-            column.setContentsMargins(7, 5, 7, 5)
-            column.setSpacing(3)
+            column.setContentsMargins(5, 3, 5, 3)
+            column.setSpacing(2)
             card_title = QLabel(f"#{index + 1}  —", card)
             card_title.setObjectName("enterpriseIqaSpatialCardTitle")
             column.addWidget(card_title)
-            row = QHBoxLayout()
-            row.setSpacing(2)
-            left = self._image_label(card, "A · source unavailable")
-            seam = QFrame(card)
-            seam.setFixedWidth(2)
-            seam.setStyleSheet(f"background-color: {TOKENS.accent};")
-            right = self._image_label(card, "B · source unavailable")
-            row.addWidget(left, 1)
-            row.addWidget(seam)
-            row.addWidget(right, 1)
-            column.addLayout(row)
+            preview = StitchedRoiCanvas(card)
+            column.addWidget(preview, 1)
             detail = QLabel("—", card)
             detail.setObjectName("enterpriseIqaSpatialCardDetails")
+            detail.setToolTip(
+                "GRID-derived local mean; valid denotes spatial mask coverage. "
+                "Not a verified official regional uplift."
+            )
             column.addWidget(detail)
-            # Labels are visual content; mouse clicks reach the actual button.
-            for child in (card_title, left, seam, right, detail):
-                if isinstance(child, QWidget):
-                    child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            impact = QProgressBar(card)
+            impact.setObjectName("enterpriseIqaSpatialRelativeImpact")
+            impact.setRange(0, 100)
+            impact.setValue(0)
+            impact.setTextVisible(False)
+            impact.setMaximumHeight(3)
+            impact.setToolTip("Relative search score vs #1; not a calibrated quality rating")
+            column.addWidget(impact)
+            for child in (card_title, preview, detail, impact):
+                child.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             card.clicked.connect(  # type: ignore[attr-defined]
                 lambda _checked=False, i=index: self.candidate_clicked.emit(i)
             )
-            cards.addWidget(card, 1)
+            row.addWidget(card, 1)
             self.buttons.append(card)
-            self.previews.append((left, right))
+            self.previews.append(preview)
             self.titles.append(card_title)
             self.details.append(detail)
-        layout.addLayout(cards, 1)
+            self.impact_bars.append(impact)
+        layout.addLayout(row, 1)
         self.setStyleSheet(
-            f"QPushButton#enterpriseIqaSpatialCard1, QPushButton#enterpriseIqaSpatialCard2, "
-            f"QPushButton#enterpriseIqaSpatialCard3 {{ background: {TOKENS.raised_background}; "
-            f"border: 1px solid {TOKENS.border}; border-radius: 7px; text-align: left; }}"
-            f"QPushButton:checked {{ border: 2px solid {TOKENS.accent}; }}"
-            f"QPushButton:hover {{ border-color: {TOKENS.accent}; }}"
+            f"QLabel#enterpriseIqaSpatialHeading {{ color: {TOKENS.text_primary}; "
+            "font-weight: 700; }}"
             f"QLabel#enterpriseIqaSpatialStatus {{ color: {TOKENS.text_secondary}; }}"
             f"QLabel#enterpriseIqaSpatialCardDetails {{ color: {TOKENS.text_secondary}; }}"
+            f"QPushButton#enterpriseIqaSpatialCard1 {{ background: {TOKENS.raised_background}; "
+            f"border: 1px solid {TOKENS.selection}; border-left: 4px solid {TOKENS.selection}; "
+            "border-radius: 7px; text-align: left; }"
+            f"QPushButton#enterpriseIqaSpatialCard2, QPushButton#enterpriseIqaSpatialCard3 {{ "
+            f"background: {TOKENS.raised_background}; border: 1px solid {TOKENS.border}; "
+            "border-left: 3px solid #6586a2; border-radius: 7px; text-align: left; }"
+            f"QPushButton:checked {{ border: 2px solid {TOKENS.accent}; "
+            f"border-left: 5px solid {TOKENS.accent}; }}"
+            f"QPushButton:hover {{ border-color: {TOKENS.accent}; }}"
+            f"QProgressBar#enterpriseIqaSpatialRelativeImpact {{ background: "
+            f"{TOKENS.panel_background}; border: 0px; }}"
+            f"QProgressBar#enterpriseIqaSpatialRelativeImpact::chunk {{ "
+            f"background: {TOKENS.accent}; }}"
         )
 
-    @staticmethod
-    def _image_label(parent: QWidget, text: str) -> QLabel:
-        label = QLabel(text, parent)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setMinimumSize(20, _THUMB_HEIGHT)
-        label.setMaximumHeight(_THUMB_HEIGHT)
-        label.setStyleSheet(f"background-color: {TOKENS.workspace_background};")
-        return label
-
     def _stride_selected(self, _index: int) -> None:
-        stride = self.stride_selector.currentData()
-        if isinstance(stride, int):
-            self.stride_changed.emit(stride)
+        value = self.stride_selector.currentData()
+        if isinstance(value, int):
+            self.stride_changed.emit(value)
 
     @staticmethod
     def _crop(source: QPixmap | None, candidate: SpatialCandidate) -> QPixmap | None:
-        """Copy no more than the requested source ROI, not the entire 4K frame."""
+        """Bounded 512px source crop once, on GUI thread; not on every resize."""
 
         if source is None or source.isNull():
             return None
         rect = QRect(*candidate.roi)
         if not source.rect().contains(rect):
             return None
-        crop = source.copy(rect)
-        return crop.scaled(
-            _THUMB_WIDTH,
-            _THUMB_HEIGHT,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
+        return source.copy(rect)
 
     def set_busy(self, message: str) -> None:
         self.status_label.setText(message)
@@ -165,14 +273,13 @@ class SpatialCandidatesPanel(QWidget):
         self.clear_cards()
 
     def clear_cards(self) -> None:
-        for i, button in enumerate(self.buttons):
-            button.setEnabled(False)
-            button.setChecked(False)
+        for i, card in enumerate(self.buttons):
+            card.setEnabled(False)
+            card.setChecked(False)
             self.titles[i].setText(f"#{i + 1}  —")
             self.details[i].setText("—")
-            for label, source in zip(self.previews[i], ("A", "B"), strict=True):
-                label.clear()
-                label.setText(f"{source} · unavailable")
+            self.previews[i].set_patches(None, None, (512, 512))
+            self.impact_bars[i].setValue(0)
 
     def populate(
         self,
@@ -183,30 +290,41 @@ class SpatialCandidatesPanel(QWidget):
         self.clear_cards()
         self.progress.hide()
         if not candidates:
-            self.status_label.setText("No qualifying GRID-DERIVED hotspot for this Attribute.")
+            self.status_label.setText("No qualifying local GRID hotspot for this Attribute.")
             return
         self.status_label.setText(
-            "Provisional local suggestions · source-aligned A | B crops · "
-            "click to focus all three viewers."
+            "Ranked by local GRID contrast (largest first) · not official ROI scores"
         )
+        leader = candidates[0].score
         for i, candidate in enumerate(candidates[:3]):
             self.buttons[i].setEnabled(True)
-            self.titles[i].setText(
-                f"#{candidate.rank}  ({candidate.x}, {candidate.y})  "
-                f"{candidate.width}×{candidate.height} px"
+            rank_title = (
+                "01  LARGEST LOCAL DIFFERENCE"
+                if i == 0
+                else f"0{i + 1}  NEXT STRONGEST" if i == 1 else "03  THIRD STRONGEST"
+            )
+            self.titles[i].setText(rank_title)
+            self.titles[i].setToolTip(
+                f"GRID proposal #{i + 1}: x={candidate.x}, y={candidate.y}, "
+                f"source ROI {candidate.width}×{candidate.height} px"
             )
             self.details[i].setText(
-                f"GRID mean {candidate.mean:+.3f} {unit}  ·  "
-                f"valid {candidate.valid_coverage:.0%}"
+                f"GRID Δ {candidate.mean:+.2f} {unit}  ·  valid {candidate.valid_coverage:.0%}"
                 + (" · exploratory" if candidate.mode == "exploratory_abs" else "")
             )
-            for source, label, marker in zip(pixmaps, self.previews[i], ("A", "B"), strict=True):
-                crop = self._crop(source, candidate)
-                label.clear()
-                if crop is None:
-                    label.setText(f"{marker} · source unavailable")
-                else:
-                    label.setPixmap(crop)
+            self.details[i].setToolTip(
+                f"ROI: ({candidate.x}, {candidate.y}) "
+                f"{candidate.width}×{candidate.height} px; "
+                f"mean {candidate.mean:+.4f} {unit}. GRID-derived only."
+            )
+            a = self._crop(pixmaps[0], candidate)
+            b = self._crop(pixmaps[1], candidate)
+            self.previews[i].set_patches(
+                a, b, (candidate.width, candidate.height)
+            )
+            self.impact_bars[i].setValue(
+                round(100.0 * candidate.score / leader) if leader > 0 else 0
+            )
 
     def mark_selected(self, index: int | None) -> None:
         for i, button in enumerate(self.buttons):
