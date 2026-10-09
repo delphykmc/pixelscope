@@ -661,13 +661,13 @@ class AnalysisWindow(QMainWindow):
             )
             if attr.spatial is None:
                 self.roi_label.setText(
-                    description + "\\nGRID-DERIVED spatial statistics unavailable"
+                    description + "\nGRID-DERIVED spatial statistics unavailable"
                 )
             else:
                 stats = roi_statistics(attr.spatial, roi)
                 value = "missing" if stats.mean is None else f"{stats.mean:+.4f} {attr.unit}"
                 self.roi_label.setText(
-                    f"{description}\\nGRID-DERIVED ROI mean: {value} (NOT official)\\n"
+                    f"{description}\nGRID-DERIVED ROI mean: {value} (NOT official)\n"
                     f"Grid valid area: {stats.valid_area:,.1f} / "
                     f"{stats.roi_area:,.1f} px² ({stats.valid_coverage:.1%} coverage)"
                 )
