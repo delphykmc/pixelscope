@@ -37,6 +37,9 @@ def test_ux1_chart_uses_official_axis_and_preserves_supplier_order(qtbot: object
     assert chart.item(0, 1).data(ATTRIBUTE_ROLE).chart_axis_range == 4.0
     assert result.attributes[0].spatial is None
     assert result.attributes[0].official_value is not None
+    assert win._state().attribute_id == "synthetic_02"  # type: ignore[union-attr]
+    assert win._map_item.isVisible()  # type: ignore[union-attr]
+    chart.selectRow(0)  # official-only entry remains selectable
     assert not win._map_item.isVisible()  # type: ignore[union-attr]
 
     # Missing official / valid Map is not rendered as a zero bar.
