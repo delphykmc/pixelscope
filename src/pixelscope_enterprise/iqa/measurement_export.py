@@ -1,6 +1,6 @@
 """Client-only measurement CSV export; not a saved IQA Result package.
 
-OFFICIAL full-pair values and GRID-DERIVED ROI statistics are different
+Full-pair comparison values and GRID-DERIVED ROI estimates are different
 measurement scopes. Neither display gain nor any rendered map enters export.
 """
 
@@ -60,7 +60,7 @@ def build_measurements_csv(result: AnalysisResult, roi: Roi | None = None) -> st
 
     A numeric 0.0 remains an actual zero. A missing/failed/invalid GRID value
     stays empty. ROI rows are included only if a valid source-coordinate ROI
-    and an Attribute's grid are available. Never infer an OFFICIAL ROI score.
+    and an Attribute's grid are available. Never infer a full-pair score for an ROI.
     """
 
     if roi is not None:
@@ -97,7 +97,7 @@ def build_measurements_csv(result: AnalysisResult, roi: Roi | None = None) -> st
         writer.writerow(
             (
                 *shared,
-                "OFFICIAL_FULL_PAIR",
+                "FULL_PAIR_COMPARISON",
                 *meta,
                 _number(attribute.official_value),
                 attribute.official_availability,
