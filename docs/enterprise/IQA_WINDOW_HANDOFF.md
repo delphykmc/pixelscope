@@ -6,17 +6,24 @@ Tracking: [#141](https://github.com/delphykmc/pixelscope/issues/141). Implementa
 
 | Field | Value |
 |---|---|
-| Initial merged MAIN base | `e8959eaa27acc0777542f33a8bf476e3ec6ad28c` (docs PR #142) |
+| Current approved merged MAIN / handoff pin | `95b7845e731302934e21033a0ee09ef08947495a` (merged PR #143) |
+| Previous pre-#143 development pin | `e8959eaa27acc0777542f33a8bf476e3ec6ad28c` (merged docs PR #142) |
+| Original #144 full-history backup | `archive/141-pre-143-rebase-20261009` at `1c67025cb836014335958ffd73232bf999efb8c1` |
 | Public IQA contract revision at base | `IQA_PUBLIC_CONTRACT_REVISION = 1` |
-| MAIN host implementation | #139 **in progress**, intentionally not assumed |
+| MAIN host implementation | #139 implemented by **merged PR #143**, now included in this handoff baseline |
 | Server output contract | #140 **proposal**, not a finalized file schema |
 | Public-safe branch disclosure | All branch files and commits are publicly readable |
 | Ownership | Only `src/pixelscope_enterprise/**`, `tests/enterprise/**`, `docs/enterprise/**`, `enterprise/**` |
 | Merge prohibition | Do **not** merge any Enterprise path into public `main` |
 
-The initial base is a **development pin**, not a claim that #139 has been approved or
-merged. The final MAIN SHA and contract revision must be updated after #139 merges,
-before the branch is approved for PRIVATE SUB transfer.
+PR #143 merged into MAIN on **2026-10-09**. The current handoff base is the
+verified merge commit above; the public contract revision remains `1`.
+To avoid rewriting 59 commit-by-commit review steps with remote-only GitHub API
+access, the feature's **exact eight final blob versions** were transplanted
+onto that MAIN commit in a single squash-rebase commit, preserving the
+original unmerged history on the archive branch. The PR still targets
+`handoff/enterprise-iqa-window`, **never public MAIN**. This base pin is
+complete, but PRIVATE SUB transfer and runtime validation remain separate gates.
 
 ## Implemented preliminary standalone window scope
 
@@ -200,19 +207,26 @@ $env:PYTHONPATH = "src"
 ```
 
 The authoring environment does **not** have PySide6 and cannot execute these
-native Qt tests. Prior owner Windows evidence on the older HEAD was 10 model
-PASS / 7 Qt PASS + 1 Qt FAIL with `-x`; the three remaining tests were not
-run. The fixes above still need a full separate-process Windows Qt suite,
-including the newly authored interactive regression cases. CI Ruff/typecheck
-success cannot substitute for this manual validation.
+native Qt tests. Latest owner evidence: **10 model PASS; 16 window PASS / 1
+window FAIL**, from the strict-deprecation 17-case Qt module at the previous
+head. The remaining failure (selected attribute/map overlay visibility)
+has a targeted fix using the selection model's selected row; no subsequent
+owner Qt rerun has been reported. **Rerun both suites** on the rebased head,
+including real keyboard/ROI and normal cyclic-GC GUI smoke. Repo CI
+Ruff/typecheck success cannot substitute for this Windows native check.
 
 ## Explicit follow-up / owner integration gates
 
-1. **#139 MAIN host:** after generic menu/dock/status/window lifecycle changes, pin
-   the exact merged MAIN SHA, rebase the temporary handoff branch and exercise the
-   already supported `WindowContribution` phases. Introduce no IQA-specific API
-   in Base. MainWindow job registry, completion notifications, submit validation,
-   async polling and result-view action remain an extension-specific subsequent slice.
+1. **#139 MAIN host — BASELINE DONE, INTEGRATION PENDING:** merged PR #143
+   supplies the generic menu/dock/status/window lifecycle, including optional
+   IQA command group and View-managed mock jobs/analysis-child visibility.
+   The handoff and Enterprise feature are rebased against exact MAIN merge
+   SHA `95b7845e731302934e21033a0ee09ef08947495a`. The production
+   Enterprise contribution still must integrate with the existing
+   `WindowContribution` phases and run owner Windows Qt lifecycle tests.
+   Introduce no IQA-specific API in Base. Real job scheduling, completion
+   notifications, validation, polling and result-view actions remain
+   extension-specific follow-on work.
 2. **#139 MAIN public semantic gap (conditional):** existing public `IqaResult`
    primarily exposes per-variant summaries; it lacks an authoritative first-class
    pairwise *official relative* result. The downstream `AttributeDisplay` boundary
@@ -235,17 +249,30 @@ success cannot substitute for this manual validation.
    remove the temporary branch only **after** proven transfer. Keep private adapters
    and config exclusively in PRIVATE SUB.
 
-## Rebase procedure when #139 completes
+## Completed MAIN #143 baseline transplant (2026-10-09)
 
-```powershell
-git fetch origin main
-git switch handoff/enterprise-iqa-window
-# Rebase only after identifying the reviewed #139 merged MAIN SHA.
-git rebase --onto <APPROVED_MAIN_SHA> e8959eaa27acc0777542f33a8bf476e3ec6ad28c
-git switch feat/141-analysis-window-shell
-git rebase --onto handoff/enterprise-iqa-window e8959eaa27acc0777542f33a8bf476e3ec6ad28c
-```
+1. Verified #143 merged with exact MAIN `95b7845e731302934e21033a0ee09ef08947495a`
+   (main parent of the new commit; PUBLIC contract revision `1`).
+2. Saved former #144 HEAD `1c67025cb836014335958ffd73232bf999efb8c1`
+   to `archive/141-pre-143-rebase-20261009` **before** rewriting any ref.
+3. Created a Git tree from the approved MAIN tree and copied only the eight
+   previously verified Enterprise-owned final **blob SHAs**. This is a
+   *squashed rebase*, not a replay of the 59 historical commits; all old
+   commit details remain accessible through the archived branch.
+4. Created a new feature commit with sole parent the exact merged MAIN SHA,
+   then advanced `handoff/enterprise-iqa-window` to that MAIN SHA and
+   moved `feat/141-analysis-window-shell` with force-with-lease after
+   verifying expected old ref values. Both refs were updated successfully.
+5. Re-checked MAIN...Enterprise diff: **eight added Enterprise files only**,
+   no modifications to `src/pixelscope/**`,
+   `src/pixelscope_iqa_reference/**`, `tests/iqa_reference/**` or public
+   general docs. This document receives a subsequent Enterprise-only update.
+6. Current PR #144 remains Draft and targets the handoff baseline, **not MAIN**.
+   Rerun static/typecheck/docs workflows on final HEAD, then owner Windows
+   model/Qt tests and interactive GUI validation before PRIVATE SUB import.
 
-Review both branches' HEAD, diff allowlist and tests after rebase. The first
-command normally only moves a zero-change handoff baseline forward. Avoid
-force-pushing over another agent's work: check the remote head and use a lease.
+Since history was intentionally squashed, do **not** run the obsolete
+`git rebase --onto ... e8959eaa` command against the current feature.
+Fresh local clones/worktrees should fetch the rewritten Enterprise ref
+and, if needed, branch anew from the updated remote feature. Preserve the
+archive ref until the PRIVATE SUB transfer is verified.
