@@ -191,6 +191,7 @@ def test_startup_bottom_dock_does_not_collapse_fhd_inspector(qtbot: object) -> N
     win.resize(1600, 800)
     win.present_result(make_synthetic_result("ux2c-fhd-inspector"))
     win.show()
+    win.spatial_dock.show()  # explicit despite persisted user visibility state
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: win._fit_pending_result_id is None and win.inspector_splitter.height() >= 320,
         timeout=5000,
