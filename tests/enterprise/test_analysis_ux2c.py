@@ -231,8 +231,7 @@ def test_spatial_dock_reopens_visible_after_saved_hidden_layout(qtbot: object) -
         second.present_result(make_synthetic_result("ux2c-reopen-dock"))
         second.show()
         qtbot.waitUntil(  # type: ignore[attr-defined]
-            lambda: second.spatial_dock.isVisible()
-            and second.spatial_panel.buttons[0].isEnabled(),
+            lambda: second.spatial_dock.isVisible() and second.spatial_panel.buttons[0].isEnabled(),
             timeout=5000,
         )
         assert second.spatial_dock.toggleViewAction().isChecked()
