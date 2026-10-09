@@ -177,6 +177,11 @@ def test_ux1_a_map_b_swap_changes_placement_not_scientific_identity(qtbot: objec
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(fixture)
+    win.show()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._fit_pending_result_id is None, timeout=3000
+    )
+    viewport_before = win.current_analysis_state()["viewport"]
     panes = win._pane_wrappers
     splitter = win._image_split
     assert [splitter.widget(i) for i in range(3)] == [panes[0], panes[2], panes[1]]
@@ -187,6 +192,7 @@ def test_ux1_a_map_b_swap_changes_placement_not_scientific_identity(qtbot: objec
     win.swap_sources_action.trigger()
     assert [splitter.widget(i) for i in range(3)] == [panes[1], panes[2], panes[0]]
     assert win.current_roi == (100, 400, 512, 512)
+    assert win.current_analysis_state()["viewport"] == viewport_before
     assert all(view.scene() is scene for view, scene in zip(win._views, scenes, strict=True))
     assert win._views[0].objectName() == "enterpriseIqaViewImageA"
     assert win._views[1].objectName() == "enterpriseIqaViewImageB"
