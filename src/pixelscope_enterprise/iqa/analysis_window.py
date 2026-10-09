@@ -342,7 +342,6 @@ def _style_insight_card(card: QPushButton, tone: str) -> None:
     card.setIcon(_insight_badge_icon(tone) if tone != "empty" else QIcon())
 
 
-
 class AnalysisWindow(QMainWindow):
     """One independent, non-modal window; may show with no loaded Result."""
 
@@ -894,9 +893,7 @@ class AnalysisWindow(QMainWindow):
                 card.setChecked(False)
                 continue
             item = ranked[index]
-            tone = (
-                "a" if item.delta_db > 0 else "b"
-            ) if item.quality_oriented else "signed"
+            tone = ("a" if item.delta_db > 0 else "b") if item.quality_oriented else "signed"
             _style_insight_card(card, tone)
             conclusion = (
                 ("A better" if item.delta_db > 0 else "B better")
