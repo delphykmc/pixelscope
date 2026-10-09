@@ -17,12 +17,22 @@ def test_file_export_enabled_for_result_without_verified_reader(
 ) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
+    file_menu = win.menuBar().actions()[0].menu()
+    assert file_menu is not None
+    assert win.export_menu.title() == "Export Result"
+    assert win.export_menu.objectName() == "enterpriseIqaExportResultMenu"
+    assert win.export_menu.menuAction() in file_menu.actions()
+    assert win.export_menu.actions() == [win.export_action]
+    assert win.export_action.text() == "Measurements (CSV)..."
+    assert win.export_action.objectName() == "enterpriseIqaExportMeasurementsCsv"
+    assert not win.export_menu.menuAction().isEnabled()
     assert not win.export_action.isEnabled()
     assert not win.open_action.isEnabled()
     assert not win.save_action.isEnabled()
     result = make_synthetic_result("ux3a-csv")
     win.present_result(result)
     win.show()
+    assert win.export_menu.menuAction().isEnabled()
     assert win.export_action.isEnabled()
     assert not win.open_action.isEnabled()
     assert not win.save_action.isEnabled()
