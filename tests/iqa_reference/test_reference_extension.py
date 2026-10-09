@@ -8,8 +8,8 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDockWidget
 
-from pixelscope.app.main_window import MainWindow
 from pixelscope.app.bootstrap import compose_main_window_presentation
+from pixelscope.app.main_window import MainWindow
 from pixelscope.core.image_document import ImageDocument
 from pixelscope.remote.iqa_public_contract import (
     IqaJobState,
