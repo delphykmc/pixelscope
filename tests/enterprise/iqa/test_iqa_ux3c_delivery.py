@@ -11,6 +11,7 @@ from threading import Thread
 
 import pytest
 from PySide6.QtCore import Qt, QThread
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 
 from pixelscope_enterprise.iqa.composition import IqaJobSnapshot, IqaWindowContribution
@@ -145,3 +146,116 @@ def test_queued_publication_is_quiesced_before_shutdown(qtbot: object) -> None:
     with pytest.raises(TypeError, match="validated snapshot"):
         contribution.post_job("not a snapshot")  # type: ignore[arg-type]
     host.close()
+
+
+def test_cancel_selected_job_requires_provider_and_explicit_job_capability(
+    qtbot: object,
+) -> None:
+    host = _PublicHost()
+    qtbot.addWidget(host)  # type: ignore[attr-defined]
+    cancellations: list[str] = []
+    contribution = IqaWindowContribution(cancel_job=cancellations.append)
+    contribution.prepare(host)
+    contribution.install_dock(host)
+
+    actions: dict[str, QAction] = {}
+
+    def add_action(
+        _menu: str, title: str, callback: object, _shortcut: str | None = None
+    ) -> QAction:
+        action = QAction(title, host)
+        action.triggered.connect(callback)  # type: ignore[attr-defined]
+        actions[title] = action
+        return action
+
+    contribution.install_actions(host, "IQA", add_action)
+    cancel = actions["Cancel Selected IQA Job"]
+    assert "Run IQA" not in actions
+    assert not cancel.isEnabled()
+    assert contribution.cancel_selected_button is not None
+    assert not contribution.cancel_selected_button.isEnabled()
+
+    contribution.publish_job(
+        IqaJobSnapshot("j1", "Cancellable active", "running", can_cancel=True)
+    )
+    contribution.publish_job(IqaJobSnapshot("j2", "Unknown capability", "running"))
+    contribution.publish_job(IqaJobSnapshot("j3", "Already completed", "completed"))
+    assert contribution.jobs_list is not None
+    assert contribution.jobs_list.count() == 3
+
+    contribution.jobs_list.setCurrentRow(1)  # Running, but provider says no.
+    assert not cancel.isEnabled()
+    contribution.jobs_list.setCurrentRow(2)  # Terminal job.
+    assert not cancel.isEnabled()
+    contribution.jobs_list.setCurrentRow(0)  # Explicit true capability.
+    assert cancel.isEnabled()
+    assert contribution.cancel_selected_button.isEnabled()
+    cancel.trigger()
+    assert cancellations == ["j1"]
+    # Request submission does not fabricate a terminal state.
+    assert contribution._records["j1"].status == "running"
+    assert not cancel.isEnabled()  # Suppress duplicate requests.
+    assert not contribution.cancel_selected_button.isEnabled()
+    contribution.request_cancel_selected()
+    assert cancellations == ["j1"]
+
+    contribution.publish_job(
+        IqaJobSnapshot("j1", "Cancellable active", "running", can_cancel=True)
+    )
+    assert not cancel.isEnabled()  # An ordinary status poll is not rejection.
+    contribution.publish_job(IqaJobSnapshot("j1", "Cancelled by provider", "cancelled"))
+    assert not cancel.isEnabled()
+    assert contribution.open_selected_result() is None
+    contribution.shutdown()
+    host.close()
+
+
+def test_cancel_callback_error_preserves_running_truth(
+    qtbot: object,
+) -> None:
+    host = _PublicHost()
+    qtbot.addWidget(host)  # type: ignore[attr-defined]
+    calls: list[str] = []
+
+    def reject_cancel(job_id: str) -> None:
+        calls.append(job_id)
+        raise RuntimeError("provider could not submit cancellation")
+
+    contribution = IqaWindowContribution(cancel_job=reject_cancel)
+    contribution.prepare(host)
+    contribution.install_dock(host)
+    contribution.publish_job(
+        IqaJobSnapshot("active", "Needs backend", "queued", can_cancel=True)
+    )
+    assert contribution.jobs_list is not None
+    contribution.jobs_list.setCurrentRow(0)
+    assert contribution.cancel_selected_button is not None
+    assert contribution.cancel_selected_button.isEnabled()
+    with pytest.raises(RuntimeError, match="could not submit"):
+        contribution.request_cancel_selected()
+    assert calls == ["active"]
+    assert contribution._records["active"].status == "queued"
+    assert contribution.cancel_selected_button.isEnabled()
+    contribution.shutdown()
+    host.close()
+
+
+def test_cancelled_status_does_not_automatically_imply_cancel_command(
+    qtbot: object,
+) -> None:
+    host, contribution = _prepare(qtbot)
+    contribution.publish_job(IqaJobSnapshot("reported", "Provider cancelled", "cancelled"))
+    assert contribution.cancel_selected_button is None
+    assert contribution.jobs_list is not None
+    contribution.jobs_list.setCurrentRow(0)
+    assert contribution.open_selected_result() is None
+    with pytest.raises(RuntimeError, match="not installed"):
+        contribution.request_cancel_selected()
+    contribution.shutdown()
+    host.close()
+
+
+@pytest.mark.parametrize("state", ["completed", "failed", "cancelled"])
+def test_terminal_snapshot_rejects_cancel_capability(state: str) -> None:
+    with pytest.raises(ValueError, match="only cancellable active"):
+        IqaJobSnapshot("j", "Terminal", state, can_cancel=True)
