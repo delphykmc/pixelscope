@@ -89,7 +89,9 @@ from pixelscope_enterprise.iqa.analysis_model import (
 )
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
+    CHART_MEASUREMENT_ROLE,
     DISPLAY_RANGE_ROLE,
+    ChartMeasurement,
     RelativeDifferenceDelegate,
 )
 from pixelscope_enterprise.iqa.insights import rank_top_differences
@@ -113,6 +115,8 @@ class _ResultViewState:
     center_x: float | None = None
     center_y: float | None = None
     display_gain: float = 1.0
+    chart_scope: str = "full_pair"
+    scope_user_override: bool = False
 
 
 class _LinkedView(QGraphicsView):
@@ -576,6 +580,27 @@ class AnalysisWindow(QMainWindow):
 
         # Compact always-visible ROI identity; detailed context belongs in its tab.
         # The chart no longer loses half its vertical space to explanatory cards.
+        scope_toolbar = QHBoxLayout()
+        scope_toolbar.setContentsMargins(0, 0, 0, 0)
+        scope_toolbar.addWidget(QLabel("CHART SCOPE", inspector))
+        self.chart_scope_combo = QComboBox(inspector)
+        self.chart_scope_combo.setObjectName("enterpriseIqaChartScope")
+        self.chart_scope_combo.addItem("Full pair", "full_pair")
+        self.chart_scope_combo.addItem("Active ROI · GRID", "roi_grid")
+        self.chart_scope_combo.setToolTip(
+            "Full pair shows original producer measurements. Active ROI shows "
+            "masked, area-weighted GRID-derived signed estimates; no ROI quality winner."
+        )
+        self.chart_scope_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._on_chart_scope_changed
+        )
+        scope_toolbar.addWidget(self.chart_scope_combo, 1)
+        inspector_layout.addLayout(scope_toolbar)
+        self.chart_scope_badge = QLabel("FULL-PAIR COMPARISON", inspector)
+        self.chart_scope_badge.setObjectName("enterpriseIqaChartScopeBadge")
+        self.chart_scope_badge.setWordWrap(True)
+        inspector_layout.addWidget(self.chart_scope_badge)
+
         roi_toolbar = QHBoxLayout()
         roi_toolbar.setContentsMargins(0, 0, 0, 0)
         self.roi_brief_label = QLabel("ROI: none", inspector)
@@ -821,13 +846,20 @@ class AnalysisWindow(QMainWindow):
     def _validated_saved_state(result: AnalysisResult, raw: dict[str, object]) -> _ResultViewState:
         """Validate the separate user state before mutating any visible UI."""
 
-        # H1 legacy states used attribute-id ranges and had no gain. New
-        # states use unit keys and include display_gain, deterministically
-        # migrating old attribute overrides without changing measurements.
+        # H1 legacy states used attribute-id ranges; H2 added display_gain.
+        # Chart scope is a user-only state field and defaults to Full pair
+        # for all earlier saved snapshots, even if they contain an active ROI.
         fields = set(raw)
-        legacy = fields == {"attribute_id", "roi", "ranges", "viewport"}
-        if not legacy and fields != {"attribute_id", "roi", "ranges", "viewport", "display_gain"}:
+        basic_fields = {"attribute_id", "roi", "ranges", "viewport"}
+        legacy = fields == basic_fields
+        with_gain = basic_fields | {"display_gain"}
+        with_scope = with_gain | {"chart_scope", "scope_user_override"}
+        if fields not in (basic_fields, with_gain, with_scope):
             raise ValueError("invalid analysis_state fields")
+        scope = raw["chart_scope"] if fields == with_scope else "full_pair"
+        override = raw["scope_user_override"] if fields == with_scope else False
+        if scope not in ("full_pair", "roi_grid") or type(override) is not bool:
+            raise ValueError("invalid chart scope or user override")
         ids = {attr.attribute_id for attr in result.attributes}
         attribute_id = raw["attribute_id"]
         if not isinstance(attribute_id, str) or attribute_id not in ids:
@@ -897,6 +929,8 @@ class AnalysisWindow(QMainWindow):
             right, bottom = int(np.ceil(x + width)), int(np.ceil(y + height))
             roi = (left, top, right - left, bottom - top)
 
+        if scope == "roi_grid" and roi is None:
+            raise ValueError("ROI chart scope requires a saved ROI")
         viewport = raw["viewport"]
         if not isinstance(viewport, dict) or set(viewport) != {"scale", "center_x", "center_y"}:
             raise ValueError("invalid saved viewport")
@@ -904,7 +938,10 @@ class AnalysisWindow(QMainWindow):
         x_center = viewport["center_x"]
         y_center = viewport["center_y"]
         if zoom is None and x_center is None and y_center is None:
-            return _ResultViewState(attribute_id, roi, ranges, display_gain=gain)
+            return _ResultViewState(
+                attribute_id, roi, ranges, display_gain=gain,
+                chart_scope=scope, scope_user_override=override,
+            )
         scale = finite_number(zoom)
         center_x = finite_number(x_center)
         center_y = finite_number(y_center)
@@ -919,7 +956,9 @@ class AnalysisWindow(QMainWindow):
             raise ValueError("saved view center outside bounded source overscan")
         if not (-max_y_overscan <= center_y <= result.image_height + max_y_overscan):
             raise ValueError("saved view center outside bounded source overscan")
-        return _ResultViewState(attribute_id, roi, ranges, scale, center_x, center_y, gain)
+        return _ResultViewState(
+            attribute_id, roi, ranges, scale, center_x, center_y, gain, scope, override
+        )
 
     def present_result(
         self, result: AnalysisResult, *, analysis_state: dict[str, object] | None = None
@@ -973,6 +1012,8 @@ class AnalysisWindow(QMainWindow):
         self.export_menu_action.setEnabled(True)
         self.export_action.setEnabled(True)
         self._populate_attributes()
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
         self._update_top_cards()
         self.gain_editor.setEnabled(True)
         self._render_result()
@@ -1065,6 +1106,8 @@ class AnalysisWindow(QMainWindow):
             "roi": list(state.roi) if state.roi is not None else None,
             "ranges": dict(state.ranges),  # stable unit names, not attribute IDs
             "display_gain": state.display_gain,
+            "chart_scope": state.chart_scope,
+            "scope_user_override": state.scope_user_override,
             "viewport": {
                 "scale": state.scale,
                 "center_x": state.center_x,
@@ -1282,6 +1325,7 @@ class AnalysisWindow(QMainWindow):
         self.detail_context.setText("DETAILS · select an attribute")
         self.roi_label.setText("ROI: none")
         self.roi_brief_label.setText("ROI: none")
+        self._sync_chart_scope()
         self.range_editor.setEnabled(False)
         self.gain_editor.setEnabled(False)
         self.clamp_label.setText("Map: unavailable")
