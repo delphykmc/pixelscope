@@ -144,8 +144,50 @@ def test_spreadsheet_injection_escaped_only_in_untrusted_text() -> None:
     assert row["attribute_id"] == "'-danger-id"
     assert row["attribute_label"].startswith("'=HYPERLINK")
     assert row["unit"] == "'@bad"
-    assert row["value"] == "-1.5"  # trusted numeric values remain numeric
+    assert row["value"] == ""  # partial remains unavailable, even with an input scalar
     assert row["availability"] == "partial"
+    # This is a presentation/export policy; the adapter value remains immutable.
+    assert bad.attributes[0].official_value == -1.5
+
+
+def test_available_negative_value_stays_numeric_and_partial_status_is_not_upgraded() -> None:
+    base = _result()
+    result = AnalysisResult(
+        "partial-pair",
+        128,
+        128,
+        "A",
+        "B",
+        (
+            AttributeDisplay("available", "Available", "dB", "SNR", -1.5, "available", True, 5.0),
+            AttributeDisplay("partial", "Partial", "dB", "SNR", 2.25, "partial", True, 5.0),
+            AttributeDisplay("empty_partial", "Partial absent", "dB", "SNR", None, "partial", True, 5.0),
+        ),
+    )
+    assert base.attributes[0].official_value == 0.0
+    rows = _rows(build_measurements_csv(result))
+    assert [r["value"] for r in rows] == ["-1.5", "", ""]
+    assert [r["availability"] for r in rows] == ["available", "partial", "partial"]
+
+
+def test_existing_file_is_preserved_if_atomic_replace_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    destination = tmp_path / "existing.csv"
+    original = b"DO NOT OVERWRITE THIS EXISTING FILE\r\n"
+    destination.write_bytes(original)
+
+    import pixelscope_enterprise.iqa.measurement_export as export_module
+
+    def reject_replace(_source: Path, _destination: Path) -> None:
+        assert destination.read_bytes() == original
+        raise OSError("replace blocked")
+
+    monkeypatch.setattr(export_module.os, "replace", reject_replace)
+    with pytest.raises(OSError, match="replace blocked"):
+        write_measurements_csv(_result(), None, destination)
+    assert destination.read_bytes() == original
+    assert sorted(tmp_path.iterdir()) == [destination]
 
 
 def test_zero_valid_grid_is_missing_not_a_fake_zero() -> None:
