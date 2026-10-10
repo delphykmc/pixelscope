@@ -859,7 +859,11 @@ class AnalysisWindow(QMainWindow):
             raise ValueError("invalid analysis_state fields")
         scope = raw["chart_scope"] if fields == with_scope else "full_pair"
         override = raw["scope_user_override"] if fields == with_scope else False
-        if scope not in ("full_pair", "roi_grid") or not isinstance(override, bool):
+        if (
+            not isinstance(scope, str)
+            or scope not in ("full_pair", "roi_grid")
+            or not isinstance(override, bool)
+        ):
             raise ValueError("invalid chart scope or user override")
         ids = {attr.attribute_id for attr in result.attributes}
         attribute_id = raw["attribute_id"]
@@ -1349,10 +1353,12 @@ class AnalysisWindow(QMainWindow):
             if not isinstance(attr, AttributeDisplay):
                 continue
             if is_roi:
+                roi = state.roi
+                assert roi is not None
                 if attr.spatial is None:
                     measurement = ChartMeasurement(None, "missing", 0.0)
                 else:
-                    stats = roi_statistics(attr.spatial, state.roi)
+                    stats = roi_statistics(attr.spatial, roi)
                     measurement = ChartMeasurement(
                         stats.mean,
                         "available" if stats.mean is not None else "missing",
