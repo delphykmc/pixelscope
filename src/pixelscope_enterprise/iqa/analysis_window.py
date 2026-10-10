@@ -553,17 +553,25 @@ class AnalysisWindow(QMainWindow):
         self.result_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
             self._on_result_selected
         )
-        inspector_layout.addWidget(QLabel("RELATIVE ATTRIBUTES · supplied order", inspector))
-        self.chart_help = QLabel(
-            "B better (−)  ←  0  →  A better (+)\n"
-            "Neutral signed: teal (−) / purple (+) · no winner",
-            inspector,
+        # A compact single-line control bar; value provenance belongs in
+        # tooltips/Details, while per-bar endpoints identify quality direction.
+        scope_toolbar = QHBoxLayout()
+        scope_toolbar.setContentsMargins(0, 0, 0, 0)
+        scope_toolbar.setSpacing(5)
+        scope_toolbar.addWidget(QLabel("Scope", inspector))
+        self.chart_scope_combo = QComboBox(inspector)
+        self.chart_scope_combo.setObjectName("enterpriseIqaChartScope")
+        self.chart_scope_combo.addItem("Full", "full_pair")
+        self.chart_scope_combo.addItem("ROI · grid", "roi_grid")
+        self.chart_scope_combo.setToolTip(
+            "Full: original whole-pair measurements. ROI: signed, masked, "
+            "area-weighted GRID estimates (not validated local quality scores)."
         )
-        self.chart_help.setWordWrap(True)
-        self.chart_help.setObjectName("enterpriseIqaChartHelp")
-        inspector_layout.addWidget(self.chart_help)
-        shared_controls = QHBoxLayout()
-        shared_controls.addWidget(QLabel("MAP DISPLAY GAIN", inspector))
+        self.chart_scope_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
+            self._on_chart_scope_changed
+        )
+        scope_toolbar.addWidget(self.chart_scope_combo, 1)
+        scope_toolbar.addWidget(QLabel("Map gain", inspector))
         self.gain_editor = QDoubleSpinBox(inspector)
         self.gain_editor.setObjectName("enterpriseIqaDisplayGain")
         self.gain_editor.setDecimals(1)
@@ -576,32 +584,10 @@ class AnalysisWindow(QMainWindow):
             "Full-pair bar and ROI values are unchanged."
         )
         self.gain_editor.valueChanged.connect(self._update_gain)  # type: ignore[attr-defined]
-        shared_controls.addWidget(self.gain_editor)
-        inspector_layout.addLayout(shared_controls)
-
-        # Compact always-visible ROI identity; detailed context belongs in its tab.
-        # The chart no longer loses half its vertical space to explanatory cards.
-        scope_toolbar = QHBoxLayout()
-        scope_toolbar.setContentsMargins(0, 0, 0, 0)
-        scope_toolbar.addWidget(QLabel("CHART SCOPE", inspector))
-        self.chart_scope_combo = QComboBox(inspector)
-        self.chart_scope_combo.setObjectName("enterpriseIqaChartScope")
-        self.chart_scope_combo.addItem("Full pair", "full_pair")
-        self.chart_scope_combo.addItem("Active ROI · GRID", "roi_grid")
-        self.chart_scope_combo.setToolTip(
-            "Full pair shows original producer measurements. Active ROI shows "
-            "masked, area-weighted GRID-derived signed estimates; no ROI quality winner."
-        )
-        self.chart_scope_combo.currentIndexChanged.connect(  # type: ignore[attr-defined]
-            self._on_chart_scope_changed
-        )
-        scope_toolbar.addWidget(self.chart_scope_combo, 1)
+        scope_toolbar.addWidget(self.gain_editor)
         inspector_layout.addLayout(scope_toolbar)
-        self.chart_scope_badge = QLabel("FULL-PAIR COMPARISON", inspector)
-        self.chart_scope_badge.setObjectName("enterpriseIqaChartScopeBadge")
-        self.chart_scope_badge.setWordWrap(True)
-        inspector_layout.addWidget(self.chart_scope_badge)
 
+        # Source-coordinate ROI identity remains a single fixed-height row.
         roi_toolbar = QHBoxLayout()
         roi_toolbar.setContentsMargins(0, 0, 0, 0)
         self.roi_brief_label = QLabel("ROI: none", inspector)
@@ -810,7 +796,7 @@ class AnalysisWindow(QMainWindow):
         self.setStyleSheet(
             f"QLabel#enterpriseIqaWorkspaceTitle {{ color: {TOKENS.text_primary}; "
             "font-weight: 700; }"
-            f"QLabel#enterpriseIqaChartHelp, QLabel#enterpriseIqaDetailContext, "
+            f"QLabel#enterpriseIqaDetailContext, "
             f"QLabel#enterpriseIqaOfficialExplanation, QLabel#enterpriseIqaRoiExplanation, "
             f"QLabel#enterpriseIqaMapExplanation {{ color: {TOKENS.text_secondary}; }}"
             f"QFrame#enterpriseIqaOfficialCard, "
@@ -1297,18 +1283,8 @@ class AnalysisWindow(QMainWindow):
         self.chart_scope_combo.blockSignals(True)
         self.chart_scope_combo.setCurrentIndex(max(index, 0))
         self.chart_scope_combo.blockSignals(False)
-        self.chart_scope_badge.setText(
-            "GRID-DERIVED ROI ESTIMATE · signed local evidence, not a quality winner"
-            if scope == "roi_grid"
-            else "FULL-PAIR COMPARISON · verified producer measurements"
-        )
-        self.chart_help.setText(
-            "ROI GRID signed: teal (−)  ←  0  →  purple (+)\n"
-            "Local mean only · NO verified A/B quality winner"
-            if scope == "roi_grid"
-            else "B better (−)  ←  0  →  A better (+)\n"
-            "Neutral signed: teal (−) / purple (+) · no winner"
-        )
+        # Scope changes must not shift the chart geometry or reserve
+        # explanatory lines above the actual Attribute measurements.
 
     def _on_chart_scope_changed(self, _index: int) -> None:
         state = self._state()
@@ -1342,7 +1318,7 @@ class AnalysisWindow(QMainWindow):
         )
         is_roi = state.chart_scope == "roi_grid" and state.roi is not None
         table.setHorizontalHeaderLabels(
-            ["Metric / family", "GRID-derived ROI estimate" if is_roi else "Full-pair comparison"]
+            ["Metric / family", "ROI Δ (grid)" if is_roi else "Pair Δ"]
         )
         for row in range(table.rowCount()):
             cell = table.item(row, 1)
@@ -1910,6 +1886,10 @@ class AnalysisWindow(QMainWindow):
             state.roi = None
         if state is not None:
             state.chart_scope = "full_pair"
+        if state is not None:
+            # A cleared ROI is a fresh interaction cycle. Never retain the
+            # previous manual Full override into a brand-new ROI selection.
+            state.scope_user_override = False
         self._sync_chart_scope()
         self._refresh_all_group_bars()
         self._draw_roi(None)
