@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import Thread
 
 import pytest
-from PySide6.QtCore import QThread, Qt
+from PySide6.QtCore import Qt, QThread
 from PySide6.QtWidgets import QMainWindow
 
 from pixelscope_enterprise.iqa.composition import IqaJobSnapshot, IqaWindowContribution
