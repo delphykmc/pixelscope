@@ -66,18 +66,12 @@ code { font-size: 0.9em; overflow-wrap: anywhere; }
 """
 
 
-def _attr_rows(
-    result: AnalysisResult, roi_rect: tuple[int, int, int, int] | None
-) -> str:
+def _attr_rows(result: AnalysisResult, roi_rect: tuple[int, int, int, int] | None) -> str:
     rows: list[str] = []
     for attr in result.attributes:
         availability = attr.official_availability
         # Partial scalars are not treated as complete full-pair evidence.
-        full_value = (
-            _number(attr.official_value)
-            if availability == "available"
-            else "\u2014"
-        )
+        full_value = _number(attr.official_value) if availability == "available" else "\u2014"
         roi_value = "\u2014"
         coverage = "\u2014"
         if roi_rect is not None and attr.spatial is not None:
@@ -169,26 +163,24 @@ def render_html_report(
     limit = _escape(map_info["display_range"])
     effective = _escape(map_info["effective_half_range"])
     return (
-        "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">"
-        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-        "<meta http-equiv=\"Content-Security-Policy\" "
+        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<meta http-equiv="Content-Security-Policy" '
         "content=\"default-src 'none'; img-src 'self' file:; "
         "style-src 'unsafe-inline'; connect-src 'none'; "
         "base-uri 'none'; form-action 'none'\">"
         f"<title>IQA report \u2014 {_escape(result.result_id)}</title>"
         f"<style>{_STYLE}</style></head><body><main>"
         "<header><h1>IQA visual report</h1>"
-        f"<p class=\"muted\">Result: {_escape(result.result_id)} \u00b7 "
+        f'<p class="muted">Result: {_escape(result.result_id)} \u00b7 '
         f"{result.image_width}\u00d7{result.image_height} source pixels</p>"
         f"<p>Source A: <strong>{_escape(result.source_a_label)}</strong> &nbsp; "
         f"Source B: <strong>{_escape(result.source_b_label)}</strong></p>"
         "</header>"
-        "<p class=\"note\">Offline, non-reloadable report. Source PNGs are decoded "
+        '<p class="note">Offline, non-reloadable report. Source PNGs are decoded '
         "RGB, not bit-exact RAW. Spatial colors are visualizations and do not "
-        "change numeric measurements.</p>"
-        + "".join(panels)
-        + "<section><h2>Measurements</h2>"
-        "<p class=\"note\">Full-pair comparison and GRID-derived ROI estimate are "
+        "change numeric measurements.</p>" + "".join(panels) + "<section><h2>Measurements</h2>"
+        '<p class="note">Full-pair comparison and GRID-derived ROI estimate are '
         f"independent. {_escape(roi_warning)}</p>"
         '<div class="table-wrap"><table><thead><tr>'
         "<th>Attribute</th><th>Group</th><th>Unit</th>"
@@ -205,7 +197,7 @@ def render_html_report(
         f"<p>Clipped valid cells: {clipped} of {valid}, counted over the "
         "<strong>entire spatial grid</strong>, not independently per ROI. "
         "Invalid or uncovered pixels are transparent.</p>"
-        "<p class=\"muted\">Offline report assets: fixed PNG files and "
+        '<p class="muted">Offline report assets: fixed PNG files and '
         "export_info.json in this same folder. No scripts or network resources.</p>"
         "</section></main></body></html>\n"
     )
