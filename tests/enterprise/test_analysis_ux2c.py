@@ -431,6 +431,10 @@ def test_spatial_card_tracks_clear_manual_roi_and_changed_stride(
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux2c-roi-identity"))
     win.show()
+    # Candidate scan is opt-in; the panel stays hidden on startup.
+    assert win.spatial_dock.isHidden()
+    assert win._spatial_pending is None
+    win.hotspot_candidates_action.trigger()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: win._spatial_displayed is not None
         and len(win._spatial_cache.get(win._spatial_key(), ())) > 0,
@@ -499,6 +503,10 @@ def test_scan_failure_is_terminal_not_perpetual_busy(
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux2c-failed-scan"))
     win.show()
+    # Explicitly request candidates; startup must not launch a scan.
+    assert win.spatial_dock.isHidden()
+    assert win._spatial_future is None
+    win.hotspot_candidates_action.trigger()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: "scan unavailable" in win.spatial_panel.status_label.text().lower(),
         timeout=5000,
