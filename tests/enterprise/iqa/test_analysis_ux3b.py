@@ -64,7 +64,7 @@ def test_png_action_outputs_full_and_roi_after_swap(
     assert win.image_export_action.isEnabled()
     assert win.export_action.isEnabled()
     assert not win.open_action.isEnabled() and not win.save_action.isEnabled()
-    assert win.export_menu.actions() == [win.export_action, win.image_export_action]
+    assert win.export_menu.actions() == [win.export_action, win.image_export_action, win.report_export_action]
     win._set_roi(3.0, 2.0, 5.0, 4.0)
     win._swap_sources()
     before = win.current_analysis_state().copy()
