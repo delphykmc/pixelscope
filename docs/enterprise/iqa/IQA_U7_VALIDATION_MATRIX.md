@@ -108,8 +108,8 @@ try {
 }
 ```
 
-For UX-3E E1, follow
-[`IQA_UX3E_ACCEPTANCE.md`](IQA_UX3E_ACCEPTANCE.md) **only after**
+For UX-3E E1, follow PR #169's
+`docs/enterprise/iqa/IQA_UX3E_ACCEPTANCE.md` **only after**
 its feature PR is merged and the referenced test module exists at the
 exact evaluated Handoff SHA. Never assume a draft PR's test results apply
 to another branch's HEAD. Use real screen/4K/high-DPI and repeated
