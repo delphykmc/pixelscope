@@ -103,8 +103,12 @@ def test_window_contribution_jobs_are_user_opened_and_workers_private(
     assert contribution.jobs_dock.isHidden()  # Hidden list does not conceal status.
     contribution.publish_job(IqaJobSnapshot("j1", "Pair 1", "running"))
     assert "running" in contribution.jobs_status_button.text()
+    contribution.publish_job(IqaJobSnapshot("j2", "Pair 2", "queued"))
+    assert "Pair 2" in contribution.jobs_status_button.text()
+    contribution.publish_job(IqaJobSnapshot("j1", "Pair 1", "running"))
+    assert "Pair 1" in contribution.jobs_status_button.text()
     assert contribution.jobs_list is not None
-    assert contribution.jobs_list.count() == 1
+    assert contribution.jobs_list.count() == 2
     assert contribution.manager.window is None
     contribution.jobs_list.setCurrentRow(0)
     assert contribution.view_selected_button is not None
