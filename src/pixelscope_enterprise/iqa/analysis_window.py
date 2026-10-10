@@ -405,7 +405,6 @@ class AnalysisWindow(QMainWindow):
         self._source_pixmaps: tuple[QPixmap | None, QPixmap | None] = (None, None)
         self._fit_pending_result_id: str | None = None
         self._fit_attempts_remaining = 8
-        self._dock_startup_fit_pending = True
         self._spatial_cache: dict[tuple[str, str, int], tuple[SpatialCandidate, ...]] = {}
         self._spatial_displayed: tuple[str, str, int] | None = None
         self._spatial_pending: tuple[str, str, int] | None = None
@@ -482,7 +481,7 @@ class AnalysisWindow(QMainWindow):
             "Swap the visual positions of A and B; measurement identity is unchanged " "(T, Alt+X)"
         )
         self.clear_roi_action.setIcon(_analysis_action_icon("clear"))
-        self.hotspot_overlay_action = view_menu.addAction("Show Hotspot")
+        self.hotspot_overlay_action = view_menu.addAction("Show Hotspot Markers")
         self.hotspot_overlay_action.setObjectName("enterpriseIqaShowHotspotBoxes")
         self.hotspot_overlay_action.setIcon(_analysis_action_icon("hotspot"))
         self.hotspot_overlay_action.setCheckable(True)
@@ -490,10 +489,11 @@ class AnalysisWindow(QMainWindow):
         self.hotspot_overlay_action.setShortcut(QKeySequence("Alt+H"))
         self.hotspot_overlay_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.hotspot_overlay_action.setToolTip(
-            "Show/hide numbered hotspot proposals without altering native RGB (Alt+H)"
+            "Toggle numbered hotspot markers on A/B/Map (Alt+H). "
+            "Separate from the Hotspot Candidates View panel."
         )
         self.hotspot_overlay_action.toggled.connect(  # type: ignore[attr-defined]
-            self._draw_candidate_overlays
+            self._hotspot_overlay_toggled
         )
         self.clear_roi_action.setToolTip("Clear only the current ROI (Esc, Shift+Esc)")
 
@@ -750,7 +750,7 @@ class AnalysisWindow(QMainWindow):
         self.setCentralWidget(central)
 
         # Own QMainWindow dock manager: never attach this dock to PixelScope MAIN.
-        self.spatial_dock = QDockWidget("Spatial ROI Candidates", self)
+        self.spatial_dock = QDockWidget("Hotspot Candidates View", self)
         self.spatial_dock.setObjectName("enterpriseIqaSpatialCandidatesDock")
         self.spatial_dock.setAllowedAreas(
             Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
@@ -767,7 +767,7 @@ class AnalysisWindow(QMainWindow):
         # not depend on an OS-specific floating QDockWidget title decoration.
         self.spatial_dock_title = _EnterpriseSpatialDockTitle(
             self.spatial_dock,
-            title="Hotspots",
+            title="Hotspot Candidates View",
             geometry_setting="ui/enterprise_iqa_spatial_floating_geometry",
         )
         self.spatial_dock.setTitleBarWidget(self.spatial_dock_title)
@@ -777,20 +777,29 @@ class AnalysisWindow(QMainWindow):
         )
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.spatial_dock)
         view_menu.addSeparator()
-        view_menu.addAction(self.spatial_dock.toggleViewAction())
+        self.hotspot_candidates_action = self.spatial_dock.toggleViewAction()
+        self.hotspot_candidates_action.setText("Hotspot Candidates View")
+        self.hotspot_candidates_action.setShortcut(QKeySequence("Alt+Shift+H"))
+        self.hotspot_candidates_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.hotspot_candidates_action.setToolTip(
+            "Show/hide the Hotspot Candidates View (Alt+Shift+H). "
+            "Candidates are computed only when the panel or markers are requested."
+        )
+        view_menu.addAction(self.hotspot_candidates_action)
         self.spatial_panel.candidate_clicked.connect(self._select_spatial_candidate)
         self.spatial_panel.stride_changed.connect(self._request_spatial_candidates)
         self.spatial_dock.visibilityChanged.connect(  # type: ignore[attr-defined]
             self._spatial_dock_visibility_changed
         )
-        # Older builds could persist an invisible/zero-height dock and hide
-        # the entire ROI workflow on the next launch. Restore placement, but
-        # always show the ROI dock at the initial analysis-window presentation.
+        # Restore location/size but NOT visibility. The candidates panel is
+        # explicitly opt-in on every new Analysis Window; an old persisted
+        # visible dock must not trigger a scan or surprise the operator.
         dock_state = QSettings("PixelScope", "EnterpriseIqa").value(
             "analysis_window_spatial_dock_state"
         )
         if isinstance(dock_state, QByteArray | bytes):
             self.restoreState(dock_state)
+        self.spatial_dock.hide()
         # Read the same reusable design tokens as the public PixelScope host.
         # No private stylesheet or global palette mutation when hosted by MAIN.
         self.setStyleSheet(
@@ -1572,18 +1581,35 @@ class AnalysisWindow(QMainWindow):
 
     def _spatial_dock_visibility_changed(self, visible: bool) -> None:
         if visible:
+            # Re-dock a saved floating window from a disconnected monitor.
+            dock = self.spatial_dock
+            if dock.isFloating() and not any(
+                dock.frameGeometry().intersects(screen.availableGeometry())
+                for screen in QApplication.screens()
+            ):
+                dock.setFloating(False)
+                self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+            QTimer.singleShot(0, self._settle_dock_initial_height)
             self._request_spatial_candidates()
         else:
             self._draw_candidate_overlays()
 
+    def _hotspot_overlay_toggled(self, enabled: bool) -> None:
+        self._draw_candidate_overlays()
+        if enabled:
+            # Marker-only workflow lazily computes without opening the panel.
+            self._request_spatial_candidates()
+
     def _request_spatial_candidates(self, _stride: int = 128) -> None:
         """Always synchronize scene overlays before the visibility-gated scan."""
 
-        # A hidden dock does not scan, but old Attribute hotspots MUST NOT
-        # survive over a different Attribute/Map or stride. Repaint/visibility
-        # synchronization is cheap and independent of worker scheduling.
+        # Neither a hidden panel nor inactive markers should scan on startup.
+        # Previously computed overlays must still be invalidated on Attribute
+        # changes even while both user-controlled surfaces remain hidden.
         self._draw_candidate_overlays()
-        if not self.isVisible() or self.spatial_dock.isHidden():
+        if not self.isVisible() or (
+            self.spatial_dock.isHidden() and not self.hotspot_overlay_action.isChecked()
+        ):
             return
         key = self._spatial_key()
         attr = self._attribute()
@@ -1956,30 +1982,9 @@ class AnalysisWindow(QMainWindow):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        if self._dock_startup_fit_pending:
-            self._dock_startup_fit_pending = False
-            # restoreState() can reapply a stale hidden/float state. Defer
-            # exactly once until QMainWindow has laid out its dock widgets.
-            QTimer.singleShot(0, self._show_spatial_dock_at_startup)
+        # Startup presents only A/B/Map. The optional candidates dock and
+        # worker are activated by View > Hotspot Candidates View or by markers.
         self._queue_initial_fit()
-        self._request_spatial_candidates()
-
-    def _show_spatial_dock_at_startup(self) -> None:
-        if not self.isVisible():
-            return
-        dock = self.spatial_dock
-        # Re-dock an orphan floating panel (e.g. a disconnected monitor).
-        if dock.isFloating():
-            visible = any(
-                dock.frameGeometry().intersects(screen.availableGeometry())
-                for screen in QApplication.screens()
-            )
-            if not visible:
-                dock.setFloating(False)
-                self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
-        dock.show()
-        dock.raise_()
-        self._settle_dock_initial_height()
         self._request_spatial_candidates()
 
     def _settle_dock_initial_height(self) -> None:
