@@ -67,6 +67,9 @@ invokes `contribution.shutdown()` through the existing host lifecycle.
   delivery bridge** for worker/transport callbacks. It validates the payload
   and schedules `publish_job` on the host's GUI thread without accessing
   widgets from the worker. Already queued events become no-ops on shutdown.
+  Terminal states (completed/failed/cancelled) are absorbing for each stable
+  Job ID: delayed queued/running publications never revive a terminal job,
+  lose its verified result or re-enable Cancel. Retries use new Job IDs.
   PRIVATE SUB still owns worker lifecycle, authorization and transport.
   A reported `cancelled` state **does not** imply a cancel action. If
   PRIVATE SUB injects `cancel_job(job_id)` and each cancellable queued/running
