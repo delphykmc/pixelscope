@@ -161,7 +161,9 @@ def test_available_negative_value_stays_numeric_and_partial_status_is_not_upgrad
         (
             AttributeDisplay("available", "Available", "dB", "SNR", -1.5, "available", True, 5.0),
             AttributeDisplay("partial", "Partial", "dB", "SNR", 2.25, "partial", True, 5.0),
-            AttributeDisplay("empty_partial", "Partial absent", "dB", "SNR", None, "partial", True, 5.0),
+            AttributeDisplay(
+                "empty_partial", "Partial absent", "dB", "SNR", None, "partial", True, 5.0
+            ),
         ),
     )
     assert base.attributes[0].official_value == 0.0
