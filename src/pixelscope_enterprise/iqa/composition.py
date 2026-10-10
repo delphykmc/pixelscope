@@ -40,6 +40,7 @@ from pixelscope_enterprise.iqa.analysis_window import (
 IqaJobStarter = Callable[[tuple[Path | None, ...]], None]
 IqaJobCanceller = Callable[[str], None]
 JOB_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled"})
+TERMINAL_JOB_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
 @dataclass(frozen=True)
@@ -331,8 +332,14 @@ class IqaWindowContribution:
         app = QApplication.instance()
         if app is None or QThread.currentThread() != app.thread():
             raise RuntimeError("IQA job updates must be dispatched onto the Qt GUI thread")
+        previous = self._records.get(snapshot.job_id)
+        if previous is not None and previous.status in TERMINAL_JOB_STATUSES:
+            # Worker/transport callbacks can arrive out of order. The first
+            # terminal event for a stable ID is authoritative: never lose its
+            # result, revive cancellation, or overwrite a failure/cancellation.
+            return
         self._records[snapshot.job_id] = snapshot
-        if snapshot.status not in {"queued", "running"}:
+        if snapshot.status in TERMINAL_JOB_STATUSES:
             self._cancel_requested.discard(snapshot.job_id)
         self._latest_job_id = snapshot.job_id
         # Store stable IDs in UserRole; display labels may change.
