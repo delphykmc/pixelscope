@@ -859,7 +859,7 @@ class AnalysisWindow(QMainWindow):
             raise ValueError("invalid analysis_state fields")
         scope = raw["chart_scope"] if fields == with_scope else "full_pair"
         override = raw["scope_user_override"] if fields == with_scope else False
-        if scope not in ("full_pair", "roi_grid") or type(override) is not bool:
+        if scope not in ("full_pair", "roi_grid") or not isinstance(override, bool):
             raise ValueError("invalid chart scope or user override")
         ids = {attr.attribute_id for attr in result.attributes}
         attribute_id = raw["attribute_id"]
