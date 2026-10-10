@@ -233,9 +233,7 @@ def _assert_pinned_main_is_ancestor(root: Path, public_sha: str) -> None:
         )
     if result.returncode:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
-        raise AssertionError(
-            f"MAIN ownership guard could not verify pin ancestry: {detail}"
-        )
+        raise AssertionError(f"MAIN ownership guard could not verify pin ancestry: {detail}")
 
 
 def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
