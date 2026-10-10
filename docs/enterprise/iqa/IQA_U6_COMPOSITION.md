@@ -64,7 +64,12 @@ invokes `contribution.shutdown()` through the existing host lifecycle.
   on the **Qt GUI thread**, with status `queued`, `running`, `completed`,
   `failed` or `cancelled`. Results are accepted only for completed jobs.
   Network/worker threads must marshal updates onto the Qt main thread.
-- `View > Show IQA Jobs` opens an extension-owned dock. A completed result
+- A persistent, nonmodal **MAIN status-bar IQA button** reports the most
+  recently updated queued/running/completed/failed/cancelled job, even while
+  the IQA Jobs dock is hidden. Clicking it reveals the dock; it never opens
+  an Analysis Window or starts work by itself.
+- `View > Show IQA Jobs` is a **checkable visibility toggle**, kept in sync
+  when the dock is shown or hidden by another interaction. A completed result
   remains an explicit user choice: select the job, then click **View selected
   result** or double-click. Results never auto-open or steal MAIN focus merely
   because a background job finished.
@@ -95,14 +100,22 @@ $env:PYTHONPATH = "src"
 & $py -m pytest -q -W error::DeprecationWarning `
   tests/enterprise/iqa/test_iqa_composition.py `
   tests/enterprise/iqa/test_dock_lifecycle.py
+
+# Separate Qt process to avoid unrelated native teardown interference
+& $py -m pytest -q -W error::DeprecationWarning `
+  tests/enterprise/iqa/test_iqa_composition_main_window.py
 & $py -m ruff check .
 & $py -m ruff format --check .
 & $py -m mypy src
 ```
 
 Manually confirm: opening IQA with no job, creating queued/running/completed
-synthetic statuses, click-to-view result, no auto-open, dock visibility,
-separate INI namespace, shutdown and reopen. A PRIVATE SUB integration test
+synthetic statuses, persistent MAIN status cue even when the dock is hidden,
+click-to-view result, no auto-open, checkable dock visibility toggle, absent
+authorized job starter, refusal of cross-thread widget updates, separate INI
+namespace, shutdown and reopen. The real-host smoke uses the actual
+`MainWindow`/runtime composition and verifies menus, contributed dock and
+host-close shutdown, in an isolated pytest process. A PRIVATE SUB integration test
 must later cover actual authorized job start/cancellation, settings migration
 if one is requested, and production packaging. No live service is part of
 routine PUBLIC/Handoff CI.
