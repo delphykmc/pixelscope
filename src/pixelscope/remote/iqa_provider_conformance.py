@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from math import isfinite
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import Protocol
 
