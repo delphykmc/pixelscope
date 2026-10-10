@@ -14,9 +14,13 @@ Tracking: #168, #156 (U2/U3/U9/U11), #140 (portable result contract).
 - MAIN generic caller-selected packaging descriptor was merged in
   PUBLIC PR #167 (`4a85285c49bb97d90f92fdb6edfc81702242a269`).
   The original E1/E2A Handoff history predated this integration, so MAIN
-  ancestry could **not** be assumed. The new E2B *candidate branch*
-  incorporates exact PUBLIC `main@dca0464b66934b62aa759f2e38e0b79b40de353b`
-  via the verified **two-parent merge** `37478a43787fd1ec92413ad8ec2d8515c5e43767`.
+  ancestry could **not** be assumed. The E2B *candidate branch* first
+  incorporated PUBLIC `main@dca0464b66934b62aa759f2e38e0b79b40de353b`
+  via genuine two-parent merge `37478a43787fd1ec92413ad8ec2d8515c5e43767`.
+  Then PUBLIC #174 fixed the Issue #121/U8 test allowlist in `main` at
+  `3bef0880add2019d62f783d717eb1be518144e19`; E2B consumed this
+  exact newer MAIN SHA through second two-parent merge
+  `44adc97adeba50357702ea3cf5cf8295a6c19a8a`.
   See [E2B ancestry acceptance](IQA_UX3E_E2B_MAIN_SYNC.md).
   **Do not squash the E2B PR**: only a reviewed ordinary Git Merge commit
   into Handoff preserves MAIN as a real ancestor of the final handoff SHA.
