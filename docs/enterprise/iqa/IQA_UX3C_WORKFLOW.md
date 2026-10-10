@@ -44,7 +44,8 @@ flag are required before a cancellation control appears/enables.
 With capability available, `IQA > Cancel Selected IQA Job` is beside
 `Run IQA`; the Jobs Dock also provides `Cancel selected job`. Neither
 control implies Cancel All; selection resolves a stable Job ID. Clicking it
-passes exactly that ID to the callback, blocks duplicate requests and
+passes exactly that ID to the callback, blocks duplicate requests, shows a
+distinct `(cancel requested)` cue in the Jobs list/status bar and
 **does not change the displayed job status to `cancelled`**. Only a later
 trusted provider snapshot may confirm `cancelled`, `completed` or `failed`.
 Synchronous callback errors re-enable the action while preserving the current
