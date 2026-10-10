@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor, QImage
 
 from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, SpatialMap
 from pixelscope_enterprise.iqa.visual_export import (
+    _save_png,
     export_folder,
     map_rgba,
     write_visual_pngs,
@@ -56,6 +57,17 @@ def _source() -> QImage:
     image.fill(QColor(51, 121, 191))
     image.setPixelColor(1, 1, QColor(5, 9, 17))
     return image
+
+
+def test_png_writer_accepts_extension_inferred_format(tmp_path: Path) -> None:
+    """Regression: PySide6 Windows rejects an explicit bytes PNG format."""
+
+    image = _source()
+    destination = tmp_path / "qt_png_writer_probe.png"
+    _save_png(image, destination)
+    decoded = QImage(str(destination))
+    assert not decoded.isNull()
+    assert decoded.pixelColor(1, 1) == QColor(5, 9, 17)
 
 
 def test_source_pixel_geometry_invalid_alpha_and_real_zero() -> None:
