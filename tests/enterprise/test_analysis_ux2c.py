@@ -220,8 +220,8 @@ def test_startup_bottom_dock_does_not_collapse_fhd_inspector(qtbot: object) -> N
     win._shutdown_spatial_worker()
 
 
-def test_spatial_dock_reopens_visible_after_saved_hidden_layout(qtbot: object) -> None:
-    """Reopen should recover the ROI dock even when Qt saved an invisible dock."""
+def test_spatial_candidates_view_is_opt_in_even_with_saved_visible_layout(qtbot: object) -> None:
+    """Saved dock geometry must never unexpectedly show/scan on window startup."""
 
     from PySide6.QtCore import QSettings
 
@@ -230,28 +230,45 @@ def test_spatial_dock_reopens_visible_after_saved_hidden_layout(qtbot: object) -
     try:
         first = AnalysisWindow()
         qtbot.addWidget(first)  # type: ignore[attr-defined]
+        first.present_result(make_synthetic_result("ux2c-saved-visible-dock"))
         first.show()
+        assert first.spatial_dock.isHidden()
+        assert first._spatial_pending is None
+        first.spatial_dock.setFloating(False)
+        first.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, first.spatial_dock)
+        first.hotspot_candidates_action.trigger()
         qtbot.waitUntil(  # type: ignore[attr-defined]
             lambda: first.spatial_dock.isVisible(), timeout=5000
         )
-        first.spatial_dock.setFloating(False)
-        first.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, first.spatial_dock)
-        first.spatial_dock.hide()
-        QApplication.processEvents()
-        saved_hidden = first.saveState()
+        saved_visible = first.saveState()
         first.close()
         first._shutdown_spatial_worker()
-        settings.setValue("analysis_window_spatial_dock_state", saved_hidden)
+        settings.setValue("analysis_window_spatial_dock_state", saved_visible)
+
         second = AnalysisWindow()
         qtbot.addWidget(second)  # type: ignore[attr-defined]
-        second.present_result(make_synthetic_result("ux2c-reopen-dock"))
+        second.present_result(make_synthetic_result("ux2c-opt-in-reopen"))
         second.show()
+        QApplication.processEvents()
+        assert second.spatial_dock.isHidden()
+        assert not second.hotspot_candidates_action.isChecked()
+        assert second._spatial_future is None
+        assert second._spatial_pending is None
+        assert second._spatial_displayed is None
+
+        # An explicit View action reveals the panel and triggers lazy scan.
+        second.hotspot_candidates_action.trigger()
         qtbot.waitUntil(  # type: ignore[attr-defined]
-            lambda: second.spatial_dock.isVisible() and second.spatial_panel.buttons[0].isEnabled(),
+            lambda: (
+                second.spatial_dock.isVisible()
+                and second.spatial_panel.buttons[0].isEnabled()
+            ),
             timeout=5000,
         )
-        assert second.spatial_dock.toggleViewAction().isChecked()
-        assert second.dockWidgetArea(second.spatial_dock) == Qt.DockWidgetArea.BottomDockWidgetArea
+        assert second.hotspot_candidates_action.isChecked()
+        assert second.dockWidgetArea(second.spatial_dock) == (
+            Qt.DockWidgetArea.BottomDockWidgetArea
+        )
         second.close()
         second._shutdown_spatial_worker()
     finally:
@@ -259,6 +276,7 @@ def test_spatial_dock_reopens_visible_after_saved_hidden_layout(qtbot: object) -
             settings.remove("analysis_window_spatial_dock_state")
         else:
             settings.setValue("analysis_window_spatial_dock_state", original_state)
+
 
 
 def test_spatial_cards_are_short_ranked_visuals(qtbot: object) -> None:
@@ -292,6 +310,8 @@ def test_roi_dock_uses_native_plot_workspace_title_controls(qtbot: object) -> No
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.show()
+    assert win.spatial_dock.isHidden()
+    win.hotspot_candidates_action.trigger()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         win.spatial_dock.isVisible, timeout=4000
     )
@@ -299,13 +319,13 @@ def test_roi_dock_uses_native_plot_workspace_title_controls(qtbot: object) -> No
     assert isinstance(title, PlotsDockTitleBar)
     assert win.spatial_dock.titleBarWidget() is title
     assert win._spatial_dock_chrome.parent() is win.spatial_dock
-    assert title.title.text() == "Hotspots"
+    assert title.title.text() == "Hotspot Candidates View"
     assert all(
         not button.icon().isNull()
         for button in (title.float_button, title.maximize_button, title.close_button)
     )
-    assert title.float_button.toolTip() == "Float Hotspots"
-    assert title.maximize_button.toolTip() == "Maximize Hotspots"
+    assert title.float_button.toolTip() == "Float Hotspot Candidates View"
+    assert title.maximize_button.toolTip() == "Maximize Hotspot Candidates View"
     dock_icon = title.float_button.icon().cacheKey()
     title.float_button.click()
     qtbot.waitUntil(  # type: ignore[attr-defined]
@@ -319,7 +339,7 @@ def test_roi_dock_uses_native_plot_workspace_title_controls(qtbot: object) -> No
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: title._workspace_maximized, timeout=4000
     )
-    assert title.maximize_button.toolTip() == "Restore Hotspots"
+    assert title.maximize_button.toolTip() == "Restore Hotspot Candidates View"
     title.maximize_button.click()
     qtbot.waitUntil(  # type: ignore[attr-defined]
         lambda: not title._workspace_maximized, timeout=4000
@@ -340,11 +360,30 @@ def test_hotspot_action_is_iconified_and_short(qtbot: object) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     action = win.hotspot_overlay_action
-    assert action.text() == "Show Hotspot"
+    assert action.text() == "Show Hotspot Markers"
     assert not action.icon().isNull()
     assert action.shortcut().toString() == "Alt+H"
     assert action in win.iqa_toolbar.actions()
     assert action.isCheckable()
+    win.close()
+    win._shutdown_spatial_worker()
+
+
+def test_marker_action_starts_lazy_scan_without_opening_candidates_view(qtbot: object) -> None:
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(make_synthetic_result("ux2c-marker-only"))
+    win.show()
+    assert win.spatial_dock.isHidden()
+    assert win._spatial_future is None
+    win.hotspot_overlay_action.setChecked(True)
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: win._spatial_displayed == win._spatial_key(), timeout=5000
+    )
+    assert win.spatial_dock.isHidden()
+    assert win.hotspot_overlay_action.isChecked()
+    assert win.hotspot_candidates_action.shortcut().toString() == "Alt+Shift+H"
+    assert win.hotspot_candidates_action.text() == "Hotspot Candidates View"
     win.close()
     win._shutdown_spatial_worker()
 
