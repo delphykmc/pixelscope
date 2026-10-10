@@ -6,14 +6,21 @@ Qt teardown paths with the small in-memory/synthetic IQA tests.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import QSettings
 
 from pixelscope.app.bootstrap import compose_main_window_presentation
 from pixelscope.app.main_window import MainWindow
 from pixelscope.app.settings import QSettingsAdapter, SettingsRepository
 from pixelscope_enterprise.iqa.composition import IqaJobSnapshot, IqaWindowContribution
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("PIXELSCOPE_RUN_IQA_REAL_HOST") != "1",
+    reason="one-process real MainWindow U6 smoke runs only for U6 acceptance",
+)
 
 
 def test_real_main_window_contribution_menus_dock_runtime_and_shutdown(
