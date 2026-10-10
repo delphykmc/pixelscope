@@ -84,7 +84,58 @@ roots can wipe unrelated private sibling files.
   deletion scope. A tag alone does not create shared ancestry. If ancestry
   policy is broken, revert to (a) rather than rewriting approved history.
 
-Do not perform a bulk SUB import before the manifest producer/verifier,
-collision-and-deletion simulation, owner acceptance, and SHA/tag freeze are
-complete. Pending #159 Slice B may add additional IQA tests/docs at their old
+## Tooling / dry-run-first procedure
+
+The stdlib-only `handoff_manifest.py` uses **only immutable Git blobs** to
+build a candidate manifest; it does not determine whether security approval
+was actually granted. After independent review, approved SHA/tag freeze,
+real Windows validation, and review of the evidence JSON array:
+
+```powershell
+& $py enterprise/iqa/handoff_manifest.py generate `
+  --repo . --main-base-sha <MERGED_MAIN_SHA> --handoff-sha <FROZEN_HANDOFF_SHA> `
+  --tag handoff/iqa/v1 --reviewed-by <PUBLIC_SAFE_REVIEW_ID> `
+  --approved-at 2026-10-10T00:00:00+00:00 `
+  --evidence <ACTUAL_TEST_EVIDENCE_JSON> --output <EXTERNAL_MANIFEST_JSON>
+```
+
+The timestamp is an **example**, not an approval claim. Record actual test
+commands, OS, Python/Qt and outcomes (do not fabricate PASS entries).
+Validate the output with `handoff_manifest.schema.json`. Hash/sign/publish
+the resulting JSON as an **external protected** approval artifact paired
+with the protected tag; do not commit it into the SHA that it authenticates.
+
+PRIVATE SUB imports after retrieving the **same approved Git objects and
+the externally authenticated JSON**, not from mutable handoff HEAD:
+
+```powershell
+& $py enterprise/iqa/handoff_manifest.py import `
+  --repo <REPO_WITH_FETCHED_HANDOFF_TAG> --destination <SUB_CHECKOUT> `
+  --manifest <APPROVED_MANIFEST_JSON>
+# Review every printed path and operation. ONLY after approval:
+& $py enterprise/iqa/handoff_manifest.py import `
+  --repo <REPO_WITH_FETCHED_HANDOFF_TAG> --destination <SUB_CHECKOUT> `
+  --manifest <APPROVED_MANIFEST_JSON> --apply
+```
+
+For updates, also pass
+`--previous-manifest <PREVIOUS_APPROVED_MANIFEST_JSON>` to **both**
+commands. The tool rejects paths outside IQA leaves, Git symlinks,
+untracked-content collisions, altered files that do not match previous
+SHA-256, unlisted/extra files in the approved IQA tree, missing approval
+tags, and missing/mismatched previous snapshots. All preflight checks
+complete before the first write; the apply phase is **not** an atomic
+repository transaction, so take a private checkpoint and inspect `git diff`
+before committing. No code-level signature verifier or Git ruleset
+installer is provided: protection and manifest authentication are
+an explicit external owner/release responsibility.
+
+Owner-local validation:
+```powershell
+& $py -m pytest -q tests/enterprise/iqa/test_handoff_manifest.py
+& $py -m ruff check enterprise/iqa/handoff_manifest.py tests/enterprise/iqa/test_handoff_manifest.py
+& $py -m ruff format --check enterprise/iqa/handoff_manifest.py tests/enterprise/iqa/test_handoff_manifest.py
+```
+
+Pending #159 Slice B may add additional IQA tests/docs at their old
 flat locations; normalize them into these owned leaves **before H1 approval**.
