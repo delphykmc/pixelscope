@@ -317,7 +317,6 @@ def test_ux1_tabbed_inspector_full_height_and_metric_explanations(qtbot: object)
     win.close()
 
 
-
 def test_ux1_qss_braces_and_standalone_swap_shortcut(qtbot: object) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
