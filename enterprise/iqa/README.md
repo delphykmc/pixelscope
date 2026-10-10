@@ -74,15 +74,23 @@ roots can wipe unrelated private sibling files.
 
 ## Future updates and transfer modes
 
+- **Mandatory PUBLIC approval lineage:** every next approved handoff SHA must
+  descend from the previous approved SHA, regardless of PRIVATE SUB import
+  mode. Retain protected approval tags; neither mode permits rewriting
+  approved public history.
 - **(a) Default: manifest/path-delta**. A subsequent external manifest records
-  the previous approved SHA and all updates/deletions explicitly. A new SHA
-  need not be a descendant, but collisions are checked against the previous
-  manifest and operator-approved. Preserves SUB sibling ownership.
-- **(b) Optional: history-preserving merge**. A later approved handoff commit
-  must descend from the previous approved commit **and** SUB must share real Git
-  ancestry (not a prior `git restore` copy). Review the resulting merge diff and
-  deletion scope. A tag alone does not create shared ancestry. If ancestry
-  policy is broken, revert to (a) rather than rewriting approved history.
+  the previous approved SHA and all updates/deletions explicitly. Collisions
+  are checked against the previous manifest and operator-approved; unrelated
+  SUB siblings remain outside the import scope.
+- **(b) Optional: history-preserving merge**. PRIVATE SUB must have actual
+  ancestry for an approved handoff SHA, not just copied files. After the
+  initial verified path-delta import, a PRIVATE SUB-owned *ancestry bridge*
+  commit can retain the approved handoff commit as an additional parent,
+  but must be reviewed to ensure its full tree equals the already verified
+  PRIVATE SUB tree. Such a bridge does not authorize wholesale overwrites.
+  Before later merges, independently inspect the three-way merge diff and
+  all sibling/deletion collisions. If PRIVATE SUB merge ancestry is missing,
+  fall back to (a) without rewriting the approved PUBLIC handoff history.
 
 ## Tooling / dry-run-first procedure
 
