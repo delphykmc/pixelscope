@@ -317,9 +317,25 @@ def test_post_import_verify_requires_explicit_incremental_deletions(
     removed = destination / "src/pixelscope_enterprise/iqa/a.py"
     assert not removed.exists()
     assert (destination / sibling).read_bytes() == sibling_before
-    # A previously approved file reappearing must fail the post-import audit.
-    _write(destination, "src/pixelscope_enterprise/iqa/a.py", "a = True\n")
+    # Match the exact previously-approved LF Git blob. Path.write_text()
+    # translates LF to CRLF on Windows and would turn an unapplied deletion
+    # into a different, correctly rejected downstream deletion collision.
+    old_blob = fake_git.blobs[
+        next(
+            entry["git_blob_sha"]
+            for entry in old["imported_paths"]
+            if entry["path"] == "src/pixelscope_enterprise/iqa/a.py"
+        )
+    ]
+    removed.write_bytes(old_blob)
     with pytest.raises(handoff.HandoffError, match="operations remain unapplied"):
         handoff.verify_import(tmp_path, destination, current, old)
-    assert removed.read_text(encoding="utf-8") == "a = True\n"
+    assert removed.read_bytes() == old_blob
+
+    # Changed content on a deleted path is a collision, not a pending
+    # authorized deletion, and must be refused without modifying the file.
+    removed.write_bytes(b"a = False\n")
+    with pytest.raises(handoff.HandoffError, match="downstream deletion collision"):
+        handoff.verify_import(tmp_path, destination, current, old)
+    assert removed.read_bytes() == b"a = False\n"
     assert (destination / sibling).read_bytes() == sibling_before
