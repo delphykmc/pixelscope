@@ -1271,6 +1271,47 @@ class AnalysisWindow(QMainWindow):
         if self._group_units:
             self._on_group_attribute_selected(self._group_units[0])
 
+    def _sync_chart_scope(self) -> None:
+        """Mirror per-result selection, disabling ROI mode without geometry."""
+
+        state = self._state()
+        roi_ready = state is not None and state.roi is not None
+        roi_option = self.chart_scope_combo.model().item(1)
+        if roi_option is not None:
+            roi_option.setEnabled(roi_ready)
+        scope = state.chart_scope if state is not None else "full_pair"
+        if not roi_ready:
+            scope = "full_pair"
+        index = self.chart_scope_combo.findData(scope)
+        self.chart_scope_combo.blockSignals(True)
+        self.chart_scope_combo.setCurrentIndex(max(index, 0))
+        self.chart_scope_combo.blockSignals(False)
+        self.chart_scope_badge.setText(
+            "GRID-DERIVED ROI ESTIMATE · signed local evidence, not a quality winner"
+            if scope == "roi_grid"
+            else "FULL-PAIR COMPARISON · verified producer measurements"
+        )
+
+    def _on_chart_scope_changed(self, _index: int) -> None:
+        state = self._state()
+        if state is None:
+            return
+        requested = self.chart_scope_combo.currentData()
+        if requested not in ("full_pair", "roi_grid"):
+            return
+        if requested == "roi_grid" and state.roi is None:
+            self._sync_chart_scope()
+            return
+        # A manual Full-pair choice wins over later ROI drag gestures.
+        state.chart_scope = requested
+        state.scope_user_override = True
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
+
+    def _refresh_all_group_bars(self) -> None:
+        for unit in self._group_tables:
+            self._refresh_group_bars(unit)
+
     def _refresh_group_bars(self, unit: str) -> None:
         state = self._state()
         if state is None or self._active_id is None:
@@ -1281,10 +1322,39 @@ class AnalysisWindow(QMainWindow):
         limit = self._display_range(
             next(a for a in self._results[self._active_id].attributes if a.unit == unit), state
         )
+        is_roi = state.chart_scope == "roi_grid" and state.roi is not None
+        table.setHorizontalHeaderLabels(
+            ["Metric / family", "GRID-derived ROI estimate" if is_roi else "Full-pair comparison"]
+        )
         for row in range(table.rowCount()):
             cell = table.item(row, 1)
-            if cell is not None:
-                cell.setData(DISPLAY_RANGE_ROLE, limit)
+            if cell is None:
+                continue
+            cell.setData(DISPLAY_RANGE_ROLE, limit)
+            attr = cell.data(ATTRIBUTE_ROLE)
+            if not isinstance(attr, AttributeDisplay):
+                continue
+            if is_roi:
+                if attr.spatial is None:
+                    measurement = ChartMeasurement(None, "missing", 0.0)
+                else:
+                    stats = roi_statistics(attr.spatial, state.roi)
+                    measurement = ChartMeasurement(
+                        stats.mean, "available" if stats.mean is not None else "missing",
+                        stats.valid_coverage,
+                    )
+                cell.setData(CHART_MEASUREMENT_ROLE, measurement)
+                cell.setToolTip(
+                    f"{attr.label}: GRID-DERIVED ROI estimate from source-coordinate "
+                    f"mask/area; valid coverage {measurement.valid_coverage:.1%}; "
+                    "signed local evidence, no regional quality winner."
+                )
+            else:
+                cell.setData(CHART_MEASUREMENT_ROLE, None)
+                cell.setToolTip(
+                    f"{attr.label}: full-pair producer comparison "
+                    f"({attr.official_availability}); display range ±{limit:g} {unit}."
+                )
         table.viewport().update()
 
     def _update_group_range(self, unit: str, value: float) -> None:
@@ -1817,6 +1887,10 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         if state is not None:
             state.roi = None
+        if state is not None:
+            state.chart_scope = "full_pair"
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
         self._draw_roi(None)
         self._sync_spatial_selection()
         attr = self._attribute()
@@ -1838,7 +1912,12 @@ class AnalysisWindow(QMainWindow):
         state = self._state()
         if state is None:
             return
+        first_roi = state.roi is None
         state.roi = (left, top, right - left, bottom - top)
+        if first_roi and not state.scope_user_override:
+            state.chart_scope = "roi_grid"
+        self._sync_chart_scope()
+        self._refresh_all_group_bars()
         self._draw_roi(state.roi)
         self._sync_spatial_selection()
         attr = self._attribute()
