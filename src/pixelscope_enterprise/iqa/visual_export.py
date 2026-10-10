@@ -244,7 +244,8 @@ def write_visual_pngs(
             "omitted_files": omitted,
             "notes": [
                 "A/B PNGs are decoded displayed originals, not bit-exact RAW copies.",
-                "Map uses nearest grid-cell display colors; invalid/uncovered pixels are transparent.",
+                "Map uses nearest grid-cell display colors; "
+                "invalid/uncovered pixels are transparent.",
                 "GRID-derived ROI values are descriptive, not full-pair comparisons.",
             ],
         }
