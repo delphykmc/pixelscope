@@ -23,7 +23,8 @@ def test_file_export_enabled_for_result_without_verified_reader(
     assert win.export_menu.title() == "Export Result"
     assert win.export_menu.objectName() == "enterpriseIqaExportResultMenu"
     assert win.export_menu_action in file_menu.actions()
-    assert win.export_menu.actions() == [win.export_action]
+    assert win.export_menu.actions() == [win.export_action, win.image_export_action]
+    assert not win.image_export_action.isEnabled()
     assert win.export_action.text() == "Measurements (CSV)..."
     assert win.export_action.objectName() == "enterpriseIqaExportMeasurementsCsv"
     assert not win.export_menu_action.isEnabled()
@@ -35,6 +36,7 @@ def test_file_export_enabled_for_result_without_verified_reader(
     win.show()
     assert win.export_menu_action.isEnabled()
     assert win.export_action.isEnabled()
+    assert win.image_export_action.isEnabled()
     assert not win.open_action.isEnabled()
     assert not win.save_action.isEnabled()
     win._set_roi(64.0, 96.0, 512.0, 512.0)
