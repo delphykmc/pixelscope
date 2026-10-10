@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMenu,
@@ -97,6 +98,11 @@ from pixelscope_enterprise.iqa.attribute_chart import (
 from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
 from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
+from pixelscope_enterprise.iqa.visual_export import (
+    ExportScope,
+    export_folder,
+    write_visual_pngs,
+)
 from pixelscope_enterprise.iqa.spatial_candidates import (
     SpatialCandidate,
     find_spatial_candidates,
@@ -459,6 +465,16 @@ class AnalysisWindow(QMainWindow):
         )
         self.export_action.triggered.connect(  # type: ignore[attr-defined]
             self._export_csv_from_dialog
+        )
+        self.image_export_action = self.export_menu.addAction("Images (PNG)...")
+        self.image_export_action.setObjectName("enterpriseIqaExportImagesPng")
+        self.image_export_action.setEnabled(False)
+        self.image_export_action.setToolTip(
+            "Export decoded source A/B and the selected spatial Map at original-pixel "
+            "coordinates; this is not a reloadable IQA result."
+        )
+        self.image_export_action.triggered.connect(  # type: ignore[attr-defined]
+            self._export_png_from_dialog
         )
         view_menu = self.menuBar().addMenu("View")
         self.clear_roi_action = view_menu.addAction("Clear ROI")
@@ -1401,6 +1417,7 @@ class AnalysisWindow(QMainWindow):
         self._render_result()
 
     def _render_empty(self) -> None:
+        self.image_export_action.setEnabled(False)
         for view, name in zip(self._views, ("Image A", "Image B", "Map"), strict=True):
             scene = QGraphicsScene(view)
             scene.addText(f"{name}\nNo result loaded")
@@ -1522,6 +1539,9 @@ class AnalysisWindow(QMainWindow):
                 view._muted = False
 
         self._refresh_map(attr, limit)
+        self.image_export_action.setEnabled(
+            attr.spatial is not None or any(image is not None for image in self._source_pixmaps)
+        )
         self._pane_labels[0].setText(f"IMAGE A  ·  {result.source_a_label}")
         self._pane_labels[1].setText(f"IMAGE B  ·  {result.source_b_label}")
         if attr.spatial is None:
@@ -2096,6 +2116,59 @@ class AnalysisWindow(QMainWindow):
             return
         self.statusBar().showMessage(
             "CSV exported: full-pair values and grid-derived ROI estimates remain distinct."
+        )
+
+    def _export_png_from_dialog(self) -> None:
+        """Export labelled source-pixel images, never a viewport screenshot."""
+
+        if self._active_id is None:
+            return
+        result = self._results[self._active_id]
+        attribute, state = self._attribute(), self._state()
+        if attribute is None or state is None:
+            return
+        if attribute.spatial is None and not any(
+            image is not None for image in self._source_pixmaps
+        ):
+            self.statusBar().showMessage("PNG export unavailable: no source RGB or spatial Map.")
+            return
+        scope: ExportScope = "full"
+        if state.roi is not None:
+            choices = ["Full image", "Active ROI", "Both"]
+            selected, accepted = QInputDialog.getItem(
+                self, "Export IQA images", "Source-pixel coverage", choices, 2, False
+            )
+            if not accepted:
+                return
+            scope = {"Full image": "full", "Active ROI": "roi", "Both": "both"}[selected]
+        parent = QFileDialog.getExistingDirectory(
+            self, "Choose parent folder for a new IQA image export"
+        )
+        if not parent:
+            return
+        destination = export_folder(Path(parent), result.result_id)
+        images = tuple(
+            pixmap.toImage() if pixmap is not None else None
+            for pixmap in self._source_pixmaps
+        )
+        try:
+            write_visual_pngs(
+                result,
+                attribute,
+                (images[0], images[1]),
+                destination,
+                scope=scope,
+                roi=state.roi,
+                display_range=self._display_range(attribute, state),
+                display_gain=state.display_gain,
+            )
+        except (OSError, ValueError, KeyError):
+            self.statusBar().showMessage(
+                "PNG export failed or destination already exists; IQA result unchanged."
+            )
+            return
+        self.statusBar().showMessage(
+            "PNG images and export_info.json saved; map colors are display-only."
         )
 
     def _save_from_dialog(self) -> None:
