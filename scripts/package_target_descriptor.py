@@ -63,7 +63,13 @@ def _repo_file(value: Any, label: str, extension: str) -> Path:
     if not isinstance(value, str) or not value:
         raise ValueError(f"target descriptor {label} must be a repo-relative file")
     pure = Path(value)
-    if pure.is_absolute() or ".." in pure.parts or ":" in value or "\\" in value:
+    if (
+        pure.is_absolute()
+        or value.startswith(("/", "\\"))
+        or ".." in pure.parts
+        or ":" in value
+        or "\\" in value
+    ):
         raise ValueError(f"unsafe target descriptor {label} path")
     resolved = (REPO_ROOT / pure).resolve()
     if not resolved.is_relative_to(REPO_ROOT.resolve()):
