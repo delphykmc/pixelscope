@@ -232,8 +232,8 @@ def test_ux1_visual_rows_and_structured_details(qtbot: object) -> None:
     win = AnalysisWindow()
     qtbot.addWidget(win)  # type: ignore[attr-defined]
     win.present_result(make_synthetic_result("ux1-compact"))
-    assert all(win.attribute_table.rowHeight(i) == 36 for i in range(10))
-    assert all(win._group_tables["delta"].rowHeight(i) == 36 for i in range(2))
+    assert all(win.attribute_table.rowHeight(i) == 32 for i in range(10))
+    assert all(win._group_tables["delta"].rowHeight(i) == 32 for i in range(2))
     assert win.findChild(QWidget, "enterpriseIqaGroupScroll") is not None
     assert win.findChild(QWidget, "enterpriseIqaInspectorDetails") is not None
     assert win.findChild(QWidget, "enterpriseIqaRoiCard") is not None
