@@ -110,3 +110,7 @@ def test_real_git_manifest_generation_and_safe_import(tmp_path: Path) -> None:
     assert (destination / "src/pixelscope_enterprise/iqa/binary.dat").read_bytes() == binary
     assert sibling.read_bytes() == b"must survive\n"
     assert handoff.plan_import(repo, destination, manifest) == []
+    assert handoff.verify_import(repo, destination, manifest) == (
+        len(manifest["imported_paths"]),
+        len(manifest["removed_paths"]),
+    )
