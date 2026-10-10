@@ -102,6 +102,7 @@ def test_third_target_manifest_portable_zip_and_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = load_target_descriptor(_descriptor_file(tmp_path))
+    monkeypatch.setattr("scripts.package_target_descriptor.REPO_ROOT", tmp_path)
     root = target.output_root
     # A tiny frozen-tree stand-in: no secret, Qt runtime, compiler or live server.
     root.mkdir(parents=True, exist_ok=True)
