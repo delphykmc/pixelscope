@@ -33,13 +33,29 @@ def _result(result_id: str = "roi-scope") -> AnalysisResult:
         "Source B",
         (
             AttributeDisplay(
-                "metric", "Metric", "dB", "SNR", 1.5, "available", True, 6.0,
-                grid, chart_axis_range=6.0,
+                "metric",
+                "Metric",
+                "dB",
+                "SNR",
+                1.5,
+                "available",
+                True,
+                6.0,
+                grid,
+                chart_axis_range=6.0,
             ),
             AttributeDisplay("without_grid", "No map", "dB", "SNR", -2.0, "available", True, 6.0),
             AttributeDisplay(
-                "partial", "Partial", "delta", "signed", 3.0, "partial", False,
-                5.0, grid, chart_axis_range=5.0,
+                "partial",
+                "Partial",
+                "delta",
+                "signed",
+                3.0,
+                "partial",
+                False,
+                5.0,
+                grid,
+                chart_axis_range=5.0,
             ),
         ),
     )
@@ -69,9 +85,7 @@ def test_first_roi_autoselects_signed_grid_scope_and_clear_restores_full(
     assert win.chart_scope_combo.model().item(1).isEnabled()
     assert "GRID-DERIVED ROI ESTIMATE" in win.chart_scope_badge.text()
     assert "NO verified A/B quality winner" in win.chart_help.text()
-    assert win._group_tables["dB"].horizontalHeaderItem(1).text() == (
-        "GRID-derived ROI estimate"
-    )
+    assert win._group_tables["dB"].horizontalHeaderItem(1).text() == ("GRID-derived ROI estimate")
     roi = _chart(win, "dB", 0)
     assert roi is not None and roi.value == pytest.approx(4.0)
     assert roi.availability == "available"
