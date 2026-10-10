@@ -73,11 +73,7 @@ class _IqaJobDeliveryRelay(QObject):
     @Slot(object)
     def _deliver(self, snapshot: object) -> None:
         contribution = self._contribution_ref()
-        if (
-            not self._accepting
-            or contribution is None
-            or contribution._closed
-        ):
+        if not self._accepting or contribution is None or contribution._closed:
             return
         if isinstance(snapshot, IqaJobSnapshot):
             contribution.publish_job(snapshot)
