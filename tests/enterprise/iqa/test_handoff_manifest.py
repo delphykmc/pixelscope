@@ -260,3 +260,82 @@ def test_symlink_parent_is_not_a_transfer_target(tmp_path: Path, fake_git: FakeG
     with pytest.raises(handoff.HandoffError, match="symlink"):
         handoff.plan_import(tmp_path, destination, manifest)
     assert list(outside.iterdir()) == []
+
+
+def test_post_import_verify_is_read_only_and_rejects_missing_or_tampered_files(
+    tmp_path: Path, fake_git: FakeGit
+) -> None:
+    _, manifest = _make_manifest(tmp_path, fake_git, fake_git.v1, 1)
+    destination = tmp_path / "sub"
+    destination.mkdir()
+    sibling = "enterprise/other_team/sibling.py"
+    _write(destination, sibling, "private_sibling_untouched = True\n")
+    sibling_before = (destination / sibling).read_bytes()
+
+    # A manifest with a valid pinned tree is not proof of actual installation.
+    with pytest.raises(handoff.HandoffError, match="operations remain unapplied"):
+        handoff.verify_import(tmp_path, destination, manifest)
+    assert not (destination / "src/pixelscope_enterprise/iqa/a.py").exists()
+    assert (destination / sibling).read_bytes() == sibling_before
+
+    handoff.apply_import(handoff.plan_import(tmp_path, destination, manifest))
+    assert handoff.verify_import(tmp_path, destination, manifest) == (
+        len(manifest["imported_paths"]),
+        0,
+    )
+    # Auditing must not touch unrelated PRIVATE SUB sibling files.
+    assert (destination / sibling).read_bytes() == sibling_before
+    approved_file = destination / "src/pixelscope_enterprise/iqa/a.py"
+    approved_file.write_bytes(b"modified after approval\n")
+    with pytest.raises(handoff.HandoffError, match="existing path collision"):
+        handoff.verify_import(tmp_path, destination, manifest)
+    assert approved_file.read_bytes() == b"modified after approval\n"
+
+
+def test_post_import_verify_requires_explicit_incremental_deletions(
+    tmp_path: Path, fake_git: FakeGit
+) -> None:
+    old_path, old = _make_manifest(tmp_path, fake_git, fake_git.v1, 1)
+    destination = tmp_path / "sub"
+    destination.mkdir()
+    sibling = "tests/enterprise/other_team/test_sibling.py"
+    _write(destination, sibling, "keep_me = True\n")
+    sibling_before = (destination / sibling).read_bytes()
+    handoff.apply_import(handoff.plan_import(tmp_path, destination, old))
+
+    _, current = _make_manifest(tmp_path, fake_git, fake_git.v2, 2, previous=old_path)
+    with pytest.raises(handoff.HandoffError, match="requires previous approved manifest"):
+        handoff.verify_import(tmp_path, destination, current)
+    with pytest.raises(handoff.HandoffError, match="operations remain unapplied"):
+        handoff.verify_import(tmp_path, destination, current, old)
+
+    handoff.apply_import(handoff.plan_import(tmp_path, destination, current, old))
+    assert handoff.verify_import(tmp_path, destination, current, old) == (
+        len(current["imported_paths"]),
+        len(current["removed_paths"]),
+    )
+    removed = destination / "src/pixelscope_enterprise/iqa/a.py"
+    assert not removed.exists()
+    assert (destination / sibling).read_bytes() == sibling_before
+    # Match the exact previously-approved LF Git blob. Path.write_text()
+    # translates LF to CRLF on Windows and would turn an unapplied deletion
+    # into a different, correctly rejected downstream deletion collision.
+    old_blob = fake_git.blobs[
+        next(
+            entry["git_blob_sha"]
+            for entry in old["imported_paths"]
+            if entry["path"] == "src/pixelscope_enterprise/iqa/a.py"
+        )
+    ]
+    removed.write_bytes(old_blob)
+    with pytest.raises(handoff.HandoffError, match="operations remain unapplied"):
+        handoff.verify_import(tmp_path, destination, current, old)
+    assert removed.read_bytes() == old_blob
+
+    # Changed content on a deleted path is a collision, not a pending
+    # authorized deletion, and must be refused without modifying the file.
+    removed.write_bytes(b"a = False\n")
+    with pytest.raises(handoff.HandoffError, match="downstream deletion collision"):
+        handoff.verify_import(tmp_path, destination, current, old)
+    assert removed.read_bytes() == b"a = False\n"
+    assert (destination / sibling).read_bytes() == sibling_before
