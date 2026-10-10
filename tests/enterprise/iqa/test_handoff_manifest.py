@@ -176,7 +176,7 @@ def test_private_collisions_and_tampered_manifest_are_rejected(tmp_path: Path) -
 
     tampered = json.loads(json.dumps(manifest))
     tampered["imported_paths"][0]["sha256"] = "0" * 64
-    with pytest.raises(handoff.HandoffError, match="source SHA-256 mismatch"):
+    with pytest.raises(handoff.HandoffError, match="approved manifest SHA-256 differs"):
         handoff.plan_import(root, tmp_path / "empty", tampered)
 
     traversal = json.loads(json.dumps(manifest))
