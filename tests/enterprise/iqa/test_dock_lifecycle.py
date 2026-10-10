@@ -17,11 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 def test_iqa_analysis_no_longer_imports_main_private_beta_controller() -> None:
     path = REPO_ROOT / "src" / "pixelscope_enterprise" / "iqa" / "analysis_window.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    modules = {
-        item.module
-        for item in ast.walk(tree)
-        if isinstance(item, ast.ImportFrom)
-    }
+    modules = {item.module for item in ast.walk(tree) if isinstance(item, ast.ImportFrom)}
     assert "pixelscope.ui.beta_workspace_hardening" not in modules
     assert "pixelscope_enterprise.iqa.dock_lifecycle" in modules
 
