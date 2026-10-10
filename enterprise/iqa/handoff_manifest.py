@@ -78,8 +78,7 @@ def _owned_path(path: str) -> bool:
         return False
     parts = PurePosixPath(path).parts
     if not parts or any(
-        SAFE_SEGMENT_RE.fullmatch(part) is None
-        or part.split(".", 1)[0].upper() in WINDOWS_DEVICES
+        SAFE_SEGMENT_RE.fullmatch(part) is None or part.split(".", 1)[0].upper() in WINDOWS_DEVICES
         for part in path.split("/")
     ):
         return False
