@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from scripts import build_portable_release as portable
+from scripts import build_third_party_notices as notices
 from scripts.build_installer_release import installer_command
 from scripts.build_release import pyinstaller_command
 from scripts.distribution_contract import (
@@ -167,3 +169,21 @@ def test_third_target_manifest_portable_zip_and_bundle(
     (root / "library.dll").write_bytes(b"tampered")
     with pytest.raises(Exception, match="size mismatch|SHA-256 mismatch"):
         validate_payload_manifest(root, manifest, descriptor=target)
+
+
+def test_additional_requirements_extend_runtime_notice_license_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requirements = tmp_path / "private-runtime.txt"
+    requirements.write_text("internal-model-adapter==1.0\n", encoding="utf-8")
+    fake_dist = SimpleNamespace(metadata={"Name": "internal-model-adapter"})
+    monkeypatch.setattr(notices, "required_runtime_distributions", lambda: ())
+    monkeypatch.setattr(notices, "_distribution_license_files", lambda _dist: ())
+    monkeypatch.setattr(notices, "_license_metadata", lambda _dist: "MIT")
+    notices._validate_runtime_inventory((fake_dist,), requirements)
+    with pytest.raises(RuntimeError, match="missing runtime distributions"):
+        notices._validate_runtime_inventory((), requirements)
+
+    requirements.write_text("-r private-secrets.txt\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="unsupported release notice requirement syntax"):
+        notices._validate_runtime_inventory((fake_dist,), requirements)
