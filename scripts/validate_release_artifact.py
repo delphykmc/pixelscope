@@ -11,6 +11,7 @@ if __package__ in (None, ""):
 from scripts.build_user_guide import SHIM_SHA256  # noqa: E402
 from scripts.check_user_guide_site import find_site_problems  # noqa: E402
 from scripts.release_contract import APP_DIR  # noqa: E402
+from scripts.package_target_descriptor import load_target_descriptor  # noqa: E402
 
 
 class ArtifactValidationError(RuntimeError):
@@ -110,9 +111,21 @@ def main() -> int:
         default=APP_DIR,
         help="onedir root (default: dist/PixelScope)",
     )
+    parser.add_argument(
+        "--target-descriptor", type=Path, help="caller-selected downstream target"
+    )
     args = parser.parse_args()
-    validate_artifact(args.artifact)
-    print(f"Validated PixelScope onedir artifact: {args.artifact.resolve()}")
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None
+        else None
+    )
+    root = descriptor.output_root if descriptor is not None else args.artifact
+    executable_name = descriptor.executable if descriptor is not None else "PixelScope.exe"
+    if descriptor is not None and args.artifact != APP_DIR:
+        parser.error("positional artifact cannot be combined with --target-descriptor")
+    validate_artifact(root, executable_name=executable_name)
+    print(f"Validated PixelScope onedir artifact: {root.resolve()}")
     return 0
 
 
