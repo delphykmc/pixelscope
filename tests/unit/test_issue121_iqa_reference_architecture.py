@@ -216,9 +216,7 @@ def _git_output(root: Path, *args: str) -> bytes:
         raise AssertionError(f"Git is required for the MAIN ownership guard: {exc}") from exc
     if result.returncode:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
-        raise AssertionError(
-            f"MAIN ownership guard could not run git {args[0]}: {detail}"
-        )
+        raise AssertionError(f"MAIN ownership guard could not run git {args[0]}: {detail}")
     return result.stdout
 
 
@@ -245,8 +243,7 @@ def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
         path
         for path in tracked
         if any(
-            path == reserved or path.startswith(f"{reserved}/")
-            for reserved in _RESERVED_SUB_ROOTS
+            path == reserved or path.startswith(f"{reserved}/") for reserved in _RESERVED_SUB_ROOTS
         )
     )
     assert not violations, (
@@ -260,8 +257,8 @@ def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
     # PUBLIC MAIN checks HEAD; a PRIVATE SUB checkout pins the exact merged
     # PUBLIC MAIN SHA via this environment variable (no --deselect needed).
     pinned = os.environ.get(_PUBLIC_MAIN_SHA_ENV)
-    if pinned is not None:
-        assert _COMMIT_SHA.fullmatch(pinned), (
+    if pinned is not None and _COMMIT_SHA.fullmatch(pinned) is None:
+        raise AssertionError(
             f"{_PUBLIC_MAIN_SHA_ENV} must be the exact 40-character merged PUBLIC MAIN SHA"
         )
     _assert_main_git_tree_has_no_reserved_paths(REPOSITORY_ROOT, pinned or "HEAD")
