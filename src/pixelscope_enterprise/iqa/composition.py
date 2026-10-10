@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -81,6 +82,8 @@ class IqaWindowContribution:
         self.jobs_dock: QDockWidget | None = None
         self.jobs_list: QListWidget | None = None
         self.view_selected_button: QPushButton | None = None
+        self.jobs_status_button: QPushButton | None = None
+        self._jobs_view_action: QAction | None = None
         self._closed = False
         self._runtime_installed = False
 
@@ -119,6 +122,9 @@ class IqaWindowContribution:
         layout.addLayout(buttons)
         dock.setWidget(frame)
         self.jobs_dock = dock
+        dock.visibilityChanged.connect(  # type: ignore[attr-defined]
+            self._jobs_dock_visibility_changed
+        )
 
     def install_dock(self, window: QMainWindow) -> None:
         if self.jobs_dock is None or self._host() is not window:
@@ -142,13 +148,27 @@ class IqaWindowContribution:
             if self._start_job is not None:
                 add_action("IQA", "Run IQA", self.request_analysis, None)
         elif menu_name == "View":
-            add_action("View", "Show IQA Jobs", self.show_jobs, None)
+            action = add_action("View", "Show IQA Jobs", self.toggle_jobs, None)
+            action.setCheckable(True)
+            action.setChecked(self.jobs_dock is not None and not self.jobs_dock.isHidden())
+            self._jobs_view_action = action
 
     def install_runtime(self, window: QMainWindow) -> None:
         """Composition-root phase; intentionally does not start private workers."""
         if self._host() is not window or self._closed:
             raise RuntimeError("IQA runtime host unavailable")
         self._runtime_installed = True
+        # A persistent, nonmodal host status affordance remains visible even
+        # while the jobs dock is closed. No analysis window opens implicitly.
+        button = QPushButton("IQA Jobs", window.statusBar())
+        button.setObjectName("enterpriseIqaJobsStatusButton")
+        button.setToolTip("Open IQA Jobs to review requests and completed results")
+        button.clicked.connect(self.show_jobs)  # type: ignore[attr-defined]
+        window.statusBar().addPermanentWidget(button)
+        button.hide()
+        self.jobs_status_button = button
+        if self._records:
+            self._update_host_status()
 
     def _host(self) -> QMainWindow | None:
         return self._host_ref() if self._host_ref is not None else None
@@ -158,6 +178,28 @@ class IqaWindowContribution:
             raise RuntimeError("IQA contribution not available")
         self.jobs_dock.show()
         self.jobs_dock.raise_()
+
+    def toggle_jobs(self, checked: bool = False) -> None:
+        """Checkable View action; dock visibility drives the checked state."""
+        if self._closed or self.jobs_dock is None:
+            raise RuntimeError("IQA contribution not available")
+        self.jobs_dock.setVisible(checked)
+
+    def _jobs_dock_visibility_changed(self, visible: bool) -> None:
+        if self._jobs_view_action is not None:
+            self._jobs_view_action.setChecked(visible)
+
+    def _update_host_status(self) -> None:
+        """Visible MAIN-side progress/completion cue independent of dock state."""
+        button = self.jobs_status_button
+        if button is None or not self._records:
+            return
+        latest = next(reversed(self._records.values()))
+        button.setText(f"IQA: {latest.label} — {latest.status} · View jobs")
+        button.setAccessibleName(
+            f"IQA job {latest.label}, {latest.status}; open the IQA jobs list"
+        )
+        button.show()
 
     def request_analysis(self) -> None:
         """Pass selected source paths to the authorized, SUB-owned job starter."""
@@ -194,6 +236,7 @@ class IqaWindowContribution:
             item.setData(Qt.ItemDataRole.UserRole, snapshot.job_id)
             self.jobs_list.addItem(item)
         item.setText(f"{snapshot.label} — {snapshot.status}")
+        self._update_host_status()
         if self.jobs_list.currentItem() is item:
             self._selection_changed()
 
@@ -229,6 +272,8 @@ class IqaWindowContribution:
             return
         self._closed = True
         self.manager.shutdown()
+        if self.jobs_status_button is not None:
+            self.jobs_status_button.hide()
         self._records.clear()
         self._start_job = None
         self._host_ref = None
