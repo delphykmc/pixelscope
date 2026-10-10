@@ -64,6 +64,7 @@ from PySide6.QtWidgets import (
     QRubberBand,
     QScrollArea,
     QSplitter,
+    QStandardItemModel,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -553,14 +554,14 @@ class AnalysisWindow(QMainWindow):
             self._on_result_selected
         )
         inspector_layout.addWidget(QLabel("RELATIVE ATTRIBUTES · supplied order", inspector))
-        chart_help = QLabel(
+        self.chart_help = QLabel(
             "B better (−)  ←  0  →  A better (+)\n"
             "Neutral signed: teal (−) / purple (+) · no winner",
             inspector,
         )
-        chart_help.setWordWrap(True)
-        chart_help.setObjectName("enterpriseIqaChartHelp")
-        inspector_layout.addWidget(chart_help)
+        self.chart_help.setWordWrap(True)
+        self.chart_help.setObjectName("enterpriseIqaChartHelp")
+        inspector_layout.addWidget(self.chart_help)
         shared_controls = QHBoxLayout()
         shared_controls.addWidget(QLabel("MAP DISPLAY GAIN", inspector))
         self.gain_editor = QDoubleSpinBox(inspector)
@@ -1018,8 +1019,8 @@ class AnalysisWindow(QMainWindow):
         self.gain_editor.setEnabled(True)
         self._render_result()
         self.statusBar().showMessage(
-            "Official global and grid-derived ROI values are distinct. "
-            "Positive = A better only for oriented metrics."
+            "Full-pair comparison and GRID-derived ROI estimates are distinct. "
+            "Regional signed estimates never imply a verified quality winner."
         )
 
     def _update_top_cards(self) -> None:
@@ -1183,7 +1184,7 @@ class AnalysisWindow(QMainWindow):
 
             table = QTableWidget(len(attrs), 2, section)
             table.setObjectName("enterpriseIqaAttributes")
-            table.setHorizontalHeaderLabels(["Metric / family", "Official difference"])
+            table.setHorizontalHeaderLabels(["Metric / family", "Full-pair comparison"])
             table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
             table.setColumnWidth(0, 142)
             table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -1276,9 +1277,11 @@ class AnalysisWindow(QMainWindow):
 
         state = self._state()
         roi_ready = state is not None and state.roi is not None
-        roi_option = self.chart_scope_combo.model().item(1)
-        if roi_option is not None:
-            roi_option.setEnabled(roi_ready)
+        combo_model = self.chart_scope_combo.model()
+        if isinstance(combo_model, QStandardItemModel):
+            roi_option = combo_model.item(1)
+            if roi_option is not None:
+                roi_option.setEnabled(roi_ready)
         scope = state.chart_scope if state is not None else "full_pair"
         if not roi_ready:
             scope = "full_pair"
@@ -1290,6 +1293,13 @@ class AnalysisWindow(QMainWindow):
             "GRID-DERIVED ROI ESTIMATE · signed local evidence, not a quality winner"
             if scope == "roi_grid"
             else "FULL-PAIR COMPARISON · verified producer measurements"
+        )
+        self.chart_help.setText(
+            "ROI GRID signed: teal (−)  ←  0  →  purple (+)\n"
+            "Local mean only · NO verified A/B quality winner"
+            if scope == "roi_grid"
+            else "B better (−)  ←  0  →  A better (+)\n"
+            "Neutral signed: teal (−) / purple (+) · no winner"
         )
 
     def _on_chart_scope_changed(self, _index: int) -> None:
