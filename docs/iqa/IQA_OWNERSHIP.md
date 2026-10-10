@@ -236,17 +236,31 @@ evidence, merges it, and SUB consumes the newer exact MAIN SHA.
 ### Reserved-root guard when running tests in PRIVATE SUB
 
 `tests/unit/test_issue121_iqa_reference_architecture.py::test_enterprise_reserved_paths_are_not_owned_by_main`
-checks the **Git-tracked tree of a PUBLIC MAIN commit**, never whether SUB-reserved
-directories exist in the worktree. Normal PUBLIC MAIN/PR runs inspect `HEAD`.
-For a downstream checkout containing SUB-owned files, set
-`PIXELSCOPE_PUBLIC_MAIN_SHA=<exact-40-character-merged-PUBLIC-MAIN-SHA>`
-before invoking the same tests (PowerShell:
-`$env:PIXELSCOPE_PUBLIC_MAIN_SHA = "<SHA>"`). The pinned commit must exist in
-local Git history and be an ancestor of the checkout's `HEAD`; fetch the exact
-PUBLIC MAIN commit when necessary. Missing Git metadata, unresolvable/stale
-pins, and reserved paths committed **in PUBLIC MAIN** fail the guard. Do not
-deselect the test or reinterpret SUB-owned files as violations. The separate
-Base-to-Enterprise import-direction tests remain active in either checkout.
+checks the **Git-tracked tree of a selected PUBLIC MAIN commit**, never whether
+SUB-reserved directories exist in the worktree. An unset
+`PIXELSCOPE_PUBLIC_MAIN_SHA` selects the checkout's `HEAD`, appropriate for
+PUBLIC MAIN/PR tests but **not** for SUB after it adds reserved files. Always
+clear any inherited downstream override before public-only validation
+(PowerShell: `Remove-Item Env:PIXELSCOPE_PUBLIC_MAIN_SHA -ErrorAction SilentlyContinue`).
+
+For a PRIVATE SUB checkout that consumes a reviewed, exact merged PUBLIC MAIN
+commit, set `PIXELSCOPE_PUBLIC_MAIN_SHA=<40-character-merged-PUBLIC-MAIN-SHA>`
+before the architecture tests (PowerShell:
+`$env:PIXELSCOPE_PUBLIC_MAIN_SHA = "<SHA>"`). The commit must exist in local
+Git history and be an ancestor of the SUB checkout's `HEAD`; fetch the exact
+PUBLIC MAIN commit when necessary. Invalid/unresolvable pins, non-ancestor
+commits, missing Git metadata, and reserved paths tracked **by the selected
+commit** fail the guard. The Base-to-Enterprise import-direction tests remain
+active in both checkouts; never `--deselect` the ownership test.
+
+**Caller trust boundary:** the guard verifies commit resolution, ancestry and
+reserved-path ownership, **not** which remote supplied the commit or whether
+this is the newest merged PUBLIC MAIN SHA actually consumed by SUB. An older
+valid ancestor can pass even after a later commit changes ownership. The
+downstream owner/automation must obtain the authoritative reviewed merged SHA
+from the PUBLIC MAIN sync record, verify its source and match it to the exact
+MAIN revision integrated in SUB. Treat the environment variable as a
+caller-supplied trust input, never an automatically authenticated identity.
 
 ## Revised Slice 6–8 sequencing
 
