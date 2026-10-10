@@ -1,0 +1,163 @@
+"""Opt-in Git ancestry/inventory acceptance for the E2B MAIN->Handoff merge.
+
+This test is intentionally not part of normal PUBLIC MAIN/full pytest. It
+compares Git OBJECTS, not the Windows checkout's newline-normalized files.
+Owner explicitly supplies immutable commit pins and enables the acceptance.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SHA = re.compile(r"[0-9a-f]{40}\Z")
+RUN_FLAG = "PIXELSCOPE_RUN_IQA_MAIN_SYNC"
+PIN_MAIN = "PIXELSCOPE_PUBLIC_MAIN_SHA"
+PIN_PREVIOUS_MAIN = "PIXELSCOPE_PREVIOUS_PUBLIC_MAIN_SHA"
+PIN_HANDOFF = "PIXELSCOPE_HANDOFF_PRE_SYNC_SHA"
+PIN_MERGE = "PIXELSCOPE_HANDOFF_MAIN_MERGE_SHA"
+PIN_PRE_RESYNC = "PIXELSCOPE_HANDOFF_PRE_RESYNC_SHA"
+PIN_RESYNC = "PIXELSCOPE_HANDOFF_MAIN_RESYNC_SHA"
+PRIVATE_ROOTS = (
+    "src/pixelscope_enterprise/",
+    "tests/enterprise/",
+    "docs/enterprise/",
+    "enterprise/",
+)
+OWNED_LEAVES = (
+    "src/pixelscope_enterprise/iqa/",
+    "tests/enterprise/iqa/",
+    "docs/enterprise/iqa/",
+    "enterprise/iqa/",
+)
+SHARED_INIT = "src/pixelscope_enterprise/__init__.py"
+# E2B authors these exact files *after* creating the reviewed two-parent
+# integration commit. Only these may legitimately differ from the E2A parent.
+E2B_OWNED_CHANGES = frozenset(
+    {
+        "tests/enterprise/iqa/test_iqa_e2b_main_ancestry.py",
+        "docs/enterprise/iqa/IQA_UX3E_E2B_MAIN_SYNC.md",
+        "docs/enterprise/iqa/IQA_UX3E_E2_TRANSFER_ACCEPTANCE.md",
+    }
+)
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get(RUN_FLAG) != "1",
+    reason="E2B real Git ancestry/inventory acceptance is owner opt-in",
+)
+
+
+def _git(*args: str) -> bytes:
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), *args],
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, (
+        f"git {args[0]} failed with exit={result.returncode}: "
+        f"{result.stderr.decode(errors='replace')}"
+    )
+    return result.stdout
+
+
+def _pin(name: str) -> str:
+    value = os.environ.get(name, "")
+    assert SHA.fullmatch(value), f"{name} must name an exact lowercase Git SHA"
+    return value
+
+
+def _entries(ref: str) -> dict[str, tuple[bytes, bytes]]:
+    entries: dict[str, tuple[bytes, bytes]] = {}
+    for record in _git("ls-tree", "-r", "-z", "--full-tree", ref).split(b"\x00"):
+        if not record:
+            continue
+        mode_kind_sha, encoded_path = record.split(b"\t", 1)
+        mode, kind, sha = mode_kind_sha.split(b" ")
+        assert kind == b"blob", f"unsupported Git tree entry: {encoded_path!r}"
+        path = encoded_path.decode("utf-8")
+        entries[path] = mode, sha
+    return entries
+
+
+def _is_enterprise(path: str) -> bool:
+    return path.startswith(PRIVATE_ROOTS)
+
+
+def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> None:
+    main = _pin(PIN_MAIN)
+    previous_main = _pin(PIN_PREVIOUS_MAIN)
+    handoff = _pin(PIN_HANDOFF)
+    merger = _pin(PIN_MERGE)
+    pre_resync = _pin(PIN_PRE_RESYNC)
+    resync = _pin(PIN_RESYNC)
+
+    # Both MAIN integrations must retain real Git merge parents. A squash,
+    # matching file tree or document-only SHA cannot satisfy ancestry.
+    parents = _git("rev-list", "--parents", "-n", "1", merger).decode("ascii").split()
+    assert parents == [
+        merger,
+        handoff,
+        previous_main,
+    ], "initial E2B integration must retain exact Handoff and original MAIN parents"
+    resync_parents = _git("rev-list", "--parents", "-n", "1", resync).decode("ascii").split()
+    assert resync_parents == [
+        resync,
+        pre_resync,
+        main,
+    ], "second E2B integration must retain pre-resync and approved MAIN #174 parents"
+    _git("merge-base", "--is-ancestor", previous_main, main)
+    for ref in (main, previous_main, handoff, merger, pre_resync, resync):
+        _git("merge-base", "--is-ancestor", ref, "HEAD")
+
+    main_entries = _entries(main)
+    old_entries = _entries(handoff)
+    actual_entries = _entries("HEAD")
+
+    # No PUBLIC MAIN-owned code/files were reverted or overridden by a
+    # Handoff-only integration and no extra MAIN-owned paths were introduced.
+    main_public = {p: v for p, v in main_entries.items() if not _is_enterprise(p)}
+    actual_public = {p: v for p, v in actual_entries.items() if not _is_enterprise(p)}
+    assert actual_public == main_public, "combined branch alters pinned PUBLIC MAIN tree"
+
+    # The *merge commit itself* must preserve every E2A Enterprise mode/blob,
+    # proving the PUBLIC import never modifies previously approved IQA files.
+    old_enterprise = {p: v for p, v in old_entries.items() if _is_enterprise(p)}
+    merged_enterprise = {p: v for p, v in _entries(merger).items() if _is_enterprise(p)}
+    assert (
+        merged_enterprise == old_enterprise
+    ), "upstream MAIN merge changed an E2A Enterprise blob or mode"
+
+    # The second sync must preserve all reviewed E2B Enterprise test/docs
+    # files unchanged; the only upstream change is the PUBLIC #121 guard.
+    before_sync = _entries(pre_resync)
+    after_sync = _entries(resync)
+    assert {p: v for p, v in after_sync.items() if _is_enterprise(p)} == {
+        p: v for p, v in before_sync.items() if _is_enterprise(p)
+    }, "PUBLIC #174 resync modified a preexisting Enterprise file"
+    assert {p: v for p, v in after_sync.items() if not _is_enterprise(p)} == {
+        p: v for p, v in main_entries.items() if not _is_enterprise(p)
+    }, "PUBLIC #174 resync does not match the exact approved MAIN Git tree"
+
+    # The E2B feature authors new tests/docs *after* the initial merge.
+    # Compare against the exact E2A baseline excluding only those known paths,
+    # not every path under the Enterprise root (which would mask regressions).
+    for path in set(old_enterprise) | {p for p in actual_entries if _is_enterprise(p)}:
+        if path not in E2B_OWNED_CHANGES:
+            assert actual_entries.get(path) == old_enterprise.get(
+                path
+            ), f"unapproved Enterprise content change after MAIN sync: {path}"
+
+    # New Enterprise-only documents/tests are allowed, not new unowned SUB
+    # siblings or private files outside the reviewed IQA leaf scope.
+    for path in actual_entries:
+        if _is_enterprise(path):
+            assert path == SHARED_INIT or path.startswith(
+                OWNED_LEAVES
+            ), f"unowned Enterprise path introduced by upstream sync: {path}"
+    assert all(not _is_enterprise(path) for path in main_entries)

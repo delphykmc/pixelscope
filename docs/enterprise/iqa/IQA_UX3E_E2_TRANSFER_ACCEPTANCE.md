@@ -11,14 +11,22 @@ Tracking: #168, #156 (U2/U3/U9/U11), #140 (portable result contract).
   `docs/enterprise/iqa/**`, `enterprise/iqa/**` and the minimal
   `src/pixelscope_enterprise/__init__.py`. Never merge these into PUBLIC
   `main`; preserve PRIVATE SUB sibling trees.
-- MAIN generic caller-selected packaging descriptor was separately merged in
+- MAIN generic caller-selected packaging descriptor was merged in
   PUBLIC PR #167 (`4a85285c49bb97d90f92fdb6edfc81702242a269`).
-  The E1 Handoff squash `49fa974bc8d0cab1e04d1606bfba44c6a1e84da0`
-  is a different branch history: **do not assume #167 is its ancestor or
-  present in that checkout**. Before claiming a combined source build or
-  generating a manifest referencing the new MAIN SHA, verify real Git ancestry
-  and arrange a reviewed Handoff synchronization that preserves immutable
-  approved history. No forced push/rebase of protected approved SHAs.
+  The original E1/E2A Handoff history predated this integration, so MAIN
+  ancestry could **not** be assumed. The E2B *candidate branch* first
+  incorporated PUBLIC `main@dca0464b66934b62aa759f2e38e0b79b40de353b`
+  via genuine two-parent merge `37478a43787fd1ec92413ad8ec2d8515c5e43767`.
+  Then PUBLIC #174 fixed the Issue #121/U8 test allowlist in `main` at
+  `3bef0880add2019d62f783d717eb1be518144e19`; E2B consumed this
+  exact newer MAIN SHA through second two-parent merge
+  `44adc97adeba50357702ea3cf5cf8295a6c19a8a`.
+  See [E2B ancestry acceptance](IQA_UX3E_E2B_MAIN_SYNC.md).
+  **Do not squash the E2B PR**: only a reviewed ordinary Git Merge commit
+  into Handoff preserves MAIN as a real ancestor of the final handoff SHA.
+  Verify both ancestry and exact combined inventory after that merge before
+  generating an approved manifest. Never force-push/rebase an approved SHA.
+  This candidate is not yet a protected/approved handoff release.
 - PRIVATE SUB owns its real Full launcher, descriptor, PyInstaller spec,
   dependencies, smoke target, service/auth and installer signing outside
   replaceable `enterprise/iqa/**` leaves.
@@ -133,8 +141,15 @@ completed full-snapshot match, incremental previous-manifest requirement,
 and unrelated SUB sibling bytes preserved in synthetic scenarios. Existing
 Git/tag/path/ancestry/symlink/sha256 checks are reused, not duplicated.
 
-**Exit criteria:** owner Windows synthetic import/verify tests PASS;
-independent review PASS; Handoff-only squash merge; actual release approval
-remains BLOCKED until protected tag+manifest, PRIVATE SUB checkpoint/verification,
-U2/U9 real Full packaging smoke and security owner authorization. Mark any
-unperformed step explicitly NOT RUN.
+**Development merge criteria:** owner Windows synthetic import/verify
+tests PASS and independent review PASS. Ordinary Enterprise-only slices such
+as E1/E2A may use Handoff-only squash merges; **E2B is an exception and MUST
+use a regular Git merge commit (never squash or rebase)** so the approved
+PUBLIC MAIN SHA remains an actual Handoff ancestor. After E2B, verify Handoff
+descends from both PUBLIC MAIN `3bef0880add2019d62f783d717eb1be518144e19`
+and pre-sync Handoff `c27abc9169917c8b49f4c0b48db2d49fc79853a0`.
+
+**Release approval remains BLOCKED** until the protected tag and authenticated
+external manifest, PRIVATE SUB checkpoint/sibling comparison/import/verify,
+U2/U9 real Full packaging smoke and security owner authorization are complete.
+Mark any unperformed step explicitly NOT RUN.

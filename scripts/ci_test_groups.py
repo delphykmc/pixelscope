@@ -38,6 +38,10 @@ CI_TEST_GROUPS: dict[str, tuple[DurableTest, ...]] = {
             "Portable/installer distribution and third-party notice contract.",
         ),
         DurableTest(
+            "tests/unit/test_release_target_descriptor.py",
+            "Descriptor-safe third target and synthetic portable/manifest distribution contract.",
+        ),
+        DurableTest(
             "tests/unit/test_release_publication.py",
             "Release publication staging, metadata and tag contract.",
         ),
