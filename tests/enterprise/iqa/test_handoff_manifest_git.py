@@ -73,14 +73,16 @@ def test_real_git_manifest_generation_and_safe_import(tmp_path: Path) -> None:
 
     evidence = tmp_path / "synthetic-validation.json"
     evidence.write_text(
-        json.dumps([
-            {
-                "command": "opt-in real-Git synthetic smoke",
-                "platform": "synthetic",
-                "python": "3.10",
-                "outcome": "pass",
-            }
-        ]),
+        json.dumps(
+            [
+                {
+                    "command": "opt-in real-Git synthetic smoke",
+                    "platform": "synthetic",
+                    "python": "3.10",
+                    "outcome": "pass",
+                }
+            ]
+        ),
         encoding="utf-8",
     )
     args = argparse.Namespace(
