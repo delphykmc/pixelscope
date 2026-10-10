@@ -155,11 +155,21 @@ The caller provides `factory(workspace: Path)`, an ordinary
 `drive_to_terminal(provider, job_reference)` callback that drives **one step
 per bounded status poll**. For async providers, omit the driver and let
 `get_status` advance naturally. `ConformanceBudget(max_polls=12,
-timeout_seconds=5, interval_seconds=0.02)` bounds polling by count and wall
-time; each provider call itself **must enforce its own transport timeout**.
+timeout_seconds=5, interval_seconds=0.02)` bounds terminal polling by count
+and wall time. Once terminal is observed, **one additional status read** verifies
+stability; the total number of status reads is at most
+`overlap_calls + max_polls + 1`. Each synchronous provider method must enforce
+its own transport timeout. Optimized Python (`python -O` /
+`PYTHONOPTIMIZE`) is rejected rather than falsely certified, since the
+acceptance runner relies on diagnostic assertions.
+
 When terminal `COMPLETED` is observed, the published result reference must
 already be ready for materialization/open. A `FAILED` expectation instead
 requires `get_result_reference` to reject the job with `IqaProviderError`.
+The generic runner covers **status/results, not cancellation**: the PUBLIC
+fixture-specific `test_iqa_provider_handoff.py` keeps its cancellation checks.
+PRIVATE SUB must separately verify `can_cancel=True` semantics for its own
+authorized provider; a passing generic result does not certify cancellation.
 
 Example for a downstream-owned, **synthetic** provider (not a real SUB server):
 
