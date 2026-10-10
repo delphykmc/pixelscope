@@ -79,6 +79,7 @@ class IqaWindowContribution:
         self._start_job = start_job
         self._host_ref: weakref.ReferenceType[QMainWindow] | None = None
         self._records: dict[str, IqaJobSnapshot] = {}
+        self._latest_job_id: str | None = None
         self.jobs_dock: QDockWidget | None = None
         self.jobs_list: QListWidget | None = None
         self.view_selected_button: QPushButton | None = None
@@ -194,7 +195,9 @@ class IqaWindowContribution:
         button = self.jobs_status_button
         if button is None or not self._records:
             return
-        latest = next(reversed(self._records.values()))
+        if self._latest_job_id is None:
+            return
+        latest = self._records[self._latest_job_id]
         button.setText(f"IQA: {latest.label} — {latest.status} · View jobs")
         button.setAccessibleName(
             f"IQA job {latest.label}, {latest.status}; open the IQA jobs list"
@@ -221,6 +224,7 @@ class IqaWindowContribution:
         if app is None or QThread.currentThread() != app.thread():
             raise RuntimeError("IQA job updates must be dispatched onto the Qt GUI thread")
         self._records[snapshot.job_id] = snapshot
+        self._latest_job_id = snapshot.job_id
         # Store stable IDs in UserRole; display labels may change.
         item = next(
             (
@@ -275,5 +279,6 @@ class IqaWindowContribution:
         if self.jobs_status_button is not None:
             self.jobs_status_button.hide()
         self._records.clear()
+        self._latest_job_id = None
         self._start_job = None
         self._host_ref = None
