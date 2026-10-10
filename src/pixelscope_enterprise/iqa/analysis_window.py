@@ -2153,8 +2153,7 @@ class AnalysisWindow(QMainWindow):
             return
         destination = export_folder(Path(parent), result.result_id)
         images = tuple(
-            pixmap.toImage() if pixmap is not None else None
-            for pixmap in self._source_pixmaps
+            pixmap.toImage() if pixmap is not None else None for pixmap in self._source_pixmaps
         )
         try:
             write_visual_pngs(
