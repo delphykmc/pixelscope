@@ -19,7 +19,6 @@ from tempfile import TemporaryDirectory
 from threading import Event, Thread
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
 
 from pixelscope.app.bootstrap import (
     compose_main_window_presentation,
