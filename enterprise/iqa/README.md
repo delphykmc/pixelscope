@@ -4,6 +4,14 @@ Status: **pre-approval tooling/schema**, Issue #156 H1 (U3 + U11). This folder
 belongs to the temporary, PUBLIC-SAFE **handoff** branch. Never merge these files
 into PUBLIC `main` or put company/private values here.
 
+## U7 owner/local test matrix
+
+See [IQA U7 Validation Matrix](../../docs/enterprise/iqa/IQA_U7_VALIDATION_MATRIX.md)
+for separate-process numeric versus native Qt acceptance commands, opt-in
+real-host and Git tests, and existing GitHub CI classifier behavior. A merged
+Handoff SHA is **not** an approved/private import; only actual test evidence
+from the exact reviewed SHA may appear in an approved external manifest.
+
 ## Allowed IQA-owned leaves
 
 Only files under these leaves may be transferred into PRIVATE SUB:
