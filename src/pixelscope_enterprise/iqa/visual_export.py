@@ -103,7 +103,9 @@ def map_rgba(
 
 
 def _save_png(image: QImage, path: Path) -> None:
-    if image.isNull() or not image.save(str(path), b"PNG"):
+    # PySide6 6.4 rejects an explicit bytes format in QImage.save on Windows.
+    # All generated filenames end in .png; Qt infers PNG from the suffix.
+    if path.suffix.lower() != ".png" or image.isNull() or not image.save(str(path)):
         raise OSError(f"PNG writer failed for {path.name}")
 
 
