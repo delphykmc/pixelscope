@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -190,8 +191,16 @@ def test_optimized_python_cannot_produce_false_conformance_success() -> None:
         "else:\n"
         "    raise SystemExit(43)\n"
     )
+    environment = os.environ.copy()
+    source_root = str(Path(__file__).resolve().parents[2] / "src")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        (source_root, environment["PYTHONPATH"])
+        if environment.get("PYTHONPATH")
+        else (source_root,)
+    )
     completed = subprocess.run(
         [sys.executable, "-O", "-c", program],
+        env=environment,
         capture_output=True,
         text=True,
         timeout=30,
