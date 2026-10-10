@@ -138,11 +138,11 @@ class IqaWindowContribution:
         if self._closed or self._host() is not window:
             raise RuntimeError("IQA contribution host unavailable")
         if menu_name == "IQA":
-            add_action("IQA", "Open IQA Analysis", self.open_analysis)
+            add_action("IQA", "Open IQA Analysis", self.open_analysis, None)
             if self._start_job is not None:
-                add_action("IQA", "Run IQA", self.request_analysis)
+                add_action("IQA", "Run IQA", self.request_analysis, None)
         elif menu_name == "View":
-            add_action("View", "Show IQA Jobs", self.show_jobs)
+            add_action("View", "Show IQA Jobs", self.show_jobs, None)
 
     def install_runtime(self, window: QMainWindow) -> None:
         """Composition-root phase; intentionally does not start private workers."""
