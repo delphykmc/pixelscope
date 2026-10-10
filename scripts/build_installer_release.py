@@ -19,8 +19,8 @@ from scripts.distribution_contract import (  # noqa: E402
     write_payload_manifest,
 )
 from scripts.package_target_descriptor import (  # noqa: E402
-    PRODUCTION_APP_ID as _PUBLIC_PRODUCTION_APP_ID,
     PackageTargetDescriptor,
+    PRODUCTION_APP_ID as _PUBLIC_PRODUCTION_APP_ID,
     load_target_descriptor,
 )
 from scripts.release_contract import (  # noqa: E402
