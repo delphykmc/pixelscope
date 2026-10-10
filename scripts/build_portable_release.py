@@ -18,11 +18,11 @@ from scripts.distribution_contract import (  # noqa: E402
     release_stem,
     write_payload_manifest,
 )
-from scripts.release_contract import APP_DIR  # noqa: E402
 from scripts.package_target_descriptor import (  # noqa: E402
     PackageTargetDescriptor,
     load_target_descriptor,
 )
+from scripts.release_contract import APP_DIR  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 _ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
