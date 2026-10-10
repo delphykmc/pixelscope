@@ -108,7 +108,7 @@ Filename: "{app}\PixelScope.exe"; Description: "Launch PixelScope"; Flags: posti
 [Code]
 const
 #ifdef TargetAppName
-  PixelScopeUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#AppIdValue}_is1';
+  PixelScopeUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#TargetRegistryAppId}_is1';
 #else
   PixelScopeUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}_is1';
 #endif
