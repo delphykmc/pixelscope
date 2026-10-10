@@ -6,6 +6,7 @@ import ast
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtTest import QSignalSpy
 from PySide6.QtWidgets import QDockWidget, QLabel, QMainWindow
 
 from pixelscope.ui.plots_dock_title import PlotsDockTitleBar
@@ -41,21 +42,51 @@ def test_iqa_dock_public_qt_float_dock_and_quiesce(qtbot: object) -> None:
     dock.setTitleBarWidget(title)
     controller = IqaDockLifecycle(dock, title_bar=title)
     assert controller.parent() is dock
+    normalized = QSignalSpy(controller._normalize_timer.timeout)
+    detached = QSignalSpy(controller._detach_timer.timeout)
     window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
     window.show()
     qtbot.waitUntil(dock.isVisible, timeout=4000)  # type: ignore[attr-defined]
 
+    # isFloating() updates synchronously; signal spies prove both deferred
+    # callbacks actually execute with the native event loop running.
     dock.setFloating(True)
     qtbot.waitUntil(dock.isFloating, timeout=4000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: normalized.count() >= 1, timeout=4000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: detached.count() >= 1, timeout=4000)  # type: ignore[attr-defined]
+    assert dock.titleBarWidget() is title
+
+    # Explicitly exercise the non-null transient-parent cleanup branch.
+    floating_handle = dock.windowHandle()
+    host_handle = window.windowHandle()
+    assert floating_handle is not None and host_handle is not None
+    floating_handle.setTransientParent(host_handle)
+    assert floating_handle.transientParent() is not None
+    detach_count = detached.count()
+    controller._normalize_timer.start(0)
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: dock.titleBarWidget() is title, timeout=4000
+        lambda: detached.count() > detach_count, timeout=4000
     )
+    assert floating_handle.transientParent() is None
 
     dock.setFloating(False)
     qtbot.waitUntil(lambda: not dock.isFloating(), timeout=4000)  # type: ignore[attr-defined]
     assert dock.titleBarWidget() is title
+    dock.setFloating(True)
+    qtbot.waitUntil(dock.isFloating, timeout=4000)  # type: ignore[attr-defined]
+    qtbot.waitUntil(lambda: normalized.count() >= 3, timeout=4000)  # type: ignore[attr-defined]
+    assert dock.isFloating()
+
+    # Quiesce while still floating, with both callbacks deliberately pending.
+    controller._normalize_timer.start(100)
+    controller._detach_timer.start(100)
+    counts = normalized.count(), detached.count()
+    assert controller._normalize_timer.isActive()
+    assert controller._detach_timer.isActive()
     controller.quiesce_pending_callbacks()
     controller.quiesce_pending_callbacks()  # idempotent shutdown
     assert not controller._normalize_timer.isActive()
     assert not controller._detach_timer.isActive()
+    qtbot.wait(130)  # type: ignore[attr-defined]
+    assert (normalized.count(), detached.count()) == counts
     window.close()
