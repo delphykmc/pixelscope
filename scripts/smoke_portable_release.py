@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import sys
 import tempfile
 import zipfile
@@ -15,6 +16,10 @@ from scripts.distribution_contract import (  # noqa: E402
     portable_zip_path,
     release_stem,
     validate_payload_manifest,
+)
+from scripts.package_target_descriptor import (  # noqa: E402
+    PackageTargetDescriptor,
+    load_target_descriptor,
 )
 from scripts.release_contract import release_version  # noqa: E402
 from scripts.smoke_packaged_release import smoke_executable  # noqa: E402
@@ -33,12 +38,14 @@ def _validate_archive_members(archive: zipfile.ZipFile, expected_root: str) -> N
             )
 
 
-def smoke_portable_release(archive_path: Path) -> None:
+def smoke_portable_release(
+    archive_path: Path, *, descriptor: PackageTargetDescriptor | None = None
+) -> None:
     archive_path = archive_path.resolve()
     if not archive_path.is_file():
         raise FileNotFoundError(archive_path)
 
-    expected_root = release_stem()
+    expected_root = release_stem(descriptor=descriptor) if descriptor else release_stem()
     with tempfile.TemporaryDirectory(prefix="pixelscope-portable-") as temp_dir:
         extraction_root = Path(temp_dir)
         with zipfile.ZipFile(archive_path, mode="r") as archive:
@@ -59,14 +66,31 @@ def smoke_portable_release(archive_path: Path) -> None:
             manifest,
             allow_distribution_metadata=True,
             expected_version=release_version(),
+            descriptor=descriptor,
         )
-        validate_artifact(app_root)
-        smoke_executable(app_root / "PixelScope.exe")
+        if descriptor is None:
+            validate_artifact(app_root)
+            smoke_executable(app_root / "PixelScope.exe")
+        else:
+            validate_artifact(app_root, executable_name=descriptor.executable)
+            smoke_executable(
+                app_root / descriptor.executable,
+                title_fragment=descriptor.smoke_window_title,
+            )
 
 
 def main() -> int:
-    smoke_portable_release(portable_zip_path())
-    print(f"Portable PixelScope smoke PASS: {portable_zip_path().resolve()}")
+    parser = argparse.ArgumentParser(description="Verify portable distribution")
+    parser.add_argument("--target-descriptor", type=Path)
+    args = parser.parse_args()
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None
+        else None
+    )
+    archive_path = portable_zip_path(descriptor=descriptor) if descriptor else portable_zip_path()
+    smoke_portable_release(archive_path, descriptor=descriptor)
+    print(f"Portable PixelScope smoke PASS: {archive_path.resolve()}")
     return 0
 
 

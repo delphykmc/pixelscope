@@ -12,6 +12,7 @@ from typing import Any
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.package_target_descriptor import load_target_descriptor  # noqa: E402
 from scripts.release_contract import EXECUTABLE_PATH  # noqa: E402
 
 WM_CLOSE = 0x0010
@@ -72,7 +73,9 @@ def _find_visible_window(process_id: int, title_fragment: str = "PixelScope") ->
     return matches[0] if matches else None
 
 
-def smoke_executable(executable: Path, *, startup_timeout: float = 20.0) -> None:
+def smoke_executable(
+    executable: Path, *, startup_timeout: float = 20.0, title_fragment: str = "PixelScope"
+) -> None:
     if sys.platform != "win32":
         raise RuntimeError("Packaged executable smoke is supported only on Windows")
     executable = executable.resolve()
@@ -89,7 +92,7 @@ def smoke_executable(executable: Path, *, startup_timeout: float = 20.0) -> None
                 raise RuntimeError(
                     f"PixelScope exited before showing its main window: {return_code}"
                 )
-            window = _find_visible_window(process.pid)
+            window = _find_visible_window(process.pid, title_fragment=title_fragment)
             if window is not None:
                 break
             time.sleep(0.1)
@@ -126,9 +129,21 @@ def main() -> int:
         help="executable path (default: dist/PixelScope/PixelScope.exe)",
     )
     parser.add_argument("--startup-timeout", type=float, default=20.0)
+    parser.add_argument("--target-descriptor", type=Path)
     args = parser.parse_args()
-    smoke_executable(args.executable, startup_timeout=args.startup_timeout)
-    print(f"Packaged PixelScope smoke PASS: {args.executable.resolve()}")
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None
+        else None
+    )
+    if descriptor is not None and args.executable != EXECUTABLE_PATH:
+        parser.error("executable positional cannot be combined with --target-descriptor")
+    executable = descriptor.executable_path if descriptor else args.executable
+    title_fragment = descriptor.smoke_window_title if descriptor else "PixelScope"
+    smoke_executable(
+        executable, startup_timeout=args.startup_timeout, title_fragment=title_fragment
+    )
+    print(f"Packaged PixelScope smoke PASS: {executable.resolve()}")
     return 0
 
 

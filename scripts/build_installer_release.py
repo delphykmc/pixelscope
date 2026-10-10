@@ -18,8 +18,13 @@ from scripts.distribution_contract import (  # noqa: E402
     release_stem,
     write_payload_manifest,
 )
+from scripts.package_target_descriptor import (  # noqa: E402
+    PackageTargetDescriptor,
+    load_target_descriptor,
+)
 from scripts.release_contract import (  # noqa: E402
     APP_DIR,
+    PUBLIC_INSTALLER_APP_ID,
     REPO_ROOT,
     release_version,
     windows_version_tuple,
@@ -27,13 +32,16 @@ from scripts.release_contract import (  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
 INNO_SCRIPT = REPO_ROOT / "packaging" / "installer" / "pixelscope.iss"
-PRODUCTION_APP_ID = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
+PRODUCTION_APP_ID = PUBLIC_INSTALLER_APP_ID
 SMOKE_APP_ID = "PixelScope.P7B.Smoke"
 _SUPPORTED_INNO_MAJORS = frozenset({6, 7})
 
 
-def smoke_installer_path(version: str | None = None) -> Path:
-    return RELEASE_ROOT / f"{release_stem(version)}-smoke-setup.exe"
+def smoke_installer_path(
+    version: str | None = None, *, descriptor: PackageTargetDescriptor | None = None
+) -> Path:
+    stem = release_stem(version, descriptor=descriptor) if descriptor else release_stem(version)
+    return RELEASE_ROOT / f"{stem}-smoke-setup.exe"
 
 
 def _candidate_iscc_paths() -> tuple[Path, ...]:
@@ -104,6 +112,7 @@ def installer_command(
     *,
     app_id: str | None = None,
     smoke_build: bool = False,
+    descriptor: PackageTargetDescriptor | None = None,
 ) -> list[str]:
     version = release_version()
     version_parts = windows_version_tuple(version)
@@ -118,7 +127,30 @@ def installer_command(
         _ispp_define("AppVersionRevision", str(version_parts[2])),
         _ispp_define("AppVersionBuild", str(version_parts[3])),
     ]
-    if app_id is not None:
+    if descriptor is not None:
+        identity = app_id
+        if identity is None:
+            # Inno Setup requires an escaped leading brace in its preprocessor
+            # string for GUID AppId directives.
+            identity = "{" + descriptor.installer_app_id
+        command.extend(
+            (
+                _ispp_define("TargetAppName", descriptor.display_name),
+                _ispp_define("TargetAppSource", str(descriptor.output_root)),
+                _ispp_define(
+                    "TargetReleaseStem",
+                    release_stem(descriptor=descriptor),
+                ),
+                _ispp_define("TargetExeName", descriptor.executable),
+                _ispp_define("TargetAppDir", descriptor.app_dir),
+                _ispp_define("AppIdValue", identity),
+                _ispp_define(
+                    "TargetRegistryAppId",
+                    app_id if app_id is not None else descriptor.installer_app_id,
+                ),
+            )
+        )
+    elif app_id is not None:
         command.append(_ispp_define("AppIdValue", app_id))
     if smoke_build:
         command.append(_ispp_define("SmokeBuild", "1"))
@@ -131,23 +163,44 @@ def build_installer_release(
     *,
     app_id: str | None = None,
     smoke_build: bool = False,
+    descriptor: PackageTargetDescriptor | None = None,
 ) -> Path:
     if sys.platform != "win32":
         raise RuntimeError("P7-B installer compilation is supported only on Windows")
     if smoke_build and app_id is None:
         raise ValueError("Smoke installer builds require a disposable AppId override")
 
-    validate_artifact(APP_DIR)
+    if descriptor is None:
+        validate_artifact(APP_DIR)
+    else:
+        validate_artifact(descriptor.output_root, executable_name=descriptor.executable)
     compiler = find_iscc(iscc)
     validate_iscc(compiler)
     RELEASE_ROOT.mkdir(parents=True, exist_ok=True)
-    write_payload_manifest(APP_DIR)
-    write_third_party_notices()
+    if descriptor is None:
+        write_payload_manifest(APP_DIR)
+        write_third_party_notices()
+    else:
+        write_payload_manifest(descriptor.output_root, descriptor=descriptor)
+        write_third_party_notices(descriptor=descriptor)
 
-    output = smoke_installer_path() if smoke_build else installer_path()
+    output = (
+        (
+            smoke_installer_path(descriptor=descriptor)
+            if smoke_build
+            else installer_path(descriptor=descriptor)
+        )
+        if descriptor is not None
+        else (smoke_installer_path() if smoke_build else installer_path())
+    )
     output.unlink(missing_ok=True)
     subprocess.run(
-        installer_command(compiler, app_id=app_id, smoke_build=smoke_build),
+        installer_command(
+            compiler,
+            app_id=app_id,
+            smoke_build=smoke_build,
+            descriptor=descriptor,
+        ),
         cwd=REPO_ROOT,
         check=True,
     )
@@ -164,8 +217,14 @@ def main() -> int:
         default=None,
         help="path to ISCC.exe (otherwise ISCC_PATH/PATH/common install paths)",
     )
+    parser.add_argument("--target-descriptor", type=Path)
     args = parser.parse_args()
-    output = build_installer_release(args.iscc)
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None
+        else None
+    )
+    output = build_installer_release(args.iscc, descriptor=descriptor)
     print(f"PixelScope installer written: {output}")
     return 0
 

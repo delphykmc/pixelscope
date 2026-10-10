@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import shutil
 import sys
 import zipfile
@@ -16,6 +17,10 @@ from scripts.distribution_contract import (  # noqa: E402
     portable_zip_path,
     release_stem,
     write_payload_manifest,
+)
+from scripts.package_target_descriptor import (  # noqa: E402
+    PackageTargetDescriptor,
+    load_target_descriptor,
 )
 from scripts.release_contract import APP_DIR  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
@@ -43,18 +48,34 @@ def _write_zip_member(
         shutil.copyfileobj(source_handle, output_handle, length=1024 * 1024)
 
 
-def build_portable_release() -> Path:
-    validate_artifact(APP_DIR)
+def build_portable_release(
+    descriptor: PackageTargetDescriptor | None = None,
+) -> Path:
+    root = descriptor.output_root if descriptor is not None else APP_DIR
+    if descriptor is None:
+        validate_artifact(APP_DIR)
+    else:
+        validate_artifact(root, executable_name=descriptor.executable)
     RELEASE_ROOT.mkdir(parents=True, exist_ok=True)
-    manifest = write_payload_manifest(APP_DIR)
-    notices = write_third_party_notices()
-    output = portable_zip_path()
+    manifest = (
+        write_payload_manifest(root, descriptor=descriptor)
+        if descriptor is not None
+        else write_payload_manifest(APP_DIR)
+    )
+    notices = (
+        write_third_party_notices(descriptor=descriptor)
+        if descriptor is not None
+        else write_third_party_notices()
+    )
+    output = portable_zip_path(descriptor=descriptor) if descriptor else portable_zip_path()
     output.unlink(missing_ok=True)
 
-    archive_root = PurePosixPath(release_stem())
+    archive_root = PurePosixPath(
+        release_stem(descriptor=descriptor) if descriptor is not None else release_stem()
+    )
     with zipfile.ZipFile(output, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for source in _payload_files(APP_DIR):
-            relative = PurePosixPath(source.relative_to(APP_DIR).as_posix())
+        for source in _payload_files(root):
+            relative = PurePosixPath(source.relative_to(root).as_posix())
             _write_zip_member(archive, source, archive_root / relative)
         _write_zip_member(archive, manifest, archive_root / MANIFEST_MEMBER_NAME)
         _write_zip_member(archive, notices, archive_root / NOTICE_MEMBER_NAME)
@@ -63,7 +84,17 @@ def build_portable_release() -> Path:
 
 
 def main() -> int:
-    output = build_portable_release()
+    parser = argparse.ArgumentParser(description="Build portable PixelScope ZIP")
+    parser.add_argument("--target-descriptor", type=Path)
+    args = parser.parse_args()
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None
+        else None
+    )
+    output = (
+        build_portable_release(descriptor) if descriptor is not None else build_portable_release()
+    )
     print(f"Portable PixelScope release written: {output}")
     return 0
 
