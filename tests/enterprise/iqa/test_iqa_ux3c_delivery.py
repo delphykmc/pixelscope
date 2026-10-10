@@ -10,7 +10,7 @@ from pathlib import Path
 from threading import Thread
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import QMainWindow
 
 from pixelscope_enterprise.iqa.composition import IqaJobSnapshot, IqaWindowContribution
@@ -35,10 +35,19 @@ def _prepare(qtbot: object) -> tuple[_PublicHost, IqaWindowContribution]:
 
 def test_synthetic_worker_completion_updates_hidden_dock_but_never_auto_opens(
     qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     host, contribution = _prepare(qtbot)
     result = make_synthetic_result("synthetic-completion")
     errors: list[str] = []
+    observed: list[tuple[str, bool]] = []
+    actual_publish = contribution.publish_job
+
+    def record_gui_delivery(snapshot: IqaJobSnapshot) -> None:
+        observed.append((snapshot.status, QThread.currentThread() == host.thread()))
+        actual_publish(snapshot)
+
+    monkeypatch.setattr(contribution, "publish_job", record_gui_delivery)
 
     def worker() -> None:
         try:
@@ -60,6 +69,11 @@ def test_synthetic_worker_completion_updates_hidden_dock_but_never_auto_opens(
         timeout=5000,
     )
     assert contribution.manager.window is None  # Completion never steals focus.
+    assert observed == [
+        ("queued", True),
+        ("running", True),
+        ("completed", True),
+    ]
     assert contribution.jobs_dock is not None
     assert contribution.jobs_dock.isHidden()  # Status cue works while dock hidden.
     assert contribution.jobs_status_button is not None
