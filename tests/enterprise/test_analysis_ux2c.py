@@ -202,7 +202,7 @@ def test_startup_bottom_dock_does_not_collapse_fhd_inspector(qtbot: object) -> N
     win.show()
     win.spatial_dock.show()  # explicit despite persisted user visibility state
     qtbot.waitUntil(  # type: ignore[attr-defined]
-        lambda: win._fit_pending_result_id is None and win.inspector_splitter.height() >= 320,
+        lambda: win._fit_pending_result_id is None and win.inspector_tabs.height() >= 260,
         timeout=5000,
     )
     assert win.spatial_dock.isVisible()
