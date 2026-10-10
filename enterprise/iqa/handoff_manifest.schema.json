@@ -94,8 +94,28 @@
               "add",
               "update"
             ]
+          },
+          "previous_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "operation": {
+                  "const": "update"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "previous_sha256"
+              ]
+            }
+          }
+        ]
       }
     },
     "removed_paths": {
