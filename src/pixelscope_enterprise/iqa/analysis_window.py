@@ -87,7 +87,6 @@ from pixelscope_enterprise.iqa.analysis_model import (
     roi_statistics,
     spatial_display_half_range,
 )
-from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
 from pixelscope_enterprise.iqa.attribute_chart import (
     ATTRIBUTE_ROLE,
     CHART_MEASUREMENT_ROLE,
@@ -95,6 +94,7 @@ from pixelscope_enterprise.iqa.attribute_chart import (
     ChartMeasurement,
     RelativeDifferenceDelegate,
 )
+from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
 from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
 from pixelscope_enterprise.iqa.spatial_candidates import (
