@@ -69,8 +69,8 @@ def test_caller_selected_descriptor_drives_spec_exe_version_inno(tmp_path: Path)
     assert "-dAppIdValue={{A33A81AB-5B0B-4249-8314-ABACBDF45990}" in command
     assert "-dTargetRegistryAppId={A33A81AB-5B0B-4249-8314-ABACBDF45990}" in command
 
-    assert pyinstaller_command()[-1].name == "pixelscope.spec"
-    assert pyinstaller_command("reference")[-1].name == "pixelscope-reference.spec"
+    assert Path(pyinstaller_command()[-1]).name == "pixelscope.spec"
+    assert Path(pyinstaller_command("reference")[-1]).name == "pixelscope-reference.spec"
     assert release_stem("1.2.3") == "PixelScope-1.2.3-windows-x64"
 
 
