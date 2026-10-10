@@ -67,8 +67,14 @@ invokes `contribution.shutdown()` through the existing host lifecycle.
   delivery bridge** for worker/transport callbacks. It validates the payload
   and schedules `publish_job` on the host's GUI thread without accessing
   widgets from the worker. Already queued events become no-ops on shutdown.
-  PRIVATE SUB still owns worker lifecycle, authorization, transport and any
-  real cancellation.
+  PRIVATE SUB still owns worker lifecycle, authorization and transport.
+  A reported `cancelled` state **does not** imply a cancel action. If
+  PRIVATE SUB injects `cancel_job(job_id)` and each cancellable queued/running
+  snapshot explicitly sets `can_cancel=True`, the contribution provides
+  a per-selected-job `IQA > Cancel Selected IQA Job` action beside Run and
+  a corresponding Jobs Dock button. Both are omitted when cancellation is
+  not injected. A cancellation request does **not** invent terminal
+  `cancelled` state; only subsequent verified provider updates can do that.
 - A persistent, nonmodal **MAIN status-bar IQA button** reports the most
   recently updated queued/running/completed/failed/cancelled job, even while
   the IQA Jobs dock is hidden. Clicking it reveals the dock; it never opens
