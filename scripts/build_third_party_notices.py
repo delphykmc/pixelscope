@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import platform
 import re
 import sys
@@ -11,6 +12,10 @@ if __package__ in (None, ""):
 
 from scripts.distribution_contract import notice_path  # noqa: E402
 from scripts.release_contract import REPO_ROOT  # noqa: E402
+from scripts.package_target_descriptor import (  # noqa: E402
+    PackageTargetDescriptor,
+    load_target_descriptor,
+)
 
 RUNTIME_REQUIREMENTS = REPO_ROOT / "requirements" / "runtime.txt"
 _LICENSE_PREFIXES = ("license", "licence", "copying", "notice")
@@ -89,14 +94,31 @@ def _installed_distributions() -> tuple[metadata.Distribution, ...]:
     )
 
 
-def _validate_runtime_inventory(distributions: tuple[metadata.Distribution, ...]) -> None:
+def _validate_runtime_inventory(
+    distributions: tuple[metadata.Distribution, ...],
+    additional_requirements: Path | None = None,
+) -> None:
     by_name = {
         _normalize_distribution_name(str(dist.metadata.get("Name") or "")): dist
         for dist in distributions
     }
     missing: list[str] = []
     incomplete_license: list[str] = []
-    for requirement in required_runtime_distributions():
+    requirements = list(required_runtime_distributions())
+    if additional_requirements is not None:
+        for raw_line in additional_requirements.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # PRIVATE SUB owns parsing and installing its full dependency set.
+            # The public audit must not skip unsupported requirement syntax.
+            if line.startswith(("-r ", "-e ", "--")) or "://" in line:
+                raise RuntimeError("unsupported release notice requirement syntax")
+            name = re.split(r"[<>=!~\\[]", line, maxsplit=1)[0].strip()
+            if not name or " " in name:
+                raise RuntimeError("invalid additional release requirement")
+            requirements.append(name)
+    for requirement in requirements:
         normalized = _normalize_distribution_name(requirement)
         dist = by_name.get(normalized)
         if dist is None:
@@ -113,9 +135,14 @@ def _validate_runtime_inventory(distributions: tuple[metadata.Distribution, ...]
         )
 
 
-def render_third_party_notices() -> str:
+def render_third_party_notices(
+    descriptor: PackageTargetDescriptor | None = None,
+) -> str:
     distributions = _installed_distributions()
-    _validate_runtime_inventory(distributions)
+    _validate_runtime_inventory(
+        distributions,
+        descriptor.runtime_requirements if descriptor is not None else None,
+    )
     python_license_path = _python_license_path()
     python_license = python_license_path.read_text(encoding="utf-8", errors="replace")
 
@@ -161,15 +188,32 @@ def render_third_party_notices() -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_third_party_notices(destination: Path | None = None) -> Path:
-    output = (destination or notice_path()).resolve()
+def write_third_party_notices(
+    destination: Path | None = None, *,
+    descriptor: PackageTargetDescriptor | None = None,
+) -> Path:
+    output = (
+        destination or notice_path(descriptor=descriptor)
+        if descriptor is not None else destination or notice_path()
+    ).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render_third_party_notices(), encoding="utf-8")
+    contents = render_third_party_notices(descriptor) if descriptor else render_third_party_notices()
+    output.write_text(contents, encoding="utf-8")
     return output
 
 
 def main() -> int:
-    output = write_third_party_notices()
+    parser = argparse.ArgumentParser(description="Generate runtime distribution notices")
+    parser.add_argument("--target-descriptor", type=Path)
+    args = parser.parse_args()
+    descriptor = (
+        load_target_descriptor(args.target_descriptor)
+        if args.target_descriptor is not None else None
+    )
+    output = (
+        write_third_party_notices(descriptor=descriptor)
+        if descriptor is not None else write_third_party_notices()
+    )
     print(f"Third-party notices written: {output}")
     return 0
 
