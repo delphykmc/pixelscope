@@ -10,8 +10,8 @@ if __package__ in (None, ""):
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.release_contract import APP_DIR, REPO_ROOT, release_version  # noqa: E402
 from scripts.package_target_descriptor import PackageTargetDescriptor  # noqa: E402
+from scripts.release_contract import APP_DIR, REPO_ROOT, release_version  # noqa: E402
 
 TARGET_ID: Final = "windows-x64"
 RELEASE_ROOT: Final = REPO_ROOT / "release"
