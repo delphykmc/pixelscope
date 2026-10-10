@@ -540,7 +540,10 @@ def main() -> int:
                     f"POST-IMPORT VERIFIED: {verified} approved IQA files; "
                     f"{removed} explicit deletions; external manifest SHA-256 {digest}"
                 )
-                print("SUB sibling integrity and external manifest authentication remain owner gates")
+                print(
+                    "SUB sibling integrity and external manifest authentication "
+                    "remain owner gates"
+                )
             else:
                 actions = plan_import(Path(args.repo), Path(args.destination), manifest, previous)
                 for action, target, _, _ in actions:
