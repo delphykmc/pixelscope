@@ -77,15 +77,15 @@ def test_first_roi_autoselects_signed_grid_scope_and_clear_restores_full(
     assert win.chart_scope_combo.currentData() == "full_pair"
     assert not win.chart_scope_combo.model().item(1).isEnabled()
     assert _chart(win, "dB", 0) is None
-    assert "FULL-PAIR" in win.chart_scope_badge.text()
+    assert win.chart_scope_combo.currentText() == "Full"
     before_csv = build_measurements_csv(result)
 
     win._set_roi(0, 0, 64, 64)
     assert win.chart_scope_combo.currentData() == "roi_grid"
     assert win.chart_scope_combo.model().item(1).isEnabled()
-    assert "GRID-DERIVED ROI ESTIMATE" in win.chart_scope_badge.text()
-    assert "NO verified A/B quality winner" in win.chart_help.text()
-    assert win._group_tables["dB"].horizontalHeaderItem(1).text() == ("GRID-derived ROI estimate")
+    assert win.chart_scope_combo.currentText() == "ROI · grid"
+    assert "not validated local quality scores" in win.chart_scope_combo.toolTip()
+    assert win._group_tables["dB"].horizontalHeaderItem(1).text() == "ROI Δ (grid)"
     roi = _chart(win, "dB", 0)
     assert roi is not None and roi.value == pytest.approx(4.0)
     assert roi.availability == "available"
@@ -111,7 +111,7 @@ def test_first_roi_autoselects_signed_grid_scope_and_clear_restores_full(
     assert win.chart_scope_combo.currentData() == "full_pair"
     assert not win.chart_scope_combo.model().item(1).isEnabled()
     assert _chart(win, "dB", 0) is None
-    assert "B better" in win.chart_help.text()
+    assert win._group_tables["dB"].horizontalHeaderItem(1).text() == "Pair Δ"
     win.close()
 
 
@@ -164,6 +164,27 @@ def test_manual_full_pair_override_and_per_result_state_roundtrip(qtbot: object)
     restored.close()
 
 
+def test_clear_roi_starts_new_automatic_scope_cycle(qtbot: object) -> None:
+    """Manual Full holds only within one ROI selection session."""
+
+    win = AnalysisWindow()
+    qtbot.addWidget(win)  # type: ignore[attr-defined]
+    win.present_result(_result("fresh-roi"))
+    win._set_roi(0, 0, 64, 64)
+    assert win.chart_scope_combo.currentData() == "roi_grid"
+    win.chart_scope_combo.setCurrentIndex(0)
+    assert win._state().scope_user_override
+    win._set_roi(64, 0, 64, 64)
+    assert win.chart_scope_combo.currentData() == "full_pair"
+    win._clear_roi()
+    assert win.chart_scope_combo.currentData() == "full_pair"
+    assert win._state().scope_user_override is False
+    win._set_roi(0, 0, 64, 64)
+    assert win.chart_scope_combo.currentData() == "roi_grid"
+    assert _chart(win, "dB", 0).value == pytest.approx(4.0)
+    win.close()
+
+
 def test_valid_grid_zero_is_numeric_and_invalid_area_is_missing(qtbot: object) -> None:
     grid = SpatialMap(
         values=np.array([[0.0, np.nan], [5.0, 9.0]]),
@@ -195,5 +216,5 @@ def test_valid_grid_zero_is_numeric_and_invalid_area_is_missing(qtbot: object) -
     assert missing.valid_coverage == 0.0
     win.chart_scope_combo.setCurrentIndex(0)
     assert _chart(win, "dB", 0) is None
-    assert win.chart_scope_badge.text().startswith("FULL-PAIR")
+    assert win.chart_scope_combo.currentText() == "Full"
     win.close()
