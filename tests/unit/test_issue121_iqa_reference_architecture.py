@@ -373,10 +373,12 @@ def test_issue156_environment_pin_and_public_head_default(
     root.mkdir()
     _git_output(root, "init", "-q")
     main_sha = _issue156_commit_fixture(root, "src/pixelscope/core.py")
+    monkeypatch.delenv(_PUBLIC_MAIN_SHA_ENV, raising=False)
+    _check_checkout_public_main_tree(root)  # Clean PUBLIC HEAD, no inherited pin.
+
     _issue156_commit_fixture(root, "tests/enterprise/iqa/test_downstream.py")
 
     # The same production check must reject downstream HEAD when no pin is set.
-    monkeypatch.delenv(_PUBLIC_MAIN_SHA_ENV, raising=False)
     with pytest.raises(AssertionError, match="tracks SUB-reserved paths"):
         _check_checkout_public_main_tree(root)
 
