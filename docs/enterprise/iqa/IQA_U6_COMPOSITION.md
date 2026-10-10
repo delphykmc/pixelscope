@@ -61,9 +61,14 @@ invokes `contribution.shutdown()` through the existing host lifecycle.
   paths (including `None` placeholders). The contribution does **not**
   validate pair geometry or start workers on its own.
 - PRIVATE SUB publishes `IqaJobSnapshot(job_id, label, status, result=None)`
-  on the **Qt GUI thread**, with status `queued`, `running`, `completed`,
-  `failed` or `cancelled`. Results are accepted only for completed jobs.
-  Network/worker threads must marshal updates onto the Qt main thread.
+  with status `queued`, `running`, `completed`, `failed` or `cancelled`.
+  Results are accepted only for completed jobs. `publish_job(snapshot)` is
+  intentionally GUI-thread-only; `post_job(snapshot)` is the UX-3C **queued Qt
+  delivery bridge** for worker/transport callbacks. It validates the payload
+  and schedules `publish_job` on the host's GUI thread without accessing
+  widgets from the worker. Already queued events become no-ops on shutdown.
+  PRIVATE SUB still owns worker lifecycle, authorization, transport and any
+  real cancellation.
 - A persistent, nonmodal **MAIN status-bar IQA button** reports the most
   recently updated queued/running/completed/failed/cancelled job, even while
   the IQA Jobs dock is hidden. Clicking it reveals the dock; it never opens
