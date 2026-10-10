@@ -137,14 +137,10 @@ def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> N
     # files unchanged; the only upstream change is the PUBLIC #121 guard.
     before_sync = _entries(pre_resync)
     after_sync = _entries(resync)
-    assert {
-        p: v for p, v in after_sync.items() if _is_enterprise(p)
-    } == {
+    assert {p: v for p, v in after_sync.items() if _is_enterprise(p)} == {
         p: v for p, v in before_sync.items() if _is_enterprise(p)
     }, "PUBLIC #174 resync modified a preexisting Enterprise file"
-    assert {
-        p: v for p, v in after_sync.items() if not _is_enterprise(p)
-    } == {
+    assert {p: v for p, v in after_sync.items() if not _is_enterprise(p)} == {
         p: v for p, v in main_entries.items() if not _is_enterprise(p)
     }, "PUBLIC #174 resync does not match the exact approved MAIN Git tree"
 
