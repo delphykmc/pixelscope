@@ -202,7 +202,7 @@ _RESERVED_SUB_ROOTS = (
     "docs/enterprise",
     "enterprise",
 )
-_COMMIT_SHA = re.compile(r"[0-9a-fA-F]{40}\\Z")
+_COMMIT_SHA = re.compile(r"[0-9a-fA-F]{40}\Z")
 
 
 def _git_output(root: Path, *args: str) -> bytes:
@@ -240,11 +240,14 @@ def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
         _git_output(root, "merge-base", "--is-ancestor", resolved, "HEAD")
 
     tree = _git_output(root, "ls-tree", "-r", "-z", "--name-only", "--full-tree", resolved)
-    tracked = (os.fsdecode(path) for path in tree.split(b"\\x00") if path)
+    tracked = (os.fsdecode(path) for path in tree.split(b"\x00") if path)
     violations = sorted(
         path
         for path in tracked
-        if any(path == reserved or path.startswith(f"{reserved}/") for reserved in _RESERVED_SUB_ROOTS)
+        if any(
+            path == reserved or path.startswith(f"{reserved}/")
+            for reserved in _RESERVED_SUB_ROOTS
+        )
     )
     assert not violations, (
         f"PUBLIC MAIN commit {resolved} tracks SUB-reserved paths: {violations}. "
@@ -266,11 +269,17 @@ def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
 def _issue156_commit_fixture(root: Path, relative_path: str) -> str:
     path = root / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("fixture\\n", encoding="utf-8")
+    path.write_text("fixture\n", encoding="utf-8")
     _git_output(root, "add", "--", relative_path)
     _git_output(
-        root, "-c", "user.name=PixelScope Test", "-c", "user.email=test@example.invalid",
-        "commit", "-qm", "test MAIN ownership tree",
+        root,
+        "-c",
+        "user.name=PixelScope Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-qm",
+        "test MAIN ownership tree",
     )
     return _git_output(root, "rev-parse", "HEAD").decode("ascii").strip()
 
@@ -283,7 +292,7 @@ def test_issue156_guard_uses_pinned_main_tree_not_downstream_head(tmp_path: Path
     # A populated but untracked sibling also must not be treated as MAIN-owned.
     sibling = root / "enterprise" / "untracked_private.py"
     sibling.parent.mkdir()
-    sibling.write_text("private = True\\n", encoding="utf-8")
+    sibling.write_text("private = True\n", encoding="utf-8")
     _assert_main_git_tree_has_no_reserved_paths(root, "HEAD")
 
     _issue156_commit_fixture(root, "tests/enterprise/iqa/test_downstream.py")
