@@ -78,7 +78,7 @@ def test_offline_report_escapes_untrusted_text_and_reuses_true_pngs(tmp_path: Pa
     assert (output / "selected_map_full.png").exists()
     assert (output / "selected_map_roi.png").exists()
     assert not (output / "source_B_full.png").exists()
-    assert '<script' not in page.lower()
+    assert "<script" not in page.lower()
     assert 'src="https://' not in page
     assert "&lt;img src=&quot;https://bad.example/x&quot;" in page
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
@@ -128,8 +128,14 @@ def test_existing_folder_and_failed_html_generation_leave_no_partial_output(
     marker.write_text("preserve", encoding="utf-8")
     with pytest.raises(FileExistsError):
         write_html_report(
-            result, selected, (image, None), existing,
-            scope="full", roi=None, display_range=4.0, display_gain=1.0,
+            result,
+            selected,
+            (image, None),
+            existing,
+            scope="full",
+            roi=None,
+            display_range=4.0,
+            display_gain=1.0,
         )
     assert marker.read_text(encoding="utf-8") == "preserve"
 
@@ -142,9 +148,14 @@ def test_existing_folder_and_failed_html_generation_leave_no_partial_output(
     dest = tmp_path / "broken"
     with pytest.raises(OSError, match="simulated"):
         write_html_report(
-            result, selected, (image, None), dest,
-            scope="roi", roi=(0.0, 0.0, 4.0, 4.0),
-            display_range=4.0, display_gain=1.0,
+            result,
+            selected,
+            (image, None),
+            dest,
+            scope="roi",
+            roi=(0.0, 0.0, 4.0, 4.0),
+            display_range=4.0,
+            display_gain=1.0,
         )
     assert not dest.exists()
     assert {p.name for p in tmp_path.iterdir()} == {"existing"}
