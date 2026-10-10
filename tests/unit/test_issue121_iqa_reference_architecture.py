@@ -251,7 +251,8 @@ def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
     )
     assert not violations, (
         f"PUBLIC MAIN commit {resolved} tracks SUB-reserved paths: {violations}. "
-        "Check the PUBLIC MAIN tree, not downstream-imported working-tree files."
+        "If running in PRIVATE SUB, set PIXELSCOPE_PUBLIC_MAIN_SHA to the exact merged " 
+        "PUBLIC MAIN SHA; do not deselect the test."
     )
 
 
