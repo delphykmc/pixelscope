@@ -96,18 +96,20 @@ def _wait_for_terminal(
             drive_to_terminal(provider, job)
         snapshot = provider.get_status(job)
         _check_snapshot(snapshot, job)
-        # Allow QUEUED -> COMPLETED for providers with fast jobs; prohibit
-        # terminal regressions and RUNNING -> QUEUED.
+        # Fast providers may go QUEUED -> COMPLETED directly. RUNNING must
+        # not regress to QUEUED; the public contract does not require
+        # monotonic numerical progress across backend phases.
         if previous_state is IqaJobState.RUNNING:
             assert snapshot.state is not IqaJobState.QUEUED, "job state regressed"
-        if previous_state is not None and previous_state.terminal:
-            assert snapshot.state is previous_state, "terminal job state changed"
-        # The published Progress dataclass bounds counts, but does not
-        # promise monotonicity across backend phases. Do not impose a new
-        # protocol revision or provider-specific stage semantics here.
         observed.append(snapshot.state)
         previous_state = snapshot.state
         if snapshot.state.terminal:
+            # A separate, exactly one-call re-read verifies terminal stability.
+            # The normal polling loop is capped by max_polls; certification
+            # adds at most this one status call (plus overlap_calls).
+            stable = provider.get_status(job)
+            _check_snapshot(stable, job)
+            assert stable.state is snapshot.state, "terminal job state changed"
             return snapshot, tuple(observed)
         if drive_to_terminal is None:
             remaining = budget.timeout_seconds - (time.monotonic() - started)
@@ -141,7 +143,14 @@ def run_provider_conformance(
     Failure runs must reject result readiness. Successful runs must expose a
     materializable result, an openable normalized public result and an explicit
     source-resolution outcome. None of the checks assume fixture-specific IDs.
+
+    The harness rejects optimized Python (-O / PYTHONOPTIMIZE) because
+    its diagnostic assertions are an essential part of certification.
     """
+    if not __debug__:
+        raise RuntimeError(
+            "IQA conformance requires Python assertions; optimized execution is unsupported"
+        )
     if expected_terminal not in (IqaJobState.COMPLETED, IqaJobState.FAILED):
         raise ValueError("conformance terminal must be completed or failed")
     if overlap_calls < 0 or overlap_calls > 64:
