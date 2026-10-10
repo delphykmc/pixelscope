@@ -205,19 +205,37 @@ _RESERVED_SUB_ROOTS = (
 _COMMIT_SHA = re.compile(r"[0-9a-fA-F]{40}\Z")
 
 
-def _git_output(root: Path, *args: str) -> bytes:
+def _git_result(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
     try:
-        result = subprocess.run(
+        return subprocess.run(
             ["git", "-C", str(root), *args],
             capture_output=True,
             check=False,
         )
     except OSError as exc:
         raise AssertionError(f"Git is required for the MAIN ownership guard: {exc}") from exc
+
+
+def _git_output(root: Path, *args: str) -> bytes:
+    result = _git_result(root, *args)
     if result.returncode:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
         raise AssertionError(f"MAIN ownership guard could not run git {args[0]}: {detail}")
     return result.stdout
+
+
+def _assert_pinned_main_is_ancestor(root: Path, public_sha: str) -> None:
+    result = _git_result(root, "merge-base", "--is-ancestor", public_sha, "HEAD")
+    if result.returncode == 1:
+        raise AssertionError(
+            f"{_PUBLIC_MAIN_SHA_ENV}={public_sha} is not an ancestor of HEAD; "
+            "pin the exact merged PUBLIC MAIN commit consumed by this checkout"
+        )
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise AssertionError(
+            f"MAIN ownership guard could not verify pin ancestry: {detail}"
+        )
 
 
 def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
@@ -235,7 +253,7 @@ def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
     if ref != "HEAD":
         assert resolved.lower() == ref.lower(), "PUBLIC MAIN SHA did not resolve exactly"
         # The consuming checkout must descend from the pinned merged MAIN commit.
-        _git_output(root, "merge-base", "--is-ancestor", resolved, "HEAD")
+        _assert_pinned_main_is_ancestor(root, resolved)
 
     tree = _git_output(root, "ls-tree", "-r", "-z", "--name-only", "--full-tree", resolved)
     tracked = (os.fsdecode(path) for path in tree.split(b"\x00") if path)
@@ -253,7 +271,7 @@ def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
     )
 
 
-def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
+def _check_checkout_public_main_tree(root: Path) -> None:
     # PUBLIC MAIN checks HEAD; a PRIVATE SUB checkout pins the exact merged
     # PUBLIC MAIN SHA via this environment variable (no --deselect needed).
     pinned = os.environ.get(_PUBLIC_MAIN_SHA_ENV)
@@ -261,7 +279,11 @@ def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
         raise AssertionError(
             f"{_PUBLIC_MAIN_SHA_ENV} must be the exact 40-character merged PUBLIC MAIN SHA"
         )
-    _assert_main_git_tree_has_no_reserved_paths(REPOSITORY_ROOT, pinned or "HEAD")
+    _assert_main_git_tree_has_no_reserved_paths(root, pinned or "HEAD")
+
+
+def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
+    _check_checkout_public_main_tree(REPOSITORY_ROOT)
 
 
 def _issue156_commit_fixture(root: Path, relative_path: str) -> str:
@@ -319,6 +341,63 @@ def test_issue156_guard_fails_closed_without_git_or_valid_pin(tmp_path: Path) ->
     _issue156_commit_fixture(root, "src/pixelscope/core.py")
     with pytest.raises(AssertionError, match="40-character"):
         _assert_main_git_tree_has_no_reserved_paths(root, "main")
+
+
+def test_issue156_guard_rejects_nonresolving_commit_sha(tmp_path: Path) -> None:
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git_output(root, "init", "-q")
+    _issue156_commit_fixture(root, "src/pixelscope/core.py")
+
+    # A 40-character token is not proof that the commit exists in local Git history.
+    with pytest.raises(AssertionError, match="could not run git rev-parse"):
+        _assert_main_git_tree_has_no_reserved_paths(root, "f" * 40)
+
+
+def test_issue156_guard_rejects_nonancestor_pin(tmp_path: Path) -> None:
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git_output(root, "init", "-q")
+    common_sha = _issue156_commit_fixture(root, "src/pixelscope/core.py")
+    _git_output(root, "checkout", "-q", "-b", "other")
+    other_sha = _issue156_commit_fixture(root, "src/pixelscope/other.py")
+    _git_output(root, "checkout", "-q", "-b", "downstream", common_sha)
+    _issue156_commit_fixture(root, "tests/enterprise/iqa/test_downstream.py")
+
+    with pytest.raises(AssertionError, match="is not an ancestor of HEAD"):
+        _assert_main_git_tree_has_no_reserved_paths(root, other_sha)
+
+
+def test_issue156_environment_pin_and_public_head_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git_output(root, "init", "-q")
+    main_sha = _issue156_commit_fixture(root, "src/pixelscope/core.py")
+    _issue156_commit_fixture(root, "tests/enterprise/iqa/test_downstream.py")
+
+    # The same production check must reject downstream HEAD when no pin is set.
+    monkeypatch.delenv(_PUBLIC_MAIN_SHA_ENV, raising=False)
+    with pytest.raises(AssertionError, match="tracks SUB-reserved paths"):
+        _check_checkout_public_main_tree(root)
+
+    # A caller-supplied exact PUBLIC MAIN commit preserves downstream siblings.
+    monkeypatch.setenv(_PUBLIC_MAIN_SHA_ENV, main_sha)
+    _check_checkout_public_main_tree(root)
+
+    # An invalid or unresolved caller pin cannot silently fall back to HEAD.
+    monkeypatch.setenv(_PUBLIC_MAIN_SHA_ENV, "main")
+    with pytest.raises(AssertionError, match="40-character"):
+        _check_checkout_public_main_tree(root)
+    monkeypatch.setenv(_PUBLIC_MAIN_SHA_ENV, "f" * 40)
+    with pytest.raises(AssertionError, match="could not run git rev-parse"):
+        _check_checkout_public_main_tree(root)
+
+    # In PUBLIC MAIN a leftover SUB pin must be cleared to restore HEAD checks.
+    monkeypatch.delenv(_PUBLIC_MAIN_SHA_ENV)
+    with pytest.raises(AssertionError, match="tracks SUB-reserved paths"):
+        _check_checkout_public_main_tree(root)
 
 
 def test_generic_composition_lifetime_contains_no_iqa_compatibility_shim() -> None:
