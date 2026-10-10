@@ -17,11 +17,11 @@ from scripts.distribution_contract import (  # noqa: E402
     release_stem,
     validate_payload_manifest,
 )
-from scripts.release_contract import release_version  # noqa: E402
 from scripts.package_target_descriptor import (  # noqa: E402
     PackageTargetDescriptor,
     load_target_descriptor,
 )
+from scripts.release_contract import release_version  # noqa: E402
 from scripts.smoke_packaged_release import smoke_executable  # noqa: E402
 from scripts.validate_release_artifact import validate_artifact  # noqa: E402
 
