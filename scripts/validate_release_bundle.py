@@ -65,10 +65,18 @@ def validate_release_bundle(
     actual_names = {path.name for path in release_root.iterdir() if path.is_file()}
 
     missing = sorted(expected_names - actual_names)
-    # Legacy canonical release validation remains strict. In a custom target
-    # release workspace, unrelated existing public release files are allowed,
-    # but must never be counted as this target's build output.
-    extra = sorted(actual_names - expected_names) if descriptor is None else []
+    # Legacy public validation stays strict. In a shared custom release
+    # workspace, accept other targets, but never ignore an unexpected
+    # sidecar/artifact belonging to THIS versioned custom product.
+    if descriptor is None:
+        extra = sorted(actual_names - expected_names)
+    else:
+        owned_names = {
+            name
+            for name in actual_names
+            if name.startswith((f"{stem}-", f"{stem}."))
+        }
+        extra = sorted(owned_names - expected_names)
     if missing:
         raise ReleaseBundleError(f"release bundle is missing files: {missing}")
     if extra:
