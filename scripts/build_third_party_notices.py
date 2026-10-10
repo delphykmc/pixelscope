@@ -11,11 +11,11 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.distribution_contract import notice_path  # noqa: E402
-from scripts.release_contract import REPO_ROOT  # noqa: E402
 from scripts.package_target_descriptor import (  # noqa: E402
     PackageTargetDescriptor,
     load_target_descriptor,
 )
+from scripts.release_contract import REPO_ROOT  # noqa: E402
 
 RUNTIME_REQUIREMENTS = REPO_ROOT / "requirements" / "runtime.txt"
 _LICENSE_PREFIXES = ("license", "licence", "copying", "notice")
@@ -197,7 +197,10 @@ def write_third_party_notices(
         if descriptor is not None else destination or notice_path()
     ).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    contents = render_third_party_notices(descriptor) if descriptor else render_third_party_notices()
+    contents = (
+        render_third_party_notices(descriptor)
+        if descriptor else render_third_party_notices()
+    )
     output.write_text(contents, encoding="utf-8")
     return output
 
