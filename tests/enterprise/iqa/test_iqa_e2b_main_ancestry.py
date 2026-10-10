@@ -85,9 +85,11 @@ def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> N
     # Check the *actual two-parent commit*. A synthetic SHA marker in a
     # document, a squash PR or merely identical files cannot satisfy this.
     parents = _git("rev-list", "--parents", "-n", "1", merger).decode("ascii").split()
-    assert parents == [merger, handoff, main], (
-        "E2B must have an exact two-parent, Handoff-first, MAIN-second merge"
-    )
+    assert parents == [
+        merger,
+        handoff,
+        main,
+    ], "E2B must have an exact two-parent, Handoff-first, MAIN-second merge"
     for ref in (main, handoff, merger):
         _git("merge-base", "--is-ancestor", ref, "HEAD")
 
@@ -103,15 +105,15 @@ def test_main_and_original_handoff_are_real_ancestors_and_blobs_unchanged() -> N
 
     # All previously reviewed Enterprise Git blob identities are retained.
     old_enterprise = {p: v for p, v in old_entries.items() if _is_enterprise(p)}
-    assert all(actual_entries.get(p) == v for p, v in old_enterprise.items()), (
-        "previous Handoff IQA blobs were modified, removed or had modes changed"
-    )
+    assert all(
+        actual_entries.get(p) == v for p, v in old_enterprise.items()
+    ), "previous Handoff IQA blobs were modified, removed or had modes changed"
 
     # New Enterprise-only documents/tests are allowed, not new unowned SUB
     # siblings or private files outside the reviewed IQA leaf scope.
     for path in actual_entries:
         if _is_enterprise(path):
-            assert path == SHARED_INIT or path.startswith(OWNED_LEAVES), (
-                f"unowned Enterprise path introduced by upstream sync: {path}"
-            )
+            assert path == SHARED_INIT or path.startswith(
+                OWNED_LEAVES
+            ), f"unowned Enterprise path introduced by upstream sync: {path}"
     assert all(not _is_enterprise(path) for path in main_entries)
