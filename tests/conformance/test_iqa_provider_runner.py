@@ -179,9 +179,7 @@ def test_failed_fixture_runs_same_terminal_and_result_readiness_contract(
     ("max_polls", "seconds", "interval"),
     [(0, 1.0, 0.0), (2, 0.0, 0.0), (2, 1.0, -0.01)],
 )
-def test_invalid_budget_rejected(
-    max_polls: int, seconds: float, interval: float
-) -> None:
+def test_invalid_budget_rejected(max_polls: int, seconds: float, interval: float) -> None:
     with pytest.raises(ValueError, match="polling budget"):
         ConformanceBudget(
             max_polls=max_polls,
