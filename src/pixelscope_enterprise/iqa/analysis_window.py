@@ -105,6 +105,13 @@ from pixelscope_enterprise.iqa.spatial_dock import SpatialCandidatesPanel
 
 ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
+IqaSettingsFactory = Callable[[], QSettings]
+
+
+def default_iqa_settings() -> QSettings:
+    """Preserve the legacy IQA namespace without changing QApplication identity."""
+    return QSettings("PixelScope", "EnterpriseIqa")
+
 
 
 @dataclass
@@ -375,8 +382,14 @@ class _EnterpriseSpatialDockTitle(PlotsDockTitleBar):
 class AnalysisWindow(QMainWindow):
     """One independent, non-modal window; may show with no loaded Result."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        settings_factory: IqaSettingsFactory | None = None,
+    ) -> None:
         super().__init__(parent)
+        self._settings_factory = settings_factory or default_iqa_settings
         self.setObjectName("enterpriseIqaAnalysisWindow")
         self.setWindowTitle("IQA Analysis")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
@@ -794,7 +807,7 @@ class AnalysisWindow(QMainWindow):
         # Restore location/size but NOT visibility. The candidates panel is
         # explicitly opt-in on every new Analysis Window; an old persisted
         # visible dock must not trigger a scan or surprise the operator.
-        dock_state = QSettings("PixelScope", "EnterpriseIqa").value(
+        dock_state = self._settings_factory().value(
             "analysis_window_spatial_dock_state"
         )
         if isinstance(dock_state, QByteArray | bytes):
@@ -2114,14 +2127,14 @@ class AnalysisWindow(QMainWindow):
             pending.cancel()
         self._spatial_future = None
         self._spatial_pending = None
-        QSettings("PixelScope", "EnterpriseIqa").setValue(
+        self._settings_factory().setValue(
             "analysis_window_spatial_dock_state", self.saveState()
         )
         for view in self._views:
             view.cancel_roi_drag()
             view._set_roi_cursor(False)
         self._remember_navigation()
-        QSettings("PixelScope", "EnterpriseIqa").setValue(
+        self._settings_factory().setValue(
             "analysis_window_geometry", self.saveGeometry()
         )
         super().closeEvent(event)
@@ -2130,8 +2143,17 @@ class AnalysisWindow(QMainWindow):
 class AnalysisWindowManager:
     """Own exactly one independent AnalysisWindow; no Base or worker ownership."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        settings_factory: IqaSettingsFactory | None = None,
+        load: ResultLoader | None = None,
+        save: ResultSaver | None = None,
+    ) -> None:
         self._window: AnalysisWindow | None = None
+        self._settings_factory = settings_factory or default_iqa_settings
+        self._load = load
+        self._save = save
         self._closed = False
 
     @property
@@ -2142,8 +2164,9 @@ class AnalysisWindowManager:
         if self._closed:
             raise RuntimeError("analysis manager is shut down")
         if self._window is None:
-            self._window = AnalysisWindow()
-            self._place_first_window(self._window)
+            self._window = AnalysisWindow(settings_factory=self._settings_factory)
+            self._window.install_file_handlers(load=self._load, save=self._save)
+            self._place_first_window(self._window, self._settings_factory)
         if result is not None:
             self._window.present_result(result)
         self._window.show()
@@ -2151,11 +2174,14 @@ class AnalysisWindowManager:
         return self._window
 
     @staticmethod
-    def _place_first_window(window: AnalysisWindow) -> None:
+    def _place_first_window(
+        window: AnalysisWindow,
+        settings_factory: IqaSettingsFactory = default_iqa_settings,
+    ) -> None:
         screens = QApplication.screens()
         if not screens:
             return
-        stored = QSettings("PixelScope", "EnterpriseIqa").value("analysis_window_geometry")
+        stored = settings_factory().value("analysis_window_geometry")
         if isinstance(stored, QByteArray | bytes) and window.restoreGeometry(stored):
             geometry = window.frameGeometry()
             if any(
