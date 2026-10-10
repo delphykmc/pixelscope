@@ -137,13 +137,35 @@ Owner-local validation:
 & $py -m ruff format --check enterprise/iqa/handoff_manifest.py tests/enterprise/iqa/test_handoff_manifest.py
 ```
 
-The importer reads Git blobs in batches instead of launching one
-`git cat-file` process per IQA file. Synthetic tests reuse a module-scoped
-immutable Git repository and copy the small fixture only when test-specific
-commits are needed. On Windows, `--durations=5` reports the slowest test
-phases and distinguishes regression-test overhead from Qt/model tests.
-Runtime improvements must be confirmed with observed owner measurements;
-the handoff validation remains a focused test, not the full repository suite.
+### Validation cost policy
+
+The standard **five fast security/contract tests** in
+`tests/enterprise/iqa/test_handoff_manifest.py` use an in-memory synthetic
+Git model. They still exercise the production generator/import planner,
+snapshot hash rejection, explicit update/deletion, sibling preservation,
+path traversal, wrong tag/non-ancestry, and symlink checks. They no longer
+invoke external Git for each test. The tests are not a substitute for
+a real Git integration check.
+
+A **separate opt-in real Git smoke**
+`tests/enterprise/iqa/test_handoff_manifest_git.py` creates one synthetic
+repository, checks commit/tag/tree and binary-safe `git cat-file --batch`,
+and applies a sandbox import. It is skipped by default, including when
+the general full suite discovers it. Run it **once before approval or
+when changing the Git protocol/release tooling**, not for ordinary GUI/IQA
+development:
+
+```powershell
+$env:PIXELSCOPE_RUN_HANDOFF_GIT_INTEGRATION = "1"
+& $py -m pytest -q --durations=5 tests/enterprise/iqa/test_handoff_manifest_git.py
+Remove-Item Env:PIXELSCOPE_RUN_HANDOFF_GIT_INTEGRATION -ErrorAction SilentlyContinue
+```
+
+A real PRIVATE SUB import still requires the verified SHA/tag, protected
+external manifest, collision review, dry run and post-import validation.
+A successful synthetic Git smoke does **not** grant security approval.
+The importer itself continues to batch Git blob reads to avoid spawning
+one `git cat-file` subprocess per file.
 
 Pending #159 Slice B may add additional IQA tests/docs at their old
 flat locations; normalize them into these owned leaves **before H1 approval**.
