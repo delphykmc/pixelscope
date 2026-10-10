@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Final
 
+# Stable PUBLIC Inno Setup install/update registration identity.
+PUBLIC_INSTALLER_APP_ID: Final = "{6FA0AB08-AB41-4F77-93E8-16CE6FF53E5C}"
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 SOURCE_ROOT: Final = REPO_ROOT / "src"
 SPEC_PATH: Final = REPO_ROOT / "packaging" / "pixelscope.spec"
