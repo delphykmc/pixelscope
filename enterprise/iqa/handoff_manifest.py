@@ -40,9 +40,7 @@ class HandoffError(ValueError):
 
 def _git(root: Path, *args: str) -> bytes:
     try:
-        result = subprocess.run(
-            ["git", "-C", str(root), *args], capture_output=True, check=False
-        )
+        result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=False)
     except OSError as exc:
         raise HandoffError(f"Git is required: {exc}") from exc
     if result.returncode:
@@ -122,9 +120,17 @@ def _hash(content: bytes) -> str:
 
 def _validate_manifest(manifest: dict[str, Any]) -> None:
     required = {
-        "schema_version", "main_base_sha", "handoff_sha", "contract_revision",
-        "approved_tag", "reviewed_by", "approved_at", "transfer_mode",
-        "imported_paths", "removed_paths", "validated_tests",
+        "schema_version",
+        "main_base_sha",
+        "handoff_sha",
+        "contract_revision",
+        "approved_tag",
+        "reviewed_by",
+        "approved_at",
+        "transfer_mode",
+        "imported_paths",
+        "removed_paths",
+        "validated_tests",
     }
     if not isinstance(manifest, dict) or not required.issubset(manifest):
         raise HandoffError("manifest lacks required approval/provenance fields")
@@ -138,9 +144,10 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
         not isinstance(previous, str) or SHA_RE.fullmatch(previous) is None
     ):
         raise HandoffError("invalid previous approved SHA")
-    if not isinstance(manifest["approved_tag"], str) or TAG_RE.fullmatch(
-        manifest["approved_tag"]
-    ) is None:
+    if (
+        not isinstance(manifest["approved_tag"], str)
+        or TAG_RE.fullmatch(manifest["approved_tag"]) is None
+    ):
         raise HandoffError("invalid approval tag")
     if manifest["transfer_mode"] not in ("manifest-delta", "history-merge"):
         raise HandoffError("invalid transfer mode")
@@ -181,8 +188,10 @@ def _validate_manifest(manifest: dict[str, Any]) -> None:
         seen.add(path)
     for entry in manifest["removed_paths"]:
         path = _require_owned(entry["path"])
-        if path in seen or not isinstance(entry["previous_sha256"], str) or (
-            HASH_RE.fullmatch(entry["previous_sha256"]) is None
+        if (
+            path in seen
+            or not isinstance(entry["previous_sha256"], str)
+            or (HASH_RE.fullmatch(entry["previous_sha256"]) is None)
         ):
             raise HandoffError(f"invalid deletion or duplicate path: {path}")
         seen.add(path)
@@ -200,9 +209,7 @@ def _validate_commits(root: Path, manifest: dict[str, Any]) -> None:
     previous = manifest.get("previous_approved_handoff_sha")
     if previous is not None:
         _resolve_commit(root, previous)
-        if manifest["transfer_mode"] == "history-merge" and not _ancestor(
-            root, previous, handoff
-        ):
+        if manifest["transfer_mode"] == "history-merge" and not _ancestor(root, previous, handoff):
             raise HandoffError("history-merge requires approved SHA ancestry")
     elif manifest["transfer_mode"] == "history-merge":
         raise HandoffError("history-merge requires previous approved SHA")
@@ -220,9 +227,9 @@ def generate(args: argparse.Namespace) -> dict[str, Any]:
     approved = _resolve_commit(root, args.handoff_sha)
     if not _ancestor(root, base, approved):
         raise HandoffError("MAIN base is not an ancestor of handoff")
-    tagged = _git(
-        root, "rev-parse", "--verify", f"refs/tags/{args.tag}^{{commit}}"
-    ).decode().strip()
+    tagged = (
+        _git(root, "rev-parse", "--verify", f"refs/tags/{args.tag}^{{commit}}").decode().strip()
+    )
     if TAG_RE.fullmatch(args.tag) is None or tagged != approved:
         raise HandoffError("approval tag missing or does not point to frozen handoff SHA")
     public_contract = _git(
@@ -242,8 +249,11 @@ def generate(args: argparse.Namespace) -> dict[str, Any]:
         digest = _hash(_blob(root, blob))
         old = prior.get(path)
         entry = {
-            "path": path, "mode": mode, "git_blob_sha": blob,
-            "sha256": digest, "operation": "update" if old else "add",
+            "path": path,
+            "mode": mode,
+            "git_blob_sha": blob,
+            "sha256": digest,
+            "operation": "update" if old else "add",
         }
         if old:
             entry["previous_sha256"] = old["sha256"]
@@ -254,12 +264,17 @@ def generate(args: argparse.Namespace) -> dict[str, Any]:
         if path not in current
     ]
     manifest = {
-        "schema_version": 1, "main_base_sha": base, "handoff_sha": approved,
+        "schema_version": 1,
+        "main_base_sha": base,
+        "handoff_sha": approved,
         "previous_approved_handoff_sha": previous["handoff_sha"] if previous else None,
-        "contract_revision": int(match.group(1)), "approved_tag": args.tag,
-        "reviewed_by": args.reviewed_by, "approved_at": args.approved_at,
+        "contract_revision": int(match.group(1)),
+        "approved_tag": args.tag,
+        "reviewed_by": args.reviewed_by,
+        "approved_at": args.approved_at,
         "transfer_mode": args.transfer_mode,
-        "imported_paths": entries, "removed_paths": removals,
+        "imported_paths": entries,
+        "removed_paths": removals,
         "validated_tests": evidence,
     }
     _validate_manifest(manifest)
@@ -314,8 +329,7 @@ def plan_import(
             if old is None and entry["operation"] != "add":
                 raise HandoffError("new file must use add operation")
             if old is not None and (
-                entry["operation"] != "update"
-                or entry["previous_sha256"] != old["sha256"]
+                entry["operation"] != "update" or entry["previous_sha256"] != old["sha256"]
             ):
                 raise HandoffError("update does not match previous approved hash")
         for entry in manifest["removed_paths"]:
@@ -375,13 +389,20 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     generate_cmd = sub.add_parser("generate", help="generate *external* approved JSON")
     for flag in (
-        "repo", "handoff-sha", "main-base-sha", "tag",
-        "reviewed-by", "approved-at", "evidence", "output",
+        "repo",
+        "handoff-sha",
+        "main-base-sha",
+        "tag",
+        "reviewed-by",
+        "approved-at",
+        "evidence",
+        "output",
     ):
         generate_cmd.add_argument(f"--{flag}", required=True)
     generate_cmd.add_argument("--previous-manifest")
     generate_cmd.add_argument(
-        "--transfer-mode", choices=("manifest-delta", "history-merge"),
+        "--transfer-mode",
+        choices=("manifest-delta", "history-merge"),
         default="manifest-delta",
     )
     import_cmd = sub.add_parser("import", help="preflight/dry-run or explicit apply")
@@ -405,12 +426,8 @@ def main() -> int:
             print(f"Generated externally retained approval manifest: {args.output}")
         else:
             manifest = _read(Path(args.manifest))
-            previous = (
-                _read(Path(args.previous_manifest)) if args.previous_manifest else None
-            )
-            actions = plan_import(
-                Path(args.repo), Path(args.destination), manifest, previous
-            )
+            previous = _read(Path(args.previous_manifest)) if args.previous_manifest else None
+            actions = plan_import(Path(args.repo), Path(args.destination), manifest, previous)
             for action, target, _, _ in actions:
                 print(f"{action}: {target}")
             if args.apply:
