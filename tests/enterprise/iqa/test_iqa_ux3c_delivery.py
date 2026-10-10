@@ -256,3 +256,114 @@ def test_cancelled_status_does_not_automatically_imply_cancel_command(
 def test_terminal_snapshot_rejects_cancel_capability(state: str) -> None:
     with pytest.raises(ValueError, match="only cancellable active"):
         IqaJobSnapshot("j", "Terminal", state, can_cancel=True)
+
+
+@pytest.mark.parametrize("terminal", ("completed", "failed", "cancelled"))
+def test_queued_stale_worker_events_cannot_revive_terminal_job(
+    terminal: str,
+    qtbot: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A verified terminal snapshot survives later active and terminal callbacks."""
+
+    host = _PublicHost()
+    qtbot.addWidget(host)  # type: ignore[attr-defined]
+    requests: list[str] = []
+    contribution = IqaWindowContribution(cancel_job=requests.append)
+    contribution.prepare(host)
+    contribution.install_dock(host)
+    contribution.install_runtime(host)
+    actions: dict[str, QAction] = {}
+
+    def add_action(
+        _menu: str, title: str, callback: object, _shortcut: str | None = None
+    ) -> QAction:
+        action = QAction(title, host)
+        action.triggered.connect(callback)  # type: ignore[attr-defined]
+        actions[title] = action
+        return action
+
+    contribution.install_actions(host, "IQA", add_action)
+    host.show()
+    result = make_synthetic_result(f"authoritative-{terminal}")
+    authoritative = IqaJobSnapshot(
+        "stable-id",
+        "Authoritative job",
+        terminal,
+        result if terminal == "completed" else None,
+    )
+    # A duplicate contradictory terminal must not replace the first terminal.
+    contradictory = IqaJobSnapshot(
+        "stable-id",
+        "STALE terminal",
+        "failed" if terminal == "completed" else "completed",
+        None if terminal == "completed" else result,
+    )
+    publications = [
+        IqaJobSnapshot("stable-id", "In progress", "queued", can_cancel=True),
+        IqaJobSnapshot("stable-id", "In progress", "running", can_cancel=True),
+        authoritative,
+        IqaJobSnapshot("stable-id", "STALE running", "running", can_cancel=True),
+        IqaJobSnapshot("stable-id", "STALE queued", "queued", can_cancel=True),
+        contradictory,
+    ]
+    delivered: list[tuple[str, bool]] = []
+    original_publish = contribution.publish_job
+
+    def record_delivery(snapshot: IqaJobSnapshot) -> None:
+        original_publish(snapshot)
+        delivered.append((snapshot.status, QThread.currentThread() == host.thread()))
+
+    monkeypatch.setattr(contribution, "publish_job", record_delivery)
+
+    def worker() -> None:
+        for snapshot in publications:
+            contribution.post_job(snapshot)
+
+    thread = Thread(target=worker)
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    qtbot.waitUntil(  # type: ignore[attr-defined]
+        lambda: len(delivered) == len(publications), timeout=5000
+    )
+    assert delivered == [(snap.status, True) for snap in publications]
+    assert contribution._records["stable-id"] is authoritative
+    assert contribution._latest_job_id == "stable-id"
+    assert contribution.jobs_list is not None
+    assert contribution.jobs_list.count() == 1
+    assert contribution.jobs_list.item(0).text() == f"Authoritative job — {terminal}"
+    assert contribution.jobs_status_button is not None
+    assert f"Authoritative job — {terminal}" in contribution.jobs_status_button.text()
+    assert "STALE" not in contribution.jobs_status_button.text()
+
+    contribution.jobs_list.setCurrentRow(0)
+    assert contribution.cancel_selected_button is not None
+    assert not contribution.cancel_selected_button.isEnabled()
+    assert not actions["Cancel Selected IQA Job"].isEnabled()
+    contribution.request_cancel_selected()
+    assert requests == []
+    assert contribution.view_selected_button is not None
+    assert contribution.view_selected_button.isEnabled() == (terminal == "completed")
+
+    if terminal == "completed":
+        assert contribution._selected_result() is result
+        assert contribution.manager.window is None  # No implicit View Result.
+        analysis = contribution.open_selected_result()
+        assert analysis is not None
+        qtbot.addWidget(analysis)  # type: ignore[attr-defined]
+        assert analysis.active_result_id == result.result_id
+    else:
+        assert contribution.open_selected_result() is None
+        assert contribution.manager.window is None
+
+    # Different Job IDs must remain independent of the terminal guard.
+    contribution.publish_job(
+        IqaJobSnapshot("new-request", "Second job", "running", can_cancel=True)
+    )
+    assert contribution._records["stable-id"] is authoritative
+    assert contribution._records["new-request"].status == "running"
+    contribution.jobs_list.setCurrentRow(1)
+    assert actions["Cancel Selected IQA Job"].isEnabled()
+    contribution.shutdown()
+    host.close()
