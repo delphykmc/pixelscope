@@ -288,8 +288,10 @@ def _validate_commits(root: Path, manifest: dict[str, Any]) -> None:
     previous = manifest.get("previous_approved_handoff_sha")
     if previous is not None:
         _resolve_commit(root, previous)
-        if manifest["transfer_mode"] == "history-merge" and not _ancestor(root, previous, handoff):
-            raise HandoffError("history-merge requires approved SHA ancestry")
+        # Approval lineage must never be rewritten, including manifest-delta imports.
+        # The transfer mode controls PRIVATE SUB application, not PUBLIC ancestry.
+        if not _ancestor(root, previous, handoff):
+            raise HandoffError("new approved handoff must descend from prior approved SHA")
     elif manifest["transfer_mode"] == "history-merge":
         raise HandoffError("history-merge requires previous approved SHA")
 
