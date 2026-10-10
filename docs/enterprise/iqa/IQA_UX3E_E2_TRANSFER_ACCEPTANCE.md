@@ -11,14 +11,18 @@ Tracking: #168, #156 (U2/U3/U9/U11), #140 (portable result contract).
   `docs/enterprise/iqa/**`, `enterprise/iqa/**` and the minimal
   `src/pixelscope_enterprise/__init__.py`. Never merge these into PUBLIC
   `main`; preserve PRIVATE SUB sibling trees.
-- MAIN generic caller-selected packaging descriptor was separately merged in
+- MAIN generic caller-selected packaging descriptor was merged in
   PUBLIC PR #167 (`4a85285c49bb97d90f92fdb6edfc81702242a269`).
-  The E1 Handoff squash `49fa974bc8d0cab1e04d1606bfba44c6a1e84da0`
-  is a different branch history: **do not assume #167 is its ancestor or
-  present in that checkout**. Before claiming a combined source build or
-  generating a manifest referencing the new MAIN SHA, verify real Git ancestry
-  and arrange a reviewed Handoff synchronization that preserves immutable
-  approved history. No forced push/rebase of protected approved SHAs.
+  The original E1/E2A Handoff history predated this integration, so MAIN
+  ancestry could **not** be assumed. The new E2B *candidate branch*
+  incorporates exact PUBLIC `main@dca0464b66934b62aa759f2e38e0b79b40de353b`
+  via the verified **two-parent merge** `37478a43787fd1ec92413ad8ec2d8515c5e43767`.
+  See [E2B ancestry acceptance](IQA_UX3E_E2B_MAIN_SYNC.md).
+  **Do not squash the E2B PR**: only a reviewed ordinary Git Merge commit
+  into Handoff preserves MAIN as a real ancestor of the final handoff SHA.
+  Verify both ancestry and exact combined inventory after that merge before
+  generating an approved manifest. Never force-push/rebase an approved SHA.
+  This candidate is not yet a protected/approved handoff release.
 - PRIVATE SUB owns its real Full launcher, descriptor, PyInstaller spec,
   dependencies, smoke target, service/auth and installer signing outside
   replaceable `enterprise/iqa/**` leaves.
