@@ -111,9 +111,7 @@ def main() -> int:
         default=APP_DIR,
         help="onedir root (default: dist/PixelScope)",
     )
-    parser.add_argument(
-        "--target-descriptor", type=Path, help="caller-selected downstream target"
-    )
+    parser.add_argument("--target-descriptor", type=Path, help="caller-selected downstream target")
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
