@@ -940,8 +940,12 @@ class AnalysisWindow(QMainWindow):
         y_center = viewport["center_y"]
         if zoom is None and x_center is None and y_center is None:
             return _ResultViewState(
-                attribute_id, roi, ranges, display_gain=gain,
-                chart_scope=scope, scope_user_override=override,
+                attribute_id,
+                roi,
+                ranges,
+                display_gain=gain,
+                chart_scope=scope,
+                scope_user_override=override,
             )
         scale = finite_number(zoom)
         center_x = finite_number(x_center)
@@ -1350,7 +1354,8 @@ class AnalysisWindow(QMainWindow):
                 else:
                     stats = roi_statistics(attr.spatial, state.roi)
                     measurement = ChartMeasurement(
-                        stats.mean, "available" if stats.mean is not None else "missing",
+                        stats.mean,
+                        "available" if stats.mean is not None else "missing",
                         stats.valid_coverage,
                     )
                 cell.setData(CHART_MEASUREMENT_ROLE, measurement)
