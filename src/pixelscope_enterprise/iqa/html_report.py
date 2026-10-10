@@ -15,7 +15,12 @@ from typing import cast
 
 from PySide6.QtGui import QImage
 
-from pixelscope_enterprise.iqa.analysis_model import AnalysisResult, AttributeDisplay, Roi, roi_statistics
+from pixelscope_enterprise.iqa.analysis_model import (
+    AnalysisResult,
+    AttributeDisplay,
+    Roi,
+    roi_statistics,
+)
 from pixelscope_enterprise.iqa.visual_export import ExportScope, export_folder, write_visual_pngs
 
 
