@@ -189,17 +189,18 @@ def render_third_party_notices(
 
 
 def write_third_party_notices(
-    destination: Path | None = None, *,
+    destination: Path | None = None,
+    *,
     descriptor: PackageTargetDescriptor | None = None,
 ) -> Path:
     output = (
         destination or notice_path(descriptor=descriptor)
-        if descriptor is not None else destination or notice_path()
+        if descriptor is not None
+        else destination or notice_path()
     ).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     contents = (
-        render_third_party_notices(descriptor)
-        if descriptor else render_third_party_notices()
+        render_third_party_notices(descriptor) if descriptor else render_third_party_notices()
     )
     output.write_text(contents, encoding="utf-8")
     return output
@@ -211,11 +212,13 @@ def main() -> int:
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
-        if args.target_descriptor is not None else None
+        if args.target_descriptor is not None
+        else None
     )
     output = (
         write_third_party_notices(descriptor=descriptor)
-        if descriptor is not None else write_third_party_notices()
+        if descriptor is not None
+        else write_third_party_notices()
     )
     print(f"Third-party notices written: {output}")
     return 0
