@@ -130,6 +130,22 @@ def test_injected_synthetic_provider_runs_identical_checks_without_driver(
     assert report.result_id == "fixture-minimal"
 
 
+def test_injected_synthetic_provider_also_handles_concurrent_status_calls(
+    tmp_path: Path,
+) -> None:
+    """The adapter is not the fixture class, yet passes overlapping port calls."""
+    report = run_provider_conformance(
+        lambda root: PollingSyntheticAdapter(root),
+        workspace=tmp_path / "concurrent-adapter",
+        intent=_intent(tmp_path),
+        budget=ConformanceBudget(max_polls=4, timeout_seconds=2, interval_seconds=0),
+        overlap_calls=8,
+    )
+    assert report.overlap_calls == 8
+    assert report.terminal_state is IqaJobState.COMPLETED
+    assert report.result_id == "fixture-minimal"
+
+
 def test_bounded_conformance_fails_closed_on_never_terminal_provider(
     tmp_path: Path,
 ) -> None:
