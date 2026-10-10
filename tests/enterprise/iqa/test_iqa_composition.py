@@ -38,6 +38,7 @@ def test_injected_iqa_settings_preserve_job_and_window_geometry(
 
     def factory() -> QSettings:
         return _settings_factory(path)
+
     manager = AnalysisWindowManager(settings_factory=factory)
     window = manager.show()
     qtbot.addWidget(window)  # type: ignore[attr-defined]
@@ -61,6 +62,7 @@ def test_window_contribution_jobs_are_user_opened_and_workers_private(
     calls: list[tuple[Path | None, ...]] = []
     def factory() -> QSettings:
         return _settings_factory(tmp_path / "full-settings.ini")
+
     contribution = IqaWindowContribution(settings_factory=factory, start_job=calls.append)
     contribution.prepare(host)
     contribution.install_dock(host)
@@ -69,9 +71,7 @@ def test_window_contribution_jobs_are_user_opened_and_workers_private(
 
     actions: dict[str, QAction] = {}
 
-    def add_action(
-        menu: str, title: str, callback: object, shortcut: str | None = None
-    ) -> QAction:
+    def add_action(menu: str, title: str, callback: object, shortcut: str | None = None) -> QAction:
         assert menu in ("IQA", "View")
         action = QAction(title, host)
         action.triggered.connect(callback)  # type: ignore[attr-defined]
