@@ -101,7 +101,9 @@ def build_public_target(
     command = (
         pyinstaller_command(descriptor=descriptor)
         if descriptor is not None
-        else pyinstaller_command() if target == "core" else pyinstaller_command(target)
+        else pyinstaller_command()
+        if target == "core"
+        else pyinstaller_command(target)
     )
     subprocess.run(command, cwd=REPO_ROOT, check=True)
 
