@@ -120,10 +120,45 @@ def _tree(root: Path, sha: str) -> dict[str, tuple[str, str]]:
     return tree
 
 
-def _blob(root: Path, sha: str) -> bytes:
-    if SHA_RE.fullmatch(sha) is None:
+def _blobs(root: Path, shas: list[str]) -> dict[str, bytes]:
+    """Read Git blobs through one batch process instead of one process per file."""
+    unique = list(dict.fromkeys(shas))
+    if not unique:
+        return {}
+    if any(SHA_RE.fullmatch(sha) is None for sha in unique):
         raise HandoffError("invalid Git blob SHA")
-    return _git(root, "cat-file", "blob", sha)
+    result = subprocess.run(
+        ["git", "-C", str(root), "cat-file", "--batch"],
+        input=("\n".join(unique) + "\n").encode("ascii"),
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise HandoffError(f"git cat-file --batch failed: {detail}")
+    raw = result.stdout
+    offset = 0
+    blobs: dict[str, bytes] = {}
+    for sha in unique:
+        end = raw.find(b"\n", offset)
+        if end < 0:
+            raise HandoffError("truncated Git blob batch response")
+        header = raw[offset:end].decode("ascii", errors="replace").split(" ")
+        if len(header) != 3 or header[0] != sha or header[1] != "blob":
+            raise HandoffError(f"Git blob missing or wrong type: {sha}")
+        try:
+            size = int(header[2])
+        except ValueError as exc:
+            raise HandoffError("invalid Git blob size") from exc
+        offset = end + 1
+        blob_end = offset + size
+        if size < 0 or blob_end >= len(raw) or raw[blob_end : blob_end + 1] != b"\n":
+            raise HandoffError(f"truncated Git blob: {sha}")
+        blobs[sha] = raw[offset:blob_end]
+        offset = blob_end + 1
+    if offset != len(raw):
+        raise HandoffError("unexpected trailing Git blob data")
+    return blobs
 
 
 def _hash(content: bytes) -> str:
@@ -219,17 +254,24 @@ def _contract_revision(root: Path, main_sha: str) -> int:
     return int(match.group(1))
 
 
-def _verify_snapshot(root: Path, manifest: dict[str, Any]) -> None:
+def _verify_snapshot(
+    root: Path, manifest: dict[str, Any]
+) -> tuple[dict[str, tuple[str, str]], dict[str, bytes]]:
     tree = _tree(root, manifest["handoff_sha"])
     entries = {entry["path"]: entry for entry in manifest["imported_paths"]}
     if set(tree) != set(entries):
         raise HandoffError("approved manifest does not cover exact IQA snapshot")
+    blobs = _blobs(root, [sha for _, sha in tree.values()])
+    payloads: dict[str, bytes] = {}
     for path, (mode, blob_sha) in tree.items():
         entry = entries[path]
         if (entry["mode"], entry["git_blob_sha"]) != (mode, blob_sha):
             raise HandoffError(f"approved manifest Git blob/mode differs: {path}")
-        if _hash(_blob(root, blob_sha)) != entry["sha256"]:
+        payload = blobs[blob_sha]
+        if _hash(payload) != entry["sha256"]:
             raise HandoffError(f"approved manifest SHA-256 differs: {path}")
+        payloads[path] = payload
+    return tree, payloads
 
 
 def _validate_commits(root: Path, manifest: dict[str, Any]) -> None:
@@ -279,9 +321,10 @@ def generate(args: argparse.Namespace) -> dict[str, Any]:
         raise HandoffError("new version must differ from previous approved handoff")
     prior = {e["path"]: e for e in previous["imported_paths"]} if previous else {}
     current = _tree(root, approved)
+    blobs = _blobs(root, [sha for _, sha in current.values()])
     entries: list[dict[str, str]] = []
     for path, (mode, blob) in sorted(current.items()):
-        digest = _hash(_blob(root, blob))
+        digest = _hash(blobs[blob])
         old = prior.get(path)
         entry = {
             "path": path,
@@ -340,8 +383,7 @@ def plan_import(
     """Fail closed before writing; unrelated SUB sibling paths are never inspected."""
     _validate_manifest(manifest)
     _validate_commits(repo, manifest)
-    _verify_snapshot(repo, manifest)
-    approved_tree = _tree(repo, manifest["handoff_sha"])
+    approved_tree, approved_payloads = _verify_snapshot(repo, manifest)
     manifest_paths = {item["path"] for item in manifest["imported_paths"]}
     prior_sha = manifest.get("previous_approved_handoff_sha")
     if prior_sha is None and previous is not None:
@@ -376,9 +418,7 @@ def plan_import(
         mode, blob_sha = approved_tree[path]
         if (mode, blob_sha) != (entry["mode"], entry["git_blob_sha"]):
             raise HandoffError(f"Git tree mode/blob mismatch: {path}")
-        payload = _blob(repo, blob_sha)
-        if _hash(payload) != entry["sha256"]:
-            raise HandoffError(f"source SHA-256 mismatch: {path}")
+        payload = approved_payloads[path]
         target = _target(destination, path)
         current = _hash(target.read_bytes()) if target.exists() else None
         if current == entry["sha256"]:
