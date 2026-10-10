@@ -39,6 +39,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QShowEvent,
+    QStandardItemModel,
     QTransform,
     QWheelEvent,
 )
@@ -64,7 +65,6 @@ from PySide6.QtWidgets import (
     QRubberBand,
     QScrollArea,
     QSplitter,
-    QStandardItemModel,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
