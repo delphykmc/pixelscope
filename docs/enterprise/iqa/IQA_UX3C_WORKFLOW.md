@@ -51,6 +51,46 @@ contribution.post_job(IqaJobSnapshot(job_id, label, "completed", verified_result
 The code above illustrates call boundaries, not a functioning transport.
 It does not authorize server reads, nor does it implement a real client.
 
+## Interactive Windows UX-3C preview
+
+The existing `python -m pixelscope_enterprise.iqa.demo --rgb` intentionally
+opens **only the standalone Analysis Window**. It has no host/job interface.
+`python -m pixelscope_iqa_reference` exercises MAIN's independent Reference
+Lite UI, **not** the Enterprise job controller.
+
+To inspect the **actual Enterprise MainWindow contribution**, use the opt-in
+source-only synthetic host preview:
+
+```powershell
+$env:PYTHONPATH = "src"
+& $py -m pixelscope_enterprise.iqa.host_preview --rgb
+```
+
+The window title explicitly says SYNTHETIC. It uses the genuine MAIN
+`MainWindow`, `IqaWindowContribution` menus/Jobs dock/status button,
+real `post_job()` queued Qt delivery from a disposable Python worker and
+the real Enterprise Analysis Window. The selected MAIN paths are **ignored**:
+nothing is uploaded or analyzed. Optional `--rgb` creates local 4K synthetic
+A/B images in a temporary directory for the analysis view.
+
+1. `IQA > Open IQA Analysis` opens the empty independent Analysis Window.
+   Close or hide it before continuing.
+2. `IQA > Run IQA` creates synthetic job #1, visible via the MAIN status-bar
+   IQA Jobs button even while the Jobs dock is hidden. Its list status changes
+   `queued → running → completed` without stealing analysis-window focus.
+3. Click the status button or `View > Show IQA Jobs`, select job #1, and click
+   `View selected result`. The **same** independent Analysis Window opens
+   with public-safe synthetic attributes/maps/RGB.
+4. Run again to observe #2 `failed`, then #3 `cancelled`: these jobs never
+   enable View Result. Runs #4+ repeat completed/failed/cancelled.
+5. Hide/reopen Jobs via `View`, continue using MAIN while statuses update,
+   then close MAIN to exercise contribution shutdown.
+
+This is a manual **dev preview**, not an authorized enterprise launcher,
+actual backend provider, cancel command, production package entry point,
+or verified saved Result. MainWindow composition remains a PRIVATE SUB
+responsibility; no PUBLIC MAIN or Reference files are modified.
+
 ## Acceptance
 
 Run focused Windows Python 3.10 / PySide6 tests in a dedicated process:
