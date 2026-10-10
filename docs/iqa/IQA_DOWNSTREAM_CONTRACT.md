@@ -139,6 +139,68 @@ If real data exposes a semantic gap that the current normalized public contract 
 represent, report the requirement only. MAIN then decides whether the gap is generic
 and adds a public/synthetic regression before SUB consumes the new SHA.
 
+## Reusable provider conformance (Issue #156 / U8)
+
+PUBLIC MAIN exports the **Qt-free acceptance harness**
+`pixelscope.remote.iqa_provider_conformance.run_provider_conformance`.
+It runs exactly the same execution, concurrent-status, bounded-terminal,
+result-readiness, materialize/open/spatial/source-resolution checks for the
+public fixture and an injected synthetic or downstream provider.
+`IQA_PUBLIC_CONTRACT_REVISION` remains **1**; these are tests, not a protocol
+change. MAIN's `tests/conformance/test_iqa_provider_handoff.py` and fixture
+tests retain their own fixture-specific checks for cancellation/failure.
+
+The caller provides `factory(workspace: Path)`, an ordinary
+`IqaSubmissionIntent`, and (only for deterministic simulated providers) a
+`drive_to_terminal(provider, job_reference)` callback that drives **one step
+per bounded status poll**. For async providers, omit the driver and let
+`get_status` advance naturally. `ConformanceBudget(max_polls=12,
+timeout_seconds=5, interval_seconds=0.02)` bounds terminal polling by count
+and wall time. Once terminal is observed, **one additional status read** verifies
+stability; the total number of status reads is at most
+`overlap_calls + max_polls + 1`. Each synchronous provider method must enforce
+its own transport timeout. Optimized Python (`python -O` /
+`PYTHONOPTIMIZE`) is rejected rather than falsely certified, since the
+acceptance runner relies on diagnostic assertions.
+
+When terminal `COMPLETED` is observed, the published result reference must
+already be ready for materialization/open. A `FAILED` expectation instead
+requires `get_result_reference` to reject the job with `IqaProviderError`.
+The generic runner covers **status/results, not cancellation**: the PUBLIC
+fixture-specific `test_iqa_provider_handoff.py` keeps its cancellation checks.
+PRIVATE SUB must separately verify `can_cancel=True` semantics for its own
+authorized provider; a passing generic result does not certify cancellation.
+
+Example for a downstream-owned, **synthetic** provider (not a real SUB server):
+
+```python
+from pixelscope.remote.iqa_provider_conformance import (
+    ConformanceBudget, run_provider_conformance,
+)
+
+report = run_provider_conformance(
+    factory=my_synthetic_provider_factory,
+    workspace=tmp_path / "provider",
+    intent=public_test_intent,
+    budget=ConformanceBudget(max_polls=8, timeout_seconds=2),
+)
+assert report.result_id is not None
+```
+
+MAIN runnable proof (no Enterprise services, auth, real storage or GPU):
+
+```powershell
+& $py -m pytest -q tests/conformance/test_iqa_provider_handoff.py tests/conformance/test_iqa_provider_runner.py
+```
+
+PRIVATE SUB may call the same function with its authorized provider factory
+from its own tests, under a controlled fixture/environment. No live server or
+credential is required or permitted in routine PUBLIC MAIN CI; private smoke
+should be separately opted into PRIVATE SUB infrastructure. This helper is
+a source-level conformance interface and does **not** discover external
+providers, select an enterprise runtime, manage Qt workers, or disclose
+private internals.
+
 ## Lifecycle and resource ownership
 
 Providers remain Qt-free where practical. MAIN host contributions follow existing Qt
