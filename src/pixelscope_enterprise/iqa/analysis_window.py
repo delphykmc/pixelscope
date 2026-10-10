@@ -98,16 +98,16 @@ from pixelscope_enterprise.iqa.attribute_chart import (
 from pixelscope_enterprise.iqa.dock_lifecycle import IqaDockLifecycle
 from pixelscope_enterprise.iqa.insights import rank_top_differences
 from pixelscope_enterprise.iqa.measurement_export import write_measurements_csv
-from pixelscope_enterprise.iqa.visual_export import (
-    ExportScope,
-    export_folder,
-    write_visual_pngs,
-)
 from pixelscope_enterprise.iqa.spatial_candidates import (
     SpatialCandidate,
     find_spatial_candidates,
 )
 from pixelscope_enterprise.iqa.spatial_dock import SpatialCandidatesPanel
+from pixelscope_enterprise.iqa.visual_export import (
+    ExportScope,
+    export_folder,
+    write_visual_pngs,
+)
 
 ResultLoader = Callable[[Path], LoadedAnalysis]
 ResultSaver = Callable[[AnalysisResult, dict[str, object], Path], None]
