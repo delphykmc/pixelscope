@@ -144,8 +144,8 @@ def installer_command(
                 _ispp_define("TargetAppDir", descriptor.app_dir),
                 _ispp_define("AppIdValue", identity),
                 _ispp_define(
-                    "TargetRegistryAppId", app_id if app_id is not None
-                    else descriptor.installer_app_id,
+                    "TargetRegistryAppId",
+                    app_id if app_id is not None else descriptor.installer_app_id,
                 ),
             )
         )
@@ -184,10 +184,13 @@ def build_installer_release(
         write_third_party_notices(descriptor=descriptor)
 
     output = (
-        smoke_installer_path(descriptor=descriptor)
-        if smoke_build else installer_path(descriptor=descriptor)
-    ) if descriptor is not None else (
-        smoke_installer_path() if smoke_build else installer_path()
+        (
+            smoke_installer_path(descriptor=descriptor)
+            if smoke_build
+            else installer_path(descriptor=descriptor)
+        )
+        if descriptor is not None
+        else (smoke_installer_path() if smoke_build else installer_path())
     )
     output.unlink(missing_ok=True)
     subprocess.run(
@@ -217,7 +220,8 @@ def main() -> int:
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
-        if args.target_descriptor is not None else None
+        if args.target_descriptor is not None
+        else None
     )
     output = build_installer_release(args.iscc, descriptor=descriptor)
     print(f"PixelScope installer written: {output}")
