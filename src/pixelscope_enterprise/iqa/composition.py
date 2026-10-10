@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
@@ -57,6 +57,37 @@ class IqaJobSnapshot:
             raise ValueError("only completed IQA jobs may carry results")
 
 
+class _IqaJobDeliveryRelay(QObject):
+    """Qt-owned queued delivery endpoint; never mutate Qt widgets on workers."""
+
+    pending = Signal(object)
+
+    def __init__(self, contribution: IqaWindowContribution, parent: QMainWindow) -> None:
+        super().__init__(parent)
+        self._contribution_ref = weakref.ref(contribution)
+        self._accepting = True
+        # Forced queued delivery also prevents inline widget mutation when
+        # caller happens to be the GUI thread.
+        self.pending.connect(self._deliver, Qt.ConnectionType.QueuedConnection)
+
+    @Slot(object)
+    def _deliver(self, snapshot: object) -> None:
+        contribution = self._contribution_ref()
+        if (
+            not self._accepting
+            or contribution is None
+            or contribution._closed
+        ):
+            return
+        if isinstance(snapshot, IqaJobSnapshot):
+            contribution.publish_job(snapshot)
+
+    def stop(self) -> None:
+        """Quiesce already queued events before host widget teardown."""
+
+        self._accepting = False
+
+
 class IqaWindowContribution:
     """Explicit WindowContribution + RuntimeWindowContribution implementation.
 
@@ -87,11 +118,16 @@ class IqaWindowContribution:
         self._jobs_view_action: QAction | None = None
         self._closed = False
         self._runtime_installed = False
+        self._job_relay: _IqaJobDeliveryRelay | None = None
 
     def prepare(self, window: QMainWindow) -> None:
         if self._closed or self._host_ref is not None:
             raise RuntimeError("IQA contribution must be prepared once")
         self._host_ref = weakref.ref(window)
+        app = QApplication.instance()
+        if app is None or QThread.currentThread() != app.thread():
+            raise RuntimeError("IQA contribution must be prepared on the Qt GUI thread")
+        self._job_relay = _IqaJobDeliveryRelay(self, window)
         dock = QDockWidget("IQA Jobs", window)
         dock.setObjectName("enterpriseIqaJobsDock")
         dock.setAllowedAreas(
@@ -214,6 +250,21 @@ class IqaWindowContribution:
             raise RuntimeError("IQA host has no public source-path contract")
         self._start_job(tuple(paths()))
 
+    def post_job(self, snapshot: IqaJobSnapshot) -> None:
+        """Queue a validated snapshot from a worker; Qt delivers it on the GUI thread.
+
+        PRIVATE SUB owns transport/execution and can pass this method as the
+        publication callback. publish_job() remains GUI-thread-only for explicit
+        deterministic direct integrations and existing native tests.
+        """
+
+        if not isinstance(snapshot, IqaJobSnapshot):
+            raise TypeError("IQA publication requires a validated snapshot")
+        relay = self._job_relay
+        if self._closed or relay is None or self.jobs_list is None:
+            raise RuntimeError("IQA contribution not available")
+        relay.pending.emit(snapshot)
+
     def publish_job(self, snapshot: IqaJobSnapshot) -> None:
         """Update presentation only; never own the worker or open results."""
         if self._closed or self.jobs_list is None:
@@ -273,6 +324,8 @@ class IqaWindowContribution:
         if self._closed:
             return
         self._closed = True
+        if self._job_relay is not None:
+            self._job_relay.stop()
         self.manager.shutdown()
         if self.jobs_status_button is not None:
             self.jobs_status_button.hide()
