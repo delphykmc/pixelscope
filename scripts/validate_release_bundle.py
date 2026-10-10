@@ -97,7 +97,8 @@ def main() -> int:
     args = parser.parse_args()
     descriptor = (
         load_target_descriptor(args.target_descriptor)
-        if args.target_descriptor is not None else None
+        if args.target_descriptor is not None
+        else None
     )
     paths = validate_release_bundle(descriptor=descriptor)
     print("PixelScope production release bundle PASS")
