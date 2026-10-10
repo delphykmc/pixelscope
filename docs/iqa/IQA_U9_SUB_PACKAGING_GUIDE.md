@@ -86,6 +86,45 @@ set such as `internal_packaging/private-release.lock`; do not modify
 MAIN's `requirements/runtime.txt` or `pyproject.toml`. Verify
 `python -m pip check` plus internal version/hash/approved-index policies.
 
+**Documentation build set (required before the first PyInstaller step):**
+`scripts/build_release.py` always calls `build_user_guide()` before
+freezing any executable. That helper runs `python -m mkdocs build --strict`
+and validates the generated offline Help site. MkDocs and its theme are
+pinned in MAIN's **separate `requirements/docs.txt`**, not in
+`requirements/release.txt`. A clean release-only Python environment
+therefore cannot build the Full artifact until this tooling is provided.
+
+Prefer a **separate Docs Python environment** and set the existing
+`PIXELSCOPE_DOCS_PYTHON` selector to that interpreter before running
+`build_release.py`. From the authorized PRIVATE SUB checkout root:
+
+```powershell
+# $py is the selected Windows x64 CPython 3.10 release interpreter.
+& $py -m venv .\build\docs-venv
+if ($LASTEXITCODE -ne 0) { throw "Docs venv creation failed" }
+$docsPy = (Resolve-Path ".\build\docs-venv\Scripts\python.exe").Path
+& $docsPy -m pip install -r requirements/docs.txt
+if ($LASTEXITCODE -ne 0) { throw "Docs toolchain installation failed" }
+& $docsPy -m mkdocs --version
+if ($LASTEXITCODE -ne 0) { throw "MkDocs preflight failed" }
+$env:PIXELSCOPE_DOCS_PYTHON = $docsPy
+```
+
+The path passed as `PIXELSCOPE_DOCS_PYTHON` must resolve to an existing
+Python executable with the docs requirements installed; the build helper
+passes it directly to MkDocs. Keep this variable set **in the same
+PowerShell session** as the release build. `build/` is ignored by Git;
+this Docs venv is a build-time tool, not part of the frozen
+`dist/<app_dir>` product. The release interpreter should still install
+only its approved runtime, packaging and PRIVATE SUB dependencies.
+
+An alternative is installing `requirements/docs.txt` into `$py`
+directly (and leaving `PIXELSCOPE_DOCS_PYTHON` unset); this is
+supported but means `build_third_party_notices.py` will inventory
+**all installed distributions**, including MkDocs and docs dependencies.
+That can unnecessarily expand license/provenance review. For an
+isolated production release, prefer the separate Docs interpreter.
+
 **Notice-audit inventory:** the descriptor's optional
 `runtime_requirements` property points to an **existing repo-relative
 `.txt` file** that lists additional distributions required at runtime.
@@ -125,6 +164,18 @@ must be invoked with `&`).
 $py = (Resolve-Path ".\.venv\Scripts\python.exe").Path
 $target = "internal_packaging/pixelscope-full.json"
 if (-not (Test-Path $target)) { throw "Missing PRIVATE SUB target descriptor" }
+
+# Prerequisite: install MAIN requirements/release.txt and the approved
+# PRIVATE SUB dependency lock into $py. Verify internal pins/hash policy.
+& $py -m pip check
+if ($LASTEXITCODE -ne 0) { throw "Release dependency environment failed pip check" }
+
+# Required Docs toolchain: perform the documented separate-venv setup above
+# in this PowerShell session, or reuse that existing docs interpreter.
+$docsPy = (Resolve-Path ".\build\docs-venv\Scripts\python.exe").Path
+$env:PIXELSCOPE_DOCS_PYTHON = $docsPy
+& $docsPy -m mkdocs --version
+if ($LASTEXITCODE -ne 0) { throw "MkDocs preflight failed" }
 
 # Preflight: strictly validate descriptor paths/identity without building.
 & $py -c "from pathlib import Path; from scripts.package_target_descriptor import load_target_descriptor; print(load_target_descriptor(Path('$target')))"
