@@ -5,7 +5,14 @@ Status: implementation PR after Slice A #157 (squash-merged to Handoff at
 
 ## Semantics and provenance
 
-IQA Analysis Window > right Inspector > CHART SCOPE is always explicit:
+IQA Analysis Window > right Inspector > compact **Scope** selector
+(`Full` / `ROI · grid`) is always explicit. A per-Attribute chart column
+uses compact `Pair Δ` / `ROI Δ (grid)` headings. There is no separate
+two-line badge or verbose legend: each oriented Full bar labels its left
+and right ends **B** and **A**, while neutral or ROI bars use **−** and
+**+**. Scientific provenance remains available in the control tooltips
+and scrollable Details tab. The right chart position does not jump when
+Scope changes. **Map gain** shares the single-line Scope toolbar:
 
 - **Full pair** is the default for new sessions and all legacy saved analysis
   states. It renders unchanged full-pair producer values, quality-oriented bar
@@ -21,11 +28,12 @@ IQA Analysis Window > right Inspector > CHART SCOPE is always explicit:
   local quality winner**, even for an Attribute whose full-pair comparison
   is quality-oriented. The delegate renders ROI polarity purple/teal,
   not full-pair red/blue.
-- **First ROI selection** may automatically activate GRID-derived ROI mode
-  only when the user has not manually overridden scope for that Result.
-  Once the user explicitly selects Full pair, later Shift+drag cannot silently
-  change to GRID; manual ROI scope remains available. Clear ROI restores
-  Full pair and disables ROI selection.
+- **First ROI selection** automatically activates GRID-derived ROI mode
+  unless the user manually selected Full for the same live ROI session.
+  While the ROI remains active, subsequent Shift+drag preserves a manual
+  Full choice. **Clear ROI starts a new session**: it returns to Full,
+  disables ROI scope, and resets the manual override. The next newly drawn
+  ROI therefore automatically selects the ROI chart again.
 - The ROI is always stored and drawn independently of chart scope. Source
   swap never changes ROI coordinates, source identity, signed value or
   underlying scientific payload.
@@ -50,6 +58,27 @@ silently reinterpret historical output as GRID-derived.
 A saved `roi_grid` without a valid ROI, unknown scope, wrong override type,
 invalid range, viewport or source dimensions is rejected *before any visible
 state change*. Per-result scope is independent of other opened Results.
+
+## Hotspot Candidates View — opt-in startup and matching terminology
+
+On every new Analysis Window, the optional **Hotspot Candidates View**
+dock starts hidden, even if the previous QSettings layout had it visible.
+Its persisted dock placement/floating geometry can still be restored.
+Startup shows A/B/Map and the Attributes chart immediately; no candidate
+search is launched solely because a result is loaded.
+
+- **View > Hotspot Candidates View** (`Alt+Shift+H`): toggle the
+  candidate panel. Showing it starts (or consumes a cached) asynchronous
+  spatial search and displays a busy state while waiting.
+- **View > Show Hotspot Markers** (`Alt+H`): toggle numbered image/Map
+  overlays, separately from the panel. Turning on markers also requests a
+  lazy scan if needed, without forcing the candidates panel open.
+- With both surfaces inactive, no candidate scan runs on startup.
+  Existing cache and overlays are invalidated when the selected Attribute
+  changes, so old annotations never describe the wrong map.
+
+On a short-height screen, an initially hidden candidates panel prevents
+the image/charts from resizing unexpectedly after the first render.
 
 ## Owner Windows acceptance
 
