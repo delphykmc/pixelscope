@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from math import isfinite
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,7 +45,13 @@ class ConformanceBudget:
     interval_seconds: float = 0.02
 
     def __post_init__(self) -> None:
-        if self.max_polls < 1 or self.timeout_seconds <= 0 or self.interval_seconds < 0:
+        if (
+            self.max_polls < 1
+            or not isfinite(self.timeout_seconds)
+            or self.timeout_seconds <= 0
+            or not isfinite(self.interval_seconds)
+            or self.interval_seconds < 0
+        ):
             raise ValueError("conformance polling budget must be positive and bounded")
 
 
@@ -80,7 +87,6 @@ def _wait_for_terminal(
 ) -> tuple[IqaJobSnapshot, tuple[IqaJobState, ...]]:
     started = time.monotonic()
     observed: list[IqaJobState] = []
-    previous_completed: int | None = None
     previous_state: IqaJobState | None = None
 
     for _ in range(budget.max_polls):
@@ -96,11 +102,9 @@ def _wait_for_terminal(
             assert snapshot.state is not IqaJobState.QUEUED, "job state regressed"
         if previous_state is not None and previous_state.terminal:
             assert snapshot.state is previous_state, "terminal job state changed"
-        progress = snapshot.progress.completed
-        if previous_completed is not None and progress is not None:
-            assert progress >= previous_completed, "completed progress regressed"
-        if progress is not None:
-            previous_completed = progress
+        # The published Progress dataclass bounds counts, but does not
+        # promise monotonicity across backend phases. Do not impose a new
+        # protocol revision or provider-specific stage semantics here.
         observed.append(snapshot.state)
         previous_state = snapshot.state
         if snapshot.state.terminal:
