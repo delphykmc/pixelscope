@@ -101,9 +101,11 @@ $env:PYTHONPATH = "src"
   tests/enterprise/iqa/test_iqa_composition.py `
   tests/enterprise/iqa/test_dock_lifecycle.py
 
-# Separate Qt process to avoid unrelated native teardown interference
+# Opt-in single-process REAL MainWindow integration; skipped by normal full suite
+$env:PIXELSCOPE_RUN_IQA_REAL_HOST = "1"
 & $py -m pytest -q -W error::DeprecationWarning `
   tests/enterprise/iqa/test_iqa_composition_main_window.py
+Remove-Item Env:PIXELSCOPE_RUN_IQA_REAL_HOST -ErrorAction SilentlyContinue
 & $py -m ruff check .
 & $py -m ruff format --check .
 & $py -m mypy src
