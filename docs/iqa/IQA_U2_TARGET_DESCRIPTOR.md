@@ -97,3 +97,7 @@ These are synthetic third-target descriptor, Inno command, portable and
 manifest/bundle validation checks, not real PyInstaller/ISCC release smoke.
 The SUB owner must run full packaging on an authorized Windows host using
 a real private spec, with public MAIN/handoff/SUB exact SHA pinning.
+
+For the separate PRIVATE SUB launcher/entrypoint, pinned dependency
+installation, license-audit inventory, Inno identity and real Full release
+acceptance responsibilities, see [U9 downstream packaging guidance](IQA_U9_SUB_PACKAGING_GUIDE.md).
