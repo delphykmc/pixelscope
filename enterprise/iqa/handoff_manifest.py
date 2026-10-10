@@ -441,6 +441,30 @@ def plan_import(
     return actions
 
 
+def verify_import(
+    repo: Path,
+    destination: Path,
+    manifest: dict[str, Any],
+    previous: dict[str, Any] | None = None,
+) -> tuple[int, int]:
+    """Read-only audit that the entire approved IQA snapshot was imported.
+
+    Reuse the security-sensitive Git/tag/path/digest/old-hash preflight rather
+    than accepting a mutable branch HEAD or guessing directory deletions.
+    An unfinished import has remaining actions; a collided/tampered file
+    raises HandoffError. The caller must independently preserve SUB siblings
+    and authenticate the externally retained approval manifest.
+    """
+
+    outstanding = plan_import(repo, destination, manifest, previous)
+    if outstanding:
+        raise HandoffError(
+            f"post-import verification failed: {len(outstanding)} approved "
+            "file operations remain unapplied"
+        )
+    return len(manifest["imported_paths"]), len(manifest["removed_paths"])
+
+
 def apply_import(actions: list[tuple[str, Path, bytes | None, str]]) -> None:
     """Apply only after approval of preview; preflight must have succeeded."""
     for operation, target, payload, mode in actions:
@@ -483,10 +507,12 @@ def main() -> int:
         default="manifest-delta",
     )
     import_cmd = sub.add_parser("import", help="preflight/dry-run or explicit apply")
-    for flag in ("repo", "destination", "manifest"):
-        import_cmd.add_argument(f"--{flag}", required=True)
+    verify_cmd = sub.add_parser("verify", help="read-only approved post-import audit")
+    for command in (import_cmd, verify_cmd):
+        for flag in ("repo", "destination", "manifest"):
+            command.add_argument(f"--{flag}", required=True)
+        command.add_argument("--previous-manifest")
     import_cmd.add_argument("--apply", action="store_true")
-    import_cmd.add_argument("--previous-manifest")
     args = parser.parse_args()
     try:
         if args.command == "generate":
@@ -502,16 +528,28 @@ def main() -> int:
             args.output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
             print(f"Generated externally retained approval manifest: {args.output}")
         else:
-            manifest = _read(Path(args.manifest))
+            manifest_path = Path(args.manifest)
+            manifest = _read(manifest_path)
             previous = _read(Path(args.previous_manifest)) if args.previous_manifest else None
-            actions = plan_import(Path(args.repo), Path(args.destination), manifest, previous)
-            for action, target, _, _ in actions:
-                print(f"{action}: {target}")
-            if args.apply:
-                apply_import(actions)
-                print(f"Applied {len(actions)} approved file-scoped operations")
+            if args.command == "verify":
+                verified, removed = verify_import(
+                    Path(args.repo), Path(args.destination), manifest, previous
+                )
+                digest = _hash(manifest_path.read_bytes())
+                print(
+                    f"POST-IMPORT VERIFIED: {verified} approved IQA files; "
+                    f"{removed} explicit deletions; external manifest SHA-256 {digest}"
+                )
+                print("SUB sibling integrity and external manifest authentication remain owner gates")
             else:
-                print("DRY RUN ONLY; repeat with --apply after owner diff approval")
+                actions = plan_import(Path(args.repo), Path(args.destination), manifest, previous)
+                for action, target, _, _ in actions:
+                    print(f"{action}: {target}")
+                if args.apply:
+                    apply_import(actions)
+                    print(f"Applied {len(actions)} approved file-scoped operations")
+                else:
+                    print("DRY RUN ONLY; repeat with --apply after owner diff approval")
     except (HandoffError, OSError, ValueError, KeyError, TypeError) as exc:
         parser.error(str(exc))
     return 0
