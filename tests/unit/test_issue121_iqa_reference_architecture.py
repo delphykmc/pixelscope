@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import ast
+import os
+import re
+import subprocess
 from pathlib import Path
+
+import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_ROOT = REPOSITORY_ROOT / "src"
@@ -190,15 +195,123 @@ def test_historical_p5_runtime_files_are_retired_from_main_source() -> None:
     assert not (SOURCE_ROOT / "pixelscope" / "workers" / "iqa_thread_pool.py").exists()
 
 
-def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
-    reserved = (
-        "src/pixelscope_enterprise",
-        "tests/enterprise",
-        "docs/enterprise",
-        "enterprise",
+_PUBLIC_MAIN_SHA_ENV = "PIXELSCOPE_PUBLIC_MAIN_SHA"
+_RESERVED_SUB_ROOTS = (
+    "src/pixelscope_enterprise",
+    "tests/enterprise",
+    "docs/enterprise",
+    "enterprise",
+)
+_COMMIT_SHA = re.compile(r"[0-9a-fA-F]{40}\\Z")
+
+
+def _git_output(root: Path, *args: str) -> bytes:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise AssertionError(f"Git is required for the MAIN ownership guard: {exc}") from exc
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise AssertionError(
+            f"MAIN ownership guard could not run git {args[0]}: {detail}"
+        )
+    return result.stdout
+
+
+def _assert_main_git_tree_has_no_reserved_paths(root: Path, ref: str) -> None:
+    # A downstream checkout may track the reserved paths in its own HEAD.
+    # Only the selected PUBLIC MAIN commit is authoritative for MAIN ownership.
+    if ref != "HEAD" and _COMMIT_SHA.fullmatch(ref) is None:
+        raise AssertionError(
+            f"{_PUBLIC_MAIN_SHA_ENV} must be an exact 40-character PUBLIC MAIN commit SHA"
+        )
+    toplevel = Path(
+        _git_output(root, "rev-parse", "--show-toplevel").decode("utf-8").strip()
+    ).resolve()
+    assert toplevel == root.resolve(), "MAIN ownership guard requires the repository root"
+    resolved = _git_output(root, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
+    if ref != "HEAD":
+        assert resolved.lower() == ref.lower(), "PUBLIC MAIN SHA did not resolve exactly"
+        # The consuming checkout must descend from the pinned merged MAIN commit.
+        _git_output(root, "merge-base", "--is-ancestor", resolved, "HEAD")
+
+    tree = _git_output(root, "ls-tree", "-r", "-z", "--name-only", "--full-tree", resolved)
+    tracked = (os.fsdecode(path) for path in tree.split(b"\\x00") if path)
+    violations = sorted(
+        path
+        for path in tracked
+        if any(path == reserved or path.startswith(f"{reserved}/") for reserved in _RESERVED_SUB_ROOTS)
     )
-    existing = [path for path in reserved if (REPOSITORY_ROOT / path).exists()]
-    assert existing == []
+    assert not violations, (
+        f"PUBLIC MAIN commit {resolved} tracks SUB-reserved paths: {violations}. "
+        "Check the PUBLIC MAIN tree, not downstream-imported working-tree files."
+    )
+
+
+def test_enterprise_reserved_paths_are_not_owned_by_main() -> None:
+    # PUBLIC MAIN checks HEAD; a PRIVATE SUB checkout pins the exact merged
+    # PUBLIC MAIN SHA via this environment variable (no --deselect needed).
+    pinned = os.environ.get(_PUBLIC_MAIN_SHA_ENV)
+    if pinned is not None:
+        assert _COMMIT_SHA.fullmatch(pinned), (
+            f"{_PUBLIC_MAIN_SHA_ENV} must be the exact 40-character merged PUBLIC MAIN SHA"
+        )
+    _assert_main_git_tree_has_no_reserved_paths(REPOSITORY_ROOT, pinned or "HEAD")
+
+
+def _issue156_commit_fixture(root: Path, relative_path: str) -> str:
+    path = root / relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("fixture\\n", encoding="utf-8")
+    _git_output(root, "add", "--", relative_path)
+    _git_output(
+        root, "-c", "user.name=PixelScope Test", "-c", "user.email=test@example.invalid",
+        "commit", "-qm", "test MAIN ownership tree",
+    )
+    return _git_output(root, "rev-parse", "HEAD").decode("ascii").strip()
+
+
+def test_issue156_guard_uses_pinned_main_tree_not_downstream_head(tmp_path: Path) -> None:
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git_output(root, "init", "-q")
+    public_sha = _issue156_commit_fixture(root, "src/pixelscope/core.py")
+    # A populated but untracked sibling also must not be treated as MAIN-owned.
+    sibling = root / "enterprise" / "untracked_private.py"
+    sibling.parent.mkdir()
+    sibling.write_text("private = True\\n", encoding="utf-8")
+    _assert_main_git_tree_has_no_reserved_paths(root, "HEAD")
+
+    _issue156_commit_fixture(root, "tests/enterprise/iqa/test_downstream.py")
+    _issue156_commit_fixture(root, "enterprise/other_feature/config.toml")
+    _assert_main_git_tree_has_no_reserved_paths(root, public_sha)
+    with pytest.raises(AssertionError, match="tracks SUB-reserved paths"):
+        _assert_main_git_tree_has_no_reserved_paths(root, "HEAD")
+
+
+def test_issue156_guard_rejects_main_owned_reserved_paths(tmp_path: Path) -> None:
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git_output(root, "init", "-q")
+    _issue156_commit_fixture(root, "src/pixelscope/core.py")
+    _issue156_commit_fixture(root, "docs/enterprise/iqa/private.md")
+    with pytest.raises(AssertionError, match="docs/enterprise/iqa/private.md"):
+        _assert_main_git_tree_has_no_reserved_paths(root, "HEAD")
+
+
+def test_issue156_guard_fails_closed_without_git_or_valid_pin(tmp_path: Path) -> None:
+    with pytest.raises(AssertionError, match="Git|git"):
+        _assert_main_git_tree_has_no_reserved_paths(tmp_path, "HEAD")
+    root = tmp_path / "checkout"
+    root.mkdir()
+    _git_output(root, "init", "-q")
+    _issue156_commit_fixture(root, "src/pixelscope/core.py")
+    with pytest.raises(AssertionError, match="40-character"):
+        _assert_main_git_tree_has_no_reserved_paths(root, "main")
 
 
 def test_generic_composition_lifetime_contains_no_iqa_compatibility_shim() -> None:
